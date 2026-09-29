@@ -17,12 +17,13 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import {
     type SimulationEngineInit,
     type SimulationEngineOptions,
     SimulationLayoutEngine,
 } from "../layout/SimulationLayoutEngine";
+import { SnapshotLayoutEngine, snapshotLayoutInternals } from "../layout/SnapshotLayoutEngine";
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
@@ -666,7 +667,7 @@ export class LayoutManager implements Manager {
             engine.setHoldMask(...this.holdMaskOf(this.members));
         }
 
-        if (engine instanceof SimpleLayoutEngine) {
+        if (engine instanceof StaticLayoutEngine) {
             engine.reload(event, this.dataManager.isLoading);
             return;
         }
@@ -835,6 +836,29 @@ export class LayoutManager implements Manager {
             }
 
             throw this.reportLayoutFailure(type, error, "built");
+        }
+
+        if (engine instanceof SnapshotLayoutEngine) {
+            const built = engine;
+            snapshotLayoutInternals.connect(built, {
+                progress: (progress) => {
+                    this.eventManager.emitGraphEvent("layout-progress", { layoutType: type, ...progress });
+                },
+                fail: (error) => {
+                    if (this.layoutEngine === built) {
+                        this.running = false;
+                    }
+
+                    this.reportLayoutFailure(type, error, "stepped");
+                },
+                arrived: () => {
+                    // The answer is published by the next frame's step, which runs only while the
+                    // layout does.
+                    if (this.layoutEngine === built && !this.restoring()) {
+                        this.running = true;
+                    }
+                },
+            });
         }
 
         if (!engine) {

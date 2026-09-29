@@ -1,8 +1,10 @@
+import type { F32 } from "@graphty/graph-format";
 import { bfs } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for BFS Layout
@@ -52,11 +54,13 @@ type BfsLayoutOpts = Partial<BfsLayoutConfigType>;
 /**
  * BFS (Breadth-First Search) layout engine for tree-like graph visualization
  */
-export class BfsLayout extends SimpleLayoutEngine {
+export class BfsLayout extends SnapshotLayoutEngine {
     static type = "bfs";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = bfsLayoutOptionsSchema;
-    scalingFactor = 20;
+    /** Layout units to scene units. */
+    private static readonly scale = 20;
+    protected readonly dimensions: 2 | 3;
     config: BfsLayoutConfigType;
 
     /**
@@ -66,6 +70,7 @@ export class BfsLayout extends SimpleLayoutEngine {
     constructor(opts: BfsLayoutOpts) {
         super(opts);
         this.config = BfsLayoutConfig.parse(opts);
+        this.dimensions = 2;
     }
 
     /**
@@ -84,15 +89,27 @@ export class BfsLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions using BFS traversal
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        this.result = bfs(this.graph, {
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
+     * Compute node positions using BFS traversal
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            bfs(input.graph, {
             start: this.requireRow(this.config.start, "start"),
             align: this.config.align,
             scale: this.config.scale,
             center: this.config.center ?? undefined,
-        });
+        }),
+            BfsLayout.scale,
+        );
     }
 }

@@ -44,6 +44,14 @@ holds nothing when the edges between existing nodes were swapped rather than onl
 story adds a node to a graph a static layout has already drawn (the one story that adds nodes at
 runtime, AI Control, runs the default force layout).
 
+Moving the fourteen single-pass layouts (arf, bfs, bipartite, circular, fixed, grid,
+kamada-kawai, multipartite, planar, radial, random, shell, spectral, spiral) onto the snapshot
+layout contract (`registerSnapshotLayout`) changes no story. Each engine computes the same numbers
+through the same `@graphty/layout` call and scales them by the same factor, and the published
+coordinates were compared with the previous engines' bit for bit on a twelve-node weighted graph
+with a reciprocal pair, in 2D and 3D, with `Math.random` seeded for planar and spectral: all
+sixteen cases were identical.
+
 One story is not a change: Styles/Label / Animation differs between two renders of the same
 build because its label keeps animating.
 

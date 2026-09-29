@@ -117,7 +117,9 @@ export * from "./src/config/palettes/index";
 // Layout Engine
 // =============================================================================
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
-export { LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine } from "./src/layout/LayoutEngine";
+export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
+export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 
 // =============================================================================
 // Data Sources

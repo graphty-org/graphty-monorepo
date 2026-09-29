@@ -148,6 +148,13 @@ export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 /*
+ * A SINGLE-PASS LAYOUT IS A FUNCTION, registered with `registerSnapshotLayout`: a descriptor and a
+ * `compute` from the graph-format snapshot (with the rows it may not move, an abort signal and a
+ * progress channel) to coordinates. The element's own single-pass layouts are built on the same
+ * contract, so a plugin reaches everything they do. `SimpleLayoutEngine`, the class that served
+ * this before, is deprecated in its favour and keeps working through 3.x. A LIVE SIMULATION stays
+ * a class extending `LayoutEngine`, registered with `LayoutEngine.register`.
+ *
  * `Node`, `Edge` and `NodeIdType` are published as TYPE-ONLY re-exports, which the emitter
  * erases, so a plugin's members can be typed without importing the renderer-laden root. Inside a
  * plugin's module `Node` shadows the DOM's `Node`, deliberately and normally: a second spelling
@@ -179,7 +186,16 @@ export type {
     SimpleLayoutConfigType,
     SimpleLayoutOpts,
 } from "./src/layout/LayoutEngine";
-export { LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine } from "./src/layout/LayoutEngine";
+export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
+export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
+export type {
+    SnapshotLayoutAnswer,
+    SnapshotLayoutInput,
+    SnapshotLayoutProgress,
+    SnapshotLayoutRegistration,
+} from "./src/layout/SnapshotLayoutEngine";
+export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";
 
 // ---------------------------------------------------------------------------------------------

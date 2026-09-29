@@ -55,7 +55,8 @@
  * from.
  */
 
-import { afterAll, afterEach, assert, beforeEach, describe, it } from "vitest";
+import { maskTest } from "@graphty/graph-format";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG, LAYOUT_DESCRIPTORS, layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -72,7 +73,9 @@ import {
     type NodeMask,
     type OptionDescriptor,
     type Position,
+    registerSnapshotLayout,
     SimpleLayoutEngine,
+    type SnapshotLayoutInput,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
@@ -1540,5 +1543,272 @@ describe("what a layout registration refuses", () => {
             "ngraph",
             "and a saved document naming that arrangement still means what it meant",
         );
+    });
+});
+
+/** Scene units between two neighbours on the line. */
+const LINE_GAP = 10;
+
+/**
+ * A descriptor for a test layout.
+ * @param id - the layout's key
+ * @returns the descriptor
+ */
+function lineDescriptor(id: string): AuthoredLayoutDescriptor {
+    return {
+        id,
+        plainName: "Line",
+        technicalName: "Nodes on a line",
+        description: "Puts the nodes on the x axis in row order.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 2,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: id,
+        options: [
+            {
+                name: "gap",
+                plainName: "Gap",
+                description: "Scene units between neighbours.",
+                type: "number",
+                default: LINE_GAP,
+                min: 1,
+                max: 1000,
+            },
+        ],
+    };
+}
+
+/**
+ * Nodes on the x axis, `gap` apart, in row order.
+ * @param input - the run's input
+ * @returns the coordinates
+ */
+function line(input: SnapshotLayoutInput): Float32Array<ArrayBuffer> {
+    const gap = input.options.gap as number;
+    const out = new Float32Array(input.dimensions * input.graph.nodeCount);
+    for (let row = 0; row < input.graph.nodeCount; row++) {
+        out[input.dimensions * row] = row * gap;
+    }
+
+    return out;
+}
+
+/** Every input the layouts below were snapshotInputs, newest last. */
+const snapshotInputs: SnapshotLayoutInput[] = [];
+
+/** How the deferred layout's pending answers are settled from a test. */
+const deferred: { resolve: ((positions: Float32Array<ArrayBuffer>) => void) | null } = { resolve: null };
+
+/*
+ * A SINGLE-PASS LAYOUT ON THE SNAPSHOT CONTRACT: a descriptor and a function, registered with
+ * `registerSnapshotLayout`. The element hands the function the graph as a graph-format snapshot,
+ * the options, the rows it may not move, an abort signal and a progress channel, and the function
+ * answers with coordinates. The element's own single-pass layouts are built on the same contract.
+ */
+describe("a single-pass layout registered on the snapshot contract", () => {
+    // Registered here rather than when the file loads: the suites above clear the catalogue when
+    // they finish, which would take these layouts' descriptors with it.
+    beforeAll(() => {
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-line"),
+            compute: (input) => {
+                snapshotInputs.push(input);
+                return line(input);
+            },
+        });
+
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-async"),
+            compute: async (input) => {
+                snapshotInputs.push(input);
+                input.report({ fraction: 0.5, message: "half way" });
+                await new Promise((resolve) => setTimeout(resolve, 3 * FRAME_MS));
+                return line(input);
+            },
+        });
+
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-fails"),
+            compute: async () => {
+                await new Promise((resolve) => setTimeout(resolve, FRAME_MS));
+                throw new GraphtyError({ code: "E_UNSUPPORTED", message: "cannot arrange this", source: "layout" });
+            },
+        });
+
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-deferred"),
+            compute: (input) => {
+                snapshotInputs.push(input);
+                return new Promise((resolve) => {
+                    deferred.resolve = resolve;
+                });
+            },
+        });
+    });
+
+    let container: HTMLDivElement;
+    let graph: Graph;
+
+    /**
+     * Where a node is drawn.
+     * @param id - the node's id
+     * @returns its coordinates
+     */
+    function at(id: string): { x: number; y: number; z: number } {
+        const node = graph.getNode(id);
+        if (!node) {
+            throw new Error(`the graph has no node "${id}"`);
+        }
+
+        return { ...node.getPosition() };
+    }
+
+    /**
+     * Choose a layout and wait until the element has drawn its answer.
+     * @param type - the layout's key
+     * @param opts - the consumer's options
+     */
+    async function useLayout(type: string, opts: object = {}): Promise<void> {
+        await graph.setLayout(type, opts);
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getLayoutManager();
+        await waitFor(() => (manager.layoutEngine?.isSettled ?? false) && !manager.running, `"${type}" to settle`);
+    }
+
+    beforeEach(async () => {
+        snapshotInputs.length = 0;
+        deferred.resolve = null;
+        container = document.createElement("div");
+        container.style.width = "400px";
+        container.style.height = "300px";
+        document.body.appendChild(container);
+
+        graph = new Graph(container);
+        await graph.init();
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await operationQueueOf(graph).waitForCompletion();
+        await useLayout("circular");
+    });
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    afterAll(() => {
+        clearRegisteredLayoutsForTesting();
+    });
+
+    it("is offered by the catalogue and lays the graph out with the consumer's options", async () => {
+        const offered = graph
+            .getSession()
+            .catalog.layouts()
+            .find((layout) => layout.id === "test-snapshot-line");
+        assert.isDefined(offered, "the session's catalogue offers it");
+
+        await useLayout("test-snapshot-line", { gap: 25 });
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.strictEqual(input.graph.nodeCount, NODES.length, "the layout was snapshotInputs the whole graph");
+        assert.strictEqual(input.stored.edgeCount, EDGES.length, "and the graph as stored");
+        assert.strictEqual(input.dimensions, 2);
+        for (const { id } of NODES) {
+            const row = input.graph.ids.indexOf(id);
+            assert.closeTo(at(id).x, row * 25, 1e-3, `node ${id} is where the layout put it, in scene units`);
+            assert.closeTo(at(id).y, 0, 1e-3);
+        }
+    });
+
+    it("leaves a pinned node where it is, and tells the layout which rows those are", async () => {
+        const before = at("b");
+        await graph.getSession().positions.pin(["b"]);
+
+        await useLayout("test-snapshot-line");
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        const row = input.graph.ids.indexOf("b");
+        assert.isTrue(maskTest(input.fixed.rows, row), "the pinned row is in the fixed rows");
+        assert.closeTo(input.fixed.positions[2 * row], before.x, 1e-3, "with its current coordinates");
+        assert.isFalse(maskTest(input.fixed.rows, input.graph.ids.indexOf("a")), "and nothing else is");
+        assert.deepStrictEqual(at("b"), before, "the pinned node did not move");
+        assert.closeTo(at("c").x, input.graph.ids.indexOf("c") * LINE_GAP, 1e-3, "the others did");
+    });
+
+    it("places nodes from an answer that arrives later, and reports its progress", async () => {
+        const reported: { layoutType: unknown; fraction: unknown; message: unknown }[] = [];
+        graph.addListener("layout-progress", (event) => {
+            reported.push({ layoutType: event.layoutType, fraction: event.fraction, message: event.message });
+        });
+
+        await useLayout("test-snapshot-async");
+
+        assert.deepStrictEqual(reported, [{ layoutType: "test-snapshot-async", fraction: 0.5, message: "half way" }]);
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        for (const { id } of NODES) {
+            assert.closeTo(at(id).x, input.graph.ids.indexOf(id) * LINE_GAP, 1e-3, `node ${id} is on the line`);
+        }
+    });
+
+    it("aborts an answer that is no longer wanted, and publishes nothing from it", async () => {
+        const circle = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+        await graph.setLayout("test-snapshot-deferred");
+        await operationQueueOf(graph).waitForCompletion();
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.isFalse(input.signal.aborted);
+        assert.isFalse(graph.getLayoutManager().isSettled, "the layout is unsettled while its answer is out");
+        const late = deferred.resolve;
+        assert.isNotNull(late);
+
+        await useLayout("circular");
+        assert.isTrue(input.signal.aborted, "replacing the layout aborted the answer");
+
+        late(new Float32Array(2 * NODES.length).fill(999));
+        await new Promise((resolve) => setTimeout(resolve, 5 * FRAME_MS));
+        for (const { id } of NODES) {
+            assert.deepStrictEqual(at(id), circle[id], `node ${id} is still on the circle`);
+        }
+    });
+
+    it("reports an answer that failed later with the code the layout threw, and settles", async () => {
+        const reported: Error[] = [];
+        graph.on("error", (event) => {
+            if (event.type === "error" && event.context === "layout") {
+                reported.push(event.error);
+            }
+        });
+
+        await graph.setLayout("test-snapshot-fails");
+        await operationQueueOf(graph).waitForCompletion();
+        await waitFor(() => reported.length > 0, "the failure to be reported");
+
+        assert.lengthOf(reported, 1, "reported once");
+        assert.isTrue(isGraphtyError(reported[0]) && reported[0].code === "E_UNSUPPORTED", "with the layout's own code");
+        assert.isTrue(graph.getLayoutManager().isSettled, "and the layout is no longer waiting");
+    });
+
+    it("is told which rows are new after an add, and the rest stay where they are", async () => {
+        await useLayout("test-snapshot-line");
+        const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+
+        await graph.addNodes([{ id: "f" }]);
+        await operationQueueOf(graph).waitForCompletion();
+        await waitFor(() => graph.getLayoutManager().isSettled, "the line to take in the new node");
+        at("f");
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.isNotNull(input.added, "the run was told it follows an add");
+        assert.isTrue(maskTest(input.added, input.graph.ids.indexOf("f")), "the new node's row is marked");
+        assert.isFalse(maskTest(input.added, input.graph.ids.indexOf("a")), "an existing node's is not");
+        for (const { id } of NODES) {
+            assert.deepStrictEqual(at(id), before[id], `node ${id} stayed where it was`);
+        }
     });
 });

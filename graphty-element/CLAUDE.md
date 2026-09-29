@@ -86,7 +86,7 @@ source file of the same name at the package root:
 | `.`          | `index.ts`                             | The custom element; defines the tag; pulls in Babylon.js and Lit                                                                                                       | No          |
 | `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes         |
 | `./catalog`  | `catalog.ts`                           | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types                                     | Yes         |
-| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError`                                                             | Yes         |
+| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `registerSnapshotLayout`, `DataSource`, `registerAccelerator`, `GraphtyError`                                   | Yes         |
 | `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
 | `./session`  | `session.ts`                           | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model                                                                                | Yes         |
 | `./logging`  | `logging.ts`                           | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes         |
@@ -178,9 +178,10 @@ plugin author who expected otherwise would be misled.
 
 - **Progress and cancellation.** A palette does no work over time; a camera view computes
   synchronously; a log destination's `write` is fire-and-forget. None of those has progress or
-  cancellation to be at parity about. An import cannot be cancelled and a layout reports no
-  progress, for a built-in as much as for a plugin. Only the algorithm point has both, and it has
-  them fully.
+  cancellation to be at parity about. An import cannot be cancelled and a live layout reports no
+  progress, for a built-in as much as for a plugin. The algorithm point has both fully; a
+  single-pass layout registered with `registerSnapshotLayout` has both (`report` and `signal`),
+  the same contract the element's own single-pass layouts are built on.
 - **A saved document.** A palette travels in one (`toDocument` writes the descriptor of every
   non-built-in palette its layers name), a format id and an algorithm run are recorded in one, and
   a logging configuration round-trips by name. A camera view is recorded in no saved document at

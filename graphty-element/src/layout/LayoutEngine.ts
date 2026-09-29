@@ -1091,13 +1091,29 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
 }
 
 /**
+ * The element's own reach into a static engine's run: what the snapshot layout adapter
+ * (`SnapshotLayoutEngine`) needs to hand a layout its fixed rows and to hold a run open while an
+ * asynchronous arrangement is still being computed. No entry point exports it.
+ */
+export const simpleLayoutInternals = {
+    /** Engines whose run is waiting for an asynchronous answer; see `StaticLayoutEngine.refresh`. */
+    waiting: new WeakSet<StaticLayoutEngine>(),
+} as {
+    readonly waiting: WeakSet<StaticLayoutEngine>;
+    /** The rows the run in progress keeps where they are (an add), or null. */
+    kept(engine: StaticLayoutEngine): NodeMask | null;
+    /** The element's array for the run in progress, or null for an engine driven without one. */
+    positions(engine: StaticLayoutEngine): ElementPositions | null;
+};
+
+/**
  * Base class for static layout engines: an arrangement computed in one pass whenever the graph
  * changes, rather than stepped frame by frame.
  *
  * TWO WAYS TO WRITE ONE. The element's own engines read the protected `graph` -- the
  * element's undirected graph snapshot, whose row `i` is the node whose `index` is `i` -- and assign
  * an index-based `@graphty/layout` result to the protected `result` in `doLayout`. An
- * engine written before that existed fills the id-keyed {@link SimpleLayoutEngine.positions} record
+ * engine written before that existed fills the id-keyed {@link StaticLayoutEngine.positions} record
  * instead, and still works. Either way the base class scales the answer into the element's shared
  * position array, never over a pinned row.
  *
@@ -1110,7 +1126,12 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
  * the turn (or mirror), scale and shift that best map the re-run's existing nodes onto their held
  * places.
  */
-export abstract class SimpleLayoutEngine extends LayoutEngine {
+export abstract class StaticLayoutEngine extends LayoutEngine {
+    static {
+        simpleLayoutInternals.kept = (engine) => engine.#keep;
+        simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
+    }
+
     static type: string;
     protected _nodes: Node[] = [];
     protected _edges: Edge[] = [];
@@ -1198,7 +1219,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * The graph {@link SimpleLayoutEngine.graph} was derived from, as the element stores it: directed
+     * The graph {@link StaticLayoutEngine.graph} was derived from, as the element stores it: directed
      * or not, with every edge it holds and the same node rows. For an undirected graph, or an engine
      * driven without an element, it is `graph` itself.
      *
@@ -1242,7 +1263,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * {@link SimpleLayoutEngine.rowOfId} for an option that must name a node.
+     * {@link StaticLayoutEngine.rowOfId} for an option that must name a node.
      * @param id - the node id
      * @param what - what the option names, for the message
      * @returns the row
@@ -1398,7 +1419,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * The edge half of {@link SimpleLayoutEngine.removeNode}, with the same reason.
+     * The edge half of {@link StaticLayoutEngine.removeNode}, with the same reason.
      * @param e - the edge leaving the graph
      */
     override removeEdge(e: Edge): void {
@@ -1424,7 +1445,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     /**
      * Unpin a node
      *
-     * The element's position array holds the pin; see {@link SimpleLayoutEngine.pin}.
+     * The element's position array holds the pin; see {@link StaticLayoutEngine.pin}.
      */
     protected unpin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
@@ -1457,7 +1478,14 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         return this._edges;
     }
 
-    readonly isSettled = true;
+    /**
+     * A static layout is finished the moment it exists, so this is true -- except for an arrangement
+     * that is computed asynchronously, which is unsettled until its answer has been published.
+     * @returns whether the arrangement is final
+     */
+    get isSettled(): boolean {
+        return true;
+    }
 
     /** Compute the layout: assign the protected `result` from `graph`, or fill `positions`. */
     abstract doLayout(): void;
@@ -1485,6 +1513,14 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         // doLayout() clears this itself in every engine that ships here, but an engine written
         // elsewhere may not, and leaving it set would recompute the whole layout on every read.
         this.stale = false;
+
+        // An arrangement still being computed has nothing to publish yet. The rows an add keeps and
+        // the graph it was laid out for are left for the run that publishes the answer, so that a
+        // node added meanwhile is laid out with the rest instead of being held unplaced.
+        if (this.result === null && simpleLayoutInternals.waiting.has(this)) {
+            this.#column = new Float32Array(0);
+            return;
+        }
 
         const loaded = this.#loaded as LoadedGraph | null;
         this.#column =
@@ -1612,6 +1648,17 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         };
     }
 }
+
+/**
+ * The base class a third party extended to write a layout computed in one pass.
+ *
+ * It keeps working through graphty-element 3.x, with everything a subclass reads: `_nodes`,
+ * `_edges`, `positions`, `result`, `graph`, `sourceGraph`, `scalingFactor` and `doLayout`.
+ * @deprecated Register the layout with `registerSnapshotLayout` from
+ * `@graphty/graphty-element/extend` instead: a function from the graph snapshot to coordinates,
+ * which the element's own one-pass layouts are built on, with pins, cancellation and progress.
+ */
+export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
 
 /**
  * A dimension option as the index-based layouts take it.

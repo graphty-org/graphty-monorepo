@@ -1,45 +1,30 @@
 # Custom layouts
 
-A layout decides where nodes sit. There are two kinds and you pick one by extending the matching
-base class:
+A layout decides where nodes sit. There are two kinds:
 
-- **`LayoutEngine`** -- a simulation the element steps every frame, until it reports itself
-  settled. Force-directed arrangements are this.
-- **`SimpleLayoutEngine`** -- an arrangement computed in a single pass. Circles, grids, trees and
-  spirals are this, and it is much less code.
+- **A single-pass layout** -- an arrangement computed in one go. Circles, grids, trees and
+  spirals are this. Register it with `registerSnapshotLayout`: a descriptor and a function from
+  the graph to coordinates. The element's own single-pass layouts are built exactly this way.
+- **A live simulation** -- something the element steps every frame until it reports itself
+  settled. Force-directed arrangements are this. Extend `LayoutEngine` and register the class with
+  `LayoutEngine.register(MyLayout)`.
 
-Both register with `LayoutEngine.register(MyLayout)`, and from that moment the layout is in the
-catalogue a picker reads and is chosen by the name you gave it.
+Either way, from the moment it is registered the layout is in the catalogue a picker reads and is
+chosen by its name.
 
 ## One key, not two
 
-A layout has exactly one name: `static type` on the class, and `descriptor.id` must equal it.
-Registration refuses a class where the two disagree, because the element derives one from the
+A layout has exactly one name: `descriptor.id` (and, for a class, `static type`, which must equal
+it). Registration refuses a class where the two disagree, because the element derives one from the
 other in several places and a mismatch fails silently.
 
 ## A single-pass layout
 
 ```ts
-import { LayoutEngine, type LayoutDescriptor, type Node, SimpleLayoutEngine } from "@graphty/graphty-element/extend";
+import { registerSnapshotLayout } from "@graphty/graphty-element/extend";
 
-// Declared with its members required and taken as `Partial<GridOptions>` below. A mapped type
-// carries an implicit index signature, which is what lets the base class -- whose own options
-// type is open -- accept it, and what lets `LayoutEngine.register` accept the class.
-interface GridOptions {
-    /** Multiplier the base class applies to everything `doLayout` computes. */
-    scalingFactor: number;
-    /** How many nodes to a row. */
-    columns: number;
-}
-
-class GridLayout extends SimpleLayoutEngine {
-    static override type = "acme-grid";
-
-    /** The most dimensions this layout can draw in. */
-    static override maxDimensions: 2 | 3 = 3;
-
-    /** What a picker reads, and the one place this layout's options are declared. */
-    static override descriptor: LayoutDescriptor = {
+registerSnapshotLayout({
+    descriptor: {
         id: "acme-grid",
         plainName: "Grid",
         technicalName: "Row-and-column placement",
@@ -60,56 +45,90 @@ class GridLayout extends SimpleLayoutEngine {
                 max: 100,
                 description: "How many nodes to a row.",
             },
+            {
+                name: "gap",
+                plainName: "Gap",
+                type: "number",
+                default: 50,
+                min: 1,
+                max: 1000,
+                description: "Scene units between neighbours.",
+            },
         ],
-    };
-
-    readonly #columns: number;
-
-    constructor(opts: Partial<GridOptions> = {}) {
-        super(opts);
-        this.#columns = opts.columns ?? 3;
-    }
-
-    /**
-     * Put the nodes in rows. The numbers written here are LAYOUT units; the base class
-     * multiplies them by `scalingFactor` on the way into the element's position array.
-     */
-    override doLayout(): void {
-        this.positions = {};
-
-        this._nodes.forEach((node: Node, index: number) => {
-            this.positions[node.id] = [index % this.#columns, Math.floor(index / this.#columns), 0];
-        });
-    }
-}
-
-LayoutEngine.register(GridLayout);
+    },
+    compute(input) {
+        const { graph: snapshot, dimensions, options } = input;
+        const columns = options.columns as number;
+        const gap = options.gap as number;
+        const count = snapshot.nodeCount;
+        const out = new Float32Array(dimensions * count);
+        for (let row = 0; row < count; row++) {
+            out[dimensions * row] = (row % columns) * gap;
+            out[dimensions * row + 1] = Math.floor(row / columns) * gap;
+        }
+        return out;
+    },
+});
 ```
 
-`doLayout` is the only member you have to write. Adding and removing nodes, recomputing when the
-graph changes, answering where an edge's two ends are, and publishing into the element's shared
-position array are all inherited.
+`compute` is handed the graph and answers with coordinates. Everything else -- recomputing when the
+graph changes, keeping pinned nodes still, publishing into the element's shared position array,
+drawing edges between the nodes -- is the element's.
 
-A layout that works over the whole graph, rather than over a list of nodes, reads `this.graph`
-instead: the element's graph as an undirected `GraphSnapshot` from `@graphty/graph-format`, whose
-row `i` is the node whose `index` is `i`. It assigns `this.result = { positions, dim, n }` -- `n`
-rows of `dim` layout-unit values in a `Float32Array`, NaN for a node it leaves unplaced -- which
-is exactly what the layouts of `@graphty/layout` (`circular`, `kamadaKawai`, ...) return, so one of those can be handed
-straight through. The element's own static layouts are written this way. A layout that reads
-`this.graph` also gets the element's behaviour after an add: when a reader adds nodes to a
-finished graph, the existing nodes stay where they are and only the new ones are placed, and
-`this.startPositions(dim)` offers the current coordinates as a starting point. Your `doLayout`
-arranges the whole enlarged graph, so its answer for the existing nodes can come back turned,
-mirrored or rescaled against where they are drawn; the element moves the new nodes' rows of
-`this.result` by the turn (or mirror), scale and shift that best carry your existing rows onto
-their drawn places, so a new node lands in the same frame as the ones it joins. Only an add is
-held this way: if any edge between two existing nodes was removed or rewired in the same change,
-the whole graph is arranged again.
+**The answer** is a `Float32Array` of `dimensions` numbers per node, in scene units, where row `i`
+is the node whose `index` is `i` (`input.graph.ids.idOf(i)` is its id, `input.graph.ids.indexOf(id)`
+its row).
+NaN leaves a node unplaced. Return the array directly and the nodes are placed in the same frame;
+return a promise (an `async` function, a worker, a GPU dispatch) and the layout stays unsettled
+until it resolves.
 
-`this.graph` is undirected, so a reciprocal pair (a->b and b->a) is one edge of it carrying only
-one of the two weights. A layout that needs every stored edge -- to sum the weights of a
-reciprocal pair, say -- reads `this.sourceGraph`, the graph as the element stores it, with the
-same node rows as `this.graph`.
+**What `compute` is handed** (`SnapshotLayoutInput`):
+
+| Member            | What it is                                                                                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph`           | The graph as an undirected `GraphSnapshot` from `@graphty/graph-format`: one edge per connected pair. The layouts of `@graphty/layout` take it directly. |
+| `stored`          | The same graph as the element stores it -- directed or not, every parallel and reciprocal edge, and the edge weights. Read weights here.                 |
+| `dimensions`      | 2 or 3, from the element's view mode or the consumer's `dim` option, capped at `maxDimensions`.                                                          |
+| `options`         | The consumer's options, validated and defaulted against `descriptor.options`.                                                                            |
+| `fixed`           | `rows` (a `NodeMask`) and their current `positions`: pinned nodes, nodes outside a scope, and after an add every node already drawn.                     |
+| `initial`         | Every node's current coordinates, NaN for a node nothing has placed yet.                                                                                 |
+| `added`           | After an add, the new rows (a `NodeMask`); null for a fresh arrangement.                                                                                 |
+| `scope`           | For a layout run over a set with `setLayout(id, opts, { scope })`, the rows it places; null for the whole graph.                                         |
+| `column(option)`  | The node attribute an option names as a dotted path (`"geo.lat"`), one value per row.                                                                    |
+| `dataPositions()` | Where each node's own `position` field puts it, scaled by the element's `positionScale`; NaN where a node has none.                                      |
+| `signal`          | Aborted when the answer is no longer wanted: the graph changed, the layout was replaced, or the element was disposed.                                    |
+| `report(p)`       | Tell the consumer how far you have got: `{ fraction, message? }`, emitted as the element's `layout-progress` event.                                      |
+
+Read a mask with `maskTest(mask, row)` from `@graphty/graph-format`.
+
+**Rows you cannot move stay put whatever you answer.** A pinned node, a node outside the scope and,
+after a reader adds nodes to a finished graph, every node that was already drawn is left where it
+is; `fixed` tells you which they are so that you can arrange the rest around them. After an add,
+`added` marks the newcomers and `initial` holds where everything is, which is what lets a layout
+place a newcomer among its neighbours instead of from scratch. Your answer for the kept nodes can
+come back turned, mirrored or rescaled against where they are drawn; the element carries the new
+nodes into the drawn frame by the turn (or mirror), scale and shift that best maps your kept rows
+onto their drawn places. Only an add is held this way: if any edge between two existing nodes was
+removed or rewired in the same change, the whole graph is arranged again.
+
+**A long arrangement should watch `signal`.** When the reader switches layout or the graph changes
+before you answer, the signal aborts and whatever you return afterwards is ignored.
+
+**Say whether you read edge weights** with `descriptor.honoursWeights: true`, and whether you can
+lay out a set while holding the rest with `descriptor.scoped: true`. Both default to false.
+
+A failure is reported on the element's `error` event with `context: "layout"`; throw a
+`GraphtyError` to choose its code.
+
+### Layouts written on `SimpleLayoutEngine`
+
+`SimpleLayoutEngine` -- a class with a `doLayout()` that fills `this.positions` or assigns
+`this.result` -- is deprecated in favour of `registerSnapshotLayout` and keeps working through
+graphty-element 3.x, registered with `LayoutEngine.register` as before. Moving one over is
+mechanical: the body of `doLayout` becomes `compute`, `this.graph` becomes `input.graph`,
+`this.sourceGraph` becomes `input.stored`, `this.startPositions(dim)` becomes `input.initial` when
+`input.added` is set, and the answer is returned in scene units instead of being multiplied by
+`scalingFactor`.
 
 ## A live simulation
 
@@ -397,8 +416,9 @@ implementation cannot register under `force`: the arrangement table is the eleme
 judgement about which of its own engines to prefer, which is not a judgement a third party can
 make on the element's behalf. Register your own key.
 
-**There is no progress and no cancellation** anywhere in the layout path, for a built-in or a
-plugin. A single-pass engine that takes a long time holds the frame.
+**A live simulation has no progress and no cancellation**, for a built-in or a plugin. A
+single-pass layout has both (`report` and `signal`), and one that answers with a promise does not
+hold the frame.
 
 **A saved document's `graph.layout` is inert.** Nothing reads it back yet, for a built-in layout
 or a registered one.

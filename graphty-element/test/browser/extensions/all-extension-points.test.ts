@@ -911,6 +911,7 @@ describe("every registration surface the published entry points carry", () => {
             excluded: "the class of acceleratorRegistry, internal like it",
             coveredBy: "acceleration/registry.test.ts",
         },
+        "extend.registerSnapshotLayout": { suite: "browser/extensions/layout-extension.test.ts" },
         "extend.SimpleLayoutConfig": {
             excluded: "a Zod schema: its register method is Zod's metadata registry, not the element's",
         },

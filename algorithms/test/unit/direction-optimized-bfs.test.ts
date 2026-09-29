@@ -295,6 +295,30 @@ describe("DirectionOptimizedBFS", () => {
             expect(result2.distances.get("b")).toBe(0);
             expect(result2.distances.has("a")).toBe(false);
         });
+
+        // This carried-over state is one reason the class does not delegate to
+        // indexed.directionOptimizedBfs, which starts every call from nothing.
+        it("keeps the previous search's nodes when searched again without reset", () => {
+            const csrGraph = new CSRGraph(
+                new Map([
+                    ["a", ["b"]],
+                    ["b", []],
+                    ["c", ["b"]],
+                ]),
+            );
+            const bfs = new DirectionOptimizedBFS(csrGraph);
+            bfs.search("a");
+            const again = bfs.search("c");
+
+            expect([...again.distances].sort()).toEqual([
+                ["a", 0],
+                ["b", 1],
+                ["c", 0],
+            ]);
+            expect(again.parents.get("a")).toBeNull();
+            expect(again.parents.get("b")).toBe("a");
+            expect(again.visitedCount).toBe(3);
+        });
     });
 
     describe("edge cases", () => {

@@ -3,7 +3,7 @@
  *
  * THREE SEPARATE MECHANISMS used to prevent it: the data manager dropped a repeated record before
  * the store could see it, `processPendingEdges` dropped it again for an edge whose endpoints had
- * not arrived, and `EdgeMap.set` threw on a second edge for a pair. The loss was undetectable from
+ * not arrived, and the pair index threw on a second edge for a pair. The loss was undetectable from
  * outside: `statistics().repeatedEdgeCount` is implemented and correct and was structurally pinned
  * at zero, because the repeats never reached the store that would have counted them, while the
  * number the element DID publish about the load counted records handed over and so reported them
@@ -37,6 +37,35 @@ function weightOf(graph: Graph, edgeIndex: number): number {
 }
 
 describe("the default, which is to keep both", () => {
+    test("the store ranks them, and the stats panel counts what statistics() counts", async () => {
+        const graph = await makeGraph();
+        await graph.addEdges(
+            [
+                { source: "a", target: "b" },
+                { source: "a", target: "b" },
+                { source: "b", target: "a" },
+                // An endpoint that has not arrived: in the graph, with no render object yet.
+                { source: "c", target: "later" },
+            ],
+            { skipQueue: true },
+        );
+
+        const data = graph.getDataManager();
+        const [first, second] = data.getEdgesBetween("a", "b");
+        assert.deepStrictEqual([first.parallelRank, first.parallelCount], [0, 2]);
+        assert.deepStrictEqual([second.parallelRank, second.parallelCount], [1, 2]);
+        const [mirror] = data.getEdgesBetween("b", "a");
+        assert.deepStrictEqual([mirror.parallelRank, mirror.parallelCount], [0, 1], "the mirror is its own pair");
+
+        graph.getUpdateManager().update();
+        const statistics = graph.getSession().data.statistics();
+        const stats = graph.getStatsManager().getStats();
+        assert.strictEqual(stats.numEdges, statistics.edgeCount);
+        assert.strictEqual(stats.numEdges, 4, "the pending edge is counted");
+        assert.strictEqual(stats.numNodes, statistics.nodeCount);
+        graph.dispose();
+    });
+
     test("two records for one ordered pair become two edges with two ids", async () => {
         const graph = await makeGraph();
         await graph.addEdges(

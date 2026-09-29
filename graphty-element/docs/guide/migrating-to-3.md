@@ -235,3 +235,26 @@ element.on("data-added", (e) => {
     if (e.cause !== undefined && e.cause !== "command") return; /* ... */
 });
 ```
+
+## Edge pairs are answered by the graph store
+
+`DataManager.edgeCache` and the `EdgeMap` class are removed. Ask the data manager for the edges of
+an ordered pair; the answer comes from the graph store and lists every parallel edge, oldest first.
+
+```typescript
+// 2.x: dataManager.edgeCache.get("a", "b");
+dataManager.getEdgesBetween("a", "b");
+```
+
+`DataManager.getStats()` now reports the store's node and edge counts, the same numbers as
+`statistics()`, so a pending edge and an endpoint no record declared are counted.
+
+## Static layouts run on @graphty/layout 2.0
+
+The static layout engines read the graph snapshot through `@graphty/layout` 2.0. Positions are
+32-bit floats, so a seeded chaotic layout (ARF, 3D Kamada-Kawai) can end in a different drawing of
+the same graph. After a reader adds to a finished graph, a static layout places only the new
+nodes and keeps every existing one where it was.
+
+CSV, JSON, GEXF and GraphML files are read through `@graphty/graph-io`: JSON keys with null values
+are dropped, mixed-type CSV columns widen to text, and CSV node ids stay text.

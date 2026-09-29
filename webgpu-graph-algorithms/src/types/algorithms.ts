@@ -6,7 +6,7 @@
  * Types only: this file imports nothing at runtime.
  *
  * The CPU counterparts, in `@graphty/algorithms`' `indexed/accelerator.ts` since the seam landed:
- * `PageRankOptions` here is `IndexedPageRankOptions` there (`{ dampingFactor?, maxIterations?, tolerance?,
+ * `PageRankOptions` here is `PageRankOptionsLike` there (`{ dampingFactor?, maxIterations?, tolerance?,
  * weighted? }`); `HitsOptions`, `EigenvectorOptions` and `KatzOptions` here all correspond to the ONE
  * `HitsOptionsLike` there (`{ maxIterations?, tolerance?, weighted? }`), which is why every one of them carries
  * those three members and `KatzOptions` adds `alpha` / `beta` on top; `ComponentsOptions` has no CPU counterpart at
@@ -46,7 +46,7 @@ export interface GpuLabelResult {
     groups(): U32[];
 }
 
-/** The CPU seam's IndexedPageRankOptions, member for member (M8a Task M8a-T8; graph-format design 14.2 :3892). */
+/** The CPU seam's PageRankOptionsLike, member for member (M8a Task M8a-T8; graph-format design 14.2 :3892). */
 export interface PageRankOptions {
     readonly dampingFactor?: number | undefined;
     readonly maxIterations?: number | undefined;

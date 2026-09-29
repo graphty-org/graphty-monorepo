@@ -22,6 +22,7 @@ import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../da
 import type { ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../../data/report";
+import { readSeedPosition } from "../../data/seedPosition";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
 import type { NodeIdType } from "../../Node";
@@ -43,56 +44,19 @@ import type { DirectionOutcome, GraphWriter } from "./graphOps";
  * @param id - the extracted id
  * @returns true when graph-format will accept it
  */
-function isStorableId(id: unknown): id is string | number {
+export function isStorableId(id: unknown): id is string | number {
     return typeof id === "string" || (typeof id === "number" && Number.isFinite(id));
 }
 
 /**
- * The file-unit coordinate a record carries, in the two shapes the element's own data has always
- * used, or null when it carries none.
- *
- * `{ x, y, z? }` is what `FixedLayoutEngine` reads off `node.data` today
- * (`src/layout/FixedLayoutEngine.ts`), and `[x, y]` / `[x, y, z]` is the array form the importers
- * produce. A missing z is 0, not NaN: a 2D record IS placed, on the z = 0 plane, and NaN is
- * reserved for "no layout has run".
- *
- * Anything non-finite makes the WHOLE record unseeded rather than partly seeded. A row stored with
- * one NaN component reports itself PLACED (`ElementPositions.isPlaced` tests x), so a layout would
- * never repair it and the mesh would vanish; left unseeded, the node is laid out like any other.
- * @param record - the raw node record
- * @returns the file-unit triple, or null when there is nothing usable to seed
+ * Whether a weight can be STORED: the snapshot keeps its arc weights as f32, so a finite double
+ * above the f32 range (about 3.4e38) would become Infinity there, and every algorithm that needs
+ * finite weights would refuse the whole graph. Such a weight is treated like an infinite one.
+ * @param value - the candidate weight
+ * @returns true when it is a number that stays finite after the round to f32
  */
-export function readSeedPosition(record: Record<string | number, unknown>): [number, number, number] | null {
-    const { position } = record;
-    if (position === null || typeof position !== "object") {
-        return null;
-    }
-
-    let x: unknown;
-    let y: unknown;
-    let z: unknown;
-    if (Array.isArray(position)) {
-        if (position.length !== 2 && position.length !== 3) {
-            return null;
-        }
-
-        [x, y] = position;
-        z = position.length === 3 ? position[2] : 0;
-    } else {
-        const vector = position as { x?: unknown; y?: unknown; z?: unknown };
-        ({ x, y } = vector);
-        z = vector.z ?? 0;
-    }
-
-    if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") {
-        return null;
-    }
-
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-        return null;
-    }
-
-    return [x, y, z];
+function isStorableWeight(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(Math.fround(value));
 }
 
 /**
@@ -111,12 +75,12 @@ export function resolveEdgeWeight(
     path: string | null,
 ): { weight: number; source: "path" | "legacy" | "default" } {
     const fromPath = path === null ? undefined : record[path];
-    if (typeof fromPath === "number" && Number.isFinite(fromPath)) {
+    if (isStorableWeight(fromPath)) {
         return { weight: fromPath, source: "path" };
     }
 
     const legacy = record.value;
-    if (typeof legacy === "number" && Number.isFinite(legacy)) {
+    if (isStorableWeight(legacy)) {
         return { weight: legacy, source: "legacy" };
     }
 
@@ -260,6 +224,14 @@ export class Ingest<K extends KnownEdge> {
 
     /** The tally the load in progress is counting into, or null outside a load. */
     private loadTally: ImportTally | null = null;
+
+    /**
+     * Whether a load from a data source is still streaming records in.
+     * @returns true between a load's first chunk and its end
+     */
+    get loading(): boolean {
+        return this.loadTally !== null;
+    }
 
     /**
      * Start with no records seen and no report.

@@ -3,12 +3,14 @@ import assert from "node:assert";
 import { fromEdgeArrays, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 
-import { fruchtermanReingoldLayout } from "../../src/layouts/force-directed/fruchterman-reingold";
 import { FruchtermanReingoldSimulation } from "../../src/simulation/fruchterman-reingold";
 import { seedPositions } from "../../src/simulation/seed";
-import type { Edge, Graph, Node, PositionMap } from "../../src/types";
+import { goldenFile } from "../layouts/golden";
 
-/** The edge arrays of a w x h grid (index i = y * w + x), the same edge order for the snapshot and the legacy Graph. */
+// the legacy loop's outputs, recorded before layout 2.0.0 removed it
+const golden = goldenFile("simulation-fruchterman-reingold");
+
+/** The edge arrays of a w x h grid (index i = y * w + x), in the edge order the recorded legacy runs used. */
 function gridEdges(w: number, h: number): { src: number[]; dst: number[] } {
     const src: number[] = [];
     const dst: number[] = [];
@@ -36,17 +38,6 @@ function grid(w: number, h: number) {
         src: Uint32Array.from(src),
         dst: Uint32Array.from(dst),
     });
-}
-
-/** The legacy Graph of the same grid: nodes in index order, edges in the same order as gridEdges. */
-function legacyGrid(w: number, h: number): Graph {
-    const { src, dst } = gridEdges(w, h);
-    const nodes: Node[] = [];
-    for (let i = 0; i < w * h; i++) {
-        nodes.push(i);
-    }
-    const edges: Edge[] = src.map((s, e) => [s, dst[e]]);
-    return { nodes: () => nodes, edges: () => edges };
 }
 
 function seeded(s: ReturnType<typeof grid>, seed: number, dim: 2 | 3 = 2) {
@@ -159,13 +150,9 @@ describe("FruchtermanReingoldSimulation", () => {
         const n = s.nodeCount;
         for (const k of [1, 5, 20]) {
             const positions = seeded(s, 11);
-            const pos: PositionMap = {};
-            for (let i = 0; i < n; i++) {
-                pos[i] = [positions[3 * i], positions[3 * i + 1]];
-            }
-            // the legacy function rescales at the end only when `fixed` is null: one fixed node on both sides
-            // disables it, and the same node is pinned in the simulation
-            const expected = fruchtermanReingoldLayout(legacyGrid(w, h), null, pos, [0], k);
+            // the legacy function rescaled at the end only when `fixed` was null: the recorded run pinned one node,
+            // and the same node is pinned in the simulation
+            const expected = golden(`one step, k ${k}`);
             const mask = makeMask(n);
             maskSet(mask, 0, true);
             const sim = new FruchtermanReingoldSimulation({ iterations: k, fixed: mask, settleThreshold: 0 });
@@ -182,7 +169,7 @@ describe("FruchtermanReingoldSimulation", () => {
     });
 
     it("the same loop on a graph with a self-loop, a parallel edge and an isolate", () => {
-        // the CSR visits a self-loop once and a parallel edge twice per endpoint; the legacy loop sees the edge list
+        // the CSR visits a self-loop once and a parallel edge twice per endpoint; the legacy loop saw the edge list
         const src = [0, 0, 1, 1, 2];
         const dst = [1, 1, 2, 1, 0];
         const n = 5;
@@ -192,14 +179,8 @@ describe("FruchtermanReingoldSimulation", () => {
             src: Uint32Array.from(src),
             dst: Uint32Array.from(dst),
         });
-        const nodes: Node[] = [0, 1, 2, 3, 4];
-        const edges: Edge[] = src.map((a, e) => [a, dst[e]]);
         const positions = seeded(s, 5);
-        const pos: PositionMap = {};
-        for (let i = 0; i < n; i++) {
-            pos[i] = [positions[3 * i], positions[3 * i + 1]];
-        }
-        const expected = fruchtermanReingoldLayout({ nodes: () => nodes, edges: () => edges }, null, pos, [3], 7);
+        const expected = golden("self-loop, parallel edge and isolate");
         const mask = makeMask(n);
         maskSet(mask, 3, true);
         const sim = new FruchtermanReingoldSimulation({ iterations: 7, fixed: mask, settleThreshold: 0 });
@@ -221,12 +202,7 @@ describe("FruchtermanReingoldSimulation", () => {
             scene[3 * i + 1] = base[3 * i + 1] * 10 - 50;
             scene[3 * i + 2] = 7;
         }
-        const pos: PositionMap = {};
-        for (let i = 0; i < n; i++) {
-            pos[i] = [base[3 * i], base[3 * i + 1]];
-        }
-        const legacy: Graph = legacyGrid(3, 2);
-        const expected = fruchtermanReingoldLayout(legacy, 0.5, pos, [0], 6);
+        const expected = golden("k, scale and center");
         const mask = makeMask(n);
         maskSet(mask, 0, true);
         const sim = new FruchtermanReingoldSimulation({

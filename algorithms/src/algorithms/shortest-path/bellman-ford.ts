@@ -1,4 +1,7 @@
 import type { Graph } from "../../core/graph.js";
+import { bellmanFord as indexedBellmanFord } from "../../indexed/bellman-ford.js";
+import { exactArcWeights } from "../../indexed/facade.js";
+import { toSnapshotOrNull } from "../../indexed/to-snapshot.js";
 import type { NodeId, ShortestPathResult } from "../../types/index.js";
 import { reconstructPath } from "../../utils/graph-utilities.js";
 
@@ -210,6 +213,52 @@ export function bellmanFordPath(graph: Graph, source: NodeId, target: NodeId): S
  * @returns True if the graph contains a negative cycle
  */
 export function hasNegativeCycle(graph: Graph): boolean {
+    // A -Infinity weight: legacy's answer depends on where its |V| - 1 rounds stopped, so keep that walk.
+    const s = hasMinusInfinityWeight(graph) ? null : toSnapshotOrNull(graph);
+    if (s === null) {
+        return hasNegativeCycleLegacy(graph);
+    }
+
+    // One search from each node no earlier search reached, as a cycle reachable from a reached node
+    // was reachable from that search's source too.
+    const weights = exactArcWeights(s);
+    const reached = new Uint8Array(s.nodeCount);
+    for (let source = 0; source < s.nodeCount; source++) {
+        if (reached[source] === 0) {
+            const { dist, hasNegativeCycle: found } = indexedBellmanFord(s, source, { weights });
+            if (found) {
+                return true;
+            }
+            for (let v = 0; v < s.nodeCount; v++) {
+                if (dist[v] !== Infinity) {
+                    reached[v] = 1;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Whether any edge of the graph weighs -Infinity.
+ * @param graph - The graph to scan
+ * @returns True if any edge weighs -Infinity
+ */
+function hasMinusInfinityWeight(graph: Graph): boolean {
+    for (const edge of graph.edges()) {
+        if (edge.weight === -Infinity) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * The legacy check behind {@link hasNegativeCycle}, for a graph with a NaN or -Infinity weight.
+ * @param graph - The graph to check for negative cycles
+ * @returns True if the graph contains a negative cycle
+ */
+function hasNegativeCycleLegacy(graph: Graph): boolean {
     const nodes = Array.from(graph.nodes());
 
     if (nodes.length === 0) {

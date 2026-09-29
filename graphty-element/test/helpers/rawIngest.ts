@@ -8,8 +8,8 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { GraphStore } from "../../src/data/GraphStore";
+import { readSeedPosition } from "../../src/data/seedPosition";
 import type { DirectionOutcome } from "../../src/session/project/graphOps";
-import { readSeedPosition } from "../../src/session/project/ingest";
 
 /**
  * Whether graph-format stores this id.

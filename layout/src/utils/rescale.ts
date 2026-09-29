@@ -10,6 +10,14 @@ import { PositionMap } from "../types";
  * @param scale - Scale factor for positions
  * @param center - Coordinate pair around which to center the layout
  * @returns Rescaled positions dictionary
+ * @deprecated Use `rescaleInPlace(positions, dim, scale, center)`
+ * over a flat `dim`-stride array. For a plain id-keyed map, copy its rows into a `Float64Array`, rescale it and
+ * write the rows back. For the map of a layout run over a graph snapshot, `fromPositionMap(pos, snapshot.ids, dim,
+ * fill)` builds the array and `toPositionMap({ positions, dim, n }, snapshot.ids)` reads it back; both need the
+ * snapshot's `NodeIdMap`, and `fromPositionMap` builds a `Float32Array`, so values lose f64 precision.
+ * `rescaleInPlace` skips a NaN component in the mean and the distance where this function lets it spread, and it
+ * returns `dim` components per row whatever the length of `center`; `toPositionMap` also drops a row whose every
+ * component is NaN. Removed in 3.0.0.
  */
 export function rescaleLayout(
     pos: PositionMap | number[][],
@@ -18,9 +26,13 @@ export function rescaleLayout(
 ): PositionMap | number[][] {
     // Check if pos is empty
     if (Array.isArray(pos)) {
-        if (pos.length === 0) {return [];}
+        if (pos.length === 0) {
+            return [];
+        }
     } else {
-        if (Object.keys(pos).length === 0) {return {};}
+        if (Object.keys(pos).length === 0) {
+            return {};
+        }
     }
 
     // Extract position values
@@ -69,7 +81,7 @@ export function rescaleLayout(
             for (let i = 0; i < targetDim; i++) {
                 centered[i] = (i < p.length ? p[i] : 0) - (i < posCenter.length ? posCenter[i] : 0);
             }
-            (centeredPos)[node] = centered;
+            centeredPos[node] = centered;
         }
     }
 
@@ -106,7 +118,9 @@ export function rescaleLayout(
                         return center[i];
                     }
                     // Preserve NaN values (Bug #3)
-                    if (isNaN(val)) {return NaN;}
+                    if (isNaN(val)) {
+                        return NaN;
+                    }
                     return val * scaleFactor + center[i];
                 }),
             );
@@ -120,7 +134,9 @@ export function rescaleLayout(
                         return center[i];
                     }
                     // Preserve NaN values (Bug #3)
-                    if (isNaN(val)) {return NaN;}
+                    if (isNaN(val)) {
+                        return NaN;
+                    }
                     return val * scaleFactor + center[i];
                 });
             }
@@ -162,6 +178,14 @@ export function rescaleLayout(
  * @param pos - Dictionary of positions
  * @param scale - Scale factor for positions
  * @returns Dictionary of scaled positions
+ * @deprecated Use `rescaleInPlace(positions, dim, scale)`
+ * over a flat `dim`-stride array. For a plain id-keyed map, copy its rows into a `Float64Array`, rescale it and
+ * write the rows back. For the map of a layout run over a graph snapshot, `fromPositionMap(pos, snapshot.ids, dim,
+ * fill)` builds the array and `toPositionMap({ positions, dim, n }, snapshot.ids)` reads it back; both need the
+ * snapshot's `NodeIdMap`, and `fromPositionMap` builds a `Float32Array`, so values lose f64 precision.
+ * `rescaleInPlace` skips a NaN component in the mean and the distance where this function lets it spread, and it
+ * returns `dim` components per row whatever the length of `center`; `toPositionMap` also drops a row whose every
+ * component is NaN. Removed in 3.0.0.
  */
 export function rescaleLayoutDict(pos: PositionMap, scale: number = 1): PositionMap {
     if (Object.keys(pos).length === 0) {

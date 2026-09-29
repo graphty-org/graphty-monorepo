@@ -54,7 +54,8 @@ export * from "./optimized/index.js";
 
 // Index-based implementations over @graphty/graph-format snapshots (graph-format design 14.1 rule 2).
 // A NAMESPACE, not a flat re-export: indexed.pageRank, indexed.dijkstra, indexed.breadthFirstSearch,
-// indexed.connectedComponents and indexed.kruskalMST all collide by name with the legacy functions above.
+// indexed.connectedComponents, indexed.kruskalMST, indexed.DeltaPageRank and
+// indexed.PriorityDeltaPageRank all collide by name with the legacy exports above.
 export * as indexed from "./indexed/index.js";
 
 // The graph-format bridge (graph-format design 14.6 row A1).
@@ -65,6 +66,7 @@ export { toSnapshot } from "./indexed/to-snapshot.js";
 export type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    ApspCycleResultLike,
     ApspResultLike,
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
@@ -74,33 +76,118 @@ export type {
     EdgeScoresResultLike,
     HitsOptionsLike,
     HitsResultLike,
+    KatzOptionsLike,
     LabelResultLike,
     MstResultLike,
+    PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspResultLike,
 } from "./indexed/accelerator.js";
 export { accelerated } from "./indexed/accelerator.js";
-export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
+// `Indexed` prefix: @graphty/webgpu-graph-algorithms publishes a different ApspOptions.
+export type { ApspOptions as IndexedApspOptions, ApspResult as IndexedApspResult } from "./indexed/all-pairs.js";
+// `Indexed` prefix: the flat BellmanFordResult is the legacy function's.
+export type { BellmanFordResult as IndexedBellmanFordResult } from "./indexed/bellman-ford.js";
+export type {
+    BetweennessOptions,
+    EdgeBetweennessOptions,
+    EdgeScoresResult,
+    ScoresResult,
+} from "./indexed/betweenness.js";
+export type { ArcOrderOption, BfsOptions, BfsResult, DirectionOptimizedBfsOptions } from "./indexed/bfs.js";
+export type { BipartiteOptions, BipartiteResult } from "./indexed/bipartite.js";
+export type { ClosenessOptions } from "./indexed/closeness.js";
 export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
 export type { LabelResult } from "./indexed/components.js";
+export type { DegreeCentralityOptions } from "./indexed/degree.js";
+export type { DeltaPageRankComputeOptions, DeltaPageRankEngineOptions } from "./indexed/delta-pagerank.js";
+export type { DfsOptions, DfsResult } from "./indexed/dfs.js";
 export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
+// Aliased: the flat IsomorphismOptions / IsomorphismResult and BipartiteMatchingOptions /
+// BipartiteMatchingResult name the legacy matching functions' types.
+export type {
+    IsomorphismOptions as IndexedIsomorphismOptions,
+    IsomorphismResult as IndexedIsomorphismResult,
+} from "./indexed/isomorphism.js";
+export type {
+    BipartiteMatchingOptions as IndexedBipartiteMatchingOptions,
+    BipartiteMatchingResult as IndexedBipartiteMatchingResult,
+} from "./indexed/matching.js";
+// Aliased: the flat MaxFlowResult and MinCutResult name the legacy flow functions' types.
+export type {
+    BipartiteFlowNetwork as IndexedBipartiteFlowNetwork,
+    MaxFlowOptions as IndexedMaxFlowOptions,
+    MaxFlowResult as IndexedMaxFlowResult,
+    MinCutResult as IndexedMinCutResult,
+} from "./indexed/flow.js";
 // The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
 // KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
 // option types one capital letter apart in the same barrel is a trap, not a convenience.
+export type {
+    EigenvectorOptions as IndexedEigenvectorOptions,
+    EigenvectorResult as IndexedEigenvectorResult,
+} from "./indexed/eigenvector.js";
+// Unprefixed: the legacy clustering types are named LinkageMethod, MCL* and SpectralClustering*.
+export type { HierarchicalOptions, HierarchicalResult, Linkage } from "./indexed/hierarchical.js";
+// Aliased: the flat GRSBMConfig / GRSBMResult / GRSBMCluster, SynCConfig / SynCResult and
+// TeraHACConfig / TeraHACResult name the legacy research functions' types, one capital letter away.
+export type {
+    GrsbmCluster as IndexedGrsbmCluster,
+    GrsbmOptions as IndexedGrsbmOptions,
+    GrsbmResult as IndexedGrsbmResult,
+    GrsbmSplit as IndexedGrsbmSplit,
+} from "./indexed/grsbm.js";
 export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
 export type { CorenessResult } from "./indexed/k-core.js";
 export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
 export type {
+    SyncClusteringOptions as IndexedSyncClusteringOptions,
+    SyncClusteringResult as IndexedSyncClusteringResult,
+} from "./indexed/sync.js";
+export type {
+    TeraHacOptions as IndexedTeraHacOptions,
+    TeraHacResult as IndexedTeraHacResult,
+} from "./indexed/terahac.js";
+// Aliased: the flat LabelPropagationOptions / LabelPropagationResult name the legacy function's types.
+export type {
+    LabelPropagationOptions as IndexedLabelPropagationOptions,
+    LabelPropagationResult as IndexedLabelPropagationResult,
+    SynchronousLabelPropagationOptions as IndexedSynchronousLabelPropagationOptions,
+} from "./indexed/label-propagation.js";
+// Aliased: the flat LeidenOptions / LeidenResult and GirvanNewmanOptions name the legacy functions' types.
+export type {
+    GirvanNewmanOptions as IndexedGirvanNewmanOptions,
+    GirvanNewmanResult as IndexedGirvanNewmanResult,
+} from "./indexed/girvan-newman.js";
+export type { LeidenOptions as IndexedLeidenOptions, LeidenResult as IndexedLeidenResult } from "./indexed/leiden.js";
+export type {
     LouvainOptions as IndexedLouvainOptions,
     LouvainResult as IndexedLouvainResult,
 } from "./indexed/louvain.js";
-export type { MstOptions, MstResult } from "./indexed/mst.js";
+export type {
+    KargerOptions as IndexedKargerOptions,
+    StoerWagnerOptions as IndexedStoerWagnerOptions,
+} from "./indexed/min-cut.js";
+export type { MstOptions, MstResult, PrimOptions, PrimResult } from "./indexed/mst.js";
+export type { CondensationResult } from "./indexed/scc.js";
+// Aliased: the flat LinkPredictionOptions names the legacy functions' options.
+export type {
+    CandidateOptions as IndexedCandidateOptions,
+    LinkPredictionOptions as IndexedLinkPredictionOptions,
+    LinkPredictionMetrics,
+    LinkPredictionResult,
+    NodePairs,
+} from "./indexed/link-prediction.js";
+export type { MarkovOptions, MarkovResult } from "./indexed/markov.js";
+export type { ModularityOptions } from "./indexed/modularity.js";
 // Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
 export type {
     PageRankOptions as IndexedPageRankOptions,
     PageRankResult as IndexedPageRankResult,
 } from "./indexed/pagerank.js";
+export type { AstarResult, PathOptions, PathResult } from "./indexed/point-to-point.js";
+export type { LaplacianType, SpectralOptions, SpectralResult } from "./indexed/spectral.js";
 
 // Note: Configuration exports have been removed.
 // The library now automatically optimizes based on graph size.

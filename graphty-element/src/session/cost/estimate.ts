@@ -135,8 +135,8 @@ export interface CostRates {
  *
  * `test/session/cost/estimate-against-measured-runs.test.ts` times real runs against these rates.
  * They were fitted to the object-graph route; the adapters now run the snapshot functions, which are
- * 10 to 180 times faster, so 12 of that test's rows fail as too pessimistic until the rates are
- * refitted (issue #604).
+ * 10 to 300 times faster, so the algorithms that test times carry their own models
+ * (`OWN_COST_MODELS`), refitted to the snapshot.
  */
 export const DEFAULT_COST_RATES: Readonly<CostRates> = Object.freeze({
     linearElementsPerSecond: 1_000_000,
@@ -461,12 +461,23 @@ interface OwnCostModel {
  * FLOOR of what was measured across graph shapes, and each is held to a stopwatch, on its typical
  * and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
  *
- * PageRank, betweenness, closeness and eigenvector centrality were refitted on 2026-09-29, when the
- * element moved them off a freshly built `@graphty/algorithms` Graph and onto the dispatcher's CPU
- * port over the snapshot (`Algorithm.accelerated`): typed-array kernels 5x to 100x faster than the
- * Map-based code the 2026-09-23 rates were fitted on.
+ * Degree, PageRank, betweenness, closeness, eigenvector centrality and Louvain were refitted on
+ * 2026-09-29, when the element moved them off a freshly built `@graphty/algorithms` Graph and onto
+ * the snapshot (the dispatcher's CPU port, `Algorithm.accelerated`, for all but degree): typed-array
+ * code 5x to 300x faster than the Map-based code the 2026-09-23 rates were fitted on.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
+    /* One pass over the snapshot's edge list counting each end, then one result object per node.
+       Measured on 2026-09-29 on random m = 5n graphs of 25,000 to 400,000 nodes: 3.6 to 4.1 ns per
+       element of n + m up to 100,000 nodes, then about 10 ns from 200,000 up, once the result
+       objects outgrow V8's young generation and every scavenge copies them. Pinned at 11 ns,
+       1 / (90 * the linear rate): about 3x over the small graphs and 1.1x over the large ones. The
+       linear rate was fitted to the object-graph route this used to take, and read about 280x over
+       the snapshot. */
+    degree: {
+        term: () => "n + m",
+        seconds: (nodes, edges, rates) => (nodes + edges) / (90 * rates.linearElementsPerSecond),
+    },
     /* Power iteration over the snapshot, charged the whole bound: how many passes it takes nothing
        the estimate sees predicts (1 or 2 on a star, 11 on random m = 50n, 41 to 46 on random
        m = 1.2n, 71 to 95 on a path, all 100 on a grid at the schema's smallest tolerance). Measured
@@ -500,19 +511,20 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         term: () => "n(n + m)",
         seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (24 * rates.heavyPairsPerSecond),
     },
-    /* Multilevel Louvain: local-moving sweeps over the edges, then a fold, until nothing moves. It
-       takes 5 to 150 sweeps summed over its levels, stopping on its tolerance long before
-       `maxIterations` (raising the bound from 100 to 1,000 changed no measured run), so the bound is
-       not charged. Measured 173 to 2,677 ns per element of n + m across random (m = 1.2n to 50n),
-       scale-free, planted-partition, grid, path, star, tree and clique-ring graphs of 5,000 to
-       300,000 nodes, the cost per element growing with size (deeper hierarchies, more cache
-       misses): 54 to 132 ns per element per unit of log2(n + m), the most on scale-free graphs at
-       300,000 nodes. Pinned at 148 ns, 1 / (2.25 * the iterative rate). The class model charged
-       100 passes and was 13x to 190x pessimistic on the same set. */
+    /* Multilevel Louvain over the snapshot: local-moving sweeps over the edges, then a fold, until
+       nothing moves. It takes 5 to 150 sweeps summed over its levels, stopping on its tolerance long
+       before `maxIterations`, so the bound is not charged. Refitted on 2026-09-29, when the element
+       moved it off the Map-based object graph and onto the dispatcher's CPU port: measured 7.8 to
+       19.4 ns per element of n + m per unit of log2(n + m) on random (m = 1.2n to 20n), scale-free
+       and planted-partition graphs of 10,000 to 100,000 nodes, the most on random m = 5n at 50,000
+       nodes and the least on planted partitions. Pinned at 22 ns, 1 / (15 * the iterative rate):
+       1.1x to 3.2x over those graphs, and far more over the
+       grid, path, star and clique-ring shapes, where it settles in a handful of sweeps. The model
+       fitted to the object graph charged 148 ns and read 10x to 21x over the snapshot. */
     louvain: {
         term: () => "(n + m) log2(n + m)",
         seconds: (nodes, edges, rates) =>
-            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (2.25 * rates.iterativeElementsPerSecond),
+            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (15 * rates.iterativeElementsPerSecond),
     },
     /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
        (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the

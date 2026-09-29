@@ -103,9 +103,10 @@ describe("estimateCost: the synchronous answer", () => {
     });
 
     it("multiplies the work term by the rate for a linear algorithm", () => {
+        // Degree carries its own model, so the class model is read through k-core.
         const estimate = estimateCost({
-            algorithm: "degree",
-            descriptor: algorithmByKey("degree"),
+            algorithm: "k-core",
+            descriptor: algorithmByKey("k-core"),
             statistics: statistics(),
         });
 

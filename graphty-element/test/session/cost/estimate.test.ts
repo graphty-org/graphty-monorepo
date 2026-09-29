@@ -631,12 +631,13 @@ describe("estimateCost: the failure it exists to prevent", () => {
 
     it("grows with size rather than flattening, which is what a mis-fit does", () => {
         const sizes = [10000, 20000, 40000, 80000];
-        const seconds = sizes.map((nodeCount) =>
-            estimateCost({
-                algorithm: "betweenness",
-                descriptor: algorithmByKey("betweenness"),
-                statistics: statistics({ nodeCount, edgeCount: nodeCount * 5 }),
-            }).seconds,
+        const seconds = sizes.map(
+            (nodeCount) =>
+                estimateCost({
+                    algorithm: "betweenness",
+                    descriptor: algorithmByKey("betweenness"),
+                    statistics: statistics({ nodeCount, edgeCount: nodeCount * 5 }),
+                }).seconds,
         );
 
         for (let i = 1; i < seconds.length; i++) {

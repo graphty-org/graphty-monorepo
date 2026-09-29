@@ -21,7 +21,7 @@ to accept. The owner has not reviewed any of it yet.
 The other 13 stories are unchanged at their default arguments. BFS changes under some
 non-default arguments (see "Stories that did not change" in part 1).
 
-layout is a visual-review project on the integration branch (`visual-review/projects.json`, and
+layout is a visual-review project on the integration branch (`visual-review.config.json`, and
 the `layout` entry of the visual-review job in `.github/workflows/ci.yml`), but master has no
 layout baselines and no layout capture, so visual-review can never show these four changes as
 differences. The pull request that first captures layout shows every layout story as `new`, with
@@ -176,4 +176,4 @@ node visual-review/trusted/cli.mjs capture --project layout \
     --storybook <branch>/layout/storybook-static --baselines <m> --out <b>
 ```
 
-This uses the `layout` entry in `visual-review/projects.json`. `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` give the same verdict at 1000x800.
+This uses the `layout` entry in `visual-review.config.json`. `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` give the same verdict at 1000x800.

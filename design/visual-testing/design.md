@@ -155,22 +155,18 @@ for this milestone", gives the reason for each.
   as a subprocess. `npm run lint` also type-checks `trusted/` and `capture/` from their JSDoc
   (`tsc --checkJs`, not strict). The CI workflow semantics are proven only by a run of the pull
   request itself (above).
-- **Capture is at device scale factor 2, cropped to the content, as Chromatic's.** Each story and
-  mode renders in a 1200 x 900 viewport at scale 2, and the PNG is cropped to the union of the
-  story's ink: each text run's own box, each replaced element (image, SVG, canvas, form control)
-  and each element that paints something of its own (a background other than the page's, a
-  border, a shadow, an outline). A block that only lays out, such as the story root or a
-  full-width wrapper, adds nothing, so a single button is cropped to the button. Portals such as
-  tooltips and popovers are elements of the body too and count. Each box is cut to the ancestors whose overflow clips it (so rows hidden in a scroll area do not
-  stretch it; a fixed element escapes them), plus a 32 CSS-pixel margin, within the page; a taller story is captured past the viewport. A canvas
-  project (`canvas: true` in `projects.json`: graphty-element, and algorithms and layout when they
-  join) keeps the viewport: its full width, and the content's height plus the margin, never past
-  the viewport, since a larger capture can resize the Babylon canvas and clear it. results.json
-  records `scale: 2` (a file without it is read as 1), and each review record copies it into its
-  `subject`. A first version took every element's box; since the story root and full-width
-  wrappers span the page, 976 of 994 compact-mantine captures came out the full 2400 px wide
-  even for a single button, which the ink rule fixes.
-- **Determinism at scale 2, cropped (measured 2026-09-27).** Two full captures back to back of
+- **Capture is at device scale factor 2, always the whole canvas.** Each story and mode renders
+  in a 1200 x 900 viewport at scale 2, and the PNG is the full page of the story iframe: the whole
+  viewport, or everything a scroll would reach when the story is taller or wider, as the owner
+  would see it in Storybook by scrolling. It is never cropped to the content, in any project. The
+  owner's rule (2026-09-29): "ALWAYS use the whole canvas, regardless of the situation". An earlier
+  version cropped each capture to the story's ink plus a 32 CSS-pixel margin (graphty-element
+  kept the full width and was cropped in height only); a small component then sat in an image of
+  its own odd size, and the crop was replaced by the whole canvas. Playwright captures past the
+  viewport only for a story that overflows it; one that fits is shot as the viewport, so a Babylon
+  canvas is never resized for it. results.json records `scale: 2` (a file without it is read as
+  1), and each review record copies it into its `subject`.
+- **Determinism at scale 2, cropped (measured 2026-09-27, before the whole-canvas rule).** Two full captures back to back of
   each project on the development server (i9-14900KF, no baselines, so every item was also
   captured twice within each run, while other agents kept the load average between about 30 and
   80): compact-mantine, 8 workers, 828 items, 144 s and 120 s; graphty-element, 4 workers, 176
@@ -220,7 +216,7 @@ for this milestone", gives the reason for each.
   would otherwise be out of sight. Views: side by side; flash, which alternates the two images
   themselves at about 1.5 Hz, and hold Space to flash; highlight; and spotlight, the new image
   dimmed to 65/255 except around the changed pixels grown by 10 image pixels (Chromatic's focus
-  mask). The client-side crop to a background-coloured box is gone: capture crops now.
+  mask). The client-side crop to a background-coloured box is gone.
 - **No emoji font, a warning.** Capture asks fontconfig for a font holding U+1F680 and, without
   one, logs that every emoji will be captured as an empty box, and records
   `environment.emojiFont: false`. The development server has none; the pinned fonts (section 6,
@@ -457,18 +453,16 @@ that environment, so every measurement is rerun under them before a seed.
    picture, and its console output goes into `results.json`. Before that, wait for
    `document.fonts.ready`, one animation frame and `document.fonts.ready` again: a web font is
    fetched only when text first needs it, which can be after the render completed, and a capture
-   taken before it arrives draws the fallback face, a different crop, and anything placed beside
+   taken before it arrives draws the fallback face, and anything placed beside
    the text elsewhere. On pull request #409 (which bundles Inter) this alone made roughly 230 of
    994 captures differ between two runs on a loaded machine. Then wait the story's `delay`.
 5. **Settings.** Read the story's settings file; for a story with none, take `disableSnapshot`,
    `diffThreshold` and `diffIncludeAntiAliasing` from its parameters and propose a new settings
    file. A parameter that later differs from the file is proposed as a settings item.
 6. Screenshot a 1200 x 900 viewport at device scale factor 2 (as Chromatic), `caret: "hide"`,
-   `animations: "disabled"`, cropped to the story's ink (text, replaced elements and whatever
-   paints a background, border or shadow; section 1a) plus 32 CSS pixels. **Viewport only, full width** for canvas projects (graphty-element, algorithms,
-   layout; cropped only in height): a full-page capture can resize the Babylon canvas, which
-   clears it and redraws on a later frame the settle wait never saw. Other projects may extend past
-   the viewport when their content does; the two-run measurement in section 1a covers it. `animations: "disabled"` fast-forwards finite CSS and Web
+   `animations: "disabled"`, always the whole canvas: the full page of the story iframe, never
+   cropped to the content (section 1a). A story that fits the viewport is shot as the viewport;
+   one that overflows is shot to its full scroll size. `animations: "disabled"` fast-forwards finite CSS and Web
    Animations (which matches `pauseAnimationAtEnd`) and resets infinite ones. It does not touch
    timer-driven state such as Mantine Transition phases; if those flake, compact-mantine's preview
    sets Mantine's transition durations to 0 when `chromatic=true`.
@@ -542,7 +536,8 @@ Two more measurements run in parallel and never block a seed:
    the threshold the status is `unchanged` and the old baseline is kept.
 3. **Size changes.** Both images are padded to the larger width and height, anchored top-left,
    with a fixed checkerboard. The padded area counts as changed, and the item carries both sizes.
-   Since captures are cropped to their content, a story that grows or shrinks is a size change.
+   Captures are the whole canvas, so only a story that overflows the viewport, or stops or starts
+   overflowing it, changes size.
    Sizes, boxes and pixel counts are in image pixels (two per CSS pixel at scale 2); the review
    page states sizes in image pixels only, never mixing units as Chromatic's message does.
 4. **Second capture.** Every item that differs from its baseline, and every new item, is captured

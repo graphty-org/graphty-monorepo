@@ -86,7 +86,7 @@ source file of the same name at the package root:
 | `.`          | `index.ts`                             | The custom element; defines the tag; pulls in Babylon.js and Lit                                                                                                       | No          |
 | `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes         |
 | `./catalog`  | `catalog.ts`                           | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types                                     | Yes         |
-| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `registerSnapshotLayout`, `DataSource`, `registerAccelerator`, `GraphtyError`                                   | Yes         |
+| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `registerSnapshotLayout`, `DataSource`, `registerFormatWriter`, `registerAccelerator`, `GraphtyError`           | Yes         |
 | `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
 | `./session`  | `session.ts`                           | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model                                                                                | Yes         |
 | `./logging`  | `logging.ts`                           | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes         |
@@ -127,14 +127,14 @@ Six things can be brought to the element from outside. This list is the SUPPORTE
 closed: it is what a third party may build against, what the element promises not to break, and
 what every change here is measured against.
 
-| Extension point | What a third party brings                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------- |
-| Palette         | A named set of colour anchors a style layer ramps through                                                |
-| File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are |
-| Camera          | A way of deciding where the viewer is and what they are looking at                                       |
-| Layout          | An engine that decides where nodes sit, live or in a single pass                                         |
-| Algorithm       | Something computed over the graph that publishes a result                                                |
-| Logging         | A destination the element's log records are delivered to                                                 |
+| Extension point | What a third party brings                                                                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Palette         | A named set of colour anchors a style layer ramps through                                                                                                                        |
+| File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are, and a writer for it (`registerFormatWriter`), reached by `exportGraph` |
+| Camera          | A way of deciding where the viewer is and what they are looking at                                                                                                               |
+| Layout          | An engine that decides where nodes sit, live or in a single pass                                                                                                                 |
+| Algorithm       | Something computed over the graph that publishes a result                                                                                                                        |
+| Logging         | A destination the element's log records are delivered to                                                                                                                         |
 
 **The rule: an extension must be able to do everything its built-in peer can.** Whatever the
 element's own palettes, importers, cameras, layouts, algorithms and log sinks can do, a third

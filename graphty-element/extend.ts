@@ -113,6 +113,19 @@ export { DataSource } from "./src/data/DataSource";
 export type { DataLoadingError, ErrorSummary } from "./src/data/ErrorAggregator";
 export { ErrorAggregator } from "./src/data/ErrorAggregator";
 
+/**
+ * A FILE WRITER. `registerFormatWriter({ descriptor, exporter })` teaches the element to write a
+ * format: `exporter` is a graph-io `GraphExporter` (`check`, `export`, `exportToString`) and
+ * `descriptor` is the catalogue entry, with `canExport: true`. The format then appears in
+ * `session.catalog.formats()` and `exportGraph(id)` reaches it, with the same loss notes, option
+ * validation and error codes the built-in writers have. Take the writer's types from here, not
+ * from your own copy of graph-io, so the snapshot type is the one the element builds.
+ */
+export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
+export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
+export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
+
 // ---------------------------------------------------------------------------------------------
 // Camera: a named view, computed from a bounding box
 // ---------------------------------------------------------------------------------------------

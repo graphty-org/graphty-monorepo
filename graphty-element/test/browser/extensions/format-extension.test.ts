@@ -63,13 +63,18 @@ import { formatDescriptor, formatsForExtension } from "../../../catalog";
 import {
     type BaseDataSourceConfig,
     clearRegisteredFormatsForTesting,
+    clearRegisteredFormatWritersForTesting,
     DataSource,
     type DataSourceChunk,
     detectFormat,
     detectFormats,
+    type ExportCapabilities,
     type FormatDescriptor,
+    type GraphExporter,
+    type GraphSnapshot,
     GraphtyError,
     isGraphtyError,
+    registerFormatWriter,
 } from "../../../extend";
 /*
  * `Graphty` is imported as a value, not as a type, and that is load-bearing: importing the
@@ -1638,7 +1643,7 @@ describe("registering a third party's format", () => {
         assert.strictEqual(refusal.details.field, "descriptor.extensions");
     });
 
-    it("refuses a format that claims it can be written, because there is nowhere to register a writer", () => {
+    it("refuses a reader that claims canExport itself: a writer registers through registerFormatWriter", () => {
         /** A reader that would put an entry in a "Save as" menu that saves nothing. */
         class Writable extends DeclarationOnlyReader {
             static override type = "acme-writable";
@@ -1690,5 +1695,155 @@ describe("registering a third party's format", () => {
 
         assert.strictEqual(refusal.code, "E_BAD_COMMAND");
         assert.strictEqual(refusal.details.field, "detect");
+    });
+});
+
+// -------------------------------------------------------------------------------------------
+// Writing: registerFormatWriter
+// -------------------------------------------------------------------------------------------
+
+/** A five-edge list the writer tests load. */
+const EDGE_LIST = "source,target\na,b\nb,c\nc,d\nd,e\na,c\n";
+
+/**
+ * Load a document into the element and wait for the work the load queued.
+ * @param target - The element.
+ * @param format - The format.
+ * @param data - The document.
+ */
+async function loadInto(target: Graphty, format: string, data: string): Promise<void> {
+    await target.addDataFromSource(format, { data });
+    await operationQueueOf(target.graph).waitForCompletion();
+}
+
+/**
+ * A document as the one-chunk byte stream an exporter's `export` returns.
+ * @param text - The document.
+ * @returns The stream.
+ */
+function chunksOf(text: string): AsyncIterable<Uint8Array> {
+    const bytes = new TextEncoder().encode(text);
+    return {
+        [Symbol.asyncIterator]: () => {
+            let done = false;
+            return {
+                next: () => {
+                    const result: IteratorResult<Uint8Array> = done
+                        ? { done: true, value: undefined }
+                        : { done: false, value: bytes };
+                    done = true;
+                    return Promise.resolve(result);
+                },
+            };
+        },
+    };
+}
+
+
+describe("a third party's file format being written", () => {
+    afterEach(() => {
+        clearRegisteredFormatWritersForTesting();
+    });
+
+    const descriptor: FormatDescriptor = {
+        id: "edge-lines",
+        plainName: "Edge Lines",
+        extensions: [".edges-out"],
+        mimeTypes: ["text/plain"],
+        canImport: false,
+        canExport: true,
+        options: [],
+    };
+
+    const capabilities: ExportCapabilities = {
+        mixedDirection: false,
+        multiEdges: true,
+        selfLoops: true,
+        edgeIds: "none",
+        idCharset: "any",
+        dtypes: [],
+        components: false,
+        lists: false,
+        json: false,
+        defaults: false,
+        options: false,
+        hierarchy: false,
+        temporal: "none",
+        graphAttributes: false,
+        positions: false,
+        viz: false,
+    };
+
+    /**
+     * A writer a third party could ship: one "source separator target" line per edge.
+     * @param snapshot - The graph.
+     * @param options - The separator.
+     * @param options.separator - Between the two ends.
+     * @returns The document.
+     */
+    function write(snapshot: GraphSnapshot, options?: { separator?: unknown }): string {
+        const separator = typeof options?.separator === "string" ? options.separator : " ";
+        const lines: string[] = [];
+        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+            const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
+            const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
+            lines.push(`${String(source)}${separator}${String(target)}`);
+        }
+
+        return `${lines.join("\n")  }\n`;
+    }
+
+    const exporter: GraphExporter<{ separator?: unknown }> = {
+        format: "edge-lines",
+        capabilities,
+        check: (snapshot) =>
+            snapshot.nodes.names().length === 0
+                ? []
+                : [{ code: "W_EDGE_LINES_ATTRIBUTES", message: "node attributes are not written", column: null, count: null }],
+        export: (snapshot, options) => chunksOf(write(snapshot, options)),
+        exportToString: (snapshot, options) => Promise.resolve(write(snapshot, options)),
+    };
+
+    it("puts a registered writer in the catalogue and behind exportGraph", async () => {
+        registerFormatWriter({
+            descriptor,
+            exporter,
+            writerOptions: [{ name: "separator", plainName: "Separator", technicalName: "separator", type: "string" }],
+        });
+
+        await loadInto(element, "csv", EDGE_LIST);
+        const listed = element.session.catalog
+            .formats()
+            .find((format) => format.id === "edge-lines");
+        assert.strictEqual(listed?.canExport, true, "listed as writable");
+        assert.strictEqual(listed?.canImport, false, "and not as readable: nothing reads it");
+
+        const result = await element.exportGraph("edge-lines", { separator: "->" });
+        const lines = (await result.text()).trim().split("\n");
+        assert.strictEqual(lines.length, element.session.data.edges().length);
+        assert.strictEqual(lines[0], "a->b");
+        assert.deepEqual(
+            result.lossNotes.map((note) => note.code),
+            ["W_EDGE_LINES_ATTRIBUTES"],
+            "the writer's own check() is what reports its losses",
+        );
+
+        const refused = await element.exportGraph("edge-lines", { colour: "red" }).catch((caught: unknown) => caught);
+        assert.isTrue(isGraphtyError(refused));
+        assert.strictEqual((refused as GraphtyError).code, "E_UNKNOWN_OPTION", "undeclared options are refused");
+    });
+
+    it("maps a writer that throws a plain error to E_INTERNAL naming the format", async () => {
+        registerFormatWriter({
+            descriptor,
+            exporter: {
+                ...exporter,
+                exportToString: () => Promise.reject(new Error("disk on fire")),
+            },
+        });
+        await loadInto(element, "csv", EDGE_LIST);
+        const broken = await (await element.exportGraph("edge-lines")).text().catch((caught: unknown) => caught);
+        assert.strictEqual((broken as GraphtyError).code, "E_INTERNAL");
+        assert.strictEqual((broken as GraphtyError).details.format, "edge-lines");
     });
 });

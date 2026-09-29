@@ -265,9 +265,9 @@ describe("format catalogue", () => {
         assert.deepEqual(UNSERVED_FORMAT_IDS.map((entry) => entry.id), ["sif", "cx2"]);
     });
 
-    it("reports that nothing can be written yet, rather than leaving it unsaid", () => {
+    it("reports that every built-in format can be read and written", () => {
         assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canImport));
-        assert.isFalse(FORMAT_DESCRIPTORS.some((descriptor) => descriptor.canExport));
+        assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canExport));
     });
 
     it("gives every format lower-case dotted extensions and at least one media type", () => {

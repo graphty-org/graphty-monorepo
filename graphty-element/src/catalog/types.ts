@@ -655,7 +655,14 @@ export interface FormatDescriptor {
     mimeTypes: readonly string[];
     canImport: boolean;
     canExport: boolean;
+    /** The options its reader accepts. */
     options: readonly OptionDescriptor[];
+    /**
+     * The options `exportGraph` accepts for it, graph-io's common `sanitizeIds` and
+     * `onMixedDirection` included. Absent when nothing writes the format; an option not listed
+     * here is refused with `E_UNKNOWN_OPTION`.
+     */
+    writerOptions?: readonly OptionDescriptor[];
 }
 
 /** One colour palette. */

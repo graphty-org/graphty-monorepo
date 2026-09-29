@@ -544,7 +544,8 @@ is what puts the format into `catalog.formats()`, into `formatDescriptor`, into
 - a class with no `static descriptor`
 - a descriptor whose `id` differs from `static type`
 - a descriptor with no extensions or no media types
-- a descriptor with `canExport: true` -- see the deliberate limits
+- a descriptor with `canExport: true` -- a reader never claims to write; `registerFormatWriter`
+  marks the catalogue entry when a writer for the id is registered
 - a built-in format id
 
 all with `E_BAD_COMMAND` naming the field, or `E_DUPLICATE_PLUGIN` for the last.
@@ -598,9 +599,13 @@ is resolved through the configured weight path.
 
 **Deliberate limits.**
 
-- *Reading only.* `canExport` is false on all seven built-ins and there is no writer seam to
-  register into, so a plugin setting it true would be lying to a "Save as" menu. Registration
-  refuses it. Writers are a follow-on, and when one exists the same class carries it.
+- *A reader only reads.* Writing is a separate registration: `registerFormatWriter({ descriptor,
+  exporter, writerOptions })` wraps a graph-io exporter, and the catalogue shows one entry with
+  both flags when a reader and a writer share an id. All seven built-ins can be written
+  (`exportGraph`), so their descriptors say `canExport: true`. A reader's own descriptor is still
+  refused when it says `canExport: true`, because a flag on a reader with no writer behind it
+  would put the format in a "Save as" menu that then fails; see
+  `design/decisions/2026-09-29-element-export-signature.md`.
 - *Imports cannot be cancelled.* No built-in can be either, so the contract's cancellation clause
   is satisfied vacuously -- but it is an absence nobody had decided about, so it is decided here:
   no signal is threaded through `BaseDataSourceConfig` in this design, and the limit is recorded

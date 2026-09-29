@@ -556,6 +556,56 @@ for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
 }
 ```
 
+## Exporting the Graph
+
+`exportGraph(format, options?)` writes the graph in any format the catalogue lists with
+`canExport: true` -- every built-in format, and any format a writer was registered for.
+
+```typescript
+const result = await element.exportGraph("gexf");
+for (const note of result.lossNotes) {
+    console.warn(`${note.code}: ${note.message}`);
+}
+const text = await result.text(); // or iterate result.bytes for a large file
+```
+
+An export carries whatever the format can represent: every node and edge with its attributes,
+the current positions, every published algorithm result (as attributes named
+`results.<runId>.<field>`, the element's rank and percentile included) and the colour, size and
+edge width and node shape each element is drawn with. Edge weights are the weights the element
+runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
+`repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
+reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
+colours in GraphML, node attributes in an edge-list CSV -- is listed in `lossNotes`, one note per
+kind of omission, naming the column. A value an algorithm did not measure is left absent, never
+written as zero. The element's own edge ids and internal columns are not written.
+
+| Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
+| ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GEXF       | yes           | yes             | yes             |                                                                                                                                                                                      |
+| GML        | yes           | no              | yes             | node ids must be integers; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                                    |
+| DOT, Pajek | yes           | no              | yes             |                                                                                                                                                                                      |
+| GraphML    | no            | no              | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
+| JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
+| CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
+
+A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
+`-`, `@`, a tab or a carriage return, so a spreadsheet does not run an imported value as a
+formula. Numbers, and texts that are numbers such as `-2.31`, are never touched. Pass
+`{ neutraliseFormulas: false }` for a pipeline that reads the file with a CSV parser.
+
+Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
+`sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with
+`E_UNKNOWN_OPTION`, and a value outside its choices with `E_OPTION_RANGE`.
+
+A writer that cannot represent the graph under the options given refuses with `E_UNSUPPORTED`,
+and `details.sourceCode` carries graph-io's own code (`E_INVALID_ID` for an id the format cannot
+hold). Where the refusal lands depends on when graph-io finds the problem: what the writer's
+`check()` finds up front (GML's integer ids, CSV's clashing ids) rejects `exportGraph` itself;
+what it finds only while writing (GraphML's id tokens) rejects `text()` or the iteration of
+`bytes`. Handle both. A format nothing writes is `E_UNKNOWN_FORMAT`, naming the ones that can be
+written.
+
 ## Custom Data Sources
 
 Read a format the element does not ship. See [Custom File Formats](./extending/custom-data-sources) for details.

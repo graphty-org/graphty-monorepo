@@ -6,6 +6,7 @@ import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { FormatDescriptor } from "../catalog/types";
+import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { ErrorAggregator } from "./ErrorAggregator.js";
@@ -141,8 +142,8 @@ function readFormatDescriptor(type: string, value: unknown): FormatDescriptor {
     if (fields.canExport === true) {
         refuseRegistration(
             "descriptor.canExport",
-            `the format "${type}" says it can be written, and there is nowhere to register a writer: a ` +
-                '"Save as" menu built from the catalogue would offer a format nothing can save',
+            `the reader "${type}" says its format can be written; a writer is registered with ` +
+                "registerFormatWriter, which marks the catalogue entry, so a reader's descriptor keeps canExport: false",
         );
     }
 
@@ -645,9 +646,11 @@ export abstract class DataSource {
         // Published BEFORE the class is filed, so a refusal leaves neither half registered: a
         // reader loadable by name that no catalogue lists is the state this whole seam exists to
         // end, and half-succeeding here would recreate it.
+        const descriptor = readFormatDescriptor(type, cls.descriptor);
+        assertReaderAgreesWithWriter(descriptor);
         publishFormatDescriptor(
             {
-                descriptor: readFormatDescriptor(type, cls.descriptor),
+                descriptor,
                 type,
                 ...(detect === undefined ? {} : { detect }),
             },

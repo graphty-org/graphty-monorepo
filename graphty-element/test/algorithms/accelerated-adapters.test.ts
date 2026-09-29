@@ -688,16 +688,26 @@ describe("the traversal, path and tree adapters answer what the reference implem
         });
     }
 
-    it("depth-first search with recursive set stops at the target as the iterative walk does", async () => {
+    it("depth-first search with recursive set skips only the target's subtree, as the reference does", async () => {
         const graph = await graphWith(DECLARED_ORDER);
-        const iterative = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E" }));
-        const recursive = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E", recursive: true }));
+        const output = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E", recursive: true }));
 
-        assert.deepStrictEqual(recursive.nodes, iterative.nodes);
-        assert.deepStrictEqual(
-            [...valuesOf(recursive.nodes)].filter(([, value]) => value.visited === true).map(([id]) => id),
-            ["A", "D", "E"],
-        );
+        const reference = depthFirstSearch(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A", {
+            targetNode: "E",
+            recursive: true,
+        });
+
+        const values = valuesOf(output.nodes);
+        for (const id of graph.getDataManager().nodes.keys()) {
+            const position = reference.order.indexOf(id);
+            assert.deepStrictEqual(
+                values.get(id),
+                { value: position === -1 ? undefined : position, visited: reference.visited.has(id) },
+                `node ${String(id)}`,
+            );
+        }
+        // The iterative walk stops everything at E; the recursive one goes on past it.
+        assert.isAbove(reference.order.length, reference.order.indexOf("E") + 1);
     });
 
     it("a post-order depth-first walk never reads its target, so one the graph lacks is no error", async () => {

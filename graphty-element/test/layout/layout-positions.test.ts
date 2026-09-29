@@ -31,7 +31,7 @@ import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
-import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -76,8 +76,8 @@ describe("layout engines and the element-owned position array", () => {
     it("publishes every node into the array it was handed, keyed by the node's graph index", () => {
         const positions = new ElementPositions(0);
         const layout = new CircularLayout({});
-        layout.attachPositions(positions);
-        layout.addNodes([node("a", 0), node("b", 1), node("c", 2)]);
+        layoutEngineInternals.attachPositions(layout, positions);
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1), node("c", 2)]);
 
         layout.publishPositions();
 
@@ -94,12 +94,16 @@ describe("layout engines and the element-owned position array", () => {
         // from the engine's own API and lose every coordinate at the first freeze.
         const positions = new ElementPositions(0);
         const layout = new CircularLayout({});
-        layout.attachPositions(positions);
-        layout.addNodes([node("a", 0), node("b", 1)]);
+        layoutEngineInternals.attachPositions(layout, positions);
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1)]);
 
         layout.publishPositions();
 
-        assert.strictEqual(layout.nodePositions, positions, "the engine holds the array it was given");
+        assert.strictEqual(
+            layoutEngineInternals.positions(layout),
+            positions,
+            "the engine holds the array it was given",
+        );
         const out = { x: 0, y: 0, z: 0 };
         positions.read(0, out);
         const reported = layout.getNodePosition(node("a", 0));
@@ -111,12 +115,12 @@ describe("layout engines and the element-owned position array", () => {
         const positions = new ElementPositions(0);
         const circular = new CircularLayout({});
         const scripted = new ScriptedLayout();
-        circular.attachPositions(positions);
-        scripted.attachPositions(positions);
+        layoutEngineInternals.attachPositions(circular, positions);
+        layoutEngineInternals.attachPositions(scripted, positions);
 
-        circular.addNodes([node("a", 0), node("b", 1)]);
+        layoutEngineInternals.addNodes(circular, [node("a", 0), node("b", 1)]);
         scripted.scripted = { c: [3, 4, 5] };
-        scripted.addNodes([node("c", 2)]);
+        layoutEngineInternals.addNodes(scripted, [node("c", 2)]);
 
         circular.publishPositions();
         scripted.publishPositions();
@@ -131,9 +135,9 @@ describe("layout engines and the element-owned position array", () => {
         // billion rows; refused with an error it would abort a layout step in the middle.
         const positions = new ElementPositions(0);
         const layout = new CircularLayout({});
-        layout.attachPositions(positions);
+        layoutEngineInternals.attachPositions(layout, positions);
         const orphan = node("b", INVALID_INDEX);
-        layout.addNodes([node("a", 0), orphan]);
+        layoutEngineInternals.addNodes(layout, [node("a", 0), orphan]);
 
         layout.publishPositions();
 
@@ -146,13 +150,13 @@ describe("layout engines and the element-owned position array", () => {
     it("leaves a row unplaced when the coordinate cannot be stored", () => {
         const positions = new ElementPositions(0);
         const layout = new ScriptedLayout();
-        layout.attachPositions(positions);
+        layoutEngineInternals.attachPositions(layout, positions);
         layout.scripted = {
             a: [1, 2, 3],
             b: [Number.NaN, 0, 0],
             c: [1e39, 0, 0],
         };
-        layout.addNodes([node("a", 0), node("b", 1), node("c", 2)]);
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1), node("c", 2)]);
 
         layout.publishPositions();
 
@@ -165,9 +169,9 @@ describe("layout engines and the element-owned position array", () => {
         const positions = new ElementPositions(0);
         positions.grow(3);
         const layout = new ScriptedLayout();
-        layout.attachPositions(positions);
+        layoutEngineInternals.attachPositions(layout, positions);
         layout.scripted = { a: [1, 2, 3] };
-        layout.addNodes([node("a", 0)]);
+        layoutEngineInternals.addNodes(layout, [node("a", 0)]);
 
         assert.isFalse(positions.isPlaced(0), "nothing has run yet");
         layout.publishPositions();
@@ -179,10 +183,10 @@ describe("layout engines and the element-owned position array", () => {
     it("reads a placed row into an object the caller owns", () => {
         const positions = new ElementPositions(0);
         const layout = new ScriptedLayout();
-        layout.attachPositions(positions);
+        layoutEngineInternals.attachPositions(layout, positions);
         layout.scripted = { a: [1, 2, 3] };
         const a = node("a", 0);
-        layout.addNodes([a]);
+        layoutEngineInternals.addNodes(layout, [a]);
         layout.publishPositions();
 
         const out = { x: -1, y: -1, z: -1 };
@@ -199,7 +203,7 @@ describe("layout engines and the element-owned position array", () => {
         const positions = new ElementPositions(0);
         positions.grow(2);
         const layout = new ScriptedLayout();
-        layout.attachPositions(positions);
+        layoutEngineInternals.attachPositions(layout, positions);
 
         const out = { x: 7, y: 8, z: 9 };
         assert.isFalse(layout.readNodePosition(node("a", 1), out));
@@ -209,12 +213,12 @@ describe("layout engines and the element-owned position array", () => {
     it("draws an edge between the rows its endpoints render at", () => {
         const positions = new ElementPositions(0);
         const layout = new ScriptedLayout();
-        layout.attachPositions(positions);
+        layoutEngineInternals.attachPositions(layout, positions);
         const a = node("a", 0);
         const b = node("b", 1);
         layout.scripted = { a: [1, 0, 0], b: [0, 1, 0] };
-        layout.addNodes([a, b]);
-        layout.addEdges([edge(a, b)]);
+        layoutEngineInternals.addNodes(layout, [a, b]);
+        layoutEngineInternals.addEdges(layout, [edge(a, b)]);
         layout.publishPositions();
 
         const link = layout.getEdgePosition(edge(a, b));
@@ -231,23 +235,26 @@ describe("layout engines and the element-owned position array", () => {
         // element. The engine must still work, and must not reach into anything for an array.
         const layout = new ScriptedLayout();
         layout.scripted = { a: [1, 2, 3] };
-        layout.addNodes([node("a", 0)]);
+        layoutEngineInternals.addNodes(layout, [node("a", 0)]);
 
         layout.publishPositions();
 
-        assert.instanceOf(layout.nodePositions, ElementPositions);
+        assert.instanceOf(layoutEngineInternals.positions(layout), ElementPositions);
         assert.isTrue(layout.nodePositions.isPlaced(0));
+        // The public view has no writer, not even through a cast.
+        assert.notProperty(layout.nodePositions, "write");
+        assert.notProperty(layout.nodePositions, "setPinned");
     });
 
     describe("the force layouts publish on every step", () => {
         it("d3 publishes the tick it just ran", () => {
             const positions = new ElementPositions(0);
             const d3 = new D3GraphEngine();
-            d3.attachPositions(positions);
+            layoutEngineInternals.attachPositions(d3, positions);
             const a = node("a", 0);
             const b = node("b", 1);
-            d3.addNodes([a, b]);
-            d3.addEdges([edge(a, b)]);
+            layoutEngineInternals.addNodes(d3, [a, b]);
+            layoutEngineInternals.addEdges(d3, [edge(a, b)]);
 
             d3.step();
 
@@ -263,11 +270,11 @@ describe("layout engines and the element-owned position array", () => {
         it("ngraph publishes the step it just ran", () => {
             const positions = new ElementPositions(0);
             const ngraph = new NGraphEngine({ dim: 3 });
-            ngraph.attachPositions(positions);
+            layoutEngineInternals.attachPositions(ngraph, positions);
             const a = node("a", 0);
             const b = node("b", 1);
-            ngraph.addNodes([a, b]);
-            ngraph.addEdges([edge(a, b)]);
+            layoutEngineInternals.addNodes(ngraph, [a, b]);
+            layoutEngineInternals.addEdges(ngraph, [edge(a, b)]);
 
             ngraph.step();
 
@@ -285,12 +292,12 @@ describe("layout engines and the element-owned position array", () => {
             // own copy would leave the array holding the node's pre-drag coordinates for good.
             const positions = new ElementPositions(0);
             const d3 = new D3GraphEngine();
-            d3.attachPositions(positions);
+            layoutEngineInternals.attachPositions(d3, positions);
             const a = node("a", 0);
-            d3.addNodes([a]);
+            layoutEngineInternals.addNodes(d3, [a]);
             d3.step();
 
-            d3.setNodePosition(a, { x: 11, y: 22, z: 33 });
+            layoutEngineInternals.setNodePosition(d3, a, { x: 11, y: 22, z: 33 });
 
             const out = { x: 0, y: 0, z: 0 };
             assert.isTrue(d3.readNodePosition(a, out));

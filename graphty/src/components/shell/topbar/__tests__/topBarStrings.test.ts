@@ -39,6 +39,10 @@ describe("topBarStrings", () => {
             expect(redoTitle(true, false)).toBe("Redo (Shift+Ctrl+Z)");
         });
 
+        it("names what the next undo will do when the history says", () => {
+            expect(undoTitle(true, false, "Undo Ran degree")).toBe("Undo Ran degree (Ctrl+Z)");
+        });
+
         it("appends the reason when there is nothing to act on", () => {
             expect(undoTitle(false, true)).toBe("Undo (Cmd+Z). Nothing to undo yet");
             expect(redoTitle(false, true)).toBe("Redo (Shift+Cmd+Z). Nothing to redo yet");

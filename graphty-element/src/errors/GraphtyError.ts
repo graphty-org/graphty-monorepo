@@ -14,7 +14,17 @@ import { type GraphtyErrorCode, isGraphtyErrorCode } from "./codes";
  * It answers "who was doing this" without the consumer parsing a message, and it is what an
  * error panel groups on.
  */
-export type GraphtyErrorSource = "data" | "run" | "layout" | "style" | "view" | "acceleration" | "registry" | "config";
+export type GraphtyErrorSource =
+    | "data"
+    | "run"
+    | "layout"
+    | "style"
+    | "view"
+    | "acceleration"
+    | "registry"
+    | "config"
+    /** Undo, redo, transactions and the one path every change to project state takes. */
+    | "history";
 
 /**
  * The thing a failure belongs to, when it belongs to a thing rather than to the session.

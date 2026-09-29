@@ -614,6 +614,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Say that meshes were built outside a pass that moves anything, so the finished picture has
+     * to be earned again.
+     *
+     * A new mesh can bring a shader variant nothing has compiled, or a texture still loading, and
+     * a frame skips a mesh that is not ready. Most doors that build meshes also move something -- a
+     * load starts the layout, a forward dimension change frames the camera -- and that clears the
+     * finished flags on the next pass. An undo of a dimension change moves nothing, because the
+     * layout stays at rest and the camera is the reader's; nor does a skybox. Without this the
+     * last finished frame would still be called final while the new meshes are drawn as nothing:
+     * an empty canvas after undoing 2D to 3D, and the old background after setting a skybox.
+     */
+    meshesAdded(): void {
+        this.stateIsFinished = false;
+        this.drawnFrameIsFinished = false;
+    }
+
+    /**
      * What is still keeping the picture from being final, in a consumer's words.
      *
      * Written for the message a timed-out wait carries, because "the frame never settled" on its
@@ -957,6 +974,19 @@ export class UpdateManager implements Manager {
         }
 
         return largest;
+    }
+
+    /**
+     * Move every node and edge to where the position array has it now, without stepping the
+     * layout: how a restored arrangement reaches the picture while the layout is at rest.
+     * @param moved - Whether any coordinate was written; when none was, the nodes are placed and
+     *     the edges, whose endpoints are where they were, are left as they are drawn.
+     */
+    redrawArrangement(moved = true): void {
+        this.updateNodes();
+        if (moved) {
+            this.updateEdges();
+        }
     }
 
     /**

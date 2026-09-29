@@ -79,8 +79,10 @@ function isXmlDocument(sample: string): boolean {
 }
 
 const BUILT_IN_DETECTORS: readonly { id: FormatId; detect: (sample: string) => boolean }[] = [
-    { id: "graphml", detect: (sample) => sample.includes('xmlns="http://graphml.graphdrawing.org') },
-    { id: "gexf", detect: (sample) => sample.includes('xmlns="http://gexf.net') },
+    // The root element names the format, whatever namespace it declares: GEXF 1.2 declares
+    // "http://www.gexf.net/1.2draft" and 1.3 "http://gexf.net/1.3".
+    { id: "graphml", detect: (sample) => isXmlDocument(sample) && /<graphml[\s>]/.test(sample) },
+    { id: "gexf", detect: (sample) => isXmlDocument(sample) && /<gexf[\s>]/.test(sample) },
     { id: "json", detect: (sample) => sample.startsWith("{") || sample.startsWith("[") },
     { id: "gml", detect: (sample) => !isXmlDocument(sample) && /graph\s*\[/i.test(sample) },
     { id: "pajek", detect: (sample) => /^\*vertices/i.test(sample) },
@@ -168,7 +170,7 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
     );
 
     for (const entry of registered) {
-        const {detect} = entry;
+        const { detect } = entry;
         if (detect !== undefined && claims(detect, sample) && !byContent.includes(entry.descriptor.id)) {
             byContent.push(entry.descriptor.id);
         }
@@ -196,7 +198,10 @@ export function detectFormat(input: DetectionInput): FormatId | null {
  * @returns The ids, the element's own first.
  */
 function knownFormatIds(): readonly FormatId[] {
-    return [...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id), ...registeredFormats().map((entry) => entry.descriptor.id)];
+    return [
+        ...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id),
+        ...registeredFormats().map((entry) => entry.descriptor.id),
+    ];
 }
 
 /**
@@ -215,7 +220,9 @@ export function unknownFormat(name: string): GraphtyError {
     // cannot be read instead.
     const unserved = UNSERVED_FORMAT_IDS.find((entry) => entry.id === name);
     const refusal =
-        unserved === undefined ? `no format is named "${name}".` : `the format "${name}" cannot be read: ${unserved.reason}`;
+        unserved === undefined
+            ? `no format is named "${name}".`
+            : `the format "${name}" cannot be read: ${unserved.reason}`;
 
     return new GraphtyError({
         code: "E_UNKNOWN_FORMAT",

@@ -7,7 +7,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node } from "../Node";
-import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for NGraph Force Layout
@@ -114,7 +114,11 @@ export class NGraphEngine extends LayoutEngine {
      */
     constructor(config: object = {}) {
         super();
-        this.ngraph = createGraph();
+        // A multigraph: each element edge is its own ngraph link. ngraph's default names a link by
+        // its endpoints' strings, so two parallel edges -- or `"1" -> 1` beside `1 -> 1` -- came
+        // back as ONE shared link, and removing either took the other's spring with it: its
+        // position was then undefined and redrawing it threw.
+        this.ngraph = createGraph({ multigraph: true });
 
         // Cast config to a more specific type for property access
         const typedConfig = config as Record<string, unknown>;
@@ -299,7 +303,7 @@ export class NGraphEngine extends LayoutEngine {
      * @param n - The node to set position for
      * @param newPos - The new position coordinates
      */
-    setNodePosition(n: Node, newPos: Position): void {
+    protected setNodePosition(n: Node, newPos: Position): void {
         const ngraphNode = this._getMappedNode(n);
         const currPos = this.ngraphLayout.getNodePosition(ngraphNode.id);
         currPos.x = newPos.x;
@@ -355,7 +359,7 @@ export class NGraphEngine extends LayoutEngine {
      * Pin a node to its current position
      * @param n - The node to pin
      */
-    pin(n: Node): void {
+    protected pin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
         this.ngraphLayout.pinNode(ngraphNode, true);
     }
@@ -364,7 +368,7 @@ export class NGraphEngine extends LayoutEngine {
      * Unpin a node to allow it to move freely
      * @param n - The node to unpin
      */
-    unpin(n: Node): void {
+    protected unpin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
         // A node a scoped layout is holding stays pinned: the hold is not the reader's pin to lift.
         this.ngraphLayout.pinNode(ngraphNode, this.isHeld(n.index));
@@ -421,6 +425,29 @@ export class NGraphEngine extends LayoutEngine {
         this.ngraph.removeLink(link);
         this.edgeMapping.delete(e);
         this._settled = false;
+    }
+
+    /**
+     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge its own link, which ngraph
+     * still holds.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem.
+     */
+    protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        const problems = heldEdgeProblems(this.edgeMapping.keys(), drawn);
+        const links = new Set<NGraphLink>();
+        for (const [edge, link] of this.edgeMapping) {
+            if (links.has(link)) {
+                problems.push(`edge ${edge.id} shares a link with another edge`);
+            }
+
+            links.add(link);
+            if (this.ngraph.getLinkById(link.id) !== link) {
+                problems.push(`edge ${edge.id} maps to a link its graph no longer holds`);
+            }
+        }
+
+        return problems;
     }
 
     private _getMappedNode(n: Node): NGraphNode {

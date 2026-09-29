@@ -9,6 +9,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
 
 let mounted: Graphty | null = null;
 
@@ -29,10 +30,10 @@ describe("nodeData", () => {
 
         element.nodeData = [{ id: "a" }, { id: "b" }];
         element.edgeData = [{ source: "a", target: "b" }];
-        await element.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(element.graph).waitForCompletion();
 
         element.nodeData = [{ id: "b" }, { id: "c" }];
-        await element.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(element.graph).waitForCompletion();
 
         const dm = element.graph.getDataManager();
         assert.deepStrictEqual([...dm.nodes.keys()].map(String).sort(), ["b", "c"]);

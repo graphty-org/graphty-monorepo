@@ -20,6 +20,7 @@ import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -50,10 +51,10 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const c = node("c", 2);
         const layout = new CircularLayout({});
         const positions = new ElementPositions(0);
-        layout.attachPositions(positions);
-        layout.addNodes([a, b, c]);
+        layoutEngineInternals.attachPositions(layout, positions);
+        layoutEngineInternals.addNodes(layout, [a, b, c]);
         const link = edge(b, c);
-        layout.addEdges([edge(a, b), link]);
+        layoutEngineInternals.addEdges(layout, [edge(a, b), link]);
 
         layout.removeEdge(link);
         layout.removeNode(c);
@@ -73,8 +74,8 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const a = node("a", 0);
         const b = node("b", 1);
         const simulation = new D3GraphEngine({});
-        simulation.addNodes([a, b]);
-        simulation.addEdges([edge(a, b)]);
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        layoutEngineInternals.addEdges(simulation, [edge(a, b)]);
         simulation.step();
 
         assert.deepStrictEqual([...simulation.nodes], [a, b], "both nodes are in the simulation to begin with");
@@ -94,8 +95,8 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const a = node("a", 0);
         const b = node("b", 1);
         const simulation = new NGraphEngine({});
-        simulation.addNodes([a, b]);
-        simulation.addEdges([edge(a, b)]);
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        layoutEngineInternals.addEdges(simulation, [edge(a, b)]);
 
         simulation.removeNode(b);
 
@@ -105,6 +106,25 @@ describe("a layout engine gives back a node the graph has removed", () => {
         assert.strictEqual(simulation.ngraph.getLinksCount(), 0, "and the link");
     });
 
+    it("keeps a parallel edge's link when the edge beside it is removed", () => {
+        // ngraph names a link by its endpoints' strings unless it is a multigraph, so two edges
+        // between the same pair -- or between "1" and 1 -- shared one link, and removing one took
+        // the other's spring: its position was undefined and the next redraw threw.
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const simulation = new NGraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        const first = edge(a, b);
+        const second = edge(a, b);
+        layoutEngineInternals.addEdges(simulation, [first, second]);
+
+        simulation.removeEdge(first);
+
+        assert.deepStrictEqual([...simulation.edges], [second]);
+        assert.strictEqual(simulation.ngraph.getLinksCount(), 1, "ngraph keeps the other edge's link");
+        assert.doesNotThrow(() => simulation.getEdgePosition(second), "and its position");
+    });
+
     it("ignores a node or an edge it was never given, rather than throwing", () => {
         // Removal arrives from the element's data manager, which does not know which engine holds
         // what: a node added before the current engine was built, or one the reader removed twice,
@@ -112,7 +132,7 @@ describe("a layout engine gives back a node the graph has removed", () => {
         const a = node("a", 0);
         const stranger = node("z", 9);
         const simulation = new NGraphEngine({});
-        simulation.addNodes([a]);
+        layoutEngineInternals.addNodes(simulation, [a]);
 
         assert.doesNotThrow(() => {
             simulation.removeNode(stranger);

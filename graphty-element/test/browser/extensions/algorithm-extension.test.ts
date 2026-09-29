@@ -92,6 +92,7 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index";
 import type { EdgeId, GraphSession, NodeId } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 // The one deep path in this file, and it is not plugin code: the element's own deterministic
 // stand-in for a device, which the tests and the stories share instead of each writing one.
 import { createFakeAccelerator, type FakeAccelerator } from "../../../src/testing/fakeAccelerator";
@@ -880,7 +881,7 @@ describe("an algorithm written outside this package", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -938,7 +939,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("hop-reach", params);
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getUpdateManager().stepFrames(2);
 
         return run.id;
@@ -1107,7 +1108,7 @@ describe("an algorithm written outside this package", () => {
         // And so does a value a reader chose, through the older address, which resolves its
         // parameters through the constructor rather than through the run's own check.
         await graph.runAlgorithm("acme", "hop-reach", { algorithmOptions: { hops: 2 } });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const viaOldAddress = graph
             .getSession()
@@ -1241,7 +1242,7 @@ describe("an algorithm written outside this package", () => {
     it("names nodes by the label attribute the reader configured, not by their ids", async () => {
         // What a reader's data configuration says the display name is. Without it the element has
         // not been told where the names are, which is a different answer from there being none.
-        graph.styles.config.data.knownFields.nodeLabelPath = LABEL_ATTRIBUTE;
+        await graph.getSession().config.set({ data: { knownFields: { nodeLabelPath: LABEL_ATTRIBUTE } } });
 
         const result = await graph.run("hop-reach");
         const { top } = result.summary();
@@ -1291,6 +1292,10 @@ describe("an algorithm written outside this package", () => {
             () => session.styles.list().some((layer) => layer.source.by === "run" && layer.source.runId === runId),
             "the element to derive a layer from the extension's result",
         );
+        // The legend reads what the repaint prepared, which follows the layer on the session's lane,
+        // and the renderer draws what the repaint resolved on the frame after it.
+        await session.styles.settled();
+        graph.getUpdateManager().stepFrames(2);
 
         const legend = session.styles.legend().find((block) => block.runId === runId);
 
@@ -1347,7 +1352,7 @@ describe("an algorithm written outside this package", () => {
             set: { "node.opacity": 0.5 },
         });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const measuredChannels = session.styles
             .explain({ node: "d" })
@@ -1364,7 +1369,7 @@ describe("an algorithm written outside this package", () => {
 
     it("runs through the element's older namespace and type address as well", async () => {
         await graph.runAlgorithm("acme", "hop-reach", { applySuggestedStyles: true });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const suggestions = graph.getSuggestedStyles("acme:hop-reach");
 
@@ -1678,7 +1683,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const suggestions = graph.getSuggestedStyles("alphabet-walk");
 
@@ -1695,7 +1700,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const session = graph.getSession();
         const layer = await session.styles.add({
@@ -1705,7 +1710,7 @@ describe("an algorithm written outside this package", () => {
             set: { "edge.opacity": 0.5 },
         });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Asked of the element rather than spelled out: an edge is addressed by the id the
         // element minted for it, and a literal written here would be a guess at that id.
@@ -1790,7 +1795,7 @@ describe("an algorithm written outside this package, on an accelerator", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Nine nodes is far below the size at which a real device beats the CPU, and the
         // consumer's own threshold is what says "use it anyway".

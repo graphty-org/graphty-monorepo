@@ -17,8 +17,8 @@ import type { ResolvedInputScope } from "../../../src/algorithms/input/ScopedInp
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { GraphStore } from "../../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../../src/data/ingest";
 import type { Graph } from "../../../src/Graph";
+import { ingestEdge, ingestNode } from "../../helpers/rawIngest";
 
 /** One edge to add: source, target and an optional weight. */
 export type EdgeSpec = readonly [string, string, number?];

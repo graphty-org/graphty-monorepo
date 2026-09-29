@@ -303,6 +303,30 @@ describe("the ./format entry point", () => {
     });
 });
 
+describe("the ./commands entry point", () => {
+    it("publishes the vocabulary as data that survives JSON, and a guard that reads it", async () => {
+        const commands = await import("../../commands");
+
+        assert.isAbove(Object.keys(commands.COMMANDS).length, 0);
+        assert.deepEqual(JSON.parse(JSON.stringify(commands.COMMANDS)), commands.COMMANDS);
+        assert.isTrue(commands.isSessionCommand({ op: "algo.run", algorithm: "degree" }));
+        assert.isFalse(commands.isSessionCommand({ op: "no.such-op" }));
+        assert.isFalse(commands.isSessionCommand(null));
+        assert.isFalse(commands.isSessionCommand({ op: "toString" }));
+    });
+
+    it("is the vocabulary of the session: every op is undoable or exempt with a reason", async () => {
+        const { COMMANDS } = await import("../../commands");
+
+        for (const [op, meta] of Object.entries(COMMANDS) as [string, { undo: string; reason?: string }][]) {
+            assert.include(["undoable", "exempt"], meta.undo, op);
+            if (meta.undo === "exempt") {
+                assert.isNotEmpty(meta.reason, op);
+            }
+        }
+    });
+});
+
 describe("the data entry points carry data, not objects", () => {
     it("publishes the catalogue tables, and every one of them survives JSON", () => {
         const tables = [

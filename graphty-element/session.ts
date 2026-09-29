@@ -63,12 +63,30 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    CommandOutcome,
+    CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataSourceDescriptor,
+    DataSourceInput,
     EdgeRecord,
+    EdgeRecordInput,
     GraphSession,
     GraphStatistics,
+    HistoryCause,
+    HistoryOutcome,
+    HistoryStep,
+    HistoryStepId,
+    ImportOptions,
     NodeRecord,
+    NodeRecordInput,
+    PendingId,
+    PendingStep,
+    PositionEntry,
+    ProjectConfig,
+    ProjectConfigPatch,
+    ProjectSlice,
+    RowUpdate,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,
@@ -76,10 +94,15 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
-    SessionRecordSource,
+    SessionHistory,
+    SessionLayout,
+    SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionViews,
     StyleProblem,
+    TransactionOptions,
+    TransactionScope,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -100,12 +123,11 @@ export type { ImportReport, RepeatedEdgeCounts } from "./src/data/report";
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The type of `session.positions`, so that a consumer holding one can name it.
- *
- * The type only, not the constructor: the coordinates belong to the graph the element froze, and
- * a second array built beside it would be lent to nothing.
+ * The read half of `session.positions` and of `session.data.store.positions`, so that a consumer
+ * holding one can name it. Nodes are placed and pinned through `session.positions.set`, `pin` and
+ * `unpin`, which are undoable steps.
  */
-export type { ElementPositions } from "./src/data/positions";
+export type { ReadonlyElementPositions } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Which arrangement suits a graph

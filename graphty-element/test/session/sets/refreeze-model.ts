@@ -36,6 +36,11 @@ export interface Driver {
     readonly setsStore: SetsStore;
     /** How many of the last load's records were read, the refused one included. */
     readonly lastLoadRead: number;
+    /**
+     * Whether the last load was refused and taken back whole, as an element import is (one
+     * undoable step): a replacing one then leaves the graph it would have replaced.
+     */
+    readonly lastLoadRolledBack?: boolean;
     /** The record each edge the last load created came from, aligned with what it returned. */
     readonly lastLoadSources: readonly number[];
     snapshot(): GraphSnapshot;
@@ -504,6 +509,40 @@ function completeLoad(model: Model, created: readonly number[]): void {
     }
 }
 
+/** The graph part of the model, as a replacing load found it. */
+interface PriorGraph {
+    readonly nodes: Set<NodeId>;
+    readonly edges: Map<number, ModelEdge>;
+    readonly ordered: boolean;
+    readonly loads: Model["loads"];
+}
+
+/**
+ * A copy of the model's graph, before a replacing load.
+ * @param model - The model.
+ * @returns The copy.
+ */
+function priorGraph(model: Model): PriorGraph {
+    return {
+        nodes: new Set(model.nodes),
+        edges: new Map([...model.edges].map(([counter, edge]) => [counter, { ...edge }])),
+        ordered: model.ordered,
+        loads: model.loads,
+    };
+}
+
+/**
+ * Put the model's graph back as a replacing load that was taken back found it.
+ * @param model - The model.
+ * @param prior - What {@link priorGraph} kept.
+ */
+function restoreGraph(model: Model, prior: PriorGraph): void {
+    model.nodes = prior.nodes;
+    model.edges = prior.edges;
+    model.ordered = prior.ordered;
+    model.loads = prior.loads;
+}
+
 /**
  * Apply one ingest to the model from what the real load reports.
  * @param model - The model.
@@ -763,11 +802,17 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
             return;
         }
         case "replace": {
+            const prior = priorGraph(model);
             await real.replaceStore();
             model.nodes = new Set();
             model.edges = new Map();
             model.ordered = op.declared === true;
             const created = await real.load(op.records, { policy: op.policy, chunks: op.chunks }, op.declared);
+            if (real.lastLoadRolledBack === true) {
+                restoreGraph(model, prior);
+                return;
+            }
+
             ingested(model, real, op.records, created, true);
             model.loads = [{ records: op.records, policy: op.policy, chunks: op.chunks }];
             return;
@@ -788,6 +833,7 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
                 loads.push({ records: [], policy: "keep", chunks: 1 });
             }
 
+            const prior = priorGraph(model);
             await real.replaceStore();
             model.nodes = new Set();
             model.edges = new Map();
@@ -798,6 +844,12 @@ async function apply(op: Op, model: Model, real: Driver): Promise<void> {
                     { policy: load.policy, chunks: load.chunks },
                     i === 0 ? op.declared : undefined,
                 );
+                if (i === 0 && real.lastLoadRolledBack === true) {
+                    // The replacing load was taken back whole: the graph it would have replaced stays.
+                    restoreGraph(model, prior);
+                    return;
+                }
+
                 ingested(model, real, load.records, created, true);
             }
 

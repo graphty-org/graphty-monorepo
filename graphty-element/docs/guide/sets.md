@@ -412,8 +412,12 @@ sets.remove(picked);
 sets.restore(picked); // back, with the same id, name and definition
 ```
 
-`addMembers` and `removeMembers` work on fixed sets only. Every change is one step, and a change
-that changes nothing does nothing.
+`addMembers` and `removeMembers` work on fixed sets only. Every change is one undoable step --
+`set.create`, `set.rename`, `set.redefine`, `set.members`, `set.remove` or `set.restore` in the
+history -- and a change that changes nothing records nothing. Undo and redo put back the identical
+record, so a layer or a filter naming the set repaints to match, and redo of a create gives the set
+the id it had. An id is never given to a second set, even after the first was undone. See
+[Undo and History](./undo).
 
 A removed set's record is kept while anything still names it -- a layer, the filter, another set,
 the layout, a run -- and `restore` brings the set back from it, telling `set:changed` with change
@@ -431,6 +435,10 @@ const stop = element.session.on("set:changed", ({ id, change, fields, set }) => 
     console.log(id, change, fields, set?.name);
 });
 ```
+
+`cause` says what made the change: `"command"` for a write, `"load"` for a stored slice, and
+`"undo"` or `"redo"` for a history move. A change taken back because the write around it failed
+tells nothing.
 
 Membership and freshness have no event: a rule set's members move with the data, and a panel that
 shows them re-reads on the events it already watches.

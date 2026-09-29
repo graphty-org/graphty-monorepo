@@ -3,11 +3,7 @@ import type { OperationCategory } from "../managers/OperationQueueManager";
 
 export interface QueueableOptions {
     /**
-     * Skip the operation queue and execute immediately (for backwards compatibility).
-     *
-     * This also skips what the queue runs after the operation: nodes or edges added this way are
-     * not repainted from the style layers and do not start the load-time algorithm list
-     * (`runAlgorithmsOnLoad`). Leave it unset for data pushes.
+     * Skip the operation queue and execute immediately (for backwards compatibility)
      */
     skipQueue?: boolean;
 

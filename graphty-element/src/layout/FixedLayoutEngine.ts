@@ -2,8 +2,8 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { readSeedPosition } from "../data/ingest";
 import type { Node } from "../Node";
+import { readSeedPosition } from "../session/project/ingest";
 import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**

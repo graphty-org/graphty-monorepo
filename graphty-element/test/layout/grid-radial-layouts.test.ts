@@ -9,7 +9,7 @@ import { assert, describe, it } from "vitest";
 
 import { layoutDescriptor } from "../../src/catalog/layouts";
 import type { Edge } from "../../src/Edge";
-import { LayoutEngine } from "../../src/layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import type { Node } from "../../src/Node";
 
 /**
@@ -46,8 +46,8 @@ function run(type: string, nodes: Node[], edges: Edge[], opts: object = {}): Rec
         return {};
     }
 
-    engine.addNodes(nodes);
-    engine.addEdges(edges);
+    layoutEngineInternals.addNodes(engine, nodes);
+    layoutEngineInternals.addEdges(engine, edges);
     engine.step();
     return Object.fromEntries(
         nodes.map((n) => {

@@ -1739,7 +1739,6 @@ function chunksOf(text: string): AsyncIterable<Uint8Array> {
     };
 }
 
-
 describe("a third party's file format being written", () => {
     afterEach(() => {
         clearRegisteredFormatWritersForTesting();
@@ -1790,7 +1789,7 @@ describe("a third party's file format being written", () => {
             lines.push(`${String(source)}${separator}${String(target)}`);
         }
 
-        return `${lines.join("\n")  }\n`;
+        return `${lines.join("\n")}\n`;
     }
 
     const exporter: GraphExporter<{ separator?: unknown }> = {
@@ -1799,7 +1798,14 @@ describe("a third party's file format being written", () => {
         check: (snapshot) =>
             snapshot.nodes.names().length === 0
                 ? []
-                : [{ code: "W_EDGE_LINES_ATTRIBUTES", message: "node attributes are not written", column: null, count: null }],
+                : [
+                      {
+                          code: "W_EDGE_LINES_ATTRIBUTES",
+                          message: "node attributes are not written",
+                          column: null,
+                          count: null,
+                      },
+                  ],
         export: (snapshot, options) => chunksOf(write(snapshot, options)),
         exportToString: (snapshot, options) => Promise.resolve(write(snapshot, options)),
     };
@@ -1812,9 +1818,7 @@ describe("a third party's file format being written", () => {
         });
 
         await loadInto(element, "csv", EDGE_LIST);
-        const listed = element.session.catalog
-            .formats()
-            .find((format) => format.id === "edge-lines");
+        const listed = element.session.catalog.formats().find((format) => format.id === "edge-lines");
         assert.strictEqual(listed?.canExport, true, "listed as writable");
         assert.strictEqual(listed?.canImport, false, "and not as readable: nothing reads it");
 

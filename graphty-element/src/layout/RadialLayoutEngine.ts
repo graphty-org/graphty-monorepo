@@ -95,10 +95,10 @@ export class RadialLayout extends SnapshotLayoutEngine {
         const { root } = this.config;
         return sceneUnits(
             radial(input.graph, {
-            root: root === null ? null : this.requireRow(root, "root"),
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-        }),
+                root: root === null ? null : this.requireRow(root, "root"),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
             RadialLayout.scale,
         );
     }

@@ -104,11 +104,11 @@ export class BfsLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             bfs(input.graph, {
-            start: this.requireRow(this.config.start, "start"),
-            align: this.config.align,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-        }),
+                start: this.requireRow(this.config.start, "start"),
+                align: this.config.align,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
             BfsLayout.scale,
         );
     }

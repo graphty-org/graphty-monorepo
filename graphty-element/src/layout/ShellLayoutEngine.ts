@@ -97,12 +97,14 @@ export class ShellLayout extends SnapshotLayoutEngine {
         const { nlist } = this.config;
         return sceneUnits(
             shell(input.graph, {
-            // A node a shell names that the graph does not hold has nowhere to be drawn.
-            nlist: nlist?.map((shell) => shell.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX)),
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim: layoutDim(this.config.dim),
-        }),
+                // A node a shell names that the graph does not hold has nowhere to be drawn.
+                nlist: nlist?.map((shell) =>
+                    shell.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
+                ),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+            }),
             ShellLayout.scale,
         );
     }

@@ -115,12 +115,12 @@ export class ArfLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             arf(input.graph, {
-            pos: startFrom(input, 2, ArfLayout.scale) ?? this.rowsOfRecord(this.config.pos, 2),
-            scaling: this.config.scaling,
-            a: this.config.a,
-            maxIter: this.config.maxIter,
-            seed: this.config.seed,
-        }),
+                pos: startFrom(input, 2, ArfLayout.scale) ?? this.rowsOfRecord(this.config.pos, 2),
+                scaling: this.config.scaling,
+                a: this.config.a,
+                maxIter: this.config.maxIter,
+                seed: this.config.seed,
+            }),
             ArfLayout.scale,
         );
     }

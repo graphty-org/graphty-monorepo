@@ -98,14 +98,14 @@ export class MultipartiteLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             multipartite(input.graph, {
-            // A node a layer names that the graph does not hold has nowhere to be drawn.
-            subsets: Object.values(this.config.subsetKey).map((layer) =>
-                layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
-            ),
-            align: this.config.align,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-        }),
+                // A node a layer names that the graph does not hold has nowhere to be drawn.
+                subsets: Object.values(this.config.subsetKey).map((layer) =>
+                    layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
+                ),
+                align: this.config.align,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
             MultipartiteLayout.scale,
         );
     }

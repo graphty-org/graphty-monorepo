@@ -94,10 +94,10 @@ export class GridLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             grid(input.graph, {
-            columns: this.config.columns,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-        }),
+                columns: this.config.columns,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
             GridLayout.scale,
         );
     }

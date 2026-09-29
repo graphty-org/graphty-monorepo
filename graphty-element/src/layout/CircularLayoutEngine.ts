@@ -99,10 +99,10 @@ export class CircularLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             circular(input.graph, {
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim: layoutDim(this.config.dim),
-        }),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+            }),
             CircularLayout.scale,
         );
     }

@@ -114,12 +114,12 @@ export class SpiralLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             spiral(input.graph, {
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim: layoutDim(this.config.dim),
-            resolution: this.config.resolution,
-            equidistant: this.config.equidistant,
-        }),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+                resolution: this.config.resolution,
+                equidistant: this.config.equidistant,
+            }),
             SpiralLayout.scale,
         );
     }

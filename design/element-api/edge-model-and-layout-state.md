@@ -79,7 +79,7 @@ A new module `src/data/endpoints.ts` owns the whole of it:
 export type EndpointSpelling = "source/target" | "src/dst" | "from/to" | "declared";
 
 export interface ResolvedEndpoints {
-    readonly source: string;          // the JMESPath expression actually used
+    readonly source: string; // the JMESPath expression actually used
     readonly target: string;
     readonly resolvedFrom: EndpointSpelling;
 }
@@ -87,7 +87,7 @@ export interface ResolvedEndpoints {
 export function resolveEndpoints(
     records: readonly Record<string | number, unknown>[],
     declared: { source: string | null; target: string | null },
-): ResolvedEndpoints;                 // throws E_EDGE_ENDPOINTS_UNRESOLVED
+): ResolvedEndpoints; // throws E_EDGE_ENDPOINTS_UNRESOLVED
 ```
 
 The rules:
@@ -143,16 +143,16 @@ getter return type widens to `string | null`.
 Seven registered formats (`src/data/index.ts:11-17`). All seven write `source` and `target` on the
 records they hand over, and none of them writes `src` or `dst`:
 
-| File | Today | After |
-|---|---|---|
-| `JsonDataSource.ts:237, :347-350` | validates three spellings, normalises none | unchanged: it still passes the record through, and resolution now reads all three |
-| `GMLDataSource.ts:347-355` | builds `{src, dst, ...edge}` then deletes `source` and `target` | keeps `source` and `target`, deletes nothing |
-| `GEXFDataSource.ts:389-406` | `{src, dst}` plus `edgeData.id = edgeObj["@_id"]` | `{source, target}`; the file's own edge id becomes `gexfId`, never `id` |
-| `GraphMLDataSource.ts:289-301` | `{src, dst}` | `{source, target}` |
-| `CSVDataSource.ts:239-286` | `{src, dst}` plus every other column | `{source, target}` plus every other column |
-| `CSVDataSource.ts:691-696` | `{src, dst, ...row}` -- the spread restores `source`/`target` | `{source, target}` with the endpoint columns removed from the spread, like `createEdge` |
-| `DOTDataSource.ts:106-110` | `{src, dst, ...attributes}` | `{source, target, ...attributes}` |
-| `PajekDataSource.ts:345-356` | `{src, dst, directed}` | `{source, target, directed}` |
+| File                              | Today                                                           | After                                                                                   |
+| --------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `JsonDataSource.ts:237, :347-350` | validates three spellings, normalises none                      | unchanged: it still passes the record through, and resolution now reads all three       |
+| `GMLDataSource.ts:347-355`        | builds `{src, dst, ...edge}` then deletes `source` and `target` | keeps `source` and `target`, deletes nothing                                            |
+| `GEXFDataSource.ts:389-406`       | `{src, dst}` plus `edgeData.id = edgeObj["@_id"]`               | `{source, target}`; the file's own edge id becomes `gexfId`, never `id`                 |
+| `GraphMLDataSource.ts:289-301`    | `{src, dst}`                                                    | `{source, target}`                                                                      |
+| `CSVDataSource.ts:239-286`        | `{src, dst}` plus every other column                            | `{source, target}` plus every other column                                              |
+| `CSVDataSource.ts:691-696`        | `{src, dst, ...row}` -- the spread restores `source`/`target`   | `{source, target}` with the endpoint columns removed from the spread, like `createEdge` |
+| `DOTDataSource.ts:106-110`        | `{src, dst, ...attributes}`                                     | `{source, target, ...attributes}`                                                       |
+| `PajekDataSource.ts:345-356`      | `{src, dst, directed}`                                          | `{source, target, directed}`                                                            |
 
 Two rules the table encodes:
 
@@ -210,22 +210,22 @@ line: `src/session/types.ts` imports `EdgeId` from `../catalog/types` instead of
 **The conversion lives in one module,** `src/data/edgeIdentity.ts`:
 
 ```ts
-export function edgeIdOf(counter: number): EdgeId;      // String(counter)
-export function edgeCounterOf(id: EdgeId): number;      // the integer, or INVALID_INDEX
+export function edgeIdOf(counter: number): EdgeId; // String(counter)
+export function edgeCounterOf(id: EdgeId): number; // the integer, or INVALID_INDEX
 ```
 
 Everything that converts calls these. Nothing else stringifies or parses an edge id.
 
 ### 1.7 What the maps are keyed by afterwards
 
-| Structure | Key today | Key after |
-|---|---|---|
-| `DataManager.edges` | `Edge.id`, the pair string | `Edge.id`, the counter string. Same shape, new key, and now collision-free |
-| `DataManager.edgesByIndex` | the store's logical edge index | unchanged |
-| `DataManager.edgeCache` (`EdgeMap`) | ordered endpoint pair -> one `Edge` | ordered endpoint pair -> `Edge[]` |
-| `DataManager.pendingEdgeKeys` | the pair string | **deleted**; see below |
-| `edgeSpaceOf` in `ScopeApi.ts` | the pair string, minted | the `graphty.edgeId` column, read |
-| a run's per-edge result | `edgeResultId(src, dst)` | `edge.id` |
+| Structure                           | Key today                           | Key after                                                                  |
+| ----------------------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| `DataManager.edges`                 | `Edge.id`, the pair string          | `Edge.id`, the counter string. Same shape, new key, and now collision-free |
+| `DataManager.edgesByIndex`          | the store's logical edge index      | unchanged                                                                  |
+| `DataManager.edgeCache` (`EdgeMap`) | ordered endpoint pair -> one `Edge` | ordered endpoint pair -> `Edge[]`                                          |
+| `DataManager.pendingEdgeKeys`       | the pair string                     | **deleted**; see below                                                     |
+| `edgeSpaceOf` in `ScopeApi.ts`      | the pair string, minted             | the `graphty.edgeId` column, read                                          |
+| a run's per-edge result             | `edgeResultId(src, dst)`            | `edge.id`                                                                  |
 
 **`EdgeMap` becomes a multimap.** `src/Edge.ts:1392-1480` is a `Map<srcId, Map<dstId, Edge>>` whose
 `set()` throws `new Error("Attempting to create duplicate Edge")` on a second edge for a pair. That
@@ -382,13 +382,13 @@ row is superseded on wording, not on substance.
 
 What each does to the second and later records for an ordered pair:
 
-| Policy | Effect |
-|---|---|
-| `keep` | both edges exist, each with its own id, weight and attributes |
-| `first` | the repeat is discarded; the edge already present is untouched |
-| `last` | the repeat's weight and attributes replace the existing edge's |
+| Policy              | Effect                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `keep`              | both edges exist, each with its own id, weight and attributes                                |
+| `first`             | the repeat is discarded; the edge already present is untouched                               |
+| `last`              | the repeat's weight and attributes replace the existing edge's                               |
 | `sum`, `min`, `max` | one edge survives; its weight is the reduction over the group. Attributes are the survivor's |
-| `error` | `GraphtyError` with `E_DUPLICATE_EDGE`, naming both records |
+| `error`             | `GraphtyError` with `E_DUPLICATE_EDGE`, naming both records                                  |
 
 The policy is a new key on `GraphKnownFields`: `repeatedEdges`, defaulting to `"keep"`. It is also an
 option on `addEdges` (section 2.5), so one call can differ from the configured default.
@@ -444,18 +444,18 @@ Two answers, both needed:
 - **`addEdges` takes the policy per call**, and the expand path passes `"first"`. Its signature
   becomes an options bag:
 
-  ```ts
-  addEdges(
-      records: Record<string | number, unknown>[],
-      options?: { source?: string; target?: string; repeated?: DuplicatePolicy },
-  ): void
-  ```
+    ```ts
+    addEdges(
+        records: Record<string | number, unknown>[],
+        options?: { source?: string; target?: string; repeated?: DuplicatePolicy },
+    ): void
+    ```
 
-  replacing the positional `(edges, srcIdPath?, dstIdPath?)`. The expand path passes
-  `{ repeated: "first" }` because "fetch the neighbourhood of this node" is a request that
-  legitimately re-supplies known edges, and the element knows that about its own call site. The
-  element's public `addEdge` / `addEdges` take the same bag; the positional path arguments are
-  removed, which the register's section 4.4 already anticipates.
+    replacing the positional `(edges, srcIdPath?, dstIdPath?)`. The expand path passes
+    `{ repeated: "first" }` because "fetch the neighbourhood of this node" is a request that
+    legitimately re-supplies known edges, and the element knows that about its own call site. The
+    element's public `addEdge` / `addEdges` take the same bag; the positional path arguments are
+    removed, which the register's section 4.4 already anticipates.
 
 A consumer whose data carries genuine edge identifiers has a third answer available: set
 `knownFields.edgeIdPath` (new, default `null`) to the record key that identifies an edge, and a
@@ -953,10 +953,10 @@ export interface ImportReport {
         readonly target: string;
     };
     readonly counts: {
-        readonly nodes: number;         // nodes the graph holds after the load
-        readonly edges: number;         // edges the graph holds after the load
-        readonly edgeRecords: number;   // edge records handed over
-        readonly rejected: number;      // records whose endpoint ids the store would not take
+        readonly nodes: number; // nodes the graph holds after the load
+        readonly edges: number; // edges the graph holds after the load
+        readonly edgeRecords: number; // edge records handed over
+        readonly rejected: number; // records whose endpoint ids the store would not take
     };
     readonly repeated: {
         readonly seen: number;
@@ -1211,20 +1211,20 @@ and applies the patches itself.
 
 ### 7.4 The files two lanes need, and who owns them
 
-| File | Owner | What the other lane does |
-|---|---|---|
-| `src/events.ts` | **Lane A** | Lane B's two `pinned: boolean` fields on `NodeDragStartEvent` and `NodeDragEndEvent` are added by lane A in its first commit. They need no knowledge of lane B's implementation |
-| `src/graphty-element.ts` | **Lane A** | Lane A adds `pin`, `unpin` and `pinnedNodes` in its first commit, forwarding to `Node.pin()` / `unpin()` / `isPinned()` -- which exist and compile **today** -- so there is no ordering hazard. Lane C hands lane A an exact patch for the `parseURLParams` deletion: remove `:258-275`, remove the call at `:232`, remove the import at `:15`. Lane C still owns the decision |
-| `src/Graph.ts` | **Lane A** | Lane B needs nothing there; `element.pin` reaches nodes through `graph.getDataManager()` |
-| `src/NodeBehavior.ts` | **Lane B** | Lane A's one-line expand-path change, applied by lane B after lane A's `addEdges` signature exists |
-| `src/layout/LayoutEngine.ts` | **Lane B** | Lane A depends on `SimpleLayoutEngine.removeNode` / `removeEdge` and must not write them. Lane A's cascade is correct without them -- the render objects go -- but the engine keeps stepping ghosts until lane B lands. Both are in this release |
-| `src/managers/LayoutManager.ts` | **Lane B** | Lane A's incident-edge removal changes nothing in the re-seed loop at `:199-202`; it changes what that loop finds |
-| `src/data/GraphStore.ts` | **Lane B** | Lane A needs no change there; `nextEdgeId` and `edgeIdColumn` already exist |
-| `src/data/ingest.ts` | **Lane A** | `resolveEdgeWeight` lives here and no lane changes it. Lane B reads the resolved weight out of the snapshot, not out of this function |
-| `src/session/types.ts` | **Lane A** | Lane B has no session surface; the layout transport is deferred |
-| `index.ts` | **Lane C** | **Neither lane A nor lane B edits it.** Any new public type is published from `./session`, which lane A owns |
-| `test/unit/node-index-pinned.test.ts` | **Lane B** | It covers the pin lifecycle at `:198-284` **and** the `src:dst` edge id from `:284` on. Lane B keeps the file and rewrites the pin half; lane A's edge-id assertions **move out** into `test/unit/edge-identity.test.ts`, a new file lane A owns. That is a genuine split of one file's subject matter, and doing it as a move rather than an edit is what keeps the two lanes apart |
-| `graphty/src/components/shell/AppShell.tsx` | **Lane A** | Lane B reports the one-line pin handler at `:4140` |
+| File                                        | Owner      | What the other lane does                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/events.ts`                             | **Lane A** | Lane B's two `pinned: boolean` fields on `NodeDragStartEvent` and `NodeDragEndEvent` are added by lane A in its first commit. They need no knowledge of lane B's implementation                                                                                                                                                                                                      |
+| `src/graphty-element.ts`                    | **Lane A** | Lane A adds `pin`, `unpin` and `pinnedNodes` in its first commit, forwarding to `Node.pin()` / `unpin()` / `isPinned()` -- which exist and compile **today** -- so there is no ordering hazard. Lane C hands lane A an exact patch for the `parseURLParams` deletion: remove `:258-275`, remove the call at `:232`, remove the import at `:15`. Lane C still owns the decision       |
+| `src/Graph.ts`                              | **Lane A** | Lane B needs nothing there; `element.pin` reaches nodes through `graph.getDataManager()`                                                                                                                                                                                                                                                                                             |
+| `src/NodeBehavior.ts`                       | **Lane B** | Lane A's one-line expand-path change, applied by lane B after lane A's `addEdges` signature exists                                                                                                                                                                                                                                                                                   |
+| `src/layout/LayoutEngine.ts`                | **Lane B** | Lane A depends on `SimpleLayoutEngine.removeNode` / `removeEdge` and must not write them. Lane A's cascade is correct without them -- the render objects go -- but the engine keeps stepping ghosts until lane B lands. Both are in this release                                                                                                                                     |
+| `src/managers/LayoutManager.ts`             | **Lane B** | Lane A's incident-edge removal changes nothing in the re-seed loop at `:199-202`; it changes what that loop finds                                                                                                                                                                                                                                                                    |
+| `src/data/GraphStore.ts`                    | **Lane B** | Lane A needs no change there; `nextEdgeId` and `edgeIdColumn` already exist                                                                                                                                                                                                                                                                                                          |
+| `src/data/ingest.ts`                        | **Lane A** | `resolveEdgeWeight` lives here and no lane changes it. Lane B reads the resolved weight out of the snapshot, not out of this function                                                                                                                                                                                                                                                |
+| `src/session/types.ts`                      | **Lane A** | Lane B has no session surface; the layout transport is deferred                                                                                                                                                                                                                                                                                                                      |
+| `index.ts`                                  | **Lane C** | **Neither lane A nor lane B edits it.** Any new public type is published from `./session`, which lane A owns                                                                                                                                                                                                                                                                         |
+| `test/unit/node-index-pinned.test.ts`       | **Lane B** | It covers the pin lifecycle at `:198-284` **and** the `src:dst` edge id from `:284` on. Lane B keeps the file and rewrites the pin half; lane A's edge-id assertions **move out** into `test/unit/edge-identity.test.ts`, a new file lane A owns. That is a genuine split of one file's subject matter, and doing it as a move rather than an edit is what keeps the two lanes apart |
+| `graphty/src/components/shell/AppShell.tsx` | **Lane A** | Lane B reports the one-line pin handler at `:4140`                                                                                                                                                                                                                                                                                                                                   |
 
 ---
 
@@ -1321,7 +1321,7 @@ Two more, because the resolution has rules the register does not name:
 ### 8.4 Incident-edge removal
 
 - `test/managers/DataManager.test.ts:237-254` is `it("should not remove edges when node is removed
-  (current behavior)")` and asserts the edges are still there afterwards. **Replaced by its exact
+(current behavior)")` and asserts the edges are still there afterwards. **Replaced by its exact
   inverse**, never deleted: after removing a node, its incident edges are gone from
   `dataManager.edges`, gone from `edgeCache`, and `edges.size` has fallen by the incident degree.
 - `test/data/data-manager-store.test.ts:196-215` asserts `dm.edges.size === 2` with the message "the
@@ -1329,7 +1329,7 @@ Two more, because the resolution has rules the register does not name:
 - **No edge outlives its endpoint.** After a removal, no `Edge` in the layout engine's own edge list
   references the removed `Node`, and no `Edge` anywhere has `index === INVALID_INDEX`.
 - **The engines really remove.** `test/browser/extensions/layout-extension.test.ts:248-251,
-  :386-405` already drives a test engine that records the ids passed to `removeNode` and `removeEdge`.
+:386-405` already drives a test engine that records the ids passed to `removeNode` and `removeEdge`.
   `await graph.removeNodes(["c"])` must now record `removeEdge` calls for every edge incident to `c`.
   Extended to the three real hierarchies: after a removal, `SimpleLayoutEngine.nodes` and `.edges` no
   longer contain them, d3's simulation has no link referencing them, and ngraph's graph has neither

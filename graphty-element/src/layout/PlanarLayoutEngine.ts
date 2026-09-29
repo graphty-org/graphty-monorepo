@@ -104,11 +104,11 @@ export class PlanarLayout extends SnapshotLayoutEngine {
     protected compute(input: SnapshotLayoutInput): F32 {
         return sceneUnits(
             planar(input.graph, {
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim: layoutDim(this.config.dim),
-            seed: this.config.seed,
-        }),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+                seed: this.config.seed,
+            }),
             PlanarLayout.scale,
         );
     }

@@ -23,7 +23,13 @@ import {
 import type { LaneStore } from "../session/GraphSession";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
-import { type AddEdgesOptions, Ingest, type IngestHost, isStorableId, type StoredEdge } from "../session/project/ingest";
+import {
+    type AddEdgesOptions,
+    Ingest,
+    type IngestHost,
+    isStorableId,
+    type StoredEdge,
+} from "../session/project/ingest";
 import type { GraphSlice } from "../session/project/state";
 import { readonlyMapView } from "../session/sealed";
 import type { DirectionProvenance, HistoryCause, ReadonlyElementPositions } from "../session/types";

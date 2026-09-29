@@ -199,13 +199,13 @@ export class KamadaKawaiLayout extends SnapshotLayoutEngine {
         const weighted = this.config.weighted ? withDistances(input.graph, input.stored) : null;
         return sceneUnits(
             kamadaKawai(weighted ?? input.graph, {
-            dist: this.distances(),
-            pos: startFrom(input, dim, KamadaKawaiLayout.scale) ?? this.rowsOfRecord(this.config.pos, dim),
-            weight: weighted === null ? false : DISTANCE_COLUMN,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim,
-        }),
+                dist: this.distances(),
+                pos: startFrom(input, dim, KamadaKawaiLayout.scale) ?? this.rowsOfRecord(this.config.pos, dim),
+                weight: weighted === null ? false : DISTANCE_COLUMN,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim,
+            }),
             KamadaKawaiLayout.scale,
         );
     }

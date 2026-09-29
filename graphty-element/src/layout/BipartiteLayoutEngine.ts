@@ -120,12 +120,12 @@ export class BipartiteLayout extends SnapshotLayoutEngine {
 
         return sceneUnits(
             bipartite(input.graph, {
-            top,
-            align: this.config.align,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            aspectRatio: this.config.aspectRatio,
-        }),
+                top,
+                align: this.config.align,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                aspectRatio: this.config.aspectRatio,
+            }),
             BipartiteLayout.scale,
         );
     }

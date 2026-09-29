@@ -34,6 +34,7 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index.js";
 import { GraphtyLogger } from "../../../logging";
+import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
 
 /**
@@ -110,7 +111,7 @@ describe("defineLayout on a rendered graph", () => {
      * @param what - How to describe the wait if it fails.
      */
     async function settled(what: string): Promise<void> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         const manager = graph.getLayoutManager();
         const deadline = Date.now() + PATIENCE_MS;
         while (Date.now() < deadline) {
@@ -187,7 +188,7 @@ describe("defineLayout on a rendered graph", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Park on a one-pass built-in first, so every node has a position before the layout under
         // test runs, and the element's opening force simulation is not what a test sees settle.
@@ -215,6 +216,27 @@ describe("defineLayout on a rendered graph", () => {
             assertAt("d", [3, 3, 0]);
             assertAt("e", [6, 3, 0]);
             assert.deepEqual(drawnAt("f"), unplacedBefore, "the node with no tier was not placed by the layout");
+        });
+
+        it("follows undo and redo of an add: the node goes and comes back where place() puts it", async () => {
+            const { useTiers } = await import("../../../docs/examples/simple-tier/layout-tiers");
+            await useTiers(graph);
+            await settled("the tiers layout");
+
+            await graph.addNodes([{ id: "g", tier: 2 }]);
+            await settled("the tiers layout after the add");
+            assertAt("g", [0, 6, 0]);
+
+            await graph.getSession().undo();
+            await settled("the tiers layout after undo");
+            assert.isUndefined(graph.getNode("g"), "undo took the added node away");
+            assertAt("a", [0, 0, 0]);
+            assertAt("e", [6, 3, 0]);
+
+            await graph.getSession().redo();
+            await settled("the tiers layout after redo");
+            assertAt("g", [0, 6, 0]);
+            assertAt("d", [3, 3, 0]);
         });
 
         it("draws a 2D layout flat in a 3D view: z = 0", async () => {

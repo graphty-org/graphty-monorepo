@@ -650,6 +650,22 @@ describe("AccelerationController: acceleration=required", () => {
         controller.dispose();
     });
 
+    it("names the missing member, not a missing accelerator, when one is attached", async () => {
+        const controller = new AccelerationController({
+            policy: "required",
+            registry: registryWith(fakeAccelerator()),
+        });
+        await controller.ready();
+
+        const refusal = await controller
+            .run({ capability: "pageRank", nodeCount: 10_000 }, () => "gpu")
+            .catch((error: unknown) => error);
+        assert.instanceOf(refusal, Error);
+        assert.include(refusal.message, 'does not implement "pageRank"');
+        assert.notInclude(refusal.message, "no accelerator is attached");
+        controller.dispose();
+    });
+
     it("still honours the threshold, because a threshold is about what pays, not what is possible", async () => {
         const controller = new AccelerationController({
             policy: "required",

@@ -231,6 +231,11 @@ export default defineConfig({
                     name: "bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
+                    // One file at a time: a benchmark timed beside another measures the other.
+                    fileParallelism: false,
+                    // A browser benchmark needs a page, which this project has not got: it runs in
+                    // "browser-bench" below.
+                    exclude: ["test/browser/**", "**/node_modules/**"],
                 },
             },
             {
@@ -393,6 +398,12 @@ export default defineConfig({
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
                         "test/browser/lit-node-is-shaded-not-flooded.test.ts",
+                        // The two history twins every undo phase grows: each door of the element,
+                        // Graph and managers called with a spy on the dispatcher, and every
+                        // renderer round-trip fixture checked against a scene digest. They lay
+                        // out in one pass, so they stay inside this lane's budget.
+                        "test/browser/doors.test.ts",
+                        "test/browser/history-round-trip.test.ts",
                     ],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -446,6 +457,27 @@ export default defineConfig({
                 },
             },
             {
+                // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
+                // reason "bench" is kept out of "default": nothing here runs under coverage, which
+                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
+                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // sets timing rows' project below, which never runs in CI.
+                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                test: {
+                    name: "browser-bench",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/browser/**/*.bench.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium" }],
+                    },
+                },
+            },
+            {
                 // The env vars that cross into the page. The first is which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
@@ -483,6 +515,8 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
+                        // And the timing benchmarks: see "browser-bench"
+                        "test/browser/**/*.bench.test.ts",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -614,6 +648,7 @@ export default defineConfig({
             {
                 test: {
                     name: "llm-regression",
+                    setupFiles: ["./test/ai/llm-regression/setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~

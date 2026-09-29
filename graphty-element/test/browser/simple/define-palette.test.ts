@@ -16,6 +16,7 @@ import { useBrandPalettes } from "../../../docs/examples/simple-tier/palette/use
 import { definePalette, isGraphtyError } from "../../../extend";
 import type { Graphty } from "../../../index.js";
 import type { LayerSpec } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 /** The brand example's colours, as the guide writes them. */
 const BRAND = ["#0B1D51", "#1B7F79", "#F2A65A", "#E07A1F", "#7A3E9D"] as const;
@@ -77,7 +78,7 @@ afterEach(() => {
 async function loadGraph(): Promise<void> {
     element.nodeData = NODES.map((node) => ({ ...node }));
     element.edgeData = EDGES.map((edge) => ({ ...edge }));
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 }
 
 /**
@@ -86,7 +87,7 @@ async function loadGraph(): Promise<void> {
  */
 async function addLayer(spec: LayerSpec): Promise<void> {
     await element.session.styles.add(spec);
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 }
 
 /**
@@ -205,7 +206,7 @@ describe("the brand palettes from the guide's first example", () => {
     it("never wraps round: six groups on five colours paint nothing and report E_CAP_EXCEEDED", async () => {
         await defineBrand();
         element.nodeData = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id, team: id }));
-        await element.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(element.graph).waitForCompletion();
         const before = painted("a");
         const warned: string[] = [];
         const original = console.warn;
@@ -238,7 +239,7 @@ describe("the brand palettes from the guide's first example", () => {
         while (!derived() && Date.now() < deadline) {
             await new Promise((settle) => setTimeout(settle, 10));
         }
-        await element.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(element.graph).waitForCompletion();
 
         assert.strictEqual(painted("loner"), RAMP[0], "the lowest degree takes the ramp's first colour");
         assert.strictEqual(painted("a2"), RAMP[2], "the highest takes its last");

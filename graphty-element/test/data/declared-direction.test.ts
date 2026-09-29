@@ -30,10 +30,23 @@ import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GMLDataSource } from "../../src/data/GMLDataSource";
 import { GraphMLDataSource } from "../../src/data/GraphMLDataSource";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/data/ingest";
 import { JsonDataSource } from "../../src/data/JsonDataSource";
 import { PajekDataSource } from "../../src/data/PajekDataSource";
-import { createGraphSession, type GraphSession } from "../../src/session";
+import { type GraphSession } from "../../src/session";
+import { createElementSession } from "../../src/session/GraphSession";
+import { GraphOps } from "../../src/session/project/graphOps";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
+
+/**
+ * Declare a file's direction through the graph primitives, as ingest does.
+ * @param store - The store.
+ * @param directed - The declared direction.
+ * @param statedBy - The words that said so.
+ * @returns What became of it.
+ */
+function declare(store: GraphStore, directed: boolean, statedBy: string): string {
+    return GraphOps.standalone().writer(null, store).setDirected(directed, statedBy);
+}
 
 /** Where the shipped corpus lives, relative to this file. */
 const CORPUS = join(__dirname, "..", "helpers", "corpus");
@@ -115,7 +128,7 @@ function emptySession(directed: boolean | "auto"): Loaded {
         onEdgeRemap: () => undefined,
     });
 
-    return { session: createGraphSession({ store, config: { data: config } }), store };
+    return { session: createElementSession({ store, config: { data: config } }), store };
 }
 
 /**
@@ -179,7 +192,8 @@ describe("the direction a file declares", () => {
         // A GEXF file may leave the attribute out, and no corpus file does. The GEXF schema gives
         // it the default "undirected", so a file that omits it has still said which it is.
         const source = new GEXFDataSource({
-            data: '<?xml version="1.0"?><gexf version="1.2"><graph>' +
+            data:
+                '<?xml version="1.0"?><gexf version="1.2"><graph>' +
                 '<nodes><node id="a"/><node id="b"/></nodes>' +
                 '<edges><edge id="e" source="a" target="b"/></edges></graph></gexf>',
         });
@@ -195,7 +209,8 @@ describe("the direction a file declares", () => {
         // <graph> element is what the whole graph is read as -- one edge attribute must not decide
         // how the other quarter of a million are read -- and the edge keeps its own `type`.
         const source = new GEXFDataSource({
-            data: '<?xml version="1.0"?><gexf version="1.2"><graph defaultedgetype="undirected">' +
+            data:
+                '<?xml version="1.0"?><gexf version="1.2"><graph defaultedgetype="undirected">' +
                 '<nodes><node id="a"/><node id="b"/><node id="c"/></nodes>' +
                 '<edges><edge id="e0" source="a" target="b"/>' +
                 '<edge id="e1" source="b" target="c" type="directed"/></edges></graph></gexf>',
@@ -221,7 +236,8 @@ describe("the direction a file declares", () => {
         // file whose edges say nothing -- that is the case above, and it is what karate-style files
         // depend on -- but a default must not outrank the one place the author did write.
         const source = new GEXFDataSource({
-            data: '<?xml version="1.0"?><gexf version="1.2"><graph>' +
+            data:
+                '<?xml version="1.0"?><gexf version="1.2"><graph>' +
                 '<nodes><node id="a"/><node id="b"/><node id="c"/></nodes>' +
                 '<edges><edge id="e0" source="a" target="b" type="directed"/>' +
                 '<edge id="e1" source="b" target="c" type="directed"/></edges></graph></gexf>',
@@ -243,7 +259,8 @@ describe("the direction a file declares", () => {
         // marked every edge directed described a mixed graph; the graph-level statement is the
         // file's word on the graph as a whole, and each override is counted rather than discarded.
         const source = new GEXFDataSource({
-            data: '<?xml version="1.0"?><gexf version="1.2"><graph defaultedgetype="undirected">' +
+            data:
+                '<?xml version="1.0"?><gexf version="1.2"><graph defaultedgetype="undirected">' +
                 '<nodes><node id="a"/><node id="b"/><node id="c"/></nodes>' +
                 '<edges><edge id="e0" source="a" target="b" type="directed"/>' +
                 '<edge id="e1" source="b" target="c" type="directed"/></edges></graph></gexf>',
@@ -265,7 +282,8 @@ describe("the direction a file declares", () => {
         // file omitted the attribute goes looking for one that is sitting in the file, spelled
         // wrong. The direction is unchanged; only the explanation is.
         const gexf = new GEXFDataSource({
-            data: '<?xml version="1.0"?><gexf version="1.2"><graph defaultedgetype="mutualish">' +
+            data:
+                '<?xml version="1.0"?><gexf version="1.2"><graph defaultedgetype="mutualish">' +
                 '<nodes><node id="a"/><node id="b"/></nodes>' +
                 '<edges><edge id="e" source="a" target="b"/></edges></graph></gexf>',
         });
@@ -288,14 +306,15 @@ describe("the direction a file declares", () => {
 
         assert.deepStrictEqual(gml.declaredDirection, {
             directed: false,
-            statedBy: 'an unreadable directed yes, leaving the GML default (undirected)',
+            statedBy: "an unreadable directed yes, leaving the GML default (undirected)",
             conflictingEdges: 0,
         });
     });
 
     it("keeps the GraphML graph's own declaration when an edge contradicts it, and counts the edge", async () => {
         const source = new GraphMLDataSource({
-            data: '<?xml version="1.0"?><graphml><graph edgedefault="undirected">' +
+            data:
+                '<?xml version="1.0"?><graphml><graph edgedefault="undirected">' +
                 '<node id="a"/><node id="b"/><node id="c"/>' +
                 '<edge source="a" target="b"/><edge source="b" target="c" directed="true"/>' +
                 "</graph></graphml>",
@@ -332,7 +351,8 @@ describe("the direction a file declares", () => {
         // The attribute is REQUIRED by GraphML, so a file without it is malformed rather than
         // silent -- and a malformed document is not something to read a direction out of.
         const source = new GraphMLDataSource({
-            data: '<?xml version="1.0"?><graphml><graph><node id="a"/><node id="b"/>' +
+            data:
+                '<?xml version="1.0"?><graphml><graph><node id="a"/><node id="b"/>' +
                 '<edge source="a" target="b"/></graph></graphml>',
         });
         for await (const _chunk of source.getData()) {
@@ -414,7 +434,10 @@ describe("the direction a file declares", () => {
 
     it("reads a node-link JSON document's directed key", async () => {
         assert.deepStrictEqual(
-            await declarationOf("json", "json/networkx-format.json", { node: { path: "nodes" }, edge: { path: "links" } }),
+            await declarationOf("json", "json/networkx-format.json", {
+                node: { path: "nodes" },
+                edge: { path: "links" },
+            }),
             { directed: true, statedBy: '"directed": true', conflictingEdges: 0 },
         );
     });
@@ -445,6 +468,18 @@ describe("the graph the element then measures", () => {
         const undirectedPairs = (34 * 33) / 2;
         assert.closeTo(stats.density, 78 / undirectedPairs, 1e-12);
         assert.closeTo(stats.density, 0.139, 1e-3);
+        session.dispose();
+    });
+
+    it("reads Les Miserables as undirected with one edge per file edge under directed: auto", async () => {
+        // The GEXF file writes defaultedgetype="undirected" and 254 edges. Read as directed, or
+        // with each undirected edge expanded into two arcs, the count would not be 254.
+        const { session } = await load("gexf", "gexf/lesmiserables.gexf", "auto");
+        const stats = session.data.statistics();
+
+        assert.strictEqual(stats.nodeCount, 77);
+        assert.strictEqual(stats.edgeCount, 254);
+        assert.strictEqual(stats.directedness, "undirected");
         session.dispose();
     });
 
@@ -584,7 +619,7 @@ describe("who wins when a file and a consumer disagree", () => {
         // checked, not caught.
         const { store, session } = emptySession(false);
         assert.isTrue(store.builder.directedLocked);
-        assert.strictEqual(ingestDeclaredDirection(store, true, "digraph"), "config-wins");
+        assert.strictEqual(declare(store, true, "digraph"), "config-wins");
         assert.strictEqual(store.builder.directed, false);
         session.dispose();
     });
@@ -597,18 +632,18 @@ describe("who wins when a file and a consumer disagree", () => {
         const { session, store } = await load("gml", "gml/karate.gml");
         assert.strictEqual(store.builder.directed, false);
 
-        assert.strictEqual(ingestDeclaredDirection(store, true, "digraph"), "edges-present");
+        assert.strictEqual(declare(store, true, "digraph"), "edges-present");
         assert.strictEqual(session.data.statistics().directedness, "undirected");
         session.dispose();
     });
 
     it("costs nothing when the file declares what the builder already holds", () => {
         const { store, session } = emptySession("auto");
-        assert.strictEqual(ingestDeclaredDirection(store, true, "digraph"), "unchanged");
+        assert.strictEqual(declare(store, true, "digraph"), "unchanged");
 
         // Locked and in agreement is not a conflict either: there is simply nothing to do.
         const locked = emptySession(true);
-        assert.strictEqual(ingestDeclaredDirection(locked.store, true, "digraph"), "unchanged");
+        assert.strictEqual(declare(locked.store, true, "digraph"), "unchanged");
         session.dispose();
         locked.session.dispose();
     });

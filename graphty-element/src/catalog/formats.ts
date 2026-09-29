@@ -11,7 +11,7 @@
  * empty one instead of an unimplemented one.
  */
 
-import type { CSVVariant } from "../data/csv-variant-detection";
+import type { CSVVariant } from "../data/CSVDataSource";
 import { registeredFormatById, registeredFormatDescriptors } from "./formatRegistry";
 import type { FormatDescriptor, KNOWN_FORMAT_IDS, OptionDescriptor } from "./types";
 
@@ -87,8 +87,7 @@ const endpointOptions: readonly OptionDescriptor[] = [
         technicalName: "edgeTarget",
         type: "string",
         description:
-            "Where to find the node an edge ends at. Left unset, the element looks for " +
-            "target, then dst, then to.",
+            "Where to find the node an edge ends at. Left unset, the element looks for target, then dst, then to.",
     },
 ];
 

@@ -68,6 +68,9 @@ Find connected subgraphs:
 | `connected-components` | Find all connected components         |
 | `strongly-connected`   | Strong connectivity (directed graphs) |
 
+On an undirected graph every edge runs both ways, so `strongly-connected` finds the same pieces as
+`connected-components`.
+
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```
@@ -89,11 +92,12 @@ await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
 
 Find optimal paths between nodes:
 
-| Algorithm      | Description                 |
-| -------------- | --------------------------- |
-| `dijkstra`     | Shortest path (weighted)    |
-| `bellman-ford` | Handles negative weights    |
-| `a-star`       | Heuristic-based pathfinding |
+| Algorithm        | Description                 |
+| ---------------- | --------------------------- |
+| `dijkstra`       | Shortest path (weighted)    |
+| `bellman-ford`   | Handles negative weights    |
+| `a-star`         | Heuristic-based pathfinding |
+| `floyd-warshall` | Distance between every pair |
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
@@ -101,6 +105,15 @@ await graph.runAlgorithm("graphty", "dijkstra", {
     target: "node5",
 });
 ```
+
+`floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses
+a run over more than 5,792 nodes with a `GraphtyError` whose code is `E_TOO_LARGE` (the details
+carry `nodeCount` and `limit`) before any of the matrix is allocated; run it over a smaller scope.
+
+When the graph has a negative cycle no distance between two nodes is defined, so `floyd-warshall`
+publishes no node values and no `diameter` or `radius`: the result carries only
+`hasNegativeCycle: true`. It treats every edge as undirected, so a single edge with a negative
+weight is already a negative cycle -- cross it and come back.
 
 ### Spanning Tree
 

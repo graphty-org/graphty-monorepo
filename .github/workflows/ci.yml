@@ -164,6 +164,22 @@ jobs:
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
+            # Element data sources read files through @graphty/graph-io importers, not their own
+            # parsers. The same check runs in tools/prepush.sh.
+            - name: Element data sources on graph-io
+              run: pnpm run check:data-source-migration
+
+            # The import reader of the script that prints the counts in design/graph-format/STATUS.md.
+            - name: Migration count script
+              run: pnpm run check:migration-counts
+
+            # Reads source only. A new use of the legacy graph API (a legacy algorithms or layout
+            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails;
+            # the uses the graph-format migration has not removed yet are in
+            # tools/legacy-use-baseline.json. The same check runs in tools/prepush.sh.
+            - name: Legacy graph API use
+              run: pnpm run check:legacy-use
+
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook
 
@@ -913,6 +929,8 @@ jobs:
                       artifact: build-storybook-compact-mantine
                     - project: graphty-element
                       artifact: build-storybook-element
+                    - project: layout
+                      artifact: build-storybook-layout
         steps:
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
             # LFS objects by default); this job alone fetches them, and only its own project's. The objects

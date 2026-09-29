@@ -55,6 +55,7 @@ import { canonicalEdgeEnds, edgeCounterOf, edgeIdOf, pairsOrdered } from "../../
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
+import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
 import { assertIssued, referentReading } from "../sets/dependencies";
@@ -417,13 +418,19 @@ function assertScope(spec: Scope): void {
  */
 function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): ReadonlySet<TId> {
     resolveCounters.idSetBuilds++;
-    const ids = new Set<TId>();
-    for (const index of maskToIndices(mask, length)) {
-        ids.add(idOf(index));
-    }
-
-    return ids;
+    // Sealed: a resolved scope is an answer, and a write into it would change nothing it answers.
+    return sealedSet(
+        (function* ids(): Generator<TId> {
+            for (const index of maskToIndices(mask, length)) {
+                yield idOf(index);
+            }
+        })(),
+        SCOPE_HINT,
+    );
 }
+
+/** What a caller writing into a resolved scope is told to do instead. */
+const SCOPE_HINT = "A resolved scope is an answer; call sets.redefine() to change what a kept set holds.";
 
 /** A resolution and the snapshot it covers. */
 interface Membership {

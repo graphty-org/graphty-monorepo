@@ -10,6 +10,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { RandomLayout } from "../../src/layout/RandomLayoutEngine";
 import type { Node } from "../../src/Node";
@@ -60,8 +61,8 @@ function runNGraph(config: object): number[] {
 function runRandom(opts: object): number[] {
     const { nodes, edges } = pathGraph();
     const layout = new RandomLayout(opts);
-    layout.addNodes(nodes);
-    layout.addEdges(edges);
+    layoutEngineInternals.addNodes(layout, nodes);
+    layoutEngineInternals.addEdges(layout, edges);
     return nodes.flatMap((n) => {
         const p = layout.getNodePosition(n);
         return [p.x, p.y, p.z ?? 0];

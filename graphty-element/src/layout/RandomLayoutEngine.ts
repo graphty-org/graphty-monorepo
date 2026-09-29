@@ -1,8 +1,8 @@
-import { Edge as LayoutEdge, Node as LayoutNode, randomLayout } from "@graphty/layout";
+import { random } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * The seed used when none is given. The element recommends this layout for large graphs as "the
@@ -81,9 +81,10 @@ export class RandomLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = randomLayout({ nodes, edges }, this.config.center, this.config.dim, this.config.seed);
+        this.result = random(this.graph, {
+            center: this.config.center ?? undefined,
+            dim: layoutDim(this.config.dim),
+            seed: this.config.seed,
+        });
     }
 }

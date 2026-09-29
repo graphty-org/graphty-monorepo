@@ -24,7 +24,7 @@ graphty-element/
 |-- format.ts                 # Entry point: "./format"
 |-- logging.ts                # Entry point: "./logging"
 |-- session.ts                # Entry point: "./session"
-|-- commands.ts               # Entry point: "./commands" (deprecated, exports nothing; removed at next major)
+|-- commands.ts               # Entry point: "./commands" (the command vocabulary, COMMANDS)
 |-- react.ts                  # Entry point: "./react" (reserved, exports nothing yet)
 |-- webgpu.ts                 # Entry point: "./webgpu" (side-effect: registers the accelerator)
 |-- ai.ts                     # Entry point: "./ai"
@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (48 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (50 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure
@@ -91,7 +91,7 @@ source file of the same name at the package root:
 | `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
 | `./session`  | `session.ts`                           | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model                                                                                | Yes         |
 | `./logging`  | `logging.ts`                           | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes         |
-| `./commands` | `commands.ts`                          | Nothing. Deprecated: removed at the next major unless the serialisable command union (#337) lands first                                                                | Yes (empty) |
+| `./commands` | `commands.ts`                          | `COMMANDS` (every op, undoable or exempt with a reason), `CommandMeta`, `isSessionCommand`, `SessionCommand`                                                           | Yes         |
 | `./react`    | `react.ts`                             | Nothing yet; the name is reserved for typed React wrappers                                                                                                             | Yes (empty) |
 | `./webgpu`   | `webgpu.ts`                            | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer                                                                 | No          |
 | `./ai`       | `ai.ts`                                | The natural-language layer and its LLM SDKs; needs a DOM                                                                                                               | No          |
@@ -103,7 +103,7 @@ run-time import graph.** `test/packaging/node-safe-entries.test.ts` enforces it 
 `logging.ts`: it transpiles each one and everything it reaches (so `import type` is correctly
 erased), fails if `@babylonjs/*`, `lit`, `@lit/*` or `@mlc-ai/*` appears, checks that `index.ts`
 does reach Babylon and Lit so a walker that resolved nothing cannot pass, and then imports
-`session`, `schema`, `catalog`, `extend`, `format` and `logging` in plain Node.
+`session`, `schema`, `catalog`, `commands`, `extend`, `format` and `logging` in plain Node.
 `test/packaging/exports-map.test.ts` checks the exports map, the `sideEffects` list and the peer
 dependency declarations against the build.
 
@@ -192,15 +192,8 @@ plugin author who expected otherwise would be misled.
   -- belongs to the binding rather than to the palette. No built-in palette takes configuration
   either, so giving the point an options surface would be inventing a parity gap rather than
   closing one.
-- **What reaches `compute`.** The run's scope does, through `context.input(orientation,
-{ simplify })`: the full graph-format `GraphSnapshot`, the scope's `NodeMask` and `EdgeMask` over
-  it, and `subgraph()`, the compact snapshot of the scope. A class declaring `static scopeInput =
-"subgraph"` is handed its scope and is estimated over it; any other class is handed the whole
-  graph, keeps only the scope's values with the caveat "Computed on the whole graph; values kept
-  for the scope only.", and is estimated and refused as a whole-graph run. `register` publishes the
-  declaration as `descriptor.scopeInput`, and refuses a descriptor that states a different one.
-  `seed`, `exact`, `sample` and `timeBox` are resolved by a run and not forwarded, to a plugin or a
-  built-in; the run option `scopeAs` is reserved and refused with `E_BAD_COMMAND`.
+- **`scope`, `seed`, `exact`, `sample` and `timeBox`** are resolved by a run and not forwarded to
+  `compute`, so no algorithm receives them: not a plugin's, and not one of the element's own.
 - **The element's own importers still throw plain `Error`s.** A registered format reports
   `E_PARSE_FAILED` and `E_FETCH_FAILED`; the seven built-in readers do not yet. A plugin is ahead
   of the built-ins here rather than behind them.
@@ -271,6 +264,27 @@ the element re-reports them as one of these codes with the original attached as 
 is deliberately no `E_NOT_READY`: every method is safe to call before the element is ready, and
 work queues until it is.
 
+### Every change goes through the dispatcher
+
+Undo covers every change a project saves because there is one path for changes: the session's
+dispatcher (`src/session/project/Dispatcher.ts`). Project state is frozen outside it, and the
+strict build (every test) throws on a write that did not come through a command. So:
+
+- **A new public member that changes the graph, a style, a setting or anything else a project
+  saves dispatches a command.** It never writes a manager, a record or a map itself, and it never
+  records its own undo: the command's definition declares the keys it writes, and the dispatcher
+  records forward and inverse values. List the member in `src/session/commands/doors.ts`;
+  `test/session/history/doors.test.ts` and `test/browser/doors.test.ts` fail on a public member
+  that is on no list.
+- **A new op declares `undoable`, or `exempt` with a reason**, in its definition under
+  `src/session/commands/` and in `COMMANDS` (`commands.ts`), which does not compile without it.
+  `test/session/history/vocabulary.test.ts` checks the two agree and fails until an undoable op
+  has a round-trip fixture in `test/session/history/fixtures.ts`.
+- Exempt means it changes nothing a project file saves: the camera, the selection, a moving
+  layout, a device session. When in doubt it is undoable.
+
+The guide a consumer reads is `docs/guide/undo.md`; the design is `design/undo/undo-design.md`.
+
 ### Acceleration
 
 `src/acceleration/` owns hardware acceleration end to end: a registry an accelerator factory
@@ -283,10 +297,13 @@ arrives only through the `./webgpu` entry point.
 
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
-accelerator when the controller planned one and the CPU simulation when it did not; five
-algorithm adapters (PageRank, Dijkstra, BFS, connected components, Kruskal) route through
+accelerator when the controller planned one and the CPU simulation when it did not; the
+algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector,
+betweenness and closeness route through
 `@graphty/algorithms`' `accelerated()` and label the result's `caveats.precision` with the
-arithmetic that produced it. `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
+arithmetic that produced it. Only the members listed in `src/acceleration/narrow.ts` are ever
+offered to the device; betweenness and closeness are not yet, so they always take the CPU port.
+`src/testing/fakeAccelerator.ts` is the one fake, deterministic and
 frame-count-independent, and it is shared by the tests and the stories -- write no second one.
 
 ### Test Projects
@@ -307,10 +324,10 @@ launches with no flags and sees no WebGPU at all, which is what the five CI shar
 
 ## Common Pitfalls
 
-**Entry point contamination**: Six published entry points carry exports that must resolve in
-Node with no renderer (two more are checked but still empty). Importing a value from a module
-that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`, `extend.ts`,
-`format.ts`, `logging.ts` or `session.ts` reaches fails
+**Entry point contamination**: Seven published entry points carry exports that must resolve in
+Node with no renderer (one more, `react.ts`, is checked but still empty). Importing a value from
+a module that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`,
+`commands.ts`, `extend.ts`, `format.ts`, `logging.ts` or `session.ts` reaches fails
 `test/packaging/node-safe-entries.test.ts`, not the file you edited. Use `import type` when you
 only need the type -- it is erased and costs nothing. See "Entry Points" above.
 

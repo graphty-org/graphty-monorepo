@@ -12,6 +12,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { defineAlgorithm, type GraphtyError, isGraphtyError } from "../../../extend";
 import type { Graphty } from "../../../index";
 import type { GraphSession } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 /** A triangle a-b-c with a tail c-d, a pair e-f, and a node with no edges. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }, { id: "f" }, { id: "lone" }];
@@ -34,7 +35,7 @@ beforeEach(async () => {
     await element.updateComplete;
     element.nodeData = NODES;
     element.edgeData = EDGES;
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 });
 
 afterEach(() => {

@@ -37,6 +37,69 @@ algorithms/
 └── docs/                  # VitePress documentation
 ```
 
+`src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
+`indexed` namespace. Ported so far: BFS, direction-optimized BFS, DFS, cycle detection, topological
+sort, bipartite check, strongly connected components, condensation, Dijkstra, Bellman-Ford,
+bidirectional Dijkstra, A\*, connected components, Kruskal MST, Prim MST, PageRank, personalized
+PageRank, the delta PageRank engines (`DeltaPageRank`, `PriorityDeltaPageRank`),
+HITS, Katz, eigenvector centrality, degree centrality, closeness centrality, betweenness centrality,
+edge betweenness centrality, common neighbours, k-core, Louvain, Leiden, Girvan-Newman, label
+propagation, all-pairs shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum
+cuts, the bipartite flow network, bipartite matching, graph isomorphism, Adamic-Adar link
+prediction, hierarchical, Markov and spectral clustering, modularity, and the research clusterings
+teraHAC, SynC and GRSBM. Each lands beside its legacy function; tests live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS,
+Louvain, label propagation) against their legacy functions.
+
+Of the 90 legacy functions the barrel exports (the data structures and the CSR helpers not counted),
+56 delegate to their port and keep only their signature and result shape: `floydWarshall`,
+`floydWarshallPath`, `transitiveClosure`, `labelPropagation`, the BFS functions, `depthFirstSearch`,
+`hasCycleDFS`, `topologicalSort`, the connected, weakly and strongly connected component functions
+(and `condensationGraph` through them), `singleSourceShortestPath` (and `allPairsShortestPath`
+through it), `hasNegativeCycle`, `kruskalMST` and `minimumSpanningTree`, the 18 centrality functions
+(every one but `nodeDegreeCentrality`), the five common-neighbour link prediction functions,
+`hierarchicalClustering`, `markovClustering`, `syncClustering`, `grsbm`, `kCoreDecomposition` (and
+`getKCore` through it) and `girvanNewman`. Traversal facades pass `legacyArcOrder` so neighbours are
+tried in the graph's insertion order. A graph with a NaN weight has no weighted snapshot:
+`toTopologySnapshot` freezes it without weights for the ports that read none, and the weighted
+facades keep their legacy code for it (and `singleSourceShortestPath` for negative weights).
+
+24 stay on legacy code, each for a recorded reason. Their port breaks ties differently (`dijkstra`,
+`dijkstraPath`, `bellmanFord`, `bellmanFordPath`, `astar`, `astarWithDetails`, `primMST`), returns
+less order (`bipartitePartition`, `findStronglyConnectedComponents`, `connectedComponentsDFS`) or
+gives different answers (the six Adamic-Adar functions, `calculateMCLModularity`,
+`spectralClustering`, `teraHAC`); `nodeDegreeCentrality` answers for one node in constant time; and
+the randomised or differently ruled community functions -- `louvain` and `leiden` (the ports visit
+nodes in another seeded order, so they stop at other partitions), `labelPropagationAsync` (the
+synchronous port adds a swap guard the old loop lacks) and `labelPropagationSemiSupervised` (another
+random stream, and the port renumbers the seed labels).
+
+9 are not converted yet, although each has a port: `fordFulkerson`, `edmondsKarp`, `minSTCut`,
+`stoerWagner`, `kargerMinCut` (ports `indexed.maxFlow`, `indexed.minSTCut`, `indexed.stoerWagner`,
+`indexed.kargerMinCut`), `maximumBipartiteMatching`, `greedyBipartiteMatching`
+(`indexed.maximumBipartiteMatching`, `indexed.greedyBipartiteMatching`), `isGraphIsomorphic` and
+`findAllIsomorphisms` (`indexed.isGraphIsomorphic`, `indexed.findAllIsomorphisms`). Each port
+differs from its legacy function on purpose for some inputs, so whether they delegate waits on the
+owner's decisions listed in section 6 of `design/graph-format/migration-plan.md`. The last barrel
+function, `createBipartiteFlowNetwork`, computes nothing over a graph -- it builds a Map-based flow
+network -- and needs no delegation; `indexed.bipartiteFlowNetwork` is its snapshot replacement.
+
+None of the 3 legacy classes delegates, each for a recorded reason: `DeltaPageRank` and
+`PriorityDeltaPageRank` (their `update()` reads the live graph, and a snapshot is frozen) and
+`DirectionOptimizedBFS` (it runs on a `CSRGraph`, which `toSnapshot` cannot convert; `searchMultiple`
+starts from several sources where `indexed.directionOptimizedBfs` takes one; and a second `search()`
+without `reset()` keeps the previous search's nodes).
+
+The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
+`test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
+replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts`as their test oracle.
+Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade
+test, or for inputs the port refuses -- it sits beside it in a`*-legacy.ts`file, unchanged, until
+the removal release deletes it. A`\*-legacy.ts`file can also be the only implementation of
+published functions that do not delegate:`hierarchical-legacy.ts`holds`cutDendrogram`,
+`cutDendrogramKClusters`and`modularityHierarchicalClustering`(and the`hierarchicalClustering`facade calls`cutDendrogram`), and `mcl-legacy.ts`holds`calculateMCLModularity`. Those functions
+are re-exported from the public file and are not dead code; the removal release must move them, not
+delete them.
+
 ## Essential Commands
 
 ```bash
@@ -73,42 +136,45 @@ npm run docs:build       # Build documentation
 
 ## Algorithm Implementation Pattern
 
-All algorithms follow a consistent interface:
+Algorithms take a frozen `@graphty/graph-format` snapshot first and an options object last, and return typed arrays
+plus scalars:
 
 ```typescript
-export function algorithmName<TNodeId = unknown>(
-    graph: ReadonlyGraph<TNodeId>,
-    options?: AlgorithmOptions,
-): AlgorithmResult<TNodeId> {
-    // Implementation
+export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
+    // Implementation over node indices 0..nodeCount-1 and the snapshot's CSR arrays
 }
 ```
 
 Key principles:
-- Generic `TNodeId` type for flexible node identification
-- Read-only graph interface for safety
+
+- Concrete `NodeId` (`string | number`) and node indices, not a generic id type: ids appear only at the boundary
+  (`snapshot.ids.requireIndex(id)` in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` out)
+- A required per-call input, such as a source node index, sits between the snapshot and the options
+  (`dijkstra(snapshot, source, options?)`)
+- Traversals and paths accept any `AdjacencyView` (a snapshot, or a view such as `snapshot.reverse()`)
 - Optional configuration with sensible defaults
-- Automatic optimization based on graph size
+- Results are typed arrays indexed by node (or edge) index, never id-keyed maps
 
 ## Testing Guidelines
 
 - **Test projects**: `default` (happy-dom) and `browser` (Playwright)
-- **IMPORTANT**: Do not increase test coverage for floyd-warshall module - it causes vitest to hang
 - Performance regression tests track algorithm speed over time
 - Use `npm run test:performance:update` to update baselines after intentional changes
 
 ## Optimized Implementations
 
 The `src/optimized/` directory contains high-performance implementations:
+
 - **CSRGraph**: Compressed Sparse Row format for memory efficiency
 - **Bit-packed structures**: TypedFastBitSet for large graphs
-- **Direction-optimized BFS**: Automatic switching between top-down and bottom-up
+- **Direction-optimized BFS**: switches between top-down and bottom-up steps
 
-The library automatically selects optimal implementations based on graph size - users don't need to configure this.
+No legacy function switches to these by graph size: the BFS family runs the indexed BFS on every
+graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, called explicitly.
 
 ## Design Philosophy
 
-- **Zero configuration**: Algorithms auto-optimize based on graph characteristics
+- **Zero configuration**: every function takes a snapshot and needs no other setup
 - **Browser-first**: All implementations work in browser environments
 - **Type safety**: Full TypeScript with strict mode
 - **Performance**: Optimized for graphs up to millions of nodes
@@ -117,12 +183,19 @@ The library automatically selects optimal implementations based on graph size - 
 
 ### Adding a New Algorithm
 
-1. Create implementation in appropriate `src/algorithms/` subdirectory
-2. Export from the category's `index.ts`
-3. Add to main `src/index.ts` exports
-4. Write comprehensive tests in `test/unit/`
-5. Add examples in `examples/`
-6. Update documentation
+1. Create the implementation in `src/indexed/`, following the pattern above
+2. Export it from `src/indexed/index.ts`
+3. Write tests in `test/unit/indexed/`; when a legacy function computes the same thing, add a differential test
+   against it
+4. Add examples in `examples/`
+5. Update documentation; code samples in `docs/guide/getting-started.md` and the README's marked blocks are
+   type-checked and run by `test/unit/docs/guide-samples.test.ts` (see below)
+
+### Documentation Samples
+
+`test/unit/docs/guide-samples.test.ts` type-checks and runs every ```typescript block of
+`docs/guide/getting-started.md`, which must all be marked `<!-- doc-check -->`just before them, and every
+block of`README.md` so marked. Keep each marked block self-contained, with its own imports.
 
 ### Running Examples
 

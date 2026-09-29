@@ -2,61 +2,8 @@
  * Kamada-Kawai layout algorithm optimization functions
  */
 
-import type { Graph } from "../../types";
-import { getEdgesFromGraph, getNodesFromGraph } from "../../utils/graph";
 import { _lbfgsDirection } from "./lbfgs";
 import { _backtrackingLineSearch } from "./line-search";
-import { DistanceMap } from "./types";
-
-/**
- * Compute all-pairs shortest path distances for the graph
- * @param G - NetworkX graph
- * @param weight - Edge attribute for weight
- * @returns Dictionary of dictionaries of shortest path distances
- */
-export function _computeShortestPathDistances(G: Graph, weight: string): DistanceMap {
-    const distances: DistanceMap = {};
-    const nodes = getNodesFromGraph(G);
-    const edges = getEdgesFromGraph(G);
-
-    // Initialize distances with direct edges
-    for (const node of nodes) {
-        distances[node] = {};
-        distances[node][node] = 0;
-
-        for (const other of nodes) {
-            if (node !== other) {
-                distances[node][other] = Infinity;
-            }
-        }
-    }
-
-    // Add direct edges
-    for (const [source, target] of edges) {
-        // In a real implementation, we would get the weight from the graph
-        // For now, assume weight = 1 or use weight attribute if available
-        let edgeWeight = 1;
-        if (G.getEdgeData) {
-            edgeWeight = G.getEdgeData(source, target, weight) || 1;
-        }
-
-        distances[source][target] = edgeWeight;
-        distances[target][source] = edgeWeight; // Assuming undirected graph
-    }
-
-    // Floyd-Warshall algorithm for all-pairs shortest paths
-    for (const k of nodes) {
-        for (const i of nodes) {
-            for (const j of nodes) {
-                if (distances[i][k] + distances[k][j] < distances[i][j]) {
-                    distances[i][j] = distances[i][k] + distances[k][j];
-                }
-            }
-        }
-    }
-
-    return distances;
-}
 
 /**
  * Solve the Kamada-Kawai layout optimization problem

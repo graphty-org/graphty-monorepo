@@ -1,8 +1,8 @@
 /**
- * @file Property: over random sequences of the five set operations and the store's own put and
- * delete (as an undo or a loader would call them), no id is ever issued twice, every live record
- * is a valid canonical definition, live orders are distinct, and the issued-id register only grows
- * (design/sets/sets-design.md sections 3.1, 12.4, 13).
+ * @file Property: over random sequences of the set operations, undo, redo and write groups that
+ * commit or roll back, no id is ever issued twice, every live record is a valid canonical
+ * definition, live orders are distinct, and the issued-id register only grows
+ * (design/sets/sets-design.md sections 3.1, 12.4, 13; design/sets/undo-integration.md section 1).
  */
 
 import fc from "fast-check";
@@ -13,6 +13,7 @@ import type { SetDefinitionInput, SetId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import { createSetsApi } from "../../../src/session/sets/SetsApi";
 import { SetsStore } from "../../../src/session/sets/store";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 
 const ID = fc.constantFrom<string | number>("a", "b", "c", 1, 2);
@@ -47,8 +48,8 @@ type Op =
           edges: { source: string | number; target: string | number }[];
       }
     | { op: "delete-set"; pick: number }
-    | { op: "store-delete"; pick: number }
-    | { op: "store-restore"; pick: number }
+    | { op: "undo" }
+    | { op: "redo" }
     | { op: "group"; ops: Op[]; abort: boolean };
 
 const PICK = fc.nat(20);
@@ -63,8 +64,8 @@ const LEAF: fc.Arbitrary<Op> = fc.oneof(
         edges: fc.array(EDGE, { maxLength: 2 }),
     }),
     fc.record({ op: fc.constant("delete-set" as const), pick: PICK }),
-    fc.record({ op: fc.constant("store-delete" as const), pick: PICK }),
-    fc.record({ op: fc.constant("store-restore" as const), pick: PICK }),
+    fc.record({ op: fc.constant("undo" as const) }),
+    fc.record({ op: fc.constant("redo" as const) }),
 );
 const OP: fc.Arbitrary<Op> = fc.oneof(
     { weight: 6, arbitrary: LEAF },
@@ -79,22 +80,21 @@ const OP: fc.Arbitrary<Op> = fc.oneof(
 );
 
 describe("the sets store under random operations", () => {
-    it("never reissues an id, keeps records valid and orders distinct, and only grows the register", () => {
-        fc.assert(
-            fc.property(fc.array(OP, { maxLength: 25 }), (ops) => {
+    it("never reissues an id, keeps records valid and orders distinct, and only grows the register", async () => {
+        await fc.assert(
+            guardedAsyncProperty(fc.array(OP, { maxLength: 25 }), async (ops) => {
                 const store = new SetsStore();
                 const sets = createSetsApi({ edgeMember: () => undefined }, store);
                 // Every id a create returned, and the ones returned inside the open group.
                 const returned = new Set<SetId>();
                 let inGroup: SetId[] = [];
-                const removed: SetId[] = [];
 
                 const pickLive = (pick: number): SetId | undefined => {
                     const live = sets.list();
                     return live.length === 0 ? undefined : live[pick % live.length].id;
                 };
 
-                const run = (op: Op): void => {
+                const run = async (op: Op): Promise<void> => {
                     const id = "pick" in op ? pickLive(op.pick) : undefined;
                     switch (op.op) {
                         case "create": {
@@ -130,48 +130,44 @@ describe("the sets store under random operations", () => {
                         case "delete-set":
                             if (id !== undefined) {
                                 sets.remove(id);
-                                removed.push(id);
                             }
                             break;
-                        case "store-delete":
-                            if (id !== undefined) {
-                                store.transact(() => {
-                                    store.delete(id);
-                                });
-                                removed.push(id);
-                            }
+                        case "undo":
+                            await store.dispatcher.undo();
                             break;
-                        case "store-restore": {
-                            // What an undo of a removal does: put the last record back.
-                            const candidate = removed.length === 0 ? undefined : removed[op.pick % removed.length];
-                            const record = candidate === undefined ? undefined : store.tombstone(candidate)?.record;
-                            if (record !== undefined) {
-                                store.transact(() => {
-                                    store.put(record);
-                                });
-                            }
+                        case "redo":
+                            await store.dispatcher.redo();
+                            break;
+                        case "group": {
+                            inGroup = [];
+                            const { dispatcher } = store;
+                            await dispatcher.transaction("group", (tx) =>
+                                dispatcher.routed(
+                                    (command, options) => tx.dispatch(command, options),
+                                    () => {
+                                        for (const inner of op.ops) {
+                                            // Undo and redo are not writes a group can hold.
+                                            if (inner.op !== "undo" && inner.op !== "redo") {
+                                                void attempt(inner);
+                                            }
+                                        }
+
+                                        if (op.abort) {
+                                            throw new Error("abort");
+                                        }
+                                    },
+                                ),
+                            );
                             break;
                         }
-                        case "group":
-                            inGroup = [];
-                            store.transact(() => {
-                                for (const inner of op.ops) {
-                                    attempt(inner);
-                                }
-
-                                if (op.abort) {
-                                    throw new Error("abort");
-                                }
-                            });
-                            break;
                         default:
                             throw new Error("unknown operation");
                     }
                 };
 
-                const attempt = (op: Op): void => {
+                const attempt = async (op: Op): Promise<void> => {
                     try {
-                        run(op);
+                        await run(op);
                     } catch (error) {
                         if (!isGraphtyError(error) && !(error instanceof Error && error.message === "abort")) {
                             throw error;
@@ -182,7 +178,7 @@ describe("the sets store under random operations", () => {
                 let register: SetId[] = [];
                 for (const op of ops) {
                     inGroup = [];
-                    attempt(op);
+                    await attempt(op);
 
                     const now = [...store.register()];
                     assert.includeMembers(now, register, "the register only grows");

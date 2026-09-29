@@ -9,7 +9,7 @@ import { Algorithm } from "../../algorithms/Algorithm";
 import { algorithmByLegacyKey } from "../../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type { Graph } from "../../Graph";
-import type { CommandResult, GraphCommand } from "./types";
+import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Schema for runAlgorithm parameters.
@@ -62,7 +62,7 @@ export const runAlgorithm: GraphCommand = {
         },
     ],
 
-    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
         const parsed = runAlgorithmParamsSchema.safeParse(params);
         if (!parsed.success) {
             return {
@@ -99,8 +99,12 @@ export const runAlgorithm: GraphCommand = {
             if (mapping === undefined) {
                 // A plugin that declared no descriptor has no run and no result to summarise, so
                 // it keeps the 1.10 path, options and all.
-                // eslint-disable-next-line @typescript-eslint/no-deprecated
-                await graph.runAlgorithm(namespace, type, { algorithmOptions: options });
+                await writerOf(graph, context).execute({
+                    op: "algo.legacy",
+                    namespace,
+                    type,
+                    ...(options === undefined ? {} : { options }),
+                });
 
                 return {
                     success: true,
@@ -110,7 +114,11 @@ export const runAlgorithm: GraphCommand = {
             }
 
             const params = "params" in mapping ? mapping.params : {};
-            const result = await graph.run(mapping.descriptor.key, { ...params, ...options });
+            const result = await writerOf(graph, context).run({
+                op: "algo.run",
+                algorithm: mapping.descriptor.key,
+                params: { ...params, ...options },
+            });
             const data: Record<string, unknown> = {
                 namespace,
                 type,

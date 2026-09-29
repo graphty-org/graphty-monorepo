@@ -521,11 +521,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         `${story}: no graph ever arrived, so the story's data never loaded`,
     );
 
-    await within(
-        graph.operationQueue.waitForCompletion(),
-        deadline,
-        `${story}: the element's operation queue never drained`,
-    );
+    await within(graph.waitForSettled(), deadline, `${story}: the element's operation queue never drained`);
 
     await within(
         session.styles.settled(),

@@ -7,7 +7,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -31,7 +31,7 @@ describe("View Mode Transitions", () => {
         await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 } });
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -43,13 +43,13 @@ describe("View Mode Transitions", () => {
 
     test("2D -> 3D cleans up 2D input state", async () => {
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");
 
         await graph.setViewMode("3d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.equal(graph.getViewMode(), "3d", "Should be in 3D mode");
@@ -63,7 +63,7 @@ describe("View Mode Transitions", () => {
         assert.equal(graph.getViewMode(), "3d", "Should start in 3D mode");
 
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.equal(graph.getViewMode(), "2d", "Should be in 2D mode");
@@ -87,7 +87,7 @@ describe("View Mode Transitions", () => {
             await new Promise((resolve) => setTimeout(resolve, 20));
         }
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 200));
 
         assert.isDefined(graph.scene, "Scene should still exist");
@@ -115,7 +115,7 @@ describe("View Mode Transitions", () => {
         assert.notEqual(node1.mesh.position.z, 0, "Node Z should be non-zero before transition");
 
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         assert.closeTo(node1.mesh.position.z, 0, 0.01, "Node Z should be flattened to 0 in 2D mode");
@@ -127,7 +127,7 @@ describe("View Mode Transitions", () => {
         assert.isDefined(controller, "Controller should exist in 3D mode");
 
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         controller = graph.camera.getActiveController();
@@ -136,7 +136,7 @@ describe("View Mode Transitions", () => {
         }
 
         await graph.setViewMode("3d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
 
         controller = graph.camera.getActiveController();

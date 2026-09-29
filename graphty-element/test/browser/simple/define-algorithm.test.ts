@@ -29,6 +29,7 @@ import {
 } from "../../../extend";
 import type { Graphty } from "../../../index";
 import type { GraphSession, NodeId } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
 // The guide's examples, loaded the way a page loads a plugin: the module's own top-level
@@ -80,7 +81,7 @@ beforeEach(async () => {
     await element.updateComplete;
     element.nodeData = NODES;
     element.edgeData = EDGES;
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 });
 
 afterEach(() => {
@@ -145,7 +146,7 @@ async function derivedLayerOf(runId: string): Promise<void> {
                 .styles.list()
                 .some((layer) => layer.source.by === "run" && layer.source.runId === runId)
         ) {
-            await element.graph.operationQueue.waitForCompletion();
+            await operationQueueOf(element.graph).waitForCompletion();
             return;
         }
 
@@ -510,7 +511,7 @@ describe("a simple registration is an ordinary one", () => {
         await EXAMPLES.confidenceDegree();
 
         await element.graph.runAlgorithm("acme-confidence-degree", "acme-confidence-degree");
-        await element.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(element.graph).waitForCompletion();
 
         const finished = session()
             .runs.list()

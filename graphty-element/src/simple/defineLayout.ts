@@ -332,6 +332,17 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#changes++;
         }
 
+        /**
+         * Undo or redo restored an arrangement: drop any placement still being computed or waiting
+         * to be drawn, so it cannot land over the restored one.
+         */
+        override loadArrangement(): void {
+            this.#run?.abort();
+            this.#pending = null;
+            this.#ready = null;
+            super.loadArrangement();
+        }
+
         override dispose(): void {
             this.#disposed = true;
             this.#run?.abort();
@@ -385,7 +396,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
 
             const graph = this._nodes[0]?.parentGraph;
             // Only the element's own Graph has a session; a bare GraphContext (a test harness) does not.
-            const session = graph !== undefined && "getSession" in graph ? graph.getSession() : undefined;
+            const session = graph?.getSession?.();
             if (graph === undefined || session === undefined) {
                 // No nodes yet, or an engine driven without an element: nothing to place.
                 return {};

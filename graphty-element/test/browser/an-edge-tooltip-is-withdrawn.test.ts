@@ -29,7 +29,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { WITHDRAWN_CAPABILITIES } from "../../src/catalog/unreachable";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import { isChannel } from "../../src/session/styles/channels";
 
@@ -65,7 +65,7 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
         // Circular rather than a physics layout, so the edge is where it was put and nothing is
         // racing a simulation that is still moving it.
         await graph.setLayout("circular", { scale: 0.2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 
     afterAll(() => {
@@ -98,11 +98,7 @@ describe("an edge tooltip, withdrawn in 2.0", () => {
 
         const named = checked.errors.find((problem) => problem.code === "E_UNKNOWN_CHANNEL");
 
-        assert.include(
-            named?.message ?? "",
-            "edge.tooltip",
-            "the refusal does not name the channel that was refused",
-        );
+        assert.include(named?.message ?? "", "edge.tooltip", "the refusal does not name the channel that was refused");
     });
 
     it("is gone from the edge style schema, block and all", () => {

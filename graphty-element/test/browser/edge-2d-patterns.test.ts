@@ -1,7 +1,7 @@
 import { StandardMaterial } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { addStyleLayer, asData, edgeBetween, styleEveryEdge } from "../helpers/testSetup";
 
@@ -19,7 +19,7 @@ describe("Edge 2D Patterns Integration", () => {
         // Set 2D mode via style template with diamond pattern
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.style": "diamond", "edge.color": "darkgrey" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
@@ -36,7 +36,7 @@ describe("Edge 2D Patterns Integration", () => {
         );
 
         // Wait for all operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
         await new Promise((resolve) => {
@@ -73,7 +73,7 @@ describe("Edge 2D Patterns Integration", () => {
         // Set 3D mode via style template with diamond pattern
         await graph.setViewMode("3d");
         await styleEveryEdge(graph, { "edge.style": "diamond", "edge.color": "darkgrey" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
@@ -90,7 +90,7 @@ describe("Edge 2D Patterns Integration", () => {
         );
 
         // Wait for all operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
         await new Promise((resolve) => {
@@ -129,7 +129,7 @@ describe("Edge 2D Patterns Integration", () => {
 
         // Set 2D mode via style template
         await graph.setViewMode("2d");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Test different pattern types
         const patterns = ["dot", "star", "diamond", "box", "dash"] as const;
@@ -164,11 +164,11 @@ describe("Edge 2D Patterns Integration", () => {
                 set: { "edge.style": pattern, "edge.color": "darkgrey" },
             });
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
         }
 
         // Wait for all operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Wait for graph to settle
         await new Promise((resolve) => {

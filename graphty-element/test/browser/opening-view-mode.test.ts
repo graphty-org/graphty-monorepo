@@ -26,7 +26,7 @@ import "../../src/graphty-element";
 import { Camera } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** How long the element needs to connect, run its first update and finish `Graph.init()`. */
 const ELEMENT_READY_MS = 400;
@@ -40,6 +40,15 @@ const EDGES = [
 
 const hosts: HTMLDivElement[] = [];
 const graphs: Graph[] = [];
+
+/**
+ * Ask for the opening view before `init()`, where `init()` reads it: the dimension is written to
+ * the `layout` slice at once, since there is no graph yet to take its turn on the queue behind.
+ * @param graph - The graph, not yet initialised.
+ */
+function openIn2D(graph: Graph): void {
+    void graph.setViewMode("2d");
+}
 
 /**
  * A 400x300 div attached to the document, torn down after the test.
@@ -62,9 +71,9 @@ function makeHost(): HTMLDivElement {
  * @param graph - The graph to drain.
  */
 async function settle(graph: Graph): Promise<void> {
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     await new Promise((resolve) => setTimeout(resolve, 300));
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 }
 
 /**
@@ -165,23 +174,29 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.viewMode = "2d";
+        openIn2D(graph);
         await graph.init();
         await settle(graph);
 
         assertDrawnIn2D(graph, "config before init");
     });
 
-    test("a bare Graph, asked through the deprecated twoD flag before init()", async () => {
+    test("the element, asked through the deprecated layout2d property before it connects", async () => {
         const host = makeHost();
-        const graph = new Graph(host);
+        const element = document.createElement("graphty-element");
 
-        graphs.push(graph);
-        graph.styles.config.graph.twoD = true;
-        await graph.init();
-        await settle(graph);
+        element.style.width = "100%";
+        element.style.height = "100%";
+        element.style.display = "block";
+        element.layout2d = true;
+        host.append(element);
+        element.nodeData = NODES;
+        element.edgeData = EDGES;
 
-        assertDrawnIn2D(graph, "deprecated twoD before init");
+        await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+        await settle(element.graph);
+
+        assertDrawnIn2D(element.graph, "deprecated layout2d before connecting");
     });
 
     test("switching 2D -> 3D -> 2D still works from an opening 2D", async () => {
@@ -189,7 +204,7 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.viewMode = "2d";
+        openIn2D(graph);
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
@@ -219,7 +234,7 @@ describe("a graph that opens in 2D", () => {
         const graph = new Graph(host);
 
         graphs.push(graph);
-        graph.styles.config.graph.viewMode = "2d";
+        openIn2D(graph);
         await graph.init();
         await graph.addNodes(NODES);
         await graph.setLayout("circular");

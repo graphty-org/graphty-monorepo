@@ -988,8 +988,10 @@ json`. Inference never yields `f32` (f32 silently corrupts `0.1` and
   `itemComponents: 2`, role `spells`. GEXF 1.3 `timestamps="<[t1, t2]>"`
   (a list of instants per element) is a `list` of `f64`, role
   `timestamps`. GEXF 1.2 `startopen` / `endopen` are a `u8` column with
-  role `open` (bit 0 = start open, bit 1 = end open); an exporter for a
-  format without open intervals reports `W_OPEN_INTERVAL` in `check()`.
+  role `open` (bit 0 = start open, bit 1 = end open); an open bound on a
+  spell is a `list` of `u8` with role `spellsOpen`, one entry per spell
+  with the same bits. An exporter for a format without open intervals
+  reports `W_OPEN_INTERVAL` in `check()`.
 
 ### 5.2 Multi-component (stride) columns
 
@@ -1092,25 +1094,25 @@ Two shapes exist: `ColumnDecl` is the INPUT to `declareNodeColumn` /
 rule of section 12.1). The complete definitions are in section 12.2; the
 fields and their meaning:
 
-| Field            | Meaning                                                                                                                                                                                      |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`           | unique within its table; case-sensitive; dotted names allowed (section 5.9)                                                                                                                  |
-| `domain`         | `"node" \| "edge" \| "graph" \| "extension"`                                                                                                                                                 |
-| `dtype`          | section 5.1                                                                                                                                                                                  |
-| `components`     | `>= 1`; only `> 1` for `f32 f64 i32 u32 u8`                                                                                                                                                  |
-| `itemDtype`      | `list` only: the child dtype                                                                                                                                                                 |
-| `itemComponents` | `list` only: the child's `components` (spells: `2`)                                                                                                                                          |
-| `nullable`       | whether a validity bitmap may exist                                                                                                                                                          |
-| `mutable`        | contents may be written in place on a snapshot (section 5.8)                                                                                                                                 |
-| `role`           | section 5.6                                                                                                                                                                                  |
-| `refersTo`       | `"node" \| "edge" \| null`: a `u32` column (or a `list` whose child is `u32`) holding indices, rewritten by every remap and every derived graph (section 5.11)                               |
-| `unique`         | enforced at freeze over set rows (`E_DUPLICATE_EDGE_ID` / `E_DUPLICATE_ID`)                                                                                                                  |
-| `default`        | declared default (GEXF/GraphML), returned by `value()` for unset rows                                                                                                                        |
-| `fill`           | value physically stored in unset rows (default: the declared `default` when representable in the dtype, else `0` / `""` / `false`; section 5.3)                                              |
-| `options`        | declared enum (GEXF `<options>`); for `dict` the dictionary itself                                                                                                                           |
-| `origin`         | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
-| `dynamic`        | GEXF dynamic attribute: values live in the temporal extension table (section 5.10)                                                                                                           |
-| `extra`          | anything an importer wants to survive (JSON-serialisable)                                                                                                                                    |
+| Field            | Meaning                                                                                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`           | unique within its table; case-sensitive; dotted names allowed (section 5.9)                                                                                                                                 |
+| `domain`         | `"node" \| "edge" \| "graph" \| "extension"`                                                                                                                                                                |
+| `dtype`          | section 5.1                                                                                                                                                                                                 |
+| `components`     | `>= 1`; only `> 1` for `f32 f64 i32 u32 u8`                                                                                                                                                                 |
+| `itemDtype`      | `list` only: the child dtype                                                                                                                                                                                |
+| `itemComponents` | `list` only: the child's `components` (spells: `2`)                                                                                                                                                         |
+| `nullable`       | whether a validity bitmap may exist                                                                                                                                                                         |
+| `mutable`        | contents may be written in place on a snapshot (section 5.8)                                                                                                                                                |
+| `role`           | section 5.6                                                                                                                                                                                                 |
+| `refersTo`       | `"node" \| "edge" \| null`: a `u32` column (or a `list` whose child is `u32`) holding indices, rewritten by every remap and every derived graph (section 5.11)                                              |
+| `unique`         | enforced at freeze over set rows (`E_DUPLICATE_EDGE_ID` / `E_DUPLICATE_ID`)                                                                                                                                 |
+| `default`        | declared default (GEXF/GraphML), returned by `value()` for unset rows                                                                                                                                       |
+| `fill`           | value physically stored in unset rows (default: the declared `default` when representable in the dtype, else `0` / `""` / `false`; section 5.3)                                                             |
+| `options`        | declared enum (GEXF `<options>`); for `dict` the dictionary itself                                                                                                                                          |
+| `origin`         | `{ format, id, title, type, namespace }`: GEXF attribute id, GraphML key id, declared type text (`"long"`, `"anyURI"`, `"liststring"`, `"date"`, `"ShapeNode"`), namespace (`"viz"`, `"yfiles"`, `"neo4j"`) |
+| `dynamic`        | GEXF dynamic attribute: values live in the temporal extension table (section 5.10)                                                                                                                          |
+| `extra`          | anything an importer wants to survive (JSON-serialisable)                                                                                                                                                   |
 
 Roles are format-neutral tags so consumers find "the position column"
 without per-format knowledge and exporters map roles back to reserved
@@ -1125,7 +1127,7 @@ section 14.4). Known roles
 `capacity`, `position` (f32 x3), `color` (f32 x4 rgba 0..1 or u8 x4),
 `size`, `shape`, `thickness`, `parent` (u32, refersTo node), `parents`
 (list of u32, refersTo node), `kind`, `labels`, `classes`, `start`, `end`,
-`timestamp`, `timestamps`, `spells`, `open`, `timeText`, `key`,
+`timestamp`, `timestamps`, `spells`, `open`, `spellsOpen`, `timeText`, `key`,
 `directed`, `pair` (u32, refersTo edge), `mutual`, `originalId`,
 `sourcePort`, `targetPort`, `idSpace`, `fixed`, `mass`, `subset`,
 `hidden`, `component`, `community`, `rank`.
@@ -1336,6 +1338,16 @@ undirected copy, and the GPU layout reads them through the copy); a
 consumer that needs isolation calls `snapshot.withColumns()` (the only
 operation that clones the column SET) or `table.clone()`. Property test
 P9 checks table identity for every same-node-space derived graph.
+
+An owner that hands a snapshot to code it does not trust calls
+`snapshot.seal()` once it has attached its own columns. Sealing makes
+the column set of `nodes`, `edges`, `graph` and every extension table
+read-only: `set()`, `remove()` and `rename()` throw `E_FROZEN`; reads
+and the contents of mutable columns are unchanged. Sealing belongs to
+the table object, so a derived graph sharing that table sees it sealed
+too, and so does a `withColumns()` sibling for the extension tables it
+shares. `withColumns()` on a sealed snapshot returns writable node, edge
+and graph tables. Sealing is idempotent and cannot be undone.
 
 Helpers (exported functions, section 12.2), one name per shape: for
 `Column` objects `remapColumn(column, remap, newLength)` (old -> new,
@@ -1964,7 +1976,10 @@ for text-cell formats, `"keep"` for JSON; `"string"`, `"number"`; section
 table and the edge table it is paired with through its format option
 `nodes` (`got-nodes.csv` + `got-edges.csv`), so endpoints and node ids
 agree across the two files); `nodeIdFrom` (`"id"` default, `"label"`, `"index"` for the GML /
-Pajek / d3 ambiguity); `addMissingNodes` (default true; the GEXF importer
+Pajek / d3 ambiguity; under `"id"` a GML string `id`, `source` or
+`target`, which the GML spec does not allow but NetworkX and Gephi write,
+is kept under the `ids` rule with one `W_GML_STRING_ID` warning per file,
+while a real or record id stays an `E_GML_ID_TYPE` error); `addMissingNodes` (default true; the GEXF importer
 defaults false for EDGES and reports, while `pid` / `<parent for>`
 references are resolved by deferral, below); `duplicateEdges` (default
 `"keep"`); `selfLoops` (default `"keep"`); `onMixedDirection` (default
@@ -2081,7 +2096,28 @@ section 16.5 are exact:
 - GraphML: `key for="all"` is declared in the node, edge and graph tables
   with the same `origin.id`; yFiles nested XML mapped through the XML
   parser to `json` is marked `lossy` in the matrix (structure preserved,
-  not byte-exact).
+  not byte-exact). A classic `y:ShapeNode` or `y:PolyLineEdge` in that
+  tree is also read into nullable typed columns beside it, named
+  `yfiles.<field>` with `origin.namespace` `"yfiles"`, `origin.id` the
+  key id and `origin.type` `"ShapeNode"` or `"PolyLineEdge"`. Node
+  fields: `position` (`f64` x3, `position` role, `[x, y, 0]`),
+  `width`, `height`, `borderWidth` (`f64`), `color`, `borderColor`
+  (`string`, `#RRGGBB` upper case), `label` (`string`, `label` role,
+  trimmed) and `shape` (`string`, the yFiles shape type as written).
+  Edge fields: `color`, `targetArrow`, `sourceArrow` (`string`),
+  `width` (`f64`) and `directed` (`bool`, whether a target arrow is
+  drawn; topology still follows `edgedefault`). These are the values
+  graphty-element's own GraphML parser produced, under its field names,
+  except that a label whose text is a number is kept as that text (the
+  element's parser turned it into a number and then stored `""`, nothing
+  or the number). With several `yfiles.type` keys for one domain the
+  columns hold the values of all of them. A declared `label` key keeps
+  the label role, and `yfiles.label` is then a plain column
+  (`W_ROLE_TAKEN`).
+  The exporter writes only the tree, so `check()` reports
+  `W_GRAPHML_YFILES_GRAPHICS_STALE` for every row of such a column that
+  no longer matches its tree (an edited position, a removed tree
+  column).
 - node-link / JGF / Cytoscape / graphology JSON: shape information the
   exporter needs is recorded under reserved `meta.extra.json` keys `{
 dialect: "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis",
@@ -2624,6 +2660,7 @@ export type GraphFormatErrorCode =
     | "E_UNSUPPORTED_VERSION" // wire major or formatVersion the reader does not know; details.kind = "wire" | "format"
     | "E_DETACHED" // access after a consuming transfer
     | "E_BUILDER_DISPOSED"
+    | "E_FROZEN" // set() / remove() / rename() on a table of a sealed snapshot (details.domain, details.column)
     | "E_UNSUPPORTED" // big-endian host; unknown wire dtype / id-map kind (details.reason, details.dtype, details.kind)
     | "E_IMPORT"; // reserved for @graphty/graph-io's ImportError (importer aborted; error.report holds the partial ImportReport)
 
@@ -2659,6 +2696,7 @@ ImportReport`) is declared in `@graphty/graph-io` (section 8.2).
 | column `set` with wrong length                                                                                                                                                       | `E_COLUMN_LENGTH`                                                                                                                                                                                                                |
 | column `set` of a `u8` array from which no zero-copy `Uint32Array` view is constructible (`byteOffset % 4 !== 0` or the buffer ends before the padded length) with `adopt: "strict"` | `E_COLUMN_ALIGNMENT` (otherwise copied, section 5.7); 4-byte and `f64` arrays are always adopted by reference                                                                                                                    |
 | column `set` on an existing name                                                                                                                                                     | replaces the column (role rules apply)                                                                                                                                                                                           |
+| column `set` / `remove` / `rename` on a table of a sealed snapshot                                                                                                                   | `E_FROZEN`                                                                                                                                                                                                                       |
 | `typed(name, dtype)` mismatch, `get` / `byRole` miss                                                                                                                                 | `null` (total); `require` throws `E_UNKNOWN_COLUMN`, `requireTyped` throws `E_COLUMN_TYPE`                                                                                                                                       |
 | `declareNodeColumn` twice with a different dtype / components                                                                                                                        | `E_COLUMN_EXISTS` (same declaration returns the existing handle)                                                                                                                                                                 |
 | `nodeColumn(name)` / `edgeColumn(name)` miss                                                                                                                                         | `INVALID_INDEX` (a `ColumnHandle`)                                                                                                                                                                                               |
@@ -2870,7 +2908,7 @@ export interface ColumnOrigin {
     readonly format: string | null; // "gexf" | "graphml" | "gml" | "csv" | ...
     readonly id: string | null; // GEXF attribute id, GraphML key id
     readonly title: string | null; // GEXF title / GraphML attr.name when different from name
-    readonly type: string | null; // declared type text: "liststring", "anyURI", "long", "date", "int", "real", "yfiles"
+    readonly type: string | null; // declared type text: "liststring", "anyURI", "long", "date", "int", "real", "yfiles", "ShapeNode", "PolyLineEdge"
     readonly namespace: string | null; // "viz", "yfiles", "neo4j"
 }
 export type ColumnOriginInput = Loose<ColumnOrigin>;
@@ -3393,6 +3431,7 @@ export declare class GraphSnapshot implements AdjacencyView {
     inducedSubgraph(selection: U32 | { readonly mask: NodeMask }): DerivedGraph;
     contract(partition: U32, options?: ContractOptions): DerivedGraph;
     relabel(perm: U32): DerivedGraph;
+    seal(): void;
     withColumns(
         nodes?: Readonly<Record<string, TypedArrayData | ColumnInput>>,
         edges?: Readonly<Record<string, TypedArrayData | ColumnInput>>,
@@ -3646,6 +3685,7 @@ export type GraphFormatErrorCode =
     | "E_UNSUPPORTED_VERSION"
     | "E_DETACHED"
     | "E_BUILDER_DISPOSED"
+    | "E_FROZEN"
     | "E_UNSUPPORTED"
     | "E_IMPORT";
 export declare class GraphFormatError extends Error {
@@ -3938,7 +3978,9 @@ Rules:
    vocabulary and the view / derived-graph tables are the public API.
    Changing any of them is a breaking change even when no TypeScript
    signature changes and requires a `feat!:` commit, an npm major and a
-   `formatVersion` bump.
+   `formatVersion` bump. (Superseded in part, 17.9: the commit is SCOPED, e.g.
+   `feat(graph-format)!:`; an unscoped `feat!:` bumps every dependent a
+   major, issue #102.)
 2. Adding a view, a derived graph, a dtype (with the skip rule above), a
    role, a flag, an optional option or a manifest field with a default is
    a minor. Adding a required option or an id-map kind is a major.
@@ -3984,6 +4026,8 @@ change (Q20).
 
 ### 14.1 Principles
 
+> **Superseded in part (2026-09-27, see 17.9).** Rule 1: the removal release is algorithms 3.0.0, and a legacy function delegates to its port only when results are equal, unless the owner approves a change (approved for `labelPropagation` and the three Floyd-Warshall functions). Rule 2: consumers call the `accelerated(acc)` dispatcher, not `indexed.*` directly (17.8 D-INJECT).
+
 1. No public result type of `@graphty/algorithms` or `@graphty/layout`
    changes during the dual-API window. Legacy entry points keep their
    signatures and return shapes; they become facades.
@@ -4013,6 +4057,8 @@ change (Q20).
    `Uint32Array`.
 
 ### 14.2 @graphty/algorithms
+
+> **Superseded in part (2026-09-27, see 17.9).** Legacy first parameters are not widened to `Graph | GraphSnapshot` (D-NO-WIDEN); they delegate internally. `astar` has no Graph overload to keep; `fromAdjacencyMap` does not exist yet; the "95+" count is 90 functions plus 3 classes. The flow residual keeps capacity per node pair, not per arc, and needs no four-copy undirected layout (D-FLOW-RESIDUAL).
 
 Result-type conventions for `indexed.*` and the facade conversion:
 
@@ -4264,9 +4310,12 @@ export function pageRank(s: GraphSnapshot, o: PageRankOptions = {}): PageRankRes
 ```
 
 The facade returns `{ ranks: ids.toRecord(scores), iterations, converged }`
-unchanged; the `SimpleDeltaPageRank` path becomes a second indexed
-implementation over the same view with today's dispatch rule kept so the
-differential tests compare like with like.
+unchanged. Legacy's two paths -- the delta engine it picks when `useDelta
+!== false` and the graph has more than 100 nodes, and the plain loop above
+otherwise -- run the same power iteration with the same stopping rule, so one
+indexed implementation answers both and the facade needs no dispatch on
+node count; the differential tests run fixtures on both sides of 100 nodes
+with `useDelta` undefined, true and false to keep that true.
 
 Port 4 -- connectedComponents (union-find over `edgeList()`, each edge
 once): `for (let e = 0; e < s.edgeCount; e++) uf.union(src[e], dst[e]);
@@ -4322,10 +4371,15 @@ export function commonNeighborsScore(s: GraphSnapshot, u: number, v: number, o: 
 }
 ```
 
-Adamic-Adar adds `1 / Math.log(outDegree()[z])` per common `z`; the
-`Prediction` variants use `hasArc` (binary search) for `includeExisting`.
+Adamic-Adar adds `1 / Math.log(degree)` per distinct common `z`, snapped to a multiple
+of 2^-36 so that a pair's sum is exact and independent of the order its terms are added
+in. The legacy function keeps its unsnapped, visit-order sums, so the port matches its
+scores within 1e-9 and its rankings up to the order of tied pairs; it stays on legacy code
+rather than delegating (section 14.1, rule 1); the `Prediction` variants use `hasArc` (binary search) for `includeExisting`.
 
 ### 14.3 @graphty/layout
+
+> **Superseded in part (2026-09-27, see 17.9).** There are 16 positional layouts, not 14. Generators moved to `@graphty/graph-samples` (commit 080fa1f9); no `LayoutGraph`. `toLayoutSnapshot` must not memoise duck-typed inputs by identity.
 
 Option B of research note 03: index-based entry points under `indexed`,
 results `{ positions: Float32Array; dim: 2 | 3; n }` (dim NOT forced to
@@ -4351,7 +4405,7 @@ export function fromPositionMap(
     dim: 2 | 3,
     fill: (i: number, out: F32) => void,
 ): F32;
-export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLike<number> | null, out?: F32): F32; // n * 3 SCENE units, zero z; writes into `out` (the owner's array) when given (C14, section 5.2)
+export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLike<number> | null, out?: F32): F32; // n * 3 SCENE units; a 2D row's z is the centre's z (0 for a null centre); writes into `out` (the owner's array) when given (C14, section 5.2)
 export function fromPositionColumn(
     column: F32,
     dim: 2 | 3,
@@ -4359,11 +4413,16 @@ export function fromPositionColumn(
     center: ArrayLike<number> | null,
     out?: F32,
 ): F32; // the inverse: seeds `pos` for a re-run from the current scene positions
-export function rescaleInPlace(positions: F32, dim: number, scale?: number, center?: ArrayLike<number>): F32;
+export function rescaleInPlace<T extends F32 | F64>(
+    positions: T,
+    dim: number,
+    scale?: number,
+    center?: ArrayLike<number>,
+): T;
 export function toLayoutSnapshot(
     G: LayoutGraph | LegacyDuck | NodeId[] | GraphSnapshot,
     weightAttr?: string | null,
-): GraphSnapshot; // undirected; legacy duck type walked once
+): GraphSnapshot; // undirected; a legacy duck type is walked on every call (only a directed snapshot's undirected view is cached)
 export declare class LayoutGraph {
     readonly snapshot: GraphSnapshot;
     nodes(): NodeId[];
@@ -4443,6 +4502,8 @@ compared literal doubles, the single-RNG fix for missing `pos` nodes in
 FR). The commit message lists the reasons.
 
 ### 14.4 @graphty/graphty-element
+
+> **Superseded in part (2026-09-27, see 17.9).** The store is `GraphStore` (`design/decisions/2026-09-19-land-element-graph-store.md`); adapters use `this.accelerated()`; `toAlgorithmGraph` became the published `algorithmGraph()` plugin seam; visible-only runs use run scopes; data sources must import into a scratch builder, because the element's builder holds no attribute columns.
 
 Ownership rules that the sketch below implements:
 
@@ -4653,6 +4714,8 @@ dominate at 100k nodes.
 
 ### 14.5 @graphty/webgpu-graph-algorithms
 
+> **Superseded in part (2026-09-27, see 17.9).** Injection is the `accelerated(acc)` dispatcher (17.8 D-INJECT), and graphty-element owns detection (`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`).
+
 Moves into the monorepo as `webgpu-graph-algorithms/` with the note 06
 checklist, `@webgpu/types`, a browser-only vitest project (Playwright
 Chromium on the real GPU per its `HEADLESS_GPU_REPORT.md`), no
@@ -4685,6 +4748,8 @@ for `indexed.*`; GPU layout kernels implement `LayoutSimulation` (section
 throws when no device is available and never falls back.
 
 ### 14.6 Landing order and the dual-API window (G13)
+
+> **Superseded in part (2026-09-27, see 17.9).** A1 shipped inside the WebGPU seam work after F2; the "2.0" row is algorithms 3.0.0 and layout 2.0.0; Chromatic gates are visual-review gates; D1's gate is "no src outside the legacy directories references a legacy entry point". A2 does not widen legacy first parameters (D-NO-WIDEN), and the deprecation release reaches npm before the removal release (D-TWO-RELEASES). The finishing order is `design/graph-format/migration-plan.md`.
 
 | Phase       | Package                          | Content                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Gate                                                                                                                                                                                                     |
 | ----------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -5294,9 +5359,9 @@ with the decision as it now binds the implementation.
     DECIDED: `SharedArrayBuffer` is out of v1; worker hand-off uses transfer and every public array is typed over a plain `ArrayBuffer`. graphty.app does not adopt cross-origin isolation for this work; the shared-snapshot minor is not scheduled unless a concrete shared-memory use case appears.
 
 4.  Root `CLAUDE.md` prescribes
-    `algorithmName<TNodeId = unknown>(graph: ReadonlyGraph<TNodeId>)`; this
-    design uses `algorithmName(snapshot: GraphSnapshot, options?)` with a
-    concrete `NodeId`. Confirm the convention is rewritten when A2 lands.
+    `algorithmName<TNodeId = unknown>(graph: ReadonlyGraph<TNodeId>)`; this design uses
+    `algorithmName(snapshot: GraphSnapshot, options?)` with a concrete `NodeId`. Confirm the
+    convention is rewritten when A2 lands.
 
     DECIDED: the root `CLAUDE.md` algorithm-signature convention is rewritten to `algorithmName(snapshot: GraphSnapshot, options?)` with a concrete `NodeId` when A2 lands.
 
@@ -5450,3 +5515,37 @@ discharged; that plan's "Everything else in sections 10, 14.3-14.6, 15 and
 | D-RESIDENCY  | 14.5 lines 4231-4235: uploaded buffers are "cached in a `WeakMap` keyed on the typed-array object ... and released explicitly through `release(snapshot)`". A `WeakMap` keyed on array objects cannot answer `release(snapshot)`: `dropCaches()` replaces a view's array object, so the key a buffer was filed under is gone and the buffer leaks.                                                                                                                                                                                                                                                                  | The `WeakMap` is KEPT as the lookup and joined by a per-snapshot RESIDENCY RECORD indexed by `snapshot.serial` (WebGPU design 4.1, DEPARTURE-4), so `release(snapshot)` walks the record and frees every buffer whatever became of the array objects. `withColumns()` siblings share the core AND the serial (`graph-snapshot.ts` lines 923-942), so they are ONE residency unit: `release(s)` destroys the core for `s` and every sibling, and a sibling still in use throws `E_RELEASED` on its next bind. The serial is the core's identity and cannot distinguish siblings; the plan does not pretend it can (Q-27).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 14.5             |
 | D-INJECT     | 14.5 lines 4239-4240 sketch the call site in one line with no signature: graphty-element "injects it as `runAlgorithm(snapshot, { accelerator: gpu })`", which would thread an `accelerator` option through every algorithm's option type.                                                                                                                                                                                                                                                                                                                                                                          | Per-call injection is spelled `accelerated(acc).pageRank(s, options)`: one dispatcher object owned by `@graphty/algorithms` (WebGPU design 9.2, DEPARTURE-5, research note 02 section 4.5). The mechanism is the design's -- per call, no global registration, one result-writing loop for both paths -- only the spelling differs: `accelerated(acc).x` is `acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))`, so the "no accelerator method -> run the CPU port" decision lives in ONE place instead of in every option type, and a null or partial accelerator is simply the CPU path.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 14.5             |
 | D-TOL-1E4    | 16.2 lines 4590-4599 give one blanket number for the GPU: results are compared "exact for discrete results, `1e-9` relative for f64 scores ... `1e-5` for f32 GPU parity, order-agnostic for component lists". The number itself is at line 4594; DEPARTURE-6 cites it as "line 4545", which is stale -- 15.6 (line 4448) was inserted at the F1 landing and moved 16.2 down.                                                                                                                                                                                                                                       | `1e-5` holds everywhere except two f32 ACCUMULATION-LENGTH cases, which are `1e-4` relative: betweenness centrality (f32 accumulation over many sources, WebGPU design 9.7) and the one-iteration force parity of WebGPU design 11.4 (f32 tile summation order against an f64 oracle) -- DEPARTURE-6, Q-24. Every GPU score result carries `precision: "f32"` so a caller can label it. A third case no blanket number covers: the FREE-RUNNING multi-iteration force comparisons. In `compat: "networkx"` the first 10 records against the f32 oracle stay asserted at the derived 2.1e-5; every other free-running leg -- the whole of `compat: "paper"`, and the 50-record f64 leg in both modes -- is PRINTED and never asserted, because the per-node swing cancels near equilibrium, the error grows x1.1-1.5 per iteration and the f64 oracle misses the cap against ITSELF under a one-f32-ulp start perturbation (G3-F3). Those tests assert a RE-SYNCHRONISED comparison instead -- a fresh oracle seeded with the GPU's iteration-start state, one iteration at a time, at 1e-4 against both the f32 and the f64 reference.                                                                                                                                                                                                                                        | 16.2             |
+
+### 17.9 Migration state and superseded statements (2026-09-27)
+
+Section 17's decision log continues here, appended so the log stays
+append-only. Sections 13.5, 14.1-14.6 carry a one-line "superseded in part"
+note pointing here; their original text is kept. The full evidence and the
+plan that finishes the consumer migration are in
+`design/graph-format/migration-plan.md`; the state per phase is in
+`design/graph-format/STATUS.md`.
+
+17.9 (2026-09-27), checked against origin/master `b109fac2`:
+
+| Id              | Superseded text                                                                                           | What holds now                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Section             |
+| --------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| D-A1-DONE       | 14.6 A1 rows; 17.7 "A1 has not started"                                                                   | A1 shipped in algorithms 1.8.0 inside the WebGPU seam work (`design/decisions/2026-09-19-a1-lands-inside-m8a.md`).                                                                                                                                                                                                                                                                                                                                                                                                                                          | 14.6, 17.7          |
+| D-REMOVAL-MAJOR | 14.6 row "2.0" and "at 2.0" throughout 14.1-14.3 and section 18                                           | algorithms published 2.0.0 on 2026-09-24 for an unrelated break, so the removal release is algorithms 3.0.0 and layout 2.0.0.                                                                                                                                                                                                                                                                                                                                                                                                                               | 14.1-14.3, 14.6, 18 |
+| D-FACADE-PARITY | 14.1 rule 1, 14.6 A2: every legacy function becomes a facade with legacy results                          | A legacy function delegates to its port only when the differential test passes. A port that differs on purpose leaves the legacy function on legacy code until the removal release, unless the owner approves the change. Approved 2026-09-27: `labelPropagation`, `floydWarshall`, `floydWarshallPath`, `transitiveClosure` delegate, with the result changes listed in the migration plan's section 4.3.                                                                                                                                                  | 14.1, 14.6          |
+| D-COUNT         | 14.6 A2 "all 95+ functions"                                                                               | The barrel exports 90 legacy functions and 3 classes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 14.6                |
+| D-ASTAR-MAP     | 14.2 "Map overloads ... kept for one major behind `fromAdjacencyMap()`"                                   | `astar` and `astarWithDetails` take only a Map. `fromAdjacencyMap` is still to be written, as an internal helper for the Map inputs to delegate; `indexed.astar` is the snapshot entry point.                                                                                                                                                                                                                                                                                                                                                               | 14.2                |
+| D-LAYOUT-COUNT  | 14.3 "14 positional legacy signatures", generators behind `LayoutGraph`                                   | 16 positional layouts (grid, radial added by PR #396). Generators are deprecated aliases of `@graphty/graph-samples/generators` (commit 080fa1f9); no `LayoutGraph`.                                                                                                                                                                                                                                                                                                                                                                                        | 14.3, 18 item 9     |
+| D-LAYOUT-MEMO   | 14.1 rule 4 as applied to layout                                                                          | Layout's input has no `mutationCount`; duck-typed inputs are walked on every call instead of memoised by identity.                                                                                                                                                                                                                                                                                                                                                                                                                                          | 14.1, 14.3          |
+| D-KK-DIST       | 14.3 Kamada-Kawai `dist` source                                                                           | Weights are distances (legacy and NetworkX); an injected matrix's non-finite entries become the 1e6 unreachable fill.                                                                                                                                                                                                                                                                                                                                                                                                                                       | 14.3                |
+| D-ELEMENT-SEAM  | 14.4 "`toAlgorithmGraph` is replaced by a two-line selector"                                              | It became the published plugin seam `Algorithm.algorithmGraph()` / `AlgorithmGraphView` (`graphty-element/extend.ts`). Replacing it changes public API and waits for the owner.                                                                                                                                                                                                                                                                                                                                                                             | 14.4                |
+| D-ELEMENT-STORE | 14.4 DataManager sketch; `visible(s)` cache; DataSource sinks into the element builder                    | `GraphStore` owns the builder (`design/decisions/2026-09-19-land-element-graph-store.md`); run scopes replace the visible cache; the element builder holds no attribute columns, so an importer writes to a scratch builder and the element rebuilds its 2.x data bags from it.                                                                                                                                                                                                                                                                             | 14.4, 8.2           |
+| D-IO-DEPS       | 8.2, C16, section 18 decision 2: graph-io takes papaparse and fast-xml-parser                             | graph-io uses hand-written tokenisers; the element drops both parsers when its wrappers land.                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 8.2, 18             |
+| D-DETECT        | 8.2, 14.4 "format-detection.ts becomes the sniff table"                                                   | Detection is the element's public, plugin-extensible API (`graphty-element/src/catalog/detect.ts`); only its built-in sniffers delegate to graph-io.                                                                                                                                                                                                                                                                                                                                                                                                        | 8.2, 14.4           |
+| D-VISUAL        | 14.6 "Chromatic re-baseline" gates                                                                        | Chromatic is off (PR #541); visual changes go through `visual-review` (PR #557) and the owner.                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 14.6                |
+| D-D1-GATE       | 14.6 D1 "after E1 removed the last internal callers"; 14.1 rule 3                                         | The gate is that no src outside the legacy directories references a legacy entry point; the no-deprecated rule exempts only those directories.                                                                                                                                                                                                                                                                                                                                                                                                              | 14.1, 14.6          |
+| D-APSP-ORACLE   | 16.2 differential tests for every port                                                                    | Not for Floyd-Warshall, whose legacy tests must not grow (`algorithms/CLAUDE.md`); its oracle is repeated `indexed.dijkstra` and hand-computed fixtures. At the removal release every differential test becomes a golden-fixture test, since the legacy code it runs is deleted.                                                                                                                                                                                                                                                                            | 16.2                |
+| D-SCOPED-BREAK  | 13.5 rule 1 "a `feat!:` commit"                                                                           | A breaking commit is scoped (`feat(<package>)!:`); unscoped, nx release bumps every dependent a major (issue #102).                                                                                                                                                                                                                                                                                                                                                                                                                                         | 13.5                |
+| D-MUTCOUNT      | 14.4 "keyed on `builder.mutationCount` alone ... advances on cell and column writes"                      | False until commit f7db019c; true since.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 14.4                |
+| D-NO-WIDEN      | 14.2, 14.6 A2: every legacy first parameter widens to `Graph \| GraphSnapshot`                            | Not done. Legacy functions keep their signatures and delegate internally; snapshot callers use `indexed.*`. The removal release reuses 13 legacy names for promoted `indexed.*` functions with different results, so a widened call site would break twice.                                                                                                                                                                                                                                                                                                 | 14.2, 14.6          |
+| D-TWO-RELEASES  | 14.6: the window ends at the "2.0" row with no release step between                                       | The deprecation minors reach npm through an owner-merged pull request before any removal commit lands on the integration branch; otherwise one release run publishes deprecations and removals together.                                                                                                                                                                                                                                                                                                                                                    | 14.6                |
+| D-FLOW-RESIDUAL | 14.2 Flow: residual capacity PER ARC; undirected input copied four times, twin `e < 2E ? e + 2E : e - 2E` | `indexed.maxFlow` builds `[edges ++ reversed edges]` with twin `e + E` for both kinds of input and keeps residual capacity per node PAIR (the arcs from u to v are one contiguous group of the sorted row), searched in the legacy row order. That is the legacy Map-of-Maps residual, so paths and per-edge flows equal legacy; per-arc residuals with sorted rows differed from legacy `edmondsKarp` per-edge flows on 334 of 600 seeded random graphs. An undirected edge's two directions are one pair each way, so the four-copy layout is not needed. | 14.2                |

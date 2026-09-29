@@ -11,7 +11,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { viewSourceOf } from "../../../src/simple/source";
 import type { GraphView, NodeId, NodeView } from "../../../src/simple/types";
 import { createGraphView, viewWarnings } from "../../../src/simple/view";
@@ -60,7 +60,7 @@ describe("the graph view over a rendered graph", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

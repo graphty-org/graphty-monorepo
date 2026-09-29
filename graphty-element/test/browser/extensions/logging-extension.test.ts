@@ -54,6 +54,7 @@ import {
 import { Graph } from "../../../index.js";
 import { GraphtyLogger, lazy, LogLevel, type LogRecord, type Sink } from "../../../logging";
 import { createGraphSession } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
 // The dummy extension
@@ -366,7 +367,7 @@ describe("a third party's log destination", () => {
         await graph.init();
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
         await graph.addEdges([{ src: "a", dst: "b" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const categories = new Set(collector.kept.map((entry) => entry.record.category.join(".")));
 
@@ -742,7 +743,9 @@ describe("a third party's log destination", () => {
     });
 
     it("is turned on again from a configuration that was written to storage and read back", async () => {
-        const stored = JSON.stringify({ sinks: [{ use: "acme-collector", options: { name: "restored", capacity: 2 } }] });
+        const stored = JSON.stringify({
+            sinks: [{ use: "acme-collector", options: { name: "restored", capacity: 2 } }],
+        });
         const restored = JSON.parse(stored) as { sinks: { use: string; options: Record<string, unknown> }[] };
 
         await GraphtyLogger.configure(restored);

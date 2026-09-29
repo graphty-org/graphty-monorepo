@@ -4,19 +4,15 @@
  * Demonstrates multipartite layout where nodes are positioned in multiple layers/columns.
  * Shows animation from random initial positions to final multipartite positions.
  *
- * IMPORTANT: This story uses the actual multipartiteLayout implementation
+ * IMPORTANT: This story uses the actual multipartite implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { multipartiteLayout } from "@graphty/layout";
+import { multipartite, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -67,7 +63,7 @@ function createMultipartiteStory(args: MultipartiteArgs): HTMLElement {
 
     // Generate multipartite graph
     const generatedGraph = generateGraph("multipartite", nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
@@ -76,12 +72,9 @@ function createMultipartiteStory(args: MultipartiteArgs): HTMLElement {
     const layerMappings = createLayerMappings(nodeCount, layers);
 
     // Compute final multipartite layout using actual algorithm
-    const finalPositions = multipartiteLayout(
-        layoutGraph,
-        layerMappings,
-        align,
-        scale,
-        [0, 0],
+    const finalPositions = toPositionMap(
+        multipartite(snapshot, { subsets: Object.values(layerMappings), align, scale, center: [0, 0] }),
+        snapshot.ids,
     );
 
     // Create container
@@ -93,15 +86,15 @@ function createMultipartiteStory(args: MultipartiteArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Multipartite Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Positions ${nodeCount} nodes in ${layers} ${align} layers.`,
-    );
+    updateInfoPanel(infoPanel, `Positions ${nodeCount} nodes in ${layers} ${align} layers.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
     container.appendChild(statusPanel);
-    updateStatus(statusPanel, "Showing random initial positions. Click 'Apply Layout' to see multipartite arrangement.");
+    updateStatus(
+        statusPanel,
+        "Showing random initial positions. Click 'Apply Layout' to see multipartite arrangement.",
+    );
 
     let isApplied = false;
 
@@ -178,7 +171,7 @@ type Story = StoryObj<MultipartiteArgs>;
 /**
  * Multipartite layout story - positions nodes in multiple parallel layers.
  *
- * This story uses the actual `multipartiteLayout()` function from @graphty/layout.
+ * This story uses the actual `multipartite()` function from @graphty/layout.
  * The play function animates from random positions to the multipartite arrangement.
  */
 export const Multipartite: Story = {

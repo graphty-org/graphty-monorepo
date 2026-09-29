@@ -249,7 +249,7 @@ describe("DataManager", () => {
             assert.isUndefined(dataManager.getEdge("1"), "node1 -> node3 went with node1");
             assert.isDefined(dataManager.getEdge("2"), "node2 -> node3 touches neither end and stays");
             assert.equal(dataManager.edges.size, 1);
-            assert.equal(dataManager.edgeCache.size, 1, "and the pair cache agrees");
+            assert.equal(dataManager.heldCounts().edges, 1, "and the store agrees");
         });
     });
 

@@ -34,6 +34,12 @@ Visit nodes in a systematic order.
 - `iterativeDeepeningDfs()` - Iterative Deepening DFS
 - `bidirectionalSearch()` - Bidirectional BFS
 - `topologicalSort()` - Topological ordering (DAG)
+- `indexed.breadthFirstSearch()` - BFS over a snapshot; `target` stops early, `arcOrder` sets the neighbour order
+- `indexed.directionOptimizedBfs()` - Direction-optimising BFS over a snapshot, switching to bottom-up steps over `reverse()`
+- `indexed.depthFirstSearch()` - DFS over a snapshot in pre- or post-order; takes `target` and `arcOrder`
+- `indexed.hasCycle()` - Whether a snapshot has a cycle
+- `indexed.topologicalSort()` - Topological order of a snapshot as node indices, or null on a cycle
+- `indexed.isBipartite()` - Bipartiteness and the two sides as a node mask; `arcs: "out"` follows out-arcs only on a directed snapshot
 
 [Traversal functions in the generated TypeDoc](./generated/index/)
 
@@ -43,7 +49,11 @@ Find optimal paths between nodes.
 
 - `dijkstra()` - Weighted non-negative edges
 - `bellmanFord()` - Handles negative weights
+- `indexed.bellmanFord()` - Bellman-Ford over a snapshot, with the negative-cycle flag
+- `indexed.bidirectionalDijkstra()` - One shortest path over a snapshot, naming the exact edges taken
+- `indexed.astar()` - A\* over a snapshot, the heuristic taking node indices
 - `floydWarshall()` - All pairs shortest paths
+- `indexed.allPairsShortestPath()` - All pairs shortest paths over a snapshot, as a typed-array matrix
 - `aStar()` - Heuristic-guided search
 
 [Shortest Path functions in the generated TypeDoc](./generated/index/)
@@ -59,6 +69,8 @@ Measure node importance.
 - `pageRank()` - Link analysis
 - `hits()` - Hub/Authority scores
 - `katzCentrality()` - Influence with base score
+- `indexed.degreeCentrality()`, `indexed.closenessCentrality()`, `indexed.nodeClosenessCentrality()` - Degree and closeness over a snapshot, as typed arrays
+- `indexed.betweennessCentrality()`, `indexed.edgeBetweennessCentrality()` - Brandes betweenness over a snapshot, exact or sampled, with an optional alive-edge mask
 
 [Centrality functions in the generated TypeDoc](./generated/index/)
 
@@ -71,6 +83,8 @@ Find connected subgraphs.
 - `weaklyConnectedComponents()` - Directed (ignoring direction)
 - `isConnected()` - Check connectivity
 - `isStronglyConnected()` - Check strong connectivity
+- `indexed.stronglyConnectedComponents()` - Tarjan over a snapshot, components labelled in completion order
+- `indexed.condensation()` - Strongly connected components and the condensed DAG built by `contract()`
 
 [Components functions in the generated TypeDoc](./generated/index/)
 
@@ -80,6 +94,7 @@ Find minimum-weight spanning trees.
 
 - `kruskal()` - Kruskal's algorithm
 - `prim()` - Prim's algorithm
+- `indexed.primMST()` - Prim over a snapshot, optionally spanning every component
 - `minimumSpanningTree()` - Auto-selects best algorithm
 
 [MST functions in the generated TypeDoc](./generated/index/)
@@ -90,7 +105,12 @@ Identify node communities.
 
 - `louvain()` - Fast modularity optimization
 - `girvanNewman()` - Edge betweenness removal
+- `indexed.girvanNewman()` - Girvan-Newman over a snapshot: one typed-array partition and modularity per level
+- `indexed.leiden()` - Leiden over a snapshot: connected communities and their modularity
 - `labelPropagation()` - Near-linear time detection
+- `indexed.labelPropagation()` - Seeded fast label propagation over a snapshot, as a typed-array partition
+- `indexed.labelPropagationSemiSupervised()` - Fast label propagation with some nodes held at a given label
+- `indexed.labelPropagationSynchronous()` - Deterministic label propagation in synchronous passes
 - `kCliqueCommunities()` - Overlapping communities
 - `modularity()` - Partition quality measure
 
@@ -117,6 +137,9 @@ Network flow and cuts.
 - `fordFulkerson()` - Augmenting path method
 - `edmondsKarp()` - BFS-based flow
 - `minCut()` - Minimum cut
+- `indexed.maxFlow()` - Maximum flow over a snapshot, with per-edge flows as a typed array
+- `indexed.minSTCut()`, `indexed.stoerWagner()`, `indexed.kargerMinCut()` - s-t, global and seeded randomized minimum cuts over a snapshot
+- `indexed.bipartiteFlowNetwork()` - Builds the unit-capacity matching network as a snapshot
 
 [Flow functions in the generated TypeDoc](./generated/index/)
 
@@ -127,6 +150,9 @@ Bipartite matching algorithms.
 - `maxBipartiteMatching()` - Maximum matching
 - `hungarianAlgorithm()` - Weighted matching
 - `hopcroftKarp()` - Fast bipartite matching
+- `indexed.maximumBipartiteMatching()` - Maximum bipartite matching over a snapshot, as a typed array of partners; the sides come from `indexed.isBipartite()` or are passed as node masks
+- `indexed.greedyBipartiteMatching()` - Greedy maximal bipartite matching over a snapshot, in node index order
+- `indexed.isGraphIsomorphic()`, `indexed.findAllIsomorphisms()` - VF2 isomorphism search between two snapshots, with node and edge predicates taking indices
 
 [Matching functions in the generated TypeDoc](./generated/index/)
 

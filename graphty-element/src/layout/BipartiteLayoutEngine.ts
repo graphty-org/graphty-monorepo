@@ -1,4 +1,5 @@
-import { bipartiteLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import { INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
+import { bipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -96,16 +97,20 @@ export class BipartiteLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+        const top = makeMask(this.graph.nodeCount);
+        for (const id of this.config.nodes) {
+            const row = this.rowOfId(id);
+            if (row !== INVALID_INDEX) {
+                maskSet(top, row, true);
+            }
+        }
 
-        this.positions = bipartiteLayout(
-            { nodes, edges },
-            this.config.nodes,
-            this.config.align,
-            this.config.scale,
-            this.config.center,
-            this.config.aspectRatio,
-        );
+        this.result = bipartite(this.graph, {
+            top,
+            align: this.config.align,
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+            aspectRatio: this.config.aspectRatio,
+        });
     }
 }

@@ -21,6 +21,7 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId, RuleTree, Scope } from "../../../src/catalog/types";
 import { edgeSpaceOf } from "../../../src/session/scope";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 import { type Harness, makeSession } from "../helpers";
 import { type Published, publishing } from "./results";
@@ -271,7 +272,7 @@ async function masksOf(harness: Harness, filter: RuleTree): Promise<{ nodes: num
 describe("the visibility filter and a rule read clipped are one evaluator", () => {
     it("filter = T equals filter = { scope: { define: rule T clipped } }", async () => {
         await fc.assert(
-            fc.asyncProperty(GRAPH, TREE, async (graph, filter) => {
+            guardedAsyncProperty(GRAPH, TREE, async (graph, filter) => {
                 const harness = await harnessOf(graph);
                 const direct = await masksOf(harness, filter);
                 const wrapped = await masksOf(harness, {
@@ -287,7 +288,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
 
     it("replacing a node leaf with its equivalent scope inside any, all and not changes no mask", async () => {
         await fc.assert(
-            fc.asyncProperty(
+            guardedAsyncProperty(
                 GRAPH,
                 TREE,
                 fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 40, maxLength: 40 }),

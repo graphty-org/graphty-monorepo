@@ -23,7 +23,7 @@ import {
 } from "../../../extend";
 import { GraphtyLogger, LogLevel } from "../../../logging";
 import { createGraphSession } from "../../../session";
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 
 /** A small real graph: a triangle. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }];
@@ -54,7 +54,7 @@ async function drawGraph(): Promise<{ graph: Graph; remove: () => void }> {
     await graph.init();
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 
     return {
         graph,
@@ -165,7 +165,7 @@ describe("defineLogDestination on a real graph", () => {
         const { graph, remove } = await drawGraph();
         await graph.addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "d" }], edges: [] }) });
         await graph.setLayout("circular");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         remove();
 
         const lines = (panel.textContent ?? "").split("\n").filter((line) => line !== "");
@@ -187,7 +187,7 @@ describe("defineLogDestination on a real graph", () => {
         stop();
         const before = panel.textContent;
         await graph.setLayout("circular");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         remove();
 
         assert.strictEqual(panel.textContent, before, "nothing arrived after it was stopped");
@@ -213,7 +213,7 @@ describe("defineLogDestination on a real graph", () => {
         const { graph, remove } = await drawGraph();
         await graph.setLayout("circular");
         await graph.addDataFromSource("json", { data: "{ this is not json" }).catch(() => undefined);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         remove();
 
         assert.deepStrictEqual(records, [], "not one record, not even the load failure");

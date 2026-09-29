@@ -25,7 +25,8 @@ function seeded(seed: number): () => number {
     };
 }
 
-function gnm(nodeCount: number, edgeCount: number, directed: boolean, seed: number, weighted = false): Graph {
+/** A seeded G(n, m) random graph with no self-loops or parallel edges. */
+export function gnm(nodeCount: number, edgeCount: number, directed: boolean, seed: number, weighted = false): Graph {
     const g = new Graph({ directed });
     for (let i = 0; i < nodeCount; i++) {
         g.addNode(`n${i}`);
@@ -156,4 +157,25 @@ export function directedFixtures(): Fixture[] {
         { name: "random directed 40 nodes, 160 edges", graph: gnm(40, 160, true, 24680) },
         { name: "random directed 90 nodes, 400 weighted edges", graph: gnm(90, 400, true, 1357, true) },
     ];
+}
+
+/**
+ * A copy of `graph` whose every weight is moved off the f32 grid by a distinct multiple of 2^-30.
+ * No such weight is f32-exact, so `toSnapshot` keeps an f64 shadow column and a port reproduces the
+ * legacy result only through the per-arc `weights` override; and every sum of a few of them is
+ * exact in f64, so the answer does not depend on the order a search adds them in. The offsets also
+ * make equal-length paths and equal-weight edges rare, which is what lets a test compare the chosen
+ * path or tree, not just its length.
+ */
+export function offGridWeights(graph: Graph): Graph {
+    const out = new Graph({ directed: graph.isDirected });
+    for (const node of graph.nodes()) {
+        out.addNode(node.id);
+    }
+    let k = 0;
+    for (const edge of graph.edges()) {
+        k++;
+        out.addEdge(edge.source, edge.target, (edge.weight ?? 1) + k * 2 ** -30);
+    }
+    return out;
 }

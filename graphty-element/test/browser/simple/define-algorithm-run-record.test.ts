@@ -12,6 +12,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { defineAlgorithm, type GraphtyError, isGraphtyError } from "../../../extend";
 import type { Graphty } from "../../../index";
+import { operationQueueOf } from "../../../src/Graph";
 
 /**
  * a-b twice (parallel), b-a once more the other way, a self-loop on a, c-b; every edge carries
@@ -37,7 +38,7 @@ beforeEach(async () => {
     await element.updateComplete;
     element.nodeData = NODES;
     element.edgeData = EDGES;
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
 });
 
 afterEach(() => {

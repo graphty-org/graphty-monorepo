@@ -9,7 +9,10 @@ import { copyFixture, FIXTURE, fakeGh, git, isolateGit, job, makeRepo, onePr, pu
 
 beforeAll(isolateGit);
 
-const PROJECTS = JSON.parse(readFileSync(new URL("../projects.json", import.meta.url), "utf8"));
+// The live registry's entries for the two projects the fixtures hold, so adding a project to
+// projects.json does not change what these tests expect, while its seedFromMaster values are still tested.
+const REGISTRY = JSON.parse(readFileSync(new URL("../projects.json", import.meta.url), "utf8"));
+const PROJECTS = { "compact-mantine": REGISTRY["compact-mantine"], "graphty-element": REGISTRY["graphty-element"] };
 const TOKEN = "t".repeat(43);
 
 let server;
@@ -172,7 +175,8 @@ describe("serve: master", () => {
     });
 
     it("refuses Accept for a project that is not seeded from master", async () => {
-        const s = await start({ gh: master, masterRun: 2000 });
+        const projects = { ...PROJECTS, "graphty-element": { ...PROJECTS["graphty-element"], seedFromMaster: false } };
+        const s = await start({ gh: master, masterRun: 2000, projects });
         await s.api("GET", "/api/prs");
         const decide = (project, file) =>
             s.api("POST", "/api/decide", { id: "master", project, file, decision: "accept" });

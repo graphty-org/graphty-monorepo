@@ -30,89 +30,124 @@ yarn add @graphty/algorithms
 
 ## Basic Usage
 
+Algorithms run over a frozen graph snapshot from [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format):
+compact typed arrays in compressed sparse row form. They are reached through the `indexed` namespace, take the
+snapshot first and an options object last, and return typed arrays indexed by node.
+
 ### Creating a Graph
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
 
-// Create a directed graph (default)
-const graph = new Graph();
+// `directed` is required: true for a directed graph, false for an undirected one
+const builder = new GraphBuilder({ directed: true });
 
-// Or create an undirected graph
-const undirected = new Graph({ directed: false });
+// Nodes are added on first mention; an edge may carry a weight
+builder.addEdge("a", "b", 1);
+builder.addEdge("b", "c", 2);
+builder.addEdge("a", "c", 4);
 
-// Add nodes
-graph.addNode("a");
-graph.addNode("b");
-graph.addNode("c");
-
-// Add edges with optional weights
-graph.addEdge("a", "b", { weight: 1 });
-graph.addEdge("b", "c", { weight: 2 });
-graph.addEdge("a", "c", { weight: 4 });
+// Freeze into a read-only snapshot. The builder stays usable and can be frozen again.
+const graph = builder.freeze();
+console.log(graph.nodeCount, graph.edgeCount); // 3 3
 ```
+
+Node indices follow the order in which ids first appeared, so `"a"` is index 0, `"b"` is 1 and `"c"` is 2. Map between
+the two with `graph.ids.requireIndex(id)` and `graph.ids.idOf(index)`.
 
 ### Running Algorithms
 
-```typescript
-import { Graph, bfs, dijkstra, pageRank } from "@graphty/algorithms";
+<!-- doc-check -->
 
-const graph = new Graph();
-// ... add nodes and edges
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 1);
+builder.addEdge("b", "c", 2);
+builder.addEdge("a", "c", 4);
+const graph = builder.freeze();
+const a = graph.ids.requireIndex("a");
+const c = graph.ids.requireIndex("c");
 
 // Breadth-First Search
-const bfsResult = bfs(graph, "a");
-console.log(bfsResult.order); // Visit order
-console.log(bfsResult.distances); // Distance from start
+const bfs = indexed.breadthFirstSearch(graph, a);
+console.log(Array.from(bfs.order.subarray(0, bfs.visitedCount), (i) => graph.ids.idOf(i))); // ["a", "b", "c"]
+console.log(bfs.depth[c]); // 1: one hop from "a"
 
 // Shortest paths with Dijkstra
-const paths = dijkstra(graph, "a");
-console.log(paths.get("c")); // { distance: 3, path: ["a", "b", "c"] }
+const paths = indexed.dijkstra(graph, a);
+console.log(paths.dist[c]); // 3
+console.log(Array.from(paths.pathTo(c), (i) => graph.ids.idOf(i))); // ["a", "b", "c"]
 
 // PageRank centrality
-const ranks = pageRank(graph);
-console.log(ranks); // Map of node -> rank value
+const ranks = indexed.pageRank(graph);
+const byId = graph.ids.toMap(ranks.scores); // a Map of node id -> rank
+console.log(byId.get("c")?.toFixed(3)); // 0.521
+```
+
+### Graphs You Already Have
+
+A graph built with the id-keyed `Graph` class of this package converts with `toSnapshot`:
+
+<!-- doc-check -->
+
+```typescript
+import { Graph, indexed, toSnapshot } from "@graphty/algorithms";
+
+const legacy = new Graph({ directed: false });
+legacy.addEdge("x", "y");
+legacy.addEdge("y", "z");
+
+const snapshot = toSnapshot(legacy);
+const components = indexed.connectedComponents(snapshot);
+console.log(components.count); // 1
 ```
 
 ## Algorithm Categories
 
+Every function below is reached as `indexed.<name>`.
+
 ### Traversal Algorithms
-- BFS (Breadth-First Search)
-- DFS (Depth-First Search)
-- Iterative Deepening DFS
-- Bidirectional Search
+
+- BFS (`breadthFirstSearch`, `directionOptimizedBfs`)
+- DFS (`depthFirstSearch`)
+- Topological sort, cycle detection, bipartite test
+- Connected, weakly connected and strongly connected components
 
 ### Shortest Path Algorithms
-- Dijkstra's Algorithm
-- Bellman-Ford Algorithm
-- Floyd-Warshall Algorithm
-- A* Search
+
+- Dijkstra's algorithm and bidirectional Dijkstra
+- Bellman-Ford algorithm
+- All-pairs shortest paths (`allPairsShortestPath`, Floyd-Warshall among its strategies)
+- A\* search (`astar`)
 
 ### Centrality Algorithms
-- Degree Centrality
-- Betweenness Centrality
-- Closeness Centrality
-- Eigenvector Centrality
-- PageRank
-- HITS (Hubs & Authorities)
 
-### Community Detection
-- Louvain Algorithm
-- Girvan-Newman Algorithm
-- Label Propagation
-- K-Clique Communities
+- Degree, betweenness (node and edge) and closeness centrality
+- Eigenvector and Katz centrality
+- PageRank and personalized PageRank
+- HITS (hubs and authorities)
+
+### Community Detection and Clustering
+
+- Louvain and Leiden
+- Girvan-Newman
+- Label propagation (asynchronous, synchronous and semi-supervised)
+- K-core decomposition, hierarchical, spectral and Markov clustering
 
 ### Other Algorithms
-- Minimum Spanning Tree (Kruskal, Prim)
-- Connected Components
-- Cycle Detection
-- Topological Sort
-- Maximum Flow (Ford-Fulkerson)
-- Bipartite Matching
-- Link Prediction
+
+- Minimum spanning tree (`kruskalMST`, `primMST`)
+- Maximum flow and minimum cuts (`maxFlow`, `minSTCut`, `stoerWagner`, `kargerMinCut`)
+- Bipartite matching through `bipartiteFlowNetwork`
+- Link prediction (common neighbours, Adamic-Adar)
 
 ## Next Steps
 
 - [Installation Guide](./installation.md) - Detailed setup instructions
-- [Graph Data Structure](./graph.md) - Learn about the Graph API
+- [Graph Data Structure](./graph.md) - Building snapshots, node ids and node indices
 - [API Reference](../api/) - Complete API documentation

@@ -9,11 +9,7 @@ import { AiController } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
-
-// Helper to create a mock graph for testing
-function createMockGraph(): CommandContext["graph"] {
-    return {} as CommandContext["graph"];
-}
+import { createMessageGraph } from "../helpers/message-graph";
 
 describe("AiController Retry", () => {
     let controller: AiController;
@@ -24,7 +20,7 @@ describe("AiController Retry", () => {
     beforeEach(() => {
         mockProvider = new MockLlmProvider();
         registry = new CommandRegistry();
-        mockGraph = createMockGraph();
+        mockGraph = createMessageGraph();
         controller = new AiController({
             provider: mockProvider,
             commandRegistry: registry,

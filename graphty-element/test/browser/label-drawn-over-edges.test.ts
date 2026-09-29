@@ -16,7 +16,7 @@
 import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { styleEveryEdge } from "../helpers/testSetup";
 
@@ -76,7 +76,7 @@ describe("text is drawn over the edges of the graph", () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.setLayout("fixed", { dim: 3 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await styleEveryEdge(graph, { "edge.color": EDGE_COLOUR, "edge.width": 3 });
     });
 

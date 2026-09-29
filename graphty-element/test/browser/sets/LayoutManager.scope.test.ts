@@ -13,7 +13,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { setLayout as layoutCommand } from "../../../src/ai/commands/LayoutCommands";
 import { isGraphtyError } from "../../../src/errors";
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { Node } from "../../../src/Node";
 import type { ElementSession } from "../../../src/session/types";
 
@@ -36,7 +36,7 @@ async function pathGraph(): Promise<{ graph: Graph; container: HTMLDivElement }>
     await graph.init();
     await graph.addNodes(IDS.map((id, index) => ({ id, group: index < 10 ? 1 : 2 })));
     await graph.addEdges(IDS.slice(1).map((id, index) => ({ src: IDS[index], dst: id })));
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 
     return { graph, container };
 }
@@ -179,7 +179,7 @@ describe("a layout over a set", () => {
             { id: "n15", group: 1 },
             { id: "n0", group: 2 },
         ]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getDataManager().getSnapshot();
 
         assert.deepEqual(holdDisagreements(graph, MEMBERS), [], "the members are the ones the layout started with");
@@ -190,7 +190,7 @@ describe("a layout over a set", () => {
 
         await graph.addNodes([{ id: "late" }]);
         await graph.addEdges([{ src: "n0", dst: "late" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getDataManager().getSnapshot();
 
         assert.deepEqual(holdDisagreements(graph, MEMBERS), [], "the newcomer is held, the members are not");
@@ -217,7 +217,7 @@ describe("the default layout", () => {
             // Before init: the constructor has queued the default layout, which has not run yet.
             await graph.setLayoutScope({ nodes: ["n0"] });
             await graph.init();
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getLayoutManager().layoutType, "ngraph");
             assert.deepEqual(graph.getLayoutScope(), { nodes: ["n0"] });
@@ -319,7 +319,7 @@ describe("the element's layoutScope", () => {
         mounted.layout = "ngraph";
         container.appendChild(mounted);
         element = mounted;
-        await mounted.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(mounted.graph).waitForCompletion();
 
         return mounted;
     }
@@ -329,23 +329,23 @@ describe("the element's layoutScope", () => {
         assert.isUndefined(mounted.layoutScope);
 
         mounted.layoutScope = { nodes: MEMBERS };
-        await mounted.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(mounted.graph).waitForCompletion();
         assert.deepEqual(mounted.layoutScope, { nodes: MEMBERS });
         assert.deepEqual(holdDisagreements(mounted.graph, MEMBERS), []);
 
         mounted.layoutConfig = { springLength: 20 };
-        await mounted.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(mounted.graph).waitForCompletion();
         assert.deepEqual(holdDisagreements(mounted.graph, MEMBERS), [], "a layoutConfig change keeps the hold");
 
         mounted.layoutScope = undefined;
-        await mounted.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(mounted.graph).waitForCompletion();
         assert.isUndefined(mounted.layoutScope);
         assert.isNull(mounted.graph.getLayoutManager().layoutEngine?.holdMask ?? null);
     });
 
     it("reads the layout-scope attribute as JSON", async () => {
         const mounted = await mount({ "layout-scope": JSON.stringify({ nodes: MEMBERS }) });
-        await mounted.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(mounted.graph).waitForCompletion();
 
         assert.deepEqual(mounted.layoutScope, { nodes: MEMBERS });
         assert.deepEqual(holdDisagreements(mounted.graph, MEMBERS), []);
@@ -358,7 +358,7 @@ describe("the element's layoutScope", () => {
         mounted.layoutScope = { bogus: true } as never;
         mounted.layoutScope = { set: "never-issued" };
         mounted.layout = "circular";
-        await mounted.graph.operationQueue.waitForCompletion();
+        await operationQueueOf(mounted.graph).waitForCompletion();
         await new Promise((resolve) => {
             setTimeout(resolve, 0);
         });

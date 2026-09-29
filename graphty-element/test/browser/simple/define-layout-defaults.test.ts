@@ -18,6 +18,7 @@ import {
     SimpleLayoutEngine,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
 
 const NODES = [
@@ -162,7 +163,7 @@ describe("defineLayout's defaults on a rendered graph", () => {
      * @param what - How to describe the wait if it fails.
      */
     async function settled(what: string): Promise<void> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         const manager = graph.getLayoutManager();
         await until(what, () => (manager.layoutEngine?.isSettled ?? false) && !manager.running);
     }
@@ -206,7 +207,7 @@ describe("defineLayout's defaults on a rendered graph", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await graph.setLayout("circular");
         await settled("the circular layout");
     });

@@ -32,6 +32,8 @@ interface DragState {
     dragStartMeshPosition: Vector3 | null;
     dragStartWorldPosition: Vector3 | null;
     dragPlaneNormal: Vector3 | null;
+    /** The pointer moved the node during this drag (set with or without a session). */
+    moved: boolean;
 }
 
 /**
@@ -89,6 +91,7 @@ export class NodeDragHandler {
             dragStartMeshPosition: null,
             dragStartWorldPosition: null,
             dragPlaneNormal: null,
+            moved: false,
         };
 
         // Read config from graph context
@@ -121,6 +124,7 @@ export class NodeDragHandler {
         this.gesture = this.openGesture();
 
         this.dragState.dragging = true;
+        this.dragState.moved = false;
         this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
         this.node.dragging = true;
@@ -205,6 +209,7 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.mesh.position.copyFrom(newPosition);
+        this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
         }
@@ -232,6 +237,7 @@ export class NodeDragHandler {
         const context = this.getContext();
         const { gesture } = this;
         this.gesture = null;
+        const pins = this.node.pinOnDrag && this.placedByPointer();
         // An undo during the drag already released the node, put everything back and stopped
         // the layout: the drop of that gesture does nothing.
         if (gesture?.aborted !== true) {
@@ -244,10 +250,10 @@ export class NodeDragHandler {
             // row back to the simulation.
             const { layoutEngine } = context.getLayoutManager();
             if (layoutEngine instanceof SimulationLayoutEngine) {
-                layoutEngine.endDrag(this.node, this.node.pinOnDrag);
+                layoutEngine.endDrag(this.node, pins);
             }
 
-            this.drop(gesture);
+            this.drop(gesture, pins);
             this.releaseCamera();
         }
 
@@ -258,7 +264,7 @@ export class NodeDragHandler {
             eventManager.emitNodeEvent("node-drag-end", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
-                // Read AFTER the pin above, so this reports what `pinOnDrag` actually did rather
+                // Read AFTER the pin above, so this reports what the drop actually did rather
                 // than what it was about to do.
                 pinned: this.node.isPinned(),
             });
@@ -288,6 +294,7 @@ export class NodeDragHandler {
 
         // Update mesh position
         this.node.mesh.position.copyFrom(newPosition);
+        this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
         }
@@ -350,14 +357,15 @@ export class NodeDragHandler {
     }
 
     /**
-     * The drop: place the node where the pointer left it and, with `pinOnDrag`, pin it, both
+     * The drop: place the node where the pointer left it and, when it pins, pin it, both
      * through the drag's transaction, then let the transaction record.
      * @param gesture - The drag's gesture, or null for a graph with no session.
+     * @param pins - Whether the drop pins: `pinOnDrag` and the pointer placed the node.
      */
-    private drop(gesture: DragGesture | null): void {
+    private drop(gesture: DragGesture | null, pins: boolean): void {
         const { scope } = gesture ?? {};
         if (gesture === null || scope === null || scope === undefined) {
-            if (this.node.pinOnDrag) {
+            if (pins) {
                 this.node.pin();
             }
 
@@ -369,7 +377,7 @@ export class NodeDragHandler {
             scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
         }
 
-        if (this.node.pinOnDrag) {
+        if (pins) {
             // Through `pin` itself, routed into the drag, so there is one way a node is pinned.
             const via: DispatchFunction = (command, options) => scope.dispatch(command, options);
             gesture.dispatcher.routed(via, () => {
@@ -562,6 +570,17 @@ export class NodeDragHandler {
                 this.node.hideTooltip();
             }
         });
+    }
+
+    /**
+     * Whether the pointer placed the node, which is what `pinOnDrag` pins for.
+     * @returns True for a real drag; false for a click, however the hand shook during it.
+     */
+    private placedByPointer(): boolean {
+        // A mouse press carries click state, and moving under the click tolerance is a click the
+        // hand shook through, not a placement. XR and direct callers have no click state; for
+        // them any move counts.
+        return this.clickState === null ? this.dragState.moved : this.clickState.hasMoved;
     }
 
     /**

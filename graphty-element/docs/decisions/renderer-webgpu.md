@@ -70,16 +70,16 @@ graph had settled. One run per row; the machine was shared with other work, and 
 load average is in the last column. The benchmark is the one the render-performance work used,
 with a renderer column added.
 
-| Graph | Condition | Renderer | Frame median | Frame p95 | `scene.render` | Active-mesh evaluation | GPU time | Load | Load avg |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 10k nodes, 20k edges | still | WebGL | 99.6 ms | 125 ms | 82.9 ms | 71.1 ms | 8.6 ms | 2.0 s | 14.0 |
-| 10k nodes, 20k edges | still | WebGPU | 132.6 ms | 212.7 ms | 108.9 ms | 93.0 ms | n/a | 27.9 s | 14.3 |
-| 10k nodes, 20k edges | orbiting | WebGL | 104.9 ms | 122.2 ms | 86.8 ms | 73.8 ms | 11.2 ms | 3.5 s | 15.6 |
-| 10k nodes, 20k edges | orbiting | WebGPU | 116.6 ms | 138.2 ms | 95.2 ms | 80.7 ms | n/a | 15.3 s | 14.3 |
-| 100k nodes | still | WebGL | 58.6 ms | 78.5 ms | 58.4 ms | 43.5 ms | 20.5 ms | 3.8 s | 9.4 |
-| 100k nodes | still | WebGPU | 78.2 ms | 91.5 ms | 77.9 ms | 52.7 ms | n/a | 143.5 s | 8.9 |
-| 100k nodes | orbiting | WebGL | 105.1 ms | 227.3 ms | 103.6 ms | 91.6 ms | 12.7 ms | 4.3 s | 13.7 |
-| 100k nodes | orbiting | WebGPU | 71.5 ms | 81.9 ms | 71.2 ms | 49.0 ms | n/a | 165.9 s | 13.9 |
+| Graph                | Condition | Renderer | Frame median | Frame p95 | `scene.render` | Active-mesh evaluation | GPU time | Load    | Load avg |
+| -------------------- | --------- | -------- | ------------ | --------- | -------------- | ---------------------- | -------- | ------- | -------- |
+| 10k nodes, 20k edges | still     | WebGL    | 99.6 ms      | 125 ms    | 82.9 ms        | 71.1 ms                | 8.6 ms   | 2.0 s   | 14.0     |
+| 10k nodes, 20k edges | still     | WebGPU   | 132.6 ms     | 212.7 ms  | 108.9 ms       | 93.0 ms                | n/a      | 27.9 s  | 14.3     |
+| 10k nodes, 20k edges | orbiting  | WebGL    | 104.9 ms     | 122.2 ms  | 86.8 ms        | 73.8 ms                | 11.2 ms  | 3.5 s   | 15.6     |
+| 10k nodes, 20k edges | orbiting  | WebGPU   | 116.6 ms     | 138.2 ms  | 95.2 ms        | 80.7 ms                | n/a      | 15.3 s  | 14.3     |
+| 100k nodes           | still     | WebGL    | 58.6 ms      | 78.5 ms   | 58.4 ms        | 43.5 ms                | 20.5 ms  | 3.8 s   | 9.4      |
+| 100k nodes           | still     | WebGPU   | 78.2 ms      | 91.5 ms   | 77.9 ms        | 52.7 ms                | n/a      | 143.5 s | 8.9      |
+| 100k nodes           | orbiting  | WebGL    | 105.1 ms     | 227.3 ms  | 103.6 ms       | 91.6 ms                | 12.7 ms  | 4.3 s   | 13.7     |
+| 100k nodes           | orbiting  | WebGPU   | 71.5 ms      | 81.9 ms   | 71.2 ms        | 49.0 ms                | n/a      | 165.9 s | 13.9     |
 
 The 100k rows have no edges: with 200,000 edges the WebGL load had not finished after 40 minutes
 on this branch's base, a load-path cost that is not the renderer's.

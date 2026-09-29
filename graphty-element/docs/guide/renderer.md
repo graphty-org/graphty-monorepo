@@ -12,11 +12,11 @@ algorithms on the GPU: a graph can be laid out on the GPU and drawn with either 
 <graphty-element renderer="auto"></graphty-element>
 ```
 
-| Value    | What it means                                                         |
-| -------- | --------------------------------------------------------------------- |
-| `webgl`  | The default. Draw with WebGL.                                         |
-| `webgpu` | Draw with WebGPU where the browser can open it, and WebGL where not.  |
-| `auto`   | Today the same as `webgpu`.                                            |
+| Value    | What it means                                                        |
+| -------- | -------------------------------------------------------------------- |
+| `webgl`  | The default. Draw with WebGL.                                        |
+| `webgpu` | Draw with WebGPU where the browser can open it, and WebGL where not. |
+| `auto`   | Today the same as `webgpu`.                                          |
 
 The renderer is chosen once, when the element is first drawn. Set it in markup, or on the element
 before you add it to the page. Changing it afterwards is reported on the console and ignored.
@@ -44,14 +44,14 @@ drawing.
 
 ## What differs under WebGPU
 
-| Feature                                            | Under WebGPU                                                |
-| -------------------------------------------------- | ----------------------------------------------------------- |
-| Nodes, instanced meshes, labels                    | The same                                                    |
-| Solid and patterned edges, arrow caps              | The same, once the compiler is loaded (see below)           |
-| Animated edges                                     | The same                                                    |
-| Node glow and outline                              | The same                                                    |
-| Screenshots (`captureScreenshot`)                  | The same                                                    |
-| VR and AR                                          | Not available: the buttons report the mode unavailable      |
+| Feature                               | Under WebGPU                                           |
+| ------------------------------------- | ------------------------------------------------------ |
+| Nodes, instanced meshes, labels       | The same                                               |
+| Solid and patterned edges, arrow caps | The same, once the compiler is loaded (see below)      |
+| Animated edges                        | The same                                               |
+| Node glow and outline                 | The same                                               |
+| Screenshots (`captureScreenshot`)     | The same                                               |
+| VR and AR                             | Not available: the buttons report the mode unavailable |
 
 **VR and AR need WebGL.** WebXR draws into a WebGL layer, and no shipping browser offers it a
 WebGPU one. Under WebGPU the element reports both modes unavailable instead of offering a button

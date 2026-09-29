@@ -17,7 +17,10 @@
             "minLength": 1,
             "maxLength": 256,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
-            "description": "The recipe's identity across all its versions. A reverse-domain name (org.example.hub-genes) or an https: URL is recommended, so two authors do not collide."
+            "description": "The recipe's identity across all its versions. A reverse-domain name (org.example.hub-genes) or an https: URL is recommended, so two authors do not collide. Ids starting graphty. or graphty: are reserved for the recipes graphty-element ships.",
+            "not": {
+                "pattern": "^graphty[.:]"
+            }
         },
         "recipeVersion": {
             "type": "string",
@@ -44,6 +47,10 @@
         "directed": {
             "type": "boolean",
             "description": "The direction of the graph the recipe was recorded on. A replay on a graph of the other direction is reported (recipe.md, 'Binding to a new graph' rule 5)."
+        },
+        "generator": {
+            "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/generator",
+            "description": "The release that recorded the recipe. recipes.record() writes it; a replay on another release is reported (recipe.md, 'Same data, same results')."
         },
         "commands": {
             "type": "array",
@@ -81,11 +88,11 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "pattern": "^[a-z][a-z0-9_-]*$",
+            "pattern": "^[a-z][a-z0-9_]*$",
             "not": {
                 "pattern": "__"
             },
-            "description": "The run's name in this recipe. Unique within the recipe; never contains two underscores in a row, which separate a namespace from a name. Letters, digits and single underscores are RECOMMENDED, so a path naming the run needs no quoting."
+            "description": "The run's name in this recipe. Unique within the recipe; letters, digits and single underscores, never two underscores in a row, which separate a namespace from a name, so a path naming the run needs no quoting. Its meaning never changes between recipe versions."
         },
         "params": {
             "type": "object",
@@ -94,7 +101,7 @@
                     "const": "__proto__"
                 }
             },
-            "description": "Option values by the option names graphty-element's catalogue publishes for the algorithm or layout."
+            "description": "Option values by the option names graphty-element's catalogue publishes for the algorithm or layout. An option of type attribute or partition may instead name an earlier run's result as {\"result\": \"<as>.<field>\"} (recipe.md, 'Commands' rule 4)."
         },
         "scope": {
             "oneOf": [
@@ -110,7 +117,7 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 1024,
-                            "description": "A predicate in graphty-element's JMESPath dialect over {data, results} of the table 'on' names: columns as data.<column>, earlier results as results.<as>.<field>."
+                            "description": "A predicate in graphty-element's expression language (style.md, 'Expressions') over the table 'on' names: columns as data.<column>, earlier results as results.<as>.<field>. The node id path id is refused."
                         },
                         "on": {
                             "enum": ["nodes", "edges"],
@@ -188,7 +195,7 @@
                             }
                         }
                     ],
-                    "description": "What the run paints when it completes, as graphty-element's run option of the same name: true or absent, the colouring its result suggests; false, nothing."
+                    "description": "What the run paints when it completes: the run's RunStyle, as graphty-element's run option of the same name. true or absent, the colouring its result suggests; false, nothing."
                 },
                 "description": {
                     "$ref": "#/$defs/description"

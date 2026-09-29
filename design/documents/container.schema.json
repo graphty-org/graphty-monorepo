@@ -37,7 +37,7 @@
                 "minLength": 1,
                 "maxLength": 128
             },
-            "description": "Member kinds a reader must know to read this file at all. A reader that does not know one refuses the whole file (container.md, 'Reading a file' rule 9)."
+            "description": "Member kinds a reader must know to read this file at all. A reader that does not know one, or that skips a member of one for any reason, refuses the whole file (container.md, 'Reading a file' rule 9)."
         },
         "members": {
             "type": "array",
@@ -124,7 +124,9 @@
                 "kind": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 128
+                    "maxLength": 128,
+                    "pattern": "^graphty-[a-z0-9]+(-[a-z0-9]+)*$|^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$",
+                    "description": "A member kind. Kinds starting graphty- are reserved for graphty-element; any other kind is a reverse-domain name (org.example.notes). A reader skips a kind it does not know, however it is spelled."
                 },
                 "version": {
                     "type": "integer",

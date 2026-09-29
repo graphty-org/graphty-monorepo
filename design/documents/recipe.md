@@ -50,6 +50,7 @@ interface RecipeMember {
     description?: string;
     namespace?: string; // preferred namespace for its run ids: ^[a-z][a-z0-9_]{0,31}$
     directed?: boolean; // the direction of the graph it was recorded on
+    generator?: { name: string; version: string }; // the release that recorded it; record() writes it
     commands: RecipeCommand[]; // replayed in order; at most 1,000
     extensions?: Record<string, unknown>;
 }
@@ -59,8 +60,8 @@ type RecipeCommand = AlgoRun | LayoutSet; // "op" is an open list: see "Replayin
 interface AlgoRun {
     op: "algo.run";
     algorithm: string; // catalogue key: "pagerank", "louvain", ...
-    as: string; // this run's name in the recipe: ^[a-z][a-z0-9_-]*$, no "__", unique
-    params?: Record<string, unknown>; // option values by catalogue option name
+    as: string; // this run's name in the recipe: ^[a-z][a-z0-9_]*$, at most 64, no "__", unique
+    params?: Record<string, unknown>; // option values by catalogue option name; see "Commands" rule 4
     scope?: "graph" | "largest-component" | { where: string; on?: "nodes" | "edges" }; // default "graph"
     seed?: number; // integer
     sample?: number; // integer, the sample size of an approximate method
@@ -72,15 +73,17 @@ interface AlgoRun {
 interface LayoutSet {
     op: "layout.set";
     id: string; // catalogue layout id: "force", "circular", ...
-    engine?: string; // the engine that draws it: "d3", "forceAtlas2", ...; default the catalogue's
+    engine?: string; // the engine that draws it: "d3", "forceatlas2", ...; default the catalogue's
     options?: Record<string, unknown>; // the engine's options, the seed among them
     description?: string;
 }
 ```
 
 `AlgoRun` is graphty-element's `AlgorithmRunCommand` (`graphty-element/src/session/planning.ts`)
-restricted to what a recipe may hold, with `style` for the command's `applySuggestedStyles` and its
-object form (the run option graphty-element 2.x has on `RunSpec`), and `description`. `LayoutSet`
+restricted to what a recipe may hold, plus `style` -- the run's `RunStyle`, the run option
+graphty-element 2.x keeps on the run's definition, not on the command -- and `description`. The
+command's own `applySuggestedStyles` (apply the suggested layers in the same undo step) is not
+recorded: a re-run drops it from the stored command, and `style` already says what the run paints. `LayoutSet`
 is graphty-element's `LayoutSetCommand` (`graphty-element/src/session/commands/layout.ts`)
 restricted the same way: no `scope`, because a layout draws the whole graph, and the seed where the
 catalogue declares it, among the engine's `options`.
@@ -98,11 +101,19 @@ catalogue declares it, among the engine's `options`.
    published default, and the replay report lists every effective value. Because a recipe relies on
    defaults, graphty-element treats changing an option's default, renaming an option or removing one
    as a breaking change, made only in a major release; a renamed or removed option is still read
-   through a legacy option map, as retired algorithm keys are (rule 9).
+   through a legacy option map, as retired algorithm keys are (rule 9). That map also records each
+   changed default with the major release that changed it. When the recipe's `generator` names an
+   older major release, the report names every option that took a default which changed since;
+   with no `generator`, every such option whose default changed since the first release that read
+   recipe version 1.
 4. **Options that name elements are refused.** An option whose descriptor type is `node-id`,
-   `node-set`, `partition` or `ordering` names particular nodes; a command that gives one a value is
-   skipped with `E_BAD_COMMAND`. An option whose type is `attribute` names a column, and is bound
-   like every column ("Binding to a new graph").
+   `node-set` or `ordering`, or a `partition` given as a literal list of nodes, names particular
+   nodes; a command that gives one a value is skipped with `E_BAD_COMMAND`. An option whose type is
+   `attribute` names a column, and is bound like every column ("Binding to a new graph"). An
+   option of type `attribute` or `partition` may instead name an earlier run's result,
+   `{ "result": "modules.group" }` (`<as>.<field>`): a measure of the partition an earlier Louvain
+   found, or a weight an earlier run computed. That reference is bound,
+   namespaced and counted as a dependency (rule 10) exactly as a `results.` path in a `where` is.
 5. **Scope.** What the run looks at:
     - `"graph"` (the default): every node and edge.
     - `"largest-component"`: the connected component (weakly connected, on a directed graph) with the
@@ -110,7 +121,7 @@ catalogue declares it, among the engine's `options`.
       first (numbers before text, numbers ascending, text by code point). So the choice does not
       depend on the order a file lists its nodes.
     - `{ "where": predicate }`, or `{ "where": predicate, "on": "nodes" }`: the predicate, in
-      graphty-element's JMESPath dialect, is evaluated on each node, and the run sees the matched
+      graphty-element's expression language (style.md, "Expressions"), is evaluated on each node, and the run sees the matched
       nodes and the edges between them.
     - `{ "where": predicate, "on": "edges" }`: the predicate is evaluated on each edge, and the run
       sees every node and only the matched edges -- what a filter on edges shows. This is how a
@@ -118,30 +129,52 @@ catalogue declares it, among the engine's `options`.
       ``{ "where": "data.combined_score >= `700`", "on": "edges" }``.
 
     `data.<column>` in the predicate names a column of the table `on` says, and binds against that
-    table only; `results.<as>.<field>` names a result field published on that table. Any other scope
-    skips the command with `E_BAD_COMMAND`. The applier MUST pass the scope to graphty-element
-    explicitly, `"graph"` when the command has none, because graphty-element's own default is the
-    visible graph and a replay must not depend on what the reader has filtered. A predicate combined
-    with the largest component is not in version 1.
+    table only; `results.<as>.<field>` names a result field published on that table. The node id
+    path `id`, which a style may read, is refused in a recipe's predicate with `E_BAD_COMMAND`: it
+    would name particular nodes. Any other scope skips the command with `E_BAD_COMMAND`. The applier
+    MUST pass the scope to graphty-element explicitly, `"graph"` when the command has none, because
+    graphty-element's own default is the visible graph and a replay must not depend on what the
+    reader has filtered. `"graph"` means the graph as the earlier commands of this recipe left it,
+    which in version 1, whose commands never change the graph, is every node and edge; a later
+    filter command therefore narrows what later commands see without changing any version 1
+    recipe. A predicate combined with the largest component, or a node predicate with an edge
+    predicate, is not in version 1: an edge scope keeps every node, including those its edges
+    leave isolated (README, "What version 1 does not cover"). The same predicate is written on each
+    command that needs it.
+
+    A predicate that compares an earlier run's community number with a literal
+    (``results.modules.group == `3` ``) selects one community of one dataset; on other data that
+    number names another community or none. Recording and replaying such a command carry a notice
+    saying so.
 
 6. **Weights are columns.** An algorithm that reads edge weights takes a `weight` option naming the
-   edge column to read. Without one it runs unweighted -- every algorithm, with no column read
-   implicitly -- so a plan always shows which column a run will read. Every importer names the edge
-   weight `weight` (README, "What every importer produces"), so `"params": { "weight": "weight" }`
-   reads it from any file type, and a graph with no such column skips the command with
-   `E_UNKNOWN_ATTRIBUTE`. A weight is read as the algorithm reads it: path-based algorithms
-   (betweenness, closeness, shortest paths) treat it as a distance, so a confidence or correlation
-   column, where bigger means closer, must not be their weight. Version 1 cannot state what a weight
-   means (README, "What version 1 does not cover"). graphty-element 2.x's Louvain and some others
-   read a fixed column named `weight` and have no option; giving them one is a precondition of
-   releasing recipes (README, "Where this lives in the packages").
-7. **`seed`, `sample`, `exact`** mean what they mean on graphty-element's run command. A randomised
-   or sampled command with no `seed` runs with a seed graphty-element draws, reported in the
-   command's caveats and as a notice, because replaying it gives different numbers every time.
+   edge column to read, and the run builds its own weight array from that column, on the CPU and
+   on an accelerator alike. Without the option it runs unweighted -- every algorithm, with no
+   column read implicitly -- so a plan always shows which column a run will read. The weight
+   graphty-element resolves at import for drawing and layouts (its `edgeWeightPath` setting) is
+   never read by a recipe command, so a page that sets it replays a recipe the same as one that
+   does not. Every importer names the edge weight `weight` (README, "What every importer
+   produces"), so `"params": { "weight": "weight" }` reads it from any file type, and a graph with
+   no such column skips the command with `E_UNKNOWN_ATTRIBUTE`. A weight is read as the algorithm
+   reads it: path-based algorithms (betweenness, closeness, shortest paths) treat it as a
+   distance, so a confidence or correlation column, where bigger means closer, must not be their
+   weight; the plan says "read as a distance" and carries a notice when one is given. A weighted
+   path analysis needs a distance column in the imported file, computed before import (README,
+   "What version 1 does not cover"). graphty-element today reads the one weight fixed at import
+   and has no per-run weight array; building one is a precondition of releasing recipes, and
+   whether `weight` names a column is open decision 5 (README).
+7. **`seed`, `sample`, `exact`** mean what they mean on graphty-element's run command. Whether an
+   algorithm is randomised is a fact of its catalogue descriptor; `seed` feeds its own seed option
+   (label propagation's `randomSeed`), so a recipe never sets that option in `params`. A
+   randomised or sampled command with no `seed` runs with a seed graphty-element draws, reported in
+   the command's caveats and as a notice, because replaying it gives different numbers every
+   time. A deterministic algorithm (Louvain as graphty-element implements it) ignores a `seed`,
+   and the report says so.
    `exact: true` fails rather than approximating, with `E_CAP_EXCEEDED` when the exact method is
    over the cost cap; it never degrades silently.
 8. **`style`** is the run's own suggested colouring, as graphty-element's run option of the same
-   name: `true` or absent paints it, `false` paints nothing. Its layers are added when the run
+   name (`RunStyle`): `true` or absent paints it, `false` paints nothing, and the object form
+   chooses parts of it. Its layers are added when the run
    completes, above every layer present then. A file whose style member paints this run's result
    MUST say `false`, so the result is not painted twice; the recorder does ("Recording" rule 6).
 9. **Unknown keys.** An algorithm key or layout id this installation has not registered skips the
@@ -158,7 +191,9 @@ catalogue declares it, among the engine's `options`.
     `E_SCOPE_EMPTY`, and its dependants with `E_DEPENDENCY_SKIPPED`.
 12. **Layouts.** A `layout.set` replaces the layout, so only the last one in a recipe decides the
     picture. It follows rules 3, 4 and 9, and names its `engine` when the layout was drawn by one
-    other than the catalogue's default, because another engine's seed means something else. A seed
+    other than the catalogue's default, because another engine's seed means something else. The
+    applier dispatches it with scope `"graph"`, because graphty-element's `layout.set` without a
+    scope keeps whatever layout scope the reader's session holds. A seed
     makes a layout start from the same positions; an engine that stops on a time-based settle test
     can end in slightly different positions, so a replayed picture is similar, not identical. A
     layout that needs a node (a tree from a root) cannot be recorded.
@@ -171,6 +206,9 @@ A command names a column in exactly two places:
   `adj.P.Val`), of the table the scope's `on` names;
 - as the value of an option whose descriptor type is `attribute`, such as an algorithm's `weight`:
   the column's name, as a string.
+
+An option may also name an earlier run's result (`{ "result": "<as>.<field>" }`, "Commands" rule
+4), which is not a column of the data.
 
 Nothing else in a command refers to the data. Node ids, edge ends and the file's own syntax never
 appear, which is what makes a recipe portable across file types.
@@ -191,19 +229,31 @@ Before anything runs, the applier binds every column a command names to the curr
    report lists up to three existing columns with the nearest names as suggestions for the caller;
    the applier never uses one.
 4. A column a `where` predicate compares with a number, or an option reads as numbers (a weight),
-   that holds values that are not numbers -- text such as `NA`, or a column a CSV import typed as
-   text -- is reported with `W_COLUMN_TYPE`, the column and how many elements hold such a value. The
-   command still runs; a comparison with a text value is false.
+   that holds values that are not numbers -- text such as `NA` in a CSV column -- is reported with
+   `W_COLUMN_TYPE`, the column and how many elements hold such a value. The command still runs:
+   the numbers are compared, and a text value never matches a numeric comparison and is not read
+   as a weight, as a style's numeric scale skips it (README, "What every importer produces" rule 4).
 5. When the recipe carries `directed` and the graph's direction differs (or is mixed), the report
    carries `W_DIRECTION_DIFFERS`, naming both, before anything runs. The commands run on the graph
-   as it is; version 1 cannot change a graph's direction.
-6. Binding happens once per application, before the first command runs, so the report can say what
-   a recipe needs before it spends anything.
+   as it is; a recipe cannot change a graph's direction, which is the `directed` import option's
+   work (container.md, "Import options"). A hand-written recipe SHOULD carry `directed`, so that a
+   difference is reported.
+6. Binding happens when the recipe is applied, before the first command runs, so the report can say
+   what a recipe needs before it spends anything. Each command is checked again as it starts, and
+   a column an earlier command of the recipe produces counts as a dependency of the commands that
+   read it; no version 1 command produces a column, so the two checks agree, and a later command
+   that does produce one needs no change to these rules.
+7. **Each `where` scope is evaluated when the recipe is planned**, and the plan gives how many
+   elements it matches out of how many in its table. A scope matching nothing is `E_SCOPE_EMPTY` in
+   the plan, before anything runs; a scope matching every element of its table carries a notice,
+   because a threshold written for another scale does exactly that.
 
 ## Identity and versions
 
 1. `id` identifies the recipe across all its versions. A reverse-domain name
    (`org.example-lab.hub-genes`) or an `https:` URL is RECOMMENDED so two authors do not collide.
+   Ids starting `graphty.` or `graphty:` are reserved for the recipes graphty-element ships; a
+   document's recipe with one is skipped with `E_BAD_DOCUMENT`.
 2. `recipeVersion`, when present, MUST be a SemVer 2.0.0 version, and versions are ordered by SemVer
    precedence (`1.10.0` is newer than `1.9.0`). One `id` and `recipeVersion` SHOULD name one content:
    a change is a new `recipeVersion`. A recipe shared outside its author's own work SHOULD carry one.
@@ -216,16 +266,18 @@ Applying a recipe gives each run the id `<namespace>__<as>`, so two recipes, or 
 twice, never overwrite each other's results.
 
 1. The namespace is the caller's `namespace` option; else the recipe's `namespace`; else one derived
-   from the last segment of `id` (after its last `.`, `/` or `:`): lower-cased, each run of other
-   characters than letters and digits replaced by one `_`, leading characters up to the first letter
-   and a trailing `_` removed, cut to 32 characters, and `recipe` when nothing is left.
-   `org.example.team-overview` gives `team_overview`.
+   from the last segment of `id` (after its last `.`, `/` or `:`), in this order: lower-cased; each
+   run of characters other than letters and digits replaced by one `_`; leading characters up to
+   the first letter removed; cut to 30 characters; a trailing `_` removed; `recipe` when nothing is
+   left. `org.example.team-overview` gives `team_overview`.
 2. When that namespace is already used by another application in the session, `2`, `3` and so on is
-   appended (`team_overview2`).
+   appended (`team_overview2`); the cut to 30 leaves room for it within the 32 the pattern allows.
 3. A run the recipe names `influence` is then `team_overview__influence`, and its results are
    `results.team_overview__influence.value`. The applier rewrites, by the parsed expression, every
-   `results.<as>` in the recipe's own `where` scopes, and in the style members of the same file
-   (container.md, "Applying a file" rule 5).
+   `results.<as>` in the recipe's own `where` scopes and `{ "result" }` options, and in the style
+   members of the same file (container.md, "Applying a file" rule 5), together with the `runId` of
+   each of their layers whose `source` is `{ "by": "run" }`, so those layers stay tied to the run
+   and are removed with it.
 4. A style saved on its own names runs by their session ids. A namespaced id from an applied recipe
    is stable; an id graphty-element derived for a run started without `as` is not, so such a style
    is refused with `E_UNSTABLE_RUN_ID` (style.md, "Writing" rule 4).
@@ -258,8 +310,9 @@ interface RecipeApplication {
 in this session and ran at least one command, a second application follows `onRepeat`: `"refuse"`
 (the default) fails with `E_REPEAT_APPLICATION`, naming both versions when they differ; `"replace"`
 keeps the earlier namespace, removes the earlier runs and the colouring they painted, and runs
-again; `"add"` applies it again under a new namespace (rule 2 of "Run ids and namespaces"). New data
-starts afresh (container.md, "Applying a file" rule 7): applying a recipe to newly loaded data is
+again; `"add"` applies it again under a new namespace (rule 2 of "Run ids and namespaces"). A
+preview (`apply: false`) reports a repeat as a notice and plans in full, so the two versions can be
+compared first. New data starts afresh (container.md, "Applying a file" rule 7): applying a recipe to newly loaded data is
 never a repeat of its application to the data that was replaced.
 
 ## Running
@@ -285,11 +338,12 @@ never a repeat of its application to the data that was replaced.
 
 ## Same data, same results
 
-Replaying a recipe on the same data gives the same numbers when all of these hold, and the replay
-report shows each one:
+Replaying a recipe on the same data gives the same numbers when all of these hold. The replay report
+shows the first five; it cannot show the sixth, or whether the data is the same:
 
-1. **The same release** of graphty-element. The report names the release that wrote the file and
-   the one replaying it, and carries `W_RELEASE_DIFFERS` when they differ.
+1. **The same release** of graphty-element. The report names the release that recorded the recipe
+   (its own `generator`, else the document's) and the one replaying it, and carries
+   `W_RELEASE_DIFFERS` when they differ.
 2. **A seed on every randomised or sampled command.** The recorder always writes one; a hand-written
    command without one runs with a drawn seed and gives different numbers on every replay.
 3. **The same method**: exact, or the same sample size. The recorder writes what the run used.
@@ -298,17 +352,25 @@ report shows each one:
    and nearly tied nodes can swap rank. `caveats.precision` shows which was used.
 5. **The same direction** (`W_DIRECTION_DIFFERS`, "Binding to a new graph" rule 5).
 6. **The same node order**, for algorithms whose result depends on the order nodes are visited
-   (Louvain, label propagation). The same network read from two file types can list its nodes in a
-   different order, so a seeded Louvain can find different communities on its CSV and its GraphML
-   export.
+   (Louvain, label propagation). The same network read from two file types, or two releases of one
+   database, can list its nodes in a different order, so Louvain can find different communities on
+   its CSV and its GraphML export.
 
 A layout gives a similar picture, not an identical one ("Commands" rule 12).
+
+A report does not compare results (README, "What version 1 does not cover"). To check that a
+colleague's replay reproduced yours, both of you export the graph with its results as columns
+(export-mapping.md, "Results as columns") and compare the two files, allowing for the precision
+each run's caveats name. On one machine, apply the recipe twice with `onRepeat: "add"` and compare
+`results.<ns>__<as>` with `results.<ns>2__<as>`.
 
 ## The replay report
 
 ```ts
 interface RecipeReport {
     readonly recipe: { readonly id: string; readonly recipeVersion?: string; readonly name?: string };
+    /** The release that recorded it (its `generator`, else the document's) and the one running it. */
+    readonly release: { readonly recorded: string | null; readonly running: string };
     readonly namespace: string;
     readonly direction: { readonly recorded: boolean | null; readonly data: boolean | "mixed" };
     /** Every column the commands name, and what it bound to. */
@@ -323,18 +385,33 @@ interface RecipeReport {
     readonly commands: readonly {
         readonly index: number;
         readonly op: string;
+        readonly description?: string; // the author's own sentence
+        readonly algorithm?: string; // algo.run: the current key, after a retired one is translated
+        readonly layout?: { readonly id: string; readonly engine: string }; // layout.set
         readonly as?: string;
         readonly runId?: string; // the namespaced id
+        /** The scope after renames and namespacing, and what it matches on this graph. */
+        readonly scope?: {
+            readonly spec: "graph" | "largest-component" | { readonly where: string; readonly on: "nodes" | "edges" };
+            readonly matched: number | null; // null when the plan is unbound
+            readonly of: number | null;
+        };
         readonly state: "planned" | "running" | "done" | "skipped" | "failed" | "cancelled";
         readonly problem?: Problem; // container.md, "The report"
         readonly params: Readonly<Record<string, unknown>>; // effective values, defaults filled in
+        /** Before the run: exact, or sampled with the sample size. */
+        readonly method?: { readonly exact: true } | { readonly exact: false; readonly sample: number };
+        /** Before the run: the weight column and how the algorithm reads it. */
+        readonly weight?: { readonly column: string; readonly readAs: "distance" | "strength" };
         readonly seed?: number; // the seed it runs with, drawn when the command had none
         readonly style: boolean; // whether it will paint its suggested colouring
         readonly fields: readonly string[]; // the result fields it publishes, as results.<runId>.<field>
         readonly estimateSeconds: number | null;
         readonly caveats?: Caveats; // once run: exact or sampled, seed, precision, direction, weight read
     }[];
-    readonly totalEstimateSeconds: number;
+    readonly totalEstimateSeconds: number | null; // null when any command has no estimate
+    readonly budgetSeconds: number; // the total budget this application runs under
+    readonly wouldStart: boolean; // whether run() would start: every estimate known and within the budget
     readonly notices: readonly Problem[];
 }
 ```
@@ -360,6 +437,7 @@ interface RecordOptions {
     namespace?: string;
     runs?: readonly string[]; // run ids; default every completed run the session holds
     layout?: boolean; // default true: record the last layout set
+    explicitDefaults?: boolean; // default false: write every effective option value, defaults too
 }
 ```
 
@@ -380,20 +458,33 @@ document beside the style. The recorder:
    `where` scope, that scope. A run on the visible graph while a filter was active is written with a
    `where` scope when the filter is one predicate over the columns of one table -- an expression, or
    a range or category condition on one column, written as the equivalent expression -- with `on`
-   naming the table, and the conversion is reported. Any other scope leaves the run out (rule 2).
+   naming the table, and the conversion is reported. The filter is the one the run's record kept
+   from when the run started, never the filter active at recording; a run whose record kept none is
+   left out. A run on the largest component made while a filter was active is left out and
+   reported: it covered the largest component of the filtered graph, which version 1 cannot state,
+   and writing plain `"largest-component"` would widen it on replay. Any other scope leaves the run
+   out (rule 2).
 4. **Names every run.** A run keeps its explicit name, with a namespace removed (a run
    `team_overview__influence` from an applied recipe is written `influence`); a run without one is
-   named from its algorithm key, every run of characters other than letters and digits replaced by
-   one `_` (`pagerank`, `label_propagation`). When two runs end up with one name, the first in start
-   order keeps it and later ones get `_2`, `_3`. Every `results.<id>` path in the recorded commands
-   and in the style saved beside them is rewritten to the new names.
+   named from its algorithm key. Every name is then made a valid `as`: lower-cased, every run of
+   characters other than letters and digits replaced by one `_`, `r_` put in front when it would
+   start with a digit, a trailing `_` removed, cut to 64 characters (`Hubs 2024` becomes
+   `hubs_2024`, `label-propagation` becomes `label_propagation`), and each change is reported. When
+   two runs end up with one name, the first in start order keeps it and later ones get `_2`, `_3`.
+   Every `results.<id>` path, `{ "result" }` option and run-sourced layer's `runId` in the recorded
+   commands and in the style saved beside them is rewritten to the new names.
 5. **Writes what the run computed.** In `params`, every option whose value differs from the
-   published default ("Commands" rule 3). `seed` from the run's caveats whenever the run was
+   published default ("Commands" rule 3), or every effective value when the caller passed
+   `explicitDefaults: true` (a methods supplement then states every parameter, at the cost of not
+   replaying on a release that lacks one of them). `seed` from the run's caveats whenever the run was
    randomised or sampled. When the run approximated (`caveats.exact` false), `sample` from
    `caveats.sampleSize`; when an algorithm that can approximate ran exactly, `exact: true`, so a
-   replay does not silently sample. `directed` from the graph.
-6. **Writes `style`** from the run command's `applySuggestedStyles`, except that it writes `false`
-   when the style saved beside the recipe holds that run's layers.
+   replay does not silently sample. `directed` from the graph, and `generator` naming the running
+   release.
+6. **Writes `style`** from the run record's `RunStyle` (a run started from the interface paints by
+   default, so this is usually `true`), except that it writes `false` when the style saved beside
+   the recipe holds that run's layers. A run record that does not keep its `RunStyle` is a gap
+   graphty-element closes before recipes ship (README, "Where this lives in the packages").
 7. Takes `id`, and `name`, `recipeVersion` and `namespace` if wanted, from the caller.
 
 ## The overview recipe
@@ -454,8 +545,9 @@ The rules for a file from another release or a hand-written file:
 | `params: { "weight": "weight" }`, replayed on a GML file and on a Pajek file with weights           | runs on both: each importer names the weight `weight`                                                 |
 | `params: { "weight": "combined_score" }` on a graph with no such edge column                        | skipped, `E_UNKNOWN_ATTRIBUTE`; dependants skipped; other commands run                                |
 | `params: { "weight": "constructor" }` on a graph with no such column                                | skipped, `E_UNKNOWN_ATTRIBUTE`                                                                        |
-| ``"where": "data.padj < `0.05`"`` where `padj` holds numbers and `NA`                               | runs; `W_COLUMN_TYPE` naming `padj` and the count of `NA` values                                      |
-| `louvain` with no `seed`, replayed twice                                                            | each replay draws and reports a seed; a notice says the results will differ                           |
+| ``"where": "data.padj < `0.05`"`` where `padj` holds numbers and `NA`                               | runs on the nodes whose number is below 0.05; `W_COLUMN_TYPE` naming `padj` and the count of `NA`     |
+| `label-propagation` with no `seed`, replayed twice                                                  | each replay draws and reports a seed; a notice says the results will differ                           |
+| `louvain` with `seed: 7`                                                                            | runs; a notice says Louvain is deterministic and ignores the seed                                     |
 | a recipe with `"directed": false` replayed on a CSV import (directed)                               | `W_DIRECTION_DIFFERS` before anything runs; the commands run                                          |
 | a `where` scope reading `results.modules.group`, where `modules` is a later command                 | skipped, `E_BAD_COMMAND`                                                                              |
 | a command reading `results.modules.group` after the `modules` command was skipped                   | skipped, `E_DEPENDENCY_SKIPPED`                                                                       |
@@ -477,6 +569,22 @@ The rules for a file from another release or a hand-written file:
 | a run that resolved `partial` under a time box, recorded                                            | left out and reported                                                                                 |
 | runs `a__influence` and `b__influence` from two applied recipes, recorded                           | written `influence` (the earlier start) and `influence_2`                                             |
 | a PageRank run that painted, saved with its style by default                                        | the recipe says `"style": false`; reopening shows the layer once                                      |
+| a recipe whose `id` is `graphty.overview`, in a document                                            | skipped, `E_BAD_DOCUMENT`: the id is reserved                                                         |
+| ``{ "where": "data.combined_score >= `0.7`", "on": "edges" }`` on scores from 0 to 1000             | planned; the scope matches every edge, and a notice says so                                           |
+| a scope matching no edge, opened with `apply: false`                                                | `E_SCOPE_EMPTY` in the plan                                                                           |
+| `betweenness` with `params: { "weight": "weight" }`, planned                                        | the plan says the weight is read as a distance, with a notice                                         |
+| a planned command                                                                                   | its entry carries `algorithm`, `scope` with `matched` and `of`, `method` and `description`            |
+| `louvain` as `modules`, then an option of type `partition` given `{ "result": "modules.group" }`    | runs, reading the namespaced run; skipped with `E_DEPENDENCY_SKIPPED` if `modules` was                |
+| a `partition` given as a list of node ids                                                           | skipped, `E_BAD_COMMAND`                                                                              |
+| a `where` scope reading `id`                                                                        | skipped, `E_BAD_COMMAND`                                                                              |
+| a `layout.set` replayed while the reader's layout scope is a kept set                               | the layout draws the whole graph                                                                      |
+| a directed import where 80 percent of the edges have a reverse twin                                 | `W_DIRECTION_DIFFERS` suggesting `directed: false`                                                    |
+| a run on the largest component while an edge filter was active, recorded                            | left out and reported                                                                                 |
+| a run on the visible graph under `>= 700`, the filter then changed to `>= 400`, recorded            | recorded with the `>= 700` the run started under                                                      |
+| a run named `Hubs 2024`, recorded                                                                   | written `hubs_2024`; the rename reported                                                              |
+| a PageRank run started from the interface (it painted), recorded without a style                    | the recipe says `"style": true` or omits it                                                           |
+| `recipe.record()` output, applied on a later major release that changed a default it relied on      | `W_RELEASE_DIFFERS`, and the option whose default changed named                                       |
+| a recipe planned at 340 s under the default budget, previewed                                       | `wouldStart: false`, `budgetSeconds: 300`                                                             |
 
 ## Worked example
 
@@ -508,8 +616,7 @@ the edge weight, `weight`, as PageRank's weight, and `padj` (an adjusted p-value
                 {
                     "op": "algo.run",
                     "algorithm": "louvain",
-                    "as": "modules",
-                    "seed": 7
+                    "as": "modules"
                 },
                 {
                     "op": "algo.run",

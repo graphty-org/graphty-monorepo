@@ -47,9 +47,10 @@
         "options": {
             "type": "object",
             "propertyNames": {
-                "enum": ["delimiter", "variant", "idColumn", "nodeIdPath", "edgeSource", "edgeTarget"]
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                "maxLength": 128
             },
-            "description": "Import options of a referenced file, spelled as graphty-element's format catalogue publishes them."
+            "description": "Import options of a referenced file, by the names graphty-element's format catalogue publishes for the named format (container.md, 'Import options'). The list is open and checked against the reading release's catalogue: in version 1, edgeSource, edgeTarget, directed and repeatedEdges for every format, delimiter, variant and idColumn for CSV, nodeIdPath for JSON."
         },
         "sha256": {
             "type": "string",

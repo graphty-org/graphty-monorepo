@@ -96,7 +96,8 @@ export interface AcceleratorOptions {
     readonly algorithms?:
         | {
               readonly betweenness?:
-                  { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined } | undefined;
+                  | { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined }
+                  | undefined;
           }
         | undefined;
 }
@@ -125,7 +126,9 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     fruchtermanReingold(
         options?: FruchtermanReingoldOptions,
     ): GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
-    springElectrical(options?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
+    springElectrical(
+        options?: SpringElectricalOptions,
+    ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats>;
     pageRank(s: GraphSnapshot, options?: PageRankOptions): Promise<GpuPageRankResult>;
     personalizedPageRank(
         s: GraphSnapshot,

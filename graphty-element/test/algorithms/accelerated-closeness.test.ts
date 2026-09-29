@@ -142,7 +142,10 @@ describe("closeness centrality through accelerated()", () => {
         } catch {
             // The executor refuses on purpose; only what reached it is under test.
         }
-        assert.deepStrictEqual(params.map((p) => p.k), [1]);
+        assert.deepStrictEqual(
+            params.map((p) => p.k),
+            [1],
+        );
     });
 
     describe("routing", () => {

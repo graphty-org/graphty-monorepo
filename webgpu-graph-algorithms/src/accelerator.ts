@@ -164,7 +164,9 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * @param o - the CPU option type (spec 9.3 SpringElectricalOptions, ngraph's names)
          * @returns a fresh simulation in state "created"
          */
-        springElectrical(o?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
+        springElectrical(
+            o?: SpringElectricalOptions,
+        ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
             ctx.assertReady();
             return createSpringElectrical(ctx, { ...o, ...frozen.layout });
         },

@@ -12,13 +12,13 @@ import type { AdHocData } from "../config";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import type { DataLoadingError } from "./ErrorAggregator.js";
 import {
+    aggregateErrors,
     type ImportedEdge,
     type ImportedNode,
     type ImportedRecord,
     type ImportedRecords,
     importRecords,
-    recordIssues,
-} from "./graph-io-records.js";
+} from "./graph-io-import.js";
 
 /** The CSV shapes the reader can be told to read, or recognises when it is not told. */
 export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
@@ -293,7 +293,7 @@ export class CSVDataSource extends DataSource {
             }
         }
 
-        recordIssues(imported.report, this.errorAggregator);
+        aggregateErrors(imported.report, this.errorAggregator, true);
         return imported;
     }
 
@@ -358,7 +358,7 @@ export class CSVDataSource extends DataSource {
                 ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
             }),
         );
-        recordIssues(rows.report, this.errorAggregator);
+        aggregateErrors(rows.report, this.errorAggregator, true);
         yield* this.chunkData([], rows.nodes.map(({ data }) => data) as AdHocData[]);
     }
 
@@ -383,7 +383,7 @@ export class CSVDataSource extends DataSource {
             errorLimit: this.config.errorLimit,
             ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
         });
-        recordIssues(imported.report, this.errorAggregator);
+        aggregateErrors(imported.report, this.errorAggregator, true);
 
         const nodes = imported.nodes.map(({ id, data: { labels, ...data } }) => ({
             id,
@@ -414,7 +414,7 @@ export class CSVDataSource extends DataSource {
         // The node file is read first, so its ids come first and its columns become the nodes'
         // attributes; each file's delimiter is worked out on its own.
         const imported = await this.importTable(edgeContent, { table: "edges" }, nodeContent);
-        recordIssues(imported.report, this.errorAggregator);
+        aggregateErrors(imported.report, this.errorAggregator, true);
         yield* this.emit(imported.nodes, imported.edges);
     }
 

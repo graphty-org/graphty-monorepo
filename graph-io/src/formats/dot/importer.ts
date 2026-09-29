@@ -95,6 +95,11 @@ export interface DotImportOptions {
      * graph's direction, with a warning; "error" aborts the import as Graphviz does.
      */
     mismatchedEdgeOperator?: "operator" | "header" | "error" | undefined;
+    /**
+     * Map a node's `pos` to a `pos` column with the position role and a trailing `!` to `pin`
+     * (default true); false keeps `pos` as the text the file wrote, like any other attribute.
+     */
+    positions?: boolean | undefined;
 }
 
 /**
@@ -181,7 +186,8 @@ const CLUSTER_ATTRIBUTE = "cluster";
 const STATEMENTS_PER_ABORT_CHECK = 64;
 const MAX_ANCESTOR_WALK = 4096;
 
-const DOT_HEADER = /^\s*(strict\s+)?(di)?graph\b/i;
+/** The header keyword, ended by what may follow it in DOT: space, `{`, a quoted ID or a comment. */
+const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
 const POINT_TEXT =
     /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;
@@ -277,7 +283,11 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const reports = { current: report };
         const lexer = dotLexer(text, reports);
         const first = guard(report, () => lexer.next());
-        const trailing = parseGraph(new DotParser(lexer, sink, report, resolved, mismatch), report, first);
+        const trailing = parseGraph(
+            new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
+            report,
+            first,
+        );
         if (trailing.kind !== "eof") {
             const skipped = guard(report, () => countGraphs(lexer, trailing));
             report.warning(
@@ -322,7 +332,11 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             reports.current = report;
             const sink = sinkFor(done.length);
             reportSinkOptions(sink, options, report);
-            token = parseGraph(new DotParser(lexer, sink, report, resolved, mismatch), report, token);
+            token = parseGraph(
+                new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
+                report,
+                token,
+            );
             throwIfAborted(resolved.signal);
             done.push(report.finish());
         } while (token.kind !== "eof");
@@ -544,6 +558,7 @@ class DotParser {
     private readonly options: ResolvedImportOptions;
 
     private readonly mismatch: "operator" | "header" | "error";
+    private readonly positions: boolean;
 
     private readonly ids: IdCoercer;
 
@@ -606,6 +621,7 @@ class DotParser {
      * @param report - the report
      * @param options - the resolved common options
      * @param mismatch - the resolved mismatchedEdgeOperator option
+     * @param positions - whether `pos` goes to the position column
      */
     constructor(
         lexer: DotTokenizer,
@@ -613,12 +629,14 @@ class DotParser {
         report: ImportReportBuilder,
         options: ResolvedImportOptions,
         mismatch: "operator" | "header" | "error",
+        positions: boolean,
     ) {
         this.lexer = lexer;
         this.sink = sink;
         this.report = report;
         this.options = options;
         this.mismatch = mismatch;
+        this.positions = positions;
         this.ids = new IdCoercer(options.ids);
         this.resolver = new DirectionResolver(sink, report, options.onMixedDirection);
     }
@@ -1411,7 +1429,7 @@ class DotParser {
         try {
             if (name === LABEL_ATTRIBUTE) {
                 this.sink.setNodeValue(this.nodeLabel(), index, value);
-            } else if (name === POS_ATTRIBUTE) {
+            } else if (name === POS_ATTRIBUTE && this.positions) {
                 this.setPosition(index, value, line, element);
             } else {
                 this.textWriter("node", name).write(index, value);

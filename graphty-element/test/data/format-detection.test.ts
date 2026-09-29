@@ -1,5 +1,6 @@
 import { assert, describe, test } from "vitest";
 
+import { detectFormats } from "../../src/catalog/detect.js";
 import { formatDescriptor } from "../../src/catalog/formats.js";
 import { detectFormat } from "../../src/data/format-detection.js";
 
@@ -93,5 +94,48 @@ describe("detectFormat", () => {
         assert.strictEqual(detectFormat("", "source\ttarget\na\tb\n"), "csv");
         assert.strictEqual(detectFormat("", "source;target\na;b\n"), "csv");
         assert.strictEqual(detectFormat("", "source|target\na|b\n"), "csv");
+    });
+
+    // The built-in sniffers are graph-io's, so the element recognises what graph-io's importers
+    // recognise -- including the files the element's old regular expressions turned away.
+    describe("through graph-io's sniffers", () => {
+        test("detects DOT behind a leading comment", () => {
+            assert.strictEqual(detectFormat("", "// exported by a tool\ndigraph G {\n  A -> B;\n}"), "dot");
+        });
+
+        test("detects GEXF and GraphML by their root element when the namespace is missing", () => {
+            assert.strictEqual(detectFormat("", '<?xml version="1.0"?>\n<gexf version="1.2"><graph/></gexf>'), "gexf");
+            assert.strictEqual(detectFormat("", '<?xml version="1.0"?>\n<graphml><graph/></graphml>'), "graphml");
+        });
+
+        test("detects a neo4j-admin header as CSV, the element format that reads it", () => {
+            assert.strictEqual(detectFormat("", ":START_ID,:END_ID,:TYPE\n1,2,KNOWS\n"), "csv");
+        });
+
+        test("detects a delimited table whose header graph-io does not know as CSV", () => {
+            assert.strictEqual(detectFormat("", "a,b\nb,c\n"), "csv");
+            assert.strictEqual(detectFormat("", "person,friend\nalice,bob"), "csv");
+            assert.strictEqual(detectFormat("", "user,follows,weight\n1,2,0.5"), "csv");
+            assert.strictEqual(detectFormat("", "a\tb\nx\ty"), "csv");
+            assert.strictEqual(detectFormat("", "left;right\nx;y"), "csv");
+        });
+
+        test("does not name space-separated text CSV, which the CSV reader cannot split", () => {
+            assert.strictEqual(detectFormat("", "source target\na b\nb c"), null);
+            assert.strictEqual(detectFormat("", "id name\n1 foo"), null);
+            assert.strictEqual(detectFormat("", "Name of the report\nThe first line of text"), null);
+        });
+
+        test("detects a CSV whose first column is named graph as CSV, not DOT", () => {
+            assert.deepStrictEqual(detectFormats({ sample: "graph,id,name\ng1,1,x" }), ["csv"]);
+        });
+
+        test("detects a single-column neo4j-admin node file as CSV", () => {
+            assert.deepStrictEqual(detectFormats({ sample: ":ID\n1\n2\n" }), ["csv"]);
+        });
+
+        test("names CSV once when both of its graph-io importers claim the content", () => {
+            assert.deepStrictEqual(detectFormats({ sample: ":START_ID,:END_ID,:TYPE\n1,2,KNOWS\n" }), ["csv"]);
+        });
     });
 });

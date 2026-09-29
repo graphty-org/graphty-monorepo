@@ -26,15 +26,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Problems the element still has; each is removed by the change that fixes it. */
-const PENDING = [
-    "graphty-element/src/data/DOTDataSource.ts: defines the parser function tokenize",
-    "graphty-element/src/data/DOTDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/GMLDataSource.ts: defines the parser function tokenize",
-    "graphty-element/src/data/GMLDataSource.ts: does not import its importer from @graphty/graph-io",
-    "graphty-element/src/data/PajekDataSource.ts: defines the parser function parsePajek",
-    "graphty-element/src/data/PajekDataSource.ts: defines the parser function tokenizeLine",
-    "graphty-element/src/data/PajekDataSource.ts: does not import its importer from @graphty/graph-io",
-];
+const PENDING = [];
 
 const DATA_DIR = "graphty-element/src/data";
 const SRC_DIR = "graphty-element/src";

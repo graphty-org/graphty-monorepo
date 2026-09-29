@@ -891,8 +891,11 @@ export class DataManager implements Manager {
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;
+                    // With the line a reader blamed, when it named one.
+                    const line: unknown = error instanceof GraphtyError ? error.details.line : undefined;
                     this.eventManager.emitDataLoadingError(error, "parsing", format, {
                         canContinue: false,
+                        ...(typeof line === "number" ? { line } : {}),
                         ...(loadId === undefined ? {} : { loadId }),
                     });
                     // Keep existing error event for backward compatibility

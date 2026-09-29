@@ -2,11 +2,26 @@
  * Minimum Cut Algorithms
  *
  * Various algorithms for finding minimum cuts in graphs
+ *
+ * `minSTCut`, `stoerWagner` and `kargerMinCut` delegate to `indexed.minSTCut`,
+ * `indexed.stoerWagner` and `indexed.kargerMinCut`. `minSTCut` reports its cut edges on numeric
+ * ids too; `stoerWagner` adds the weights of two opposite directed edges; `kargerMinCut` is seeded,
+ * so one graph gives one result on every run.
  */
 
+import { type GraphSnapshot, INVALID_INDEX, type NodeMask, type U32 } from "@graphty/graph-format";
+
 import type { Graph } from "../core/graph.js";
-import { graphToMap } from "../utils/graph-converters.js";
-import { fordFulkerson } from "./ford-fulkerson.js";
+import {
+    cutEdgesToLegacy,
+    exactArcWeights,
+    fromAdjacencyMap,
+    maskToStringSet,
+    resolveNode,
+} from "../indexed/facade.js";
+import { edgeCapacities, minSTCut as indexedMinSTCut } from "../indexed/flow.js";
+import { kargerMinCut as indexedKargerMinCut, stoerWagner as indexedStoerWagner } from "../indexed/min-cut.js";
+import { toSnapshot } from "../indexed/to-snapshot.js";
 
 export interface MinCutResult {
     cutValue: number;
@@ -16,475 +31,99 @@ export interface MinCutResult {
 }
 
 /**
+ * A port's cut in the legacy shape: `side` is `partition1`, every other node `partition2`, both in
+ * node order, and the cut edges run from `partition1` to `partition2`.
+ * @param s - The snapshot the port ran on
+ * @param cut - The port's cut value, side and cut edges
+ * @param cut.cutValue - The weight of the cut
+ * @param cut.side - The nodes of `partition1`
+ * @param cut.cutEdges - The logical edges crossing the cut
+ * @returns The legacy result
+ */
+function toLegacy(s: GraphSnapshot, cut: { cutValue: number; side: NodeMask; cutEdges: U32 }): MinCutResult {
+    const partition1 = maskToStringSet(s.ids, cut.side);
+    const partition2 = new Set<string>();
+    for (let i = 0; i < s.nodeCount; i++) {
+        const id = String(s.ids.idOf(i));
+        if (!partition1.has(id)) {
+            partition2.add(id);
+        }
+    }
+    const capacity = edgeCapacities(s, exactArcWeights(s));
+    return {
+        cutValue: cut.cutValue,
+        partition1,
+        partition2,
+        cutEdges: cutEdgesToLegacy(s, cut.side, cut.cutEdges, capacity),
+    };
+}
+
+/**
+ * The snapshot of a legacy Graph, or of a Map-of-Maps read as an undirected graph (a pair listed
+ * both ways is one edge).
+ * @param graph - The input
+ * @returns Its snapshot
+ */
+function snapshotOf(graph: Graph | Map<string, Map<string, number>>): GraphSnapshot {
+    return graph instanceof Map ? fromAdjacencyMap(graph, false) : toSnapshot(graph);
+}
+
+/**
  * Find minimum s-t cut using max flow
  * The minimum cut value equals the maximum flow value (max-flow min-cut theorem)
  * @param graph - Weighted graph
  * @param source - Source node
  * @param sink - Sink node
  * @returns Minimum cut information
+ * @throws RangeError when `source` and `sink` are the same node
  *
  * Time Complexity: Same as max flow algorithm used
  */
 export function minSTCut(graph: Graph, source: string, sink: string): MinCutResult {
-    const flowResult = fordFulkerson(graph, source, sink);
-
-    if (!flowResult.minCut) {
-        return {
-            cutValue: 0,
-            partition1: new Set(),
-            partition2: new Set(),
-            cutEdges: [],
-        };
+    const s = toSnapshot(graph);
+    const from = resolveNode(s.ids, source);
+    const to = resolveNode(s.ids, sink);
+    if (from === INVALID_INDEX || to === INVALID_INDEX) {
+        return { cutValue: 0, partition1: new Set(), partition2: new Set(), cutEdges: [] };
     }
-
-    const cutEdges: { from: string; to: string; weight: number }[] = [];
-
-    // Find actual cut edges and their weights
-    for (const [u, v] of flowResult.minCut.edges) {
-        const edge = graph.getEdge(u, v);
-        const weight = edge?.weight ?? 0;
-        if (weight > 0) {
-            cutEdges.push({ from: u, to: v, weight });
-        }
-    }
-
-    return {
-        cutValue: flowResult.maxFlow,
-        partition1: flowResult.minCut.source,
-        partition2: flowResult.minCut.sink,
-        cutEdges,
-    };
+    const r = indexedMinSTCut(s, from, to, { weights: exactArcWeights(s) });
+    return toLegacy(s, r);
 }
 
 /**
  * Stoer-Wagner algorithm for finding global minimum cut
  * Finds the minimum cut that separates the graph into two parts
- * @param graph - Undirected weighted graph - accepts Graph class or Map representation
+ * @param graph - Undirected weighted graph - accepts Graph class or Map representation; a directed
+ *   one is read as undirected, the weights of two opposite edges adding up
  * @returns Global minimum cut
  *
- * Time Complexity: O(V³) or O(VE + V² log V) with heap
+ * Time Complexity: O(V^3) or O(VE + V^2 log V) with heap
  */
 export function stoerWagner(graph: Graph | Map<string, Map<string, number>>): MinCutResult {
-    // Convert Graph to Map representation if needed
-    const graphMap = graph instanceof Map ? graph : graphToMap(graph);
-    // Convert to undirected if necessary
-    const undirectedGraph = makeUndirected(graphMap);
-    // Keep a copy for finding cut edges later
-    const originalGraph = makeUndirected(graphMap);
-
-    if (undirectedGraph.size < 2) {
-        return {
-            cutValue: 0,
-            partition1: new Set(undirectedGraph.keys()),
-            partition2: new Set(),
-            cutEdges: [],
-        };
-    }
-
-    // Initialize
-    const nodes = Array.from(undirectedGraph.keys());
-    const originalNodes = new Set(nodes); // Keep track of original nodes
-    let minCutValue = Infinity;
-    let bestPartition = new Set<string>();
-    const contractionMap = new Map<string, Set<string>>();
-
-    // Initialize contraction map
-    for (const node of nodes) {
-        contractionMap.set(node, new Set([node]));
-    }
-
-    // Contract graph V-1 times
-    while (nodes.length > 1) {
-        const cut = minimumCutPhase(undirectedGraph, nodes);
-
-        if (cut.value < minCutValue) {
-            minCutValue = cut.value;
-            // Store the actual nodes that would be in partition with t
-            const cutTNodes = contractionMap.get(cut.t);
-            if (cutTNodes) {
-                bestPartition = new Set(cutTNodes);
-            }
-        }
-
-        // Contract the last two nodes
-        const tNodes = contractionMap.get(cut.t);
-        const sNodes = contractionMap.get(cut.s);
-        if (!tNodes || !sNodes) {
-            continue;
-        }
-
-        for (const node of tNodes) {
-            sNodes.add(node);
-        }
-        contractionMap.delete(cut.t);
-
-        contractNodes(undirectedGraph, nodes, cut.s, cut.t);
-    }
-
-    // Build result
-    const partition1 = bestPartition;
-    const partition2 = new Set<string>();
-
-    for (const node of originalNodes) {
-        if (!partition1.has(node)) {
-            partition2.add(node);
-        }
-    }
-
-    // Find cut edges
-    const cutEdges: { from: string; to: string; weight: number }[] = [];
-    for (const u of partition1) {
-        const neighbors = originalGraph.get(u);
-        if (neighbors) {
-            for (const [v, weight] of neighbors) {
-                if (partition2.has(v)) {
-                    cutEdges.push({ from: u, to: v, weight });
-                }
-            }
-        }
-    }
-
-    return {
-        cutValue: minCutValue,
-        partition1,
-        partition2,
-        cutEdges,
-    };
-}
-
-/**
- * Minimum cut phase of Stoer-Wagner algorithm
- * @param graph - The undirected weighted graph
- * @param nodes - Array of remaining nodes in the graph
- * @returns The cut result with last two nodes, cut value, and partition
- */
-function minimumCutPhase(
-    graph: Map<string, Map<string, number>>,
-    nodes: string[],
-): { s: string; t: string; value: number; partition: string[] } {
-    const n = nodes.length;
-    const weight = new Map<string, number>();
-    const added = new Set<string>();
-    const order: string[] = [];
-
-    // Initialize weights to 0
-    for (const node of nodes) {
-        weight.set(node, 0);
-    }
-
-    // Start with arbitrary node
-    let lastAdded = nodes[0];
-    if (!lastAdded) {
-        return { s: "", t: "", value: 0, partition: [] };
-    }
-
-    added.add(lastAdded);
-    order.push(lastAdded);
-
-    // Add remaining nodes
-    for (let i = 1; i < n; i++) {
-        // Update weights
-        if (!lastAdded) {
-            continue;
-        }
-
-        const neighbors = graph.get(lastAdded);
-        if (neighbors) {
-            for (const [neighbor, w] of neighbors) {
-                if (!added.has(neighbor) && nodes.includes(neighbor)) {
-                    const currentWeight = weight.get(neighbor);
-                    if (currentWeight !== undefined) {
-                        weight.set(neighbor, currentWeight + w);
-                    }
-                }
-            }
-        }
-
-        // Find maximum weight node not yet added
-        let maxWeight = -1;
-        let maxNode = "";
-
-        for (const node of nodes) {
-            const nodeWeight = weight.get(node);
-            if (!added.has(node) && nodeWeight !== undefined && nodeWeight > maxWeight) {
-                maxWeight = nodeWeight;
-                maxNode = node;
-            }
-        }
-
-        added.add(maxNode);
-        order.push(maxNode);
-        lastAdded = maxNode;
-    }
-
-    const s = order[order.length - 2];
-    const t = order[order.length - 1];
-    if (!s || !t) {
-        return { s: "", t: "", value: 0, partition: [] };
-    }
-
-    const cutValue = weight.get(t) ?? 0;
-
-    // Partition is all nodes except t
-    const partition = order.slice(0, -1);
-
-    return { s, t, value: cutValue, partition };
-}
-
-/**
- * Contract two nodes in the graph
- * @param graph - The graph to modify by contracting nodes
- * @param nodes - Array of nodes to update after contraction
- * @param s - The node to keep after contraction
- * @param t - The node to merge into s
- */
-function contractNodes(graph: Map<string, Map<string, number>>, nodes: string[], s: string, t: string): void {
-    // Merge t into s
-    const sNeighbors = graph.get(s);
-    const tNeighbors = graph.get(t);
-    if (!sNeighbors || !tNeighbors) {
-        return;
-    }
-
-    // Add t's edges to s
-    for (const [neighbor, weight] of tNeighbors) {
-        if (neighbor !== s) {
-            sNeighbors.set(neighbor, (sNeighbors.get(neighbor) ?? 0) + weight);
-
-            // Update neighbor's edge to point to s instead of t
-            const neighborEdges = graph.get(neighbor);
-            if (neighborEdges?.has(t)) {
-                neighborEdges.delete(t);
-                neighborEdges.set(s, (neighborEdges.get(s) ?? 0) + weight);
-            }
-        }
-    }
-
-    // Remove t from graph
-    graph.delete(t);
-    sNeighbors.delete(t);
-
-    // Remove t from nodes array
-    const index = nodes.indexOf(t);
-    if (index > -1) {
-        nodes.splice(index, 1);
-    }
-}
-
-/**
- * Convert directed graph to undirected
- * @param graph - The directed graph to convert
- * @returns An undirected graph with edges in both directions
- */
-function makeUndirected(graph: Map<string, Map<string, number>>): Map<string, Map<string, number>> {
-    const undirected = new Map<string, Map<string, number>>();
-
-    // Initialize all nodes
-    for (const node of graph.keys()) {
-        undirected.set(node, new Map());
-    }
-
-    // Add edges in both directions
-    for (const [u, neighbors] of graph) {
-        for (const [v, weight] of neighbors) {
-            const uNeighbors = undirected.get(u);
-            if (uNeighbors) {
-                uNeighbors.set(v, weight);
-            }
-
-            if (!undirected.has(v)) {
-                undirected.set(v, new Map());
-            }
-
-            const vNeighbors = undirected.get(v);
-            if (vNeighbors) {
-                vNeighbors.set(u, weight);
-            }
-        }
-    }
-
-    return undirected;
+    const s = snapshotOf(graph);
+    return toLegacy(s, indexedStoerWagner(s, { weights: exactArcWeights(s) }));
 }
 
 /**
  * Karger's randomized min-cut algorithm
- * Probabilistic algorithm that finds min cut with high probability
+ * Finds a min cut with high probability; the edge orders are seeded, so one graph gives one result
  * @param graph - Undirected graph - accepts Graph class or Map representation
- * @param iterations - Number of iterations (higher = better accuracy)
- * @returns Minimum cut found
+ * @param iterations - Number of iterations (higher = better accuracy); a fraction is rounded up
+ * @returns Minimum cut found; with fewer than one iteration, an infinite cut and no partitions
  *
- * Time Complexity: O(V² * iterations)
+ * Time Complexity: O(m alpha(n) * iterations)
  */
 export function kargerMinCut(graph: Graph | Map<string, Map<string, number>>, iterations = 100): MinCutResult {
-    // Convert Graph to Map representation if needed
-    const graphMap = graph instanceof Map ? graph : graphToMap(graph);
-    let minCutValue = Infinity;
-    let bestPartition1 = new Set<string>();
-    let bestPartition2 = new Set<string>();
-
-    for (let i = 0; i < iterations; i++) {
-        const result = kargerSingleRun(graphMap);
-
-        if (result.cutValue < minCutValue) {
-            minCutValue = result.cutValue;
-            bestPartition1 = result.partition1;
-            bestPartition2 = result.partition2;
-        }
+    const trials = Math.ceil(iterations);
+    if (!(trials >= 1)) {
+        // No trial ran, as in 2.x.
+        return { cutValue: Infinity, partition1: new Set(), partition2: new Set(), cutEdges: [] };
     }
-
-    // Find cut edges
-    const cutEdges: { from: string; to: string; weight: number }[] = [];
-    for (const u of bestPartition1) {
-        const neighbors = graphMap.get(u);
-        if (neighbors) {
-            for (const [v, weight] of neighbors) {
-                if (bestPartition2.has(v)) {
-                    cutEdges.push({ from: u, to: v, weight });
-                }
-            }
-        }
+    const s = snapshotOf(graph);
+    const cut = indexedKargerMinCut(s, { iterations: trials, weights: exactArcWeights(s) });
+    if (s.nodeCount < 2) {
+        // No cut to make: neither side holds a node.
+        return { cutValue: cut.cutValue, partition1: new Set(), partition2: new Set(), cutEdges: [] };
     }
-
-    return {
-        cutValue: minCutValue,
-        partition1: bestPartition1,
-        partition2: bestPartition2,
-        cutEdges,
-    };
-}
-
-/**
- * Single run of Karger's algorithm
- * @param graph - The undirected weighted graph
- * @returns The cut result with cut value and two partitions
- */
-function kargerSingleRun(graph: Map<string, Map<string, number>>): {
-    cutValue: number;
-    partition1: Set<string>;
-    partition2: Set<string>;
-} {
-    // Create a copy of the graph
-    const workGraph = new Map<string, Map<string, number>>();
-    const superNodes = new Map<string, Set<string>>();
-
-    // Initialize
-    for (const [node, neighbors] of graph) {
-        workGraph.set(node, new Map(neighbors));
-        superNodes.set(node, new Set([node]));
-    }
-
-    // Contract until 2 nodes remain
-    while (workGraph.size > 2) {
-        // Pick random edge
-        const edges: [string, string, number][] = [];
-        for (const [u, neighbors] of workGraph) {
-            for (const [v, weight] of neighbors) {
-                if (u < v) {
-                    // Avoid duplicates
-                    edges.push([u, v, weight]);
-                }
-            }
-        }
-
-        if (edges.length === 0) {
-            break;
-        }
-
-        const randomIndex = Math.floor(Math.random() * edges.length);
-        const edge = edges[randomIndex];
-        if (!edge) {
-            continue;
-        }
-
-        const [u, v] = edge;
-
-        // Contract edge
-        if (u && v) {
-            contractKarger(workGraph, superNodes, u, v);
-        }
-    }
-
-    // Calculate cut value
-    const nodes = Array.from(workGraph.keys());
-    if (nodes.length < 2) {
-        return {
-            cutValue: 0,
-            partition1: new Set(),
-            partition2: new Set(),
-        };
-    }
-
-    const node1 = nodes[0];
-    const node2 = nodes[1];
-    if (!node1 || !node2) {
-        return {
-            cutValue: 0,
-            partition1: new Set(),
-            partition2: new Set(),
-        };
-    }
-
-    const cutValue = workGraph.get(node1)?.get(node2) ?? 0;
-
-    return {
-        cutValue,
-        partition1: superNodes.get(node1) ?? new Set(),
-        partition2: superNodes.get(node2) ?? new Set(),
-    };
-}
-
-/**
- * Contract edge in Karger's algorithm
- * @param graph - The working graph to modify
- * @param superNodes - Map tracking which original nodes are in each super node
- * @param u - First endpoint of the edge to contract
- * @param v - Second endpoint of the edge to contract (merged into u)
- */
-function contractKarger(
-    graph: Map<string, Map<string, number>>,
-    superNodes: Map<string, Set<string>>,
-    u: string,
-    v: string,
-): void {
-    // Merge v into u
-    const uNeighbors = graph.get(u);
-    const vNeighbors = graph.get(v);
-    if (!uNeighbors || !vNeighbors) {
-        return;
-    }
-
-    // Merge supernodes
-    const uSuper = superNodes.get(u);
-    const vSuper = superNodes.get(v);
-    if (!uSuper || !vSuper) {
-        return;
-    }
-
-    for (const node of vSuper) {
-        uSuper.add(node);
-    }
-
-    // Merge edges
-    for (const [neighbor, weight] of vNeighbors) {
-        if (neighbor !== u) {
-            uNeighbors.set(neighbor, (uNeighbors.get(neighbor) ?? 0) + weight);
-
-            // Update neighbor's edges
-            const neighborEdges = graph.get(neighbor);
-            if (neighborEdges) {
-                neighborEdges.delete(v);
-                if (neighbor !== u) {
-                    neighborEdges.set(u, (neighborEdges.get(u) ?? 0) + weight);
-                }
-            }
-        }
-    }
-
-    // Remove self-loops
-    uNeighbors.delete(u);
-    uNeighbors.delete(v);
-
-    // Remove v
-    graph.delete(v);
-    superNodes.delete(v);
+    return toLegacy(s, cut);
 }

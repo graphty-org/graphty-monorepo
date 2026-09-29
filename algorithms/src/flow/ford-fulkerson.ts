@@ -1,12 +1,25 @@
-import { bfsAugmentingPath } from "../algorithms/traversal/bfs-variants.js";
+import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+
 import type { Graph } from "../core/graph.js";
-import { graphToMap } from "../utils/graph-converters.js";
+import {
+    cutEdgesToLegacy,
+    exactArcWeights,
+    fromAdjacencyMap,
+    maskToStringSet,
+    resolveNode,
+} from "../indexed/facade.js";
+import { crossingEdges, edgeCapacities, maxFlow } from "../indexed/flow.js";
+import { toSnapshot } from "../indexed/to-snapshot.js";
 
 /**
  * Ford-Fulkerson Algorithm for Maximum Flow
  *
  * Finds the maximum flow from source to sink in a flow network
  * using the method of augmenting paths.
+ *
+ * `fordFulkerson` and `edmondsKarp` delegate to `indexed.maxFlow`. Where two opposite directed
+ * edges (or the two directions of an undirected edge) both carried flow, the flow graph holds the
+ * pair's net flow, each edge within its capacity; the flow value and the cut sides are unchanged.
  */
 
 export interface FlowEdge {
@@ -28,301 +41,62 @@ export interface MaxFlowResult {
 }
 
 /**
- * Create residual graph from original graph
- * @param graph - The original graph with capacity values
- * @returns A residual graph initialized with the original capacities
+ * Run `indexed.maxFlow` and hand its result back in the legacy shape.
+ * @param s - The snapshot of the input graph
+ * @param source - The source id, as the legacy string parameter takes it
+ * @param sink - The sink id
+ * @param algorithm - The path search
+ * @returns The legacy result; no flow and no cut when either node is missing
  */
-function createResidualGraph(graph: Map<string, Map<string, number>>): Map<string, Map<string, number>> {
-    const residual = new Map<string, Map<string, number>>();
-
-    for (const [u, neighbors] of graph) {
-        residual.set(u, new Map());
-        for (const [v, capacity] of neighbors) {
-            const uResidualNeighbors = residual.get(u);
-            if (uResidualNeighbors) {
-                uResidualNeighbors.set(v, capacity);
-            }
-        }
-    }
-
-    return residual;
-}
-
-/**
- * Find augmenting path using DFS
- * @param residualGraph - The residual graph with remaining capacities
- * @param source - The source node
- * @param sink - The sink node
- * @returns An array of nodes forming the path, or null if no path exists
- */
-function findAugmentingPathDFS(
-    residualGraph: Map<string, Map<string, number>>,
+function delegate(
+    s: GraphSnapshot,
     source: string,
     sink: string,
-): string[] | null {
-    const visited = new Set<string>();
-    const path: string[] = [];
-
-    function dfs(node: string): boolean {
-        if (node === sink) {
-            path.push(node);
-            return true;
-        }
-
-        visited.add(node);
-        path.push(node);
-
-        const neighbors = residualGraph.get(node);
-        if (neighbors) {
-            for (const [neighbor, capacity] of neighbors) {
-                if (!visited.has(neighbor) && capacity > 0) {
-                    if (dfs(neighbor)) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        path.pop();
-        return false;
-    }
-
-    if (dfs(source)) {
-        return path;
-    }
-
-    return null;
-}
-
-/**
- * Update flow along an augmenting path
- * @param residualGraph - The residual graph to update
- * @param flowGraph - The flow graph to update with new flow values
- * @param originalGraph - The original graph for edge direction reference
- * @param path - The augmenting path to update flow along
- * @param pathFlow - The amount of flow to push through the path
- */
-function updateFlow(
-    residualGraph: Map<string, Map<string, number>>,
-    flowGraph: Map<string, Map<string, number>>,
-    originalGraph: Map<string, Map<string, number>>,
-    path: string[],
-    pathFlow: number,
-): void {
-    for (let i = 0; i < path.length - 1; i++) {
-        const u = path[i];
-        const v = path[i + 1];
-        if (!u || !v) {
-            continue;
-        }
-
-        // Update residual graph
-        const uEdges = residualGraph.get(u);
-        if (uEdges) {
-            const currentCapacity = uEdges.get(v);
-            if (currentCapacity !== undefined) {
-                uEdges.set(v, currentCapacity - pathFlow);
-            }
-        }
-
-        // Add reverse edge
-        if (!residualGraph.has(v)) {
-            residualGraph.set(v, new Map());
-        }
-
-        const vEdges = residualGraph.get(v);
-        if (vEdges) {
-            vEdges.set(u, (vEdges.get(u) ?? 0) + pathFlow);
-        }
-
-        // Update flow graph
-        if (originalGraph.get(u)?.has(v)) {
-            const uFlowEdges = flowGraph.get(u);
-            if (uFlowEdges) {
-                const currentFlow = uFlowEdges.get(v) ?? 0;
-                uFlowEdges.set(v, currentFlow + pathFlow);
-            }
-        } else if (originalGraph.get(v)?.has(u)) {
-            // This is a reverse flow
-            const vFlowEdges = flowGraph.get(v);
-            if (vFlowEdges) {
-                const currentFlow = vFlowEdges.get(u) ?? 0;
-                vFlowEdges.set(u, currentFlow - pathFlow);
-            }
-        }
-    }
-}
-
-/**
- * Find minimum cut from source side
- * @param residualGraph - The residual graph after max flow computation
- * @param source - The source node
- * @returns The minimum cut partition with source and sink sets and cut edges
- */
-function findMinCut(
-    residualGraph: Map<string, Map<string, number>>,
-    source: string,
-): { source: Set<string>; sink: Set<string>; edges: [string, string][] } {
-    // Find all reachable nodes from source in residual graph
-    const sourceSet = new Set<string>();
-    const queue = [source];
-    sourceSet.add(source);
-
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (!current) {
-            continue;
-        }
-
-        const neighbors = residualGraph.get(current);
-
-        if (neighbors) {
-            for (const [neighbor, capacity] of neighbors) {
-                if (!sourceSet.has(neighbor) && capacity > 0) {
-                    sourceSet.add(neighbor);
-                    queue.push(neighbor);
-                }
-            }
-        }
-    }
-
-    // All other nodes are in sink set
-    const sinkSet = new Set<string>();
-    for (const node of residualGraph.keys()) {
-        if (!sourceSet.has(node)) {
-            sinkSet.add(node);
-        }
-    }
-
-    // Find cut edges
-    const cutEdges: [string, string][] = [];
-    for (const u of sourceSet) {
-        const neighbors = residualGraph.get(u);
-        if (neighbors) {
-            for (const v of neighbors.keys()) {
-                if (sinkSet.has(v)) {
-                    cutEdges.push([u, v]);
-                }
-            }
-        }
-    }
-
-    return { source: sourceSet, sink: sinkSet, edges: cutEdges };
-}
-
-/**
- * Core max flow algorithm implementation
- * @param graph - The graph with capacity values
- * @param source - The source node
- * @param sink - The sink node
- * @param findPath - Function to find an augmenting path in the residual graph
- * @returns The maximum flow result including flow value, flow graph, and minimum cut
- */
-function maxFlowCore(
-    graph: Map<string, Map<string, number>>,
-    source: string,
-    sink: string,
-    findPath: (
-        residual: Map<string, Map<string, number>>,
-        src: string,
-        snk: string,
-    ) => { path: string[]; pathCapacity: number } | null,
+    algorithm: "edmonds-karp" | "ford-fulkerson",
 ): MaxFlowResult {
-    if (!graph.has(source) || !graph.has(sink)) {
+    const from = resolveNode(s.ids, source);
+    const to = resolveNode(s.ids, sink);
+    if (from === INVALID_INDEX || to === INVALID_INDEX) {
         return { maxFlow: 0, flowGraph: new Map() };
     }
-
-    // Create residual graph
-    const residualGraph = createResidualGraph(graph);
+    const weights = exactArcWeights(s);
+    const r = maxFlow(s, from, to, { algorithm, weights });
+    const { ids } = s;
+    const rows: Map<string, number>[] = [];
     const flowGraph = new Map<string, Map<string, number>>();
-
-    // Initialize flow graph
-    for (const [u, neighbors] of graph) {
-        flowGraph.set(u, new Map());
-        for (const v of neighbors.keys()) {
-            const uFlowNeighbors = flowGraph.get(u);
-            if (uFlowNeighbors) {
-                uFlowNeighbors.set(v, 0);
-            }
+    for (let i = 0; i < s.nodeCount; i++) {
+        const row = new Map<string, number>();
+        rows.push(row);
+        flowGraph.set(String(ids.idOf(i)), row);
+    }
+    const { src, dst } = s.edgeList();
+    for (let e = 0; e < s.edgeCount; e++) {
+        const u = src[e];
+        const v = dst[e];
+        const f = r.flow[e];
+        if (s.directed) {
+            rows[u].set(String(ids.idOf(v)), f);
+        } else {
+            // A negative flow runs from the declared target to the declared source.
+            rows[u].set(String(ids.idOf(v)), Math.max(f, 0));
+            rows[v].set(String(ids.idOf(u)), Math.max(-f, 0));
         }
     }
-
-    let maxFlow = 0;
-    let pathResult = findPath(residualGraph, source, sink);
-
-    while (pathResult !== null) {
-        const { path, pathCapacity } = pathResult;
-
-        // Update flow
-        updateFlow(residualGraph, flowGraph, graph, path, pathCapacity);
-        maxFlow += pathCapacity;
-
-        // Find next path
-        pathResult = findPath(residualGraph, source, sink);
+    const sourceSet = maskToStringSet(ids, r.sourceSide);
+    const sinkSet = new Set<string>();
+    for (const id of flowGraph.keys()) {
+        if (!sourceSet.has(id)) {
+            sinkSet.add(id);
+        }
     }
-
-    // Find minimum cut
-    const minCut = findMinCut(residualGraph, source);
-
-    return { maxFlow, flowGraph, minCut };
-}
-
-/**
- * Internal implementation of Ford-Fulkerson algorithm using DFS
- * @param graph - The graph with capacity values
- * @param source - The source node
- * @param sink - The sink node
- * @returns The maximum flow result
- */
-function fordFulkersonImpl(graph: Map<string, Map<string, number>>, source: string, sink: string): MaxFlowResult {
-    // Adapter function for DFS path finding
-    const findPathDFS = (
-        residual: Map<string, Map<string, number>>,
-        src: string,
-        snk: string,
-    ): { path: string[]; pathCapacity: number } | null => {
-        const path = findAugmentingPathDFS(residual, src, snk);
-        if (!path) {
-            return null;
-        }
-
-        // Calculate path capacity
-        let pathCapacity = Infinity;
-        for (let i = 0; i < path.length - 1; i++) {
-            const u = path[i];
-            const v = path[i + 1];
-            if (u && v) {
-                const capacity = residual.get(u)?.get(v);
-                if (capacity !== undefined) {
-                    pathCapacity = Math.min(pathCapacity, capacity);
-                }
-            }
-        }
-
-        return { path, pathCapacity };
-    };
-
-    return maxFlowCore(graph, source, sink, findPathDFS);
-}
-
-/**
- * Internal implementation of Edmonds-Karp algorithm
- * @param graph - The graph with capacity values
- * @param source - The source node
- * @param sink - The sink node
- * @returns The maximum flow result
- */
-function edmondsKarpImpl(graph: Map<string, Map<string, number>>, source: string, sink: string): MaxFlowResult {
-    // Use BFS variant for path finding
-    const findPathBFS = (
-        residual: Map<string, Map<string, number>>,
-        src: string,
-        snk: string,
-    ): { path: string[]; pathCapacity: number } | null => {
-        return bfsAugmentingPath(residual, src, snk);
-    };
-
-    return maxFlowCore(graph, source, sink, findPathBFS);
+    // Every edge leaving the source side, whatever its capacity, as the legacy cut listed them.
+    const capacity = edgeCapacities(s, weights);
+    const crossing = crossingEdges(s, r.sourceSide, s.directed, capacity, false);
+    const edges = cutEdgesToLegacy(s, r.sourceSide, crossing, capacity).map(({ from: u, to: v }): [string, string] => [
+        u,
+        v,
+    ]);
+    return { maxFlow: r.maxFlow, flowGraph, minCut: { source: sourceSet, sink: sinkSet, edges } };
 }
 
 /**
@@ -383,18 +157,17 @@ export function createBipartiteFlowNetwork(
 
 /**
  * Ford-Fulkerson algorithm using DFS for finding augmenting paths
- * @param graph - Adjacency list representation with capacities - accepts Graph class or Map
+ * @param graph - Adjacency list representation with capacities
  * @param source - Source node
  * @param sink - Sink node
  * @returns Maximum flow value and flow graph
+ * @throws RangeError when `source` and `sink` are the same node
  *
  * Time Complexity: O(E * f) where f is the maximum flow
  * Space Complexity: O(V + E)
  */
 export function fordFulkerson(graph: Graph, source: string, sink: string): MaxFlowResult {
-    // Convert Graph to Map representation
-    const graphMap = graphToMap(graph);
-    return fordFulkersonImpl(graphMap, source, sink);
+    return delegate(toSnapshot(graph), source, sink, "ford-fulkerson");
 }
 
 /**
@@ -404,15 +177,15 @@ export function fordFulkerson(graph: Graph, source: string, sink: string): MaxFl
  * @param source - Source node
  * @param sink - Sink node
  * @returns Maximum flow value and flow graph
+ * @throws RangeError when `source` and `sink` are the same node
  *
- * Time Complexity: O(V * E²)
+ * Time Complexity: O(V * E^2)
  */
 export function edmondsKarp(
     graph: Graph | Map<string, Map<string, number>>,
     source: string,
     sink: string,
 ): MaxFlowResult {
-    // Convert Graph to Map representation if needed
-    const graphMap = graph instanceof Map ? graph : graphToMap(graph);
-    return edmondsKarpImpl(graphMap, source, sink);
+    const s = graph instanceof Map ? fromAdjacencyMap(graph) : toSnapshot(graph);
+    return delegate(s, source, sink, "edmonds-karp");
 }

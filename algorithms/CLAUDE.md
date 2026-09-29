@@ -51,17 +51,20 @@ teraHAC, SynC and GRSBM. Each lands beside its legacy function; tests live in `t
 Louvain, label propagation) against their legacy functions.
 
 Of the 90 legacy functions the barrel exports (the data structures and the CSR helpers not counted),
-56 delegate to their port and keep only their signature and result shape: `floydWarshall`,
+65 delegate to their port and keep only their signature and result shape: `floydWarshall`,
 `floydWarshallPath`, `transitiveClosure`, `labelPropagation`, the BFS functions, `depthFirstSearch`,
 `hasCycleDFS`, `topologicalSort`, the connected, weakly and strongly connected component functions
 (and `condensationGraph` through them), `singleSourceShortestPath` (and `allPairsShortestPath`
 through it), `hasNegativeCycle`, `kruskalMST` and `minimumSpanningTree`, the 18 centrality functions
 (every one but `nodeDegreeCentrality`), the five common-neighbour link prediction functions,
 `hierarchicalClustering`, `markovClustering`, `syncClustering`, `grsbm`, `kCoreDecomposition` (and
-`getKCore` through it) and `girvanNewman`. Traversal facades pass `legacyArcOrder` so neighbours are
-tried in the graph's insertion order. A graph with a NaN weight has no weighted snapshot:
+`getKCore` through it), `girvanNewman`, the flow and cut functions `fordFulkerson`, `edmondsKarp`,
+`minSTCut`, `stoerWagner` and `kargerMinCut`, the matchings `maximumBipartiteMatching` and
+`greedyBipartiteMatching`, and `isGraphIsomorphic` and `findAllIsomorphisms`. Traversal facades
+pass `legacyArcOrder` so neighbours are tried in the graph's insertion order. A graph with a NaN weight has no weighted snapshot:
 `toTopologySnapshot` freezes it without weights for the ports that read none, and the weighted
-facades keep their legacy code for it (and `singleSourceShortestPath` for negative weights).
+facades keep their legacy code for it (and `singleSourceShortestPath` for negative weights) --
+except the five flow and cut functions, which throw `E_INVALID_WEIGHT` on a NaN weight.
 
 24 stay on legacy code, each for a recorded reason. Their port breaks ties differently (`dijkstra`,
 `dijkstraPath`, `bellmanFord`, `bellmanFordPath`, `astar`, `astarWithDetails`, `primMST`), returns
@@ -73,13 +76,14 @@ nodes in another seeded order, so they stop at other partitions), `labelPropagat
 synchronous port adds a swap guard the old loop lacks) and `labelPropagationSemiSupervised` (another
 random stream, and the port renumbers the seed labels).
 
-9 are not converted yet, although each has a port: `fordFulkerson`, `edmondsKarp`, `minSTCut`,
-`stoerWagner`, `kargerMinCut` (ports `indexed.maxFlow`, `indexed.minSTCut`, `indexed.stoerWagner`,
-`indexed.kargerMinCut`), `maximumBipartiteMatching`, `greedyBipartiteMatching`
-(`indexed.maximumBipartiteMatching`, `indexed.greedyBipartiteMatching`), `isGraphIsomorphic` and
-`findAllIsomorphisms` (`indexed.isGraphIsomorphic`, `indexed.findAllIsomorphisms`). Each port
-differs from its legacy function on purpose for some inputs, so whether they delegate waits on the
-owner's decisions listed in section 6 of `design/graph-format/migration-plan.md`. The last barrel
+The flow, cut, matching and isomorphism facades differ from their legacy code in the ways the owner
+accepted on 2026-09-28 (`design/decisions/2026-09-28-one-breaking-release-window.md`), each pinned by
+`test/unit/indexed/flow-cut-matching-facades.test.ts`: net flow on opposite directed edges,
+`minSTCut` cut edges on numeric ids, `stoerWagner` adding opposite directed edges, a seeded
+`kargerMinCut`, the matchings' visiting order and their ignoring of arc direction, and an
+`edgeMatch` that sees every arc and self-loop. They also list Sets, Maps and cut edges in node
+order. A Map-of-Maps input to `stoerWagner` or `kargerMinCut` is read as an undirected graph
+(`fromAdjacencyMap(map, false)`), so an edge listed both ways counts once. The last barrel
 function, `createBipartiteFlowNetwork`, computes nothing over a graph -- it builds a Map-based flow
 network -- and needs no delegation; `indexed.bipartiteFlowNetwork` is its snapshot replacement.
 

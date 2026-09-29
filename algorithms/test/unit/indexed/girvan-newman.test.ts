@@ -1,11 +1,11 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { girvanNewman as legacyGirvanNewman } from "../../../src/algorithms/community/girvan-newman.js";
 import { Graph } from "../../../src/core/graph.js";
 import { girvanNewman } from "../../../src/indexed/girvan-newman.js";
 import { modularity } from "../../../src/indexed/modularity.js";
 import type { NodeId } from "../../../src/types/index.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 
@@ -29,7 +29,7 @@ describe("indexed.girvanNewman", () => {
         it(`gives the legacy dendrogram level for level, with the same modularity, on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             const r = girvanNewman(s);
-            const legacy = legacyGirvanNewman(graph);
+            const legacy = legacyResult() as CommunityResult[];
             expect(r.levels.length).toBe(legacy.length);
             expect(r.modularity.length).toBe(legacy.length);
             for (let i = 0; i < legacy.length; i++) {
@@ -53,7 +53,7 @@ describe("indexed.girvanNewman", () => {
             { maxIterations: 0 },
         ]) {
             const r = girvanNewman(s, options);
-            const legacy = legacyGirvanNewman(graph, options);
+            const legacy = legacyResult() as CommunityResult[];
             expect(r.levels.length).toBe(legacy.length);
             for (let i = 0; i < legacy.length; i++) {
                 expect(levelGroups(s, r.levels[i], options.minCommunitySize)).toEqual(canonical(legacy[i].communities));
@@ -119,7 +119,7 @@ describe("indexed.girvanNewman", () => {
         g.addEdge("c", "d", 2);
         const s = checksummedSnapshot(g);
         const r = girvanNewman(s);
-        const legacy = legacyGirvanNewman(g);
+        const legacy = legacyResult() as CommunityResult[];
         for (let i = 0; i < legacy.length; i++) {
             expect(r.modularity[i]).toBe(legacy[i].modularity);
         }

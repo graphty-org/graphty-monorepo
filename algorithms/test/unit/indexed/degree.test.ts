@@ -1,8 +1,8 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { degreeCentrality as legacyDegree } from "../../../src/algorithms/centrality/degree.js";
 import { degreeCentrality } from "../../../src/indexed/degree.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
@@ -45,7 +45,7 @@ describe("indexed.degreeCentrality", () => {
             const s = checksummedSnapshot(graph);
             for (const options of OPTION_SETS) {
                 const ported = degreeCentrality(s, options);
-                const legacy = legacyDegree(graph, options);
+                const legacy = legacyResult() as CentralityResult;
                 for (let v = 0; v < s.nodeCount; v++) {
                     expect(ported[v]).toBe(legacy[String(s.ids.idOf(v))]);
                 }
@@ -54,11 +54,11 @@ describe("indexed.degreeCentrality", () => {
         });
     }
 
-    for (const { name, snapshot, legacy } of multigraphFixtures()) {
+    for (const { name, snapshot } of multigraphFixtures()) {
         it(`counts distinct neighbours on the ${name}, as legacy does on the merged graph`, () => {
             for (const options of OPTION_SETS) {
                 const ported = degreeCentrality(snapshot, options);
-                const want = legacyDegree(legacy, options);
+                const want = legacyResult() as CentralityResult;
                 for (let v = 0; v < snapshot.nodeCount; v++) {
                     expect(ported[v], `${String(snapshot.ids.idOf(v))} ${JSON.stringify(options)}`).toBe(
                         want[String(snapshot.ids.idOf(v))],

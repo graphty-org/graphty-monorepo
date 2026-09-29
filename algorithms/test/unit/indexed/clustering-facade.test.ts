@@ -13,15 +13,16 @@ import {
     hierarchicalClustering,
     type LinkageMethod,
 } from "../../../src/clustering/hierarchical.js";
-import * as hierarchicalLegacy from "../../../src/clustering/hierarchical-legacy.js";
+import type * as hierarchicalLegacy from "../../../src/clustering/hierarchical-legacy.js";
 import { markovClustering, type MCLOptions } from "../../../src/clustering/mcl.js";
-import * as mclLegacy from "../../../src/clustering/mcl-legacy.js";
+import type * as mclLegacy from "../../../src/clustering/mcl-legacy.js";
 import { Graph } from "../../../src/core/graph.js";
 import { grsbm } from "../../../src/research/grsbm.js";
-import * as grsbmLegacy from "../../../src/research/grsbm-legacy.js";
+import type * as grsbmLegacy from "../../../src/research/grsbm-legacy.js";
 import { syncClustering, type SynCConfig } from "../../../src/research/sync.js";
-import * as syncLegacy from "../../../src/research/sync-legacy.js";
+import type * as syncLegacy from "../../../src/research/sync-legacy.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -95,12 +96,14 @@ function reachable(root: ClusterNode<string>): Set<ClusterNode<string>> {
 describe("a NaN weight", () => {
     it("is ignored where legacy ignores it and gets legacy's answer where it is read", () => {
         const g = nanWeighted();
-        expect(hierarchicalClustering(g, "average")).toEqual(hierarchicalLegacy.hierarchicalClustering(g, "average"));
-        expect(markovClustering(g)).toEqual(mclLegacy.markovClustering(g));
-        expect(grsbm(g)).toEqual(grsbmLegacy.grsbm(g));
+        expect(hierarchicalClustering(g, "average")).toEqual(
+            legacyResult() as hierarchicalLegacy.HierarchicalClusteringResult<string>,
+        );
+        expect(markovClustering(g)).toEqual(legacyResult() as mclLegacy.MCLResult);
+        expect(grsbm(g)).toEqual(legacyResult() as grsbmLegacy.GRSBMResult);
         const embeddings = (r: { embeddings: Map<unknown, number[]> }): number[] => [...r.embeddings.values()].flat();
         const port = syncClustering(g, { numClusters: 2 });
-        const old = syncLegacy.syncClustering(g, { numClusters: 2 });
+        const old = legacyResult() as syncLegacy.SynCResult;
         expect(port.clusters).toEqual(old.clusters);
         const drift = embeddings(port).map((x, i) => Math.abs(x - embeddings(old)[i]));
         expect(drift.length).toBe(embeddings(old).length);
@@ -113,20 +116,12 @@ describe("hierarchicalClustering facade", () => {
 
     for (const linkage of LINKAGES) {
         it(`equals legacy with ${linkage} linkage: root, dendrogram and clusters by height`, () => {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => hierarchicalLegacy.hierarchicalClustering(g, linkage),
-                (g) => hierarchicalClustering(g, linkage),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => hierarchicalClustering(g, linkage));
         });
     }
 
     it("treats an unknown linkage as single, as legacy does", () => {
-        expectFacadeMatchesLegacy(
-            fixtures,
-            (g) => hierarchicalLegacy.hierarchicalClustering(g, "median" as LinkageMethod),
-            (g) => hierarchicalClustering(g, "median" as LinkageMethod),
-        );
+        expectFacadeMatchesLegacy(fixtures, (g) => hierarchicalClustering(g, "median" as LinkageMethod));
     });
 
     it("shares cluster objects the way legacy does: the dendrogram holds the tree, cuts hold member Sets", () => {
@@ -151,11 +146,7 @@ describe("hierarchicalClustering facade", () => {
         g.addEdge(1, "1");
         g.addEdge("1", "b");
         g.addEdge("b", 2);
-        expectFacadeMatchesLegacy(
-            [{ name: "1 and '1'", graph: g }],
-            (graph) => hierarchicalLegacy.hierarchicalClustering(graph),
-            (graph) => hierarchicalClustering(graph),
-        );
+        expectFacadeMatchesLegacy([{ name: "1 and '1'", graph: g }], (graph) => hierarchicalClustering(graph));
     });
 });
 
@@ -172,11 +163,7 @@ describe("markovClustering facade", () => {
 
     for (const options of OPTION_SETS) {
         it(`equals legacy with ${JSON.stringify(options)}`, () => {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => mclLegacy.markovClustering(g, options),
-                (g) => markovClustering(g, options),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => markovClustering(g, options));
         });
     }
 
@@ -193,11 +180,7 @@ describe("markovClustering facade", () => {
         ];
         const small = nonEmpty.slice(0, 5);
         for (const options of refused) {
-            expectFacadeMatchesLegacy(
-                small,
-                (g) => mclLegacy.markovClustering(g, options),
-                (g) => markovClustering(g, options),
-            );
+            expectFacadeMatchesLegacy(small, (g) => markovClustering(g, options));
         }
         for (const bad of [-1, Infinity]) {
             const g = new Graph({ directed: false });
@@ -205,10 +188,8 @@ describe("markovClustering facade", () => {
             g.addEdge("b", "c", 2);
             g.addEdge("c", "a");
             g.addEdge("c", "d");
-            expectFacadeMatchesLegacy(
-                [{ name: `a weight of ${String(bad)}`, graph: g }],
-                (graph) => mclLegacy.markovClustering(graph),
-                (graph) => markovClustering(graph),
+            expectFacadeMatchesLegacy([{ name: `a weight of ${String(bad)}`, graph: g }], (graph) =>
+                markovClustering(graph),
             );
         }
     });
@@ -230,7 +211,7 @@ describe("markovClustering facade after a weight change in place", () => {
             for (const [u, v] of [...triangles, ["c", "d"]]) {
                 g.addEdge(u, v);
             }
-            expect(markovClustering(g)).toEqual(mclLegacy.markovClustering(g));
+            expect(markovClustering(g)).toEqual(legacyResult() as mclLegacy.MCLResult);
             for (const [u, v] of triangles) {
                 const edge = g.getEdge(u, v);
                 if (edge !== undefined) {
@@ -241,7 +222,7 @@ describe("markovClustering facade after a weight change in place", () => {
             if (bridge !== undefined) {
                 bridge.weight = 100;
             }
-            expect(markovClustering(g)).toEqual(mclLegacy.markovClustering(g));
+            expect(markovClustering(g)).toEqual(legacyResult() as mclLegacy.MCLResult);
         },
     );
 });
@@ -263,12 +244,7 @@ describe("syncClustering facade", () => {
         { numClusters: 4, maxIterations: 7, tolerance: 1e-9, seed: 7, learningRate: 0.05, lambda: 0.3 },
     ]) {
         it(`equals legacy with ${JSON.stringify(config)}: clusters, embeddings, loss and iterations`, () => {
-            expectFacadeMatchesLegacy(
-                enough(config.numClusters),
-                sync(syncLegacy.syncClustering, config),
-                sync(syncClustering, config),
-                { tolerance: 1e-9 },
-            );
+            expectFacadeMatchesLegacy(enough(config.numClusters), sync(syncClustering, config), { tolerance: 1e-9 });
         });
     }
 
@@ -278,15 +254,22 @@ describe("syncClustering facade", () => {
             for (const numClusters of [0.5, 1.5, NaN]) {
                 // With no rounds to run the old code returns a result...
                 const config = { numClusters, maxIterations: 0 };
-                expectFacadeMatchesLegacy(
-                    nonEmpty.slice(0, 3),
-                    sync(syncLegacy.syncClustering, config),
-                    sync(syncClustering, config),
-                );
+                expectFacadeMatchesLegacy(nonEmpty.slice(0, 3), sync(syncClustering, config));
                 // ...and otherwise fails the same way.
                 const g = nonEmpty[0].graph;
-                expect(() => syncClustering(g, { numClusters })).toThrow("Invalid array length");
-                expect(() => syncLegacy.syncClustering(g, { numClusters })).toThrow("Invalid array length");
+                for (const run of [
+                    () => syncClustering(g, { numClusters }),
+                    () => legacyResult() as syncLegacy.SynCResult,
+                ]) {
+                    let thrown: unknown;
+                    try {
+                        run();
+                    } catch (error) {
+                        thrown = error;
+                    }
+                    expect(thrown).toBeInstanceOf(RangeError);
+                    expect((thrown as Error).message).toBe("Invalid array length");
+                }
             }
         } finally {
             Math.random = before;
@@ -295,17 +278,10 @@ describe("syncClustering facade", () => {
 
     it("throws legacy's message for a cluster count out of range", () => {
         const g = undirectedFixtures()[1].graph;
-        // Legacy leaves its seeded generator in Math.random when it throws.
-        const before = Math.random;
         for (const numClusters of [0, -1, 7, Infinity]) {
-            const run = (fn: typeof syncClustering) => () => fn(g, { numClusters });
-            expect(run(syncClustering), String(numClusters)).toThrow(
+            expect(() => syncClustering(g, { numClusters }), String(numClusters)).toThrow(
                 `Invalid number of clusters: ${String(numClusters)}. Must be between 1 and 6`,
             );
-            expect(run(syncLegacy.syncClustering), String(numClusters)).toThrow(
-                `Invalid number of clusters: ${String(numClusters)}. Must be between 1 and 6`,
-            );
-            Math.random = before;
         }
     });
 
@@ -321,11 +297,11 @@ describe("grsbm facade", () => {
     it("keeps legacy's answer on a graph with a self-loop", () => {
         const loops = nonEmpty.filter((f) => [...f.graph.edges()].some((e) => e.source === e.target));
         expect(loops.length).toBe(2);
-        expectFacadeMatchesLegacy(loops, grsbmLegacy.grsbm, (g) => grsbm(g));
+        expectFacadeMatchesLegacy(loops, (g) => grsbm(g));
     });
 
     it("equals legacy on every fixture with the defaults", () => {
-        expectFacadeMatchesLegacy(nonEmpty, grsbmLegacy.grsbm, (g) => grsbm(g));
+        expectFacadeMatchesLegacy(nonEmpty, (g) => grsbm(g));
     });
 
     it("equals legacy on every fixture with every option set", () => {
@@ -337,20 +313,12 @@ describe("grsbm facade", () => {
             seed: 7,
             numEigenvectors: 3,
         };
-        expectFacadeMatchesLegacy(
-            nonEmpty,
-            (g) => grsbmLegacy.grsbm(g, config),
-            (g) => grsbm(g, config),
-        );
+        expectFacadeMatchesLegacy(nonEmpty, (g) => grsbm(g, config));
     });
 
     it("equals legacy with shallow and zero depth", () => {
         for (const config of [{ maxDepth: 0 }, { maxDepth: 1 }, { minClusterSize: 1 }]) {
-            expectFacadeMatchesLegacy(
-                nonEmpty,
-                (g) => grsbmLegacy.grsbm(g, config),
-                (g) => grsbm(g, config),
-            );
+            expectFacadeMatchesLegacy(nonEmpty, (g) => grsbm(g, config));
         }
     });
 

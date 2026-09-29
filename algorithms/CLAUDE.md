@@ -90,15 +90,29 @@ starts from several sources where `indexed.directionOptimizedBfs` takes one; and
 without `reset()` keeps the previous search's nodes).
 
 The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
-`test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
-replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts`as their test oracle.
-Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade
-test, or for inputs the port refuses -- it sits beside it in a`*-legacy.ts`file, unchanged, until
+`test/unit/indexed/*-facade*.test.ts`. Where a delegating function's old code is still needed for
+inputs the port refuses, it sits beside it in a`*-legacy.ts`file, unchanged, until
 the removal release deletes it. A`\*-legacy.ts`file can also be the only implementation of
 published functions that do not delegate:`hierarchical-legacy.ts`holds`cutDendrogram`,
 `cutDendrogramKClusters`and`modularityHierarchicalClustering`(and the`hierarchicalClustering`facade calls`cutDendrogram`), and `mcl-legacy.ts`holds`calculateMCLModularity`. Those functions
 are re-exported from the public file and are not dead code; the removal release must move them, not
 delete them.
+
+No test runs a legacy function as an oracle any more. What each legacy call returned in the
+differential and facade suites of `test/unit/indexed/` is recorded in `test/golden/` (one gzipped
+JSON file per suite, one record per line, `zcat` to read), and `legacyResult()` in
+`test/helpers/golden.ts` hands it back in its original shape: Map and Set order, number or string
+keys, `-0`, `NaN` and the infinities, and exact f64 values. A recorded throw is thrown again with its
+message; it is an instance of its class for `ConvergenceError`, `PathWalkError`, `RangeError` and
+`TypeError`, and a plain `Error` carrying the recorded name otherwise.
+
+The records are frozen: nothing re-records them. Each is keyed by the test's full name and the
+call's position within that test, and `expectFacadeMatchesLegacy` makes one call per fixture, so
+renaming a test, reordering its `legacyResult()` calls, or adding, removing or reordering a fixture
+in `port-fixtures.ts` or another shared fixture list breaks the lookup. Two tests of one file with
+the same name, and a record that a full passing run of its file never reads, fail that file. A
+comment beside a `legacyResult()` call says which legacy call and inputs a record came from when the
+test itself no longer shows them.
 
 ## Essential Commands
 
@@ -185,8 +199,7 @@ graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, ca
 
 1. Create the implementation in `src/indexed/`, following the pattern above
 2. Export it from `src/indexed/index.ts`
-3. Write tests in `test/unit/indexed/`; when a legacy function computes the same thing, add a differential test
-   against it
+3. Write tests in `test/unit/indexed/`
 4. Add examples in `examples/`
 5. Update documentation; code samples in `docs/guide/getting-started.md` and the README's marked blocks are
    type-checked and run by `test/unit/docs/guide-samples.test.ts` (see below)

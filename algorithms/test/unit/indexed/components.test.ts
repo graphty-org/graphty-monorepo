@@ -1,9 +1,9 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { connectedComponents as legacyConnectedComponents } from "../../../src/algorithms/components/connected.js";
 import { Graph } from "../../../src/core/graph.js";
 import { connectedComponents, weaklyConnectedComponents } from "../../../src/indexed/components.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 /** Two disjoint triangles a-b-c and d-e-f plus the isolated node z. Indices follow insertion order. */
@@ -85,9 +85,7 @@ describe("indexed.connectedComponents", () => {
             .groups()
             .map((group) => key([...group].map((u) => String(s.ids.idOf(u)))))
             .sort();
-        const legacy = legacyConnectedComponents(g)
-            .map((component) => key(component.map((id) => String(id))))
-            .sort();
+        const legacy = (legacyResult() as NodeId[][]).map((component) => key(component.map((id) => String(id)))).sort();
         expect(ported).toEqual(legacy);
         s.validate({ checksum: true });
     });

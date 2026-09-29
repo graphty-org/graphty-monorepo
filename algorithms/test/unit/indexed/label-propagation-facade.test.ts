@@ -9,8 +9,6 @@ import { describe, expect, it } from "vitest";
 
 import { labelPropagation } from "../../../src/algorithms/community/label-propagation.js";
 import { Graph } from "../../../src/core/graph.js";
-import { labelPropagation as indexedLabelPropagation } from "../../../src/indexed/label-propagation.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -37,19 +35,7 @@ describe("labelPropagation facade", () => {
         for (const randomSeed of [undefined, 1, 42, 2024]) {
             for (const maxIterations of [undefined, 1, 2]) {
                 const options = { randomSeed, maxIterations };
-                expectFacadeMatchesLegacy(
-                    fixtures,
-                    (g) => {
-                        const s = toSnapshot(g);
-                        const r = indexedLabelPropagation(s, options);
-                        const communities = new Map<string, number>();
-                        for (let i = 0; i < s.nodeCount; i++) {
-                            communities.set(String(s.ids.idOf(i)), r.labels[i]);
-                        }
-                        return { communities, iterations: r.iterations, converged: r.converged };
-                    },
-                    (g) => labelPropagation(g, options),
-                );
+                expectFacadeMatchesLegacy(fixtures, (g) => labelPropagation(g, options));
             }
         }
     });

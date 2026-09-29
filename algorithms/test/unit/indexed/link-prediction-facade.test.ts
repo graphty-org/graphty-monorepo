@@ -14,10 +14,11 @@ import {
     commonNeighborsScore,
     evaluateCommonNeighbors,
     getTopCandidatesForNode,
+    type LinkPredictionScore,
 } from "../../../src/link-prediction/common-neighbors.js";
-import * as legacy from "../../../src/link-prediction/common-neighbors-legacy.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -87,31 +88,19 @@ function pairsOf(g: Graph): [NodeId, NodeId][] {
 describe("common-neighbour link prediction facades", () => {
     it("commonNeighborsScore equals legacy on every pair, absent and mistyped ids included", () => {
         for (const o of OPTIONS) {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => pairsOf(g).map(([u, v]) => legacy.commonNeighborsScore(g, u, v, o)),
-                (g) => pairsOf(g).map(([u, v]) => commonNeighborsScore(g, u, v, o)),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => pairsOf(g).map(([u, v]) => commonNeighborsScore(g, u, v, o)));
         }
     });
 
     it("commonNeighborsPrediction equals legacy: same pairs, same order, same scores", () => {
         for (const o of OPTIONS) {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => legacy.commonNeighborsPrediction(g, o),
-                (g) => commonNeighborsPrediction(g, o),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => commonNeighborsPrediction(g, o));
         }
     });
 
     it("commonNeighborsForPairs equals legacy and hands back the caller's ids", () => {
         for (const o of OPTIONS) {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => legacy.commonNeighborsForPairs(g, pairsOf(g), o),
-                (g) => commonNeighborsForPairs(g, pairsOf(g), o),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => commonNeighborsForPairs(g, pairsOf(g), o));
         }
     });
 
@@ -127,11 +116,7 @@ describe("common-neighbour link prediction facades", () => {
                     run(g, id, o),
                     run(g, id, { ...o, candidates: candidatesOf(g) }),
                 ]);
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => all(g, legacy.getTopCandidatesForNode),
-                (g) => all(g, getTopCandidatesForNode),
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => all(g, getTopCandidatesForNode));
         }
     });
 
@@ -144,36 +129,25 @@ describe("common-neighbour link prediction facades", () => {
             return { test, non };
         };
         for (const o of OPTIONS) {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => {
-                    const { test, non } = sets(g);
-                    return [
-                        legacy.evaluateCommonNeighbors(g, test, non, o),
-                        legacy.evaluateCommonNeighbors(g, test, [], o),
-                        legacy.evaluateCommonNeighbors(g, [], non, o),
-                    ];
-                },
-                (g) => {
-                    const { test, non } = sets(g);
-                    return [
-                        evaluateCommonNeighbors(g, test, non, o),
-                        evaluateCommonNeighbors(g, test, [], o),
-                        evaluateCommonNeighbors(g, [], non, o),
-                    ];
-                },
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => {
+                const { test, non } = sets(g);
+                return [
+                    evaluateCommonNeighbors(g, test, non, o),
+                    evaluateCommonNeighbors(g, test, [], o),
+                    evaluateCommonNeighbors(g, [], non, o),
+                ];
+            });
         }
     });
 
     it("ignores a NaN weight, as legacy does", () => {
         const g = nanWeighted();
         const pairs = pairsOf(g);
-        expect(commonNeighborsPrediction(g)).toEqual(legacy.commonNeighborsPrediction(g));
-        expect(commonNeighborsForPairs(g, pairs)).toEqual(legacy.commonNeighborsForPairs(g, pairs));
-        expect(getTopCandidatesForNode(g, "a")).toEqual(legacy.getTopCandidatesForNode(g, "a"));
+        expect(commonNeighborsPrediction(g)).toEqual(legacyResult() as LinkPredictionScore[]);
+        expect(commonNeighborsForPairs(g, pairs)).toEqual(legacyResult() as LinkPredictionScore[]);
+        expect(getTopCandidatesForNode(g, "a")).toEqual(legacyResult() as LinkPredictionScore[]);
         expect(evaluateCommonNeighbors(g, pairs.slice(0, 5), pairs.slice(5))).toEqual(
-            legacy.evaluateCommonNeighbors(g, pairs.slice(0, 5), pairs.slice(5)),
+            legacyResult() as { precision: number; recall: number; f1Score: number; auc: number },
         );
         expect(commonNeighborsPrediction(g).length).toBeGreaterThan(0);
     });

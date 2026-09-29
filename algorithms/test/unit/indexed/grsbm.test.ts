@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { grsbm, type GrsbmOptions, type GrsbmResult } from "../../../src/indexed/grsbm.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { grsbm as legacyGrsbm, type GRSBMCluster, type GRSBMResult } from "../../../src/research/grsbm-legacy.js";
+import { type GRSBMCluster, type GRSBMResult } from "../../../src/research/grsbm-legacy.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -112,20 +113,12 @@ describe("indexed.grsbm", () => {
     });
 
     it("equals legacy on every fixture, weights ignored", () => {
-        expectFacadeMatchesLegacy(
-            fixtures,
-            (g) => legacyGrsbm(g),
-            (g) => portShape(g, { weighted: false }),
-        );
+        expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, { weighted: false }));
     });
 
     it("equals legacy on every fixture with every option set", () => {
         const options = { maxDepth: 2, minClusterSize: 3, tolerance: 1e-8, maxIterations: 40, seed: 7 };
-        expectFacadeMatchesLegacy(
-            fixtures,
-            (g) => legacyGrsbm(g, { ...options, numEigenvectors: 3 }),
-            (g) => portShape(g, { ...options, weighted: false }),
-        );
+        expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, { ...options, weighted: false }));
     });
 
     it("gives an unweighted undirected snapshot the same result weighted or not", () => {
@@ -181,12 +174,12 @@ describe("indexed.grsbm", () => {
     }
 
     it("scores the whole undirected graph as one community 0, self-loops counted twice", () => {
-        const { builder, graph } = loopedCycle(false);
+        const { builder } = loopedCycle(false);
         const s = builder.freeze();
         expect(grsbm(s).modularityScores[0]).toBeCloseTo(0, 12);
         expect(grsbm(s, { weighted: false }).modularityScores[0]).toBeCloseTo(0, 12);
         // Legacy counts a self-loop once in the degree and half in the internal edges, so it does not.
-        expect(legacyGrsbm(graph).modularityScores[0]).not.toBeCloseTo(0, 6);
+        expect((legacyResult() as GRSBMResult).modularityScores[0]).not.toBeCloseTo(0, 6);
     });
 
     it("leaves self-loops out of the bisection vector", () => {
@@ -221,7 +214,7 @@ describe("indexed.grsbm", () => {
         for (let i = 0; i < 8; i++) {
             plain.addEdge(i, (i + 1) % 8);
         }
-        expect(legacyGrsbm(plain).modularityScores[0]).toBeCloseTo(-0.5, 12);
+        expect((legacyResult() as GRSBMResult).modularityScores[0]).toBeCloseTo(-0.5, 12);
         expect(graph.nodeCount).toBe(8);
     });
 

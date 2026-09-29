@@ -1,11 +1,11 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { bellmanFord as legacyBellmanFord } from "../../../src/algorithms/shortest-path/bellman-ford.js";
 import { Graph } from "../../../src/core/graph.js";
 import { bellmanFord } from "../../../src/indexed/bellman-ford.js";
 import { dijkstra } from "../../../src/indexed/dijkstra.js";
 import { exactArcWeights } from "../../../src/indexed/facade.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -35,7 +35,7 @@ describe("indexed.bellmanFord", () => {
                 expect(weights === undefined, name).toBe(g === graph);
                 const source = 0;
                 const r = bellmanFord(s, source, { weights });
-                const legacy = legacyBellmanFord(g, s.ids.idOf(source));
+                const legacy = legacyResult() as BellmanFordResult;
                 expect(r.hasNegativeCycle, name).toBe(false);
                 expect(legacy.hasNegativeCycle, name).toBe(false);
                 for (let i = 0; i < s.nodeCount; i++) {
@@ -88,7 +88,7 @@ describe("indexed.bellmanFord", () => {
         const s = checksummedSnapshot(g);
         const r = bellmanFord(s, s.ids.requireIndex("a"));
         expect(r.dist[s.ids.requireIndex("c")]).toBe(5);
-        expect(legacyBellmanFord(g, "a").distances.get("c")).toBe(5);
+        expect((legacyResult() as BellmanFordResult).distances.get("c")).toBe(5);
     });
 
     it("reports a negative cycle as legacy does, directed and undirected", () => {
@@ -103,7 +103,7 @@ describe("indexed.bellmanFord", () => {
         for (const g of [directed, undirected]) {
             const s = checksummedSnapshot(g);
             expect(bellmanFord(s, 0).hasNegativeCycle).toBe(true);
-            expect(legacyBellmanFord(g, "a").hasNegativeCycle).toBe(true);
+            expect((legacyResult() as BellmanFordResult).hasNegativeCycle).toBe(true);
         }
     });
 
@@ -115,7 +115,7 @@ describe("indexed.bellmanFord", () => {
         const s = checksummedSnapshot(g);
         const r = bellmanFord(s, 0);
         expect(r.hasNegativeCycle).toBe(false);
-        expect(legacyBellmanFord(g, "a").hasNegativeCycle).toBe(false);
+        expect((legacyResult() as BellmanFordResult).hasNegativeCycle).toBe(false);
         expect(r.dist[s.ids.requireIndex("c")]).toBe(Infinity);
     });
 

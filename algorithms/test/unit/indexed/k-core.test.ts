@@ -1,9 +1,9 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { kCoreDecomposition as legacyKCore } from "../../../src/clustering/k-core.js";
 import { Graph } from "../../../src/core/graph.js";
 import { kCoreDecomposition } from "../../../src/indexed/k-core.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 
@@ -99,7 +99,7 @@ describe("indexed.kCoreDecomposition", () => {
         it(`agrees with the legacy kCoreDecomposition on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             const ported = kCoreDecomposition(s);
-            const legacy = legacyKCore(graph);
+            const legacy = legacyResult() as KCoreResult<string>;
             expect(ported.maxCore).toBe(legacy.maxCore);
             for (let u = 0; u < s.nodeCount; u++) {
                 expect(ported.coreness[u]).toBe(legacy.coreness.get(String(s.ids.idOf(u))));

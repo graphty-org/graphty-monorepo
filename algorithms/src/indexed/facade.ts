@@ -12,6 +12,7 @@ import {
     GraphBuilder,
     type GraphSnapshot,
     INVALID_INDEX,
+    maskTest,
     maskToIndices,
     type NodeIdMap,
     type NodeMask,
@@ -207,16 +208,22 @@ export function edgeScoresToPairMap(s: GraphSnapshot, scores: F64): Map<string, 
 
 /**
  * A legacy Map-of-Maps adjacency (`astar`, `edmondsKarp`, `stoerWagner`, `kargerMinCut` inputs) to
- * a DIRECTED snapshot: one arc per inner entry, weights kept exactly through the f64 shadow. Every
- * key is a node in key order, then each target not already a key as it is first met. Not memoised:
- * a Map has no mutation counter. The snapshot's `weights` view is f32 like every snapshot's, so a
- * port reads rounded weights (0.1 + 0.2 comes back as 0.30000000447) unless the facade passes
- * `{ weights: exactArcWeights(s) }`.
+ * a snapshot, weights kept exactly through the f64 shadow. Every key is a node in key order, then
+ * each target not already a key as it is first met. DIRECTED by default: one arc per inner entry.
+ * With `directed` false the adjacency lists an undirected graph, each edge usually twice (`a -> b`
+ * and `b -> a`): an unordered pair is one edge, and where its entries disagree the last one met
+ * wins, as the legacy cut functions read such a Map. Not memoised: a Map has no mutation counter.
+ * The snapshot's `weights` view is f32 like every snapshot's, so a port reads rounded weights
+ * (0.1 + 0.2 comes back as 0.30000000447) unless the facade passes `{ weights: exactArcWeights(s) }`.
  * @param adjacency - source id to (target id to weight)
+ * @param directed - Whether each entry is an arc (default) or the adjacency is undirected
  * @returns The frozen snapshot
  */
-export function fromAdjacencyMap(adjacency: ReadonlyMap<string, ReadonlyMap<string, number>>): GraphSnapshot {
-    const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
+export function fromAdjacencyMap(
+    adjacency: ReadonlyMap<string, ReadonlyMap<string, number>>,
+    directed = true,
+): GraphSnapshot {
+    const builder = new GraphBuilder({ directed, weightDtype: "f64", duplicateEdges: directed ? "keep" : "last" });
     for (const id of adjacency.keys()) {
         builder.addNode(id);
     }
@@ -226,4 +233,34 @@ export function fromAdjacencyMap(adjacency: ReadonlyMap<string, ReadonlyMap<stri
         }
     }
     return builder.freeze({ label: "algorithms.fromAdjacencyMap" });
+}
+
+/**
+ * A port's cut edges to the legacy `{ from, to, weight }` list: each edge oriented from its
+ * endpoint on `side` to the other, ordered by that endpoint's index and then by edge, which is the
+ * legacy order (each source-side node in turn, its neighbours in edge order) whenever the legacy
+ * side was listed in index order too.
+ * @param s - The snapshot
+ * @param side - The side the edges leave
+ * @param edges - Logical edges crossing the cut
+ * @param capacity - Per-edge weights, as the port read them
+ * @returns One entry per cut edge
+ */
+export function cutEdgesToLegacy(
+    s: GraphSnapshot,
+    side: NodeMask,
+    edges: U32,
+    capacity: ArrayLike<number>,
+): { from: string; to: string; weight: number }[] {
+    const { src, dst } = s.edgeList();
+    const out = Array.from(edges, (e) => {
+        const [from, to] = maskTest(side, src[e]) ? [src[e], dst[e]] : [dst[e], src[e]];
+        return { from, to, e };
+    });
+    out.sort((a, b) => a.from - b.from || a.e - b.e);
+    return out.map(({ from, to, e }) => ({
+        from: String(s.ids.idOf(from)),
+        to: String(s.ids.idOf(to)),
+        weight: capacity[e],
+    }));
 }

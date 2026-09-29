@@ -1,16 +1,27 @@
+import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+
 import type { Graph } from "../../core/graph.js";
+import {
+    findAllIsomorphisms as indexedFindAllIsomorphisms,
+    isGraphIsomorphic as indexedIsGraphIsomorphic,
+    type IsomorphismOptions as IndexedIsomorphismOptions,
+} from "../../indexed/isomorphism.js";
+import { toTopologySnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 
 /**
- * Graph Isomorphism (VF2) algorithm implementation
+ * Graph Isomorphism (VF2)
  *
  * Determines if two graphs are isomorphic (structurally identical).
  * Two graphs are isomorphic if there exists a bijection between their vertices
  * that preserves adjacency.
  *
- * Based on the VF2 algorithm by Cordella et al. (2004)
+ * `isGraphIsomorphic` and `findAllIsomorphisms` delegate to their `indexed.*` ports. An `edgeMatch`
+ * callback is offered every pair of corresponding edges once -- on a directed graph an arc into the
+ * newly mapped node too, and every self-loop -- each as `[source, target]` in the edge's own
+ * orientation, so a weight-comparing callback can reject mappings earlier releases accepted.
  *
- * Time complexity: O(n! × n) worst case, but typically much faster
+ * Time complexity: O(n! * n) worst case, but typically much faster
  * Space complexity: O(n)
  */
 
@@ -22,17 +33,48 @@ export interface IsomorphismResult {
 export interface IsomorphismOptions {
     nodeMatch?: (node1: NodeId, node2: NodeId, g1: Graph, g2: Graph) => boolean;
     edgeMatch?: (edge1: [NodeId, NodeId], edge2: [NodeId, NodeId], g1: Graph, g2: Graph) => boolean;
-    findAllMappings?: boolean; // Find all possible isomorphisms
+    /**
+     * Has no effect: `isGraphIsomorphic` returns the first mapping it finds and
+     * `findAllIsomorphisms` returns them all. Before 3.0 setting it made `isGraphIsomorphic`
+     * answer false for every pair of graphs.
+     */
+    findAllMappings?: boolean;
 }
 
-interface VF2State {
-    core1: Map<NodeId, NodeId>; // Mapping from G1 to G2
-    core2: Map<NodeId, NodeId>; // Mapping from G2 to G1
-    in1: Map<NodeId, number>; // Terminal set in G1
-    in2: Map<NodeId, number>; // Terminal set in G2
-    out1: Map<NodeId, number>; // Terminal set out G1
-    out2: Map<NodeId, number>; // Terminal set out G2
-    depth: number; // Current depth of search
+/**
+ * The legacy predicates over ids and graphs to the port's over indices and snapshots.
+ * @param g1 - The first graph
+ * @param g2 - The second graph
+ * @param options - The legacy options
+ * @returns The port's options
+ */
+function portOptions(g1: Graph, g2: Graph, options: IsomorphismOptions): IndexedIsomorphismOptions {
+    const { nodeMatch, edgeMatch } = options;
+    const ends = (s: GraphSnapshot, e: number): [NodeId, NodeId] => [
+        s.ids.idOf(s.edgeSource(e)),
+        s.ids.idOf(s.edgeTarget(e)),
+    ];
+    return {
+        nodeMatch: nodeMatch && ((i1, i2, s1, s2) => nodeMatch(s1.ids.idOf(i1), s2.ids.idOf(i2), g1, g2)),
+        edgeMatch: edgeMatch && ((e1, e2, s1, s2) => edgeMatch(ends(s1, e1), ends(s2, e2), g1, g2)),
+    };
+}
+
+/**
+ * A port mapping to the legacy Map, graph1's nodes in node order.
+ * @param s1 - The first snapshot
+ * @param s2 - The second snapshot
+ * @param mapping - The image in `s2` of every node of `s1`
+ * @returns The mapping by id
+ */
+function toMap(s1: GraphSnapshot, s2: GraphSnapshot, mapping: U32): Map<NodeId, NodeId> {
+    const out = new Map<NodeId, NodeId>();
+    for (let i = 0; i < mapping.length; i++) {
+        if (mapping[i] !== INVALID_INDEX) {
+            out.set(s1.ids.idOf(i), s2.ids.idOf(mapping[i]));
+        }
+    }
+    return out;
 }
 
 /**
@@ -43,325 +85,10 @@ interface VF2State {
  * @returns An object indicating if the graphs are isomorphic and an optional mapping between nodes
  */
 export function isGraphIsomorphic(graph1: Graph, graph2: Graph, options: IsomorphismOptions = {}): IsomorphismResult {
-    // Quick checks
-    if (graph1.nodeCount !== graph2.nodeCount || graph1.totalEdgeCount !== graph2.totalEdgeCount) {
-        return { isIsomorphic: false };
-    }
-
-    if (graph1.isDirected !== graph2.isDirected) {
-        return { isIsomorphic: false };
-    }
-
-    const nodes1 = Array.from(graph1.nodes()).map((n) => n.id);
-    const nodes2 = Array.from(graph2.nodes()).map((n) => n.id);
-
-    // Check degree sequences
-    const degrees1 = nodes1.map((n) => graph1.degree(n)).sort((a, b) => a - b);
-    const degrees2 = nodes2.map((n) => graph2.degree(n)).sort((a, b) => a - b);
-
-    for (let i = 0; i < degrees1.length; i++) {
-        if (degrees1[i] !== degrees2[i]) {
-            return { isIsomorphic: false };
-        }
-    }
-
-    // Initialize VF2 state
-    const state: VF2State = {
-        core1: new Map(),
-        core2: new Map(),
-        in1: new Map(),
-        in2: new Map(),
-        out1: new Map(),
-        out2: new Map(),
-        depth: 0,
-    };
-
-    // Find isomorphism
-    const mappings: Map<NodeId, NodeId>[] = [];
-    const found = vf2Recurse(graph1, graph2, state, nodes1, nodes2, options, mappings);
-
-    if (found && mappings.length > 0) {
-        return {
-            isIsomorphic: true,
-            mapping: mappings[0] ?? new Map<NodeId, NodeId>(),
-        };
-    }
-
-    return { isIsomorphic: false };
-}
-
-/**
- * VF2 recursive search
- * @param g1 - The first graph being compared
- * @param g2 - The second graph being compared
- * @param state - The current VF2 algorithm state containing mappings and terminal sets
- * @param nodes1 - Array of node IDs from the first graph
- * @param nodes2 - Array of node IDs from the second graph
- * @param options - Configuration options for matching predicates
- * @param mappings - Array to collect found isomorphism mappings
- * @returns True if an isomorphism was found and search should stop, false otherwise
- */
-function vf2Recurse(
-    g1: Graph,
-    g2: Graph,
-    state: VF2State,
-    nodes1: NodeId[],
-    nodes2: NodeId[],
-    options: IsomorphismOptions,
-    mappings: Map<NodeId, NodeId>[],
-): boolean {
-    // Check if we've found a complete mapping
-    if (state.core1.size === nodes1.length) {
-        mappings.push(new Map(state.core1));
-        return !options.findAllMappings; // Continue if we want all mappings
-    }
-
-    // Get candidate pairs
-    const candidates = getCandidatePairs(g1, g2, state, nodes1, nodes2);
-
-    for (const [node1, node2] of candidates) {
-        if (isFeasible(g1, g2, state, node1, node2, options)) {
-            // Add pair to mapping
-            const newState = addPair(g1, g2, state, node1, node2);
-
-            if (vf2Recurse(g1, g2, newState, nodes1, nodes2, options, mappings)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-/**
- * Get candidate pairs for the next mapping
- * @param g1 - The first graph being compared
- * @param g2 - The second graph being compared
- * @param state - The current VF2 algorithm state containing mappings and terminal sets
- * @param nodes1 - Array of node IDs from the first graph
- * @param nodes2 - Array of node IDs from the second graph
- * @returns Array of candidate node pairs to try matching
- */
-function getCandidatePairs(
-    g1: Graph,
-    g2: Graph,
-    state: VF2State,
-    nodes1: NodeId[],
-    nodes2: NodeId[],
-): [NodeId, NodeId][] {
-    const pairs: [NodeId, NodeId][] = [];
-
-    // Try to pick from terminal sets first
-    let node1: NodeId | null = null;
-
-    // Pick from out1
-    for (const [n] of state.out1) {
-        if (!state.core1.has(n)) {
-            node1 = n;
-            break;
-        }
-    }
-
-    // If not found, pick from in1
-    if (node1 === null) {
-        for (const [n] of state.in1) {
-            if (!state.core1.has(n)) {
-                node1 = n;
-                break;
-            }
-        }
-    }
-
-    // If still not found, pick any unmapped node
-    if (node1 === null) {
-        for (const n of nodes1) {
-            if (!state.core1.has(n)) {
-                node1 = n;
-                break;
-            }
-        }
-    }
-
-    if (node1 === null) {
-        return pairs;
-    }
-
-    // Find compatible nodes in G2
-    for (const node2 of nodes2) {
-        if (!state.core2.has(node2)) {
-            // Basic compatibility check
-            if (g1.degree(node1) === g2.degree(node2)) {
-                pairs.push([node1, node2]);
-            }
-        }
-    }
-
-    return pairs;
-}
-
-/**
- * Check if a pair is feasible
- * @param g1 - The first graph being compared
- * @param g2 - The second graph being compared
- * @param state - The current VF2 algorithm state containing mappings and terminal sets
- * @param node1 - The candidate node from the first graph
- * @param node2 - The candidate node from the second graph
- * @param options - Configuration options for matching predicates
- * @returns True if the node pair can be feasibly matched, false otherwise
- */
-function isFeasible(
-    g1: Graph,
-    g2: Graph,
-    state: VF2State,
-    node1: NodeId,
-    node2: NodeId,
-    options: IsomorphismOptions,
-): boolean {
-    // Node match predicate
-    if (options.nodeMatch && !options.nodeMatch(node1, node2, g1, g2)) {
-        return false;
-    }
-
-    // Check syntactic feasibility
-    const neighbors1 = new Set(g1.neighbors(node1));
-    const neighbors2 = new Set(g2.neighbors(node2));
-
-    // Check that mapped neighbors correspond
-    for (const [n1, n2] of state.core1) {
-        if (neighbors1.has(n1)) {
-            if (!neighbors2.has(n2)) {
-                return false;
-            }
-
-            // Edge match predicate
-            if (options.edgeMatch && !options.edgeMatch([node1, n1], [node2, n2], g1, g2)) {
-                return false;
-            }
-        } else if (neighbors2.has(n2)) {
-            return false;
-        }
-    }
-
-    // Check terminal set sizes
-    let new1In = 0;
-    let new1Out = 0;
-    let term1In = 0;
-    let term1Out = 0;
-    let new2In = 0;
-    let new2Out = 0;
-    let term2In = 0;
-    let term2Out = 0;
-
-    for (const neighbor of neighbors1) {
-        if (state.core1.has(neighbor)) {
-            // Already mapped
-        } else if (state.in1.has(neighbor)) {
-            term1In++;
-        } else if (state.out1.has(neighbor)) {
-            term1Out++;
-        } else {
-            if (g1.isDirected) {
-                if (g1.hasEdge(neighbor, node1)) {
-                    new1In++;
-                }
-
-                if (g1.hasEdge(node1, neighbor)) {
-                    new1Out++;
-                }
-            } else {
-                new1In++;
-                new1Out++;
-            }
-        }
-    }
-
-    for (const neighbor of neighbors2) {
-        if (state.core2.has(neighbor)) {
-            // Already mapped
-        } else if (state.in2.has(neighbor)) {
-            term2In++;
-        } else if (state.out2.has(neighbor)) {
-            term2Out++;
-        } else {
-            if (g2.isDirected) {
-                if (g2.hasEdge(neighbor, node2)) {
-                    new2In++;
-                }
-
-                if (g2.hasEdge(node2, neighbor)) {
-                    new2Out++;
-                }
-            } else {
-                new2In++;
-                new2Out++;
-            }
-        }
-    }
-
-    return term1In === term2In && term1Out === term2Out && new1In === new2In && new1Out === new2Out;
-}
-
-/**
- * Add a pair to the mapping and update terminal sets
- * @param g1 - The first graph being compared
- * @param g2 - The second graph being compared
- * @param state - The current VF2 algorithm state containing mappings and terminal sets
- * @param node1 - The node from the first graph to add to the mapping
- * @param node2 - The node from the second graph to add to the mapping
- * @returns A new VF2 state with the pair added and terminal sets updated
- */
-function addPair(g1: Graph, g2: Graph, state: VF2State, node1: NodeId, node2: NodeId): VF2State {
-    const newState: VF2State = {
-        core1: new Map(state.core1),
-        core2: new Map(state.core2),
-        in1: new Map(state.in1),
-        in2: new Map(state.in2),
-        out1: new Map(state.out1),
-        out2: new Map(state.out2),
-        depth: state.depth + 1,
-    };
-
-    newState.core1.set(node1, node2);
-    newState.core2.set(node2, node1);
-
-    // Update terminal sets
-    const neighbors1 = g1.neighbors(node1);
-    for (const neighbor of neighbors1) {
-        if (!newState.core1.has(neighbor) && !newState.in1.has(neighbor) && !newState.out1.has(neighbor)) {
-            if (g1.isDirected) {
-                if (g1.hasEdge(neighbor, node1)) {
-                    newState.in1.set(neighbor, newState.depth);
-                }
-
-                if (g1.hasEdge(node1, neighbor)) {
-                    newState.out1.set(neighbor, newState.depth);
-                }
-            } else {
-                newState.in1.set(neighbor, newState.depth);
-                newState.out1.set(neighbor, newState.depth);
-            }
-        }
-    }
-
-    const neighbors2 = g2.neighbors(node2);
-    for (const neighbor of neighbors2) {
-        if (!newState.core2.has(neighbor) && !newState.in2.has(neighbor) && !newState.out2.has(neighbor)) {
-            if (g2.isDirected) {
-                if (g2.hasEdge(neighbor, node2)) {
-                    newState.in2.set(neighbor, newState.depth);
-                }
-
-                if (g2.hasEdge(node2, neighbor)) {
-                    newState.out2.set(neighbor, newState.depth);
-                }
-            } else {
-                newState.in2.set(neighbor, newState.depth);
-                newState.out2.set(neighbor, newState.depth);
-            }
-        }
-    }
-
-    return newState;
+    const s1 = toTopologySnapshot(graph1);
+    const s2 = toTopologySnapshot(graph2);
+    const { mapping } = indexedIsGraphIsomorphic(s1, s2, portOptions(graph1, graph2, options));
+    return mapping === null ? { isIsomorphic: false } : { isIsomorphic: true, mapping: toMap(s1, s2, mapping) };
 }
 
 /**
@@ -376,47 +103,7 @@ export function findAllIsomorphisms(
     graph2: Graph,
     options: IsomorphismOptions = {},
 ): Map<NodeId, NodeId>[] {
-    // Quick checks
-    if (graph1.nodeCount !== graph2.nodeCount || graph1.totalEdgeCount !== graph2.totalEdgeCount) {
-        return [];
-    }
-
-    if (graph1.isDirected !== graph2.isDirected) {
-        return [];
-    }
-
-    const nodes1 = Array.from(graph1.nodes()).map((n) => n.id);
-    const nodes2 = Array.from(graph2.nodes()).map((n) => n.id);
-
-    // Check degree sequences
-    const degrees1 = nodes1.map((n) => graph1.degree(n)).sort((a, b) => a - b);
-    const degrees2 = nodes2.map((n) => graph2.degree(n)).sort((a, b) => a - b);
-
-    for (let i = 0; i < degrees1.length; i++) {
-        if (degrees1[i] !== degrees2[i]) {
-            return [];
-        }
-    }
-
-    // Handle empty graphs
-    if (nodes1.length === 0) {
-        return [new Map<NodeId, NodeId>()];
-    }
-
-    // Initialize VF2 state
-    const state: VF2State = {
-        core1: new Map(),
-        core2: new Map(),
-        in1: new Map(),
-        in2: new Map(),
-        out1: new Map(),
-        out2: new Map(),
-        depth: 0,
-    };
-
-    // Find all isomorphisms
-    const mappings: Map<NodeId, NodeId>[] = [];
-    vf2Recurse(graph1, graph2, state, nodes1, nodes2, { ...options, findAllMappings: true }, mappings);
-
-    return mappings;
+    const s1 = toTopologySnapshot(graph1);
+    const s2 = toTopologySnapshot(graph2);
+    return indexedFindAllIsomorphisms(s1, s2, portOptions(graph1, graph2, options)).map((m) => toMap(s1, s2, m));
 }

@@ -1,14 +1,28 @@
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+
 import type { Graph } from "../../core/graph.js";
+import {
+    type BipartiteMatchingOptions as IndexedMatchingOptions,
+    type BipartiteMatchingResult as IndexedMatchingResult,
+    greedyBipartiteMatching as indexedGreedyBipartiteMatching,
+    maximumBipartiteMatching as indexedMaximumBipartiteMatching,
+} from "../../indexed/matching.js";
+import { toTopologySnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { bfsColoringWithPartitions } from "../traversal/bfs-variants.js";
 
 /**
- * Maximum Bipartite Matching implementation using Hopcroft-Karp algorithm
+ * Maximum Bipartite Matching
  *
  * Finds the maximum matching in a bipartite graph. A matching is a set of edges
  * without common vertices. Maximum matching has the largest possible number of edges.
  *
- * Time complexity: O(√V × E)
+ * `maximumBipartiteMatching` and `greedyBipartiteMatching` delegate to their `indexed.*` ports.
+ * Left nodes are visited in node order and their neighbours in index order, so the pairs chosen
+ * (and, for the greedy matching, their number) can differ from earlier releases, and an arc joins
+ * its two ends whichever way it points.
+ *
+ * Time complexity: O(V * E)
  * Space complexity: O(V)
  */
 
@@ -23,8 +37,47 @@ export interface BipartiteMatchingOptions {
 }
 
 /**
- * Find maximum matching in a bipartite graph using augmenting path algorithm
- * (simplified implementation that's more reliable than Hopcroft-Karp for this context)
+ * The legacy options to the port's: explicit sides as node masks, ids not in the graph ignored.
+ * @param s - The snapshot
+ * @param options - The legacy options
+ * @returns The port's options
+ */
+function portOptions(s: GraphSnapshot, options: BipartiteMatchingOptions): IndexedMatchingOptions {
+    const { leftNodes, rightNodes } = options;
+    if (!leftNodes || !rightNodes) {
+        return {};
+    }
+    const mask = (ids: Set<NodeId>): NodeMask => {
+        const out = makeMask(s.nodeCount);
+        for (const id of ids) {
+            const i = s.ids.indexOf(id);
+            if (i !== INVALID_INDEX) {
+                maskSet(out, i, true);
+            }
+        }
+        return out;
+    };
+    return { left: mask(leftNodes), right: mask(rightNodes) };
+}
+
+/**
+ * The port's matching to the legacy Map, left nodes in node order.
+ * @param s - The snapshot
+ * @param result - The port's result
+ * @returns The legacy result
+ */
+function toLegacy(s: GraphSnapshot, result: IndexedMatchingResult): BipartiteMatchingResult {
+    const matching = new Map<NodeId, NodeId>();
+    for (let u = 0; u < s.nodeCount; u++) {
+        if (result.matching[u] !== INVALID_INDEX) {
+            matching.set(s.ids.idOf(u), s.ids.idOf(result.matching[u]));
+        }
+    }
+    return { matching, size: result.size };
+}
+
+/**
+ * Find maximum matching in a bipartite graph using augmenting paths
  * @param graph - The bipartite graph to find maximum matching for
  * @param options - Optional configuration including left and right node partitions
  * @returns The maximum matching as a map from left nodes to right nodes and the matching size
@@ -34,59 +87,8 @@ export function maximumBipartiteMatching(
     graph: Graph,
     options: BipartiteMatchingOptions = {},
 ): BipartiteMatchingResult {
-    // If partitions not provided, try to infer them
-    let { leftNodes, rightNodes } = options;
-
-    if (!leftNodes || !rightNodes) {
-        const partition = bipartitePartition(graph);
-        if (!partition) {
-            throw new Error("Graph is not bipartite");
-        }
-
-        leftNodes = partition.left;
-        rightNodes = partition.right;
-    }
-
-    const matching = new Map<NodeId, NodeId>();
-    const matchRight = new Map<NodeId, NodeId>(); // Right to left matching
-
-    // Find augmenting paths using DFS
-    const visited = new Set<NodeId>();
-
-    const dfs = (u: NodeId): boolean => {
-        const neighbors = Array.from(graph.neighbors(u));
-
-        for (const v of neighbors) {
-            if (!rightNodes.has(v) || visited.has(v)) {
-                continue;
-            }
-
-            visited.add(v);
-
-            // If v is unmatched or we can find augmenting path from match of v
-            const matchedNode = matchRight.get(v);
-            if (!matchRight.has(v) || (matchedNode !== undefined && dfs(matchedNode))) {
-                matching.set(u, v);
-                matchRight.set(v, u);
-                return true;
-            }
-        }
-        return false;
-    };
-
-    // Try to find augmenting path for each left node
-    let matchingSize = 0;
-    for (const u of leftNodes) {
-        visited.clear();
-        if (dfs(u)) {
-            matchingSize++;
-        }
-    }
-
-    return {
-        matching,
-        size: matchingSize,
-    };
+    const s = toTopologySnapshot(graph);
+    return toLegacy(s, indexedMaximumBipartiteMatching(s, portOptions(s, options)));
 }
 
 /**
@@ -116,35 +118,6 @@ export function bipartitePartition(graph: Graph): { left: Set<NodeId>; right: Se
  * @throws Error if the graph is not bipartite
  */
 export function greedyBipartiteMatching(graph: Graph, options: BipartiteMatchingOptions = {}): BipartiteMatchingResult {
-    let { leftNodes, rightNodes } = options;
-
-    if (!leftNodes || !rightNodes) {
-        const partition = bipartitePartition(graph);
-        if (!partition) {
-            throw new Error("Graph is not bipartite");
-        }
-
-        leftNodes = partition.left;
-        rightNodes = partition.right;
-    }
-
-    const matching = new Map<NodeId, NodeId>();
-    const matched = new Set<NodeId>();
-
-    for (const u of leftNodes) {
-        const neighbors = Array.from(graph.neighbors(u));
-
-        for (const v of neighbors) {
-            if (rightNodes.has(v) && !matched.has(v)) {
-                matching.set(u, v);
-                matched.add(v);
-                break;
-            }
-        }
-    }
-
-    return {
-        matching,
-        size: matching.size,
-    };
+    const s = toTopologySnapshot(graph);
+    return toLegacy(s, indexedGreedyBipartiteMatching(s, portOptions(s, options)));
 }

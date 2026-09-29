@@ -9,9 +9,9 @@
  */
 import { afterEach, assert, describe, it } from "vitest";
 
-import { type AuthoredLayoutDescriptor, type Edge, LayoutEngine, SimpleLayoutEngine } from "../../../extend";
-import { Graph } from "../../../index.js";
-import { operationQueueOf } from "../../../src/Graph";
+import { type AuthoredLayoutDescriptor, type Edge, LayoutEngine, SimpleLayoutEngine } from "../../extend";
+import { Graph } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
 
 /** A plugin layout that records what the helper told it on its one pass. */
 class WeightReadingLayout extends SimpleLayoutEngine {

@@ -426,8 +426,8 @@ true` keeps them. A layer opened with a `columns` rename is written under the do
     data by default, because a file for sharing a technique should not carry the data by
     accident.
 
-                    The report's notices list every literal text a written selector or `where` compares with, so the
-                    author sees what the file discloses before sharing it.
+                        The report's notices list every literal text a written selector or `where` compares with, so the
+                        author sees what the file discloses before sharing it.
 
 5.  **References that leak.** A writer MUST NOT write an `href` holding a user name or password, and
     writes one holding a query or a fragment only when the caller passed `allowQuery: true`, because

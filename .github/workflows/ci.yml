@@ -209,8 +209,8 @@ jobs:
               run: pnpm exec nx run layout:build:gh-pages
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
-            # The per-package artifacts below stay: release.yml, deploy-pages.yml and the
-            # performance job download them by name.
+            # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
+            # by name.
             - name: Upload all package builds
               uses: actions/upload-artifact@v4
               with:
@@ -825,11 +825,13 @@ jobs:
               env:
                   HUSKY: "0"
 
-            - name: Download algorithms build
+            # Every package's dist: the benchmark runs algorithms from source under tsx, and that
+            # source imports @graphty/graph-format, which resolves to graph-format's dist.
+            - name: Download all package builds
               uses: actions/download-artifact@v4
               with:
-                  name: build-algorithms
-                  path: algorithms/dist/
+                  name: build-packages
+                  path: .
 
             - name: Download performance baseline
               uses: actions/download-artifact@v4

@@ -14,7 +14,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { edgeSpaceOf } from "../session/scope/ScopeApi";
+import { edgeSpaceOf } from "../session/scope/spaces";
 import { createSelectorSource } from "../session/styles/sources";
 import type { GraphSession } from "../session/types";
 

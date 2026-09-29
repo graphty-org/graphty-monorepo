@@ -27,7 +27,7 @@
 
 import { compareIds } from "../catalog/sets/canonical";
 import { GraphtyError, type GraphtyErrorSource } from "../errors";
-import { edgeSpaceOf } from "../session/scope/ScopeApi";
+import { edgeSpaceOf } from "../session/scope/spaces";
 import type { ViewSource, ViewTarget } from "./source";
 import type { EdgeView, GraphView, NodeId, NodeView } from "./types";
 

@@ -15,6 +15,7 @@ import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
+    addsRows,
     type DataImportCommand,
     type DataMutation,
     replaceEdgesCommand,
@@ -489,7 +490,7 @@ export class DataManager implements Manager {
                     hooks.loading(false);
                 }
 
-                if (command.source.type !== undefined && command.source.config !== undefined) {
+                if (addsRows(command)) {
                     hooks.rowsAdded(after);
                 }
             },

@@ -66,7 +66,7 @@ choice are one-way later:
   210 MB in year one, before more browsers, and every clone and full-history CI checkout carries it.
 - **Moving later rewrites history.** `git lfs migrate import` rewrites every commit since the first
   baseline: every branch and worktree must be rebuilt, and the commit hashes that review records,
-  reject comments and milestone 3's recorded root commit name stop existing.
+  reject comments name stop existing.
 
 **Cost.** GitHub's current documentation gives the Team plan, which the graphty-org organisation is
 on (checked with `gh api orgs/graphty-org`), 250 GiB of LFS storage and 250 GiB of LFS bandwidth a
@@ -89,31 +89,22 @@ shows a commit hash instead of images.
 
 ## What approval proves
 
-AI agents run on the owner's development server with the owner's GitHub CLI token and commit
-signing key. Anything those can produce -- a pull request comment, an API call, a signed commit, a
-page served from that machine -- can come from an agent.
+The risk is an AI agent on the owner's development server, which holds the owner's GitHub token
+and commit signing key, accepting visual changes on the owner's behalf, by mistake or as a
+shortcut to make a check pass.
 
 - **Milestones 1 and 2:** an accept is an unsigned record marked `"unproven": true`. Nothing stops
   an agent from writing one. This is the price of approving again today, and it is stated on every
   record.
-- **Milestone 3:** an accept counts only when its record carries an approval made with the
-  owner's passkey and Face ID (or Touch ID) on their iPhone, iPad or Mac. Finish hands the record
-  to a small static signing page on `https://sign.graphty.app`, served from a repository agents
-  cannot write; the page re-hashes and shows every image it approves, and the passkey signs the
-  record's hash. CI and the audit verify that signature against the one passkey registered in
-  `visual-review/passkeys.json`, its origin, and the flag that says the owner verified; a record
-  without a valid approval counts for nothing, whoever wrote it. The git signature on Finish's
-  commit is not the proof: the agents hold that key.
-- **What remains.** The review page runs on the agents' machine, so a tampered page could show one
-  set of images while handing the signing page another. It cannot approve without the owner, and
-  the signing page shows what it is really approving, but a large approval is a skim; every
-  approval's fingerprint and contents are also posted on the pull request, so a swap can be found
-  afterwards. The one visual change nothing catches before merge is a pull request whose Storybook
-  detects the capture and renders the old picture; the capture of master catches it after the
-  merge and blocks releases. `design.md` section 8 states the full guarantee and its assumptions.
-- **What happens to the unproven records.** They stay in git as history and prove nothing. At
-  enforcement the owner approves one "seed manifest" covering every current baseline, either
-  reviewing again or approving existing baselines after a skim, marked as grandfathered.
+- **Milestone 3:** Finish asks for the owner's passkey and Face ID on the review page and stores
+  the WebAuthn assertion, over a hash of the decision record, in the record. The CI gate counts an
+  accept only when the assertion verifies against the passkey registered in
+  `visual-review/passkeys.json`: signature, rpId, the user-verified flag and the recomputed hash.
+  The git signature on Finish's commit is not the proof, since agents hold that key. Existing
+  baselines are grandfathered; their unproven records stay as history.
+- **Limits.** This proves the owner's device approved the record. It does not defend against a
+  tampered review page, which is out of scope; a separate signing origin is a possible later step.
+  `design.md` section 8 has the detail.
 
 ## Milestone 1: approving again (today)
 
@@ -192,30 +183,23 @@ compared, and the result is recorded in `design.md`.
 **Chromatic migration step.** Chromatic covers nothing that this system does not. The `chromatic`
 label is documented as a rollback only.
 
-## Milestone 3: owner-only approval, enforced (this week)
+## Milestone 3: owner-only approval (this week)
 
-**Delivers.** P0: approval with the owner's passkey and Face ID, given on the signing page at
-`https://sign.graphty.app` and verified by CI and the audit; the "Visual review" pull request check
-made required; capture moved out of `ci.yml` into `storybooks.yml` (builds the pull request's
-Storybooks, no secrets) followed by `visual.yml` (runs master's code, so a pull request cannot
-change its own capture, plan or verdict); `verify` and `audit`; the release job split so the
-deploy key never runs repository code; the seed manifest, one approved record covering every
-baseline, whose merge commit the owner records outside the repository as the root of trust.
+**Delivers.** P0: Register passkey and Face ID at Finish on the review page; the gate verifies each
+accept's assertion against the registered passkey, and an accept without a valid one does not
+count.
 
-**Owner actions.** Create the signing repository and the `sign.graphty.app` DNS record; register
-the passkey on the signing page with Face ID and merge the pull request that adds it to
-`passkeys.json`, writing its fingerprint down outside the repository; optionally register a backup
-FIDO2 security key (about $25 to $60, once) for a lost Apple Account; read the checking code at the
-seed commit (kept under 2,500 lines) and the signing page; approve the seed manifest (images that
-changed since their unproven accept are listed first; the rest re-reviewed or grandfathered after a
-skim); give agents a fine-grained token limited to this repository, without workflow or Actions
-write; remove the admin bypass from master's ruleset and require "Visual review".
+**Owner actions.** Register the passkey on the review page, and merge the pull request that adds
+it to `visual-review/passkeys.json`.
 
 **Exit criteria.** A pull request that changes a baseline without a valid approval cannot merge;
-the audit reports no uncovered change on master; tests prove that an approval made on another
-origin, one without user verification, and one over an edited record are rejected; the owner has
-approved once on each device they will use (Safari on the iPhone and iPad, Safari or Chrome on the
-Mac).
+tests prove that an edited record, a wrong rpId, an approval without user verification and an
+unknown key are rejected.
+
+**Later hardening, not part of this milestone.** Capture and verification moved out of `ci.yml`
+into `storybooks.yml` and `visual.yml` (master's code); an audit of master's history with a drift
+capture; the release job split; a fine-grained agent token without administrator rights; a
+separate signing origin.
 
 **Chromatic migration step.** The replacement is now the gate. Start the two-week watch before
 retirement.
@@ -259,7 +243,7 @@ after it, reverting the removal commit.
 | Git LFS for baseline images                             | $0: about 0.2 GiB stored after year one, about 1 to 5 GiB a month downloaded (at worst about 100 GiB), against 250 GiB of each; the $0 budget blocks rather than bills |
 | Hosted review site                                      | not used                                                                                                                                                               |
 | Chromatic on the Free plan with no payment method       | $0                                                                                                                                                                     |
-| **Total**                                               | **$0**, plus an optional backup security key once                                                                                                                      |
+| **Total**                                               | **$0**                                                                                                                                                                 |
 
 The only path past $200 a month is turning a paid Chromatic plan back on. If this system ever
 proves too thin, the fallback is Argos Pro with its spend pause on, about $100 a month, fed by the

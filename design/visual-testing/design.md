@@ -10,12 +10,10 @@ Actions jobs and in git, and costs $0 a month.
 
 It is built in two steps. **Today** the owner can review and accept again, but an accept is an
 unsigned record marked "unproven": nothing yet stops an AI agent on the owner's machine from
-writing one. **This week** every Finish is approved with the owner's passkey and Face ID: the
-review page hands the decision record to a small static signing page on an origin agents cannot
-change, which shows exactly what it will approve, and the record carries the resulting WebAuthn
-assertion. From then on the "Visual review" check is required and counts only records whose
-assertion verifies against the owner's registered passkey, and an audit reports any baseline
-change that no such approval covers. Section 8 states exactly what this does and does not guarantee; the largest gap
+writing one. **This week** Finish asks for the owner's passkey and Face ID and stores the
+resulting WebAuthn assertion, over a hash of the decision record, in the record; the CI gate
+counts an accept only when that assertion verifies against the passkey the owner registered.
+Section 8 states exactly what this does and does not guarantee; the largest gap
 is that the Storybook being captured is built by pull request code, so a pull request can still
 hide a visual change from the capture, and that is detected only after it merges.
 
@@ -33,16 +31,16 @@ measurements), `feature-analysis.md` (every candidate feature with its tier), `r
 
 | Part               | Choice                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Code               | A new private workspace package, `@graphty/visual-review` in `visual-review/`, written as plain `.mjs` with no build step. `trusted/` holds verify, audit, serve, compare and the review page, using only node built-ins, `git`, `gh` and a vendored copy of pixelmatch, under a line budget the owner can read. `capture/` adds Playwright. It absorbs `tools/diff-stories.mjs` and `tools/pixel-diff.mjs`.                                                           |
+| Code               | A new private workspace package, `@graphty/visual-review` in `visual-review/`, written as plain `.mjs` with no build step. `trusted/` holds the gate, serve, compare and the review page, using only node built-ins, `git`, `gh` and a vendored copy of pixelmatch, under a line budget the owner can read. `capture/` adds Playwright. It absorbs `tools/diff-stories.mjs` and `tools/pixel-diff.mjs`.                                                                |
 | Capture            | Runs in `visual.yml`, a workflow that runs master's code after a new `storybooks.yml` workflow has built the pull request's Storybooks, never the pull request's code. Playwright and Chromium with SwiftShader open each story at 1200 x 900, with `&chromatic=true` and a frozen clock. The pull request's JavaScript runs only inside Chromium.                                                                                                                     |
 | Compare            | SHA-256 of the PNG first; pixelmatch only on files whose bytes differ. Every differing story is captured a second time in a fresh browser context, which separates real changes, unstable stories and one-off flakes.                                                                                                                                                                                                                                                  |
 | Baselines          | PNG files in Git LFS from the first baseline, in a root `visual-baselines/<project>/` directory that belongs to no Nx project, with one settings file per story that is the source of truth for its capture settings; review records and settings files stay plain git. About 16 MB for the first two projects (section 7). Seeding is per story: a story is accepted when it looks right, and until then it blocks only a pull request that changes it (section 11a). |
-| Approval           | Today: an unsigned record marked "unproven", written from the review page on the development server. This week: Finish opens a static signing page on `https://sign.graphty.app`, which re-hashes and shows every image it approves; the owner approves with a passkey and Face ID, and the WebAuthn assertion over the record's hash is stored in the record. The commit's git signature proves nothing.                                                              |
+| Approval           | Today: an unsigned record marked "unproven", written from the review page on the development server. This week: Finish asks for the owner's passkey and Face ID, and the WebAuthn assertion over the record's hash is stored in the record; the gate verifies it. The commit's git signature proves nothing.                                                                                                                                                           |
 | Records            | One JSON file per review session in `visual-baselines/reviews/`, covering every project reviewed in it, committed with the images, and recording the capture environment.                                                                                                                                                                                                                                                                                              |
 | Pull request check | A "Visual review" status posted by `visual.yml`. Advisory at first; required once enforcement starts.                                                                                                                                                                                                                                                                                                                                                                  |
-| Audit              | `visual-review audit` flags every baseline or protected-file change on master that no valid passkey approval covers. The owner runs it from a root commit they recorded outside the repository; `visual-audit.yml`, which `release.yml` waits for, runs it on every master push together with a drift capture.                                                                                                                                                         |
+| Audit              | Later, optional: `visual-review audit` over master's history and a drift capture in `visual-audit.yml` (section 15). Not part of the approval design.                                                                                                                                                                                                                                                                                                                  |
 | Pre-push           | Blocks on a baseline change without a valid approval (seconds). A capture comparison is opt-in until measured.                                                                                                                                                                                                                                                                                                                                                         |
-| Cost               | $0 a month. The passkey is in the owner's iCloud Keychain; a backup FIDO2 security key (about $25 to $60, once) is recommended.                                                                                                                                                                                                                                                                                                                                        |
+| Cost               | $0 a month.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## 1a. Milestone 1 as built
 
@@ -270,7 +268,7 @@ The owner's guide to reviewing is `visual-review/README.md`.
    git, CI, a pre-push hook, several projects, a review history tied to commits, and no hosted
    server.
 3. Accepting a change requires the owner, not merely the owner's credentials. Section 8 states
-   exactly what that guarantees, from when, and under which assumptions.
+   what that proves and its limits.
 4. Nothing can bill past $200 a month; the design aims at $0.
 5. Every later feature is an addition, not a rewrite.
 
@@ -317,7 +315,7 @@ the changes from the owner's tiers explained.
 | Light and dark modes, `delay`, `disableSnapshot`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd` (Chromatic parameters in use) | --                | P0                                                         | today                                                                                                                | Five story parameters are the whole story-level surface we use                                                                     |
 | The `isChromatic()` signal                                                                                                                        | --                | P0                                                         | today                                                                                                                | Physics layouts pre-step and a label animation stops; `&chromatic=true` in the URL keeps it working                                |
 | Settings changes are review items                                                                                                                 | --                | P0                                                         | today for a newly excluded story or a dropped mode; within days for thresholds, anti-aliasing and delay (section 1a) | A raised threshold or a new `disableSnapshot` changes what is checked                                                              |
-| Retrospective audit from a pinned root                                                                                                            | --                | P0                                                         | this week                                                                                                            | The only check an agent cannot rewrite (section 8)                                                                                 |
+| Retrospective audit of master's history                                                                                                           | --                | P2                                                         | later                                                                                                                | Beyond the threat section 8 addresses                                                                                              |
 | Modes grouped per story, pull request context on the review screens                                                                               | --                | P1                                                         | within days                                                                                                          | Halves the key presses on compact-mantine; shows whether a diff is intended                                                        |
 | Recapture of failed and unstable stories, re-apply after a rebase                                                                                 | --                | P1                                                         | within days                                                                                                          | Without them one timeout blocks a clean pull request                                                                               |
 | Compare any two built Storybooks (for example the last 1.x release against master)                                                                | --                | P1                                                         | week two                                                                                                             | A real past need (issue #518); `diff-stories.mjs` already does it                                                                  |
@@ -349,9 +347,8 @@ the changes from the owner's tiers explained.
  review page (development server): the owner decides, presses Finish; the server builds the record
         |
         v
- signing page (https://sign.graphty.app, its own repository, static): re-hashes every image,
-   shows what it approves and the record's fingerprint; passkey + Face ID; the assertion goes
-   back to the review server, which puts it in the record, commits and pushes
+ passkey + Face ID on the same page; the server puts the assertion in the record, commits and
+   pushes
         |
         v
  a push that changed only visual-baselines/ reuses the last capture, so the verifier turns
@@ -361,10 +358,9 @@ the changes from the owner's tiers explained.
  audit of the pushed range, and a drift capture of the projects the range can affect
 ```
 
-The only trusted inputs are: the root commit and key fingerprints the owner recorded outside the
-repository, the registered passkeys, the checking code and signing page the owner has read and
-approved, the assertions in the records, and git's own objects. Everything else, including the development server, master's workflows and master's
-dependencies, is treated as something an agent could have altered.
+Approval rests on one thing: the passkey registered in `visual-review/passkeys.json`, checked by
+the gate (section 8). The workflow split drawn here is a later hardening step; until it lands,
+capture and the gate run in `ci.yml` (section 1a).
 
 ## 5. Components and file layout
 
@@ -397,8 +393,6 @@ visual-baselines/                     root directory; in .nxignore and .prettier
   reviews/<utc-time>-<id>.json        one record per session, any number of projects, holding its
                                       passkey approval (absent on unproven records)
 
-graphty-org/visual-review-signer      a separate repository, GitHub Pages on sign.graphty.app
-  register.html, approve.html, sign.js  the signing page: static, no build, no workflow (section 8)
 
 .github/workflows/
   storybooks.yml                      pull_request and master push: build the five Storybooks
@@ -408,7 +402,7 @@ graphty-org/visual-review-signer      a separate repository, GitHub Pages on sig
 
 **Line budget.** Everything under `trusted/`, including the vendored pixelmatch and the page, stays
 under 2,500 lines, and a test fails above it or on any minified or generated file there. That is
-what lets the owner read the whole tool once before the seed manifest and read each later tool
+what lets the owner read the whole tool once before approvals are enforced and read each later tool
 change in full.
 
 **Why a root `visual-baselines/`.** Inside a package, every accept would mark that package and
@@ -417,10 +411,10 @@ the build caches and rerun every test shard just to confirm the capture equals t
 At the root, in `.nxignore`, a baselines-only commit affects no Nx project. Approvals cover
 canonical JSON, so the on-disk layout does not matter.
 
-**Why no dependencies in `trusted/`.** `verify` and `audit` decide what counts as approved. If they
+**Why no dependencies in `trusted/`.** The gate decides what counts as approved. If it
 ran on `node_modules` installed from the root lockfile, any merged pull request could change a
-resolved dependency and weaken the check without touching a protected path. `trusted/` runs with
-`node` alone, in the workflows and in the owner's independent audit. (Milestone 1's comparison still
+resolved dependency and weaken the check without any change to `trusted/`. `trusted/` runs with
+`node` alone, in the workflows. (Milestone 1's comparison still
 imports `pngjs`; see section 1a.)
 
 **Settings files are the source of truth.** A story's parameters are only the default written
@@ -581,7 +575,7 @@ Two more measurements run in parallel and never block a seed:
 | What                       | Where                                                  | Size                                                                                                                                                                                                                          | Retention                            |
 | -------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | Baselines                  | monorepo, Git LFS                                      | graphty-element 7.4 MB (171 images) and compact-mantine 8.9 MB (828), measured: about 16 MB. algorithms, layout and graphty (75 stories, light and dark, full height) are not yet measured; estimate 22 to 26 MB for all five | forever                              |
-| Review records             | monorepo                                               | about 1 to 2 KB a session; a seed manifest about 250 KB                                                                                                                                                                       | forever                              |
+| Review records             | monorepo                                               | about 1 to 2 KB a session                                                                                                                                                                                                     | forever                              |
 | `visual-results-<project>` | Actions artifact, `results.json` only                  | a few KB                                                                                                                                                                                                                      | 90 days                              |
 | `visual-<project>`         | Actions artifact, PNGs of differing and new items only | small                                                                                                                                                                                                                         | 30 days                              |
 | Storybook artifacts        | Actions artifacts from `storybooks.yml`                | 7 to 16 MB each                                                                                                                                                                                                               | 7 days on pull requests, 1 on master |
@@ -601,7 +595,7 @@ In plain git every baseline version stays in history forever: every clone and ev
 `fetch-depth: 0` CI checkout (most of ci.yml's) would carry the 110 to 210 MB estimated above for
 year one alone, before more browsers multiply it. Moving later means `git lfs migrate import`,
 which rewrites every commit since the first baseline: every open branch and worktree must be
-rebuilt, and commit hashes that records, reject comments and milestone 3's recorded root commit
+rebuilt, and commit hashes that records and reject comments
 name stop existing. With LFS, git holds a 130-byte pointer per image, and only a job that needs
 the images downloads them, only for the current tree. The earlier objections are answered in the
 tooling: git-lfs is now installed on the development server; a missed `git lfs pull` stops capture
@@ -642,138 +636,45 @@ image diff the review relies on.
 
 ### The threat
 
-Two kinds of attacker.
+AI agents run on the development server as the owner, with the owner's GitHub token and git
+signing key. The risk is an agent accepting visual changes on the owner's behalf, by mistake or as
+a shortcut to make a failing check pass: pressing Accept, calling the review page's API, or
+committing a baseline and a record by hand. Today nothing technical stops that; records are marked
+`"unproven": true`.
 
-**Agents on the development server**, running as the owner. They hold the owner's `gh` OAuth token
-(scopes `repo`, `workflow`, `gist`, `read:org`; an administrator of the repository and the
-organisation, also used as git's https credential), the owner's software commit-signing key, the
-server's filesystem (including every page it serves), a browser with virtual WebAuthn
-authenticators, and possibly the owner's desktop through Claude in Chrome or computer use, which
-can drive a browser signed in to GitHub and type into a terminal.
+The fix is that an accept counts only when the owner's own device approved it, with a passkey and
+Face ID, which no agent can supply.
 
-**Anyone who opens a pull request, forks included.** Their code runs in ci.yml's and
-storybooks.yml's jobs (package scripts, install hooks, the Storybook build), their Storybook
-JavaScript runs wherever it is opened, their files are in CI artifacts, and their text reaches the
-review screens.
+### Why not the git commit signature
 
-So a GitHub API call, a signed commit, a comment, a label, a dispatch, a status, a ruleset edit, a
-merge through the admin bypass, a page served from the development server, anything a pull request
-job produced, or text in a pull request can come from an attacker. None of those can be the proof
-of approval.
+The agents hold the key that signs commits, so a signed commit, and GitHub's "Verified" badge on
+it, proves only that something on this machine made it. Nor can the browser approval be the commit
+signature: a WebAuthn assertion signs `authenticatorData || SHA-256(clientDataJSON)`, where
+clientDataJSON holds the page's origin and a challenge, not the commit's bytes, so git and GitHub
+cannot verify it as one. The review server keeps making and signing the commit; the approval lives
+inside the review record, and nothing trusts the commit signature.
 
-### Why the git commit signature cannot be the proof
+### Registering the passkey
 
-Either of two facts is enough.
+Once, on the review page: the owner presses Register passkey, and the page calls
+`navigator.credentials.create` with rpId `dev.ato.ms` (the review server's own host, the owner's
+decision of 2026-09-28), `userVerification: "required"` and algorithm ES256. Face ID. The page
+shows the entry to add:
 
-- **Agents hold the key that signs commits.** The agents on the development server hold the
-  owner's git signing key and GitHub token. A commit signed with that key, and GitHub's "Verified"
-  badge on it, proves only that something on this machine made the commit. That is all Finish's
-  commit signature proves today, and it stays that way: the review server keeps making and signing
-  the commit, and nothing trusts that signature.
-- **A browser approval is not a commit signature.** A WebAuthn assertion is a signature over
-  `authenticatorData || SHA-256(clientDataJSON)`, where clientDataJSON is JSON the browser writes
-  holding the ceremony type (`webauthn.get`), the challenge and the page's origin. git and GitHub
-  verify a commit signature (OpenPGP, X.509 or an SSH signature) over the commit object's own bytes,
-  so an assertion over a review record is not something either can check as a commit signature.
-  OpenSSH does define one wrapper that could carry it, the
-  `webauthn-sk-ecdsa-sha2-nistp256@openssh.com` signature type: `ssh-keygen -Y verify` accepts it
-  when clientDataJSON begins with the expected type, challenge and origin, but OpenSSH only
-  verifies such signatures and never produces them. Using it would mean the browser page building
-  the exact commit bytes (tree, parents, author, committer, timestamps) before the server commits,
-  wrapping the passkey's public key as an `sk-ecdsa` SSH key whose application is the rpId, and
-  relying on GitHub accepting a signature type it does not document. The result would still be a
-  commit signature: lost when a rebase or squash re-creates the commit, and indistinguishable on
-  GitHub from the agents' own key without an allow-list of our own.
+```json
+{
+    "id": "<credential id, base64url>",
+    "publicKey": "<SubjectPublicKeyInfo DER, base64url>",
+    "rpId": "dev.ato.ms",
+    "label": "iCloud Keychain",
+    "registeredAt": "2026-09-28T12:00:00Z"
+}
+```
 
-So the approval is a separate object: a WebAuthn assertion whose challenge is the hash of the
-decision record, stored inside the record, and checked by this repository's own code against a key
-only the owner registered.
-
-### The root of trust
-
-1. **A passkey with Face ID** in the owner's iCloud Keychain, synced to their iPhone, iPad and Mac.
-   Every approval needs the device's user verification: Face ID or Touch ID, or the device passcode
-   (or the Mac's login password) when biometrics fail. WebAuthn reports only that verification
-   happened, as the UV flag, never which method. No agent runs on the iPhone or iPad; for the Mac,
-   see the assumptions below.
-2. **The signing origin**, `https://sign.graphty.app` (recommended below): a static page from a
-   small repository agents cannot write. The passkey is created for the relying party id (rpId)
-   `sign.graphty.app`, so a browser refuses to use it from any other origin, the review server and
-   graphty.app included.
-3. **`visual-review/passkeys.json`** on master: the registered keys, the only keys that count.
-4. **Two values recorded outside the repository**, on paper or in a phone note: the root commit
-   (the seed manifest's merge, below) and each registered key's fingerprint (the last 16
-   characters of its `publicKey`, readable on github.com with no tool), compared with github.com's
-   rendering of `passkeys.json`.
-5. **The code that checks approvals and the signing page**, `visual-review/trusted/` and the
-   signing repository: small plain source the owner has read.
-
-A synced passkey carries no attestation worth checking (iCloud Keychain returns the `none`
-format), and it always reports a signature counter of 0, so nothing proves that a key lives in an
-Apple device, and a cloned key cannot be spotted by its counter. A software authenticator, such as
-the virtual authenticators in the agents' browsers, can report any flags and origin for a key it
-holds. All of the trust is therefore in which public key is registered: the one the owner created
-and recorded, never one an agent added. That is why a change to `passkeys.json` needs an approval
-from a key registered before the change.
-
-### Registering a passkey
-
-1. The owner opens `https://sign.graphty.app/register.html` in Safari on the iPhone (or on the iPad
-   or the Mac). The page calls `navigator.credentials.create` with rpId `sign.graphty.app`,
-   `residentKey: "required"`, `userVerification: "required"` and algorithm ES256 (COSE -7). The
-   registration challenge is random: registration proves nothing by itself, so no server needs to
-   issue it. Face ID.
-2. The page shows the entry to add and its fingerprint:
-
-    ```json
-    {
-        "id": "<credential id, base64url>",
-        "publicKey": "<SubjectPublicKeyInfo DER, base64url>",
-        "alg": -7,
-        "rpId": "sign.graphty.app",
-        "origin": "https://sign.graphty.app",
-        "label": "iCloud Keychain",
-        "registeredAt": "2026-10-01T12:00:00Z"
-    }
-    ```
-
-    `publicKey` is the credential public key as `getPublicKey()` returns it: the same key as the
-    COSE key in the attestation object, in the form `node:crypto` reads directly, so the verifier
-    needs no CBOR decoder.
-
-3. The entry goes into `visual-review/passkeys.json` through a pull request, written by the owner
-   in github.com's editor or by an agent from the copied text. Before merging, the owner checks on
-   github.com that the key's fingerprint in the file (the last 16 characters of `publicKey`)
-   equals the one the page showed, and writes it down. The first key merges before enforcement; every later change to the file also needs a record
-   approved by a key already in it (the protected-path rule below).
-
-**Lost devices and the backup.** iCloud Keychain syncs the passkey to every device signed in to
-the owner's Apple Account, so a lost or broken iPhone loses nothing: the replacement has the
-passkey once it signs in. Sync does not cover losing the Apple Account or its keychain. For that
-the owner registers a second passkey outside iCloud Keychain for the same rpId, preferably a FIDO2
-security key with a PIN (about $25 to $60 once), kept at home, and uses it only to approve changes
-to `passkeys.json`.
-
-**Rotation and revocation.** Adding, replacing or revoking a key is a pull request that changes
-`passkeys.json` and carries a record approved by a key in the file before the change. A key is
-revoked by adding `"revokedAt"` to its entry, never by deleting it, so old records stay
-verifiable. The gate reads the file from the pull request's base, so a revoked key stops counting
-for every new approval the moment the revocation merges; the audit checks each record against the
-file as it was when the record was added. If the Apple Account is compromised, the owner revokes
-its key with the backup. If every registered key is lost, no approval is possible any more: the
-owner registers a new key, merges it without an approval, approves a new seed manifest and records
-a new root commit and fingerprint outside the repository, and the audit reports the unapproved key
-change as the break it is.
-
-### Protected paths
-
-`.github/**`, `visual-review/trusted/**`, `visual-review/projects.json` and
-`visual-review/passkeys.json`. A change to any of them needs an approved record, like a baseline.
-The verifier and the audit also fail when any workflow other than `visual.yml` and
-`visual-audit.yml` grants `statuses: write`, `checks: write` or `write-all`, or when any job other
-than release.yml's push job names the `release` environment. Tool changes and image changes go in
-separate pull requests; the verifier fails a pull request that has both, so an image review never
-includes a tool diff.
+`publicKey` is the key `getPublicKey()` returns, which `node:crypto` reads directly. The entry
+goes into `visual-review/passkeys.json` through a pull request the owner merges. The passkey is in
+iCloud Keychain, so it is on the owner's iPhone, iPad and Mac, and a lost device loses nothing. To
+replace or add a key, the owner registers again and merges the change.
 
 ### The record
 
@@ -781,399 +682,78 @@ includes a tool diff.
 {
     "version": 2,
     "pr": 123,
-    "subject": {
-        "builtMerge": "<sha>",
-        "base": "<sha>",
-        "head": "<sha>",
-        "mergedTree": "<sha>",
-        "baseTip": "<sha>",
-        "runId": 987654,
-        "scale": 2,
-        "environment": {
-            "chromium": "...",
-            "renderer": "...",
-            "gpu": false,
-            "cpu": "...",
-            "fonts": "<sha256>",
-            "tool": "<sha>"
-        }
-    },
-    "notOpened": 3,
+    "subject": { "builtMerge": "<sha>", "head": "<sha>", "runId": 987654, "scale": 2 },
     "items": [
         {
             "path": "visual-baselines/compact-mantine/button--primary.dark.png",
-            "from": "<sha256 on the base tip, or null>",
+            "from": "<sha256 or null>",
             "to": "<sha256, or null for a removal>",
             "reason": "new focus ring"
-        },
-        {
-            "path": "visual-baselines/graphty-element/chart--line.json",
-            "from": "<sha256>",
-            "to": "<sha256>",
-            "reason": "exclude: settle timeout under load"
         }
     ],
     "rejects": [
         {
             "path": "visual-baselines/compact-mantine/badge--default.light.png",
-            "capture": "<sha256 of the rejected capture>",
+            "capture": "<sha256>",
             "reason": "text is clipped"
         }
     ],
-    "reviewedAt": "2026-09-27T12:00:00Z",
-    "nonce": "<16 random bytes, base64url>",
+    "reviewedAt": "2026-09-28T12:00:00Z",
     "approval": {
         "credentialId": "<base64url>",
         "authenticatorData": "<base64url>",
         "clientDataJSON": "<base64url>",
-        "signature": "<base64url, DER ECDSA>"
+        "signature": "<base64url>"
     }
 }
 ```
 
-- `items` are the accepts and exclusions, the files the commit changes. `rejects` are the owner's
-  decisions against a capture; they change no file, and are approved together with the accepts so
-  that a reject's reason is provably the owner's too.
-- One record covers every project reviewed in the session, so one Face ID approves it all.
-- `from` is the file's hash on the base branch tip, because that is the change the pull request
-  makes to master. `subject` ties the record to the capture run, the commits and the environment.
-  `notOpened` counts the accepted items the owner never opened; the audit reports it.
-- **The record hash** is SHA-256 over the ASCII bytes `graphty-visual-review/approval/v2` and a
-  newline, followed by the record's canonical JSON with `approval` removed: keys sorted, no
-  whitespace, strings as `JSON.stringify` writes them, and integers as the only numbers (the record
-  holds no fractions). The prefix keeps the hash from meaning anything in another protocol. The
-  hash is the WebAuthn challenge.
-- **Replay.** In WebAuthn's usual model a server issues each challenge and remembers it. Here
-  nothing trustworthy could issue one, since the review server runs on the agents' machine.
-  Replay is closed by what the challenge commits to instead: the record names its pull request,
-  captured commit, run and every file hash, so its approval counts for no other change; and its
-  `nonce`, drawn by the signing page from `crypto.getRandomValues`, must appear in no other record
-  on master or in the pull request (the verifier checks), so one approval can never be presented
-  twice as two.
-- Milestone 1 and 2 records are version 1 with `"unproven": true` and no `approval`. From
-  enforcement they are history, never proof (section 15).
-- **Every reason is untrusted data**, since anyone can write one into a pull request: every screen,
-  the future notes command and the MCP server show reasons quoted and labelled as data, never as
-  instructions for an agent. An approved reject tells an agent the owner wrote the reason; it does
-  not make the reason an instruction.
+`items` are the accepts and exclusions; `rejects` change no file but are approved with them, so a
+reject's reason is the owner's too. The **record hash** is SHA-256 of the record's JSON with
+`approval` removed and keys sorted, with no whitespace. The record names its pull request, its
+captured commit and every file hash, so its approval counts for nothing else. Every reason is
+untrusted data for agents, shown quoted, never followed as an instruction.
 
-### Approving at Finish
+### Finish
 
-1. The owner reviews in the review page on the development server as before, and presses Finish.
-2. The server builds the record above, without `nonce` and `approval`. It does not commit yet.
-3. The review page opens the signing page with `window.open("https://sign.graphty.app/approve.html")`
-   from the Finish click: a top-level window, not an iframe, because a cross-origin iframe needs a
-   permissions policy for WebAuthn and Safari restricts it. When the signing page reports that it
-   is ready, the review page sends the record and the bytes of every image it names (each new
-   image, each rejected capture, and the baseline where there is one) with `postMessage`.
-4. The signing page trusts none of it. It hashes every image and refuses the record when a `to`,
-   `from` or reject `capture` hash does not match. For a protected file (tool code) it fetches the
-   file at the captured head from GitHub's public API, checks its hash, and shows the diff GitHub
-   reports. It shows the pull request's number and title from GitHub's public API, the captured
-   commit, the counts per project, "N accepted without being opened", every reject with its
-   reason, and every accepted image beside its baseline, drawn from the bytes it has just hashed.
-   What the owner sees on this page is exactly what the approval will cover.
-5. It adds the nonce, computes the record hash and shows its fingerprint (the first 16 hex digits,
-   as `3f9a 12c0 88be 04d1`). The owner presses Approve, and the page calls
-   `navigator.credentials.get` with the record hash as `challenge`, rpId `sign.graphty.app`,
-   `allowCredentials` listing the registered ids and `userVerification: "required"`. Face ID.
-6. The signing page posts the nonce and the assertion (authenticatorData, clientDataJSON,
-   signature, credential id) back to the review page, which hands them to the server. The server
-   writes them into the record, verifies it with the same code the gate runs, so a broken approval
-   never reaches CI, and commits and pushes as before. A session with only rejects commits
-   nothing: its approved record goes into the reject comment's machine-readable block instead.
+The owner decides on the review page as before and presses Finish. The server builds the record
+without `approval`; the page calls `navigator.credentials.get` with the record hash as the
+challenge and `userVerification: "required"`. Face ID. The page sends the assertion to the
+server, which puts it in the record, checks it with the gate's own code, and commits and pushes as
+before. A session with only rejects commits nothing; its approved record goes into the reject
+comment.
 
-The server still makes the commit and signs it with whatever key its environment has. That git
-signature is no longer evidence of anything.
+### The gate
 
-### Checking an approval
+The CI gate (`visual-review/trusted/gate.mjs`) already requires every changed baseline and
+excluding settings file to be named, with its new hash, by a record the pull request adds. It also
+requires, for each such record, with `node:crypto` alone:
 
-`trusted/lib/approval.mjs`, with `node:crypto` alone, checks each record. An accept counts only
-when all of these hold:
+1. `approval.credentialId` names a key in `passkeys.json` as it is on the base branch;
+2. clientDataJSON's `type` is `webauthn.get`, its `challenge` is the hash recomputed from the
+   record as committed, and its `origin` is an https origin on the key's `rpId`;
+3. authenticatorData begins with the SHA-256 of the key's `rpId`, and its user-verified flag (UV,
+   bit 2) is set, so Face ID, Touch ID or the device passcode ran;
+4. the ECDSA P-256 signature verifies over `authenticatorData || SHA-256(clientDataJSON)` with the
+   key.
 
-1. `approval.credentialId` names a key in `passkeys.json`, read from the base branch by the gate
-   and from the parent of the commit that added the record by the audit, and the key is not
-   revoked there.
-2. clientDataJSON parses; its `type` is `webauthn.get`; its `challenge` decodes to the record hash
-   recomputed from the record as committed; its `origin` equals the key's `origin` exactly;
-   `crossOrigin` is absent or false and `topOrigin` is absent.
-3. authenticatorData's first 32 bytes equal the SHA-256 of the key's `rpId`, and its flags have
-   UP (user present, bit 0) and UV (user verified, bit 2) set. The signature counter and the
-   backup flags are not checked, since synced passkeys report a counter of 0.
-4. The signature, DER-encoded ECDSA on P-256, verifies over `authenticatorData ||
-SHA-256(clientDataJSON)` with the key's public key.
-5. The nonce appears in no other record.
+An accept without a valid approval does not count, whoever wrote it. Test vectors cover each
+failure: an edited record, a wrong rpId, UV clear, an unknown key, a bad signature.
 
-A record that fails any of these does not count, whoever wrote it and however it reached git. Test
-vectors: one real assertion made once with a throwaway passkey on the signing origin, and
-software-authenticator vectors for a wrong origin, a wrong rpId, UV clear, an edited record, a
-reused nonce, a revoked key and an unknown credential.
+**Existing records.** The milestone 1 and 2 records stay as they are, unproven history; the
+baselines they accepted are grandfathered and are not approved again. From the day the gate starts
+checking approvals, every new accept needs one.
 
-### Protecting the checking code
+### Limits
 
-The gate is only as good as the code that runs it. CODEOWNERS cannot protect that code here:
-agents and the owner act through the same GitHub account, and GitHub never lets a pull request's
-author approve it, so a required code-owner review would block the owner's own pull requests,
-while any review given with the owner's token would prove nothing. The rule in `CLAUDE.md` that
-agents never edit the gate or `visual-review/trusted/gate.mjs` is the first line, and a policy, not
-a control. The controls are:
-
-1. From milestone 3 the checks run in `visual.yml`, a `workflow_run` workflow that runs master's
-   copy of `trusted/`, so a pull request cannot change the code that judges it (milestone 1's gate
-   runs inside `ci.yml` from the pull request's own code, which it can edit).
-2. `trusted/`, `.github/` and `passkeys.json` are protected paths: a pull request that changes them
-   needs an approved record naming each new file hash, checked by master's copy.
-3. The agents' fine-grained token has no Workflows permission, so agents cannot push a workflow
-   change at all, and no admin bypass, so nothing merges without the required "Visual review"
-   check (owner settings, below).
-4. The audit walks master's history and reports any protected-path change without an approval,
-   including one that reached master around the check.
-
-### Where the approval is given, and what remains
-
-**The risk.** The review page is served from the development server, where agents run as the owner
-and can change every file it serves. A tampered review page cannot approve anything: the passkey
-needs the owner's Face ID, and the verifier accepts only an assertion over the record it
-recomputes. But it can misdirect an approval the owner is giving: show one set of images and ask
-Face ID to approve a record naming another, whether a different image under the same story, an
-accept the owner never made, or a reject turned into an accept. If the WebAuthn ceremony ran on the
-review page's own origin, the owner would have no way to see the difference.
-
-**Mitigation 1: the fingerprint, and the approval posted on the pull request.** The signing screen
-shows a short fingerprint of the record hash. The verifier posts, for every approval in a pull
-request, its fingerprint and contents as a pull request comment: the counts, every accepted path
-with its old and new hash and reason, every exclusion and every reject; on master the audit writes
-the same into its run summary. The owner reads it on github.com, which no agent can alter, from a
-comment whose author is `github-actions[bot]` (with the owner settings, agents cannot make a
-workflow post as that bot). A swap shows as a fingerprint other than the one the owner saw, or as
-a list holding an item the owner did not decide that way. This is detection after the fact, and an
-image swapped under an unchanged path shows only as a hash, not a picture.
-
-**Mitigation 2: approve on an origin agents cannot change.** Then the page that asks for Face ID
-shows the record from bytes it verified itself. A tampered review page can still hand it a
-different record, but the owner then sees that record, not the one they believe they are
-approving. This is the recommendation, and the reason for step 4 of Finish.
-
-**Does graphty.app qualify? Not as it is.**
-
-- It is one origin shared with everything `deploy-pages.yml` publishes: the Storybooks, the graphty
-  app and the docs, all built from master by merged pull request code. Any script on that origin
-  can call `navigator.credentials.get` for a passkey whose rpId is `graphty.app`, with a challenge
-  of its own choosing; a separate path such as `/sign/` isolates nothing.
-- Master is not behind the owner's merge. "Protect master" requires no approving review and lets
-  repository administrators bypass it, and the agents hold an administrator token. With a
-  fine-grained agent token and no bypass, agents can still merge any pull request whose checks
-  pass, because the owner and the agents are one GitHub account. And the site is assembled by
-  `tools/assemble-pages-site.sh` from every package's build, so protecting one page file would not
-  protect what is served beside it.
-- GitHub Pages does not enforce HTTPS for graphty.app today (`https_enforced` is false in its Pages
-  settings). WebAuthn runs only in a secure context, so over plain HTTP a signing page would not
-  work at all. Enforcing HTTPS is worth doing regardless.
-
-**Recommended: `https://sign.graphty.app`, from its own repository.**
-
-- **rpId `sign.graphty.app`.** An rpId must be the page's host or a registrable suffix of it, so
-  `graphty.app` would also be allowed, but it would let every page on graphty.app and its
-  subdomains use the passkey. With `sign.graphty.app` only that host can, and the verifier rejects
-  any clientDataJSON whose origin is not exactly `https://sign.graphty.app`.
-- **Its own repository**, `graphty-org/visual-review-signer`, served by GitHub Pages from a branch
-  with no build and no Actions workflow: `register.html`, `approve.html` and one script, a few
-  hundred lines with no third-party code, and a Content-Security-Policy that allows nothing but
-  its own files, `blob:` images and GitHub's public API. GitHub gives each repository's Pages site
-  one custom domain, which is why it cannot live in the monorepo beside graphty.app.
-- **Out of agents' reach, with conditions.** It qualifies only once the agents' token is the
-  fine-grained token of owner setting 1, limited to the monorepo alone; until then the agents'
-  OAuth token can push to every repository of the organisation, and no origin GitHub serves for it
-  qualifies. The owner verifies `graphty.app` for GitHub Pages in the organisation's settings, so
-  no other account can claim `sign.graphty.app`, turns on "Enforce HTTPS", and creates the DNS
-  record at the registrar, where agents hold no credentials.
-- **The hand-off** is `window.open` and `postMessage` (Finish, steps 3 to 6). Nothing is uploaded:
-  the signing page is static and sends nothing anywhere except unauthenticated reads of GitHub's
-  public API.
-
-Also rejected for the approval step: the review server's own origin (`dev.ato.ms`), which agents
-can change at will, and whose rpId every other development server on that host shares, so any
-Storybook or Vite server an agent starts there could ask for the same passkey; and a local page on
-the owner's Mac, which needs a terminal and a server the owner starts, and does not help on the
-iPhone.
-
-**Browser requirements.** WebAuthn needs a secure context: the review server already serves HTTPS
-on the development server's host name through servherd, and the signing page is HTTPS on GitHub
-Pages. Supported: Safari on iOS and iPadOS 16 or later, and Safari on macOS 13 or later, with the
-passkey in iCloud Keychain; Chrome on macOS, which uses iCloud Keychain passkeys directly on recent
-macOS versions and otherwise offers the iPhone through its QR code flow. Both pages need a click
-to start the ceremony, and the review page must allow the signing page's pop-up. Each is checked
-on the owner's devices at registration and recorded here.
-
-### Other Finish cases
-
-**Recapture** of failed and unstable items dispatches `visual.yml` for those story ids. After
-enforcement the agent token has no Actions write, so the owner starts it from GitHub (the "Run
-workflow" or "Re-run jobs" button, which works from the phone).
-
-**Rebases.** An approval does not depend on the branch's history, so updating from master by merge
-or rebase keeps it valid as long as the hashes match. If a rebase drops the accept commit, the pull
-request screen says "approved record missing from the branch", and the review server commits the
-same approved record and files again, with no new Face ID. `CLAUDE.md` tells agents to update a
-branch by merge, not rebase, after an accept.
-
-**Baseline conflicts.** Two open pull requests often change the same compact-mantine images. PNGs
-cannot be merged, so `CLAUDE.md` has the rule: on any conflict under `visual-baselines/`, take
-master's side for every file, push, and let CI recapture; the owner then reviews only items whose
-new capture differs from master. The review page shows "base changed under an approved item:
-approve again" with the count, since an approved item's `from` no longer matches the base tip.
-
-### Which runs count
-
-A `visual.yml` run is accepted, in `verify`, in the review server's run selection and in the
-baselines-only reuse path, only when its workflow `path` is `.github/workflows/visual.yml`, its
-`head_branch` is master, and its event is `workflow_run`, or `workflow_dispatch` on master. A
-dispatch of a modified `visual.yml` from an agent branch is therefore ignored. Each rule has a test
-vector.
-
-### The verifier
-
-`visual-review verify` is `trusted/`, run by `visual.yml` from master's copy with `node` alone.
-For each pull request run:
-
-- It reads only the results the same `visual.yml` run's capture jobs uploaded, by the artifact IDs
-  those jobs output. Nothing from an artifact is executed; `results.json` is parsed against the
-  schema. Pull request files are read with `git show <sha>:<path>`.
-- Every file that differs between the base and the head under `visual-baselines/` (except
-  `reviews/`) or a protected path must be covered by the newest accept item for that path, taken
-  from records added in this pull request, where `to` equals the file's hash at head (null for a
-  deletion), `from` equals its hash on the current base tip, the record's `pr` is this pull
-  request, and the record's approval passes every check in "Checking an approval" against
-  `passkeys.json` as it is on master. For images and settings, the `to` hash must also be in one
-  of two places: the record's own `subject.runId`, whose `visual-results-<project>` artifact is
-  kept 90 days; or the current run, where the item is `unchanged` against `to` under the story's
-  threshold. The current run is the stronger evidence, so an approved pull request brought up to
-  date weeks later needs no new approval.
-- Every project that master's plan rules (section 12) select must have a result; a missing
-  Storybook artifact is `failed`.
-
-"Visual review" is **success** only when the verifier passes and every planned project's current
-results hold nothing but `unchanged` and `flaky` items against the merged tree's baselines. A
-recapture is an overlay: its results are the amended run's results with only the recaptured ids
-replaced, merged by master's code, so one run always holds every current hash. The verify job has
-`contents: read`, `actions: read`, `statuses: write`, `pull-requests: write` and nothing else. It
-maintains one pull request comment with the counts and every approval's fingerprint and contents
-(mitigation 1 above). Tests cover a two-round pull request, a rebase after approval, an approval
-with UV clear, one made on another origin, an approved run whose artifacts have expired, a fork,
-and each rule of "Which runs count".
-
-### The audit
-
-`visual-review audit --root <commit>`:
-
-1. Fails when the root commit is not an ancestor of master's head.
-2. At the root, every file under `visual-baselines/` and every protected file must equal the `to`
-   of an item in an approved record present at the root. The root is therefore the merge of the
-   **seed manifest**: one record, approved with the passkey, listing every baseline and protected
-   file's hash. Before approving it, the owner reads `trusted/` at that commit, and the signing
-   repository, in full.
-3. Walks master's first-parent chain from the root. For each step, every changed baseline or
-   protected file must be covered by a record added in that same step, with `from` equal to the
-   hash on the first parent, `to` equal to the hash in the step, `pr` naming a pull request GitHub
-   reports as merged into that step, and an approval that passes every check against
-   `passkeys.json` as it was on the first parent. A direct push has no such pull request and is
-   reported. Release commits are direct pushes that touch neither, by the release push job's own
-   check (below), so they pass.
-4. Prints each record's fingerprint, item count and `notOpened`, and every uncovered change.
-
-- **The CI audit** is `visual-audit.yml` on every master push. It is a protected path and
-  `release.yml` waits for it, so an unapproved change blocks releases. It runs master's code,
-  which the same approvals protect.
-- **The independent audit** is the owner's, optional and read-only: `node
-visual-review/trusted/cli.mjs audit --root <recorded root>` on the Mac, from a detached worktree
-  at a commit the previous audit reported clean, with no install and no repository hooks. It is
-  the one check that does not depend on master's code. Approval itself never needs a terminal.
-
-### The release job and the deploy key
-
-Today release.yml checks out master with `RELEASE_DEPLOY_KEY`, then runs `pnpm install`, the Nx
-cache and `nx release` in the same job, so unapproved repository code (package scripts, nx.json,
-`tools/`, the lockfile) runs with the key that may push to master. It is split:
-
-- The existing job versions, tags and builds **without the key**, and uploads the result as a git
-  bundle artifact.
-- A new push job in release.yml runs no install and no repository script, and checks out nothing
-  from the tree. It verifies the bundle is a fast-forward of master whose diff touches only
-  `package.json` version fields, `CHANGELOG.md` files and `pnpm-lock.yaml`, and nothing under
-  `visual-baselines/` or a protected path. Only then does it load the key, which is a secret of a
-  `release` environment that only this job names, and push the commits and tags.
-
-### What is guaranteed, and under which assumptions
-
-**Assumptions:** the owner's Apple Account, their devices, their device passcode and their Mac's
-login password are the owner's alone, and no agent knows the passcode or password; the signing
-repository and the graphty.app DNS zone are out of agents' reach (owner settings 1 and 5); the
-owner recorded the root commit and key fingerprints outside the repository; the checking code and
-the signing page at the root, and every approved change to them since, were read by the owner and
-are honest; and while the owner approves on the Mac, no agent there has a shell, computer use or a
-Claude in Chrome session (on the iPhone and iPad no agent runs at all, which is why they are the
-recommended devices to approve on).
-
-**Before enforcement (today):** nothing is guaranteed against an agent. Accepts are "unproven".
-A pull request can also loosen its own check without a review item by raising a story's
-`diffThreshold` or `delay` in its parameters, or by editing the gate in `ci.yml` (section 1a);
-only code review and the CLAUDE.md rules stand in the way until milestone 3.
-The seed manifest replaces them all with one approved record at enforcement.
-
-**Guaranteed, as detection, from the root:** every file under `visual-baselines/` and every
-protected path on master either equals a hash the owner approved with Face ID on the signing page,
-which showed it from bytes it had verified and counted the items not opened, or is reported by the
-audit. Deleting workflow runs, editing rulesets or rewriting history cannot hide that from the
-independent audit. An approval proves each item was offered for review and the owner verified
-themselves on their device, not that the owner looked at each image; `notOpened` says how many
-were not opened.
-
-**Guaranteed, as prevention, only after the owner settings below, and only while no agent drives a
-browser session signed in to GitHub as the owner:** no pull request that changes a baseline, a
-story setting or a protected file goes green without such an approval, and nothing reaches master
-without a green check except the release push job's version commits, which cannot touch either.
-
-**Not guaranteed:**
-
-- **That the owner notices a swapped record on the signing page.** The page shows exactly what is
-  approved, but a large approval, such as the seed manifest, is a skim, and a swapped image among a
-  thousand is easy to miss. The pull request comment (mitigation 1) lets it be found afterwards.
-- **That the capture shows what users see.** The Storybook is built by pull request code, which can
-  detect the capture and render the old picture. Such a change reaches master unreviewed. The
-  master drift capture catches it after the merge and blocks releases until an approved
-  re-baseline lands. Code review is the only earlier defence.
-- **That two separately green pull requests look right together.** Branches are not required to
-  be up to date (section 11), so two pull requests that each passed against an older master can
-  combine into a change nobody reviewed. The drift capture detects it after the merge.
-- **That master's capture code and dependencies are honest.** The capture job runs master's
-  `capture/` and Playwright, which merged pull requests can change without an approval. The
-  audit covers what was committed, not how it was captured.
-
-**Owner settings that turn detection into prevention** (each reversible):
-
-1. Agents get a fine-grained token limited to this repository alone, with only Contents read and
-   write, Pull requests read and write, Issues read and write and Metadata read: no Workflows and
-   no Actions write, no organisation permissions, and no access to the signing repository. Revoke
-   the existing OAuth token on the development server and point git's credential helper at the
-   new token. **This is what stops status spoofing:** a ruleset pins "Visual review" to the GitHub
-   Actions app, which accepts it from any workflow whose token may write statuses, so an agent able
-   to push a workflow could post its own green. The cost: agents cannot push any change under
-   `.github/workflows/`, including ordinary CI work, the enforcement step's ci.yml edits and upkeep
-   pull requests, and cannot bring a branch up to date by pushing a merge that brings in a master
-   workflow change. The owner makes workflow edits on github.com or from their own computer and
-   updates such branches with GitHub's "Update branch" button. Whether the update-branch API
-   (`PUT /pulls/N/update-branch`) works with the fine-grained token in that case is tested on a
-   scratch pull request and recorded here.
-2. Keep the owner's GitHub session out of any browser an agent drives: Claude in Chrome off, or
-   GitHub signed in only in a browser profile agents do not use.
-3. `RELEASE_DEPLOY_KEY` becomes a secret of the `release` environment, restricted to master and
-   named only by release.yml's push job (the verifier and audit enforce the "only").
-4. Remove the admin bypass from "Protect master", keeping only the release deploy key; require
-   "Visual review".
-5. The signing repository: created by the owner, writable only by the owner's account, which
-   agents reach only through the token of setting 1, which excludes it; served on
-   `sign.graphty.app` with "Enforce HTTPS", the domain verified for GitHub Pages in the
-   organisation's settings, and its DNS record created by the owner.
+This proves the owner's device approved the record; it does not show that the owner looked at
+every image. It does not defend against a tampered review page: the page is served from the
+machine agents run on, so a page an agent altered could show one set of images and ask Face ID to
+approve another. That is out of scope; moving the approval step to a separate signing origin that
+agents cannot change is a possible later step. The gate also runs from `ci.yml`, which a pull
+request can edit; `CLAUDE.md` forbids agents to edit it, `gate.mjs` or `passkeys.json`, and code
+review is the backstop. Separately, the owner should consider giving agents a fine-grained token
+without administrator rights, since today's token lets an agent merge around any check.
 
 ## 9. History, git hashes and dirty state
 
@@ -1193,8 +773,8 @@ without a green check except the release push job's version commits, which canno
 ## 10. The review UI
 
 One page in plain HTML and JavaScript (`trusted/page/`), served by `serve` on the development
-server. The approval itself happens on the separate signing page (section 8), which is the security
-boundary the owner must be able to read; both are plain source with no build (section 18).
+server. Finish's Face ID approval happens on this page (section 8). It is plain source with no
+build, so the owner can read it (section 18).
 
 **Screens**
 
@@ -1222,12 +802,11 @@ boundary the owner must be able to read; both are plain source with no build (se
     - **Live Storybook links** with the mode and `&chromatic=true` in the URL, which Storybook
       passes to the preview iframe, so the live story renders as captured; a "live behaviour"
       toggle removes it. One link is the pull request's Storybook, served by the development
-      server's content server on another origin (never from the signing page's origin); the other
+      server's content server on another origin (never from the review page's origin); the other
       is `https://graphty.app/storybook/<path>/?path=/story/<id>`, labelled "current master (may be
       newer than this comparison)". A link to the pull request's Files tab for this image.
 5. **Finish.** Counts per project, "N accepted without being opened" and the rejects. From
-   enforcement it opens the signing page, where the owner approves with Face ID (section 8);
-   before enforcement it saves an unproven record.
+   enforcement it asks for Face ID (section 8); before enforcement it saves an unproven record.
 
 **Decisions** are derived from git (approved records on the branch) plus the server's state file,
 never from browser storage.
@@ -1244,11 +823,12 @@ flash, Shift+A accept the project, Escape back to the grid.
   request Storybooks from a second servherd server (another origin). Before enforcement its accept
   commits the PNGs (as LFS pointers, after `git lfs push` uploads the images) and an unproven
   record in its own worktree (signed, pushed with `--no-verify`); from enforcement the same Finish
-  first obtains the passkey approval, and the record carries it.
-- **The signing page, from enforcement:** `https://sign.graphty.app`, opened by Finish in the
-  owner's browser on the iPhone, iPad or Mac (section 8).
+  first asks for Face ID, and the record carries the approval.
 
 ## 11. CI and the pull request check
+
+The workflow split in this section is later hardening, not a prerequisite for passkey approval;
+until it lands, capture and the gate run in `ci.yml` (section 1a).
 
 | Workflow              | Trigger                                                                      | Code that runs                                   | Does                                                                                                                                                                                                                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1283,8 +863,8 @@ flash, Shift+A accept the project, Escape back to the grid.
 - **No "require branches to be up to date".** The setting is ruleset-wide. Master took 52 merges
   on 2026-09-26 and 46 on 2026-09-27 with 13 pull requests open, and a CI run takes 17 to 38
   minutes. Strict mode would serialise merges at one per CI-plus-capture cycle, at most about 30 a
-  day, and rerun 21 shards for each stale pull request. The stale-green race is left to detection
-  (section 8). A narrower guard, within days: when a master push changes
+  day, and rerun 21 shards for each stale pull request. The stale-green race is left to the
+  master drift capture. A narrower guard, within days: when a master push changes
   `visual-baselines/<project>/`, `visual-audit.yml` sets "Visual review" to pending ("base
   baselines changed, re-run") on open pull requests whose last plan included that project.
 - **Required status.** Advisory until enforcement; then "Visual review" is required.
@@ -1423,7 +1003,7 @@ Planned: two steps in `tools/prepush.sh`:
 
 1. **"Visual baselines are approved" (blocking, seconds, no browser).** `node
 visual-review/trusted/cli.mjs verify --local` over `merge-base..HEAD`, run whenever that diff
-   touches `visual-baselines/` or a protected path. It sits before the gate's "No package is
+   touches `visual-baselines/`. It sits before the gate's "No package is
    affected" early exit, because a baselines-only push affects no Nx project. It catches an agent
    that copies PNGs into `visual-baselines/` by hand; it is a convenience, because `--no-verify`
    exists. Baseline PNGs are LFS pointers in git, so it reads each image's hash from the pointer's
@@ -1507,34 +1087,21 @@ contention measurement passes, the same day if possible (about 10 to 20 minutes 
 - The pre-push verify step (blocking) and the opt-in capture step.
 - The baselines-changed pending guard (section 11).
 
-### This week: enforcement
+### This week: passkey approval
 
-1. `trusted/` complete: `verify` and `audit`, with the WebAuthn assertion checks of section 8 and
-   their test vectors; the review page's hand-off to the signing page; the workflow-permission and
-   release-environment rules; the line-budget test. The signing repository with `register.html`
-   and `approve.html`.
-2. The release split in release.yml (section 8), and release.yml's trigger and loop entries for
-   "Visual audit". `visual-audit.yml` with the drift rule.
-3. The owner creates the signing repository and its `sign.graphty.app` DNS record, registers the
-   passkey (and, recommended, a backup security key) on `https://sign.graphty.app/register.html`,
-   and merges the pull request that adds them to `passkeys.json`.
-4. **The seed manifest.** The milestone 1 and 2 records are version 1, `"unproven": true`, with no
-   approval. They stay in git unchanged (records are append-only) as history of who pressed
-   Finish, but from enforcement they prove nothing and the gate ignores them. What replaces them is
-   one approved record covering every current baseline and protected file. The owner first reads
-   `trusted/` at that pull request's commit (under 2,500 lines) and the signing page, then opens
-   the manifest in the review page and approves it. The grid lists first the images whose hash
-   differs from the unproven record that accepted them, labelled "changed since you accepted it
-   (unproven)", since those changed without passing through Finish; everything else follows. The
-   owner chooses per project how to treat the rest: re-prove it by reviewing it again (about 1 to 2
-   hours for all of it), or grandfather it by approving it after a skim, which the record marks
-   `"grandfathered": true` for those items so the audit lists them until a later accept replaces
-   them. Either way it is one Face ID. Once it merges, the owner records that merge commit as the
-   root, and the key fingerprints, outside the repository.
-5. `ci.yml`: `persist-credentials: false` on every checkout, `filter: blob:none` where only trees
-   are read, the baselines-only fast path.
-6. The five owner settings in section 8, then "Visual review" required. `CLAUDE.md` gains the
-   merge-not-rebase rule after an accept and the baseline-conflict rule.
+1. `trusted/lib/approval.mjs`: the record hash and the assertion checks of section 8, with
+   `node:crypto` alone, and a test vector for each failure; `gate.mjs` counts an accept only with
+   a valid approval.
+2. The review page: Register passkey, and Face ID at Finish; the server verifies the assertion
+   before it commits.
+3. The owner registers the passkey on the review page and merges the pull request that adds it
+   to `visual-review/passkeys.json`. From then on every new accept needs an approval; existing
+   baselines are grandfathered.
+
+Later hardening, none of it a prerequisite: capture and verification moved into
+`storybooks.yml` and `visual.yml` so a pull request cannot edit its own gate; `visual-audit.yml`
+with the audit and the drift capture; the release split; a fine-grained agent token without
+administrator rights; a separate signing origin agents cannot change.
 
 ### Weeks two and three
 
@@ -1559,8 +1126,7 @@ contention measurement passes, the same day if possible (about 10 to 20 minutes 
 The quarterly `playwright-core` bump, a runner-label change, a font change or a capture-container
 switch is one pull request that plans every project and re-baselines them together. An agent
 prepares these; the owner makes any workflow part on github.com and approves them. Tool changes
-come in their own pull requests, which the owner reads in full before approving. The signing page
-changes only in its own repository, by the owner.
+come in their own pull requests, which the owner reads in full before approving.
 
 ## 16. Cost per month
 
@@ -1571,7 +1137,7 @@ changes only in its own repository, by the owner.
 | Actions artifacts and cache                            | $0 expected, not confirmed. GitHub's billing page says Actions minutes are free for public repositories but states artifact storage quotas only for private ones. The organisation's $0 budget blocks rather than bills. Results are kept 90 days, images 30, Storybooks 7 on pull requests; check the organisation's storage in billing after the first week |
 | Git LFS                                                | $0: about 0.2 GiB stored and 1 to 5 GiB (at worst about 100 GiB) downloaded a month, against the Team plan's 250 GiB of each; the $0 budget blocks rather than bills (section 7)                                                                                                                                                                              |
 | Hosted review site                                     | not used                                                                                                                                                                                                                                                                                                                                                      |
-| Passkey; backup FIDO2 security key (recommended)       | $0 a month; the backup key about $25 to $60, once                                                                                                                                                                                                                                                                                                             |
+| Passkey in iCloud Keychain                             | $0                                                                                                                                                                                                                                                                                                                                                            |
 | Chromatic until removal                                | $0 on the Free plan, once its stop-at-limit behaviour is confirmed and the payment method removed                                                                                                                                                                                                                                                             |
 | **Total**                                              | **$0 a month**                                                                                                                                                                                                                                                                                                                                                |
 
@@ -1581,30 +1147,30 @@ a month at opt-in volume, fed by the same capture directory.
 
 ## 17. Risks
 
-| Risk                                                                   | Mitigation                                                                                                                                                                                              |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| graphty-element captures before it settles                             | Capture waits on `waitForStableFrame()` and fails, never pictures, on a timeout; every project measured under contention before its seed                                                                |
-| A timeout or flaky story blocks a clean pull request                   | Second capture separates `flaky` (passes, counted) from `unstable`; recapture overlays; Exclude with reason                                                                                             |
-| A new story is flaky and gets accepted                                 | New items are captured twice and cannot be accepted when unstable                                                                                                                                       |
-| CI runners differ by CPU model                                         | Environment recorded in every approved record; measured over up to 10 runs; threshold or the Playwright container, as a planned re-baseline                                                             |
-| The runner image, fonts or clock drift and everything changes at once  | Pinned runner label, fonts, `playwright-core` and clock; a renderer change plans every project; drift needs two agreeing captures and blocks releases, never CI                                         |
-| A pull request's Storybook hides a change from its capture             | Not prevented; master's drift capture catches it after the merge; code review                                                                                                                           |
-| Two green pull requests combine into an unreviewed change              | Not prevented; drift capture; the baselines-changed pending guard                                                                                                                                       |
-| Pull request code fakes the capture, the plan or the status            | Plan, capture and verify run master's code; only master's `visual.yml` runs count; no agent can push a workflow                                                                                         |
-| The release job pushes baselines with the deploy key                   | Split release: the key meets no repository code and pushes only version files                                                                                                                           |
-| The page the owner reviews shows one image and approves another        | The approval happens on the signing page, on an origin agents cannot change, which re-hashes and shows every image it approves; each approval's fingerprint and contents are posted on the pull request |
-| An agent asks for Face ID from another page                            | The passkey's rpId is `sign.graphty.app`: browsers refuse it elsewhere, and the verifier checks the origin                                                                                              |
-| An agent with the admin token routes around the check                  | The audit detects it; the owner settings prevent it                                                                                                                                                     |
-| Approved work expires with its artifacts                               | The current capture reproducing `to` also counts; results kept 90 days                                                                                                                                  |
-| Losing the only key                                                    | iCloud Keychain sync covers a lost device; a registered backup key covers a lost Apple Account                                                                                                          |
-| The seed is a large review, twice                                      | Grids, modes grouped, accept all per project; the second pass lists changed images first                                                                                                                |
-| Baseline history slows every CI clone                                  | Git LFS: clones and ordinary checkouts carry only pointers; only the `visual` job fetches images, for its project, through the Actions cache                                                            |
-| A checkout without the LFS images compares pointers                    | Capture and `compare` stop with "baseline is an LFS pointer; run git lfs pull"; they never report every image changed                                                                                   |
-| An accept commits raw PNGs instead of LFS pointers                     | `serve` refuses to start without git-lfs and its filter; Finish refuses a commit whose PNG is not a pointer                                                                                             |
-| A push sends pointers without their images                             | `.husky/pre-push` runs `tools/lfs-pre-push.sh`; Finish runs `git lfs push` itself; a missing image fails the next capture's `git lfs pull`, which blocks the pull request                               |
-| The LFS bandwidth allowance runs out and downloads are blocked         | The Actions cache keeps CI near 1 to 5 GiB of 250 GiB a month; worst case about 100 GiB; the planned weekly check warns at 100 GiB                                                                      |
-| An unseeded story looks the same as master only because both are wrong | "No baseline yet" never passes as reviewed: it only does not block; its first baseline still needs the owner's accept                                                                                   |
-| The package is ours to maintain                                        | Upkeep cadence in section 15, instead of a vendor with no spending cap                                                                                                                                  |
+| Risk                                                                   | Mitigation                                                                                                                                                                |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| graphty-element captures before it settles                             | Capture waits on `waitForStableFrame()` and fails, never pictures, on a timeout; every project measured under contention before its seed                                  |
+| A timeout or flaky story blocks a clean pull request                   | Second capture separates `flaky` (passes, counted) from `unstable`; recapture overlays; Exclude with reason                                                               |
+| A new story is flaky and gets accepted                                 | New items are captured twice and cannot be accepted when unstable                                                                                                         |
+| CI runners differ by CPU model                                         | Environment recorded in every approved record; measured over up to 10 runs; threshold or the Playwright container, as a planned re-baseline                               |
+| The runner image, fonts or clock drift and everything changes at once  | Pinned runner label, fonts, `playwright-core` and clock; a renderer change plans every project; drift needs two agreeing captures and blocks releases, never CI           |
+| A pull request's Storybook hides a change from its capture             | Not prevented; master's drift capture catches it after the merge; code review                                                                                             |
+| Two green pull requests combine into an unreviewed change              | Not prevented; drift capture; the baselines-changed pending guard                                                                                                         |
+| Pull request code fakes the capture, the plan or the status            | Plan, capture and verify run master's code; only master's `visual.yml` runs count; no agent can push a workflow                                                           |
+| The release job pushes baselines with the deploy key                   | Split release: the key meets no repository code and pushes only version files                                                                                             |
+| An agent accepts on the owner's behalf                                 | An accept counts only with an assertion from the owner's passkey (section 8)                                                                                              |
+| A tampered review page misdirects an approval                          | Out of scope; a separate signing origin is a later step (section 8, Limits)                                                                                               |
+| An agent with the admin token routes around the check                  | Not prevented; a fine-grained agent token without administrator rights is recommended                                                                                     |
+| Approved work expires with its artifacts                               | The current capture reproducing `to` also counts; results kept 90 days                                                                                                    |
+| Losing the passkey                                                     | iCloud Keychain sync covers a lost device; registering a new key is one pull request                                                                                      |
+| The seed is a large review, twice                                      | Grids, modes grouped, accept all per project; the second pass lists changed images first                                                                                  |
+| Baseline history slows every CI clone                                  | Git LFS: clones and ordinary checkouts carry only pointers; only the `visual` job fetches images, for its project, through the Actions cache                              |
+| A checkout without the LFS images compares pointers                    | Capture and `compare` stop with "baseline is an LFS pointer; run git lfs pull"; they never report every image changed                                                     |
+| An accept commits raw PNGs instead of LFS pointers                     | `serve` refuses to start without git-lfs and its filter; Finish refuses a commit whose PNG is not a pointer                                                               |
+| A push sends pointers without their images                             | `.husky/pre-push` runs `tools/lfs-pre-push.sh`; Finish runs `git lfs push` itself; a missing image fails the next capture's `git lfs pull`, which blocks the pull request |
+| The LFS bandwidth allowance runs out and downloads are blocked         | The Actions cache keeps CI near 1 to 5 GiB of 250 GiB a month; worst case about 100 GiB; the planned weekly check warns at 100 GiB                                        |
+| An unseeded story looks the same as master only because both are wrong | "No baseline yet" never passes as reviewed: it only does not block; its first baseline still needs the owner's accept                                                     |
+| The package is ours to maintain                                        | Upkeep cadence in section 15, instead of a vendor with no spending cap                                                                                                    |
 
 ## 18. Alternatives rejected
 
@@ -1623,19 +1189,9 @@ a month at opt-in volume, fed by the same capture directory.
   tool update would mean trusting it blind, and every compact-mantine or Vite change would make the
   build stale and need an approval.
 - **A compact-mantine review app.** The repository rule is to use the shared components; it yields
-  here because the signing page is a security boundary that must be small, readable source with no
+  here because the review page, where approval happens, must be small, readable source with no
   build. A second Mantine app for the development server would duplicate every review feature, so
   both servers use the one plain page.
-- **WebAuthn in the review page itself.** The page is served from an agent-writable machine, and
-  its rpId would be shared with every development server there, so its approval proves only that
-  the owner verified, not what was seen. The signing page on its own origin replaces it.
-- **The git commit signature as the proof.** The agents hold the owner's git signing key, and a
-  WebAuthn assertion is not a commit signature (section 8).
-- **A FIDO2 hardware key with `ssh-keygen -Y sign`, run by a tool on the owner's computer from a
-  pinned commit.** The previous plan. Every approval needed a terminal, a local clone and a
-  touch and PIN on a key carried with the computer; the owner chose approval with Face ID on any
-  of their Apple devices instead. Its strength, that no page served from an agent machine takes
-  part, is kept by the signing page's separate origin.
 - **"Require branches to be up to date" and the merge queue.** At about 50 merges a day either
   serialises merges below today's pace; the merge queue would also need a `merge_group` branch in
   every workflow. Drift detection covers the combined-change gap after the fact.
@@ -1649,11 +1205,8 @@ import`, a history rewrite that breaks every branch, worktree and recorded commi
   two pull requests that both accept conflict on the submodule pointer even when their images do
   not; the pull request shows a submodule commit hash instead of the images; and every CI job
   needs a second fetch.
-- **Signing on graphty.app.** The origin is shared with Storybooks built from merged code, and
-  master is not behind the owner's merge (section 8).
-- **A second GitHub account as the only approver of a deployment environment.** Needs a paid
-  account, GitHub does not re-authenticate before an approval, and an administrator token can
-  delete the runs that hold the evidence.
 - **Capture in Docker locally.** The development server has no container runtime and installing
   one needs root; pinned fonts through fontconfig are tried first.
+- **A FIDO2 hardware key with `ssh-keygen -Y sign` in a terminal (the previous plan).** The owner
+  chose Face ID in the browser; the git commit signature cannot be the proof (section 8).
 - **Perceptual or AI diffing.** Hides the few-pixel changes that matter here.

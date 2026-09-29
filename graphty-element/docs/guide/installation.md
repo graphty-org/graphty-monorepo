@@ -17,6 +17,10 @@ yarn add @graphty/graphty-element
 pnpm add @graphty/graphty-element
 ```
 
+`@graphty/graph-format` and `@graphty/graph-io` are regular dependencies of graphty-element, so
+the package manager installs them for you. Your application can depend on any version of either
+one for its own use; graphty-element keeps the copy it needs.
+
 Then import in your JavaScript/TypeScript:
 
 ```typescript

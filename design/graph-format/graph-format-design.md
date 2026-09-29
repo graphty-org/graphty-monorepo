@@ -3999,6 +3999,10 @@ Rules:
    installs several consumers gets one copy; `isGraphSnapshot()` is a
    structural `Symbol.for` brand check plus `formatVersion`, never
    `instanceof`, so a duplicated copy within one major still interoperates.
+   (Superseded for graphty-element, owner decision 2026-09-28, issue #85:
+   graph-format and graph-io are REGULAR dependencies of graphty-element
+   only, never peers, so a consumer on another graph-format major can still
+   install the element.)
 4. Because algorithms and layout re-export format types, a format major
    forces their majors; format majors are scheduled only at consumer major
    boundaries (2.0 in section 14.6).

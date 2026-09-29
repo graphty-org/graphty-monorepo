@@ -54,6 +54,9 @@ importers:
       '@eslint/js':
         specifier: ^9.29.0
         version: 9.39.2
+      '@graphty/visual-review':
+        specifier: workspace:*
+        version: link:visual-review
       '@nx/eslint':
         specifier: 22.7.12
         version: 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)
@@ -887,9 +890,6 @@ importers:
 
   visual-review:
     dependencies:
-      playwright:
-        specifier: 1.57.0
-        version: 1.57.0
       pngjs:
         specifier: 7.0.0
         version: 7.0.0
@@ -903,6 +903,9 @@ importers:
       eslint:
         specifier: ^9.29.0
         version: 9.39.2(jiti@2.7.0)
+      playwright:
+        specifier: 1.57.0
+        version: 1.57.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

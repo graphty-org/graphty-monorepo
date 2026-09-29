@@ -3,8 +3,8 @@
 #
 # Captures the Storybooks of an older, known-good commit with the default branch's capture tool, so
 # baselines can be seeded from it: `visual-review serve --master-run <this run's id>` lists the run
-# as the default branch, and Finish opens the seed pull request. Dispatch it from master:
-#   gh workflow run visual-seed.yml --ref master -f ref=<sha>
+# as the default branch, and Finish opens the seed pull request. Dispatch it from __BRANCH__:
+#   gh workflow run visual-seed.yml --ref __BRANCH__ -f ref=<sha>
 # Only the projects whose "seedFromDefaultBranch" is not false are captured. The capture job
 # repeats the "visual" job of the review workflow, except that it has no reference (every story
 # without a baseline is "new") and results.json names the captured commit.
@@ -61,18 +61,7 @@ jobs:
               id: sha
               run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: pnpm
-
-            # HUSKY=0: git hooks are for people, not for CI's install.
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
+            # __SETUP__
 
             - name: Build Storybook
               run: ${{ matrix.build }}
@@ -105,21 +94,10 @@ jobs:
             - name: Fetch this project's baseline images from Git LFS
               run: git lfs pull --include "${{ matrix.baselines }}/${{ matrix.project }}/**"
 
-            - uses: pnpm/action-setup@v4
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: pnpm
-
-            # HUSKY=0: git hooks are for people, not for CI's install.
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
-              env:
-                  HUSKY: "0"
+            # __SETUP__
 
             - name: Install Chromium
-              run: pnpm exec visual-review install-browser
+              run: __CLI__ install-browser
 
             - name: Download Storybook build
               uses: actions/download-artifact@v4
@@ -128,7 +106,7 @@ jobs:
                   path: ${{ matrix.storybook }}/
 
             - name: Capture
-              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual"
+              run: __CLI__ capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual"
 
             # capture takes the commit from GITHUB_SHA, the default branch's here; a seed Finish branches
             # from results.json's commit, so it must name the commit whose Storybook was captured.

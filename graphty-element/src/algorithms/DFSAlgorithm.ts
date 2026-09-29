@@ -1,4 +1,3 @@
-import { depthFirstSearch } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -174,15 +173,13 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
            the target and goes no further from it, but goes on elsewhere: the same walk over a view
            in which the target has no arcs of its own. */
         context.report({ phase: "Walking deep", total: null });
-        const { value, precision } = await run((_dispatch, s) => {
+        const { value, precision } = await run((dispatch, s) => {
             const view = recursive && targetIndex !== undefined ? withoutArcsOf(s, targetIndex) : s;
-            return Promise.resolve(
-                depthFirstSearch(view, sourceIndex, {
-                    arcOrder: declarationArcOrder(view),
-                    order: preOrder ? "pre" : "post",
-                    target: view === s ? targetIndex : undefined,
-                }),
-            );
+            return dispatch.depthFirstSearch(view, sourceIndex, {
+                arcOrder: declarationArcOrder(view),
+                order: preOrder ? "pre" : "post",
+                target: view === s ? targetIndex : undefined,
+            });
         });
 
         const positionOf = new Map<number, number>();

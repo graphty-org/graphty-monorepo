@@ -60,19 +60,15 @@ export class DegreeAlgorithm extends MetricAlgorithm {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         /* The declared snapshot, with each group of parallel edges counted once -- the same merge
-           every run takes. Counted off the edge list rather than the snapshot's degree views: an
-           undirected snapshot's in- and out-degree are one array holding the whole degree, so
-           adding them would double it. The edge list keeps the orientation each record declared,
-           so in plus out is the degree once on either kind of graph. */
-        const { snapshot } = this.input("declared").derived();
-        const { ids, nodeCount } = snapshot;
-        const { src, dst } = snapshot.edgeList();
-        const inDegrees = new Uint32Array(nodeCount);
-        const outDegrees = new Uint32Array(nodeCount);
-        for (let edge = 0; edge < src.length; edge++) {
-            outDegrees[src[edge]]++;
-            inDegrees[dst[edge]]++;
-        }
+           every run takes. The dispatcher counts each edge at its declared source and target rather
+           than reading the snapshot's degree views: an undirected snapshot's in- and out-degree are
+           one array holding the whole degree, so adding them would double it. No accelerator counts
+           degrees, so this is the CPU port's decision. */
+        const { snapshot, run } = this.accelerated("degrees", "directed");
+        const { ids } = snapshot;
+        const {
+            value: { inDegree: inDegrees, outDegree: outDegrees },
+        } = await run((dispatch, s) => dispatch.degrees(s));
         const nodes: ResultElementValues[] = [];
 
         await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {

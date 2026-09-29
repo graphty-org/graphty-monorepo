@@ -249,7 +249,10 @@ const adapterDir = join(root, "graphty-element/src/algorithms");
 const adapters = readdirSync(adapterDir).filter((f) => /Algorithm\.ts$/.test(f) && f !== "Algorithm.ts");
 const adapterText = (f) => readFileSync(join(adapterDir, f), "utf8");
 const adapterName = (f) => f.replace("Algorithm.ts", "");
-const onDispatcher = (f) => /\baccelerated\(/.test(adapterText(f));
+// On the dispatcher: enters accelerated() AND its run callback calls a dispatcher member
+// (dispatch.primMST(...), dispatch[member](...)), rather than a port it imported.
+const onDispatcher = (f) =>
+    /\baccelerated\(/.test(adapterText(f)) && /\bdispatch(\.\w+|\[\w+\])\(/.test(adapterText(f));
 print("algorithm adapters", adapters.length);
 print("adapters on the dispatcher", adapters.filter(onDispatcher).map(adapterName));
 // A port is a top-level @graphty/algorithms export since algorithms 3.0 (indexed.* before it).

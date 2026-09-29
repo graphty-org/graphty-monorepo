@@ -30,10 +30,11 @@ import { NullEngine, type Scene as BabylonScene, Scene } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
+import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
 import type { AdHocData, NodeStyleConfig } from "../../src/config";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
-import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
@@ -327,6 +328,54 @@ describe("a pin outlives the engine that was told about it", () => {
     });
 });
 
+/** How far the mirroring star puts each leaf from its hub, in layout units. */
+const STAR_RADIUS = 10;
+
+/**
+ * A star whose re-run comes back mirrored, the way a spectral re-run can (an eigenvector's sign is
+ * arbitrary): the hub at the origin, leaves l0..l4 on a pentagon, and l5 in the gap between l0 and
+ * l1. Once the graph holds l5 the whole answer is reflected in x.
+ */
+class MirroringStarLayout extends SimpleLayoutEngine {
+    static type = "test-mirroring-star";
+    static maxDimensions: 2 | 3 = 2;
+    static descriptor: AuthoredLayoutDescriptor = {
+        id: "test-mirroring-star",
+        plainName: "Mirroring star",
+        technicalName: "star reflected once it grows",
+        description: "A hub and a pentagon of leaves, reflected in x after a sixth leaf arrives.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 2,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "test-mirroring-star",
+        options: [],
+    };
+
+    doLayout(): void {
+        this.stale = false;
+        const n = this.graph.nodeCount;
+        const flip = n > 6 ? -1 : 1;
+        const positions = new Float32Array(2 * n);
+        for (let row = 0; row < n; row++) {
+            const id = String(this.graph.ids.idOf(row));
+            if (id === "hub") {
+                continue;
+            }
+
+            const leaf = Number(id.slice(1));
+            const angle = leaf === 5 ? Math.PI / 5 : (2 * Math.PI * leaf) / 5;
+            positions[2 * row] = flip * STAR_RADIUS * Math.cos(angle);
+            positions[2 * row + 1] = STAR_RADIUS * Math.sin(angle);
+        }
+
+        this.result = { positions, dim: 2, n };
+    }
+}
+
+LayoutEngine.register(MirroringStarLayout);
+
 describe("a static layout after the graph grows", () => {
     let harness: Harness | undefined;
 
@@ -370,6 +419,86 @@ describe("a static layout after the graph grows", () => {
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.notDeepEqual(harness.coordsOf(free), before, "the ring was re-seated for four nodes");
+    });
+
+    it("re-arranges the whole graph when the same freeze swaps one edge between existing nodes for another", async () => {
+        // As many edges between the existing nodes as before, but not the same ones: a-b is gone
+        // and a-d is new, so the picture of the existing nodes has changed and nothing is held.
+        harness = createHarness();
+        const nodes = ["a", "b", "c", "d"].map((id) => harness?.add(id) as Node);
+        harness.dataManager.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+            { source: "c", target: "d" },
+        ]);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "spectral", {});
+        const before = nodes.map((node) => harness?.coordsOf(node));
+
+        const ab = [...harness.dataManager.edges.values()].find((e) => e.srcId === "a" && e.dstId === "b");
+        assert.isDefined(ab, "the a-b edge exists");
+        harness.dataManager.removeEdge(ab.id);
+        const arrival = harness.add("e");
+        harness.dataManager.addEdges([{ source: "a", target: "d" }]);
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.notDeepEqual(
+            nodes.map((node) => harness?.coordsOf(node)),
+            before,
+            "the rewired nodes were arranged again",
+        );
+    });
+
+    it("draws the new node clear of the held nodes it was added among, and moves none of them", async () => {
+        // The re-run arranges ten nodes on a circle and the nine held ones sit on a circle of
+        // nine, so the tenth slot of the new circle is only a few degrees from a held node. Taken
+        // as it stands, the new node lands almost on top of it; carried into the held circle's
+        // frame, it lands in the gap between two of them.
+        harness = createHarness();
+        const existing: Node[] = [];
+        for (let i = 0; i < 9; i++) {
+            existing.push(harness.add(`n${String(i)}`));
+        }
+
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", { dim: 2 });
+        const held = existing.map((node) => harness?.coordsOf(node) ?? { x: 0, y: 0, z: 0 });
+        const gap = (p: { x: number; y: number; z: number }, q: { x: number; y: number; z: number }): number =>
+            Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+        const spacing = Math.min(...held.slice(1).map((p, i) => gap(p, held[i])));
+
+        const arrival = harness.add("n9");
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+        const nearest = Math.min(...held.map((p) => gap(p, placed)));
+
+        assert.isAbove(nearest, spacing / 4, "the new node is not drawn on top of a held one");
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            held,
+            "no held node moved",
+        );
+    });
+
+    it("carries the new node into the held frame when the re-run comes back mirrored", async () => {
+        // A mirror is no rotation: fitted by rotation and scale alone, the factor sums to about zero
+        // and the new leaf collapses onto the held nodes' centroid, which is the hub. Fitted with
+        // the mirror allowed, it lands where the unmirrored star puts it, between l0 and l1.
+        harness = createHarness();
+        const existing = ["hub", "l0", "l1", "l2", "l3", "l4"].map((id) => harness?.add(id) as Node);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "test-mirroring-star", {});
+        const held = existing.map((node) => harness?.coordsOf(node) ?? { x: 0, y: 0, z: 0 });
+        const radius = Math.hypot(held[1].x - held[0].x, held[1].y - held[0].y);
+
+        const arrival = harness.add("l5");
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+
+        assert.closeTo(placed.x - held[0].x, radius * Math.cos(Math.PI / 5), radius * 1e-3, "x of the gap");
+        assert.closeTo(placed.y - held[0].y, radius * Math.sin(Math.PI / 5), radius * 1e-3, "y of the gap");
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            held,
+            "no held node moved",
+        );
     });
 });
 
@@ -455,5 +584,26 @@ describe("the fixed layout puts nodes where their data says", () => {
         const arrival = harness.add("d");
         await harness.layoutManager.updatePositions([arrival]);
         assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 12, y: -34, z: 5 }, "the drag survived a recompute");
+    });
+
+    it("puts a node added after two others at its own data position, not their mirror image of it", async () => {
+        // Two held nodes lie on one line, so turning the re-run and mirroring it across that line
+        // fit them equally well. The fixed layout's re-run already matches them exactly, and the
+        // tie must go to leaving it alone: a mirror would reflect the newcomer across the line.
+        harness = createHarness();
+        harness.context.getStyles().config.data.knownFields.positionScale = 1;
+        harness.dataManager.addNodes([
+            { id: "a", position: { x: 0, y: 3, z: 0 } },
+            { id: "b", position: { x: 2.85, y: 0.93, z: 0 } },
+        ]);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "fixed", {});
+
+        harness.dataManager.addNodes([{ id: "c", position: { x: 1.76, y: -2.43, z: 0 } }]);
+        const arrival = harness.dataManager.nodes.get("c") as Node;
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+
+        assert.closeTo(placed.x, 1.76, 1e-4, "x of c's data position");
+        assert.closeTo(placed.y, -2.43, 1e-4, "y of c's data position");
     });
 });

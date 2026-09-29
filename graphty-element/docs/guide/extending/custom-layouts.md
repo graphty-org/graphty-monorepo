@@ -98,7 +98,18 @@ is exactly what the layouts of `@graphty/layout` (`circular`, `kamadaKawai`, ...
 straight through. The element's own static layouts are written this way. A layout that reads
 `this.graph` also gets the element's behaviour after an add: when a reader adds nodes to a
 finished graph, the existing nodes stay where they are and only the new ones are placed, and
-`this.startPositions(dim)` offers the current coordinates as a starting point.
+`this.startPositions(dim)` offers the current coordinates as a starting point. Your `doLayout`
+arranges the whole enlarged graph, so its answer for the existing nodes can come back turned,
+mirrored or rescaled against where they are drawn; the element moves the new nodes' rows of
+`this.result` by the turn (or mirror), scale and shift that best carry your existing rows onto
+their drawn places, so a new node lands in the same frame as the ones it joins. Only an add is
+held this way: if any edge between two existing nodes was removed or rewired in the same change,
+the whole graph is arranged again.
+
+`this.graph` is undirected, so a reciprocal pair (a->b and b->a) is one edge of it carrying only
+one of the two weights. A layout that needs every stored edge -- to sum the weights of a
+reciprocal pair, say -- reads `this.sourceGraph`, the graph as the element stores it, with the
+same node rows as `this.graph`.
 
 ## A live simulation
 

@@ -458,10 +458,10 @@ interface OwnCostModel {
  * FLOOR of what was measured across graph shapes, and each is held to a stopwatch, on its typical
  * and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
  *
- * PageRank, betweenness and closeness were refitted on 2026-09-29, when the element moved them off
- * a freshly built `@graphty/algorithms` Graph and onto the dispatcher's CPU port over the snapshot
- * (`Algorithm.accelerated`): typed-array kernels 5x to 100x faster than the Map-based code the
- * 2026-09-23 rates were fitted on.
+ * PageRank, betweenness, closeness and eigenvector centrality were refitted on 2026-09-29, when the
+ * element moved them off a freshly built `@graphty/algorithms` Graph and onto the dispatcher's CPU
+ * port over the snapshot (`Algorithm.accelerated`): typed-array kernels 5x to 100x faster than the
+ * Map-based code the 2026-09-23 rates were fitted on.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
     /* Power iteration over the snapshot, charged the whole bound: how many passes it takes nothing
@@ -511,23 +511,24 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates) =>
             ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (2.25 * rates.iterativeElementsPerSecond),
     },
-    /* Power iteration x <- (A + I)x: a setup that indexes the nodes and builds the adjacency, then
-       up to k passes of n + m each (k = 1,000 by default). How many passes depends on the spectral
-       gap, which nothing the estimate sees predicts: 1 or 2 on a path, 4 or 5 on clique rings and
-       dense random graphs, 10 to 63 on random m >= 2n and scale-free graphs, 122 to 338 on trees,
-       128 to 264 on random m = 1.2n, 199 to over 1,000 on grids and 478 to over 1,000 on stars, so
-       the whole bound is charged. Measured on 2026-09-23 on those shapes at 10,000 to 200,000
-       nodes: the setup at 191 to 1,051 ns per element of n + m, at most 48 ns per unit of
-       log2(n + m), and a pass at 3.3 to 7.8 ns per element over 1,000-pass runs. Pinned at 51 ns
-       per unit of log2(n + m) (1 / (6.5 * the iterative rate)) and 9.5 ns per pass (1 / (35 * the
-       iterative rate)): 1.3x to 3.1x over graphs that run the whole bound, 5x to 45x over graphs
-       that converge early. Mean degree does not predict the pass count either (a grid and random
-       m = 2n both have mean degree 4, and take over 199 and about 33). The class model charged each
-       pass at the iterative rate, 333 ns per element. */
+    /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
+       (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the
+       estimate sees predicts: 1 or 2 on a path, 4 to 6 on clique rings and dense random graphs,
+       10 to 72 on random m >= 4n and scale-free graphs, 121 to 338 on trees, 263 to 415 on random
+       m = 1.2n, 63 to over 1,000 on grids and 478 to over 1,000 on stars, so the whole bound is
+       charged. Refitted on 2026-09-29, after the element moved it onto the dispatcher's CPU port:
+       on those shapes at 10,000 to 200,000 nodes the setup cost 0.55 to 2.3 ns per element per
+       unit of log2(n + m) (48 ns on the object graph before), and a pass 1.7 to 7.1 ns per
+       element, the most on sparse random graphs, whose passes miss the cache most. Pinned at
+       3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and 7.4 ns per pass
+       (1 / (45 * the iterative rate)): 1.7x to 2.7x over graphs that run the whole bound, far
+       more over graphs that converge early. Mean degree does not predict the pass count either (a
+       grid and random m = 2n both have mean degree 4, and take over 199 and about 33). The class
+       model charged each pass at the iterative rate, 333 ns per element. */
     eigenvector: {
         term: (iterations) => `(n + m) log2(n + m) + k(n + m) with k=${group(iterations)}`,
         seconds: (nodes, edges, rates, iterations) =>
-            ((nodes + edges) * (Math.log2(Math.max(2, nodes + edges)) / 6.5 + iterations / 35)) /
+            ((nodes + edges) * (Math.log2(Math.max(2, nodes + edges)) / 100 + iterations / 45)) /
             rates.iterativeElementsPerSecond,
     },
 };

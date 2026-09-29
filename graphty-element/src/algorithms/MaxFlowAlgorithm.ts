@@ -5,7 +5,6 @@
  * in a flow network using the Ford-Fulkerson method.
  */
 
-import { maxFlow } from "@graphty/algorithms";
 import { expandEdges, fromEdgeArrays } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -179,10 +178,14 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         });
 
         context.report({ phase: "Pushing flow", total: null });
-        const result = maxFlow(network, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
-            algorithm: "ford-fulkerson",
-            weights: expandEdges(network, capacities),
-        });
+        // The dispatcher runs over the network built above rather than the snapshot it derives.
+        const { run } = this.accelerated("maxFlow", "directed");
+        const { value: result, precision } = await run((dispatch) =>
+            dispatch.maxFlow(network, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
+                algorithm: "ford-fulkerson",
+                weights: expandEdges(network, capacities),
+            }),
+        );
 
         // Each parallel edge reports its pipe's flow against its pipe's capacity. The net flow
         // through a node is what arrives minus what leaves.
@@ -236,6 +239,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
                 method: "ford-fulkerson",
                 direction: "directed",
                 weight: { attribute: "capacity", meaning: "strength" },
+                precision,
                 notes: [
                     `Flow from ${String(source)} to ${String(sink)}.`,
                     ...(sourceOption === null || sinkOption === null

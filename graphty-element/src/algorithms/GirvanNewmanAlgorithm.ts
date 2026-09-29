@@ -1,4 +1,3 @@
-import { girvanNewman } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -121,16 +120,18 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         const { maxCommunities, minCommunitySize, maxIterations } = this.schemaOptions;
 
         // Undirected: the edge betweenness this splits on is defined over unordered pairs.
-        const { snapshot } = this.input("undirected").derived();
+        const { snapshot, run } = this.accelerated("girvanNewman", "undirected");
 
         context.report({ phase: "Cutting bridges", total: null });
 
         // maxCommunities is only passed on when it was set: 0 means "find the best split".
-        const dendrogram = girvanNewman(snapshot, {
-            maxCommunities: maxCommunities > 0 ? maxCommunities : undefined,
-            minCommunitySize,
-            maxIterations,
-        });
+        const { value: dendrogram, precision } = await run((dispatch, s) =>
+            dispatch.girvanNewman(s, {
+                maxCommunities: maxCommunities > 0 ? maxCommunities : undefined,
+                minCommunitySize,
+                maxIterations,
+            }),
+        );
 
         // A CUT CAN OVERSHOOT THE CAP. Girvan-Newman removes every edge tied for the highest
         // betweenness in one step, so the step that reaches `maxCommunities` can pass it -- two
@@ -176,6 +177,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
                 method: "girvan-newman",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
+                precision,
                 notes:
                     levels.length === 1
                         ? ["No edge could be cut, so every node is its own community."]

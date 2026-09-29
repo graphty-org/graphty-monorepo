@@ -6,7 +6,7 @@
  * Maximum matching has the largest possible number of edges.
  */
 
-import { isBipartite, maximumBipartiteMatching } from "@graphty/algorithms";
+import { isBipartite } from "@graphty/algorithms";
 import { INVALID_INDEX, maskTest } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
@@ -55,7 +55,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
             return null;
         }
 
-        const { snapshot, edgeRemap } = input.derived();
+        const { snapshot, edgeRemap, run } = this.accelerated("maximumBipartiteMatching", "undirected");
 
         const fields: ResultFieldSpec[] = [
             ...setFieldSpecs("edge", { name: "bipartite", type: "boolean" }),
@@ -88,7 +88,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
 
         context.report({ phase: "Pairing nodes", total: null });
         // The left side is the one `isBipartite` leaves clear, as the matching infers it.
-        const matching = maximumBipartiteMatching(snapshot);
+        const { value: matching, precision } = await run((dispatch, s) => dispatch.maximumBipartiteMatching(s));
         const partnered = new Uint8Array(snapshot.nodeCount);
         for (let left = 0; left < snapshot.nodeCount; left++) {
             if (matching.matching[left] !== INVALID_INDEX) {
@@ -132,6 +132,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
                 method: "bipartite-matching",
                 direction: "undirected",
                 weight: null,
+                precision,
                 notes: [`${String(matching.size)} of the two sides' nodes found a partner.`],
             }),
         };

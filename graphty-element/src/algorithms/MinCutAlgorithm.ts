@@ -5,8 +5,8 @@
  * or the global minimum cut of a graph. Uses the max-flow min-cut theorem.
  */
 
-import { kargerMinCut, type MinCutResult, minSTCut, stoerWagner } from "@graphty/algorithms";
-import { INVALID_INDEX, maskTest } from "@graphty/graph-format";
+import type { AcceleratedAlgorithms, MinCutResult } from "@graphty/algorithms";
+import { type GraphSnapshot, INVALID_INDEX, maskTest } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
@@ -185,11 +185,6 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             return null;
         }
 
-        // The weights are the element's edge weights, read off the input: a reciprocal pair is one
-        // edge and parallel edges are one edge carrying their summed weight, because cutting a
-        // pair of nodes apart costs every edge between them.
-        const { snapshot: cutInput, edgeRemap } = input.derived();
-
         // Get options from legacy or schema options
         // Legacy configure() takes precedence for backward compatibility
         const useGlobalMinCut = this.legacyOptions?.useGlobalMinCut ?? this._schemaOptions.useGlobalMinCut;
@@ -197,22 +192,24 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
         const { useKarger, kargerIterations } = this._schemaOptions;
 
-        let cut: MinCutResult;
+        let work: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<MinCutResult>;
+        let member: "kargerMinCut" | "stoerWagner" | "minSTCut";
         let method: string;
         let autoEndNote: string | undefined;
-
-        context.report({ phase: "Finding the cut", total: null });
 
         if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
             if (useKarger) {
                 method = "karger";
-                cut = kargerMinCut(cutInput, { iterations: kargerIterations });
+                member = "kargerMinCut";
+                work = (dispatch, s) => dispatch.kargerMinCut(s, { iterations: kargerIterations });
             } else {
                 method = "stoer-wagner";
-                cut = stoerWagner(cutInput);
+                member = "stoerWagner";
+                work = (dispatch, s) => dispatch.stoerWagner(s);
             }
         } else {
             method = "min-st-cut";
+            member = "minSTCut";
             const source =
                 sourceOption === null ? nodeIds[0] : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
             const sink =
@@ -226,8 +223,16 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                     "set both source and sink to cut between the nodes you mean.";
             }
 
-            cut = minSTCut(cutInput, cutInput.ids.indexOf(source), cutInput.ids.indexOf(sink));
+            work = (dispatch, s) => dispatch.minSTCut(s, s.ids.indexOf(source), s.ids.indexOf(sink));
         }
+
+        // The weights are the element's edge weights, read off the input: a reciprocal pair is one
+        // edge and parallel edges are one edge carrying their summed weight, because cutting a
+        // pair of nodes apart costs every edge between them.
+        const { snapshot: cutInput, edgeRemap, run } = this.accelerated(member, "undirected");
+
+        context.report({ phase: "Finding the cut", total: null });
+        const { value: cut, precision } = await run(work);
 
         // Every declared edge maps onto the input edge it was merged into, so both edges of a
         // reciprocal pair and every member of a parallel group are in the cut together.
@@ -265,6 +270,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
                 method,
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
+                precision,
                 exact: method !== "karger",
                 iterations: method === "karger" ? kargerIterations : undefined,
                 notes: [

@@ -7,7 +7,6 @@
  * thing it painted.
  */
 
-import { adamicAdarPrediction, commonNeighborsPrediction } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -18,8 +17,8 @@ import type { OptionsSchema } from "./types/OptionSchema";
 
 /** The two scoring methods, by the name the `method` option takes. */
 const METHODS = {
-    "adamic-adar": adamicAdarPrediction,
-    "common-neighbors": commonNeighborsPrediction,
+    "adamic-adar": "adamicAdarPrediction",
+    "common-neighbors": "commonNeighborsPrediction",
 } as const;
 
 /** Zod-based options schema for link prediction. */
@@ -88,20 +87,21 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
      * @param context - What the element gave the run.
      * @returns The scored pairs, best first, or null when the graph has no nodes.
      */
-    compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+    async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         // Undirected: a predicted link joins two nodes, whichever way a record would declare it.
         const input = this.input("undirected");
         if (input.nodeCount === 0) {
-            return Promise.resolve(null);
+            return null;
         }
 
         const { method, topK } = this.schemaOptions;
-        const snapshot = input.subgraph();
 
         context.report({ phase: "Scoring pairs", total: null });
         // The port lists an undirected pair twice, once each way round and lower index first, so
         // keep the lower-index-first copy.
-        const ranked = METHODS[method](snapshot);
+        const member = METHODS[method];
+        const { snapshot, run } = this.accelerated(member, "undirected");
+        const { value: ranked, precision } = await run((dispatch, s) => dispatch[member](s));
         const pairs: { source: string | number; target: string | number; score: number }[] = [];
         for (let k = 0; k < ranked.scores.length && pairs.length < topK; k++) {
             if (ranked.sources[k] < ranked.targets[k]) {
@@ -114,7 +114,7 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
         }
         context.signal.throwIfAborted();
 
-        return Promise.resolve({
+        return {
             shape: "pair-list",
             fields: [{ name: "pairs", kind: "graph", type: "table" }],
             graph: { pairs },
@@ -123,8 +123,9 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
                 direction: "undirected",
                 weight: null,
                 notes: ["Only pairs that are not already joined, and that share at least one neighbour, are scored."],
+                precision,
             }),
-        });
+        };
     }
 }
 

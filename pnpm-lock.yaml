@@ -28,6 +28,7 @@ overrides:
   adm-zip@<0.6.1: ^0.6.1
   koa@>=3.0.0 <3.1.2: ^3.1.2
   ws@>=8.0.0 <8.21.0: ^8.21.0
+  undici@>=7.0.0 <7.29.1: ^7.29.1
   serialize-javascript@<7.0.5: ^7.0.5
   qs@<6.16.0: ^6.16.0
   lodash@<4.18.0: ^4.18.0
@@ -54,6 +55,9 @@ importers:
       '@eslint/js':
         specifier: ^9.29.0
         version: 9.39.2
+      '@graphty/visual-review':
+        specifier: workspace:*
+        version: link:visual-review
       '@nx/eslint':
         specifier: 22.7.12
         version: 22.7.12(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.2(jiti@2.7.0))(nx@22.7.12)
@@ -887,9 +891,6 @@ importers:
 
   visual-review:
     dependencies:
-      playwright:
-        specifier: 1.57.0
-        version: 1.57.0
       pngjs:
         specifier: 7.0.0
         version: 7.0.0
@@ -903,6 +904,9 @@ importers:
       eslint:
         specifier: ^9.29.0
         version: 9.39.2(jiti@2.7.0)
+      playwright:
+        specifier: 1.57.0
+        version: 1.57.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -9565,10 +9569,6 @@ packages:
     resolution: {integrity: sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==}
     engines: {node: '>=18.17'}
 
-  undici@7.29.0:
-    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
-    engines: {node: '>=20.18.1'}
-
   undici@7.29.1:
     resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
@@ -11994,7 +11994,7 @@ snapshots:
       adm-zip: 0.6.1
       isomorphic-ws: 5.0.0(ws@8.21.3)
       typescript: 5.9.3
-      undici: 7.29.0
+      undici: 7.29.1
       ws: 8.21.3
     transitivePeerDependencies:
       - bufferutil
@@ -20246,8 +20246,6 @@ snapshots:
   undici-types@6.21.0: {}
 
   undici@6.28.1: {}
-
-  undici@7.29.0: {}
 
   undici@7.29.1: {}
 

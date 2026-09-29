@@ -904,7 +904,12 @@ jobs:
                   } >> "$GITHUB_STEP_SUMMARY"
 
     # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
-    # in visual-baselines/ (visual-review/, design in design/visual-testing/design.md). The owner reviews
+    # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
+    # visual-review.config.json, design in design/visual-testing/design.md). This job is the "visual"
+    # job of the package's workflow template (visual-review/templates/visual-review.yml) with two
+    # differences: the matrix is written out here, and the Storybook is downloaded from this run's
+    # build job instead of built again. A test (visual-review/test/workflows.test.mjs) keeps the
+    # commands the same as the template's. The owner reviews
     # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
     # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
     # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
@@ -968,7 +973,7 @@ jobs:
             # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
             - name: Read the Playwright version
               id: playwright
-              run: echo "version=$(node -p 'require("./visual-review/package.json").dependencies.playwright')" >> "$GITHUB_OUTPUT"
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
               uses: actions/cache@v4
@@ -978,7 +983,7 @@ jobs:
 
             # With the browser cached this installs only the system libraries Chromium needs.
             - name: Install Chromium
-              run: pnpm --filter @graphty/visual-review exec playwright install --with-deps chromium
+              run: pnpm exec visual-review install-browser
 
             - name: Download Storybook build
               uses: actions/download-artifact@v4
@@ -995,10 +1000,10 @@ jobs:
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
-              run: echo "dir=$(node visual-review/trusted/cli.mjs reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
 
             - name: Capture
-              run: node visual-review/trusted/cli.mjs capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
+              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
 
             # Kept even when capture crashed, so the owner sees the partial results.json.
             - name: Upload captures
@@ -1078,9 +1083,11 @@ jobs:
             # added in the pull request that names its new hash. So it shows the captures match the pull
             # request's baselines and that each baseline change is named (path and new hash) in a record;
             # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
-            # (visual-review/README.md, "What this does and does not guarantee"). Pull requests only, so
+            # (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
-            # (standard library only). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
+            # (standard library only), run from this checkout rather than with npx as the package's
+            # template does, so a change to the gate is tested by its own pull request; it reads
+            # visual-review.config.json from the base tip (sparse checkout keeps the root's files). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
             # the pull request was merged onto; blobs are fetched only for the changed baselines, which are
             # Git LFS pointer files naming the image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
@@ -1101,4 +1108,4 @@ jobs:
 
             - name: Check visual changes were accepted
               if: github.event_name == 'pull_request'
-              run: node visual-review/trusted/gate.mjs --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD
+              run: node visual-review/trusted/cli.mjs gate --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD

@@ -126,6 +126,7 @@ gh-pages/
 docs/graphty-element/
 docs/algorithms/
 docs/layout/
+docs/visual-review/
 
 # Layout package specific
 layout/examples/layout.js

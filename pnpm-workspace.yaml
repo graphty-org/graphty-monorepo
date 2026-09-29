@@ -51,5 +51,7 @@ overrides:
     "ip-address@<10.3.1": ^10.3.1
     # graphty-element's @ai-sdk/* -> @ai-sdk/provider-utils 2.x pins undici 5.
     "undici@<6.28.0": ^6.28.0
+    # @nx/react -> @nx/module-federation -> @module-federation/dts-plugin asks for undici 7.
+    "undici@>=7.0.0 <7.29.1": ^7.29.1
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3

@@ -455,18 +455,47 @@ interface OwnCostModel {
  *
  * Kept here rather than as a `static cost` on the class because that hook is read for plugins
  * only and answers in absolute seconds, which no calibration can scale. Each rate is pinned to the
- * FLOOR of what was measured across graph shapes on 2026-09-23, and each is held to a stopwatch,
- * on its typical and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
+ * FLOOR of what was measured across graph shapes, and each is held to a stopwatch, on its typical
+ * and its worst shapes, by `test/session/cost/estimate-against-measured-runs.test.ts`.
+ *
+ * PageRank, betweenness and closeness were refitted on 2026-09-29, when the element moved them off
+ * a freshly built `@graphty/algorithms` Graph and onto the dispatcher's CPU port over the snapshot
+ * (`Algorithm.accelerated`): typed-array kernels 5x to 100x faster than the Map-based code the
+ * 2026-09-23 rates were fitted on.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
-    /* One BFS per source, so n(n + m), where betweenness' class term is n * m. Measured 20M to 57M
-       n(n + m) per second across random (m = 1.2n to 50n), scale-free, grid, path, tree, star and
-       clique-ring graphs of 400 to 1,600 nodes, and 15.5M on the sparsest in a loaded vitest
-       worker: pinned at 3x the heavy rate, 15M. The class model was 2.2x to 9.3x pessimistic on
-       the same set. */
+    /* Power iteration over the snapshot, charged the whole bound: how many passes it takes nothing
+       the estimate sees predicts (1 or 2 on a star, 11 on random m = 50n, 41 to 46 on random
+       m = 1.2n, 71 to 95 on a path, all 100 on a grid at the schema's smallest tolerance). Measured
+       on 2026-09-29 across random (m = 1.2n to 50n), scale-free, grid, path, tree, star and
+       clique-ring graphs of 4,000 to 200,000 nodes, a whole run cost at most 2.33 ns per element of
+       n + m per pass of the bound (random m = 1.2n, whose passes miss the cache most), and a pass
+       1.3 to 5.3 ns. Pinned at 3.3 ns per element per pass of the bound, 1 / (100 * the iterative
+       rate). The class model charged 333 ns and was 50x to 600x pessimistic on the snapshot. */
+    pagerank: {
+        term: (iterations) => `k(n + m) with k=${group(iterations)}`,
+        seconds: (nodes, edges, rates, iterations) =>
+            (iterations * (nodes + edges)) / (100 * rates.iterativeElementsPerSecond),
+    },
+    /* Brandes: one BFS per source plus the back-propagation, so n(n + m) rather than the heavy
+       class' n * m, which undercharges a sparse graph (a path costs 2x per n * m what random
+       m = 20n does). Measured on 2026-09-29 at 63M to 183M n(n + m) per second across random
+       (m = 1.2n to 50n), scale-free, grid, path, tree, star and clique-ring graphs of 400 to 1,600
+       nodes, the least on sparse random and scale-free graphs: pinned at 11x the heavy rate, 55M.
+       The class model was 7x to 30x pessimistic on the snapshot. */
+    betweenness: {
+        term: () => "n(n + m)",
+        seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (11 * rates.heavyPairsPerSecond),
+    },
+    /* One BFS per source, so n(n + m), where betweenness' class term is n * m. Measured on
+       2026-09-29 at 131M to 571M n(n + m) per second across random (m = 1.2n to 50n), scale-free,
+       grid, path, tree, star and clique-ring graphs of 400 to 1,600 nodes. A node visit costs
+       several edge scans (a random read against a sequential one), so the least is on sparse random
+       graphs and the most on dense ones and cache-local shapes: pinned at 24x the heavy rate, 120M,
+       and 4.7x over random m = 50n. Before the move onto the snapshot it was 3x, 15M. */
     closeness: {
         term: () => "n(n + m)",
-        seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (3 * rates.heavyPairsPerSecond),
+        seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (24 * rates.heavyPairsPerSecond),
     },
     /* Multilevel Louvain: local-moving sweeps over the edges, then a fold, until nothing moves. It
        takes 5 to 150 sweeps summed over its levels, stopping on its tolerance long before

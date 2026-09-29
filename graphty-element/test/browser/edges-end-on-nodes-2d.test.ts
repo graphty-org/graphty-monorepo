@@ -6,6 +6,11 @@
  * the angle is the 2D one, so the line overshoots its nodes and ends in empty space. The graph
  * below is the one the "Camera Controls 2D" and "Selection 2D Mode" stories draw: the view mode
  * set in script, the default layout (no `layout` assigned), pre-steps and a seed.
+ *
+ * A pinned node is the other way to carry a Z into 2D. Clicking a node in 3D selects it and, with
+ * `pinOnDrag` on by default, pins it where it stands -- Z included -- and the 2D switch used to
+ * hand the new 2D engine that 3D position unchanged. That is the graphty.app report: load Karate
+ * Club, select a node, switch to 2D, and the selected node's edges run past it into empty space.
  */
 import { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
@@ -113,6 +118,53 @@ describe("2D edges end on their nodes", () => {
         });
 
         assertEdgesEndOnNodes(element, "default layout");
+    });
+
+    test("a node pinned in 3D, then the switch to 2D", async () => {
+        const element = await mount2D((el) => {
+            el.layoutConfig = { seed: 42 };
+        });
+
+        // Where a pin in 3D leaves a node: somewhere off the plane. Placed through the session
+        // so the pin holds a Z the 2D engine cannot draw, whatever the 3D layout settled on.
+        await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
+        element.pin("d");
+        await element.setViewMode("2d");
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        assertEdgesEndOnNodes(element, "pinned in 3D");
+    });
+
+    test("a position with a Z placed while the view is 2D", async () => {
+        const element = await mount2D((el) => {
+            el.viewMode = "2d";
+            el.layoutConfig = { seed: 42 };
+        });
+
+        // A script, an import or a restore can carry a Z into a 2D graph; the engine draws on
+        // the plane whatever the coordinates it is handed say.
+        const { history } = element.graph.getSession();
+        const steps = history.steps.length;
+        await element.graph.getSession().positions.set([{ id: "d", x: 1, y: 1, z: 20 }]);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        assertEdgesEndOnNodes(element, "a Z placed in 2D");
+        const d = element.graph.getNode("d");
+        assert.closeTo(d?.mesh.position.x ?? Number.NaN, 1, 0.01, "the X it was given is kept");
+        assert.closeTo(d?.mesh.position.y ?? Number.NaN, 1, 0.01, "the Y it was given is kept");
+        assert.strictEqual(history.steps.length, steps + 1, "the placement is one step, and only one");
+
+        // Putting the node on the plane is not a step of its own, so undo and redo still work.
+        const session = element.graph.getSession();
+        await session.undo();
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.isTrue(session.canRedo, "undoing the placement leaves it to redo");
+        await session.redo();
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await operationQueueOf(element.graph).waitForCompletion();
+        assertEdgesEndOnNodes(element, "redone in 2D");
     });
 
     test("the default layout, with only the view mode set", async () => {

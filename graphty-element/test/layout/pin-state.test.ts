@@ -170,7 +170,9 @@ describe("a pin outlives the engine that was told about it", () => {
         );
 
         assert.isTrue(pinned.isPinned(), "switching to 2D did not release the reader's pins");
-        assert.deepStrictEqual(harness.coordsOf(pinned), held);
+        // Held where the reader put it, on the plane a 2D engine draws: a Z carried into 2D is
+        // hidden by the camera but not by the node's edges, which then run past it.
+        assert.deepStrictEqual(harness.coordsOf(pinned), { ...held, z: 0 });
     });
 
     it("keeps the pin when the layout slice names a new layout", async () => {

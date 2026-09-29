@@ -631,8 +631,9 @@ that starts the same server from the owner's own shell, which is how the owner s
 - To iterate on a story's look before pushing, build its Storybook and capture only that story:
   `node visual-review/trusted/cli.mjs capture --project <p> --out tmp/<task>/<p> --stories <id
   prefix>`, then look at the PNG, or serve it with `--results tmp/<task>`. A local capture is a
-  preview and is never decided. Captures are at device scale factor 2, cropped to the story's
-  content plus 32 px (graphty-element: full width, cropped in height only).
+  preview and is never decided. Captures are at device scale factor 2 and always the whole
+  canvas (the owner's rule): the full 1200 x 900 viewport, or the story's full scroll size when it
+  is larger, never cropped to the content.
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
   behalf.

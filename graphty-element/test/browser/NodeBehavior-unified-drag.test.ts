@@ -119,9 +119,22 @@ describe("Unified Drag Handler", () => {
 
         // Use dragHandler directly (as in node-behavior.test.ts)
         node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler.onDragUpdate(new Vector3(1, 0, 0));
         node.dragHandler.onDragEnd();
 
         assert.isTrue(pinCalled, "node.pin() should be called when pinOnDrag is true");
+    });
+
+    test("does not pin a node the pointer picked up and put down without moving", () => {
+        // A click runs through drag start and drag end. `pinOnDrag` pins what the reader PLACED,
+        // and a click places nothing: pinning it left every node a reader inspected stuck.
+        assert.exists(node.dragHandler, "dragHandler should exist");
+        node.pinOnDrag = true;
+
+        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler.onDragEnd();
+
+        assert.isFalse(node.isPinned(), "a press and release in place must not pin the node");
     });
 
     test("reports on the drag-end event whether the drop left the node pinned", () => {
@@ -145,6 +158,7 @@ describe("Unified Drag Handler", () => {
 
         node.pinOnDrag = true;
         node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler.onDragUpdate(new Vector3(1, 0, 0));
         node.dragHandler.onDragEnd();
 
         const started = emitted.find((e) => e.type === "node-drag-start");

@@ -965,6 +965,12 @@ export class LayoutManager implements Manager {
      * BEFORE IT PINS, because `D3GraphLayoutEngine.pin` copies the node's CURRENT simulated
      * position into the fixed-position fields: a bare pin replayed into a fresh engine would nail
      * the node to d3's arbitrary starting coordinates instead of where the reader put it.
+     *
+     * A 2D ENGINE GETS THE PIN ON THE PLANE. A node pinned in 3D keeps its Z in the position
+     * array, and a 2D engine handed that Z keeps it: the node is drawn where the orthographic
+     * camera hides the Z, but each of its edges is a flat quad whose length is the 3D distance, so
+     * every edge of the pinned node ran past it into empty space. Clicking a node pins it
+     * (`pinOnDrag`), so selecting a node and switching to 2D was enough. The X and Y are kept.
      * @param engine - the engine that is about to become current
      * @param nodes - every node in the graph, which is what was just added to that engine
      */
@@ -979,11 +985,24 @@ export class LayoutManager implements Manager {
 
             if (positions.isPlaced(node.index)) {
                 positions.read(node.index, placed);
-                layoutEngineInternals.setNodePosition(engine, node, { x: placed.x, y: placed.y, z: placed.z });
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
             }
 
             layoutEngineInternals.pin(engine, node);
         }
+    }
+
+    /**
+     * A stored position as the current engine can hold it: on the Z = 0 plane for a 2D engine.
+     * See `replayPins`; a node held out of a scoped layout carries its Z into 2D the same way.
+     * @param at - The position read from the array.
+     * @param at.x - Its X, kept.
+     * @param at.y - Its Y, kept.
+     * @param at.z - Its Z, kept by a 3D engine only.
+     * @returns The position to hand the engine.
+     */
+    private onEnginePlane(at: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+        return { x: at.x, y: at.y, z: this.engineDimension === 2 ? 0 : at.z };
     }
 
     /**
@@ -1172,6 +1191,10 @@ export class LayoutManager implements Manager {
     /**
      * Hand the engine the coordinates the `arrangement` hook has just written. After a restore,
      * the pre-steps of any build still computing from the coordinates it held before are dropped.
+     *
+     * A 2D ENGINE THEN PUTS EVERY NODE BACK ON THE PLANE, for the reason `replayPins` does: a Z
+     * written while the view is 2D -- a script's `positions.set`, a restore -- is hidden by the
+     * camera but drawn by the node's edges. The engine publishes the flattened row like any move.
      * @param restoring - Whether undo, redo, a restore or a rollback wrote them.
      */
     loadArrangement(restoring: boolean): void {
@@ -1179,7 +1202,26 @@ export class LayoutManager implements Manager {
             this.#generation++;
         }
 
-        this.layoutEngine?.loadArrangement();
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        engine.loadArrangement();
+        if (this.engineDimension !== 2) {
+            return;
+        }
+
+        const { positions } = this.dataManager;
+        const placed = { x: 0, y: 0, z: 0 };
+        for (const node of this.dataManager.nodes.values()) {
+            if (positions.isPlaced(node.index)) {
+                positions.read(node.index, placed);
+                if (placed.z !== 0) {
+                    layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
+                }
+            }
+        }
     }
 
     /**
@@ -1352,7 +1394,7 @@ export class LayoutManager implements Manager {
         for (const node of nodes) {
             if (!members.has(node.id) && positions.isPlaced(node.index)) {
                 positions.read(node.index, placed);
-                layoutEngineInternals.setNodePosition(engine, node, { x: placed.x, y: placed.y, z: placed.z });
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
             }
         }
 

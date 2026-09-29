@@ -406,28 +406,32 @@ session.data.saveDocument(options?: {
     regenerated, too. A writer does not rewrite references inside members or extensions it does not
     understand; a later kind that refers to a recipe's runs or a layer's `id` MUST report a name
     that no longer resolves and never fail on it. Rule 5 overrides this rule.
-4.  **What is written.** `members` chooses. By default: - **the style** (`session.styles.toDocument()`, with `kind`), leaving out every layer that
-    selects particular elements -- an `ids` selector, or a `member` selector of any scope but
-    `{ where }` -- and listing each in `report.leftOut`, as the recorder leaves out a run on the
-    selection, because a file shared with others would otherwise name them. `keepElementSelectors:
-true` keeps them. A layer opened with a `columns` rename is written under the document's own
-    names (style.md, "Writing" rule 12); - **the analysis as a recipe** (recipe.md, "Recording") when `recipe.id` is given; without one
-    the report says the recipe was not written and why; - **the data**: the data member the session's graph came from, when it applied; else, when the
-    graph was imported from a file, a reference to that file -- its base name as `href`, its
-    format and the import options it was read with (for a CSV, the endpoint columns it found are
-    written as `edgeSource` and `edgeTarget` even when they were found without options, so the
-    reference does not depend on the candidate lists), and no `sha256` -- so a colleague learns how
-    to read their own copy, and the report names those options; else nothing. A data member
-    that was only reported available (a graph was already loaded) or was skipped is written
-    only when the caller's `members` or `data` asks for it, and a notice names it. `data: false`
-    writes no data member. `data: { embed: true }` embeds the graph in `node-link`, holding its
-    data columns only, never run results, which belong to the recipe; `data: { href, format }`
-    writes a reference, with the SHA-256 of the loaded bytes when `sha256: true`. Nothing embeds
-    data by default, because a file for sharing a technique should not carry the data by
-    accident.
+4.  **What is written.** `members` chooses. By default:
+    - **the style** (`session.styles.toDocument()`, with `kind`), leaving out every layer that
+      selects particular elements -- an `ids` selector, or a `member` selector of any scope but
+      `{ where }` -- and listing each in `report.leftOut`, as the recorder leaves out a run on the
+      selection, because a file shared with others would otherwise name them.
+      `keepElementSelectors: true` keeps them. A layer opened with a `columns` rename is written
+      under the document's own names (style.md, "Writing" rule 12);
+    - **the analysis as a recipe** (recipe.md, "Recording") when `recipe.id` is given; without one
+      the report says the recipe was not written and why;
+    - **the data**: the data member the session's graph came from, when it applied; else, when the
+      graph was imported from a file, a reference to that file -- its base name as `href`, its
+      format and the import options it was read with (for a CSV, the endpoint columns it found are
+      written as `edgeSource` and `edgeTarget` even when they were found without options, so the
+      reference does not depend on the candidate lists), and no `sha256` -- so a colleague learns
+      how to read their own copy, and the report names those options; else nothing.
 
-                        The report's notices list every literal text a written selector or `where` compares with, so the
-                        author sees what the file discloses before sharing it.
+    A data member that was only reported available (a graph was already loaded) or was skipped is
+    written only when the caller's `members` or `data` asks for it, and a notice names it.
+    `data: false` writes no data member. `data: { embed: true }` embeds the graph in `node-link`,
+    holding its data columns only, never run results, which belong to the recipe;
+    `data: { href, format }` writes a reference, with the SHA-256 of the loaded bytes when
+    `sha256: true`. Nothing embeds data by default, because a file for sharing a technique should
+    not carry the data by accident.
+
+    The report's notices list every literal text a written selector or `where` compares with, so
+    the author sees what the file discloses before sharing it.
 
 5.  **References that leak.** A writer MUST NOT write an `href` holding a user name or password, and
     writes one holding a query or a fragment only when the caller passed `allowQuery: true`, because

@@ -188,6 +188,16 @@ describe("the exports map", () => {
         assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts")));
     });
 
+    it("builds ./bundle from an entry that adds GraphtyLogger, so a page with no build step can switch logging on", () => {
+        // The simple tier's logging example ends with GraphtyLogger.configure({ enabled: true }).
+        // A bundle-only page has no second address to import the logger from.
+        const config = readFileSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts"), "utf8");
+        assert.match(config, /entry: `\$\{here\}bundle\.ts`/);
+        const entry = readFileSync(resolve(PACKAGE_ROOT, "bundle.ts"), "utf8");
+        assert.include(entry, 'export * from "./index";');
+        assert.include(entry, 'export { GraphtyLogger } from "./logging";');
+    });
+
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
         assert.strictEqual(manifest.exports["./custom-elements.json"], "./dist/custom-elements.json");
         assert.strictEqual(manifest.customElements, "./dist/custom-elements.json");

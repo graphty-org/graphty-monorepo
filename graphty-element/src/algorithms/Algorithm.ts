@@ -3,7 +3,7 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
-import { SharedImplementationMap } from "../catalog/pluginRegistry";
+import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -80,8 +80,11 @@ export interface AlgorithmStatics {
      * `cubic`. The element divides them by the rate it measured for that class on this device,
      * so the estimate follows the machine and reports "calibrated" once the device is probed,
      * exactly as a built-in's does. Wins over {@link cost} when both are declared.
+     *
+     * `options` are the values the run would use -- the caller's, with the declared defaults
+     * filled in -- so an option that multiplies the work (a number of passes) is priced.
      */
-    costUnits?: (n: number, m: number) => number;
+    costUnits?: (n: number, m: number, options: Readonly<Record<string, unknown>>) => number;
     /**
      * The plugin's own version, recorded on every run this algorithm produces.
      *
@@ -611,9 +614,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     /**
      * Registers an algorithm class in the global registry
      * @param cls - The algorithm class to register
+     * @param options - Whether a different class under a key already taken throws instead of
+     *   replacing it.
      * @returns The registered algorithm class
      */
-    static register<T extends AlgorithmClass>(cls: T): T {
+    static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T {
         const statics = cls as unknown as Partial<AlgorithmStatics>;
         const t = String(statics.type);
         const ns = String(statics.namespace);
@@ -630,14 +635,17 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const { descriptor, cost, costUnits, version } = statics;
 
         if (descriptor !== undefined) {
-            publishAlgorithmDescriptor({
-                descriptor: withScopeInput(descriptor, statics.scopeInput ?? "none", `${ns}:${t}`),
-                namespace: ns,
-                type: t,
-                ...(cost === undefined ? {} : { cost }),
-                ...(costUnits === undefined ? {} : { costUnits }),
-                ...(version === undefined ? {} : { version }),
-            });
+            publishAlgorithmDescriptor(
+                {
+                    descriptor: withScopeInput(descriptor, statics.scopeInput ?? "none", `${ns}:${t}`),
+                    namespace: ns,
+                    type: t,
+                    ...(cost === undefined ? {} : { cost }),
+                    ...(costUnits === undefined ? {} : { costUnits }),
+                    ...(version === undefined ? {} : { version }),
+                },
+                options,
+            );
         }
 
         algorithmRegistry.set(`${ns}:${t}`, cls);

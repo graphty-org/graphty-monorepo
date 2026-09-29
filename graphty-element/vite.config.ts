@@ -74,7 +74,10 @@ function externalDependencies(): RegExp[] {
         dependencies?: Record<string, string>;
         peerDependencies?: Record<string, string>;
     };
-    const names = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]);
+    const names = new Set([
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.peerDependencies ?? {}),
+    ]);
 
     return [...names]
         .filter((name) => !bundledDependencies.has(name))
@@ -145,6 +148,10 @@ export default defineConfig(({ mode }) => {
         resolve: {
             alias: {
                 graphty: resolve(__dirname, "./index.ts"),
+                // The docs' examples (docs/examples/) import the package by its published name, as a
+                // reader copies them; a story that runs one reaches the source, not a stale dist/.
+                "@graphty/graphty-element/extend": resolve(__dirname, "./extend.ts"),
+                "@graphty/graphty-element/logging": resolve(__dirname, "./logging.ts"),
             },
         },
         server: {

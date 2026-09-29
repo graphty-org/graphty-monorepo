@@ -310,6 +310,13 @@ export type GraphtyErrorCode =
      */
     | "E_DISPOSED"
     /**
+     * An extension's own code threw: a function in a simple-tier definition (an algorithm's
+     * `node`, a layout's `place`), called by the element. `details.extension` is the extension's
+     * id, `details.member` the function, and `cause` the original error. The extension's author
+     * fixes their code; this is not a defect in graphty-element, which is what `E_INTERNAL` means.
+     */
+    | "E_EXTENSION_FAILED"
+    /**
      * A command was dispatched through a transaction's `tx` after the transaction's callback had
      * settled, so the step it belonged to was already recorded. `details.transaction` names the
      * transaction. The caller dispatches everything the transaction should contain before its
@@ -385,6 +392,7 @@ const CODE_TABLE = {
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
+    E_EXTENSION_FAILED: "E_EXTENSION_FAILED",
     E_TRANSACTION_CLOSED: "E_TRANSACTION_CLOSED",
     E_HELD_BY_TRANSACTION: "E_HELD_BY_TRANSACTION",
     E_INTERNAL: "E_INTERNAL",

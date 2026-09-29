@@ -3,8 +3,9 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../src/catalog/types";
 import { CAPACITY_COLUMN, GraphStore } from "../../src/data/GraphStore";
+import { readSeedPosition } from "../../src/data/seedPosition";
 import { GraphOps, resolveEdgeCapacity } from "../../src/session/project/graphOps";
-import { readSeedPosition, resolveEdgeWeight } from "../../src/session/project/ingest";
+import { resolveEdgeWeight } from "../../src/session/project/ingest";
 
 /**
  * Add one node record through the graph primitives, as ingest does.

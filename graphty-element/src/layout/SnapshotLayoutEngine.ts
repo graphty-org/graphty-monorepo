@@ -3,9 +3,9 @@ import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { ElementPositions } from "../data/positions";
+import { readSeedPosition } from "../data/seedPosition";
 import { GraphtyError } from "../errors";
 import type { Node } from "../Node";
-import { readSeedPosition } from "../session/project/ingest";
 import { layoutDim, LayoutEngine, simpleLayoutInternals, StaticLayoutEngine } from "./LayoutEngine";
 
 /** How far an arrangement has got, as a layout reports it. */

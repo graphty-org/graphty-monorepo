@@ -8,6 +8,7 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
+import { dispatcherOf } from "../../../src/session/GraphSession";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [{ id: "node1" }, { id: "node2" }, { id: "node3" }];
@@ -15,6 +16,36 @@ const TEST_EDGES = [
     { src: "node1", dst: "node2" },
     { src: "node2", dst: "node3" },
 ];
+
+/**
+ * Put a node somewhere through the session, the way a drop or a script places one, and pin it.
+ *
+ * NOT by writing the mesh. The mesh is drawn from the position array, and every frame a running
+ * layout redraws every node from it -- so a node moved only on the mesh went back where the array
+ * had it, pinned or not, whenever the layout was still running when a test began. It usually had
+ * come to rest in the 200 ms the setup waits, so the tests passed on a fast machine and failed on
+ * a loaded CI runner.
+ * @param graph - The graph.
+ * @param id - The node.
+ * @param at - Where to put it.
+ */
+async function placeAndPin(graph: Graph, id: string, at: { x: number; y: number; z: number }): Promise<void> {
+    await graph.getSession().positions.set([{ id, ...at }]);
+    graph.getNode(id)?.pin();
+    // The pin reaches the engine and the position array in the pass that derives it.
+    await dispatcherOf(graph.getSession()).lane.settled();
+}
+
+/**
+ * Run the layout for some frames, whatever state the setup left it in: a pin has to hold while it
+ * moves everything else, and a layout already at rest would test nothing.
+ * @param graph - The graph.
+ * @param frames - How many.
+ */
+function runLayout(graph: Graph, frames: number): void {
+    graph.getLayoutManager().running = true;
+    graph.getUpdateManager().stepFrames(frames);
+}
 
 describe("pinOnDrag Behavior", () => {
     let graph: Graph;
@@ -56,19 +87,8 @@ describe("pinOnDrag Behavior", () => {
             const newY = node1.mesh.position.y + 3;
             const newZ = node1.mesh.position.z + 1;
 
-            node1.mesh.position.x = newX;
-            node1.mesh.position.y = newY;
-            node1.mesh.position.z = newZ;
-            node1.pin();
-
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
-            for (let i = 0; i < 10; i++) {
-                graphInternal.layoutManager.step();
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await placeAndPin(graph, "node1", { x: newX, y: newY, z: newZ });
+            runLayout(graph, 10);
 
             assert.closeTo(node1.mesh.position.x, newX, 0.5, "Pinned node X should stay");
             assert.closeTo(node1.mesh.position.y, newY, 0.5, "Pinned node Y should stay");
@@ -81,16 +101,8 @@ describe("pinOnDrag Behavior", () => {
             assert.isNotNull(node1);
 
             const pinnedPos = { x: 10, y: 10, z: 10 };
-            node1.mesh.position.x = pinnedPos.x;
-            node1.mesh.position.y = pinnedPos.y;
-            node1.mesh.position.z = pinnedPos.z;
-            node1.pin();
-
-            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
-            for (let i = 0; i < 50; i++) {
-                graphInternal.layoutManager.step();
-                await new Promise((resolve) => setTimeout(resolve, 10));
-            }
+            await placeAndPin(graph, "node1", pinnedPos);
+            runLayout(graph, 50);
 
             assert.closeTo(node1.mesh.position.x, pinnedPos.x, 0.5, "X should remain stable");
             assert.closeTo(node1.mesh.position.y, pinnedPos.y, 0.5, "Y should remain stable");
@@ -131,17 +143,8 @@ describe("pinOnDrag Behavior", () => {
             assert.isNotNull(node1);
 
             const pinnedPos = { x: 15, y: 15, z: 15 };
-            node1.mesh.position.x = pinnedPos.x;
-            node1.mesh.position.y = pinnedPos.y;
-            node1.mesh.position.z = pinnedPos.z;
-            node1.pin();
-
-            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
-            for (let i = 0; i < 30; i++) {
-                graphInternal.layoutManager.step();
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await placeAndPin(graph, "node1", pinnedPos);
+            runLayout(graph, 30);
 
             assert.closeTo(node1.mesh.position.x, pinnedPos.x, 0.5, "X should stay in place");
             assert.closeTo(node1.mesh.position.y, pinnedPos.y, 0.5, "Y should stay in place");

@@ -165,7 +165,7 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
                         `light-dark()` value, which resolves in CSS but not
                         reliably in an SVG presentation attribute.
                     */}
-                    <circle cx="5.5" cy="5.5" r="0.75" style={{fill: PANEL_INK.SURFACE}} stroke="none" />
+                    <circle cx="5.5" cy="5.5" r="0.75" style={{ fill: PANEL_INK.SURFACE }} stroke="none" />
                 </>
             );
         }
@@ -173,7 +173,13 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
         return (
             <>
                 <path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" />
-                <circle cx="5.5" cy="5.5" r="0.75" />
+                {/*
+                    The dot is a filled disc, not a stroked circle. Stroked at r 0.75, the glyph's
+                    1.5 stroke has an inner edge of radius zero, and the rasteriser covered that
+                    degenerate edge differently from one page load to the next: the story flipped
+                    one pixel between captures. The filled disc draws the same picture.
+                */}
+                <circle cx="5.5" cy="5.5" r="1.5" fill="currentColor" stroke="none" />
             </>
         );
     },

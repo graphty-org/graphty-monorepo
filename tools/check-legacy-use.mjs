@@ -64,6 +64,22 @@ function layoutLegacyFile(path) {
 }
 
 /**
+ * Whether an export is tagged @deprecated. The tag of `export * as ns from ...` sits on the export
+ * declaration, which neither the export symbol nor the module it names reports.
+ * @param symbols - the export symbol and the symbol it resolves to
+ * @returns true when either, or the export declaration of either, carries @deprecated
+ */
+export function isDeprecated(...symbols) {
+    return symbols.some(
+        (s) =>
+            s.getJsDocTags().some((t) => t.name === "deprecated") ||
+            (s.declarations ?? []).some(
+                (d) => ts.isNamespaceExport(d) && ts.getJSDocDeprecatedTag(d.parent) !== undefined,
+            ),
+    );
+}
+
+/**
  * The legacy exports of algorithms and layout, read from their src/index.ts.
  * @param rootDir - the workspace root
  * @returns package name -> export name -> { positional, graphClass }
@@ -93,7 +109,7 @@ function legacyExports(rootDir) {
                 continue;
             }
             const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
-            const deprecated = [exported, symbol].some((s) => s.getJsDocTags().some((t) => t.name === "deprecated"));
+            const deprecated = isDeprecated(exported, symbol);
             const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
             if (legacy || deprecated) {
                 names.set(exported.name, {
@@ -333,6 +349,8 @@ function selfTest() {
                 'export * from "./algorithms/index.js";',
                 'export * from "./data-structures/index.js";',
                 'export * as indexed from "./indexed/index.js";',
+                '/** @deprecated use the top-level names */',
+                'export * as oldIndexed from "./indexed/index.js";',
                 'export { toSnapshot } from "./indexed/to-snapshot.js";',
                 'export { graphToMap } from "./utils/graph-converters.js";',
             ].join("\n"),
@@ -372,7 +390,7 @@ function selfTest() {
         write(
             "app/src/uses.ts",
             [
-                'import { Graph as G, dijkstra, oldQueue } from "@graphty/algorithms";',
+                'import { Graph as G, dijkstra, oldIndexed, oldQueue } from "@graphty/algorithms";',
                 'import * as L from "@graphty/layout";',
                 'export { graphToMap } from "@graphty/algorithms";',
                 "new G();",
@@ -447,6 +465,7 @@ function selfTest() {
             "graphty-element/src/data/DOTDataSource.ts hand-written-parser tokenize",
             "graphty-element/src/data/DOTDataSource.ts hand-written-parser DotLexer",
             "app/src/uses.ts legacy-import graphToMap",
+            "app/src/uses.ts legacy-import oldIndexed",
             "app/src/uses.ts legacy-import oldQueue",
             "app/src/uses.ts positional-layout-call circularLayout",
             "graphty-element/src/data/CSVDataSource.ts data-source-without-graph-io @graphty/graph-io",

@@ -21,8 +21,9 @@ numbers and "A1 has not started" are no longer current.
 ## Finished state (2026-09-29)
 
 The graph-format migration is complete on `feat/graph-format-migration`, which reaches master
-through pull request #587. Every count below is printed by `node tools/count-migration-state.mjs`
-(after `pnpm exec nx run-many -t build`); the versions are those `pnpm exec nx release --dry-run
+through pull request #587. Every count below except the parser row is printed by `node
+tools/count-migration-state.mjs` (after `pnpm exec nx run-many -t build`); the parser row is
+what `tools/check-data-source-migration.mjs` and `tools/check-legacy-use.mjs` enforce. The versions are those `pnpm exec nx release --dry-run
 --skip-publish` computes from the branch's commits.
 
 | What                                                 | Count                                                                                                                                                                                                                                                                                                                                                       |
@@ -43,9 +44,11 @@ is deleted), and any element data source that parses a file itself fails
 Merging releases graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0 (the one breaking
 release window the owner chose on 2026-09-28), with graph-format 1.2.0, graph-io 0.3.10 and
 webgpu-graph-algorithms 0.6.13. Every accepted result difference of the flow, cut, matching and
-isomorphism functions is in the BREAKING CHANGE footer of commit b341c0ed, and the remaining
-differences of the removal are in the footer of commit 8962e042, so both reach the algorithms
-3.0.0 changelog.
+isomorphism functions, and of the rest of the removal, is in a BREAKING CHANGE footer of a
+`feat` or `fix` commit on `algorithms/` (8962e042, and the commit that completes
+`algorithms/docs/guide/migrating-to-3.md`), because nx's changelog renders only feat, fix and
+perf commits: the detailed footer of the `refactor` commit b341c0ed does not reach it. The same
+list, in full, is the "Results that differ from 2.x" section of that guide.
 
 ## Summary
 

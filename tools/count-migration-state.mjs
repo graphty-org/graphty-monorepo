@@ -14,6 +14,8 @@ import { join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
+import { isDeprecated } from "./check-legacy-use.mjs";
+
 const root = process.cwd();
 const ALG_SRC = join(root, "algorithms/src");
 // Exported from the algorithms barrel as functions but not algorithms: the optimisation settings and CSR helpers.
@@ -235,9 +237,7 @@ for (const [name, file] of [
     ["algorithms", join(ALG_SRC, "index.ts")],
     ["layout", join(root, "layout/src/index.ts")],
 ]) {
-    const tagged = exportsOf(file).filter((e) =>
-        [e, resolve(e)].some((s) => s.getJsDocTags().some((t) => t.name === "deprecated")),
-    );
+    const tagged = exportsOf(file).filter((e) => isDeprecated(e, resolve(e)));
     print(
         `${name} @deprecated exports`,
         tagged.map((e) => e.name),

@@ -219,13 +219,17 @@ graphs named:
   one; `grsbm` gives another root modularity (on one small graph with a loop, 0 where 2.x gave 0.0586).
 - **Flow and cuts.** `maxFlow` reports the net flow of two opposite edges on the edge it runs along, each within its
   capacity; `minSTCut` reports cut edges on graphs with numeric ids (2.x reported none); `stoerWagner` adds the weights
-  of two opposite directed edges; `kargerMinCut` is seeded, so one graph gives one result; a source equal to the sink
-  throws a `RangeError`, and a NaN weight throws.
+  of two opposite directed edges; `kargerMinCut` is seeded, so one graph gives one result, and on a graph of three or
+  more components it puts every node on a side (2.x dropped the components after the first two); a source equal to the
+  sink throws a `RangeError`, and a NaN weight throws. A node that is only the target of an edge is a node: flow reaches
+  such a sink (2.x `edmondsKarp` on a Map-of-Maps returned no flow when the source or the sink was not a key). Cut sides
+  list nodes in node order and cut edges by their source-side node, where 2.x followed the order its search met them.
 - **Matching and isomorphism.** The matchings visit left nodes in node order and join a left node to a right one
   whichever way the arc points, so the greedy matching can differ in size and the maximum matching can pair other
   nodes; an isomorphism `edgeMatch` is offered every pair of corresponding edges, self-loops included, and directed
   graphs are checked on in-arcs too. An isomorphism's mapping and a matching's pairs come as arrays indexed by node, so
   code that walks them meets the pairs in node order; 2.x returned a Map filled in the order its search found them.
+  The 2.x `findAllMappings` option is gone; with it set, 2.x `isGraphIsomorphic` answered false for every pair.
 - **k-core** does not count a self-loop toward its node's core number, and refuses a directed graph.
 - **Delta PageRank.** `DeltaPageRank` and `PriorityDeltaPageRank` run over a frozen snapshot: `update()` no longer reads
   a graph changed after construction.

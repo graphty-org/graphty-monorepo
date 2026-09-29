@@ -233,6 +233,8 @@ export const GRAPHML_LOSS = Object.freeze({
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
     /** A numeric edge id column reads back as string. */
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
+    /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
+    YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
     /** A yfiles json value that is not a serialisable tree: export() will throw E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

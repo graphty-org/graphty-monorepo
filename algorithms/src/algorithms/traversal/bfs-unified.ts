@@ -1,43 +1,39 @@
+import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+
 import type { Graph } from "../../core/graph.js";
-import { CSRGraph } from "../../optimized/csr-graph.js";
-import { DirectionOptimizedBFS } from "../../optimized/direction-optimized-bfs.js";
-import { toCSRGraph } from "../../optimized/graph-adapter.js";
+import { type BfsResult, breadthFirstSearch as indexedBreadthFirstSearch } from "../../indexed/bfs.js";
+import { isBipartite as indexedIsBipartite } from "../../indexed/bipartite.js";
+import { orderToTree } from "../../indexed/facade.js";
+import { legacyArcOrder, toTopologySnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId, ShortestPathResult, TraversalOptions, TraversalResult } from "../../types/index.js";
 import { reconstructPath } from "../../utils/graph-utilities.js";
 
 /**
- * Unified BFS implementation that automatically optimizes for large graphs
- *
- * This module provides a single, user-friendly BFS implementation that:
- * - Automatically uses Direction-Optimized BFS for large graphs (>10k nodes)
- * - Maintains backward compatibility with existing APIs
- * - Requires no configuration or understanding of optimization thresholds
- * - Provides the best performance by default
+ * Breadth-first search, run by `indexed.breadthFirstSearch` over the graph's snapshot with each
+ * node's neighbours tried in the graph's insertion order, so every graph, of any size, gets the
+ * visit order, tree and depths the standard queue walk gives.
+ * @param graph - The input graph
+ * @param startNode - The start node
+ * @param targetNode - Stop once this node is taken off the queue; ignored when it is not a node
+ * @returns The snapshot, the port's result and the target's index (INVALID_INDEX for none)
  */
-
-// Cache for CSR conversions to avoid repeated conversions
-const csrCache = new WeakMap<Graph, CSRGraph>();
-
-/**
- * Get or create CSR representation of a graph
- * @param graph - The input graph to convert
- * @returns CSR graph representation (cached for efficiency)
- */
-function getCSRGraph(graph: Graph): CSRGraph {
-    let csrGraph = csrCache.get(graph);
-    if (!csrGraph) {
-        csrGraph = toCSRGraph(graph);
-        csrCache.set(graph, csrGraph);
-    }
-
-    return csrGraph;
+function search(
+    graph: Graph,
+    startNode: NodeId,
+    targetNode?: NodeId,
+): { s: GraphSnapshot; result: BfsResult; target: number } {
+    const s = toTopologySnapshot(graph);
+    const start = s.ids.indexOf(startNode);
+    const target = targetNode === undefined ? INVALID_INDEX : s.ids.indexOf(targetNode);
+    const result = indexedBreadthFirstSearch(s, start, {
+        arcOrder: legacyArcOrder(graph, s),
+        target: target === INVALID_INDEX ? undefined : target,
+    });
+    return { s, result, target };
 }
 
 /**
  * Perform breadth-first search starting from a given node
- *
- * Automatically uses the most optimized implementation based on graph size.
- * No configuration needed - just call this function for the best performance.
  * @param graph - The input graph to traverse
  * @param startNode - The node to start the BFS from
  * @param options - Traversal options (callbacks, target node, etc.)
@@ -47,125 +43,23 @@ export function breadthFirstSearch(graph: Graph, startNode: NodeId, options: Tra
     if (!graph.hasNode(startNode)) {
         throw new Error(`Start node ${String(startNode)} not found in graph`);
     }
-
-    // Automatically use optimized implementation for large graphs
-    if (graph.nodeCount > 10000) {
-        return breadthFirstSearchOptimized(graph, startNode, options);
+    const { s, result, target } = search(graph, startNode, options.targetNode);
+    const { order, depth } = result;
+    const tree = orderToTree(s.ids, order, result.parent);
+    // `order` lists every node discovered; the walk expanded them up to and including the target.
+    const found = target === INVALID_INDEX ? -1 : order.indexOf(target);
+    const expanded = found === -1 ? order : order.subarray(0, found + 1);
+    const visitOrder: NodeId[] = [];
+    for (const i of expanded) {
+        const id = s.ids.idOf(i);
+        visitOrder.push(id);
+        options.visitCallback?.(id, depth[i]);
     }
-
-    // Standard implementation for smaller graphs
-    return breadthFirstSearchStandard(graph, startNode, options);
-}
-
-/**
- * Standard BFS implementation for smaller graphs
- * @param graph - The input graph to traverse
- * @param startNode - The node to start the BFS from
- * @param options - Traversal options (callbacks, target node, etc.)
- * @returns Traversal result with visited nodes, order, and tree structure
- */
-function breadthFirstSearchStandard(graph: Graph, startNode: NodeId, options: TraversalOptions = {}): TraversalResult {
-    const visited = new Set<NodeId>();
-    const queue: { node: NodeId; level: number }[] = [];
-    const order: NodeId[] = [];
-    const tree = new Map<NodeId, NodeId | null>();
-
-    // Initialize with start node
-    queue.push({ node: startNode, level: 0 });
-    visited.add(startNode);
-    tree.set(startNode, null);
-
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (!current) {
-            break;
-        }
-
-        order.push(current.node);
-
-        // Call visitor callback if provided
-        if (options.visitCallback) {
-            options.visitCallback(current.node, current.level);
-        }
-
-        // Early termination if target found
-        if (options.targetNode !== undefined && current.node === options.targetNode) {
-            break;
-        }
-
-        // Explore neighbors
-        for (const neighbor of graph.neighbors(current.node)) {
-            if (!visited.has(neighbor)) {
-                visited.add(neighbor);
-                tree.set(neighbor, current.node);
-                queue.push({ node: neighbor, level: current.level + 1 });
-            }
-        }
-    }
-
-    return { visited, order, tree };
-}
-
-/**
- * Optimized BFS implementation using Direction-Optimized BFS
- * @param graph - The input graph to traverse
- * @param startNode - The node to start the BFS from
- * @param options - Traversal options (callbacks, target node, etc.)
- * @returns Traversal result with visited nodes, order, and tree structure
- */
-function breadthFirstSearchOptimized(graph: Graph, startNode: NodeId, options: TraversalOptions = {}): TraversalResult {
-    const csrGraph = getCSRGraph(graph);
-
-    const dobfs = new DirectionOptimizedBFS(csrGraph, {
-        alpha: 15.0,
-        beta: 20.0,
-    });
-
-    const result = dobfs.search(startNode);
-
-    // Convert result to TraversalResult format
-    const visited = new Set<NodeId>();
-    const order: NodeId[] = [];
-    const tree = new Map<NodeId, NodeId | null>();
-
-    // Build traversal order using BFS from distances
-    const nodesByDistance = new Map<number, NodeId[]>();
-    let maxDistance = 0;
-
-    for (const [nodeId, distance] of result.distances) {
-        visited.add(nodeId);
-        tree.set(nodeId, result.parents.get(nodeId) ?? null);
-
-        if (!nodesByDistance.has(distance)) {
-            nodesByDistance.set(distance, []);
-        }
-
-        nodesByDistance.get(distance)?.push(nodeId);
-        maxDistance = Math.max(maxDistance, distance);
-    }
-
-    // Reconstruct BFS order
-    for (let d = 0; d <= maxDistance; d++) {
-        const nodes = nodesByDistance.get(d);
-        if (nodes) {
-            order.push(...nodes);
-        }
-    }
-
-    // Handle visit callback if provided
-    if (options.visitCallback) {
-        for (const [nodeId, distance] of result.distances) {
-            options.visitCallback(nodeId, distance);
-        }
-    }
-
-    return { visited, order, tree };
+    return { visited: new Set(tree.keys()), order: visitOrder, tree };
 }
 
 /**
  * Find shortest path between two nodes using BFS
- *
- * Automatically optimized for large graphs. Returns null if no path exists.
  * @param graph - The input graph to search
  * @param source - The source node ID
  * @param target - The target node ID
@@ -180,7 +74,6 @@ export function shortestPathBFS(graph: Graph, source: NodeId, target: NodeId): S
         throw new Error(`Target node ${String(target)} not found in graph`);
     }
 
-    // Special case: source equals target
     if (source === target) {
         return {
             distance: 0,
@@ -189,206 +82,36 @@ export function shortestPathBFS(graph: Graph, source: NodeId, target: NodeId): S
         };
     }
 
-    // Use optimized implementation for large graphs
-    if (graph.nodeCount > 10000) {
-        return shortestPathBFSOptimized(graph, source, target);
+    const { s, result, target: t } = search(graph, source, target);
+    if (result.depth[t] === INVALID_INDEX) {
+        return null;
     }
-
-    // Standard implementation
-    return shortestPathBFSStandard(graph, source, target);
-}
-
-/**
- * Standard shortest path BFS
- * @param graph - The input graph to search
- * @param source - The source node ID
- * @param target - The target node ID
- * @returns Shortest path result or null if no path exists
- */
-function shortestPathBFSStandard(graph: Graph, source: NodeId, target: NodeId): ShortestPathResult | null {
-    const visited = new Set<NodeId>();
-    const queue: { node: NodeId; distance: number }[] = [];
-    const predecessor = new Map<NodeId, NodeId | null>();
-
-    // Initialize BFS
-    queue.push({ node: source, distance: 0 });
-    visited.add(source);
-    predecessor.set(source, null);
-
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (!current) {
-            break;
-        }
-
-        // Target found
-        if (current.node === target) {
-            const path = reconstructPath(target, predecessor);
-            return {
-                distance: current.distance,
-                path,
-                predecessor,
-            };
-        }
-
-        // Explore neighbors
-        for (const neighbor of graph.neighbors(current.node)) {
-            if (!visited.has(neighbor)) {
-                visited.add(neighbor);
-                predecessor.set(neighbor, current.node);
-                queue.push({ node: neighbor, distance: current.distance + 1 });
-            }
-        }
-    }
-
-    // No path found
-    return null;
-}
-
-/**
- * Optimized shortest path using Direction-Optimized BFS
- * @param graph - The input graph to search
- * @param source - The source node ID
- * @param target - The target node ID
- * @returns Shortest path result or null if no path exists
- */
-function shortestPathBFSOptimized(graph: Graph, source: NodeId, target: NodeId): ShortestPathResult | null {
-    const csrGraph = getCSRGraph(graph);
-
-    const dobfs = new DirectionOptimizedBFS(csrGraph, {
-        alpha: 15.0,
-        beta: 20.0,
-    });
-
-    // Perform BFS
-    const result = dobfs.search(source);
-
-    // Check if target was reached
-    const distance = result.distances.get(target);
-    if (distance === undefined) {
-        return null; // No path found
-    }
-
-    // Reconstruct path
-    const path = reconstructPath(target, result.parents);
-
-    return {
-        distance,
-        path,
-        predecessor: result.parents,
-    };
+    const predecessor = orderToTree(s.ids, result.order, result.parent);
+    return { distance: result.depth[t], path: reconstructPath(target, predecessor), predecessor };
 }
 
 /**
  * Find shortest paths from source to all reachable nodes
- *
- * Automatically optimized for large graphs.
  * @param graph - The input graph to search
  * @param source - The source node ID to compute shortest paths from
- * @returns Map of node IDs to their shortest path results
+ * @returns Map of node IDs to their shortest path results, every entry sharing one predecessor map
  */
 export function singleSourceShortestPathBFS(graph: Graph, source: NodeId): Map<NodeId, ShortestPathResult> {
     if (!graph.hasNode(source)) {
         throw new Error(`Source node ${String(source)} not found in graph`);
     }
-
-    // Use optimized implementation for large graphs
-    if (graph.nodeCount > 10000) {
-        return singleSourceShortestPathBFSOptimized(graph, source);
-    }
-
-    // Standard implementation
-    return singleSourceShortestPathBFSStandard(graph, source);
-}
-
-/**
- * Standard single-source shortest paths
- * @param graph - The input graph to search
- * @param source - The source node ID to compute shortest paths from
- * @returns Map of node IDs to their shortest path results
- */
-function singleSourceShortestPathBFSStandard(graph: Graph, source: NodeId): Map<NodeId, ShortestPathResult> {
+    const { s, result } = search(graph, source);
+    const predecessor = orderToTree(s.ids, result.order, result.parent);
     const results = new Map<NodeId, ShortestPathResult>();
-    const visited = new Set<NodeId>();
-    const queue: { node: NodeId; distance: number }[] = [];
-    const predecessor = new Map<NodeId, NodeId | null>();
-    const distances = new Map<NodeId, number>();
-
-    // Initialize BFS
-    queue.push({ node: source, distance: 0 });
-    visited.add(source);
-    predecessor.set(source, null);
-    distances.set(source, 0);
-
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (!current) {
-            break;
-        }
-
-        // Explore neighbors
-        for (const neighbor of graph.neighbors(current.node)) {
-            if (!visited.has(neighbor)) {
-                visited.add(neighbor);
-                predecessor.set(neighbor, current.node);
-                distances.set(neighbor, current.distance + 1);
-                queue.push({ node: neighbor, distance: current.distance + 1 });
-            }
-        }
+    for (const i of result.order) {
+        const node = s.ids.idOf(i);
+        results.set(node, { distance: result.depth[i], path: reconstructPath(node, predecessor), predecessor });
     }
-
-    // Build results after BFS completes
-    // This avoids copying the predecessor map for each node
-    for (const [node, distance] of distances) {
-        const path = reconstructPath(node, predecessor);
-        results.set(node, {
-            distance,
-            path,
-            predecessor, // Share the same predecessor map
-        });
-    }
-
     return results;
 }
 
 /**
- * Optimized single-source shortest paths
- * @param graph - The input graph to search
- * @param source - The source node ID to compute shortest paths from
- * @returns Map of node IDs to their shortest path results
- */
-function singleSourceShortestPathBFSOptimized(graph: Graph, source: NodeId): Map<NodeId, ShortestPathResult> {
-    const csrGraph = getCSRGraph(graph);
-
-    const dobfs = new DirectionOptimizedBFS(csrGraph, {
-        alpha: 15.0,
-        beta: 20.0,
-    });
-
-    const bfsResult = dobfs.search(source);
-
-    // Convert to expected format
-    const results = new Map<NodeId, ShortestPathResult>();
-
-    for (const [nodeId, distance] of bfsResult.distances) {
-        // Reconstruct path for each node
-        const path = reconstructPath(nodeId, bfsResult.parents);
-
-        results.set(nodeId, {
-            distance,
-            path,
-            predecessor: bfsResult.parents, // Share the same predecessor map
-        });
-    }
-
-    return results;
-}
-
-/**
- * Check if the graph is bipartite using BFS coloring
- *
- * Note: This function does not use Direction-Optimized BFS as the
- * coloring logic is specific and doesn't benefit from the optimization.
+ * Check if the graph is bipartite
  * @param graph - The undirected graph to check
  * @returns True if the graph is bipartite, false otherwise
  */
@@ -396,42 +119,5 @@ export function isBipartite(graph: Graph): boolean {
     if (graph.isDirected) {
         throw new Error("Bipartite test requires an undirected graph");
     }
-
-    const color = new Map<NodeId, 0 | 1>();
-    const visited = new Set<NodeId>();
-
-    // Check each connected component
-    for (const node of Array.from(graph.nodes())) {
-        if (!visited.has(node.id)) {
-            const queue: NodeId[] = [node.id];
-            color.set(node.id, 0);
-            visited.add(node.id);
-
-            while (queue.length > 0) {
-                const current = queue.shift();
-                if (current === undefined) {
-                    break;
-                }
-
-                const currentColor = color.get(current);
-                if (currentColor === undefined) {
-                    continue;
-                }
-
-                for (const neighbor of Array.from(graph.neighbors(current))) {
-                    if (!visited.has(neighbor)) {
-                        // Color with opposite color
-                        color.set(neighbor, currentColor === 0 ? 1 : 0);
-                        visited.add(neighbor);
-                        queue.push(neighbor);
-                    } else if (color.get(neighbor) === currentColor) {
-                        // Same color as current node - not bipartite
-                        return false;
-                    }
-                }
-            }
-        }
-    }
-
-    return true;
+    return indexedIsBipartite(toTopologySnapshot(graph)).bipartite;
 }

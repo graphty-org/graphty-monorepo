@@ -1,8 +1,8 @@
-import { circularLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import { circular } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
 
 /**
  * NEW: Zod-based options schema with UI metadata for Circular Layout
@@ -83,9 +83,10 @@ export class CircularLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-
-        this.positions = circularLayout({ nodes, edges }, this.config.scale, this.config.center, this.config.dim);
+        this.result = circular(this.graph, {
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+            dim: layoutDim(this.config.dim),
+        });
     }
 }

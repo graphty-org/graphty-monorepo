@@ -1,23 +1,83 @@
-import {
-    Edge as LayoutEdge,
-    Graph as LayoutGraph,
-    kamadaKawaiLayout,
-    Node as LayoutNode,
-} from "@graphty/layout";
+import { type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
+import { kamadaKawai } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { pairWeightKey, SimpleLayoutConfig, SimpleLayoutEngine, WEIGHT_EPSILON } from "./LayoutEngine";
+import { GraphtyLogger } from "../logging/GraphtyLogger.js";
+import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+
+const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
 /**
- * The attribute name handed to `kamadaKawaiLayout`.
+ * The smallest summed weight the layout acts on.
  *
- * It reaches the element's own `getEdgeData` callback and is ignored there: which record key
- * carries the weight was already settled one layer up, at ingest, by
- * `config.data.knownFields.edgeWeightPath`, for every engine at once. A second attribute name here
- * would be a second weight channel, and the two would disagree.
+ * A record may carry `weight: 0`, and the distance of a zero-weight edge is `1 / 0`. Clamping here
+ * means zero reads as "as weak as the solver can express": the largest possible distance.
  */
-const WEIGHT_ATTRIBUTE = "weight";
+const WEIGHT_EPSILON = 1e-6;
+
+/** The derived edge column the layout reads its distances from. */
+const DISTANCE_COLUMN = "graphty.kamadaKawaiDistance";
+
+/**
+ * The graph's per-edge weights at full precision: the f64 role-`weight` column when there is one,
+ * else the f32 weights, else null for an unweighted graph.
+ * @param g - the graph
+ * @returns one weight per edge, or null
+ */
+function edgeWeights(g: GraphSnapshot): NumericVector | null {
+    const exact = g.edges.byRole("weight");
+    return exact?.dtype === "f64" ? exact.data : g.edgeList().weights;
+}
+
+/**
+ * The graph with one distance per edge, `1 / w` where `w` is the SUM of the weights of every edge
+ * between the same two nodes, or null when every weight is 1 and there is nothing to read.
+ *
+ * Summed first because Kamada-Kawai keeps one distance per pair of nodes: left to itself it would
+ * take the shortest of two parallel edges, so the order a file listed them in -- or which of the
+ * two was heavier -- would decide the picture instead of the connection they make together.
+ * @param g - the undirected graph
+ * @returns the graph with the distance column, or null
+ */
+function withDistances(g: GraphSnapshot): GraphSnapshot | null {
+    const weights = edgeWeights(g);
+    if (weights === null || weights.every((w) => w === 1)) {
+        return null;
+    }
+
+    const { src, dst } = g.edgeList();
+    const n = g.nodeCount;
+    const pairKey = (e: number): number => Math.min(src[e], dst[e]) * n + Math.max(src[e], dst[e]);
+    const summed = new Map<number, number>();
+    for (let e = 0; e < g.edgeCount; e++) {
+        summed.set(pairKey(e), (summed.get(pairKey(e)) ?? 0) + weights[e]);
+    }
+
+    let clamped = 0;
+    for (const w of summed.values()) {
+        if (w < WEIGHT_EPSILON) {
+            clamped++;
+        }
+    }
+
+    if (clamped > 0) {
+        // Once per run and not per edge: a graph whose weights are all zero would otherwise bury
+        // every other message in the run it happened during.
+        logger.warn("Edge weights at or below zero were clamped before the layout read them", {
+            layout: "kamada-kawai",
+            clamped,
+            epsilon: WEIGHT_EPSILON,
+        });
+    }
+
+    const distance = new Float64Array(g.edgeCount);
+    for (let e = 0; e < g.edgeCount; e++) {
+        distance[e] = 1 / Math.max(summed.get(pairKey(e)) ?? 1, WEIGHT_EPSILON);
+    }
+
+    return g.withColumns(undefined, { [DISTANCE_COLUMN]: distance });
+}
 
 /**
  * Zod-based options schema for Kamada-Kawai Layout
@@ -108,31 +168,41 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
      */
     doLayout(): void {
         this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-        const graph: LayoutGraph = { nodes, edges };
+        const dim = layoutDim(this.config.dim);
+        const weighted = this.config.weighted ? withDistances(this.graph) : null;
+        this.result = kamadaKawai(weighted ?? this.graph, {
+            dist: this.distances(),
+            pos: this.startPositions(dim) ?? this.rowsOfRecord(this.config.pos, dim),
+            weight: weighted === null ? false : DISTANCE_COLUMN,
+            scale: this.config.scale,
+            center: this.config.center ?? undefined,
+            dim,
+        });
+    }
 
-        const weights = this.config.weighted ? this.pairWeights(this._edges) : null;
-        if (weights !== null) {
-            this.reportClampedWeights("kamada-kawai", weights);
-            graph.getEdgeData = (source: LayoutNode, target: LayoutNode): number | undefined => {
-                const weight = weights.get(pairWeightKey(source, target));
-                if (weight === undefined) {
-                    return undefined;
-                }
-
-                return 1 / Math.max(weight, WEIGHT_EPSILON);
-            };
+    /**
+     * The `dist` option as the matrix the layout reads, `n * n` distances row by row; a pair the
+     * record does not give is unreachable.
+     * @returns the matrix, or null for no option
+     */
+    private distances(): Float64Array | null {
+        const { dist } = this.config;
+        if (dist === null) {
+            return null;
         }
 
-        this.positions = kamadaKawaiLayout(
-            graph,
-            this.config.dist,
-            this.config.pos,
-            WEIGHT_ATTRIBUTE,
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-        );
+        const n = this.graph.nodeCount;
+        const out = new Float64Array(n * n).fill(Number.POSITIVE_INFINITY);
+        for (const [source, row] of Object.entries(dist)) {
+            const i = this.rowOfId(source);
+            for (const [target, d] of Object.entries(row)) {
+                const j = this.rowOfId(target);
+                if (i !== INVALID_INDEX && j !== INVALID_INDEX) {
+                    out[i * n + j] = d;
+                }
+            }
+        }
+
+        return out;
     }
 }

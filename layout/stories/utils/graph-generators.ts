@@ -3,7 +3,8 @@
  * Uses Mulberry32 PRNG for deterministic, reproducible graph generation.
  */
 
-import type { Graph, Node, PositionMap } from "@graphty/layout";
+import type { GraphSnapshot } from "@graphty/graph-format";
+import { type Node, type PositionMap, toLayoutSnapshot } from "@graphty/layout";
 
 /**
  * Mulberry32 seeded random number generator.
@@ -122,12 +123,7 @@ export function generateGraph(
 /**
  * Generate a tree graph using BFS-tree structure.
  */
-function generateTree(
-    nodeCount: number,
-    rng: SeededRandom,
-    width: number,
-    height: number,
-): GeneratedGraph {
+function generateTree(nodeCount: number, rng: SeededRandom, width: number, height: number): GeneratedGraph {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
 
@@ -452,11 +448,7 @@ function generateBipartite(nodeCount: number, width: number, height: number): Ge
 /**
  * Generate a multipartite graph with 3-4 sets of nodes.
  */
-function generateMultipartite(
-    nodeCount: number,
-    width: number,
-    height: number,
-): GeneratedGraph {
+function generateMultipartite(nodeCount: number, width: number, height: number): GeneratedGraph {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
 
@@ -506,13 +498,13 @@ function generateMultipartite(
 }
 
 /**
- * Convert GeneratedGraph to @graphty/layout Graph interface.
+ * The undirected snapshot the layouts run over: node index i is the i-th generated node.
  */
-export function toLayoutGraph(generatedGraph: GeneratedGraph): Graph {
-    return {
+export function toSnapshot(generatedGraph: GeneratedGraph): GraphSnapshot {
+    return toLayoutSnapshot({
         nodes: () => generatedGraph.nodes.map((n) => n.id),
         edges: () => generatedGraph.edges.map((e) => [e.source, e.target] as [Node, Node]),
-    };
+    });
 }
 
 /**
@@ -528,10 +520,7 @@ export function generateRandomPositions(
     const positions: PositionMap = {};
 
     for (const node of generatedGraph.nodes) {
-        positions[node.id] = [
-            rng.next() * (width - 80) + 40,
-            rng.next() * (height - 80) + 40,
-        ];
+        positions[node.id] = [rng.next() * (width - 80) + 40, rng.next() * (height - 80) + 40];
     }
 
     return positions;

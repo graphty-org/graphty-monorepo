@@ -8,7 +8,7 @@
  */
 
 export { createSimulation } from "./create-simulation";
-export { ForceAtlas2Simulation } from "./forceatlas2";
+export { ForceAtlas2Simulation, type ForceAtlas2SimulationOptions } from "./forceatlas2";
 export { FruchtermanReingoldSimulation } from "./fruchterman-reingold";
 export { resolveNodeVector, resolveWeights } from "./inputs";
 export { Lcg, seedPositions } from "./seed";

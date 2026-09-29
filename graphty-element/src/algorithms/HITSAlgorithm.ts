@@ -1,4 +1,4 @@
-import { hits } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
@@ -168,11 +168,13 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
      * @returns The combined score per node, with the two halves beside it.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        // `mode` and `endpoints` are accepted and change nothing: HITS reads both directions by
+        // definition and counts no paths, and the legacy function never read either.
+        const { maxIterations, tolerance, normalized } = this.schemaOptions;
 
         // Directed: hubs and authorities are the out- and in-directions, so HITS is meaningless
         // without them. On data with no real direction every score simply converges together.
-        const graphData = this.algorithmGraph("directed");
+        const { snapshot, run } = this.accelerated("hits", "directed");
 
         context.report({
             phase: "iterating",
@@ -180,21 +182,17 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
             total: nodeIds.length,
             message: `Hub and authority scores refine each other, up to ${String(maxIterations)} passes.`,
         });
-        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
-        // The element's own half -- reading the scores back out -- is chunked below.
-        const results = hits(graphData, {
-            maxIterations,
-            tolerance,
-            normalized,
-            mode,
-            endpoints,
-        });
+        const { value, precision } = await run((dispatch, s) =>
+            dispatch.hits(s, { maxIterations, tolerance, normalized }),
+        );
         context.signal.throwIfAborted();
 
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const hub = results.hubs[String(nodeId)];
-            const authority = results.authorities[String(nodeId)];
+            const index = ids.indexOf(nodeId);
+            const hub = index === INVALID_INDEX ? undefined : value.hubs[index];
+            const authority = index === INVALID_INDEX ? undefined : value.authorities[index];
 
             if (hub === undefined || authority === undefined) {
                 nodes.push({ id: nodeId, values: {} });
@@ -214,17 +212,19 @@ export class HITSAlgorithm extends MetricAlgorithm<HITSOptions> {
                 exact: true,
                 direction: "directed",
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "hits",
-                // `converged` and `iterations` are deliberately absent: the implementation stops
-                // either at its tolerance or at its iteration cap and reports neither.
+                converged: value.converged,
+                iterations: value.iterations,
                 notes: [
                     "The published value is the average of this node's hub score and its authority score.",
                     normalized
                         ? "The hub and authority vectors each have unit length, which is how the iteration leaves them."
                         : "The hub and authority vectors were each divided by their own highest score.",
                     `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
-                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    ...(value.converged
+                        ? []
+                        : [`It stopped at the ${String(maxIterations)}-pass cap without reaching the tolerance.`]),
                     "Edge weights are not read.",
                 ],
             },

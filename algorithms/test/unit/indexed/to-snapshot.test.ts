@@ -68,6 +68,20 @@ describe("toSnapshot", () => {
         expect(second.edgeCount).toBe(4);
     });
 
+    it("rebuilds after a weight is changed in place, which does not move mutationCount", () => {
+        const g = triangle(true);
+        const first = toSnapshot(g);
+        const edge = g.getEdge("b", "c");
+        if (edge === undefined) {
+            throw new Error("missing edge");
+        }
+        edge.weight = 9;
+        const second = toSnapshot(g);
+        expect(second).not.toBe(first);
+        expect(second.weights?.[second.arcsBetween(1, 2)[0]]).toBe(9);
+        expect(toSnapshot(g)).toBe(second);
+    });
+
     it("keeps f64 weights exactly through the shadow column", () => {
         const g = new Graph({ directed: true });
         g.addEdge("a", "b", 0.1 + 0.2); // 0.30000000000000004, not f32-exact

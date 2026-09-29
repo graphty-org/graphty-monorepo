@@ -4,20 +4,15 @@
  * Demonstrates spring layout in 3D using force-directed Fruchterman-Reingold algorithm.
  * Shows animation from random initial positions to final optimized 3D positions.
  *
- * IMPORTANT: This story uses the actual springLayout implementation
+ * IMPORTANT: This story uses the actual fruchtermanReingold implementation
  * from @graphty/layout with dim=3 to demonstrate real package behavior.
  */
 
-import { springLayout } from "@graphty/layout";
+import { fruchtermanReingold, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandom3DPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandom3DPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     cleanup3DScene,
     create3DControls,
@@ -51,22 +46,15 @@ function createSpring3DStory(args: Spring3DArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random 3D positions
     const randomPositions = generateRandom3DPositions(generatedGraph, 200, seed);
 
     // Compute final spring 3D layout using actual algorithm with dim=3
-    const finalPositions = springLayout(
-        layoutGraph,
-        null, // k - optimal distance (auto-calculated)
-        null, // pos - initial positions
-        null, // fixed nodes
-        iterations, // iterations
-        scale, // scale
-        [0, 0, 0], // center (3D)
-        3, // dim = 3 for 3D layout
-        seed, // seed
+    const finalPositions = toPositionMap(
+        fruchtermanReingold(snapshot, { iterations, scale, center: [0, 0, 0], dim: 3, seed }),
+        snapshot.ids,
     );
 
     // Create main container
@@ -108,7 +96,10 @@ function createSpring3DStory(args: Spring3DArgs): HTMLElement {
 
         // Animate to final positions
         update3DPositions(scene3D, generatedGraph, finalPositions, 200, 1000, () => {
-            update3DStatus(statusPanel, "Spring 3D layout applied! Nodes positioned using force-directed algorithm in 3D space.");
+            update3DStatus(
+                statusPanel,
+                "Spring 3D layout applied! Nodes positioned using force-directed algorithm in 3D space.",
+            );
         });
     }
 
@@ -160,15 +151,7 @@ const meta: Meta<Spring3DArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         iterations: {
@@ -200,7 +183,7 @@ type Story = StoryObj<Spring3DArgs>;
 /**
  * Spring 3D layout story - force-directed Fruchterman-Reingold algorithm in 3D.
  *
- * This story uses the actual `springLayout()` function from @graphty/layout with dim=3.
+ * This story uses the actual `fruchtermanReingold()` function from @graphty/layout with dim=3.
  * The play function animates from random 3D positions to the optimized arrangement.
  */
 export const Spring3D: Story = {

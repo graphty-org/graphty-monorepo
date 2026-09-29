@@ -389,8 +389,6 @@ export function narrowedAtCompileTime(parts: {
     dataManager.nodes.set(node.id, node);
     // @ts-expect-error the edge map is read-only
     dataManager.edges.delete(edge.id);
-    // @ts-expect-error the pair map is read-only
-    dataManager.edgeCache.set(edge.srcId, edge.dstId, edge);
     // @ts-expect-error the row index is read-only
     dataManager.edgesByIndex[0] = edge;
     // @ts-expect-error a node's id is read-only

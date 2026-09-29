@@ -10,16 +10,112 @@ travels with the code; the staging copy is historical. Paths of the form `packag
 older passages below mean `graph-format/` in this repository. The landing did not change either
 package's source.
 
-Last updated: 2026-09-18 (F2: @graphty/graph-format is 1.0.0 and its invariants are frozen; see
-"F2: the 1.0.0 cut" at the end. Previously 2026-09-16: landed in graphty-monorepo, phase F1;
-verification, benchmarks and the two resolved pre-1.0 gaps are in "F1 landing").
+Last updated: 2026-09-28. The Summary, "Migration state" and "Final state of every phase" below
+were checked against `feat/graph-format-migration` at `d40e0301`, the integration branch the
+migration lands on before it reaches master (it includes origin/master up to `f1486172`); the
+plan to finish the migration is `migration-plan.md` in this directory. Every count in the tables
+is printed by `node tools/count-migration-state.mjs` (after building algorithms), except the
+baseline totals of `node tools/check-legacy-use.mjs` and `node tools/check-data-source-migration.mjs`,
+which the checks print themselves. Four figures are not printed by any command: the split of the
+34 legacy functions that do not reach a port into 24 whose port differs and 10 waiting for an
+owner decision (sorted by the reason each conversion commit records), the split of the 64 indexed
+functions into 61 algorithms and 3 named helpers, the 15 snapshot layouts (listed by name in L1),
+and the 16 positional layouts and 8 generator aliases that commit 45ded070 deleted (from that
+commit's message). Version numbers are the package.json versions at that commit; the branch has
+not been released, so none of its breaking changes is on npm yet. The versions merging would
+release come from `nx release --dry-run --skip-publish`. The sections after "Final state of every
+phase" are the historical record of the graph-format and graph-io implementation and landing
+(2026-09-13 to 2026-09-18) and are kept as written; their version numbers and "A1 has not
+started" are no longer current.
 
 ## Summary
 
-| Package                                      | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph-format` (@graphty/graph-format 1.0.0) | IMPLEMENTED and AUDITED (round 1, verified). Every module of design section 13.1, the full 12.2 surface (126 exported names, checked mechanically against the design listing), 1309 tests (unit + audit suites), coverage 96 percent, lint / typecheck / strict-consumer / knip / build clean.                                                                                                                                                                         |
-| `graph-io` (@graphty/graph-io 0.2.1)         | IMPLEMENTED and AUDITED (round 1, verified). The 12.4 contract types, the eight importer / exporter pairs (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) under per-format subpath exports, the registry with `importGraph` / `exportGraph` / `sniff`, the `children` CSR helper; 4237 tests (unit suites over the full corpus plus the seven audit suites), coverage 97 percent statements / 95 branches, lint / typecheck / strict-consumer / knip / build clean. |
+| Package                                            | State (feat/graph-format-migration d40e0301, 2026-09-28)                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph-format` (@graphty/graph-format 1.1.2)       | Released and frozen since 1.0.0 (2026-09-18). Consumed by graph-io, algorithms, layout, graphty-element and webgpu-graph-algorithms. Merging releases 1.1.3.                                                                                                                                                                                                                                                                                                                                                    |
+| `graph-io` (@graphty/graph-io 0.3.9)               | Released. Eight importer / exporter pairs, the corpus, the fidelity and fuzz audits and the parse-to-freeze benchmark. The branch closes the CSV, JSON, GraphML and GML gaps that stood between it and graphty-element's own parsers (IO1 below). No runtime dependency other than graph-format. graphty-element depends on it and reads CSV, JSON, GEXF and GraphML through it. Merging releases 0.3.10.                                                                                                       |
+| `algorithms` (@graphty/algorithms 2.1.2)           | 64 functions and 4 classes under `indexed`, in 36 port files: 61 algorithms, 3 helpers (`arcSourceIn`, `walkPredArcs`, `walkPredEdges`), the two delta PageRank engines and two scratch structures. The dispatcher (`accelerated`) has 30 methods. 56 of the 90 legacy functions the barrel exports reach a port; 24 stay on legacy code because their port's results differ; 10 wait for an owner decision. None of the 8 legacy classes the barrel exports reaches a port. Merging releases 2.2.0 (additive). |
+| `layout` (@graphty/layout 1.10.5)                  | The 2.0 removal has merged: the 16 positional layouts and the 8 generator aliases are deleted, and the 15 snapshot layouts are top-level exports (`indexed`, `rescaleLayout` and `rescaleLayoutDict` stay as deprecated names). The simulation seam and the position helpers in `layout/src/positions.ts` are unchanged. Merging releases 2.0.0.                                                                                                                                                                |
+| `graphty-element` (@graphty/graphty-element 2.6.2) | The builder, snapshot and position column are owned by `GraphStore`; `EdgeMap` and `DataManager.edgeCache` are deleted. 16 of 25 algorithm adapters run on the dispatcher and 2 call `indexed.*` directly; 13 of 13 static layout engines call the snapshot layouts; 4 of 7 data sources (CSV, JSON, GEXF, GraphML) import through graph-io; no exporter. Merging releases 3.0.0.                                                                                                                               |
+| `webgpu-graph-algorithms` (0.6.12)                 | Consumes snapshots throughout (phase W1 done). Accepts algorithms 1.x or 2.x and layout 1.7+ or 2.x as peers. Merging releases 0.6.13.                                                                                                                                                                                                                                                                                                                                                                          |
+
+## Migration state (2026-09-28)
+
+Checked against `feat/graph-format-migration` at `d40e0301`. Phases are those of design section
+14.6. The A1, A2 (ports), A2 (facades), L1 and W1 rows of the previous revision still hold and are
+summarised here; the counts that changed are E1, D1 and IO1.
+
+| Phase        | State   | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1           | Done    | graph-format landed 2026-09-16 (see "F1 landing" below).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F2           | Done    | 1.0.0 cut 2026-09-18 without the A1 gate (design 17.7 D-F2-GATE); now 1.1.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A1           | Done    | `algorithms/src/indexed/to-snapshot.ts` (`toSnapshot`, `toTopologySnapshot`, `toSnapshotOrNull`, `needsLegacyCode`), `Graph.mutationCount`, and the differential harnesses `algorithms/test/helpers/snapshot-differential.ts` and `facade-differential.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| A2 (ports)   | Done    | 61 algorithms in 36 files of `algorithms/src/indexed/`; every legacy algorithm family has a port, including flow and cut, bipartite matching and isomorphism. The dispatcher has 30 methods, including `primMST` and `maximumBipartiteMatching`. `indexed.allPairsShortestPath` (PR #560) and `indexed.labelPropagation` (PR #569) are merged into the branch; both pull requests are still open against master and close when this branch merges.                                                                                                                                                                                                                                                                                                                          |
+| A2 (facades) | Partial | 56 of 90 legacy functions reach a port. 24 stay on legacy code because the port's results differ (another path or tree edge on ties, another member order, another seeded partition), each reason recorded in the commit that converted its family. 10 wait for owner decisions 4 and 5 of `migration-plan.md` section 6: `fordFulkerson`, `edmondsKarp`, `minSTCut`, `stoerWagner`, `kargerMinCut`, `createBipartiteFlowNetwork`, `maximumBipartiteMatching`, `greedyBipartiteMatching`, `isGraphIsomorphic`, `findAllIsomorphisms`. `DeltaPageRank`, `PriorityDeltaPageRank` and `DirectionOptimizedBFS` stay legacy (live-graph updates, multi-source state).                                                                                                            |
+| L1           | Done    | The 15 snapshot layouts (`arf`, `bfs`, `bipartite`, `circular`, `forceAtlas2`, `fruchtermanReingold`, `grid`, `kamadaKawai`, `multipartite`, `planar`, `radial`, `random`, `shell`, `spectral`, `spiral`), the position helpers in `layout/src/positions.ts`, the simulation seam, `layout/test/types/exports.test-d.ts`, and the README and `layout/CLAUDE.md`. layout is a visual-review project (`visual-review/projects.json`).                                                                                                                                                                                                                                                                                                                                         |
+| E1           | Partial | Done: `GraphStore` owns the builder, lazy freeze and position column; `EdgeMap` is deleted; on-load algorithms start once per load; all 13 static layout engines call snapshot layouts. Algorithms, of 25 adapters: 16 run on the dispatcher (BFS, Bellman-Ford, betweenness, closeness, connected components, DFS, Dijkstra, eigenvector, Floyd-Warshall, HITS, Katz, Kruskal, label propagation, PageRank, Prim, strongly connected components); 2 call a port directly (Girvan-Newman, Leiden); 7 still build a legacy `Graph` -- bipartite matching, degree, k-core, link prediction and Louvain through `algorithmGraph()`, MaxFlow and MinCut by hand. The legacy `Graph` is still published in the plugin API as `AlgorithmGraphView` (`graphty-element/extend.ts`). |
+| W1           | Done    | webgpu-graph-algorithms consumes snapshots, has `release()` and per-snapshot residency, and imports the real `AlgorithmAccelerator` type. graphty-element forwards HITS, Katz and eigenvector centrality to it above 15,000, 28,000 and 28,000 nodes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D1           | Partial | `tools/check-legacy-use.mjs` runs in CI and in `tools/prepush.sh` and fails on any legacy use not recorded in `tools/legacy-use-baseline.json`, which now records 30 uses, all in graphty-element: 23 in the algorithm adapters and the plugin bridge (14 legacy imports, 6 `algorithmGraph` or `toAlgorithmGraph` uses, 3 legacy `Graph` constructions) and 7 in the DOT, GML and Pajek data sources. No algorithms legacy entry point is tagged `@deprecated` (the only tags are the no-op settings `configureOptimizations` and `getOptimizationConfig`); layout tags `indexed`, `rescaleLayout` and `rescaleLayoutDict`.                                                                                                                                                |
+| IO1          | Partial | graph-io half done. Element half: CSV, JSON, GEXF and GraphML read through graph-io; papaparse and fast-xml-parser are gone from graphty-element. DOT, GML and Pajek still parse files themselves; `tools/check-data-source-migration.mjs` lists 7 pending problems for them. Two import helpers remain (`graph-io-import.ts`, `graph-io-records.ts`). `catalog/detect.ts` still sniffs by itself, the parser corpus copy is still in `graphty-element/test/helpers/corpus`, and `FORMAT_DESCRIPTORS` has `canExport: false` for every format.                                                                                                                                                                                                                              |
+| 2.0          | Partial | Layout done on the branch, unreleased: commit 45ded070 (`feat(layout)!:`) and commit d5668514 (`fix(layout)!:`) release as layout 2.0.0. graphty-element's commit ea80b527 (`fix(graphty-element)!:`, `DataManager.edgeCache` removed) releases it as 3.0.0. Algorithms removal not started; it will be algorithms 3.0.0.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+## Final state of every phase
+
+What merging `feat/graph-format-migration` delivers, and what is left, with the reason each item
+is left.
+
+- **F1, F2, A1, A2 (ports), L1, W1: done.**
+- **A2 (facades): partial.** 10 legacy flow, cut, matching and isomorphism functions do not
+  delegate because each port differs from legacy in a few recorded cases, and whether to accept
+  those differences is owner decisions 4 and 5 of `migration-plan.md` section 6. The 24 functions
+  left on legacy code on purpose stay legacy until the algorithms 3.0 removal deletes them.
+  The benchmark gate (BFS, PageRank, Louvain and connected components measured old against new)
+  is not met: `algorithms/benchmarks/port-bench.ts` covers HITS, Katz, Louvain and k-core only.
+- **E1: partial.** Degree, k-core, Louvain, bipartite matching, link prediction, max flow and min
+  cut still run legacy code. The branches that move them (element adapters on shipped ports,
+  flow, matching and link prediction) are not merged because their visual changes (Louvain draws
+  four communities where it drew five on the cat network, the bipartite matching story pairs
+  differently, max flow shows net flow) need the owner's review first. Removing `algorithmGraph()`
+  and `AlgorithmGraphView` changes graphty-element's published plugin API and waits for the
+  owner's plugin-seam decision (`migration-plan.md` section 6, item 1).
+- **IO1: partial.** DOT, GML and Pajek move to graph-io on an unmerged branch that forked from an
+  older integration head and conflicts with the CSV, JSON and helper work already merged; merging
+  it, deleting the second import helper, sniffing through graph-io and the truncated-GML test
+  (issue #503) are left for that branch. The element export API waits for owner decision 2, and
+  whether graph-format and graph-io are peers or dependencies of graphty-element (issue #85) waits
+  for owner decision 3.
+- **D1: partial.** Tagging the algorithms legacy entry points `@deprecated` turns the 30 remaining
+  baseline uses into lint errors in graphty-element, so it waits for E1 and IO1 to empty the
+  baseline.
+- **2.0: partial, with an open release-order question.** The plan asked for a layout 1.x release
+  that carries the deprecations before the removal; the removal commits are already in this
+  branch's history, so merging releases layout 2.0.0 with no deprecation window. graphty-element
+  releases as 3.0.0, which open pull request #553 also plans to use. Both are owner decisions.
+  The algorithms 3.0 removal has not started: it needs the deprecation release first and the
+  plugin-seam decision.
+- **Visual review: not done.** Every story change this branch makes is recorded with its cause in
+  `visual-changes/element-layout-stories/README.md` (four graphty-element layout stories) and
+  `visual-changes/layout-stories/README.md` (four layout stories). The owner has not reviewed them.
+- **Issues:** the fixes for #101 and #102 are on a separate unmerged branch and are not part of
+  this one, so both stay open. #85 and #503 stay open for the reasons above.
+
+Open issues on the migration: #85 (graph-format declared twice in graphty-element), #101 (a
+published graph-format file can write producer `dev`), #102 (the design's unscoped breaking
+commit), #503 (a truncated GML file loads without error in the element).
+
+Open pull requests the remaining work waits for or must coordinate with:
+
+- #553 (element undo, released as graphty-element 3.0.0): rewrites the element's data layer,
+  `LayoutEngine.ts`, `Edge.ts`, `Graph.ts`, `catalog/detect.ts` and `custom-algorithms.md`, and
+  reflows the design, this file and the root CLAUDE.md.
+- #490 (instanced edges): `Edge.ts`, `Graph.ts`, `UpdateManager.ts`.
+- #513 (force layout on an accelerator): `SimulationLayoutEngine.ts`, `LayoutManager.ts`.
+- #549, #550, #552 (GPU all-pairs, label propagation and triangles, betweenness): routing them
+  from the element is issue #558.
+
+Visual-review baselines in Git LFS (#559) merged on 2026-09-28 and are in the branch. layout is a
+visual-review project on this branch, but master has no layout baselines, so the pull request that
+first captures layout shows every layout story as `new`.
 
 ## graph-format: what is implemented
 
@@ -778,15 +874,17 @@ GraphML:
   `edgedefault` and namespaces so a mixed file re-exports with the same layout.
 - String cells holding characters XML 1.0 cannot carry are `E_XML_ILLEGAL_CHAR` in `check()` and
   refused by `export()`; `escapeXmlText` writes a carriage return as `&#13;` so it survives.
-- Open: yFiles graphics are kept only as json trees (no extraction of geometry / fill / labels);
-  nested `<graph id>` values and node / edge `<desc>` texts are not preserved; `W_PRECISION` is
+- yFiles `ShapeNode` / `PolyLineEdge` graphics are read into typed `yfiles.*` columns beside the
+  json trees (the exporter writes the trees only). Open: other yFiles graphics (GenericNode,
+  BezierEdge, ...) are kept as json trees only; nested `<graph id>` values and node / edge `<desc>` texts are not preserved; `W_PRECISION` is
   recorded once per file.
 
 GML:
 
 - Two-walk import over one token list (typed arrays, 17 bytes per token): schema first, typed
   declarations with `origin.type` second. Nodes are pushed before edges.
-- Non-integer node ids / endpoints are `E_GML_ID_TYPE` (element skipped); under `nodeIdFrom`
+- A string node id / endpoint is kept under the `ids` rule with one `W_GML_STRING_ID` per file;
+  a real or record id is `E_GML_ID_TYPE` (element skipped); under `nodeIdFrom`
   `label` / `index` the integer ids are not kept as a column (`W_GML_ID_DROPPED`).
 - `graphics [ x y z ]` becomes an f64 x3 position column (z = 0 when absent, renamed
   `position#graphics` on collision) and the remaining keys stay a `graphics` json column
@@ -868,6 +966,18 @@ CSV:
   text. Gephi `timeset` is not implemented.
 - The record reader (`csv/records.ts`) is the package's one RFC 4180 reader, shared with Neo4j;
   papaparse is gone.
+- `table: "adjacency"` reads and writes an adjacency table: no header by default, each row a node
+  then its neighbours, `id:weight` when the text after the last colon is a number (`id:` for an
+  id holding a colon and no weight). It is never sniffed. An empty file is the empty graph, which
+  is what the exporter writes for it. Its delimiter sniff also skips a candidate under which a
+  closing quote is followed by other text, since its rows vary in width; every other table keeps
+  the fatal `E_CSV_QUOTE`. The export keeps ids, node order, isolated nodes, edge order and
+  explicit weights, and drops direction and every column (`W_CSV_DIRECTION_DROPPED`,
+  `W_CSV_EDGE_COLUMNS`, `W_CSV_NODE_TABLE`).
+- `rowNumberIds: true` gives a node table without an id column its 0-based data row numbers as ids,
+  coerced by `ids`. It applies to the node table only (the `nodes` input, else the input itself),
+  whose first row it makes a header under `header: "auto"`; a paired edge table without endpoint
+  columns still fails with `E_CSV_NO_ENDPOINT_COLUMNS`.
 
 JSON:
 
@@ -875,6 +985,11 @@ JSON:
   node-link path reproduces its rules. A missing `nodes` / `edges` array is a recoverable
   `E_MISSING_SECTION`; empty input, invalid JSON, an unrecognised shape and a wrong section type
   are fatal.
+- `nodesPath` / `edgesPath` (node-link, d3, vis, graphology) are dotted paths of object keys to the
+  node and edge arrays; the object holding the nodes is the graph record. A path naming nothing is
+  a recoverable `E_MISSING_SECTION` with an empty array in its place. An edge path through the
+  holder's `graph` key removes only the edge array, so the graph attributes are still read. No
+  array indices or other JMESPath syntax.
 - Exporter dialect defaults to the one recorded under `meta.extra.json` (node-link otherwise); the
   static `capabilities` is the node-link table, `jsonCapabilities(dialect)` gives the others; the
   tables list what the untyped re-import restores (dtypes f64 / i32 / bool / string, no lists /
@@ -952,7 +1067,7 @@ Integration (registry, sniffing, children, build):
   capability tables and `check()` now say.
 - The independent XML reader probes (`fidelity-independent-readers`) use `fast-xml-parser` as a
   devDependency; the package has no runtime dependency beyond the format.
-- GraphML: yFiles graphics are kept as json trees only (no geometry / fill / label extraction);
+- GraphML: yFiles graphics other than `ShapeNode` / `PolyLineEdge` are kept as json trees only;
   nested `<graph id>` values and element `<desc>` texts are not preserved; `W_PRECISION` is once
   per file.
 - GEXF: 1.3 `timestamps` / `intervals` attribute syntax follows Gephi's toString form only; the

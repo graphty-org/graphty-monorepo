@@ -109,12 +109,13 @@ const EXPECTED: Record<string, { dialect: string; directed: boolean }> = {
     "networkx-format.json": { dialect: "node-link", directed: true },
     "karate-d3.json": { dialect: "d3", directed: false },
     "miserables.json": { dialect: "d3", directed: false },
+    "nested-paths.json": { dialect: "node-link", directed: true },
 };
 
 describe("corpus", () => {
     for (const entry of corpusFiles("json")) {
         it(`imports ${entry.path} with the manifest's counts`, async () => {
-            const { s, report } = await load(readCorpusText("json", entry.path));
+            const { s, report } = await load(readCorpusText("json", entry.path), entry.options as Options);
             expect(s.nodeCount).toBe(entry.expectedNodes);
             expect(s.edgeCount).toBe(entry.expectedEdges);
             expect(report.counts.nodes).toBe(entry.expectedNodes);
@@ -1252,5 +1253,137 @@ describe("input handling", () => {
         expect(report.counts.expandedMixed).toBe(1);
         expect(report.counts.edges).toBe(1);
         expect(b.freeze().edgeCount).toBe(3);
+    });
+});
+
+// ============================================================ nodesPath and edgesPath
+
+describe("nodesPath and edgesPath", () => {
+    function weights(s: GraphSnapshot): (number | undefined)[] {
+        // the role column exists when a weight is not f32-exact; the arc weights hold the rest
+        const shadow = s.edges.byRole("weight");
+        const arcs = s.edgeList().weights;
+        return Array.from({ length: s.edgeCount }, (_, e) => {
+            if (shadow !== null) {
+                return shadow.isSet(e) ? (shadow.value(e) as number) : undefined;
+            }
+            return arcs === null ? undefined : arcs[e];
+        });
+    }
+
+    it("nested-paths.json: reads the arrays the paths name and the flags of the object holding the nodes", async () => {
+        const { s, report } = await load(readCorpusText("json", "nested-paths.json"), {
+            nodesPath: "data.nodes",
+            edgesPath: "data.relationships",
+        });
+        expect(s.ids.toArray()).toEqual(["a", "b", "c", "d"]);
+        expect(Array.from({ length: s.edgeCount }, (_, e) => edge(s, e))).toEqual(["a->b", "b->c", "c->a", "a->d"]);
+        expect(weights(s)).toEqual([0.1, 16777217, undefined, 2.5]);
+        expect(s.directed).toBe(true);
+        expect(names(s, "nodes")).toEqual(["group"]);
+        expect(cell(s, "nodes", "group", 3)).toBe(3);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("finds the edges beside the nodes when only nodesPath is given", async () => {
+        const doc = { payload: { nodes: [{ id: 1 }, { id: 2 }], links: [{ source: 1, target: 2, weight: 3 }] } };
+        const { s, report } = await load(json(doc), { nodesPath: "payload.nodes" });
+        expect(s.nodeCount).toBe(2);
+        expect(weights(s)).toEqual([3]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("reads a vis document through the paths", async () => {
+        const doc = { net: { nodes: [{ id: "x" }, { id: "y" }], edges: [{ from: "x", to: "y" }] } };
+        const { s } = await load(json(doc), { nodesPath: "net.nodes", edgesPath: "net.edges" });
+        expect(edge(s, 0)).toBe("x->y");
+        expect((s.meta.extra.json as { dialect: string }).dialect).toBe("vis");
+    });
+
+    it("records a path that names nothing and goes on", async () => {
+        const doc = { data: { nodes: [{ id: "a" }], rels: [{ source: "a", target: "b" }] } };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.edges" });
+        // the rels array beside the nodes is not the edge array the path names: it is reported unread
+        expect(codes(report)).toEqual([JSON_ISSUE.MISSING_SECTION, JSON_ISSUE.UNREAD_KEY]);
+        expect(report.issues[0].element).toBe("data.edges");
+        expect(report.issues[0].message).toMatch(/edgesPath "data.edges" names nothing/);
+        expect(s.nodeCount).toBe(1);
+        expect(s.edgeCount).toBe(0);
+        const through = await load(json({ data: 5 }), { nodesPath: "data.nodes.deeper", edgesPath: "nope" });
+        expect(codes(through.report)).toEqual([JSON_ISSUE.MISSING_SECTION, JSON_ISSUE.MISSING_SECTION]);
+        expect(through.s.nodeCount).toBe(0);
+    });
+
+    it("does not report the key edgesPath descends through as unread when only edgesPath is given", async () => {
+        const doc = { directed: true, nodes: [{ id: "a" }, { id: "b" }], e: { list: [{ source: "a", target: "b" }] } };
+        const { s, report } = await load(json(doc), { edgesPath: "e.list" });
+        expect(s.nodeCount).toBe(2);
+        expect(edge(s, 0)).toBe("a->b");
+        expect(report.issues).toEqual([]);
+    });
+
+    it("drops the holder's own edges and links arrays when edgesPath points elsewhere", async () => {
+        const doc = {
+            data: {
+                nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+                links: [{ source: "a", target: "c" }],
+                rel: [{ source: "a", target: "b" }],
+            },
+        };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.rel" });
+        expect(Array.from({ length: s.edgeCount }, (_, e) => edge(s, e))).toEqual(["a->b"]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("reads vis and graphology edges from an edgesPath that ends in links", async () => {
+        const docs = {
+            vis: { data: { nodes: [{ id: "a" }, { id: "b" }], links: [{ from: "a", to: "b" }] } },
+            graphology: { data: { nodes: [{ key: "a" }, { key: "b" }], links: [{ source: "a", target: "b" }] } },
+        } as const;
+        for (const dialect of ["vis", "graphology"] as const) {
+            for (const forced of [dialect, undefined]) {
+                const { s, report } = await load(json(docs[dialect]), {
+                    dialect: forced,
+                    nodesPath: "data.nodes",
+                    edgesPath: "data.links",
+                });
+                expect(s.edgeCount, `${dialect} ${String(forced)}`).toBe(1);
+                expect(edge(s, 0)).toBe("a->b");
+                expect(report.issues).toEqual([]);
+                expect((s.meta.extra.json as { dialect: string }).dialect).toBe(dialect);
+            }
+        }
+    });
+
+    it("keeps the rest of the graph key when edgesPath passes through it", async () => {
+        const doc = {
+            data: { graph: { name: "g", links: [{ source: "a", target: "b" }] }, nodes: [{ id: "a" }, { id: "b" }] },
+        };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.graph.links" });
+        expect(edge(s, 0)).toBe("a->b");
+        expect(names(s, "graph")).toEqual(["name"]);
+        expect(report.issues).toEqual([]);
+    });
+
+    it("keeps an edgesPath that ends in links under links, so a bare d3 document stays d3", async () => {
+        const doc = { data: { nodes: [{ id: "a" }, { id: "b" }], rel: { links: [{ source: "a", target: "b" }] } } };
+        const { s, report } = await load(json(doc), { nodesPath: "data.nodes", edgesPath: "data.rel.links" });
+        expect(edge(s, 0)).toBe("a->b");
+        expect((s.meta.extra.json as { dialect: string }).dialect).toBe("d3");
+        expect(report.issues).toEqual([]);
+    });
+
+    it("still refuses a path that names something other than an array", async () => {
+        const error = await expectImportError(json({ data: { nodes: {} } }), { nodesPath: "data.nodes" });
+        expect(error.report.issues[0].code).toBe(JSON_ISSUE.SHAPE);
+    });
+
+    it("refuses an empty segment and a dialect without node and edge arrays", async () => {
+        const doc = json({ nodes: [] });
+        await expect(load(doc, { nodesPath: "a..b" })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
+        await expect(load(doc, { edgesPath: "" })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
+        await expect(load(doc, { nodesPath: "nodes", dialect: "jgf" })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
     });
 });

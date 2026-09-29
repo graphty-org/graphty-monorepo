@@ -1,4 +1,10 @@
 import type { Graph } from "../../core/graph.js";
+import {
+    betweennessCentrality as indexedBetweenness,
+    edgeBetweennessCentrality as indexedEdgeBetweenness,
+} from "../../indexed/betweenness.js";
+import { edgeScoresToPairMap, scoresToRecord } from "../../indexed/facade.js";
+import { needsLegacyCode, toSnapshot } from "../../indexed/to-snapshot.js";
 import type { NodeId } from "../../types/index.js";
 import { bfsWithPathCounting } from "../traversal/bfs-variants.js";
 
@@ -44,7 +50,8 @@ function rejectIndexOptions(options: BetweennessCentralityOptions, fn: string): 
     if (options.sources !== undefined || options.k !== undefined) {
         throw new Error(
             `${fn}: 'sources' and 'k' are node INDICES and are meaningful only against a GraphSnapshot; ` +
-                "call accelerated(accelerator).betweennessCentrality(snapshot, options) instead",
+                "for sampled betweenness call indexed.betweennessCentrality(snapshot, options), or " +
+                "accelerated(accelerator).betweennessCentrality(snapshot, options) to use an AlgorithmAccelerator",
         );
     }
 }
@@ -228,6 +235,27 @@ export function betweennessCentrality(
     options: BetweennessCentralityOptions = {},
 ): Record<string, number> {
     rejectIndexOptions(options, "betweennessCentrality");
+    if (needsLegacyCode(graph)) {
+        return legacyBetweennessCentrality(graph, options);
+    }
+    const s = toSnapshot(graph);
+    // `endpoints` is not passed on: the legacy accumulation accepts it and ignores it.
+    return scoresToRecord(s.ids, indexedBetweenness(s, { normalized: options.normalized }).scores);
+}
+
+/**
+ * The implementation {@link betweennessCentrality} delegates away from, kept as its
+ * differential-test oracle. Deleted at the removal release.
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Centrality scores for each node keyed by node ID
+ * @internal
+ */
+export function legacyBetweennessCentrality(
+    graph: Graph,
+    options: BetweennessCentralityOptions = {},
+): Record<string, number> {
+    rejectIndexOptions(options, "betweennessCentrality");
     const nodes = Array.from(graph.nodes()).map((node) => node.id);
     const centrality: Record<string, number> = {};
 
@@ -289,6 +317,28 @@ export function nodeBetweennessCentrality(
  * @returns Edge centrality scores keyed by edge string representation
  */
 export function edgeBetweennessCentrality(
+    graph: Graph,
+    options: BetweennessCentralityOptions = {},
+): Map<string, number> {
+    rejectIndexOptions(options, "edgeBetweennessCentrality");
+    // On an undirected graph the legacy Map adds each reversed "v-u" key in the order its searches
+    // first cross the edge that way, an order the port's per-edge scores do not carry.
+    if (!graph.isDirected || needsLegacyCode(graph)) {
+        return legacyEdgeBetweennessCentrality(graph, options);
+    }
+    const s = toSnapshot(graph);
+    return edgeScoresToPairMap(s, indexedEdgeBetweenness(s, { normalized: options.normalized }).scores);
+}
+
+/**
+ * The implementation {@link edgeBetweennessCentrality} delegates away from, kept as its
+ * differential-test oracle and for an undirected graph. Deleted at the removal release.
+ * @param graph - The input graph to analyze
+ * @param options - Algorithm configuration options
+ * @returns Edge centrality scores keyed by edge string representation
+ * @internal
+ */
+export function legacyEdgeBetweennessCentrality(
     graph: Graph,
     options: BetweennessCentralityOptions = {},
 ): Map<string, number> {

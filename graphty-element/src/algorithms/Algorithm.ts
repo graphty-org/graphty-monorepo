@@ -1,7 +1,7 @@
 import { accelerated, type AcceleratedAlgorithms, type Graph as AlgorithmGraph } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { narrowAlgorithms } from "../acceleration/narrow";
+import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
@@ -401,13 +401,22 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * THE DECISION IS TAKEN ONCE, HERE, BEFORE ANY WORK STARTS. The controller answers "the policy
      * is off", "no accelerator", "below `acceleration.minNodes`" or "this accelerator does not
      * implement that" up front, and under `acceleration="required"` it throws `E_NO_ACCELERATOR`
-     * rather than answering quietly. After the work has started there is no second decision: a
+     * rather than answering quietly. Two answers stay on the CPU even under `"required"`, because
+     * the device is not the element's to offer for them: a capability the element does not
+     * forward (betweenness and closeness today) never asks the controller, and a call the
+     * dispatcher itself keeps on the CPU port (an option or a graph shape the device's kernel is
+     * not defined for) runs there. Both say `f64`. After the work has started there is no second decision: a
      * failure from the accelerator propagates with its code and fails the run, because a number
      * that silently came from somewhere else is worse than no number.
      * @param capability - The accelerator member this work would use, such as `"pageRank"`.
      * @param mode - The shape this algorithm needs; see {@link AlgorithmGraphMode}. `"undirected"`
      *   takes the snapshot's undirected view, which is what collapses a reciprocal pair into one
      *   edge.
+     * @param options - What the decision needs to know about this run.
+     * @param options.accelerable - False when the options of this run are ones no accelerator
+     *   answers, such as a walk that stops at a target, so the decision is the CPU port's (and
+     *   `E_NO_ACCELERATOR` under `acceleration="required"`). A capability the element does not
+     *   forward to an accelerator is never accelerable, whatever this says.
      * @returns The snapshot, the edge map onto it, and the runner.
      * @example
      * ```ts
@@ -416,7 +425,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * const group = value.labels[snapshot.ids.indexOf(nodeId)];
      * ```
      */
-    protected accelerated(capability: string, mode: AlgorithmGraphMode): AcceleratedAlgorithmRun {
+    protected accelerated(
+        capability: string,
+        mode: AlgorithmGraphMode,
+        options?: { accelerable?: boolean },
+    ): AcceleratedAlgorithmRun {
         /* The input accessor derives the snapshot: the declared one or the store's cached
            undirected view, over the run's scope when the class declares one. It leaves the NODE
            space of the whole graph alone -- so a node result indexes the declared snapshot's nodes
@@ -436,7 +449,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            edges and leave its twin unpainted, which reads as a rendering glitch. */
         const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
         const controller = this.graph.acceleration;
-        const work = { capability, nodeCount: snapshot.nodeCount };
+        const work = {
+            capability,
+            nodeCount: snapshot.nodeCount,
+            forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
+        };
 
         return {
             snapshot,
@@ -444,12 +461,45 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {
-                const outcome = await controller.run(work, (accelerator) =>
-                    fn(accelerated(narrowAlgorithms(accelerator)), snapshot),
-                );
+                // A capability the element does not route to the device is not the controller's
+                // question: asking would label a CPU answer with the device's precision, and under
+                // "required" refuse work the element never meant to send there.
+                if (forwardsAlgorithm(capability)) {
+                    // The dispatcher may still answer on the CPU port with an accelerator attached --
+                    // eigenvector centrality over a graph whose iteration the device kernel cannot
+                    // match, say -- so the precision follows whether a member was actually reached.
+                    let reached = false;
+                    const outcome = await controller.run(work, (accelerator) =>
+                        fn(
+                            accelerated(
+                                narrowAlgorithms(accelerator, () => {
+                                    reached = true;
+                                }),
+                            ),
+                            snapshot,
+                        ),
+                    );
 
-                if (outcome.accelerated) {
-                    return { value: outcome.value, precision: outcome.precision };
+                    if (outcome.accelerated) {
+                        if (reached) {
+                            return { value: outcome.value, precision: outcome.precision };
+                        }
+
+                        // Under "required" an answer the device did not compute is the absence that
+                        // policy exists to make loud, however it came about.
+                        if (controller.policy === "required") {
+                            throw new GraphtyError({
+                                code: "E_NO_ACCELERATOR",
+                                message:
+                                    `acceleration is required, but the accelerator does not answer this ` +
+                                    `"${capability}" run as asked, so it ran on the CPU`,
+                                source: "acceleration",
+                                details: { policy: "required", capability, nodeCount: snapshot.nodeCount },
+                            });
+                        }
+
+                        return { value: outcome.value, precision: CPU_PRECISION };
+                    }
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one

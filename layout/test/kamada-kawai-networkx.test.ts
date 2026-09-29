@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { GraphBuilder } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import { kamadaKawaiLayout } from "../src";
+import { kamadaKawai } from "../src";
 
 interface Fixture {
     networkx: string;
@@ -63,26 +64,20 @@ function disparity(a: number[][], b: number[][]): number {
     return 1 - nuclear * nuclear;
 }
 
+/** kamadaKawai over a snapshot whose f64 edge weights are the fixture's distances. */
 function layoutOf(fixture: Fixture, start?: number[][]): number[][] {
-    const distance = new Map(fixture.edges.map(([u, v, d]) => [JSON.stringify([u, v]), d]));
-    const graph = {
-        nodes: () => fixture.nodes,
-        edges: () => fixture.edges.map(([u, v]) => [u, v]),
-        getEdgeData: (u: string | number, v: string | number) =>
-            distance.get(JSON.stringify([u, v])) ?? distance.get(JSON.stringify([v, u])),
-    };
-    const pos = start
-        ? kamadaKawaiLayout(
-              graph as never,
-              null,
-              Object.fromEntries(fixture.nodes.map((n, i) => [n, start[i]])),
-              "distance",
-              1,
-              null,
-              3,
-          )
-        : kamadaKawaiLayout(graph as never, null, null, "distance");
-    return fixture.nodes.map((n) => pos[n]);
+    const builder = new GraphBuilder({ directed: false, weighted: true, weightDtype: "f64" });
+    builder.addNodes(fixture.nodes);
+    for (const [u, v, d] of fixture.edges) {
+        builder.addEdge(u, v, d);
+    }
+    const s = builder.freeze();
+    const dim = start ? 3 : 2;
+    const { positions } = kamadaKawai(s, { dim, pos: start ? Float32Array.from(start.flat()) : null });
+    return fixture.nodes.map((n) => {
+        const i = s.ids.indexOf(n);
+        return Array.from(positions.subarray(dim * i, dim * i + dim));
+    });
 }
 
 describe("Kamada-Kawai against networkx", () => {

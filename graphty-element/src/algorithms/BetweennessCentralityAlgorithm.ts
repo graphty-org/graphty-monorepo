@@ -1,5 +1,3 @@
-import { betweennessCentrality } from "@graphty/algorithms";
-
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -45,7 +43,7 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm {
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Undirected: a shortest path may cross an edge in either direction, and betweenness halves
         // its raw counts for an undirected input because each pair is then reached twice.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("betweennessCentrality", "undirected");
 
         context.report({
             phase: "tracing shortest paths",
@@ -55,12 +53,12 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm {
         });
         // Brandes is one synchronous call into `@graphty/algorithms` and cannot be interrupted
         // from here. The element's own half -- reading the scores back out -- is chunked below.
-        const scores = betweennessCentrality(graphData);
+        const { value, precision } = await run((dispatch, s) => dispatch.betweennessCentrality(s));
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const score = scores[String(nodeId)];
+            const score = value.scores[snapshot.ids.indexOf(nodeId)];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 
@@ -72,7 +70,7 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm {
                 exact: true,
                 direction: "undirected",
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "brandes",
                 notes: [
                     "Every shortest path is counted exactly, over the graph read as undirected.",

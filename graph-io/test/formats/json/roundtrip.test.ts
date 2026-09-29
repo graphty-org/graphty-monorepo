@@ -75,7 +75,7 @@ function rich(): GraphSnapshot {
 describe("corpus round trips (design 16.5)", () => {
     for (const entry of corpusFiles("json")) {
         it(`${entry.path}: export in its own dialect and re-import is exact`, async () => {
-            const s = await imported(readCorpusText("json", entry.path));
+            const s = await imported(readCorpusText("json", entry.path), entry.options as JsonImportOptions);
             expect(jsonExporter.check(s)).toEqual([]);
             await exact(s);
             await exact(s, { indent: 4 });
@@ -98,7 +98,7 @@ describe("corpus round trips (design 16.5)", () => {
     it("every corpus file survives every dialect on ids, topology, orientation and weights", async () => {
         const mixedCapable = new Set<JsonDialect>(["jgf", "graphology"]);
         for (const entry of corpusFiles("json")) {
-            const s = await imported(readCorpusText("json", entry.path));
+            const s = await imported(readCorpusText("json", entry.path), entry.options as JsonImportOptions);
             for (const dialect of JSON_DIALECTS) {
                 const exportOptions: JsonExportOptions & CommonExportOptions = { dialect };
                 const importOptions: JsonImportOptions & CommonImportOptions = { dialect };

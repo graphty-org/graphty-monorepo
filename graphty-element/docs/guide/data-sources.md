@@ -166,21 +166,42 @@ subject, and any directed edge among them makes the graph directed. That asymmet
 losing one direction of an undirected edge is countable, and counted, while reading a directed edge
 as undirected invents a reverse path the file denies.
 
-Either way each edge keeps its own direction on its record, and the element logs a warning naming
-how many edges it overrode. Direction is settled once per graph: a second file loaded into a graph
+Either way an edge whose own direction differs from the graph's keeps it on its record -- a GEXF
+edge as `type` (`"directed"`, `"undirected"`, or `"mutual"`, which is always kept), a GraphML edge
+as `directed` -- and the element logs a warning naming how many edges it overrode. An edge whose
+own `type` or `directed` agrees with the graph carries no such key: it is drawn like every other
+edge. GEXF keywords are read in any case, so `defaultedgetype="Directed"` is directed. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
+
+## GEXF and GraphML Records
+
+GEXF and GraphML files are read by `@graphty/graph-io`, and each node and edge record carries the
+attributes the file declared, under their titles (GEXF) or `attr.name` (GraphML), typed by their
+declared type:
+
+- a GEXF `liststring` (or GEXF 1.3 `list<...>`) attribute is an array of its items;
+- a GEXF `date` or `dateTime` attribute is its ISO text;
+- a GraphML key declared `for="all"` applies to nodes and edges alike;
+- a value that does not parse as its declared type -- `3.7` for an `int` key, a GraphML `<data>`
+  holding XML elements rather than text -- is left off the record and reported as a loading error;
+- a node id declared twice is one node, with the later declaration's values winning.
+
+The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
+`viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
+loads nothing and reports a loading error.
 
 ## Dynamic GEXF
 
 A GEXF file with `mode="dynamic"` keeps its time data on each node's and edge's data, as the
 strings the file wrote:
 
-| In the file                                    | On the record                                              |
-| ---------------------------------------------- | ---------------------------------------------------------- |
-| `start`, `end`, `timestamp` on a node or edge  | `start`, `end`, `timestamp`                                |
-| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true`  |
-| `<spells><spell .../></spells>`                | `spells`: a list of `{ start, end }`                       |
-| several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices |
+| In the file                                    | On the record                                                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `start`, `end`, `timestamp` on a node or edge  | `start`, `end`, `timestamp`                                                                                                |
+| `startopen` / `endopen` (GEXF 1.2 open bounds) | `start` / `end`, plus `startOpen: true` / `endOpen: true`                                                                  |
+| `<spells><spell .../></spells>`                | `spells`: a list of `{ start, end }`, each with `startOpen` / `endOpen` for an open bound                                  |
+| several timed `<attvalue>`s for one attribute  | that attribute as a list of `{ value, start, end }` slices; an untimed `<attvalue>` among them comes first, as `{ value }` |
 
 An attribute with no timed `attvalue` keeps its plain value, so a static file reads as it always
 has. Timed `viz:*` elements (a position, colour or size that changes over time) are not read.

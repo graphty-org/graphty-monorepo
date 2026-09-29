@@ -1,49 +1,38 @@
 # Clustering Algorithms
 
-Clustering algorithms group nodes based on graph structure and connectivity patterns. These algorithms are useful for identifying related items, partitioning networks, and discovering hierarchical structures.
-
-## Clustering Coefficient
-
-Measures how well nodes tend to cluster together. High clustering means a node's neighbors are also neighbors of each other.
-
-```typescript
-import { Graph, clusteringCoefficient, averageClusteringCoefficient } from "@graphty/algorithms";
-
-const graph = new Graph<string>({ directed: false });
-graph.addEdge("a", "b");
-graph.addEdge("a", "c");
-graph.addEdge("b", "c"); // Triangle: a-b-c
-graph.addEdge("a", "d");
-
-// Local clustering coefficient for each node
-const local = clusteringCoefficient(graph);
-console.log(local.get("a")); // 0.33 (1 of 3 possible triangles)
-console.log(local.get("b")); // 1.0 (all neighbors connected)
-
-// Average clustering for the whole graph
-const avg = averageClusteringCoefficient(graph);
-console.log(`Average clustering: ${avg.toFixed(2)}`);
-```
+Clustering algorithms group nodes based on graph structure and connectivity patterns. They are useful for identifying
+related items, partitioning networks, and discovering hierarchical structures. Each takes a graph snapshot (see
+[Graph Data Structure](./graph.md)) and returns typed arrays indexed by node.
 
 ## K-Core Decomposition
 
-Finds the k-core of a graph: the maximal subgraph where every node has at least k neighbors.
+The k-core of a graph is the largest subgraph in which every node has at least k neighbours. A node's core number is
+the largest k whose k-core contains it.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, kCore, coreNumber } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges
+const builder = new GraphBuilder({ directed: false });
+// A 4-clique with a tail
+builder.addEdge("a", "b");
+builder.addEdge("a", "c");
+builder.addEdge("a", "d");
+builder.addEdge("b", "c");
+builder.addEdge("b", "d");
+builder.addEdge("c", "d");
+builder.addEdge("d", "e");
+builder.addEdge("e", "f");
+const graph = builder.freeze();
 
-// Get the 3-core (nodes with at least 3 connections to other core nodes)
-const core = kCore(graph, 3);
-console.log("3-core nodes:", [...core.nodes()]);
+const result = indexed.kCoreDecomposition(graph);
+console.log(result.coreness); // [3, 3, 3, 3, 1, 1]
+console.log(result.maxCore); // 3
 
-// Get core number for each node
-const cores = coreNumber(graph);
-for (const [node, k] of cores) {
-  console.log(`${node}: ${k}-core`);
-}
+// The nodes whose core number is exactly 3
+console.log(Array.from(result.cores()[3], (i) => graph.ids.idOf(i))); // ["a", "b", "c", "d"]
 ```
 
 ### Use Cases
@@ -52,109 +41,107 @@ for (const [node, k] of cores) {
 - Identifying influential users in social networks
 - Graph visualization (layering by core number)
 
-## Triangle Counting
-
-Count triangles in the graph. Triangles indicate tight clustering.
-
-```typescript
-import { Graph, triangles, triangleCount } from "@graphty/algorithms";
-
-const graph = new Graph<string>({ directed: false });
-graph.addEdge("a", "b");
-graph.addEdge("b", "c");
-graph.addEdge("c", "a"); // Triangle 1
-graph.addEdge("b", "d");
-graph.addEdge("c", "d"); // Triangle 2
-graph.addEdge("d", "a"); // Triangle 3
-
-// Count triangles per node
-const nodeTriangles = triangles(graph);
-console.log(nodeTriangles.get("a")); // Number of triangles containing "a"
-
-// Total triangle count
-const total = triangleCount(graph);
-console.log(`Total triangles: ${total}`);
-```
-
 ## Hierarchical Clustering
 
-Build a hierarchy of clusters using agglomerative clustering.
+Builds a hierarchy of clusters by repeatedly merging the two closest ones, measuring distance in hops. Clusters
+`0` to `nodeCount - 1` are the nodes themselves; merge `k` creates cluster `nodeCount + k`.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, hierarchicalClustering } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges with weights (similarity)
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
 
-const dendrogram = hierarchicalClustering(graph, {
-  linkage: "average", // "single", "complete", or "average"
+const dendrogram = indexed.hierarchicalClustering(graph, {
+    linkage: "average", // "single", "complete", "average" or "ward"
 });
+console.log(dendrogram.left.length); // 3
 
-// Cut the dendrogram to get k clusters
-const clusters = dendrogram.cut(3);
-console.log("Clusters:", clusters);
+// Cut at height 1: every cluster taller than one merge is split into its children
+const clusters = dendrogram.cut(1);
+console.log(clusters.map((c) => Array.from(c, (i) => graph.ids.idOf(i)))); // [["a", "b"], ["c", "d"]]
 ```
 
 ## Spectral Clustering
 
-Uses eigenvalues of the graph Laplacian for clustering.
+Uses the eigenvectors of the graph Laplacian to split the graph into `k` clusters.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, spectralClustering } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("a", "c");
+builder.addEdge("b", "c");
+builder.addEdge("d", "e");
+builder.addEdge("d", "f");
+builder.addEdge("e", "f");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
 
-const clusters = spectralClustering(graph, {
-  k: 3, // Number of clusters
-});
-
-for (const [node, cluster] of clusters) {
-  console.log(`${node} -> cluster ${cluster}`);
-}
+const result = indexed.spectralClustering(graph, { k: 2, seed: 42 });
+console.log(result.count); // 2
+console.log(result.labels[0] === result.labels[1], result.labels[0] === result.labels[5]); // true false
 ```
 
-## Transitivity
+## Markov Clustering
 
-Global measure of clustering in the graph.
+Simulates random walks: flow is expanded along the edges and then sharpened, until it settles into clusters.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, transitivity } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("a", "c");
+builder.addEdge("b", "c");
+builder.addEdge("d", "e");
+builder.addEdge("d", "f");
+builder.addEdge("e", "f");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
 
-const t = transitivity(graph);
-// Ratio of triangles to connected triples
-console.log(`Transitivity: ${t.toFixed(3)}`);
+const result = indexed.markovClustering(graph, { expansion: 2, inflation: 2 });
+console.log(result.count); // 2
+console.log(result.converged); // true
 ```
+
+`indexed.teraHAC`, `indexed.grsbm` and `indexed.syncClustering` offer further clustering methods with the same partition
+result.
 
 ## Practical Example: Finding Cohesive Groups
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph, kCore, clusteringCoefficient, triangles } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { indexed } from "@graphty/algorithms";
 
-// Collaboration network
-const colab = new Graph<string>({ directed: false });
-colab.addEdge("alice", "bob");
-colab.addEdge("alice", "carol");
-colab.addEdge("bob", "carol");
-colab.addEdge("bob", "dave");
-colab.addEdge("carol", "dave");
-colab.addEdge("dave", "eve");
-colab.addEdge("eve", "frank");
+// A collaboration network
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob");
+builder.addEdge("alice", "carol");
+builder.addEdge("bob", "carol");
+builder.addEdge("bob", "dave");
+builder.addEdge("carol", "dave");
+builder.addEdge("dave", "eve");
+builder.addEdge("eve", "frank");
+const colab = builder.freeze();
 
-// Find tightly-knit research groups
-const cores = kCore(colab, 2);
-console.log("Close collaborators:", [...cores.nodes()]);
-
-// Analyze collaboration patterns
-const clustering = clusteringCoefficient(colab);
-const triCounts = triangles(colab);
-
-for (const node of colab.nodes()) {
-  console.log(`${node}:`);
-  console.log(`  Clustering: ${clustering.get(node)?.toFixed(2)}`);
-  console.log(`  Triangles: ${triCounts.get(node)}`);
-}
+// Tightly-knit research groups: everyone with a core number of at least 2
+const { coreness } = indexed.kCoreDecomposition(colab);
+const close = colab.ids.toArray().filter((_, i) => coreness[i] >= 2);
+console.log(close); // ["alice", "bob", "carol", "dave"]
 ```

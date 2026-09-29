@@ -1,5 +1,3 @@
-import { closenessCentrality } from "@graphty/algorithms";
-
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -43,7 +41,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Undirected: closeness here measures distance, which ignores the declared direction.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("closenessCentrality", "undirected");
 
         context.report({
             phase: "measuring distances",
@@ -53,12 +51,12 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm {
         });
         // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
         // The element's own half -- reading the scores back out -- is chunked below.
-        const scores = closenessCentrality(graphData);
+        const { value, precision } = await run((dispatch, s) => dispatch.closenessCentrality(s));
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const score = scores[String(nodeId)];
+            const score = value.scores[snapshot.ids.indexOf(nodeId)];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 
@@ -70,7 +68,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm {
                 exact: true,
                 direction: "undirected",
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "closeness-bfs",
                 notes: [
                     "Distances are exact, measured over the graph read as undirected.",

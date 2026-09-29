@@ -1,32 +1,46 @@
-import type { Graph } from "../core/graph.js";
-import type { NodeId } from "../types/index.js";
-
 /**
- * Markov Clustering (MCL) algorithm implementation
- *
- * MCL simulates flow in graphs and finds clusters based on the notion that
- * random walks stay within clusters and rarely move between clusters.
- * The algorithm alternates between expansion (matrix squaring) and
- * inflation (element-wise powering and normalization).
- *
- * Time complexity: O(V³) per iteration
- * Space complexity: O(V²)
+ * Markov Clustering (MCL) over a legacy `Graph`. `markovClustering` delegates to
+ * `indexed.markovClustering` through `toSnapshot`, with the graph's exact f64 weights; the result
+ * equals the pre-migration implementation in `mcl-legacy.ts` exactly. Parameters or weights the port
+ * refuses (a fractional expansion, a negative, infinite or NaN weight, an undirected edge whose two
+ * stored halves carry different weights, ...) keep the old code.
  */
 
-export interface MCLOptions {
-    expansion?: number; // Expansion parameter (default: 2)
-    inflation?: number; // Inflation parameter (default: 2)
-    maxIterations?: number; // Maximum iterations (default: 100)
-    tolerance?: number; // Convergence tolerance (default: 1e-6)
-    pruningThreshold?: number; // Pruning threshold (default: 1e-5)
-    selfLoops?: boolean; // Add self-loops (default: true)
-}
+import type { Graph } from "../core/graph.js";
+import { exactArcWeights, labelsToGroups } from "../indexed/facade.js";
+import { markovClustering as indexedMarkovClustering } from "../indexed/markov.js";
+import { toSnapshot } from "../indexed/to-snapshot.js";
+import { markovClustering as legacyMarkovClustering, type MCLOptions, type MCLResult } from "./mcl-legacy.js";
 
-export interface MCLResult {
-    communities: NodeId[][];
-    attractors: Set<NodeId>; // Attractor nodes (cluster representatives)
-    iterations: number;
-    converged: boolean;
+export type { MCLOptions, MCLResult } from "./mcl-legacy.js";
+export { calculateMCLModularity } from "./mcl-legacy.js";
+
+/**
+ * Whether the port accepts these parameters and the graph's weights.
+ * @param graph - The caller's graph
+ * @param options - The caller's options
+ * @returns True when the port runs without throwing
+ */
+function portAccepts(graph: Graph, options: MCLOptions): boolean {
+    const { expansion = 2, inflation = 2, maxIterations = 100, tolerance = 1e-6, pruningThreshold = 1e-5 } = options;
+    if (!Number.isInteger(expansion) || expansion < 1 || !(inflation > 0) || inflation === Infinity) {
+        return false;
+    }
+    if (!Number.isInteger(maxIterations) || maxIterations < 0 || !(tolerance >= 0) || !(pruningThreshold >= 0)) {
+        return false;
+    }
+    for (const { source, target, weight = 1 } of graph.edges()) {
+        if (!(weight >= 0) || weight === Infinity) {
+            return false;
+        }
+        // An undirected edge is stored once per direction, and `getEdge` hands out either half, so
+        // a weight set in place can leave the halves disagreeing. The snapshot holds one weight per
+        // edge; the old code reads each half, so it keeps such a graph.
+        if (!graph.isDirected && (graph.getEdge(target, source)?.weight ?? 1) !== weight) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -36,463 +50,16 @@ export interface MCLResult {
  * @returns MCL clustering result with communities, attractors, and convergence info
  */
 export function markovClustering(graph: Graph, options: MCLOptions = {}): MCLResult {
-    const {
-        expansion = 2,
-        inflation = 2,
-        maxIterations = 100,
-        tolerance = 1e-6,
-        pruningThreshold = 1e-5,
-        selfLoops = true,
-    } = options;
-
-    const nodes = Array.from(graph.nodes());
-    const nodeIds = nodes.map((node) => node.id);
-    const n = nodeIds.length;
-
-    if (n === 0) {
-        return {
-            communities: [],
-            attractors: new Set(),
-            iterations: 0,
-            converged: true,
-        };
+    if (!portAccepts(graph, options)) {
+        return legacyMarkovClustering(graph, options);
     }
-
-    // Build initial transition matrix
-    let matrix = buildTransitionMatrix(graph, nodeIds, selfLoops);
-
-    let converged = false;
-    let iteration = 0;
-
-    for (iteration = 0; iteration < maxIterations; iteration++) {
-        const oldMatrix = matrix.map((row) => [...row]);
-
-        // Expansion step (matrix multiplication)
-        matrix = matrixPower(matrix, expansion);
-
-        // Inflation step (element-wise powering and column normalization)
-        matrix = inflate(matrix, inflation);
-
-        // Pruning step (remove small values)
-        matrix = prune(matrix, pruningThreshold);
-
-        // Check for convergence
-        if (hasConverged(oldMatrix, matrix, tolerance)) {
-            converged = true;
-            break;
-        }
-    }
-
-    // Extract clusters from final matrix
-    const { communities, attractors } = extractClusters(matrix, nodeIds);
-
+    const s = toSnapshot(graph);
+    const r = indexedMarkovClustering(s, { ...options, weights: exactArcWeights(s) });
     return {
-        communities,
-        attractors,
-        iterations: iteration + 1,
-        converged,
+        communities: labelsToGroups(s.ids, r.labels, r.count),
+        attractors: new Set(Array.from(r.attractors, (i) => s.ids.idOf(i))),
+        // The old loop reported one round more than it ran when it stopped at the cap.
+        iterations: r.iterations + (r.converged ? 0 : 1),
+        converged: r.converged,
     };
-}
-
-/**
- * Build initial transition matrix from graph
- * @param graph - The input graph
- * @param nodeIds - Array of node IDs in the graph
- * @param selfLoops - Whether to add self-loops to the matrix
- * @returns Column-normalized transition matrix
- */
-function buildTransitionMatrix(graph: Graph, nodeIds: NodeId[], selfLoops: boolean): number[][] {
-    const n = nodeIds.length;
-    const matrix = Array.from({ length: n }, (): number[] => Array(n).fill(0) as number[]);
-    const nodeToIndex = new Map<NodeId, number>();
-
-    nodeIds.forEach((id, index) => nodeToIndex.set(id, index));
-
-    // Fill adjacency values
-    for (let i = 0; i < n; i++) {
-        const nodeId = nodeIds[i];
-        if (nodeId === undefined) {
-            continue;
-        }
-
-        const neighbors = graph.neighbors(nodeId);
-
-        for (const neighbor of neighbors) {
-            const j = nodeToIndex.get(neighbor);
-            if (j !== undefined) {
-                const edge = graph.getEdge(nodeId, neighbor);
-                const weight = edge?.weight ?? 1;
-                const row = matrix[i];
-                if (!row) {
-                    continue;
-                }
-
-                row[j] = weight;
-            }
-        }
-
-        // Add self-loops
-        if (selfLoops) {
-            const row = matrix[i];
-            if (!row) {
-                continue;
-            }
-
-            row[i] = 1;
-        }
-    }
-
-    // Column-normalize the matrix
-    for (let j = 0; j < n; j++) {
-        let colSum = 0;
-        for (let i = 0; i < n; i++) {
-            const val = matrix[i]?.[j];
-            if (val !== undefined) {
-                colSum += val;
-            }
-        }
-
-        if (colSum > 0) {
-            for (let i = 0; i < n; i++) {
-                const row = matrix[i];
-                if (!row) {
-                    continue;
-                }
-
-                const val = row[j];
-                if (val !== undefined) {
-                    row[j] = val / colSum;
-                }
-            }
-        }
-    }
-
-    return matrix;
-}
-
-/**
- * Raise matrix to a power (for expansion step)
- * @param matrix - Input square matrix
- * @param power - Power to raise the matrix to
- * @returns Matrix raised to the specified power
- */
-function matrixPower(matrix: number[][], power: number): number[][] {
-    if (power === 1) {
-        return matrix;
-    }
-
-    if (power === 2) {
-        return matrixMultiply(matrix, matrix);
-    }
-
-    let result = matrix;
-    for (let i = 1; i < power; i++) {
-        result = matrixMultiply(result, matrix);
-    }
-    return result;
-}
-
-/**
- * Multiply two matrices
- * @param a - First matrix
- * @param b - Second matrix
- * @returns Product matrix a * b
- */
-function matrixMultiply(a: number[][], b: number[][]): number[][] {
-    const n = a.length;
-    const m = b[0]?.length ?? 0;
-    const p = b.length;
-
-    const result: number[][] = Array.from({ length: n }, () => Array(m).fill(0) as number[]);
-
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j < m; j++) {
-            for (let k = 0; k < p; k++) {
-                const aVal = a[i]?.[k] ?? 0;
-                const bVal = b[k]?.[j] ?? 0;
-                const resultRow = result[i];
-                if (!resultRow) {
-                    continue;
-                }
-
-                const prevVal = resultRow[j];
-                if (prevVal !== undefined) {
-                    resultRow[j] = prevVal + aVal * bVal;
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
-/**
- * Inflation step: element-wise powering and column normalization
- * @param matrix - Input matrix to inflate
- * @param inflation - Inflation parameter for element-wise powering
- * @returns Inflated and column-normalized matrix
- */
-function inflate(matrix: number[][], inflation: number): number[][] {
-    const n = matrix.length;
-    const result: number[][] = Array.from({ length: n }, () => Array(n).fill(0) as number[]);
-
-    // Element-wise powering
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-            const val = matrix[i]?.[j];
-            if (val !== undefined) {
-                const resultRow = result[i];
-                if (resultRow) {
-                    resultRow[j] = Math.pow(val, inflation);
-                }
-            }
-        }
-    }
-
-    // Column normalization
-    for (let j = 0; j < n; j++) {
-        let colSum = 0;
-        for (let i = 0; i < n; i++) {
-            const val = result[i]?.[j];
-            if (val !== undefined) {
-                colSum += val;
-            }
-        }
-
-        if (colSum > 0) {
-            for (let i = 0; i < n; i++) {
-                const row = result[i];
-                if (!row) {
-                    continue;
-                }
-
-                const val = row[j];
-                if (val !== undefined) {
-                    row[j] = val / colSum;
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
-/**
- * Pruning step: remove small values
- * @param matrix - Input matrix to prune
- * @param threshold - Values below this threshold are set to zero
- * @returns Pruned and re-normalized matrix
- */
-function prune(matrix: number[][], threshold: number): number[][] {
-    const n = matrix.length;
-    const result: number[][] = Array.from({ length: n }, () => Array(n).fill(0) as number[]);
-
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-            const matrixRow = matrix[i];
-            if (!matrixRow) {
-                continue;
-            }
-
-            const matrixVal = matrixRow[j];
-            if (matrixVal !== undefined && matrixVal >= threshold) {
-                const resultRow = result[i];
-                if (resultRow) {
-                    resultRow[j] = matrixVal;
-                }
-            }
-        }
-    }
-
-    // Re-normalize columns after pruning
-    for (let j = 0; j < n; j++) {
-        let colSum = 0;
-        for (let i = 0; i < n; i++) {
-            const resultRow = result[i];
-            if (!resultRow) {
-                continue;
-            }
-
-            const val = resultRow[j];
-            if (val !== undefined) {
-                colSum += val;
-            }
-        }
-
-        if (colSum > 0) {
-            for (let i = 0; i < n; i++) {
-                const resultRow = result[i];
-                if (!resultRow) {
-                    continue;
-                }
-
-                const val = resultRow[j];
-                if (val !== undefined) {
-                    resultRow[j] = val / colSum;
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
-/**
- * Check if the algorithm has converged
- * @param oldMatrix - Matrix from previous iteration
- * @param newMatrix - Matrix from current iteration
- * @param tolerance - Convergence tolerance threshold
- * @returns True if the maximum difference between matrices is below tolerance
- */
-function hasConverged(oldMatrix: number[][], newMatrix: number[][], tolerance: number): boolean {
-    const n = oldMatrix.length;
-
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-            const oldRow = oldMatrix[i];
-            const newRow = newMatrix[i];
-            if (!oldRow || !newRow) {
-                continue;
-            }
-
-            const oldVal = oldRow[j];
-            const newVal = newRow[j];
-            if (oldVal !== undefined && newVal !== undefined && Math.abs(oldVal - newVal) > tolerance) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-/**
- * Extract clusters from the final matrix
- * @param matrix - Final converged MCL matrix
- * @param nodeIds - Array of node IDs corresponding to matrix indices
- * @returns Object containing communities and attractor nodes
- */
-function extractClusters(
-    matrix: number[][],
-    nodeIds: NodeId[],
-): {
-    communities: NodeId[][];
-    attractors: Set<NodeId>;
-} {
-    const n = matrix.length;
-    const attractors = new Set<NodeId>();
-    const communities: NodeId[][] = [];
-    const nodeToCluster = new Map<number, number>();
-
-    // Find attractors (columns with non-zero diagonal elements)
-    for (let i = 0; i < n; i++) {
-        const matrixRow = matrix[i];
-        if (!matrixRow) {
-            continue;
-        }
-
-        const diagonalVal = matrixRow[i];
-        const nodeId = nodeIds[i];
-        if (diagonalVal !== undefined && diagonalVal > 0 && nodeId !== undefined) {
-            attractors.add(nodeId);
-        }
-    }
-
-    // Assign nodes (columns) to clusters based on which attractor (row) they flow to
-    // After MCL convergence, matrix[i][j] > 0 means node j belongs to attractor i's cluster
-    const attractorToCommunity = new Map<number, number[]>();
-
-    for (let j = 0; j < n; j++) {
-        // Find the attractor for this column (node j)
-        // Look for the row with the highest non-zero value in column j
-        let maxVal = 0;
-        let attractorRow = -1;
-
-        for (let i = 0; i < n; i++) {
-            const matrixRow = matrix[i];
-            if (!matrixRow) {
-                continue;
-            }
-
-            const val = matrixRow[j];
-            if (val !== undefined && val > maxVal) {
-                maxVal = val;
-                attractorRow = i;
-            }
-        }
-
-        if (attractorRow >= 0) {
-            // Node j belongs to the cluster of attractor at row attractorRow
-            let community = attractorToCommunity.get(attractorRow);
-            if (!community) {
-                community = [];
-                attractorToCommunity.set(attractorRow, community);
-            }
-            community.push(j);
-            nodeToCluster.set(j, attractorRow);
-        }
-    }
-
-    // Convert attractor communities to node ID arrays
-    for (const [, memberIndices] of attractorToCommunity) {
-        communities.push(
-            memberIndices
-                .map((idx) => {
-                    const nodeId = nodeIds[idx];
-                    return nodeId;
-                })
-                .filter((node): node is NodeId => node !== undefined),
-        );
-    }
-
-    // Handle isolated nodes (nodes with all-zero columns)
-    for (let j = 0; j < n; j++) {
-        if (!nodeToCluster.has(j)) {
-            const nodeId = nodeIds[j];
-            if (nodeId !== undefined) {
-                communities.push([nodeId]);
-            }
-        }
-    }
-
-    return { communities, attractors };
-}
-
-/**
- * Calculate modularity of MCL clustering result
- * @param graph - The original graph that was clustered
- * @param communities - Array of communities (each community is an array of node IDs)
- * @returns Modularity score between -0.5 and 1.0
- */
-export function calculateMCLModularity(graph: Graph, communities: NodeId[][]): number {
-    const m = graph.totalEdgeCount;
-    if (m === 0) {
-        return 0;
-    }
-
-    let modularity = 0;
-    const communityMap = new Map<NodeId, number>();
-
-    // Build community map
-    communities.forEach((community, index) => {
-        community.forEach((nodeId) => {
-            communityMap.set(nodeId, index);
-        });
-    });
-
-    // Calculate modularity
-    for (const edge of graph.edges()) {
-        const sourceCommunity = communityMap.get(edge.source);
-        const targetCommunity = communityMap.get(edge.target);
-
-        if (sourceCommunity !== undefined && targetCommunity !== undefined && sourceCommunity === targetCommunity) {
-            modularity += 1;
-        }
-
-        const sourceDegree = graph.degree(edge.source);
-        const targetDegree = graph.degree(edge.target);
-        modularity -= (sourceDegree * targetDegree) / (2 * m);
-    }
-
-    return modularity / (2 * m);
 }

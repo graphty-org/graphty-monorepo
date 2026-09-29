@@ -471,6 +471,18 @@ describe("the graph the element then measures", () => {
         session.dispose();
     });
 
+    it("reads Les Miserables as undirected with one edge per file edge under directed: auto", async () => {
+        // The GEXF file writes defaultedgetype="undirected" and 254 edges. Read as directed, or
+        // with each undirected edge expanded into two arcs, the count would not be 254.
+        const { session } = await load("gexf", "gexf/lesmiserables.gexf", "auto");
+        const stats = session.data.statistics();
+
+        assert.strictEqual(stats.nodeCount, 77);
+        assert.strictEqual(stats.edgeCount, 254);
+        assert.strictEqual(stats.directedness, "undirected");
+        session.dispose();
+    });
+
     it("reports the football network as undirected, at its real density", async () => {
         const { session } = await load("gml", "gml/football.gml");
         const stats = session.data.statistics();

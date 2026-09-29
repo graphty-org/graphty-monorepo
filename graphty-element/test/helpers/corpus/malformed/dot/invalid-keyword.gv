@@ -1,5 +1,0 @@
-digraph G {
-    invalid_keyword;
-    A -> B;
-    notavalidstatement = broken;
-}

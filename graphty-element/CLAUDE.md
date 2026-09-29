@@ -193,9 +193,9 @@ plugin author who expected otherwise would be misled.
   closing one.
 - **`scope`, `seed`, `exact`, `sample` and `timeBox`** are resolved by a run and not forwarded to
   `compute`, so no algorithm receives them: not a plugin's, and not one of the element's own.
-- **The element's own importers still throw plain `Error`s.** A registered format reports
-  `E_PARSE_FAILED` and `E_FETCH_FAILED`; the seven built-in readers do not yet. A plugin is ahead
-  of the built-ins here rather than behind them.
+- **The CSV and JSON readers still throw plain `Error`s.** A registered format reports
+  `E_PARSE_FAILED` and `E_FETCH_FAILED`; of the seven built-in readers GEXF, GraphML, GML, DOT
+  and Pajek do too. A plugin is ahead of those two here rather than behind them.
 - **An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
   renderer-backed `Graph`. `./extend` resolving in Node buys type-checking, not a headless test.
 

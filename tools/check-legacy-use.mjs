@@ -530,10 +530,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     const baseline = existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, "utf8")) : {};
     const { added, stale } = compare(keys, baseline);
+    // A stale entry fails too: left in place it lets the removed use come back unnoticed.
     if (stale.length > 0) {
-        console.log(`Baseline entries with fewer uses than recorded (run --update-baseline to drop them):`);
+        console.error(`Baseline entries with fewer uses than recorded (run --update-baseline to drop them):`);
         for (const s of stale) {
-            console.log(`  ${s}`);
+            console.error(`  ${s}`);
         }
     }
     if (added.length > 0) {
@@ -544,6 +545,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
             `\n${added.length} new use(s) of the legacy graph API. Use the graph-format replacement ` +
                 "(design/graph-format/migration-plan.md); see the rules at the top of tools/check-legacy-use.mjs.",
         );
+        process.exit(1);
+    }
+    if (stale.length > 0) {
         process.exit(1);
     }
     console.log(`check-legacy-use: no new legacy use (${keys.length} recorded in the baseline still present)`);

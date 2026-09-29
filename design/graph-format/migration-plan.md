@@ -356,6 +356,17 @@ graphty-element (element minor):
 - Max flow and min cut: a `source` or `sink` option is matched against node ids exactly first, and
   by string form only when no node matches exactly. In a graph holding both the number 1 and the
   string "1", `source: "1"` names the string. Before, every id was compared as a string.
+- DOT, GML and Pajek files are read by graph-io, which reads them as Graphviz, NetworkX and Pajek
+  do. Every difference from the 2.x readers, with an example of each, is listed in
+  `graphty-element/docs/guide/data-sources.md`, "Changes from graphty-element 2.x": DOT `strict`
+  merges parallel edges, `node`/`edge` defaults apply, `+` concatenates, backslash-newline
+  continues, first-mention node order, a headerless text or a mid-line `#` fails; GML refuses bare
+  words, `directed true` and multi-line strings, drops a non-integer id, decodes entities, reads
+  `NAN` as a number and loads the first of two graph blocks; Pajek requires `*Vertices`, creates
+  every declared vertex in number order, drops edges to undeclared vertices, with non-numeric
+  weights or by label, refuses a single coordinate, reads an unquoted word as a label, stores
+  coordinates as f32, keeps keywords as record keys, merges a vertex written twice and reads
+  `*Matrix` and `*Edgeslist`.
 
 ### 4.4 The release sequence
 

@@ -2,12 +2,5 @@
     "graphty-element/src/algorithms/Algorithm.ts legacy-graph-bridge toAlgorithmGraph": 1,
     "graphty-element/src/algorithms/Algorithm.ts legacy-import Graph": 1,
     "graphty-element/src/algorithms/utils/snapshotGraph.ts legacy-graph-construction AlgorithmGraph": 1,
-    "graphty-element/src/algorithms/utils/snapshotGraph.ts legacy-import Graph": 1,
-    "graphty-element/src/data/DOTDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/DOTDataSource.ts hand-written-parser tokenize": 1,
-    "graphty-element/src/data/GMLDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/GMLDataSource.ts hand-written-parser tokenize": 1,
-    "graphty-element/src/data/PajekDataSource.ts data-source-without-graph-io @graphty/graph-io": 1,
-    "graphty-element/src/data/PajekDataSource.ts hand-written-parser parsePajek": 1,
-    "graphty-element/src/data/PajekDataSource.ts hand-written-parser tokenizeLine": 1
+    "graphty-element/src/algorithms/utils/snapshotGraph.ts legacy-import Graph": 1
 }

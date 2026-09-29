@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { syncClustering } from "../../../src/indexed/sync.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import { syncClustering as legacySync, type SynCConfig } from "../../../src/research/sync-legacy.js";
+import { type SynCConfig } from "../../../src/research/sync-legacy.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -26,11 +27,6 @@ function portShape(g: Graph, config: SynCConfig): unknown {
         embeddings.set(s.ids.idOf(i), Array.from(r.embeddings.subarray(i * r.dimensions, (i + 1) * r.dimensions)));
     }
     return { clusters, embeddings, converged: r.converged };
-}
-
-function legacyShape(g: Graph, config: SynCConfig): unknown {
-    const { clusters, embeddings, converged } = legacySync(g, config);
-    return { clusters, embeddings, converged };
 }
 
 describe("indexed.syncClustering", () => {
@@ -73,23 +69,13 @@ describe("indexed.syncClustering", () => {
 
     for (const numClusters of [2, 3]) {
         it(`equals legacy on every fixture with ${String(numClusters)} clusters`, () => {
-            expectFacadeMatchesLegacy(
-                fixtures,
-                (g) => legacyShape(g, { numClusters }),
-                (g) => portShape(g, { numClusters }),
-                { tolerance: 1e-9 },
-            );
+            expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, { numClusters }), { tolerance: 1e-9 });
         });
     }
 
     it("equals legacy with every option set", () => {
         const config = { numClusters: 4, maxIterations: 7, tolerance: 1e-9, seed: 7, learningRate: 0.05, lambda: 0.3 };
-        expectFacadeMatchesLegacy(
-            fixtures,
-            (g) => legacyShape(g, config),
-            (g) => portShape(g, config),
-            { tolerance: 1e-9 },
-        );
+        expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, config), { tolerance: 1e-9 });
     });
 
     it("equals legacy on an undirected graph with a self-loop, which counts once in the seeding degree", () => {
@@ -100,7 +86,6 @@ describe("indexed.syncClustering", () => {
         g.addEdge(0, 0);
         expectFacadeMatchesLegacy(
             [{ name: "6-cycle with a self-loop", graph: g }],
-            (graph) => legacyShape(graph, { numClusters: 2 }),
             (graph) => portShape(graph, { numClusters: 2 }),
             { tolerance: 1e-9 },
         );
@@ -118,7 +103,7 @@ describe("indexed.syncClustering", () => {
                 const before = syncClustering(s, { ...config, maxIterations: port.iterations - 1 });
                 expect(port.loss).not.toBe(before.loss);
                 expect(Math.abs(port.loss - before.loss)).toBeLessThan(config.tolerance);
-                expect(legacySync(graph, config).loss).toBe(before.loss);
+                expect((legacyResult() as SynCResult).loss).toBe(before.loss);
                 expect(port.previousLoss).toBe(before.loss);
             }
         }
@@ -134,7 +119,7 @@ describe("indexed.syncClustering", () => {
                 { numClusters: 2, tolerance: 1e-3 },
                 { numClusters: 3, maxIterations: 3 },
             ]) {
-                const legacy = legacySync(graph, config);
+                const legacy = legacyResult() as SynCResult;
                 const port = syncClustering(toSnapshot(graph), config);
                 expect(port.converged).toBe(legacy.converged);
                 if (port.converged) {

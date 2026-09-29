@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { connectedComponents } from "../../../src/algorithms/components/connected.js";
-import { kruskalMST } from "../../../src/algorithms/mst/kruskal.js";
-import { dijkstra } from "../../../src/algorithms/shortest-path/dijkstra.js";
 import { Graph } from "../../../src/core/graph.js";
 import { connectedComponents as indexedComponents } from "../../../src/indexed/components.js";
 import { dijkstra as indexedDijkstra } from "../../../src/indexed/dijkstra.js";
@@ -16,7 +13,8 @@ import {
 import { kruskalMST as indexedKruskal } from "../../../src/indexed/mst.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
 import type { NodeId, ShortestPathResult } from "../../../src/types/index.js";
-import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { expectFacadeMatchesLegacy, expectSame, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 
 /** Numeric ids with f64 weights that f32 would round, plus an isolated node. */
@@ -38,7 +36,7 @@ const fixtures: FacadeFixture[] = [
 
 describe("expectFacadeMatchesLegacy", () => {
     it("passes connectedComponents through labelsToGroups", () => {
-        expectFacadeMatchesLegacy(fixtures, connectedComponents, (g) => {
+        expectFacadeMatchesLegacy(fixtures, (g) => {
             const s = toSnapshot(g);
             const { labels, count } = indexedComponents(s);
             return labelsToGroups(s.ids, labels, count);
@@ -59,57 +57,37 @@ describe("expectFacadeMatchesLegacy", () => {
         // tie: on the random and karate fixtures the port settles equal-distance nodes in a
         // different order than the legacy priority queue and so records a different, equally short
         // predecessor.
-        expectFacadeMatchesLegacy(
-            withSource,
-            (g) => distances(dijkstra(g, sourceOf(g))),
-            (g) => distances(facade(g)),
-        );
+        expectFacadeMatchesLegacy(withSource, (g) => distances(facade(g)));
         const tieFree = withSource.filter((f) => !/random|karate/.test(f.name));
         expect(tieFree.length).toBe(6);
-        expectFacadeMatchesLegacy(tieFree, (g) => dijkstra(g, sourceOf(g)), facade);
+        expectFacadeMatchesLegacy(tieFree, facade);
     });
 
     it("passes kruskalMST through edgesToLegacy on the connected fixtures", () => {
-        const connected = fixtures.filter((f) => f.graph.nodeCount > 0 && connectedComponents(f.graph).length === 1);
+        const connected = fixtures.filter((f) => f.graph.nodeCount > 0 && (legacyResult() as NodeId[][]).length === 1);
         expect(connected.length).toBeGreaterThan(3);
-        expectFacadeMatchesLegacy(
-            connected,
-            (g) => kruskalMST(g).edges.map((e) => ({ source: e.source, target: e.target, weight: e.weight })),
-            (g) => {
-                const s = toSnapshot(g);
-                return edgesToLegacy(s, indexedKruskal(s, { weights: exactArcWeights(s) }).edges);
-            },
-        );
+        expectFacadeMatchesLegacy(connected, (g) => {
+            const s = toSnapshot(g);
+            return edgesToLegacy(s, indexedKruskal(s, { weights: exactArcWeights(s) }).edges);
+        });
     });
 
     it("fails on a real difference and tolerates one within the relative bound", () => {
-        const one = [{ name: "path", graph: numericWeighted() }];
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one,
-                () => new Map([["a", 1]]),
-                () => new Map([["a", 1 + 1e-6]]),
-                { tolerance: 1e-9 },
-            );
-        }).toThrow();
-        expectFacadeMatchesLegacy(
-            one,
-            () => ({ scores: new Map([["a", 1]]), list: [2] }),
-            () => ({ scores: new Map([["a", 1 + 1e-12]]), list: [2 + 1e-12] }),
-            { tolerance: 1e-9 },
+            expectSame(new Map([["a", 1 + 1e-6]]), new Map([["a", 1]]), 1e-9, "r");
+        }).toThrow(/r\.get\(a\)/);
+        expectSame(
+            { scores: new Map([["a", 1 + 1e-12]]), list: [2 + 1e-12] },
+            { scores: new Map([["a", 1]]), list: [2] },
+            1e-9,
+            "r",
         );
     });
 
-    const one = (): FacadeFixture[] => [{ name: "path", graph: numericWeighted() }];
-
     it("fails on a discrete difference with no tolerance", () => {
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => [[1, 2]],
-                () => [[2, 1]],
-            );
-        }).toThrow();
+            expectSame([[2, 1]], [[1, 2]], 0, "r");
+        }).toThrow(/r\[0\]\[0\]: 2 vs 1/);
     });
 
     it("fails on a different Map or Set iteration order", () => {
@@ -118,87 +96,50 @@ describe("expectFacadeMatchesLegacy", () => {
             [2, 2],
         ];
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => new Map(pairs),
-                () => new Map([...pairs].reverse()),
-            );
+            expectSame(new Map([...pairs].reverse()), new Map(pairs), 0, "r");
         }).toThrow(/keys in order/);
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => new Set(["a", "b"]),
-                () => new Set(["b", "a"]),
-            );
-        }).toThrow();
+            expectSame(new Set(["b", "a"]), new Set(["a", "b"]), 0, "r");
+        }).toThrow(/r in order\[0\]/);
     });
 
     it("fails on a property set to undefined against a missing one, and on a different prototype", () => {
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => ({ source: 1, data: undefined }),
-                () => ({ source: 1 }),
-            );
+            expectSame({ source: 1 }, { source: 1, data: undefined }, 0, "r");
         }).toThrow(/keys/);
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => [1, 2],
-                () => Float64Array.of(1, 2),
-            );
+            expectSame(Float64Array.of(1, 2), [1, 2], 0, "r");
         }).toThrow(/prototype/);
     });
 
     it("fails on an infinite number against a finite one whatever the tolerance", () => {
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => new Map([[1, 0.5]]),
-                () => new Map([[1, Infinity]]),
-                { tolerance: 1e-9 },
-            );
-        }).toThrow();
+            expectSame(new Map([[1, Infinity]]), new Map([[1, 0.5]]), 1e-9, "r");
+        }).toThrow(/Infinity vs 0.5/);
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => [0],
-                () => [-Infinity],
-                { tolerance: 1e-9 },
-            );
-        }).toThrow();
-        expectFacadeMatchesLegacy(
-            one(),
-            () => [Infinity, Number.NaN],
-            () => [Infinity, Number.NaN],
-            { tolerance: 1e-9 },
-        );
+            expectSame([-Infinity], [0], 1e-9, "r");
+        }).toThrow(/-Infinity vs 0/);
+        expectSame([Infinity, Number.NaN], [Infinity, Number.NaN], 1e-9, "r");
     });
+
+    const one = (): FacadeFixture[] => [{ name: "path", graph: numericWeighted() }];
 
     it("fails when the facade mutates the graph", () => {
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => 0,
-                (g) => {
-                    g.addNode("added");
-                    return 0;
-                },
-            );
+            expectFacadeMatchesLegacy(one(), (g) => {
+                g.addNode("added");
+                return 0;
+            });
         }).toThrow(/mutated/);
     });
 
     it("fails when the facade writes into the shared snapshot", () => {
         expect(() => {
-            expectFacadeMatchesLegacy(
-                one(),
-                () => 0,
-                (g) => {
-                    const { colIdx } = toSnapshot(g);
-                    colIdx[0] = colIdx.length - 1;
-                    return 0;
-                },
-            );
+            expectFacadeMatchesLegacy(one(), (g) => {
+                const { colIdx } = toSnapshot(g);
+                colIdx[0] = colIdx.length - 1;
+                return 0;
+            });
         }).toThrow(/checksum/i);
     });
 });

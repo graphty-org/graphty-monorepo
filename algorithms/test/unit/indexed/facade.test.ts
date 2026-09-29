@@ -1,7 +1,6 @@
 import { GraphBuilder, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { edgeBetweennessCentrality } from "../../../src/algorithms/centrality/betweenness.js";
 import { Graph } from "../../../src/core/graph.js";
 import { dijkstra, type SsspResult } from "../../../src/indexed/dijkstra.js";
 import {
@@ -16,6 +15,7 @@ import {
     ssspToShortestPaths,
 } from "../../../src/indexed/facade.js";
 import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
+import { legacyResult } from "../../helpers/golden.js";
 
 function empty(): Graph {
     return new Graph({ directed: false });
@@ -231,7 +231,7 @@ describe("edgeScoresToPairMap", () => {
         g.addEdge("b", "a");
         g.addEdge("c", "b");
         g.addEdge("c", "d");
-        const legacy = edgeBetweennessCentrality(g);
+        const legacy = legacyResult() as Map<string, number>;
         const s = toSnapshot(g);
         const { src, dst } = s.edgeList();
         const scores = Float64Array.from({ length: s.edgeCount }, (_, e) => {

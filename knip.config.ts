@@ -102,6 +102,8 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
+                // the config test/unit/golden-helper.test.ts runs a child vitest with
+                "test/helpers/golden-cases/vitest.config.ts",
                 "examples/**/*.ts",
                 "scripts/**/*.{ts,js}",
             ],

@@ -10,28 +10,19 @@ import { describe, expect, it } from "vitest";
 import {
     betweennessCentrality,
     edgeBetweennessCentrality,
-    legacyBetweennessCentrality,
-    legacyEdgeBetweennessCentrality,
     nodeBetweennessCentrality,
 } from "../../../src/algorithms/centrality/betweenness.js";
 import {
     closenessCentrality,
-    legacyNodeClosenessCentrality,
-    legacyNodeWeightedClosenessCentrality,
     nodeClosenessCentrality,
     nodeWeightedClosenessCentrality,
     weightedClosenessCentrality,
 } from "../../../src/algorithms/centrality/closeness.js";
-import { degreeCentrality, legacyDegreeCentrality } from "../../../src/algorithms/centrality/degree.js";
+import { degreeCentrality } from "../../../src/algorithms/centrality/degree.js";
+import { eigenvectorCentrality, nodeEigenvectorCentrality } from "../../../src/algorithms/centrality/eigenvector.js";
+import { hits, nodeHITS } from "../../../src/algorithms/centrality/hits.js";
+import { katzCentrality, nodeKatzCentrality } from "../../../src/algorithms/centrality/katz.js";
 import {
-    eigenvectorCentrality,
-    legacyEigenvectorCentrality,
-    nodeEigenvectorCentrality,
-} from "../../../src/algorithms/centrality/eigenvector.js";
-import { hits, legacyHits, nodeHITS } from "../../../src/algorithms/centrality/hits.js";
-import { katzCentrality, legacyKatzCentrality, nodeKatzCentrality } from "../../../src/algorithms/centrality/katz.js";
-import {
-    legacyPageRank,
     pageRank,
     pageRankCentrality,
     personalizedPageRank,
@@ -40,6 +31,7 @@ import {
 import { Graph } from "../../../src/core/graph.js";
 import type { NodeId } from "../../../src/types/index.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, gnm, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -191,19 +183,13 @@ describe("pageRank facade", () => {
 
     for (const { name, options } of optionSets) {
         it(`equals legacy: ${name}`, () => {
-            expectFacadeMatchesLegacy(
-                directed,
-                (g) => legacyPageRank(g, options(g)),
-                (g) => pageRank(g, options(g)),
-                F64,
-            );
+            expectFacadeMatchesLegacy(directed, (g) => pageRank(g, options(g)), F64);
         });
     }
 
     it("throws what legacy throws on an undirected graph and a bad damping factor", () => {
         expectFacadeMatchesLegacy(
             [...undirected, ...directed],
-            (g) => [outcome(() => legacyPageRank(g)), outcome(() => legacyPageRank(g, { dampingFactor: 1.5 }))],
             (g) => [outcome(() => pageRank(g)), outcome(() => pageRank(g, { dampingFactor: 1.5 }))],
             F64,
         );
@@ -217,50 +203,27 @@ describe("pageRank facade", () => {
         g.addEdge("c", "a", 1);
         expectFacadeMatchesLegacy(
             [{ name: "sub-f32 weights", graph: g }],
-            (graph) => legacyPageRank(graph, { weight: "weight" }),
             (graph) => pageRank(graph, { weight: "weight" }),
             F64,
         );
     });
 
     it("pageRankCentrality returns legacy's ranks", () => {
-        expectFacadeMatchesLegacy(directed, (g) => legacyPageRank(g).ranks, pageRankCentrality, F64);
+        expectFacadeMatchesLegacy(directed, pageRankCentrality, F64);
     });
 
     it("topPageRankNodes returns legacy's top three, ids as strings", () => {
-        expectFacadeMatchesLegacy(
-            directed,
-            (g) =>
-                Object.entries(legacyPageRank(g).ranks)
-                    .map(([node, rank]) => ({ node, rank }))
-                    .sort((a, b) => b.rank - a.rank)
-                    .slice(0, 3),
-            (g) => topPageRankNodes(g, 3),
-            F64,
-        );
+        expectFacadeMatchesLegacy(directed, (g) => topPageRankNodes(g, 3), F64);
     });
 
     it("personalizedPageRank equals legacy pageRank with the equal-share vector it builds", () => {
         const withNodes = directed.filter((f) => f.graph.nodeCount > 0);
         expectFacadeMatchesLegacy(
             withNodes,
-            (g) => {
-                const chosen = [ids(g)[0], ids(g)[ids(g).length - 1]];
-                const personalization = new Map(ids(g).map((id) => [id, 0]));
-                for (const id of chosen) {
-                    personalization.set(id, 1 / chosen.length);
-                }
-                return legacyPageRank(g, { personalization, dampingFactor: 0.7 });
-            },
             (g) => personalizedPageRank(g, [ids(g)[0], ids(g)[ids(g).length - 1]], { dampingFactor: 0.7 }),
             F64,
         );
-        expectFacadeMatchesLegacy(
-            withNodes,
-            (g) => legacyPageRank(g),
-            (g) => personalizedPageRank(g, []),
-            F64,
-        );
+        expectFacadeMatchesLegacy(withNodes, (g) => personalizedPageRank(g, []), F64);
         expect(() => personalizedPageRank(withNodes[0].graph, ["no such node"])).toThrow(
             "Personal node no such node not found in graph",
         );
@@ -272,7 +235,6 @@ describe("hits facade", () => {
         it(`equals legacy with ${JSON.stringify(options)}, and nodeHITS per node`, () => {
             expectFacadeMatchesLegacy(
                 all,
-                (g) => [legacyHits(g, options), ids(g).map((id) => ({ hub: legacyHits(g, options).hubs[String(id)] }))],
                 (g) => [hits(g, options), ids(g).map((id) => ({ hub: nodeHITS(g, id, options).hub }))],
                 F64,
             );
@@ -292,10 +254,6 @@ describe("katzCentrality facade", () => {
         it(`equals legacy with ${JSON.stringify(options)}, and nodeKatzCentrality per node`, () => {
             expectFacadeMatchesLegacy(
                 all,
-                (g) => [
-                    legacyKatzCentrality(g, options),
-                    ids(g).map((id) => legacyKatzCentrality(g, options)[String(id)]),
-                ],
                 (g) => [katzCentrality(g, options), ids(g).map((id) => nodeKatzCentrality(g, id, options))],
                 F64,
             );
@@ -333,10 +291,6 @@ describe("eigenvectorCentrality facade", () => {
             expectFacadeMatchesLegacy(
                 all,
                 (g) => [
-                    outcome(() => legacyEigenvectorCentrality(g, options(g))),
-                    ids(g).map((id) => outcome(() => legacyEigenvectorCentrality(g, options(g))[String(id)])),
-                ],
-                (g) => [
                     outcome(() => eigenvectorCentrality(g, options(g))),
                     ids(g).map((id) => outcome(() => nodeEigenvectorCentrality(g, id, options(g)))),
                 ],
@@ -355,11 +309,7 @@ describe("degreeCentrality facade", () => {
         { mode: "total" as const },
     ]) {
         it(`equals legacy with ${JSON.stringify(options)}`, () => {
-            expectFacadeMatchesLegacy(
-                all,
-                (g) => legacyDegreeCentrality(g, options),
-                (g) => degreeCentrality(g, options),
-            );
+            expectFacadeMatchesLegacy(all, (g) => degreeCentrality(g, options));
         });
     }
 });
@@ -370,11 +320,6 @@ describe("closeness facades", () => {
         { name: "a negative edge", graph: negativeEdge() },
         { name: "a negative edge between tied nodes", graph: negativeTie() },
     ];
-    const legacyAll = (
-        g: Graph,
-        node: (graph: Graph, id: NodeId, o: object) => number,
-        o: object,
-    ): Record<string, number> => Object.fromEntries(ids(g).map((id) => [String(id), node(g, id, o)]));
 
     for (const options of [
         {},
@@ -388,10 +333,6 @@ describe("closeness facades", () => {
         it(`closenessCentrality and nodeClosenessCentrality equal legacy with ${JSON.stringify(options)}`, () => {
             expectFacadeMatchesLegacy(
                 fixtures,
-                (g) => [
-                    legacyAll(g, legacyNodeClosenessCentrality, options),
-                    ids(g).map((id) => legacyNodeClosenessCentrality(g, id, options)),
-                ],
                 (g) => [closenessCentrality(g, options), ids(g).map((id) => nodeClosenessCentrality(g, id, options))],
                 F64,
             );
@@ -400,10 +341,6 @@ describe("closeness facades", () => {
         it(`the weighted closeness functions equal legacy with ${JSON.stringify(options)}`, () => {
             expectFacadeMatchesLegacy(
                 fixtures,
-                (g) => [
-                    legacyAll(g, legacyNodeWeightedClosenessCentrality, options),
-                    ids(g).map((id) => legacyNodeWeightedClosenessCentrality(g, id, options)),
-                ],
                 (g) => [
                     weightedClosenessCentrality(g, options),
                     ids(g).map((id) => nodeWeightedClosenessCentrality(g, id, options)),
@@ -426,10 +363,6 @@ describe("betweenness facades", () => {
             expectFacadeMatchesLegacy(
                 all,
                 (g) => [
-                    legacyBetweennessCentrality(g, options),
-                    ids(g).map((id) => legacyBetweennessCentrality(g, options)[String(id)]),
-                ],
-                (g) => [
                     betweennessCentrality(g, options),
                     ids(g).map((id) => nodeBetweennessCentrality(g, id, options)),
                 ],
@@ -438,12 +371,7 @@ describe("betweenness facades", () => {
         });
 
         it(`edgeBetweennessCentrality equals legacy with ${JSON.stringify(options)}`, () => {
-            expectFacadeMatchesLegacy(
-                all,
-                (g) => legacyEdgeBetweennessCentrality(g, options),
-                (g) => edgeBetweennessCentrality(g, options),
-                F64,
-            );
+            expectFacadeMatchesLegacy(all, (g) => edgeBetweennessCentrality(g, options), F64);
         });
     }
 
@@ -498,16 +426,16 @@ describe("graphs the facades leave to legacy code", () => {
     it("every facade returns what its legacy implementation returns", () => {
         expectSameOnAll(
             (g) => [
-                legacyDegreeCentrality(g),
-                legacyBetweennessCentrality(g),
-                [...legacyEdgeBetweennessCentrality(g)],
-                byNode(g, (id) => legacyNodeClosenessCentrality(g, id)),
-                byNode(g, (id) => legacyNodeWeightedClosenessCentrality(g, id)),
-                outcome(() => legacyHits(g)),
-                outcome(() => legacyKatzCentrality(g)),
-                outcome(() => legacyEigenvectorCentrality(g)),
-                outcome(() => legacyPageRank(g)),
-                outcome(() => legacyPageRank(g, { weight: "weight" })),
+                legacyResult() as CentralityResult,
+                legacyResult() as Record<string, number>,
+                [...(legacyResult() as Map<string, number>)],
+                byNode(g, () => legacyResult() as number),
+                byNode(g, () => legacyResult() as number),
+                outcome(() => legacyResult() as HITSResult),
+                outcome(() => legacyResult() as CentralityResult),
+                outcome(() => legacyResult() as CentralityResult),
+                outcome(() => legacyResult() as PageRankResult),
+                outcome(() => legacyResult() as PageRankResult),
             ],
             (g) => [
                 degreeCentrality(g),
@@ -527,8 +455,8 @@ describe("graphs the facades leave to legacy code", () => {
     it("the whole-graph closeness functions equal legacy's per-node loop", () => {
         expectSameOnAll(
             (g) => [
-                Object.fromEntries(ids(g).map((id) => [String(id), legacyNodeClosenessCentrality(g, id)])),
-                Object.fromEntries(ids(g).map((id) => [String(id), legacyNodeWeightedClosenessCentrality(g, id)])),
+                Object.fromEntries(ids(g).map((id) => [String(id), legacyResult() as number])),
+                Object.fromEntries(ids(g).map((id) => [String(id), legacyResult() as number])),
             ],
             (g) => [closenessCentrality(g), weightedClosenessCentrality(g)],
         );

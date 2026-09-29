@@ -1,13 +1,13 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { labelPropagationAsync as legacyLabelPropagationAsync } from "../../../src/algorithms/community/label-propagation.js";
 import { Graph } from "../../../src/core/graph.js";
 import {
     labelPropagation,
     labelPropagationSemiSupervised,
     labelPropagationSynchronous,
 } from "../../../src/indexed/label-propagation.js";
+import { legacyResult } from "../../helpers/golden.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 
@@ -273,7 +273,7 @@ describe("indexed.labelPropagationSynchronous", () => {
     it("settles a single edge that the legacy synchronous function swaps for ever", () => {
         const g = new Graph({ directed: false });
         g.addEdge("a", "b");
-        const legacy = legacyLabelPropagationAsync(g);
+        const legacy = legacyResult() as LabelPropagationResult;
         expect(legacy.converged).toBe(false);
         expect(new Set(legacy.communities.values()).size).toBe(2);
 

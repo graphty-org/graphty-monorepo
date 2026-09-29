@@ -1,3 +1,5 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
+import type { CommonImportOptions, GraphImporter, ImportReport } from "@graphty/graph-io";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
@@ -10,6 +12,7 @@ import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { ErrorAggregator } from "./ErrorAggregator.js";
+import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
 
 // Base configuration interface
 export interface BaseDataSourceConfig {
@@ -186,6 +189,32 @@ export interface DataSourceChunk {
  * `directed` key -- and a source that says nothing leaves the element's own `data.directed`
  * configuration standing, which is what "auto" means.
  */
+/** How {@link DataSource.fromImporter} runs the importer it wraps. */
+export interface ImporterSourceOptions<Opts> {
+    /**
+     * Options handed to the importer on every load. The options a host passes that the
+     * descriptor declares are laid over them. `ids` defaults to "string", so an id stays the text
+     * the file wrote.
+     */
+    readonly importOptions?: Partial<Opts & CommonImportOptions>;
+    /**
+     * The words in the file that stated its direction, which the element shows beside it
+     * (`directednessSource.statedBy`). Return null when the file stated none: the element's own
+     * `data.directed` setting then stands. Left out, every file is taken to state the direction the
+     * importer read, in the words "the <plainName> file".
+     * @param snapshot - the imported graph; `snapshot.directed` is the direction the importer read
+     * @param report - the importer's report
+     * @returns the words, or null
+     */
+    readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
+}
+
+/** The registrable reader {@link DataSource.fromImporter} returns. */
+export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
+    readonly type: string;
+    readonly descriptor: FormatDescriptor;
+};
+
 export interface DeclaredDirection {
     /** True when the file declares a directed graph. */
     readonly directed: boolean;
@@ -659,6 +688,80 @@ export abstract class DataSource {
 
         dataSourceRegistry.set(type, cls);
         return cls;
+    }
+
+    /**
+     * Turn a graph-io importer into a reader class, ready for {@link DataSource.register}.
+     *
+     * For an author who already has a `GraphImporter` (an object whose `import(input, sink,
+     * options)` pushes nodes and edges into a builder). The class reads its input the way every
+     * reader does -- inline `data`, a `File` or a `url` with retries -- and hands the importer
+     * the text. Each node and edge attribute the importer set becomes a key of the record under
+     * its column name; an edge's weight becomes `weight`. A repeated node keeps its first
+     * declaration, as the element keeps a repeated record. The importer's errors are aggregated
+     * like any reader's, and a file the importer gives up on (it throws graph-io's `ImportError`)
+     * fails the load with `E_PARSE_FAILED` naming the format and the line, leaving the graph on
+     * screen as it was. The options the descriptor declares are checked against what a host
+     * passes, filled with their defaults, and handed to the importer.
+     *
+     * Throw the `ImportError` re-exported by `@graphty/graphty-element/extend`, not one from your
+     * own copy of graph-io, or the element cannot tell a refusal from a crash.
+     * @param importer - the graph-io importer
+     * @param descriptor - the format's catalogue entry; its `id` is the name the class registers under
+     * @param options - fixed importer options and how the file states its direction
+     * @returns a `DataSource` subclass whose `type` is `descriptor.id`
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.field: "importer"`, when `importer` has
+     * no `import` method.
+     */
+    static fromImporter<Opts>(
+        importer: GraphImporter<Opts>,
+        descriptor: FormatDescriptor,
+        options: ImporterSourceOptions<Opts> = {},
+    ): ImporterDataSourceClass {
+        if (typeof importer !== "object" || typeof (importer as Partial<GraphImporter> | null)?.import !== "function") {
+            refuseRegistration(
+                "importer",
+                `the reader for "${descriptor.id}" needs a graph-io importer: an object with import(input, sink, options)`,
+            );
+        }
+
+        const { importOptions = {}, statedBy = () => `the ${descriptor.plainName} file` } = options;
+
+        return class ImporterDataSource extends DataSource {
+            static override readonly type: string = descriptor.id;
+            static override readonly descriptor: FormatDescriptor = descriptor;
+
+            readonly #config: BaseDataSourceConfig;
+            readonly #options: Record<string, unknown>;
+
+            constructor(config: BaseDataSourceConfig) {
+                super(config.errorLimit ?? 100, config.chunkSize);
+                this.#config = config;
+                this.#options = this.resolveOptions(config);
+            }
+
+            protected getConfig(): BaseDataSourceConfig {
+                return this.#config;
+            }
+
+            async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+                const imported = await importWhole(
+                    importer,
+                    await this.getContent(),
+                    { ...importOptions, ...this.#options } as Opts & CommonImportOptions,
+                    this.errorAggregator,
+                    { firstDeclarationWins: true },
+                );
+                const { snapshot, report } = imported;
+                const words = statedBy(snapshot, report);
+                if (words !== null) {
+                    this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
+                }
+
+                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+                yield* this.chunkData(nodes, edges);
+            }
+        };
     }
 
     /**

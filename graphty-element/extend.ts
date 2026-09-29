@@ -5,13 +5,14 @@
  * import { LayoutEngine, registerPalette } from "@graphty/graphty-element/extend";
  * ```
  *
- * SIX THINGS CAN BE BROUGHT TO THE ELEMENT FROM OUTSIDE, and the list is closed: a palette, a
- * file format, a camera view, a layout, an algorithm and a log destination. Everything else that
+ * SEVEN THINGS CAN BE BROUGHT TO THE ELEMENT FROM OUTSIDE, and the list is closed: a palette, a
+ * file format, a data source (a remote or streaming loader), a camera view, a layout, an
+ * algorithm and a log destination. A file format and a data source are both `DataSource` classes. Everything else that
  * looks registrable -- a scale, a node mesh shape, a lifecycle manager, a natural-language
  * command, a hardware accelerator -- is internal, and a consumer who finds one of those is not
  * promised it keeps working.
  *
- * THE RULE THE SIX ARE HELD TO: an extension must be able to do everything its built-in peer can.
+ * THE RULE THE SEVEN ARE HELD TO: an extension must be able to do everything its built-in peer can.
  * It appears in `session.catalog` so a picker can offer it; it is addressable by the key a
  * consumer types and a saved document records; it reports progress and honours cancellation
  * wherever its built-in peer does; it is configured through the same options mechanism; it
@@ -48,7 +49,7 @@
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
 // ---------------------------------------------------------------------------------------------
-// Options: one mechanism for all six points
+// Options: one mechanism for all seven points
 // ---------------------------------------------------------------------------------------------
 
 /*
@@ -100,6 +101,10 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
  * Everything else is inherited and already works: fetching from a string, a `File` or a URL,
  * retries with backoff, chunking, per-record validation, error aggregation, and declaring the
  * direction the file states.
+ *
+ * The same class is the extension point for a REMOTE OR STREAMING source -- a service query, a
+ * paged API, a database: `sourceFetchData` is an async generator, so it fetches a page and yields
+ * its records as one chunk before it asks for the next.
  */
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
@@ -108,10 +113,35 @@ export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from ".
 export type { FormatDescriptor, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
 export type { AdHocData } from "./src/config/index";
-export type { BaseDataSourceConfig, DataSourceChunk, DeclaredDirection } from "./src/data/DataSource";
+export type {
+    BaseDataSourceConfig,
+    DataSourceChunk,
+    DeclaredDirection,
+    ImporterDataSourceClass,
+    ImporterSourceOptions,
+} from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
 export type { DataLoadingError, ErrorSummary } from "./src/data/ErrorAggregator";
 export { ErrorAggregator } from "./src/data/ErrorAggregator";
+
+/**
+ * A READER FROM A GRAPH-IO IMPORTER. `DataSource.fromImporter(importer, descriptor)` turns a
+ * graph-io `GraphImporter` into a reader class for `DataSource.register`. Take the importer's
+ * types, and above all `ImportError`, from here rather than from your own copy of graph-io: the
+ * element recognises a refused file by `instanceof ImportError`, which fails across copies.
+ * graph-io's report is published as `ImporterReport`, because `ImportReport` is the element's own
+ * report of a load (`@graphty/graphty-element/session`).
+ */
+export type { GraphSink } from "@graphty/graph-format";
+export type {
+    CommonImportOptions,
+    GraphImporter,
+    ImportReport as ImporterReport,
+    ImportInput,
+    ImportIssue,
+    IssueCategory,
+} from "@graphty/graph-io";
+export { ImportError } from "@graphty/graph-io";
 
 /**
  * A FILE WRITER. `registerFormatWriter({ descriptor, exporter })` teaches the element to write a
@@ -324,7 +354,7 @@ export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErr
 export { GraphtyError, isGraphtyError } from "./src/errors";
 
 // ---------------------------------------------------------------------------------------------
-// Acceleration: internal, and not one of the six. A factory, registered by name, called with the
+// Acceleration: internal, and not one of the seven. A factory, registered by name, called with the
 // ceiling it must respect.
 // ---------------------------------------------------------------------------------------------
 

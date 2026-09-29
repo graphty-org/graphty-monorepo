@@ -1,9 +1,19 @@
-# Custom file formats
+# Custom data sources
 
-The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship is a
-class extending `DataSource`, and registering it puts the format everywhere the built-in seven
-are: in the catalogue an import dialog reads, in extension and content detection, and in every
-call that names a format by string.
+The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship, or a
+source that is not a file at all -- a service query, a paged API, a database -- is a class
+extending `DataSource`, and registering it puts it everywhere the built-in seven are: in the
+catalogue an import dialog reads, in extension and content detection, and in every call that
+names a format by string.
+
+There are two ways to write one:
+
+- **Extend `DataSource` yourself** (below). Your `sourceFetchData` is an async generator, so a
+  remote or streaming source fetches a page, yields its records as a chunk, and only then asks
+  for the next; the graph grows as the chunks arrive.
+- **Wrap a graph-io importer** with `DataSource.fromImporter` (see
+  [Wrapping a graph-io importer](#wrapping-a-graph-io-importer)), when you already have one or
+  would rather push into a builder than build records.
 
 ## The whole of it
 
@@ -123,6 +133,116 @@ then `src`/`dst`, then `from`/`to`, so all three work -- but `source`/`target` i
 every other door into the element publishes, it is what a consumer reading your records back
 through `session.data.edge(id)` will see, and it is what the built-in formats now emit. A source
 that emits anything else makes its records look unlike everybody else's for no gain.
+
+## Wrapping a graph-io importer
+
+A `GraphImporter` from `@graphty/graph-io` is an object whose `import(input, sink, options)`
+pushes nodes and edges into a builder and returns a report. `DataSource.fromImporter(importer,
+descriptor)` turns one into a reader class you register like any other:
+
+```ts
+import {
+    DataSource,
+    type FormatDescriptor,
+    type GraphImporter,
+    type ImporterReport,
+    ImportError,
+    type ImportIssue,
+} from "@graphty/graphty-element/extend";
+
+/** One line per shipment: `exporter<TAB>importer<TAB>value`. */
+const tradeFlowsImporter: GraphImporter = {
+    format: "trade-flows",
+    extensions: [".trade"],
+    mimeTypes: ["text/vnd.acme.trade-flows"],
+
+    import(input, sink) {
+        if (typeof input !== "string") {
+            return Promise.reject(new TypeError("the trade-flows importer reads text"));
+        }
+
+        const issues: ImportIssue[] = [];
+        const report = (): ImporterReport => ({
+            format: "trade-flows",
+            counts: { nodes: 0, edges: sink.edgeCount, skippedNodes: 0, skippedEdges: issues.length, expandedMixed: 0 },
+            issues,
+            errorCount: issues.length,
+            warningCount: 0,
+            truncated: false,
+            lossy: [],
+            durationMs: 0,
+        });
+
+        // A shipment goes one way: the file states that the graph is directed.
+        sink.setDirected(true);
+        for (const [index, line] of input.split("\n").entries()) {
+            if (line.trim() === "") {
+                continue;
+            }
+
+            const [from, to, value] = line.split("\t");
+            if (!from || !to) {
+                issues.push({
+                    category: "missing-value",
+                    severity: "error",
+                    code: "E_TRADE_NO_COUNTRY",
+                    message: `line ${index + 1} is missing a country`,
+                    line: index + 1,
+                    element: null,
+                });
+                continue;
+            }
+
+            // `weight` becomes the edge's weight; any other key stays an attribute of the record.
+            sink.addEdgeRecord(from, to, { weight: Number(value) });
+        }
+
+        // Giving up on the whole file: reject with graph-io's ImportError, taken from ./extend.
+        if (sink.edgeCount === 0) {
+            return Promise.reject(new ImportError("no shipment could be read", report()));
+        }
+
+        return Promise.resolve(report());
+    },
+};
+
+const TRADE_FLOWS: FormatDescriptor = {
+    id: "trade-flows",
+    plainName: "Trade Flows",
+    extensions: [".trade"],
+    mimeTypes: ["text/vnd.acme.trade-flows"],
+    canImport: true,
+    canExport: false,
+    options: [],
+};
+
+DataSource.register(
+    DataSource.fromImporter(tradeFlowsImporter, TRADE_FLOWS, {
+        // The words shown beside the graph's direction.
+        statedBy: () => "a trade-flows file (shipments go one way)",
+    }),
+);
+```
+
+What the class does around your importer:
+
+- It reads the input the way every reader does -- inline `data`, a `File` or a `url` -- and hands
+  your importer the text.
+- Every node and edge attribute you set becomes a key of the record, under the column's name; an
+  edge's weight becomes `weight`. A node you add with `addNode` becomes a node record; one that an
+  edge names without declaring it is created by the element, as for every format. A repeated node
+  keeps its first declaration.
+- The `error` issues in your report are aggregated like any reader's errors. Rejecting with
+  `ImportError` refuses the whole file: the load fails with `E_PARSE_FAILED`, naming the format
+  and the line of the last error, and the graph on screen stays as it was. Take `ImportError` from
+  `./extend`, not from your own copy of graph-io: the element recognises it with `instanceof`,
+  which fails across copies.
+- The direction your importer set on the sink is declared as the file's, with the words
+  `statedBy` returns (by default "the <plainName> file"). Return `null` from `statedBy` for a
+  file that stated no direction, and the element's own `data.directed` setting stands.
+- The options your descriptor declares are checked against what a host passes, filled with their
+  defaults and handed to your importer; `importOptions` fixes the rest (graph-io's
+  `CommonImportOptions`, such as `ids`).
 
 ## Using it
 

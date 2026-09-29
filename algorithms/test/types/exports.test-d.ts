@@ -21,6 +21,7 @@ import type {
     BipartiteResult,
     CandidateOptions,
     ClosenessOptions,
+    ClosenessResult,
     CommonNeighborsOptions,
     CondensationResult,
     CorenessResult,
@@ -103,10 +104,10 @@ expectTypeOf(algorithms.directionOptimizedBfs).toEqualTypeOf<
 >();
 expectTypeOf(algorithms.isBipartite).toEqualTypeOf<(s: GraphSnapshot, options?: BipartiteOptions) => BipartiteResult>();
 expectTypeOf(algorithms.closenessCentrality).toEqualTypeOf<
-    (s: GraphSnapshot, options?: ClosenessOptions) => ScoresResult
+    (s: GraphSnapshot, options?: ClosenessOptions) => ClosenessResult
 >();
 expectTypeOf(algorithms.nodeClosenessCentrality).toEqualTypeOf<
-    (s: GraphSnapshot, node: number, options?: ClosenessOptions) => number
+    (s: GraphSnapshot, node: number, options?: Omit<ClosenessOptions, "sources" | "k">) => number
 >();
 expectTypeOf(algorithms.commonNeighborsScore).toEqualTypeOf<
     (s: GraphSnapshot, u: number, v: number, o?: CommonNeighborsOptions) => number

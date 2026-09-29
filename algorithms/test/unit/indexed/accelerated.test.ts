@@ -552,6 +552,7 @@ describe("accelerated(acc)", () => {
             converged: true,
         };
         const edgeScores = { scores: Float32Array.of(9) };
+        const closeness = { ...scores, sourcesUsed: 6 };
 
         function stub(calls: unknown[][]): AlgorithmAccelerator {
             return {
@@ -561,7 +562,7 @@ describe("accelerated(acc)", () => {
                     calls.push(["edgeBetweennessCentrality", ...a]),
                     Promise.resolve(edgeScores)
                 ),
-                closenessCentrality: (...a) => (calls.push(["closenessCentrality", ...a]), Promise.resolve(scores)),
+                closenessCentrality: (...a) => (calls.push(["closenessCentrality", ...a]), Promise.resolve(closeness)),
             };
         }
 
@@ -601,12 +602,41 @@ describe("accelerated(acc)", () => {
             const s = sixNodes();
             const calls: unknown[][] = [];
             const dispatcher = accelerated(stub(calls));
-            expect(await dispatcher.closenessCentrality(s)).toBe(scores);
-            expect(await dispatcher.closenessCentrality(s, { weighted: true })).toBe(scores);
+            expect(await dispatcher.closenessCentrality(s)).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { weighted: true })).toBe(closeness);
             expect(calls).toEqual([
                 ["closenessCentrality", s, { weighted: false }],
                 ["closenessCentrality", s, { weighted: true }],
             ]);
+        });
+
+        it("hands a sampled closeness the sources the port would run, undirected only", async () => {
+            const s = sixNodes();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            expect(await dispatcher.closenessCentrality(s, { sources: [0, 3, 3] })).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { k: 2, weighted: true })).toBe(closeness);
+            expect(calls).toEqual([
+                ["closenessCentrality", s, { weighted: false, sources: [0, 3, 3] }],
+                // k is drawn here, the same draw indexed.closenessCentrality and betweenness make
+                ["closenessCentrality", s, { weighted: true, sources: [2, 1] }],
+            ]);
+            // directed: the accelerator measures distance FROM the sources, the port TO them, so the port runs
+            const b = new GraphBuilder({ directed: true });
+            b.addEdge("a", "b");
+            b.addEdge("b", "c");
+            const d = b.freeze();
+            calls.length = 0;
+            const r = await dispatcher.closenessCentrality(d, { sources: [2] });
+            expect([...r.scores]).toEqual([1 / 2, 1, 0]);
+            expect(r.sourcesUsed).toBe(1);
+            // the exact directed run still goes: every node is its own source
+            await dispatcher.closenessCentrality(d);
+            expect(calls).toEqual([["closenessCentrality", d, { weighted: false }]]);
+            // a bad sample is refused before the accelerator is reached, synchronously as betweenness refuses one
+            expect(() => dispatcher.closenessCentrality(s, { k: 7 })).toThrow(RangeError);
+            expect(() => dispatcher.betweennessCentrality(s, { k: 7 })).toThrow(RangeError);
+            expect(calls).toEqual([["closenessCentrality", d, { weighted: false }]]);
         });
 
         it("runs the CPU port for every call the accelerator would answer differently", async () => {

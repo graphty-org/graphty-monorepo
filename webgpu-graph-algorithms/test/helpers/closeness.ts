@@ -13,9 +13,11 @@
  * hand-seeded reduce's five words. A driver refusal is the maximal miss.
  */
 
+import { closenessCentrality as cpuClosenessCentrality } from "@graphty/algorithms";
 import { type GraphSnapshot, type U32 } from "@graphty/graph-format";
 
 import {
+    closenessCentrality,
     type ClosenessTuning,
     closenessWithTuning,
     PER_SOURCE_WORDS,
@@ -213,10 +215,31 @@ async function reduceReports(ctx: GpuContext): Promise<CheckReport[]> {
     ];
 }
 
+/** The sampled run the report adds: karate from these sources, 5 twice in one batch (the seed must OR, not store). */
+const SAMPLED_SOURCES: readonly number[] = [0, 33, 5, 5, 16];
+
+/**
+ * A SAMPLED run's scores (the per-node sums of `closeness-sweep`'s `P.perNode` branch, seeded by `closeness-reduce`'s
+ * role 2 from the source list) bitwise against the f32 of the CPU port's scores from the same sources.
+ * @param ctx - the context
+ * @returns the reports
+ */
+async function sampledReports(ctx: GpuContext): Promise<CheckReport[]> {
+    const s = snapshotOf(KARATE_EDGES, { label: "closeness-report-sampled" });
+    try {
+        const run = await closenessCentrality(ctx, s, { sources: SAMPLED_SOURCES });
+        const want = Float32Array.from(cpuClosenessCentrality(s, { sources: SAMPLED_SOURCES }).scores);
+        return bitwiseReports("sampled.scores", run.scores, want);
+    } finally {
+        ctx.release(s);
+    }
+}
+
 /**
  * The sabotage check of the two closeness kernels (spec 11.9 item 1): karate (two batches), the 70-node path (three
  * batches, one partial; long distances) and the 200-funnel (the concurrent claims of one vertex), every per-source
- * word and score bitwise against the oracle, plus the hand-seeded reduce (the 64-bit carry, which no graph reaches).
+ * word and score bitwise against the oracle, a sampled karate run (duplicate source included) bitwise against the CPU
+ * port on the same sources, plus the hand-seeded reduce (the 64-bit carry, which no graph reaches).
  * @param ctx - the context
  * @returns the report
  */
@@ -242,6 +265,7 @@ export async function closenessReport(ctx: GpuContext): Promise<CheckReport> {
             ctx.release(s);
         }
     }
+    reports.push(...(await sampledReports(ctx)));
     reports.push(...(await reduceReports(ctx)));
     return mergeReports(reports);
 }

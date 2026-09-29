@@ -225,8 +225,11 @@ function oddRing(nodeCount: number): MockGraphOpts {
  * A fake accelerator with an eigenvector member that scores every node 0.5 and counts its calls.
  * @returns The fake and its call counter.
  */
-function eigenvectorFake(): { fake: FakeAccelerator; calls: { eigenvector: number; closeness: number } } {
-    const calls = { eigenvector: 0, closeness: 0 };
+function eigenvectorFake(): {
+    fake: FakeAccelerator;
+    calls: { eigenvector: number; closeness: number; betweenness: number };
+} {
+    const calls = { eigenvector: 0, closeness: 0, betweenness: 0 };
     const half = (s: GraphSnapshot): Float32Array => new Float32Array(s.nodeCount).fill(0.5);
     const fake = createFakeAccelerator({
         members: {
@@ -236,10 +239,10 @@ function eigenvectorFake(): { fake: FakeAccelerator; calls: { eigenvector: numbe
             },
             closenessCentrality: (s: GraphSnapshot) => {
                 calls.closeness += 1;
-                return Promise.resolve({ scores: half(s), iterations: 1, converged: true });
+                return Promise.resolve({ scores: half(s), iterations: 1, converged: true, sourcesUsed: s.nodeCount });
             },
             betweennessCentrality: (s: GraphSnapshot) => {
-                calls.closeness += 1;
+                calls.betweenness += 1;
                 return Promise.resolve({ scores: half(s), iterations: 1, converged: true });
             },
         },
@@ -531,28 +534,36 @@ describe("centrality and community adapters on the index-based ports", () => {
             assert.strictEqual((thrown as { code: string }).code, "E_NOT_CONVERGED");
         });
 
-        it("betweenness and closeness stay on the processor with an accelerator that has them", async () => {
+        it("betweenness stays on the processor with an accelerator that has it; closeness is forwarded", async () => {
             const { fake, calls } = eigenvectorFake();
             const graph = await graphWith(WEIGHTED_MULTI, fake);
             const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
             const closeness = await measured(graph, new ClosenessCentralityAlgorithm(graph));
-            assert.strictEqual(calls.closeness, 0);
+            assert.strictEqual(calls.betweenness, 0);
             assert.strictEqual(betweenness.precision, "f64");
-            assert.strictEqual(closeness.precision, "f64");
+            // the mock's threshold is 0, so the floor does not apply and closeness reaches the device
+            assert.strictEqual(calls.closeness, 1);
+            assert.strictEqual(closeness.precision, "f32");
         });
 
-        it("betweenness and closeness run on the processor under required with an accelerator that lacks them", async () => {
-            // The element does not forward either, so the controller is never asked -- asked, it
-            // would refuse with E_NO_ACCELERATOR because this accelerator has no such member.
+        it("under required with an accelerator that lacks both, betweenness runs on the processor and closeness refuses", async () => {
+            // The element does not forward betweenness, so the controller is never asked. It does
+            // forward closeness, and this accelerator has no such member: E_NO_ACCELERATOR.
             const fake = createFakeAccelerator();
             assert.notProperty(fake, "betweennessCentrality");
             assert.notProperty(fake, "closenessCentrality");
             const graph = await graphWith(WEIGHTED_MULTI, fake, true, "required");
             const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
-            const closeness = await measured(graph, new ClosenessCentralityAlgorithm(graph));
             assert.strictEqual(betweenness.precision, "f64");
-            assert.strictEqual(closeness.precision, "f64");
             assert.isAbove(betweenness.values.get("C") ?? 0, 0);
+            let thrown: unknown;
+            try {
+                await new ClosenessCentralityAlgorithm(graph).run();
+            } catch (error) {
+                thrown = error;
+            }
+            assert.isTrue(isGraphtyError(thrown));
+            assert.strictEqual((thrown as { code: string }).code, "E_NO_ACCELERATOR");
         });
     });
 

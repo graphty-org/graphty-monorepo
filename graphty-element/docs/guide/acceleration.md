@@ -132,8 +132,9 @@ That is the label to show beside a value a reader might compare against a saved 
 | `connected-components`                 | Yes                     | The CPU implementation                           |
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
 | `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
+| `closeness`                            | Yes, with one exception | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
-| `betweenness`, `closeness`             | No                      | The CPU implementation                           |
+| `betweenness`                          | No                      | The CPU implementation                           |
 | `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
 | `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
@@ -145,8 +146,8 @@ the member exists, with no change to your page.
 The algorithms in the last three rows are never handed to an accelerator, even one that implements
 them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
-An algorithm is accelerated only above a measured node count: `hits` from 15,000 nodes, `katz`
-and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
+An algorithm is accelerated only above a measured node count: `closeness` from 5,800 nodes, `hits`
+from 15,000, `katz` and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
 `connected-components` from 132,000 and `bfs` from 141,000. An algorithm
 is one call, and on the device that call costs several round trips whatever the size, so below
 those counts the CPU has finished before the device has started -- and a traversal, which is one
@@ -188,7 +189,14 @@ with a two-colourable component (an even ring, a tree, a grid). Above the floor 
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 
-An algorithm the element does not route to the device at all (`betweenness`, `closeness`,
+`closeness` has one exception: an exact run (no `k`) over more than 30,000 nodes
+takes the CPU implementation, and throws `E_NO_ACCELERATOR` under `acceleration="required"`. The
+device computes it, but the time grows with the square of the node count and is tens of seconds at
+100,000 nodes, so above that size ask for a sampled run instead. A sampled run has no cap. Its
+floor, 5,800 nodes, is the conservative of the two crossovers measured for sampled closeness (about
+100 nodes on a busy machine's medians, about 5,800 on the minimum of repeated runs).
+
+An algorithm the element does not route to the device at all (`betweenness`,
 `floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim`, `scc`, `k-core` and
 `louvain` today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather
 than throwing.

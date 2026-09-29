@@ -14,6 +14,7 @@ import {
     breadthFirstSearch,
     calibrateLayout,
     type CalibrateOptions,
+    type ClosenessAcceleratorOptions,
     closenessCentrality,
     type CommonLayoutOptions,
     type CommunityResultLike,
@@ -42,6 +43,7 @@ import {
     type GpuBfsResult,
     type GpuCalibration,
     type GpuCaps,
+    type GpuClosenessResult,
     GpuContext,
     type GpuContextOptions,
     type GpuHitsResult,
@@ -317,8 +319,10 @@ expectTypeOf(sssp).returns.resolves.toEqualTypeOf<GpuSsspResult>();
 expectTypeOf(bellmanFord).parameter(2).toBeNumber();
 expectTypeOf(bellmanFord).parameter(3).toEqualTypeOf<(SsspOptions & GpuRunOptions) | undefined>();
 expectTypeOf(bellmanFord).returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
-expectTypeOf(closenessCentrality).parameter(2).toEqualTypeOf<(HitsOptionsLike & GpuRunOptions) | undefined>();
-expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf(closenessCentrality)
+    .parameter(2)
+    .toEqualTypeOf<(ClosenessAcceleratorOptions & HitsOptionsLike & GpuRunOptions) | undefined>();
+expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuClosenessResult>();
 expectTypeOf<GpuBfsResult["depth"]>().toEqualTypeOf<U32>();
 expectTypeOf<GpuBfsResult["parent"]>().toEqualTypeOf<U32>();
 expectTypeOf<GpuBfsResult["order"]>().toEqualTypeOf<U32>();
@@ -344,8 +348,10 @@ expectTypeOf<GpuAccelerator["sssp"]>().parameter(2).toEqualTypeOf<SsspOptions | 
 expectTypeOf<GpuAccelerator["sssp"]>().returns.resolves.toEqualTypeOf<GpuSsspResult>();
 expectTypeOf<GpuAccelerator["bellmanFord"]>().parameter(2).toEqualTypeOf<SsspOptions | undefined>();
 expectTypeOf<GpuAccelerator["bellmanFord"]>().returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
-expectTypeOf<GpuAccelerator["closenessCentrality"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
-expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>()
+    .parameter(1)
+    .toEqualTypeOf<ClosenessAcceleratorOptions | undefined>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuClosenessResult>();
 
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();

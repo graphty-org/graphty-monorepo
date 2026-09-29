@@ -3985,6 +3985,8 @@ Releases are now automated through Nx Release using conventional commits:
 - `feat:` commits trigger minor releases
 - `fix:` commits trigger patch releases
 - `feat!:` or `BREAKING CHANGE:` trigger major releases
+- scope a breaking commit to the package it breaks (`feat(graph-format)!:`); an unscoped `feat!:`
+  gives every dependent a major too (section 13.5 of `design/graph-format/graph-format-design.md`)
 
 ## Troubleshooting
 

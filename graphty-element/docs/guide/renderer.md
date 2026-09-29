@@ -66,6 +66,7 @@ says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
 ## Is WebGPU faster?
 
 Not yet, for this element. Measured frame times at 10,000 and 100,000 nodes are in the
-[renderer decision record](../decisions/renderer-webgpu). At those sizes a frame is spent on
-the CPU -- the element's own update and Babylon.js deciding what to draw -- and the GPU itself is
-busy for a small part of it under either renderer. That is why `webgl` stays the default.
+[renderer decision record](https://github.com/graphty-org/graphty-monorepo/blob/master/graphty-element/docs/decisions/renderer-webgpu.md).
+At those sizes a frame is spent on the CPU -- the element's own update and Babylon.js deciding
+what to draw -- and under WebGL the GPU itself is busy for a small part of it (GPU time under
+WebGPU is not yet measured). That is why `webgl` stays the default.

@@ -25,21 +25,23 @@ The style member is the `StyleDocument` graphty-element 2.x already publishes
    release: the channel names, selector kinds, scales and layer kinds below, and the value lists of
    the enumerated channels (node shapes, line patterns, arrows). A style using anything 2.x would
    refuse MUST be written as style version 2, which a 2.x-era reader refuses by its version rather
-   than by a confusing layer error. What 2.x refuses, with the code it reports:
+   than by a confusing layer error. What 2.x refuses, with the code it reports (a version 1 reader
+   handles each as "Reading and applying" rules 2 and 3 say):
 
-| 2.x refuses                                                                         | Code                                                                    |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| an unknown channel, selector kind, scale or layer kind                              | `E_UNKNOWN_CHANNEL`, `E_BAD_SELECTOR`, `E_UNKNOWN_SCALE`, `E_BAD_LAYER` |
-| a value outside an enumerated channel's list, or a number outside a channel's range | `E_OPTION_RANGE`                                                        |
-| a value of the wrong type for its channel                                           | `E_BAD_LAYER`                                                           |
-| a layer with neither `set` nor `encode`, or one channel in both                     | `E_BAD_LAYER`                                                           |
-| a layer with no `target` writing both node and edge channels                        | `E_BAD_LAYER`                                                           |
-| a binding with both an explicit `domain` and `clamp`                                | `E_BAD_LAYER`                                                           |
-| an empty `where` or `has` path                                                      | `E_SELECTOR_EMPTY`                                                      |
-| a quoted path segment holding a dot                                                 | `E_BAD_SELECTOR`                                                        |
-| an `everything` layer encoding from a `results.` path                               | `E_UNSCOPED_RUN_ENCODING`                                               |
-| `source.by: "element"`                                                              | `E_PROTECTED`                                                           |
-| a carried palette whose id nobody registered                                        | `E_UNKNOWN_PALETTE`                                                     |
+| 2.x refuses                                                                                  | Code                                               |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| an unknown channel (rule 3 of "Reading and applying": the channel is dropped, not the layer) | `E_UNKNOWN_CHANNEL`                                |
+| an unknown selector kind, scale or layer kind                                                | `E_BAD_SELECTOR`, `E_UNKNOWN_SCALE`, `E_BAD_LAYER` |
+| a value outside an enumerated channel's list, or a number outside a channel's range          | `E_OPTION_RANGE`                                   |
+| a value of the wrong type for its channel                                                    | `E_BAD_LAYER`                                      |
+| a layer with neither `set` nor `encode`, or one channel in both                              | `E_BAD_LAYER`                                      |
+| a layer with no `target` writing both node and edge channels                                 | `E_BAD_LAYER`                                      |
+| a binding with both an explicit `domain` and `clamp`                                         | `E_BAD_LAYER`                                      |
+| an empty `where` or `has` path                                                               | `E_SELECTOR_EMPTY`                                 |
+| a quoted path segment holding a dot                                                          | `E_BAD_SELECTOR`                                   |
+| an `everything` layer encoding from a `results.` path                                        | `E_UNSCOPED_RUN_ENCODING`                          |
+| `source.by: "element"`                                                                       | `E_PROTECTED`                                      |
+| a carried palette whose id nobody registered                                                 | `E_UNKNOWN_PALETTE`                                |
 
 3. 2.x checks values, not member names, so the optional members this page adds (`kind`, `name`,
    `description`, a layer's `id`, `extensions`) are harmless to it. 2.x as a writer drops them: a
@@ -52,6 +54,7 @@ The style member is the `StyleDocument` graphty-element 2.x already publishes
 interface StyleMember {
     kind: "graphty-style";
     version: 1;
+    id?: string; // identity across saves: "org.example-lab.expression-overlay"
     name?: string; // what a person calls this look
     description?: string;
     layers: LayerSpec[]; // bottom first; at most 1,000
@@ -94,10 +97,32 @@ graphty-element 2.x implements:
 1. `data.<column>` reads the column of that name; `results.<run id>.<field>` reads a field of a
    run's result. A column name is flat: a dot is part of the name, and nested values are not
    walked, so `data.adj.P.Val` reads the column named `adj.P.Val`.
-2. A path segment that is not an identifier (`[A-Za-z_][A-Za-z0-9_]*`) is quoted in an expression
-   (`data."log-fc"`); an unquoted hyphen is subtraction. A quoted segment MUST NOT contain a dot.
+2. Every path -- a binding's `by`, a `has` or `top` selector's `path`, and the paths inside a
+   `where` -- is read the same way. A segment that is not an identifier (`[A-Za-z_][A-Za-z0-9_]*`)
+   is quoted (`data."log-fc"`, `data."stringdb::node type"`); an unquoted hyphen is subtraction. A
+   quoted segment MUST NOT contain a dot, as in 2.x, so a column whose name holds a dot and another
+   character that needs quoting (`log2.FC (T/N)`) cannot be written in a path. Write a plain name
+   instead and open the style with `columns` mapping it to the real one ("Reading and applying"
+   rule 10); the map rewrites the parsed path, so any name works there.
 3. A column that no element has, or a run the session does not hold, leaves the path unresolved; see
-   "Reading and applying" rule 4.
+   "Reading and applying" rule 4. Columns and runs are looked up by own name, so
+   `data.constructor` reads only a column named `constructor`.
+4. A style reads columns and results only. It cannot read a node's id; a label or selector keyed on
+   a name works only when the name is a column (README, "What version 1 does not cover").
+
+### Result fields
+
+`results.<run id>.<field>` names a field a run publishes. Each algorithm's fields are its
+`AlgorithmDescriptor.fields` in graphty-element's catalogue (exported from the `./catalog` entry
+point); the plan of a recipe lists them per command (recipe.md, "The replay report"). The most used:
+
+| Algorithms                                                                        | Node fields                                              |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `degree`, `betweenness`, `closeness`, `pagerank`, `eigenvector`, `katz`, `k-core` | `value` (the score), `rank`, `percentile`                |
+| `louvain`, `leiden`, `label-propagation`, `girvan-newman`, `components`           | `group` (an integer per community or piece), `groupSize` |
+
+A selector or binding naming a field the run does not publish leaves the layer switched off, like a
+missing column.
 
 ### Selectors
 
@@ -134,12 +159,15 @@ The member names of `set` and `encode` are channel names, the list graphty-eleme
 | labels, tooltips, arrow texts                                                                                  | text of at most 1,024 characters, always drawn as text                                     |
 | label, tooltip and arrow-text styles                                                                           | a label style record                                                                       |
 | `node.wireframe`, `node.flat`, `edge.curvature`                                                                | a boolean                                                                                  |
-| `edge.patternCount`                                                                                            | an integer, at least 2                                                                     |
+| `edge.patternCount`                                                                                            | an integer from 2 to 1,000                                                                 |
 | `edge.animationSpeed`, `node.glowStrength`                                                                     | a non-negative number                                                                      |
 
 `node.marker` is reserved for graphty-element's own note markers and is not written by a style. The
 applier parses every colour into RGBA when it applies a layer; a colour that does not parse fails
-its layer with `E_BAD_LAYER`.
+its layer with `E_BAD_LAYER`. Every count a style sets has a maximum: `edge.patternCount` 1,000
+(each edge draws that many pattern pieces), `bins` 256, a `map` 1,000 entries. A value above one
+fails its layer with `E_OPTION_RANGE`; giving the channel descriptors these maxima is one of the
+graphty-element changes version 1 needs.
 
 ### Bindings
 
@@ -159,9 +187,34 @@ other channel `passthrough`. For the numeric scales:
    its palette. `reverse: true` swaps the ends.
 5. `missing` decides an element with no value: `"skip"` (the default) paints nothing; `{ value }`
    paints that value.
+6. `exponent` is the power of the `pow` scale (default 2). `bins` is how many groups of equal width
+   (`bins`) or equal count (`quantile`) the values are sorted into (default 4, at most 256).
+7. A value that is not a number (text such as `NA` in a column a CSV import typed as text) is
+   treated as missing, and the report counts it with `W_COLUMN_TYPE`.
 
-`map`, `other`, `overflow`, `bins` and `exponent` mean what their declarations in
-`graphty-element/src/catalog/types.ts` say.
+For `ordinal`, which maps categories:
+
+8. Categories take the palette's colours in order of size, largest group first, ties broken by
+   name, so the same column gives the same assignment twice. The default palette is `okabe-ito`
+   (8 colours).
+9. `map` pins a category to a value: `{ "sales": "#0b5fff", "ops": "#ff8800" }`. On a colour channel
+   an unmapped category takes the next palette colour; on any other channel (a shape) an unmapped
+   category is treated as missing (`missing`).
+10. `other: { threshold, value }` paints every category carried by fewer than `threshold` elements
+    with `value`.
+11. `overflow` says what happens when there are more categories than the palette has colours:
+    `"other"` keeps the palette's colours for the largest groups and paints the rest dark grey
+    (#505050); `"shape"` (nodes only) reuses the colours with a new shape per round; `"extend"`
+    gives every group its own colour, not guaranteed distinct. Without `overflow`, a named palette
+    too small for the data fails the layer with `E_CAP_EXCEEDED`.
+
+### Coming from Cytoscape
+
+| Cytoscape mapping | Here                                                                                                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| passthrough       | `{ "by": "data.label", "scale": "passthrough" }`                                                                                                                                  |
+| discrete          | `{ "by": "data.mutation_type", "scale": "ordinal", "map": { "missense": "octahedron" }, "missing": { "value": "sphere" } }` for "anything else"                                   |
+| continuous        | `{ "by": "data.logFC", "domain": [-2, 2], "midpoint": 0, "palette": "red-blue", "reverse": true }`: blue at -2, white at 0, red at 2; values past the domain take the end colours |
 
 ### Layer sources
 
@@ -182,7 +235,60 @@ in one member with the same `id` fail the second with `E_DUPLICATE_ID`.
 
 `palettes` carries the descriptor of every palette a layer names that graphty-element does not
 ship, so the style is self-describing. Built-in palette ids are reserved: a descriptor under a
-built-in id is ignored and reported, and the built-in palette is used.
+built-in id is ignored and reported, and the built-in palette is used. The built-in ids are:
+
+- sequential: `viridis`, `ylorbr` (the default for a measurement), `plasma`, `inferno`, `blues`,
+  `greens`, `oranges`;
+- categorical: `okabe-ito` (the default for categories), `tol-vibrant`, `tol-muted`, `pastel`,
+  `carbon`;
+- diverging: `purple-green`, `blue-orange`, `red-blue`;
+- highlight: `blue-highlight`, `green-highlight`, `orange-highlight`.
+
+A carried descriptor has `id`, `plainName`, `kind` (`sequential`, `diverging` or `categorical`),
+`colors`, `capacity` (how many categories it can keep apart; the number of colours for a
+categorical palette, `null` for a continuous one) and `colorblindSafe` (the colour-vision
+deficiencies it stays distinct under, `[]` when untested). A sequential or diverging palette's
+colours are spaced evenly from position 0 to 1, so a diverging palette with an odd number of colours
+has its middle colour at the binding's `midpoint`. A page that wants its brand palette everywhere
+registers it once with graphty-element's `registerPalette` and names it in its styles; a carried
+palette is for a style travelling to pages that do not have it.
+
+```json
+{
+    "kind": "graphty-document",
+    "version": 1,
+    "members": [
+        {
+            "kind": "graphty-style",
+            "version": 1,
+            "layers": [
+                {
+                    "name": "Colour by team",
+                    "selector": { "match": "has", "path": "data.team" },
+                    "encode": {
+                        "node.color": {
+                            "by": "data.team",
+                            "scale": "ordinal",
+                            "palette": "acme-brand",
+                            "map": { "sales": "#0b5fff" }
+                        }
+                    }
+                }
+            ],
+            "palettes": [
+                {
+                    "id": "acme-brand",
+                    "plainName": "Acme brand",
+                    "kind": "categorical",
+                    "colors": ["#0b5fff", "#ff8800", "#00a86b"],
+                    "capacity": 3,
+                    "colorblindSafe": []
+                }
+            ]
+        }
+    ]
+}
+```
 
 ## Writing
 
@@ -191,48 +297,81 @@ built-in id is ignored and reported, and the built-in palette is used.
    `toDocument()` does today.
 3. It MUST write the descriptor of every non-built-in palette a layer names, and no built-in one.
 4. **Run ids.** A layer that names a run by an id graphty-element derived (a run started without an
-   explicit `as`) would name a different run in another session. Before writing such a layer the
-   writer gives the run an explicit name by recipe.md's rule ("Recording" rule 4) and writes that
-   name. When the same file also carries the recipe that produces the run, the writer writes the
-   recipe's own `as`, not the namespaced run id (recipe.md, "Run ids and namespaces").
+   explicit `as`) would name a different run in another session. When the same file also carries
+   the recipe that records the run, the writer writes the name the recipe gives it (recipe.md,
+   "Recording" rule 4). A style written without that recipe refuses such a layer with
+   `E_UNSTABLE_RUN_ID`, as 2.x documents: the caller re-runs with an explicit `as` and saves again.
 5. It MUST NOT write `ids.edges` ("Selectors"); a layer holding them is left out and reported.
 6. It MUST refuse a layer whose `userData` is not representable as JSON (a function, a cycle, a
    non-finite number), naming the layer.
 7. It SHOULD write colours as hex (`#rrggbb`, or `#rrggbbaa` when alpha is below 1).
+8. It writes each layer's authored `enabled`, never `false` for a layer the applier switched off
+   only because a path had no answer, so that state is decided again every time the style is
+   opened. graphty-element keeps a flag that tells the two apart.
+9. A layer the applier refused (rule 2 of "Reading and applying") is written back as it was read.
+10. When the top layers of a stack need a later style version and the rest fit version 1, the writer
+    SHOULD write two members, the version 1 layers first, so an older reader still draws them
+    (container.md, "Versions" rule 4).
+11. The graphty-element test suite MUST run 2.x's own layer checker and `applyTemplate` over every
+    worked example of this directory (not the conformance inputs, some of which are meant to fail)
+    and require acceptance, so a drift from the version 1 freeze fails in continuous integration.
 
 ## Reading and applying
 
 1. A style member whose top level fails (not an object, `layers` not an array) is skipped
-   (container.md, "Reading a file" rule 10).
+   (container.md, "Reading a file" rule 13).
 2. **A layer that cannot be applied fails alone.** A layer that fails any rule of the table under
-   "Compatible with graphty-element 2.x", fails its schema, exceeds a limit, or throws while it is
-   checked MUST be added to the stack switched off, with its code and a reason, and reported. It MUST
-   NOT be dropped, and MUST NOT stop the other layers.
-3. A channel entry naming an unknown channel is dropped from its layer and reported
-   (`E_UNKNOWN_CHANNEL`); the layer's other channels apply.
+   "Compatible with graphty-element 2.x" other than an unknown channel, fails its schema, exceeds a
+   limit, or throws while it is checked MUST be added to the stack switched off, with its code and a
+   reason, and reported. It MUST NOT be dropped, and MUST NOT stop the other layers. Such a
+   **refused layer** is kept as it was read, beside the compiled stack: it has a `LayerId`, is
+   listed with `enabled: false` and its problem, is written back unchanged, and is checked again by
+   `update(id, patch)`, which compiles it only when it now passes.
+3. **Unknown channels.** A channel entry naming an unknown channel is dropped from its layer and
+   reported (`E_UNKNOWN_CHANNEL`); the layer's other channels apply, and the dropped entry is
+   written back on save. A layer left with no channel is a refused layer with `E_UNKNOWN_CHANNEL`.
+   This rule, not container.md's `W_UNKNOWN_MEMBER`, governs the keys of `set` and `encode`.
 4. A valid layer that reads a path nothing in the session answers -- a column no element has, a run
    the session does not hold, a kept set it does not have -- is added switched off with the paths it
-   needs, as `applyTemplate()` does in 2.x. This is how a style reports what is missing on new data.
+   needs and up to three existing columns with the nearest names as suggestions, which the applier
+   never uses. This is how a style reports what is missing on new data. When the data is replaced
+   or the run completes, the applier MUST check such a layer again and switch it on when it binds,
+   reporting it.
 5. **Carried palettes.** A carried palette whose id is not registered is registered for this session
    only and reported; it is never put in the page-wide registry, where it would reach every other
    element on the page. A carried palette whose id is already registered never replaces the
    registered one; a difference in colours is reported. A layer naming a palette that is neither
    registered nor carried is switched off with `E_UNKNOWN_PALETTE`.
-6. Layers are added above every layer already present, in document order. Replacing the stack is an
-   explicit choice of the caller, never the default.
+6. Layers are added above every layer already present, in document order. Replacing the whole
+   stack is an explicit choice of the caller, never the default.
 7. **Imported layers are stamped.** Every layer added from a document gets
-   `source: { by: "template", templateId }`, where `templateId` is the caller's choice or else the
-   document's `name` or file name. A `source.by: "run"` is kept only when its `runId` names a run in
-   this session. A document cannot make its layers look like the reader's own.
+   `source: { by: "template", templateId }`, where `templateId` is the caller's choice, else the
+   rule of container.md, "Writing a file" rule 7. A `source.by: "run"` is kept only when its `runId`
+   names a run in this session. A document cannot make its layers look like the reader's own.
+   `session.styles.removeBySource((s) => s.by === "template" && s.templateId === id)` removes
+   everything one opening added.
 8. Applying a style MUST NOT start a run, change the data, move the camera or fetch anything.
-9. The applier returns a `StyleReport`:
+9. **Opening the same style again.** When layers stamped with the same `templateId` are already in
+   the stack, the applier follows `onRepeat`: `"replace"` (the default) removes them and puts the
+   new layers where the lowest of them was; `"add"` adds a second copy above everything; `"refuse"`
+   fails with `E_REPEAT_APPLICATION`. So opening a corrected version of a look, or the same file
+   again with a rename, replaces the earlier opening.
+10. **Renames.** `columns` maps the style's column names to the data's, as for recipes (recipe.md,
+    "Binding to a new graph" rule 2): it rewrites parsed paths and expressions, never text, and the
+    report records it.
+11. The applier returns a `StyleReport`. `session.styles.applyTemplate(style, options)` takes the
+    options 2.x has (`templateId`) and, new, `columns` and `onRepeat`; `openDocument` passes its own.
 
 ```ts
 interface StyleReport {
     /** The layers that bound and now paint, bottom first. As 2.x's TemplateReport. */
     readonly applied: readonly LayerId[];
-    /** The layers added switched off because a path they read has no answer. As 2.x. */
-    readonly unbound: readonly UnboundLayer[];
+    /** The layers added switched off because a path they read has no answer. As 2.x, plus suggestions. */
+    readonly unbound: readonly (UnboundLayer & { readonly suggestions: readonly string[] })[];
+    /** The caller's renames, as applied. New. */
+    readonly renamed: Readonly<Record<string, string>>;
+    /** Layers of an earlier opening with the same templateId that this one replaced. New. */
+    readonly replaced: readonly LayerId[];
     /** The layers added switched off because they failed a check (rule 2). New. */
     readonly refused: readonly { layer: LayerId; name: string; id?: string; code: GraphtyErrorCode; reason: string }[];
     /** Palettes registered for this session, channels dropped, ignored members. New. */
@@ -242,15 +381,19 @@ interface StyleReport {
 
 **When this applies.** `openDocument` applies style members by these rules from its first release.
 `applyTemplate` in 2.x refuses the whole document for one bad layer or one unregistered carried
-palette, and callers may rely on that, so changing it is a breaking change: `applyTemplate` adopts
-rules 2 and 5 in graphty-element 3.0.0, the major release that already groups the graph-format
-migration's breaking changes, and not before.
+palette, and always adds its layers, and callers may rely on both, so changing either is a breaking
+change: `applyTemplate` adopts rules 2, 5 and 9 in graphty-element 3.0.0, the major release that
+already groups the graph-format migration's breaking changes, and not before. Its new `columns`
+option is additive and may come earlier.
 
 ## Upgrading a 1.x template
 
 A graphty-element 1.x style template (`{ graphtyTemplate: true, majorVersion: "1", ... }`,
-`graphty-element/src/config/StyleTemplate.ts`) is not a version 1 style. A reader that accepts one
-MUST convert it to a document and MUST NOT drop any part of it silently:
+`graphty-element/src/config/StyleTemplate.ts`) is not a version 1 style. `openDocument` reads one
+(container.md, "Reading a file" rule 4) by converting it to a document, and MUST NOT drop any part
+of it silently. The parts the conversion cannot represent still take effect through graphty-element
+2.x's own template input (`styleTemplate`), which is unchanged; `openDocument` reports each by name
+and says so.
 
 | 1.x part                              | Becomes                                                                                                                                                                                                                                                                                                                          |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -262,34 +405,42 @@ MUST convert it to a document and MUST NOT drop any part of it silently:
 
 ## Conformance
 
-| Input                                                                       | Required result                                                        |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| a layer with neither `set` nor `encode`                                     | added switched off, `E_BAD_LAYER`; the other layers apply              |
-| a binding with both `domain` and `clamp`                                    | that layer switched off, `E_BAD_LAYER`                                 |
-| `node.shape: "star"`                                                        | that layer switched off, `E_OPTION_RANGE`                              |
-| a layer writing `"node.colour": "#f00"` and `"node.size": 2`                | `node.colour` dropped, `E_UNKNOWN_CHANNEL`; the layer applies its size |
-| `"node.color": "red\" onload=\"x"`                                          | does not parse as a colour; layer switched off, `E_BAD_LAYER`          |
-| a layer reading `data.logFC` on a graph with no `logFC` column              | added switched off; `unbound` names `data.logFC`                       |
-| `where: "data.adj.P.Val < \`0.05\`"`on a graph with a column`adj.P.Val`     | matches the elements whose `adj.P.Val` is below 0.05                   |
-| an edge layer with `ids: { "edges": ["17"] }`                               | added switched off, `E_BAD_LAYER`                                      |
-| a layer naming palette `lab-reds`, carried, not registered                  | registered for this session only and reported; the layer paints        |
-| a layer naming palette `lab-reds`, neither carried nor registered           | switched off, `E_UNKNOWN_PALETTE`                                      |
-| a carried descriptor under the id `viridis`                                 | ignored and reported; the built-in palette is used                     |
-| a layer with `source: { "by": "user" }` from a document                     | stored as `{ "by": "template", "templateId": ... }`                    |
-| two layers with `id: "size"`                                                | the second switched off, `E_DUPLICATE_ID`                              |
-| a `top` selector with `n: 10` whose values run 1 to 8, then three tied at 9 | 8 elements painted; the report says 3 were left out at the tie         |
-
-graphty-element's test suite MUST run 2.x's own layer checker and `applyTemplate` over every version
-1 example of this directory and require acceptance, so a drift from the version 1 freeze fails in
-continuous integration.
+| Input                                                                       | Required result                                                                                            |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| a layer with neither `set` nor `encode`                                     | added switched off, `E_BAD_LAYER`; the other layers apply                                                  |
+| a binding with both `domain` and `clamp`                                    | that layer switched off, `E_BAD_LAYER`                                                                     |
+| `node.shape: "star"`                                                        | that layer switched off, `E_OPTION_RANGE`                                                                  |
+| a layer writing `"node.colour": "#f00"` and `"node.size": 2`                | `node.colour` dropped, `E_UNKNOWN_CHANNEL`; the layer applies its size; `node.colour` written back on save |
+| a layer writing only `"node.colour": "#f00"`                                | refused, `E_UNKNOWN_CHANNEL`; listed switched off; written back unchanged                                  |
+| `"edge.patternCount": 2147483647`                                           | that layer switched off, `E_OPTION_RANGE`                                                                  |
+| a layer reading `data.logFC` on data whose column is `log2FoldChange`       | added switched off; `unbound` suggests `log2FoldChange`                                                    |
+| a layer colouring by `data.logFC` where `logFC` holds numbers and `NA`      | the numbers painted; `NA` treated as missing; `W_COLUMN_TYPE` with the count                               |
+| an ordinal colour layer over `team` with groups of 5, 3 and 3 elements      | the largest group takes the palette's first colour; the tied groups by name                                |
+| the same style opened twice                                                 | the second opening replaces the first's layers (`replaced` lists them)                                     |
+| opened with no graph loaded, then data loaded that has the columns          | layers switched off, then switched on and reported when the data arrives                                   |
+| a layer switched off for a missing column, saved                            | written with its authored `enabled` (true), not `false`                                                    |
+| a style written alone with a layer reading a run started without `as`       | refused, `E_UNSTABLE_RUN_ID`                                                                               |
+| `"node.color": "red\" onload=\"x"`                                          | does not parse as a colour; layer switched off, `E_BAD_LAYER`                                              |
+| a layer reading `data.logFC` on a graph with no `logFC` column              | added switched off; `unbound` names `data.logFC`                                                           |
+| `where: "data.adj.P.Val < \`0.05\`"`on a graph with a column`adj.P.Val`     | matches the elements whose `adj.P.Val` is below 0.05                                                       |
+| an edge layer with `ids: { "edges": ["17"] }`                               | added switched off, `E_BAD_LAYER`                                                                          |
+| a layer naming palette `lab-reds`, carried, not registered                  | registered for this session only and reported; the layer paints                                            |
+| a layer naming palette `lab-reds`, neither carried nor registered           | switched off, `E_UNKNOWN_PALETTE`                                                                          |
+| a carried descriptor under the id `viridis`                                 | ignored and reported; the built-in palette is used                                                         |
+| a layer with `source: { "by": "user" }` from a document                     | stored as `{ "by": "template", "templateId": ... }`                                                        |
+| two layers with `id: "size"`                                                | the second switched off, `E_DUPLICATE_ID`                                                                  |
+| a `top` selector with `n: 10` whose values run 1 to 8, then three tied at 9 | 8 elements painted; the report says 3 were left out at the tie                                             |
 
 ## Worked example
 
 A lab's expression overlay: red for genes up, blue for down, grey for not measured, significant genes
-outlined. Applied to a new study whose table has the columns `logFC` and `padj`, both layers paint.
+outlined. It needs `logFC` and `padj` as node columns of the network itself; version 1 cannot attach
+a separate expression table (README, "What version 1 does not cover"), so merge the table into the
+node file first. Applied to a network whose nodes have `logFC` and `padj`, both layers paint.
 Applied to one that calls the adjusted p-value `FDR`, the outline layer is added switched off and the
-report names `data.padj`; the caller applies it again with `columns: { "padj": "FDR" }`, or keeps the
-colouring alone.
+report names `data.padj`, suggesting `FDR`; the caller opens the file again with
+`columns: { "padj": "FDR" }`, which replaces the first opening's layers, or keeps the colouring
+alone.
 
 ```json
 {
@@ -299,6 +450,7 @@ colouring alone.
         {
             "kind": "graphty-style",
             "version": 1,
+            "id": "org.example-lab.expression-overlay",
             "name": "Expression overlay",
             "layers": [
                 {

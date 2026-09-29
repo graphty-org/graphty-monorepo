@@ -28,6 +28,17 @@
         "generator": {
             "$ref": "#/$defs/generator"
         },
+        "requires": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+            },
+            "description": "Member kinds a reader must know to read this file at all. A reader that does not know one refuses the whole file (container.md, 'Reading a file' rule 9)."
+        },
         "members": {
             "type": "array",
             "maxItems": 64,
@@ -62,7 +73,49 @@
             "propertyNames": {
                 "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
             },
-            "description": "Data for other software, under reverse-domain names (org.example.tool). The name graphty and names starting graphty. are reserved for graphty-element. A reader keeps what it does not understand and never interprets it."
+            "description": "Data for other software, under reverse-domain names (org.example.tool). The name graphty and names starting graphty. are reserved for graphty-element. A reader keeps what it does not understand and never interprets it.",
+            "properties": {
+                "graphty.provenance": {
+                    "type": "object",
+                    "properties": {
+                        "authors": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["name"],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 1024
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "maxLength": 1024
+                                    },
+                                    "orcid": {
+                                        "type": "string",
+                                        "maxLength": 64
+                                    }
+                                }
+                            }
+                        },
+                        "licence": {
+                            "type": "string",
+                            "maxLength": 256,
+                            "description": "An SPDX licence id."
+                        },
+                        "citation": {
+                            "type": "string",
+                            "maxLength": 65536
+                        },
+                        "doi": {
+                            "type": "string",
+                            "maxLength": 256
+                        }
+                    },
+                    "description": "Who made the document or member and how to cite it (container.md, 'Extensions'). A later version promotes it to members."
+                }
+            }
         },
         "member": {
             "type": "object",

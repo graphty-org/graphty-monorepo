@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-data/v1.json",
     "title": "graphty data member, version 1",
-    "description": "The graph itself inside a graphty document (container.md, 'The data member'): either embedded as one of graph-io's JSON dialects, or a reference to a file in any format graphty-element reads. Normative for what a writer produces.",
+    "description": "The graph itself inside a graphty document (container.md, 'The data member'): either embedded as one of graph-io's JSON dialects, or a reference to a file in any format graphty-element reads. Normative for what a writer produces. Its members are closed: a reader skips a data member with a member this schema does not list.",
     "type": "object",
     "required": ["kind", "version", "format"],
     "properties": {
@@ -39,12 +39,15 @@
             "format": "uri-reference",
             "minLength": 1,
             "maxLength": 4096,
-            "description": "Where the data file is: a path relative to the document, or an https: URL. Never fetched without the caller's consent."
+            "description": "Where the data file is: a path relative to the document, or an https: URL with no user name or password. Checked after resolution and never fetched without the caller's consent (container.md, 'The data member').",
+            "not": {
+                "pattern": "^[^/?#]*//[^/?#]*@"
+            }
         },
         "options": {
             "type": "object",
             "propertyNames": {
-                "enum": ["dialect", "delimiter", "variant", "idColumn", "nodeIdPath", "edgeSource", "edgeTarget"]
+                "enum": ["delimiter", "variant", "idColumn", "nodeIdPath", "edgeSource", "edgeTarget"]
             },
             "description": "Import options of a referenced file, spelled as graphty-element's format catalogue publishes them."
         },
@@ -92,5 +95,6 @@
                 ]
             }
         }
-    ]
+    ],
+    "unevaluatedProperties": false
 }

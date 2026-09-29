@@ -13,6 +13,13 @@
         "version": {
             "const": 1
         },
+        "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
+            "description": "The style's identity across saves: a reverse-domain name (org.example-lab.expression-overlay) is recommended. Opening a style whose id is already applied replaces the earlier layers by default (style.md, 'Reading and applying' rule 9)."
+        },
         "name": {
             "type": "string",
             "maxLength": 1024
@@ -163,6 +170,7 @@
                                     "$ref": "#/$defs/path"
                                 },
                                 {
+                                    "type": "string",
                                     "pattern": "^results\\."
                                 }
                             ]
@@ -450,7 +458,8 @@
                 },
                 "edge.patternCount": {
                     "type": "integer",
-                    "minimum": 2
+                    "minimum": 2,
+                    "maximum": 1000
                 },
                 "edge.curvature": {
                     "type": "boolean"
@@ -595,7 +604,8 @@
                             "type": "object",
                             "additionalProperties": {
                                 "type": ["string", "number"]
-                            }
+                            },
+                            "maxProperties": 1000
                         },
                         "other": {
                             "type": "object",
@@ -636,7 +646,8 @@
                         },
                         "bins": {
                             "type": "integer",
-                            "minimum": 1
+                            "minimum": 1,
+                            "maximum": 256
                         },
                         "exponent": {
                             "type": "number"

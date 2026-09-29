@@ -147,7 +147,7 @@ graphty-element 2.6.0, webgpu-graph-algorithms 0.6.10, graph-samples 0.1.5, grap
 | A1 (algorithms `toSnapshot`)   | Done, inside the accelerator seam work (algorithms 1.8.0). `algorithms/src/indexed/to-snapshot.ts`, `Graph.mutationCount` in `algorithms/src/core/graph.ts`, differential harness in `algorithms/test/helpers/snapshot-differential.ts`.                                                                                                                                                    |
 | A2 (algorithms ports, facades) | About one eighth done. 11 `indexed.*` functions in `algorithms/src/indexed/` (bfs, commonNeighborsScore, connectedComponents, weaklyConnectedComponents, dijkstra, hits, kCoreDecomposition, katzCentrality, louvain, kruskalMST, pageRank). Two more on local branches (section 4). No legacy function delegates to a port and none accepts a snapshot.                                    |
 | L1 (layout)                    | The simulation half is done (`layout/src/simulation/`, `toLayoutSnapshot`, ForceAtlas2 and Fruchterman-Reingold simulations). On `feat/graph-format-migration`, not yet on master: the `indexed` namespace of 15 layouts over snapshots, `LayoutResult` and the position helpers, with 13 legacy layouts as wrappers over it; `arfLayout` and `kamadaKawaiLayout` keep their own internals. |
-| E1 (graphty-element)           | Data layer done (`graphty-element/src/data/GraphStore.ts` owns the builder; positions are an element-owned column). 16 of 25 algorithm adapters use the dispatcher; 9 still build a legacy `Graph` through `algorithmGraph()`. 13 static layout engines call positional layout functions. `EdgeMap` is deleted; on-load algorithms start once per load.                                     |
+| E1 (graphty-element)           | Data layer done (`graphty-element/src/data/GraphStore.ts` owns the builder; positions are an element-owned column). 5 of 25 algorithm adapters use the dispatcher; 20 still build a legacy `Graph` through `algorithmGraph()`. 13 static layout engines call positional layout functions. `EdgeMap` is deleted; on-load algorithms start once per load.                                     |
 | W1 (webgpu-graph-algorithms)   | Done.                                                                                                                                                                                                                                                                                                                                                                                       |
 | IO1 (graph-io + element)       | graph-io half done (eight formats, corpus, benchmark). The element half has not started: the seven element `DataSource` classes still parse files themselves, and the element has no exporter.                                                                                                                                                                                              |
 | D1 (deprecations)              | Not started.                                                                                                                                                                                                                                                                                                                                                                                |
@@ -341,6 +341,21 @@ graphty-element (element minor):
   minimum is used, not the sum) and on graphs with self-loops.
 - Floyd-Warshall now refuses a graph above 5,792 nodes with a coded error before the run starts.
   Before, it had no bound and a large graph ran until the tab ran out of memory.
+- Link prediction, Adamic-Adar method: the same pairs are scored, but a score can differ from
+  2.x in the last bits (up to about 2e-11), because the port rounds each shared neighbour's weight
+  1/ln(degree) to a multiple of 2^-36 before adding. Pairs whose scores tie exactly can therefore
+  come out in another order, and at the `topK` cut-off a different one of the tied pairs can be
+  kept. The common-neighbours method is unchanged.
+- Max flow: when the capacities between one pair of nodes add up to a negative number, that pair
+  now has capacity 0 and each of its edges publishes `capacity: 0`. Before, the edges published the
+  negative sum (the flow was 0 either way).
+- Max flow and min cut: a `source` equal to the `sink` is refused with a `GraphtyError` coded
+  `E_OPTION_RANGE`. Before, the run went ahead and published a meaningless result.
+- Max flow: a graph with fewer than two nodes publishes no result. Before, a single node with a
+  self-loop ran with its source equal to its sink.
+- Max flow and min cut: a `source` or `sink` option is matched against node ids exactly first, and
+  by string form only when no node matches exactly. In a graph holding both the number 1 and the
+  string "1", `source: "1"` names the string. Before, every id was compared as a string.
 
 ### 4.4 The release sequence
 

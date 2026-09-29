@@ -286,9 +286,10 @@ The rewrite for each of the eight (`DijkstraAlgorithm`, `BellmanFordAlgorithm`, 
 seven of them already iterate `dataManager.edges.values()` and have the `Edge` in hand:
 
 - Keep the internal endpoint-pair keying that matches an `@graphty/algorithms` result back onto
-  element edges. That is a lookup key, not an identity, and it lives in one shared internal helper,
-  `edgePairKey(source, target)` in `src/algorithms/utils/graphUtils.ts`. It is not published from
-  `./extend`, and its doc comment says why: it names a pair, not an edge.
+  element edges. That is a lookup key, not an identity. It lived in one shared internal helper,
+  `edgePairKey(source, target)` in `src/algorithms/utils/graphUtils.ts`, never published from
+  `./extend`. The helper is gone: once the flow, cut and matching adapters ran on the indexed ports,
+  each adapter keys its edges by the snapshot's node indices and no caller was left.
 - Publish `edge.id`. `{ id: key, values: {...} }` becomes `{ id: edge.id, values: {...} }`.
 
 `MinCutAlgorithm.ts:243-249` and `PrimAlgorithm.ts:119-125` also translate between three endpoint

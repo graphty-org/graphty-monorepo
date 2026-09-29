@@ -1507,8 +1507,9 @@ allowlist holds only its permanent entries, and the registry test passes.
   shapes are still told apart by element values alone, because a graph-level summary such as a
   range differs between the two runs whatever the values do.
 - `utils/graphUtils.ts`'s `buildAdjacencyList` and `buildWeightedAdjacencyList` had no caller in
-  `src/`, so they were deleted with their tests rather than ported; the file keeps `edgePairKey`
-  and `requireNodeOption`. The `utils/index.ts` barrel, imported only by that test and not in the
+  `src/`, so they were deleted with their tests rather than ported; the file kept `edgePairKey`
+  and `requireNodeOption`. `edgePairKey` was deleted later, when its last callers (max flow, min
+  cut, bipartite matching) moved onto the indexed ports. The `utils/index.ts` barrel, imported only by that test and not in the
   exports map, went with it.
 - With every file migrated, the static guard's to-migrate list and its "only shrinks" test are
   gone; the guard holds only its three permanent entries. Both "declared off" and "declared on"

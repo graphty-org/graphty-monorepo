@@ -80,6 +80,20 @@ describe("MaxFlowAlgorithm", () => {
             assert.strictEqual(error.details.option, "sink");
         });
 
+        it("prefers the node whose id equals the option exactly over one that only prints the same", async () => {
+            const graph = await createMockGraph({
+                nodes: [{ id: 1 }, { id: "1" }, { id: 2 }],
+                edges: [
+                    { srcId: "1", dstId: 2, capacity: 3 },
+                    { srcId: 1, dstId: 2, capacity: 5 },
+                ],
+            });
+            const output = await new MaxFlowAlgorithm(graph, { source: "1", sink: 2 }).compute(detachedRunContext());
+
+            assert.ok(output);
+            assert.strictEqual(output.graph?.maxFlow, 3);
+        });
+
         it("has nothing to measure on a single node with a self-loop", async () => {
             const graph = await createMockGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "A" }] });
 

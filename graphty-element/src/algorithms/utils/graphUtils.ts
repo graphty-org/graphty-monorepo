@@ -36,7 +36,8 @@ export function declarationArcOrder(snapshot: GraphSnapshot): U32 {
  *
  * `@graphty/algorithms` answers a query about a missing node with an empty result rather than an
  * error, so without this check an unknown id publishes zeros as if they were a measurement. The id
- * is matched by its string form, so an option typed "3" names the node whose id is the number 3.
+ * is matched exactly first, then by its string form, so an option typed "3" names the node whose
+ * id is the number 3 unless the graph also holds a node whose id is the string "3".
  * @param algorithm - The algorithm's key, for the message.
  * @param option - The option name the id came in on.
  * @param value - The id the caller passed.
@@ -50,8 +51,9 @@ export function requireNodeOption<T extends string | number>(
     value: string | number,
     nodeIds: readonly T[],
 ): T {
+    // A node whose id is exactly the value wins over one that only prints the same.
     const id = String(value);
-    const found = nodeIds.find((nodeId) => String(nodeId) === id);
+    const found = nodeIds.find((nodeId) => nodeId === value) ?? nodeIds.find((nodeId) => String(nodeId) === id);
     if (found === undefined) {
         throw new GraphtyError({
             code: "E_OPTION_RANGE",

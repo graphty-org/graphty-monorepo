@@ -153,7 +153,7 @@
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
         "dev": "vite --force --mode development --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "dev:xr": "node examples/xr/xr-demo-server.js",
-        "build": "vite build && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs",
+        "build": "vite build && vite build --config vite.bundle.config.ts && tsc --project tsconfig.build.json && node scripts/generate-catalog-json.mjs && node --experimental-strip-types scripts/write-doors-json.mjs",
         "preview": "vite preview --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "build:storybook": "npm run build-storybook",
         "storybook": "rm -rf node_modules/.vite && npm run build-storybook && storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",

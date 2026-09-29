@@ -83,6 +83,7 @@ export default defineConfig({
                         { text: "Overview", link: "/graphty-element/" },
                         { text: "Getting Started", link: "/graphty-element/guide/getting-started" },
                         { text: "Installation", link: "/graphty-element/guide/installation" },
+                        { text: "Migrating to 3.0", link: "/graphty-element/guide/migrating-to-3" },
                     ],
                 },
                 {
@@ -97,6 +98,7 @@ export default defineConfig({
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
+                        { text: "Undo & History", link: "/graphty-element/guide/undo" },
                         { text: "Camera", link: "/graphty-element/guide/camera" },
                         { text: "Screenshots & Video", link: "/graphty-element/guide/screenshots" },
                         { text: "VR/AR", link: "/graphty-element/guide/vr-ar" },
@@ -154,9 +156,7 @@ export default defineConfig({
                 },
                 {
                     text: "API",
-                    items: [
-                        { text: "Overview", link: "/algorithms/api/" },
-                    ],
+                    items: [{ text: "Overview", link: "/algorithms/api/" }],
                 },
                 {
                     text: "Generated TypeDoc",

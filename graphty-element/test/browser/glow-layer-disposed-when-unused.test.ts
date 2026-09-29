@@ -11,7 +11,7 @@
 import type { GlowLayer } from "@babylonjs/core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 const WIDTH = 320;
@@ -35,7 +35,7 @@ describe("glow layer when no node glows", () => {
 
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
         await graph.setLayout("circular", { scale: 0.2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 
     afterAll(() => {
@@ -44,7 +44,7 @@ describe("glow layer when no node glows", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();

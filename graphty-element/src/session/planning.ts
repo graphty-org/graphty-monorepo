@@ -18,6 +18,16 @@
 
 import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope, SetId } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
+import type { AlgoLegacyCommand, AlgoRemoveCommand } from "./commands/algo";
+import type { ConfigSetCommand } from "./commands/config";
+import type { DataCommand } from "./commands/data";
+import type { BatchCommand } from "./commands/index";
+import type { LayoutCommand } from "./commands/layout";
+import type { PositionsCommand } from "./commands/positions";
+import type { SetCommand } from "./commands/sets";
+import type { StyleCommand } from "./commands/style";
+import type { ViewCommand } from "./commands/view";
+import type { VisibilityCommand } from "./commands/visibility";
 import {
     type CostEstimate,
     type CostGateLimits,
@@ -38,12 +48,10 @@ import type { GraphStatistics } from "./types";
 /**
  * Start one algorithm, as data.
  *
- * Every verb on a session is meant to be expressible as one of these, so that "do this" and
- * "record that you did this" are the same artifact -- what a recipe replays, what a journal
- * stores, what an agent's tool call carries. One verb is expressible today, and the union below
- * has one member rather than a placeholder: a command that does not exist is discovered by
- * autocomplete finding nothing, which costs a consumer one keystroke, where a stub that compiles
- * and then throws costs them an afternoon.
+ * Every verb on a session is expressible as a command, so that "do this" and "record that you
+ * did this" are the same artifact -- what `session.execute` runs, what a transaction groups into
+ * one undoable step, and what an agent's tool call carries. This is the one that starts a run;
+ * {@link SessionCommand} is the union of all of them.
  */
 export interface AlgorithmRunCommand {
     /** Which verb this is. */
@@ -62,10 +70,31 @@ export interface AlgorithmRunCommand {
     readonly exact?: boolean;
     /** The id to give the run. Required for anything that will be saved. */
     readonly as?: RunId;
+    /**
+     * Also apply the layers the run suggests, on top of the stack, in the same step as the run:
+     * one undo takes the run and those layers away together.
+     */
+    readonly applySuggestedStyles?: boolean;
 }
 
-/** Everything a session can be asked to do, as data. */
-export type SessionCommand = AlgorithmRunCommand;
+/**
+ * Everything a session can be asked to do, as data: the union of every op in the vocabulary
+ * (`COMMANDS` in `@graphty/graphty-element/commands`). It widens as ops are added, so a `switch`
+ * over `op` should keep a default branch.
+ */
+export type SessionCommand =
+    | AlgorithmRunCommand
+    | AlgoLegacyCommand
+    | AlgoRemoveCommand
+    | DataCommand
+    | StyleCommand
+    | VisibilityCommand
+    | SetCommand
+    | ViewCommand
+    | ConfigSetCommand
+    | PositionsCommand
+    | LayoutCommand
+    | BatchCommand;
 
 /**
  * Tell whether a value is the command that starts an algorithm.
@@ -309,6 +338,16 @@ function costInput(
 }
 
 /**
+ * Why a command other than an algorithm run has no estimate: only runs are costed.
+ * @param command - The command.
+ * @param command.op - Its op.
+ * @returns The reason.
+ */
+function notEstimated(command: { readonly op: string }): string {
+    return `"${command.op}" is not costed: only an algorithm run has an estimate.`;
+}
+
+/**
  * The kept sets a refused run could be pointed at, sized over the graph as it stands. A set that
  * cannot be resolved now (a detached one) or holds no node is left out.
  * @param context - What planning reads.
@@ -369,6 +408,10 @@ function unavailableEstimate(descriptor: AlgorithmDescriptor | undefined, reason
  * @returns The estimate.
  */
 export function estimateCommand(context: PlanningContext, command: SessionCommand): CostEstimate {
+    if (command.op !== "algo.run") {
+        return unavailableEstimate(undefined, notEstimated(command));
+    }
+
     const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
     const built = costInput(context, command, descriptor);
 
@@ -394,6 +437,15 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
  * @returns The plan.
  */
 export function planCommand(context: PlanningContext, command: SessionCommand): Plan {
+    if (command.op !== "algo.run") {
+        return Object.freeze({
+            ok: true,
+            cost: unavailableEstimate(undefined, notEstimated(command)),
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+
     const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
     const built = costInput(context, command, descriptor);
 

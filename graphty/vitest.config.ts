@@ -57,6 +57,17 @@ export default defineConfig({
                 },
             },
             {
+                // The app's own lint rules. Their tests build a TypeScript program, which needs Node.
+                extends: true,
+                test: {
+                    name: "eslint-rules",
+                    environment: "node",
+                    include: ["eslint-rules/**/*.test.ts"],
+                    // One TypeScript program over the element's source is built per run.
+                    testTimeout: 60000,
+                },
+            },
+            {
                 // Tests of the app's tooling (its lint rules), which need Node APIs.
                 extends: true,
                 test: {

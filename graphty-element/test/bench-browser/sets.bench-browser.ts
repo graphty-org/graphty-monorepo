@@ -24,10 +24,10 @@ import type { LayerSpec, SetId } from "../../src/catalog/types";
 import { DataConfig } from "../../src/config/DataConfig";
 import { createEdgeCounter } from "../../src/data/edgeIdentity";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../src/data/ingest";
-import { createGraphSession, setsNotifierOfSession } from "../../src/session/GraphSession";
+import { createElementSession, setsNotifierOfSession } from "../../src/session/GraphSession";
 import { resolveFixed } from "../../src/session/sets/resolve";
 import type { ElementSession, GraphSession, SessionAttributes } from "../../src/session/types";
+import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 const LARGE = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BENCH_SCALE === "large";
 const SIZES: readonly { label: string; n: number; m: number }[] = [
@@ -113,7 +113,7 @@ async function settled(session: GraphSession): Promise<void> {
 for (const size of SIZES) {
     it(`a freeze with live sets at ${size.label}`, async () => {
         const { store, attributes } = storeOf(size.n, size.m);
-        const session = createGraphSession({
+        const session = createElementSession({
             store,
             records: { nodeAttributes: (index) => attributes.get(index), edgeAttributes: () => undefined },
             config: { data: DataConfig.parse({ directed: false }) },
@@ -157,7 +157,7 @@ for (const size of SIZES) {
             await session.styles.add(layerOver(id));
         }
 
-        const { paint, styles } = session as ElementSession;
+        const { paint, styles } = session;
         await paint.repaintAll(styles.compiled(), { signal: new AbortController().signal, report: () => undefined });
         await settled(session);
 

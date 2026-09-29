@@ -1,9 +1,10 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import type { GraphEvent } from "../../src/events";
-import { DataManager } from "../../src/managers/DataManager";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import type { GraphContext } from "../../src/managers/GraphContext";
 import type { Node } from "../../src/Node";
@@ -48,8 +49,7 @@ function registerEdgeStub(dm: DataManager, srcId: string, dstId: string, index: 
         dstNode: { id: dstId },
         dispose: () => undefined,
     } as unknown as Edge;
-    dm.edges.set(edge.id, edge);
-    dm.edgesByIndex[index] = edge;
+    dataManagerInternals.adoptEdge(dm, edge);
     return edge;
 }
 
@@ -165,7 +165,7 @@ describe("DataManager owns the graph store", () => {
         dm.addEdges([{ src: "a", dst: "b" }]);
         const snapshot = dm.getSnapshot();
         const column = snapshot.nodes.requireTyped("position", "f32");
-        dm.positions.write(0, 7, 8, 9);
+        dm[WRITABLE_LANE].write(0, 7, 8, 9);
         assert.strictEqual(column.data[0], 7);
         assert.strictEqual(column.data[1], 8);
         assert.strictEqual(column.data[2], 9);
@@ -228,7 +228,7 @@ describe("DataManager removal reaches the store", () => {
         ]);
         dm.getSnapshot();
         const removed = nodeStub("a", 0);
-        dm.nodes.set("a", removed);
+        dataManagerInternals.adoptNode(dm, removed);
         dm.nodeCache.set("a", removed);
         const ab = registerEdgeStub(dm, "a", "b", 0);
         registerEdgeStub(dm, "b", "c", 1);
@@ -278,7 +278,7 @@ describe("DataManager walks a compacting freeze", () => {
         const b = nodeStub("b", 1);
         const c = nodeStub("c", 2);
         for (const node of [a, b, c]) {
-            dm.nodes.set(node.id, node);
+            dataManagerInternals.adoptNode(dm, node);
             dm.nodeCache.set(node.id, node);
         }
 
@@ -301,12 +301,12 @@ describe("DataManager walks a compacting freeze", () => {
             { src: "b", dst: "c" },
         ]);
         dm.getSnapshot();
-        dm.positions.write(0, 10, 0, 0);
-        dm.positions.write(1, 20, 0, 0);
-        dm.positions.write(2, 30, 0, 0);
+        dm[WRITABLE_LANE].write(0, 10, 0, 0);
+        dm[WRITABLE_LANE].write(1, 20, 0, 0);
+        dm[WRITABLE_LANE].write(2, 30, 0, 0);
 
         const a = nodeStub("a", 0);
-        dm.nodes.set("a", a);
+        dataManagerInternals.adoptNode(dm, a);
         dm.nodeCache.set("a", a);
         dm.removeNodeAndIncidentEdges("a");
         dm.getSnapshot();
@@ -327,7 +327,7 @@ describe("DataManager walks a compacting freeze", () => {
         ]);
         dm.getSnapshot();
         const a = nodeStub("a", 0);
-        dm.nodes.set("a", a);
+        dataManagerInternals.adoptNode(dm, a);
         dm.nodeCache.set("a", a);
 
         dm.removeNodeAndIncidentEdges("a");

@@ -21,7 +21,8 @@ import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from 
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
 import { NODE_OUTLINE_CAVEAT } from "../../session/styles/channels";
-import type { CommandResult, GraphCommand } from "./types";
+import type { TransactionScope } from "../../session/types";
+import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * One property a request named that the element cannot carry out, and the reason it cannot.
@@ -252,19 +253,19 @@ function refusalOf(error: unknown): string {
 
 /**
  * Add one layer and report what happened, including what the style stack refused.
- * @param graph - The graph to add it to.
+ * @param writer - Where it is added: the message's transaction, or the graph's session.
  * @param spec - The layer to add.
  * @param unsupported - The requested properties no channel can express.
  * @param subject - "node" or "edge", for the message.
  * @returns What to tell the caller.
  */
 async function addLayer(
-    graph: Graph,
+    writer: TransactionScope,
     spec: LayerSpec,
     unsupported: readonly UnsupportedProperty[],
     subject: "node" | "edge",
 ): Promise<CommandResult> {
-    const { styles } = graph.getSession();
+    const { styles } = writer;
 
     // Asked BEFORE anything is committed, because `validate` reports every problem at once with
     // the path and the character offset, while a refusal from `add` reports only the first.
@@ -286,9 +287,7 @@ async function addLayer(
         // answer nobody could act on: the reader learned a word had been dropped and not what the
         // element draws instead. An empty list contributes an empty string, so an ordinary layer
         // still reads "Added the node style layer" and stops.
-        const caveat = unsupported
-            .map(({ property, reason }) => ` ${property} was not applied: ${reason}`)
-            .join("");
+        const caveat = unsupported.map(({ property, reason }) => ` ${property} was not applied: ${reason}`).join("");
         const unbound =
             verdict.unresolvedPaths.length === 0
                 ? ""
@@ -346,7 +345,7 @@ export const findAndStyleNodes: GraphCommand = {
         },
     ],
 
-    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
         const {
             selector,
             style: styleParams,
@@ -359,7 +358,7 @@ export const findAndStyleNodes: GraphCommand = {
 
         const { set, unsupported } = nodeChannels(styleParams);
 
-        return addLayer(graph, layerSpecOf(layerName, "node", selector, set), unsupported, "node");
+        return addLayer(writerOf(graph, context), layerSpecOf(layerName, "node", selector, set), unsupported, "node");
     },
 };
 
@@ -398,7 +397,7 @@ export const findAndStyleEdges: GraphCommand = {
         },
     ],
 
-    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
         const {
             selector,
             style: styleParams,
@@ -411,7 +410,7 @@ export const findAndStyleEdges: GraphCommand = {
 
         const { set, unsupported } = edgeChannels(styleParams);
 
-        return addLayer(graph, layerSpecOf(layerName, "edge", selector, set), unsupported, "edge");
+        return addLayer(writerOf(graph, context), layerSpecOf(layerName, "edge", selector, set), unsupported, "edge");
     },
 };
 
@@ -430,9 +429,9 @@ export const clearStyles: GraphCommand = {
         { input: "Remove red node styling", params: { layerName: "red-nodes" } },
     ],
 
-    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
         const { layerName } = params as { layerName?: string };
-        const { styles } = graph.getSession();
+        const { styles } = writerOf(graph, context);
 
         try {
             if (layerName === undefined) {

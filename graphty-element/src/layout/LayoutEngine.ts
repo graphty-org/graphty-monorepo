@@ -16,10 +16,12 @@ import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
+import { readonlyPositions, writableLane } from "../data/lane";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Node } from "../Node";
+import type { ReadonlyElementPositions } from "../session/types";
 
 export interface Position {
     x: number;
@@ -178,6 +180,38 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
 }
 
 /**
+ * The element's own reach into an engine's protected placement members: the hooks that apply the
+ * `positions` and `pins` slices, and the drag. No entry point exports it; a consumer places and
+ * pins nodes through `session.positions`.
+ */
+export const layoutEngineInternals = {} as {
+    /** See `LayoutEngine.setNodePosition`. */
+    setNodePosition(engine: LayoutEngine, n: Node, p: Position): void;
+    /** See `LayoutEngine.pin`. */
+    pin(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.unpin`. */
+    unpin(engine: LayoutEngine, n: Node): void;
+    /** The engine's writable coordinate array; `LayoutEngine.nodePositions` is its read-only view. */
+    positions(engine: LayoutEngine): ElementPositions;
+    /** See `LayoutEngine.addNode`. */
+    addNode(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.addEdge`. */
+    addEdge(engine: LayoutEngine, e: Edge): void;
+    /** See `LayoutEngine.addNodes`. */
+    addNodes(engine: LayoutEngine, nodes: Node[]): void;
+    /** See `LayoutEngine.addEdges`. */
+    addEdges(engine: LayoutEngine, edges: Edge[]): void;
+    /** See `LayoutEngine.removeNode`. */
+    removeNode(engine: LayoutEngine, n: Node): void;
+    /** See `LayoutEngine.removeEdge`. */
+    removeEdge(engine: LayoutEngine, e: Edge): void;
+    /** See `LayoutEngine.attachPositions`. */
+    attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
+    /** See `LayoutEngine.edgeProblems`. */
+    edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
+};
+
+/**
  * Base class for all layout engines
  *
  * WHERE A COORDINATE LIVES. Node coordinates belong to ONE stride-3 float array owned by the
@@ -198,7 +232,73 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
  * is inexpressible and a frame allocates once per node. With the coordinates in one shared array,
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
+/**
+ * The edges an engine holds against the edges drawn: each drawn edge held exactly once, and
+ * nothing held that is not drawn.
+ * @param held - What the engine holds.
+ * @param drawn - What the element draws.
+ * @returns One sentence per problem.
+ */
+export function heldEdgeProblems(held: Iterable<Edge>, drawn: ReadonlyMap<string, Edge>): string[] {
+    const problems: string[] = [];
+    const seen = new Set<Edge>();
+    for (const edge of held) {
+        if (seen.has(edge)) {
+            problems.push(`edge ${edge.id} is held twice`);
+        }
+
+        seen.add(edge);
+        if (drawn.get(edge.id) !== edge) {
+            problems.push(`edge ${edge.id} is held but not drawn`);
+        }
+    }
+
+    for (const edge of drawn.values()) {
+        if (!seen.has(edge)) {
+            problems.push(`edge ${edge.id} is drawn but not held`);
+        }
+    }
+
+    return problems;
+}
+
+/** The base every layout engine extends: how the element adds, places, steps and removes. */
 export abstract class LayoutEngine {
+    static {
+        layoutEngineInternals.setNodePosition = (engine, n, p) => {
+            engine.setNodePosition(n, p);
+        };
+        layoutEngineInternals.pin = (engine, n) => {
+            engine.pin(n);
+        };
+        layoutEngineInternals.unpin = (engine, n) => {
+            engine.unpin(n);
+        };
+        layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.edgeProblems = (engine, drawn) => engine.edgeProblems(drawn);
+        layoutEngineInternals.addNode = (engine, n) => {
+            engine.addNode(n);
+        };
+        layoutEngineInternals.addEdge = (engine, e) => {
+            engine.addEdge(e);
+        };
+        layoutEngineInternals.addNodes = (engine, nodes) => {
+            engine.addNodes(nodes);
+        };
+        layoutEngineInternals.addEdges = (engine, edges) => {
+            engine.addEdges(edges);
+        };
+        layoutEngineInternals.removeNode = (engine, n) => {
+            engine.removeNode(n);
+        };
+        layoutEngineInternals.removeEdge = (engine, e) => {
+            engine.removeEdge(e);
+        };
+        layoutEngineInternals.attachPositions = (engine, positions) => {
+            engine.attachPositions(positions);
+        };
+    }
+
     static type: string;
     static maxDimensions: number;
 
@@ -237,7 +337,7 @@ export abstract class LayoutEngine {
      * -- which is what happened to the element's own two force engines. The manager rebuilds from
      * the options it was given instead, and this is now the engine's own business.
      */
-    config?: Record<string, unknown>;
+    protected config?: Record<string, unknown>;
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -271,15 +371,25 @@ export abstract class LayoutEngine {
 
     // basic functionality
     abstract init(): Promise<void>;
-    abstract addNode(n: Node): void;
-    abstract addEdge(e: Edge): void;
+    // The element's to call: the engine follows the graph slice, and a consumer who added or removed
+    // an element here would leave the engine out of step with the graph, with no step to undo.
+    // The element calls these through `layoutEngineInternals`; an engine author implements them.
+    protected abstract addNode(n: Node): void;
+    protected abstract addEdge(e: Edge): void;
     abstract getNodePosition(n: Node): Position;
-    abstract setNodePosition(n: Node, p: Position): void;
+    /**
+     * Place one node, as a drag or a restore does. Protected: the element reaches it through
+     * {@link layoutEngineInternals}, from the hooks that apply the `positions` and `pins` slices,
+     * so a caller cannot place a node without a step.
+     */
+    protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
     // for animated layouts
     abstract step(): void;
-    abstract pin(n: Node): void;
-    abstract unpin(n: Node): void;
+    /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
+    protected abstract pin(n: Node): void;
+    /** Release a held node; protected for the reason {@link LayoutEngine.setNodePosition} is. */
+    protected abstract unpin(n: Node): void;
     // properties
     abstract get nodes(): Iterable<Node>;
     abstract get edges(): Iterable<Edge>;
@@ -289,7 +399,7 @@ export abstract class LayoutEngine {
      * Add multiple nodes to the layout engine
      * @param nodes - Array of nodes to add
      */
-    addNodes(nodes: Node[]): void {
+    protected addNodes(nodes: Node[]): void {
         for (const n of nodes) {
             this.addNode(n);
         }
@@ -299,7 +409,7 @@ export abstract class LayoutEngine {
      * Add multiple edges to the layout engine
      * @param edges - Array of edges to add
      */
-    addEdges(edges: Edge[]): void {
+    protected addEdges(edges: Edge[]): void {
         for (const e of edges) {
             this.addEdge(e);
         }
@@ -315,7 +425,7 @@ export abstract class LayoutEngine {
      * and everything that node references -- for as long as the engine lives.
      * @param _n - the node leaving the graph
      */
-    removeNode(_n: Node): void {
+    protected removeNode(_n: Node): void {
         // An engine that keeps no list of its own has nothing to forget.
     }
 
@@ -323,7 +433,7 @@ export abstract class LayoutEngine {
      * The edge half of {@link LayoutEngine.removeNode}, with the same default and the same reason.
      * @param _e - the edge leaving the graph
      */
-    removeEdge(_e: Edge): void {
+    protected removeEdge(_e: Edge): void {
         // An engine that keeps no list of its own has nothing to forget.
     }
 
@@ -352,7 +462,7 @@ export abstract class LayoutEngine {
      * Release whatever this engine holds. The element calls it when the reader switches layouts
      * and when the graph is torn down, and never uses the engine again afterwards.
      *
-     * Declared with a do-nothing default for the same reason as {@link LayoutEngine.removeNode}:
+     * Declared with a do-nothing default for the same reason as `removeNode`:
      * it was duck-typed, undeclared and unimplemented by every engine here.
      */
     dispose(): void {
@@ -360,13 +470,41 @@ export abstract class LayoutEngine {
     }
 
     /**
-     * The array this engine publishes node coordinates into.
+     * Strict state: what is wrong with this engine's hold on the drawn edges, checked after every
+     * derivation pass. An engine that keeps a copy of the edges must hold every drawn edge once
+     * and nothing else, or a redraw asks it for a position it cannot give. Reads nothing lazily:
+     * the check must not change what it checks.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem; empty when there is none.
+     */
+    protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        return heldEdgeProblems(this.edges, drawn);
+    }
+
+    /**
+     * The coordinates this engine publishes, read-only.
+     *
+     * Read-only because the array is the element's: a write here would move or pin a node with no
+     * undo step. The engine writes through `writeNodePosition`; a consumer
+     * places and pins nodes through `session.positions`.
+     * @returns the coordinates in use, read-only
+     */
+    get nodePositions(): ReadonlyElementPositions {
+        return this.readonlyPositionArray;
+    }
+
+    /** The read-only view {@link LayoutEngine.nodePositions} hands out; reads the array in use now. */
+    private readonly readonlyPositionArray = readonlyPositions(() => this.writablePositions);
+
+    /**
+     * The array this engine publishes node coordinates into, writable.
      *
      * Allocated on demand, so reading it is enough to make an engine that has never been handed an
-     * element's array produce one of its own.
+     * element's array produce one of its own. The element reaches it through
+     * {@link layoutEngineInternals}.
      * @returns the position array in use
      */
-    get nodePositions(): ElementPositions {
+    private get writablePositions(): ElementPositions {
         this.positionArray ??= new ElementPositions(0);
         return this.positionArray;
     }
@@ -379,7 +517,7 @@ export abstract class LayoutEngine {
      * one place and a re-freeze loses none of them.
      * @param positions - the element-owned array
      */
-    attachPositions(positions: ElementPositions): void {
+    protected attachPositions(positions: ElementPositions): void {
         this.positionArray = positions;
         this.positionArrayAttached = true;
     }
@@ -436,6 +574,24 @@ export abstract class LayoutEngine {
         for (const n of this.nodes) {
             const pos = this.getNodePosition(n);
             this.writeNodePosition(n, pos.x, pos.y, pos.z ?? 0);
+        }
+    }
+
+    /**
+     * Take the coordinates in the position array as this engine's own, and stay at rest.
+     *
+     * Undo and redo write where the nodes were into the array and then call this, so the next
+     * drag, add or `setRunning(true)` starts from the restored arrangement instead of the one the
+     * engine was holding. The default hands every placed node back through
+     * `setNodePosition`, which is right for any engine that keeps coordinates of
+     * its own; an engine that can adopt the array in one pass overrides it.
+     */
+    loadArrangement(): void {
+        const at = { x: 0, y: 0, z: 0 };
+        for (const n of this.nodes) {
+            if (this.readNodePosition(n, at)) {
+                this.setNodePosition(n, at);
+            }
         }
     }
 
@@ -547,13 +703,13 @@ export abstract class LayoutEngine {
         if (!this.positionArrayAttached) {
             // A node built by hand for a unit test, or one belonging to a host that keeps no
             // position array, answers nothing here and the engine keeps its own.
-            const owned: unknown = n.parentGraph?.getDataManager?.()?.positions;
-            if (owned instanceof ElementPositions) {
+            const owned = writableLane(n.parentGraph?.getDataManager?.());
+            if (owned !== undefined) {
                 this.positionArray = owned;
             }
         }
 
-        return this.nodePositions;
+        return this.writablePositions;
     }
 
     /**
@@ -752,7 +908,6 @@ export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 interface GraphSource {
     getSnapshot(): GraphSnapshot;
     undirected(snapshot: GraphSnapshot): DerivedGraph;
-    readonly positions: ElementPositions;
 }
 
 /** The graph one run of a static engine arranges, and how a node finds its row in it. */
@@ -1030,7 +1185,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * @param n - the node that moved
      * @param p - where it moved to
      */
-    setNodePosition(n: Node, p: Position): void {
+    protected setNodePosition(n: Node, p: Position): void {
         const z = p.z ?? 0;
         this.writeNodePosition(n, p.x, p.y, z, "placement");
         this.positions[n.id] = [p.x / this.scalingFactor, p.y / this.scalingFactor, z / this.scalingFactor];
@@ -1122,7 +1277,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * scratch -- so the pin is kept by the element's position array instead, and
      * `writeNodePosition` refuses to move a pinned row.
      */
-    pin(): void {
+    protected pin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
     }
 
@@ -1131,8 +1286,18 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      *
      * The element's position array holds the pin; see {@link SimpleLayoutEngine.pin}.
      */
-    unpin(): void {
+    protected unpin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
+    }
+
+    /**
+     * Keep the arrangement in the array instead of recomputing one: a static layout that was
+     * marked stale by the graph change an undo made would otherwise lay the graph out afresh at
+     * the next read and write over what was restored.
+     */
+    override loadArrangement(): void {
+        this.stale = false;
+        super.loadArrangement();
     }
 
     // properties
@@ -1171,7 +1336,12 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
         this.#loaded = null;
         this.result = null;
-        this.doLayout();
+        // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
+        // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
+        if (this._nodes.length > 0) {
+            this.doLayout();
+        }
+
         // doLayout() clears this itself in every engine that ships here, but an engine written
         // elsewhere may not, and leaving it set would recompute the whole layout on every read.
         this.stale = false;
@@ -1205,14 +1375,15 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     #load(): LoadedGraph {
         // Reached the way `positionsFor` reaches the coordinate array: an engine driven directly,
         // by a test or by a host that keeps no graph, has nodes whose parent answers none of this.
-        const source = this._nodes[0]?.parentGraph?.getDataManager?.() as Partial<GraphSource> | undefined;
+        const manager = this._nodes[0]?.parentGraph?.getDataManager?.();
+        const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
             const { snapshot } = source.undirected(store);
             return {
                 snapshot,
                 source: store,
-                positions: source.positions ?? null,
+                positions: writableLane(manager) ?? null,
                 rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
             };
         }

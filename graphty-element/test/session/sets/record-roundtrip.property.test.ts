@@ -21,6 +21,7 @@ import { loadRecord } from "../../../src/session/sets/prepare";
 import type { Resolution } from "../../../src/session/sets/resolve";
 import { fcParams } from "../../helpers/fc-params";
 import { type EdgeRecord, TestGraph } from "./graphs";
+import { plant } from "./plant";
 
 const NODES: readonly NodeId[] = ["a", "b", "c", "d", 1, 2, "1"];
 
@@ -245,21 +246,21 @@ function build(graph: TestGraph, ops: Session["ops"]): void {
                     { kind: "fixed", nodes: [node(op.picks[0])], reading: "induced" },
                 ];
                 const store = graph.setsStore;
-                tryWrite(() =>
-                    store.transact(() => {
-                        const id = store.mint(`Opaque ${n}`);
-                        store.put(
-                            loadRecord({
-                                id,
-                                name: `Opaque ${n}`,
-                                order: store.nextOrder(),
-                                definition: definitions[op.kind - 7],
-                                createdFrom: { kind: "user" },
-                                meta: { note: `kept ${n}` },
-                            }),
-                        );
-                    }),
-                );
+                tryWrite(() => {
+                    const id = store.mint(`Opaque ${n}`);
+                    plant(
+                        store,
+                        ...store.list(),
+                        loadRecord({
+                            id,
+                            name: `Opaque ${n}`,
+                            order: store.nextOrder(),
+                            definition: definitions[op.kind - 7],
+                            createdFrom: { kind: "user" },
+                            meta: { note: `kept ${n}` },
+                        }),
+                    );
+                });
             }
         }
     }

@@ -46,7 +46,7 @@ import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
-import type { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { layoutEngineInternals, type SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import type { Node } from "../../src/Node";
 
 /** One edge of a test graph: two node ids and the weight the store will hold for it. */
@@ -135,9 +135,9 @@ function mirrorPath(ab: number, ce: number): TestGraph {
  * @returns node id to its published coordinates, in scene units
  */
 function arrange(engine: SimpleLayoutEngine, graph: TestGraph): Arrangement {
-    engine.attachPositions(graph.positions);
-    engine.addNodes(graph.nodes);
-    engine.addEdges(graph.edges);
+    layoutEngineInternals.attachPositions(engine, graph.positions);
+    layoutEngineInternals.addNodes(engine, graph.nodes);
+    layoutEngineInternals.addEdges(engine, graph.edges);
     engine.publishPositions();
 
     const out: Record<string, readonly [number, number, number]> = {};

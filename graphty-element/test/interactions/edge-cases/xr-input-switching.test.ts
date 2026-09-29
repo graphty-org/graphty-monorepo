@@ -8,7 +8,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -32,7 +32,7 @@ describe("XR Input Switching", () => {
         await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 }, pinOnDrag: true });
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -45,7 +45,7 @@ describe("XR Input Switching", () => {
     describe("Input Handler Management", () => {
         test("XR session manager exists", () => {
             // Access private property for testing purposes
-             
+
             const xrManager = (graph as any).xrSessionManager;
             assert.isDefined(xrManager, "XR session manager should exist");
         });
@@ -75,24 +75,24 @@ describe("XR Input Switching", () => {
         test("scene remains valid during mode transitions", async () => {
             // Transition through modes
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isDefined(graph.scene, "Scene should exist in 2D mode");
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isDefined(graph.scene, "Scene should exist in 3D mode");
         });
 
         test("nodes remain accessible after mode transitions", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const nodesIn2d = graph.getNodes();
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const nodesIn3d = graph.getNodes();
 
@@ -112,7 +112,7 @@ describe("XR Input Switching", () => {
 
             // Change view mode (should reset any ongoing interactions)
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Node should still exist and have valid position
@@ -131,13 +131,13 @@ describe("XR Input Switching", () => {
 
         test("camera controller remains functional after transitions", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const controller2d = graph.camera.getActiveController();
             assert.isDefined(controller2d, "Controller should exist in 2D mode");
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const controller3d = graph.camera.getActiveController();
             assert.isDefined(controller3d, "Controller should exist in 3D mode");

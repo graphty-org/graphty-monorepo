@@ -182,7 +182,7 @@ describe("Graph.loadFromUrl", () => {
         const graph = new Graph(canvas);
 
         // Configure nodeIdPath on the graph config before loading
-        graph.styles.config.data.knownFields.nodeIdPath = "nodeId";
+        await graph.getSession().config.set({ data: { knownFields: { nodeIdPath: "nodeId" } } });
 
         await graph.loadFromUrl("https://example.com/data.json");
 

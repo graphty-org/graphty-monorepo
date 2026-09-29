@@ -159,10 +159,13 @@ export const SHARDS = [
     },
     // graphty-element browser tests (5 shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
+    // The first shard then runs the timing benchmarks on a real graph, without coverage.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default --coverage`,
+        "test-command":
+            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default --coverage` +
+            (n === 1 ? " && pnpm exec vitest run --project=browser-bench --reporter=default" : ""),
         "needs-browser": true,
     })),
     // graphty-element storybook tests (4 shards)

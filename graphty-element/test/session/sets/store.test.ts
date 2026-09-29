@@ -31,6 +31,20 @@ function harness(): { store: SetsStore; sets: SetsApi; changes: SetChange[] } {
     return { store, sets, changes };
 }
 
+/**
+ * Run door calls as one write group: a dispatcher transaction every set op they dispatch joins,
+ * recorded as one step once `write` returns. A door refused inside it reverts only its own write.
+ * @param store - The store.
+ * @param write - The door calls.
+ * @returns What `write` returned, once the group is recorded.
+ */
+function group<T>(store: SetsStore, write: () => T): Promise<T> {
+    const { dispatcher } = store;
+    return dispatcher.transaction("group", (tx) =>
+        dispatcher.routed((command, options) => tx.dispatch(command, options), write),
+    );
+}
+
 /** The code of what a call throws. */
 function codeOf(call: () => unknown): string {
     try {
@@ -88,7 +102,7 @@ describe("minting", () => {
         }
     });
 
-    it("skips the register, the live ids and the ids pending in the open group", () => {
+    it("skips the register, the live ids and the ids pending in the open group", async () => {
         const { store, sets } = harness();
         const first = sets.create(NODES, { name: "Suspects" });
         sets.remove(first);
@@ -98,17 +112,19 @@ describe("minting", () => {
         assert.strictEqual(first, "set_suspects");
         assert.strictEqual(again, "set_suspects_2");
 
-        store.transact(() => {
+        await group(store, () => {
             const pending = store.mint("suspects");
             assert.strictEqual(pending, "set_suspects_3");
             assert.strictEqual(store.mint("Suspects"), "set_suspects_4");
         });
-        assert.isTrue(store.register().has("set_suspects_4"));
+        // Registered is what a sealed step wrote; an id minted and never written is not.
+        assert.isFalse(store.register().has("set_suspects_4"));
+        assert.strictEqual(store.mint("suspects"), "set_suspects_3");
     });
 
-    it("create, remove and create one name inside one group gives two ids", () => {
+    it("create, remove and create one name inside one group gives two ids", async () => {
         const { store, sets } = harness();
-        const ids = store.transact(() => {
+        const ids = await group(store, () => {
             const a = sets.create(NODES, { name: "Suspects" });
             sets.remove(a);
             const b = sets.create(NODES, { name: "Suspects" });
@@ -119,36 +135,36 @@ describe("minting", () => {
         assert.deepStrictEqual([...store.register()].sort(), [...ids].sort());
     });
 
-    it("a door refused inside a group leaves no id and no write, and the group goes on", () => {
+    it("a door refused inside a group leaves no id and no write, and the group goes on", async () => {
         const { store, sets, changes } = harness();
-        const kept = store.transact(() => {
+        const kept = await group(store, () => {
             const a = sets.create(NODES, { name: "A" });
             assert.throws(() => sets.create(NODES, { name: "   " }));
-            assert.throws(() =>
-                store.transact(() => {
-                    sets.rename(a, "Renamed");
-                    sets.create(NODES, { name: "Renamed" });
-                }),
-            );
+            sets.rename(a, "Renamed");
+            // Refused: the name is taken. Only this door's own write is reverted.
+            assert.throws(() => sets.create(NODES, { name: "Renamed" }));
 
             return a;
         });
         assert.deepStrictEqual([...store.register()], [kept]);
-        assert.strictEqual(sets.get(kept)?.name, "A");
+        assert.strictEqual(sets.get(kept)?.name, "Renamed");
         assert.deepStrictEqual(
             changes.map(({ change }) => change),
             ["created"],
+            "one change for the whole group, told once it is recorded",
         );
     });
 
-    it("a rolled-back group registers nothing", () => {
+    it("a rolled-back group registers nothing", async () => {
         const { store, sets } = harness();
-        assert.throws(() =>
-            store.transact(() => {
-                sets.create(NODES, { name: "Gone" });
-                throw new Error("abort");
-            }),
+        const failed = await group(store, () => {
+            sets.create(NODES, { name: "Gone" });
+            throw new Error("abort");
+        }).then(
+            () => null,
+            (error: unknown) => (error as Error).message,
         );
+        assert.strictEqual(failed, "abort");
         assert.strictEqual(store.register().size, 0);
         assert.isUndefined(sets.get("set_gone"));
         assert.strictEqual(sets.create(NODES, { name: "Gone" }), "set_gone");
@@ -194,7 +210,7 @@ describe("names", () => {
         assert.strictEqual(sets.get(sets.create(NODES))?.name, "Set 3");
     });
 
-    it("lists by order, ties by id, and tolerates a restored duplicate name", () => {
+    it("lists by order, ties by id, and tolerates a loaded duplicate name", () => {
         const { store, sets } = harness();
         const record = (id: string): unknown => ({
             id,
@@ -203,9 +219,10 @@ describe("names", () => {
             definition: NODES,
             createdFrom: { kind: "user" },
         });
-        store.transact(() => {
-            store.put(loadRecord(record("set_b")));
-            store.put(loadRecord(record("set_a")));
+        store.loadLogicalRecords({
+            records: [loadRecord(record("set_b")), loadRecord(record("set_a"))],
+            register: [],
+            tombstones: [],
         });
         const later = sets.create(NODES, { name: "Later" });
         assert.deepStrictEqual(
@@ -221,22 +238,32 @@ describe("names", () => {
         assert.strictEqual(sets.get("set_a")?.name, "Unique");
     });
 
-    it("gives a new set an order past every order the store has held", () => {
+    it("gives a new set an order past every order the store has held", async () => {
         const { store, sets } = harness();
         const a = sets.create(NODES, { name: "A" });
         const b = sets.create(NODES, { name: "B" });
-        const removed = sets.get(b);
+        // A rule naming B keeps its record once it is removed, so it can be restored.
+        const naming = sets.create(
+            { kind: "rule", where: { kind: "member", of: { set: b } }, reading: "induced" },
+            { name: "Naming" },
+        );
         sets.remove(b);
         const c = sets.create(NODES, { name: "C" });
-        store.transact(() => {
-            store.put(removed as NonNullable<typeof removed>);
-        });
-        const orders = sets.list().map((set) => set.order);
+        sets.restore(b);
+        let orders = sets.list().map((set) => set.order);
         assert.strictEqual(new Set(orders).size, orders.length);
         assert.deepStrictEqual(
             sets.list().map((set) => set.id),
-            [a, b, c],
+            [a, b, naming, c],
         );
+
+        // Undo does not rewind the high-water mark either.
+        await store.dispatcher.undo();
+        await store.dispatcher.undo();
+        const d = sets.create(NODES, { name: "D" });
+        orders = sets.list().map((set) => set.order);
+        assert.strictEqual(new Set(orders).size, orders.length);
+        assert.isAbove(sets.get(d)?.order ?? 0, 4);
     });
 });
 
@@ -269,7 +296,7 @@ describe("records", () => {
 });
 
 describe("set:changed plumbing", () => {
-    it("tells one change per touched key after the write, with fields; nothing for a no-op", () => {
+    it("tells one change per touched key after the write, with fields; nothing for a no-op", async () => {
         const { store, sets, changes } = harness();
         const id = sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "A" });
         assert.deepStrictEqual(
@@ -288,7 +315,7 @@ describe("set:changed plumbing", () => {
         assert.deepStrictEqual(changes, []);
 
         sets.rename(id, "B");
-        store.transact(() => {
+        await group(store, () => {
             sets.rename(id, "C");
             sets.redefine(id, { kind: "fixed", nodes: ["a"], reading: "listed" });
         });
@@ -303,21 +330,20 @@ describe("set:changed plumbing", () => {
         );
     });
 
-    it("a group that renames a key and puts it back tells nothing", () => {
+    it("a group that renames a key and puts it back tells nothing", async () => {
         const { store, sets, changes } = harness();
         const id = sets.create(NODES, { name: "A" });
-        const record = sets.get(id);
         changes.length = 0;
-        store.transact(() => {
+        await group(store, () => {
             sets.rename(id, "B");
-            store.put(record as NonNullable<typeof record>);
+            sets.rename(id, "A");
         });
         assert.deepStrictEqual(changes, []);
     });
 });
 
 describe("tombstones", () => {
-    it("keeps { id, name, record } for a removed id, authoritative only while the id is absent", () => {
+    it("keeps { id, name, record } for a removed id, authoritative only while the id is absent", async () => {
         const { store, sets } = harness();
         const id = sets.create(NODES, { name: "Gone" });
         // A live rule names it, so its record is kept.
@@ -330,9 +356,8 @@ describe("tombstones", () => {
         assert.deepStrictEqual(store.tombstone(id), { id, name: "Gone", record });
 
         // An undo of the removal puts the record back; the tombstone stops speaking.
-        store.transact(() => {
-            store.put(record as NonNullable<typeof record>);
-        });
+        await store.dispatcher.undo();
+        assert.strictEqual(sets.get(id), record);
         assert.isUndefined(store.tombstone(id));
 
         sets.rename(id, "Gone again");
@@ -463,6 +488,6 @@ describe("the slice has one writer", () => {
             }
         }
 
-        assert.deepStrictEqual(offenders, [], "only session/sets/ may reach the store's put and delete");
+        assert.deepStrictEqual(offenders, [], "only session/sets/ may reach the store");
     });
 });

@@ -1,31 +1,21 @@
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import type { AiStatus } from "@graphty/graphty-element/ai";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AiStatus } from "../../types/ai";
-
-// Create mock manager
+// The element's assistant doors, as a stand-in element exposes them.
 const mockStatusCallback = vi.fn();
-const mockManager = {
-    init: vi.fn(),
-    onStatusChange: vi.fn((callback) => {
+const mockDoors = {
+    enableAiControl: vi.fn().mockResolvedValue(undefined),
+    disableAiControl: vi.fn(),
+    onAiStatusChange: vi.fn((callback: (status: AiStatus) => void) => {
         mockStatusCallback.mockImplementation(callback);
         return vi.fn(); // unsubscribe function
     }),
-    execute: vi.fn().mockResolvedValue({ success: true, message: "Done" }),
-    cancel: vi.fn(),
-    dispose: vi.fn(),
+    aiCommand: vi.fn().mockResolvedValue({ success: true, message: "Done" }),
+    cancelAiCommand: vi.fn(),
 };
-
-const mockCreateAiManager = vi.fn(() => mockManager);
-
-// Mock the types/ai module
-vi.mock("../../types/ai", async (importOriginal) => {
-    const original = await importOriginal<typeof import("../../types/ai")>();
-    return {
-        ...original,
-        getCreateAiManager: vi.fn().mockResolvedValue(mockCreateAiManager),
-    };
-});
+const mockElement = mockDoors as unknown as GraphtyElement;
 
 describe("useAiManager", () => {
     beforeEach(() => {
@@ -54,7 +44,7 @@ describe("useAiManager", () => {
         expect(result.current.currentProvider).toBe("openai");
     });
 
-    it("stays not ready when graph is not provided", async () => {
+    it("stays not ready when no element is provided", async () => {
         const { useAiManager } = await import("../useAiManager");
         const { result } = renderHook(() => useAiManager({ defaultProvider: "openai" }));
 
@@ -64,13 +54,12 @@ describe("useAiManager", () => {
         expect(result.current.isReady).toBe(false);
     });
 
-    it("initializes manager when graph is provided", async () => {
+    it("enables the element's assistant when an element is provided", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -79,28 +68,26 @@ describe("useAiManager", () => {
             expect(result.current.isReady).toBe(true);
         });
 
-        expect(mockCreateAiManager).toHaveBeenCalled();
-        expect(mockManager.init).toHaveBeenCalledWith(mockGraph, {
+        expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
             provider: "openai",
             apiKey: undefined,
         });
     });
 
-    it("passes API key to manager init", async () => {
+    it("passes the API key to the element", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
         const getKey = vi.fn().mockReturnValue("test-api-key");
 
         renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "anthropic",
                 getKey,
             }),
         );
 
         await waitFor(() => {
-            expect(mockManager.init).toHaveBeenCalledWith(mockGraph, {
+            expect(mockDoors.enableAiControl).toHaveBeenCalledWith({
                 provider: "anthropic",
                 apiKey: "test-api-key",
             });
@@ -130,13 +117,12 @@ describe("useAiManager", () => {
         expect(execResult.error?.message).toBe("AI Manager not initialized");
     });
 
-    it("execute calls manager.execute when initialized", async () => {
+    it("execute sends the message to the element", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -147,18 +133,17 @@ describe("useAiManager", () => {
 
         const execResult = await result.current.execute("set layout to force");
 
-        expect(mockManager.execute).toHaveBeenCalledWith("set layout to force");
+        expect(mockDoors.aiCommand).toHaveBeenCalledWith("set layout to force");
         expect(execResult.success).toBe(true);
     });
 
     it("execute handles errors gracefully", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
-        mockManager.execute.mockRejectedValueOnce(new Error("API error"));
+        mockDoors.aiCommand.mockRejectedValueOnce(new Error("API error"));
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -175,12 +160,11 @@ describe("useAiManager", () => {
 
     it("execute handles non-Error exceptions", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
-        mockManager.execute.mockRejectedValueOnce("string error");
+        mockDoors.aiCommand.mockRejectedValueOnce("string error");
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -195,13 +179,12 @@ describe("useAiManager", () => {
         expect(execResult.error?.message).toBe("string error");
     });
 
-    it("cancel calls manager.cancel", async () => {
+    it("cancel cancels the element's command", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -214,16 +197,15 @@ describe("useAiManager", () => {
             result.current.cancel();
         });
 
-        expect(mockManager.cancel).toHaveBeenCalled();
+        expect(mockDoors.cancelAiCommand).toHaveBeenCalled();
     });
 
     it("clearError clears the error state", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -235,7 +217,7 @@ describe("useAiManager", () => {
         // Simulate an error through status change
         act(() => {
             mockStatusCallback({
-                stage: "error",
+                state: "error",
                 error: new Error("Test error"),
             } as AiStatus);
         });
@@ -249,13 +231,12 @@ describe("useAiManager", () => {
         expect(result.current.error).toBeNull();
     });
 
-    it("updates isProcessing based on status stage", async () => {
+    it("updates isProcessing from the assistant's state", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
 
         const { result } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -264,44 +245,43 @@ describe("useAiManager", () => {
             expect(result.current.isReady).toBe(true);
         });
 
-        // Processing stage
+        // Submitted
         act(() => {
-            mockStatusCallback({ stage: "processing" } as AiStatus);
+            mockStatusCallback({ state: "submitted" } as AiStatus);
         });
         expect(result.current.isProcessing).toBe(true);
 
-        // Streaming stage
+        // Streaming
         act(() => {
-            mockStatusCallback({ stage: "streaming" } as AiStatus);
+            mockStatusCallback({ state: "streaming" } as AiStatus);
         });
         expect(result.current.isProcessing).toBe(true);
 
-        // ExecutingTool stage
+        // Executing a tool
         act(() => {
-            mockStatusCallback({ stage: "executingTool" } as AiStatus);
+            mockStatusCallback({ state: "executing" } as AiStatus);
         });
         expect(result.current.isProcessing).toBe(true);
 
-        // Complete stage
+        // Ready again
         act(() => {
-            mockStatusCallback({ stage: "complete" } as AiStatus);
+            mockStatusCallback({ state: "ready" } as AiStatus);
         });
         expect(result.current.isProcessing).toBe(false);
 
-        // Idle stage
+        // Failed
         act(() => {
-            mockStatusCallback({ stage: "idle" } as AiStatus);
+            mockStatusCallback({ state: "error" } as AiStatus);
         });
         expect(result.current.isProcessing).toBe(false);
     });
 
-    it("disposes manager on unmount", async () => {
+    it("disables the element's assistant on unmount", async () => {
         const { useAiManager } = await import("../useAiManager");
-        const mockGraph = { nodes: [], edges: [] };
 
         const { result, unmount } = renderHook(() =>
             useAiManager({
-                graph: mockGraph,
+                element: mockElement,
                 defaultProvider: "openai",
             }),
         );
@@ -312,7 +292,7 @@ describe("useAiManager", () => {
 
         unmount();
 
-        expect(mockManager.dispose).toHaveBeenCalled();
+        expect(mockDoors.disableAiControl).toHaveBeenCalled();
     });
 
     it("syncs currentProvider with defaultProvider when currentProvider is null", async () => {

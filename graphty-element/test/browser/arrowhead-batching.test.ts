@@ -11,7 +11,7 @@
 import { SceneInstrumentation } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 /** How many nodes sit on the circle. */
@@ -59,7 +59,7 @@ describe("arrowheads are drawn in bulk", () => {
 
         // A fixed arrangement, so two frames of an unchanged graph are the same picture.
         await graph.setLayout("circular", { scale: 0.5 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Grey nodes and lines, so the only red and blue on screen are the heads.
         await session.styles.add({
@@ -95,7 +95,7 @@ describe("arrowheads are drawn in bulk", () => {
 
     /** Let the last repaint reach the scene and render a few frames. */
     async function frame(): Promise<void> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();

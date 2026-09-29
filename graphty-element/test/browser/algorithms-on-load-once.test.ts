@@ -11,7 +11,8 @@ import "../../src/algorithms";
 import { ActionManager } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
-import type { Graph } from "../../src/Graph.js";
+import { type Graph, operationQueueOf } from "../../src/Graph.js";
+import { sessionRunsOf } from "../../src/session/GraphSession.js";
 
 const NODES = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
 const EDGES = NODES.slice(1).map((node, i) => ({ source: `n${i}`, target: node.id }));
@@ -21,7 +22,7 @@ let graph: Graph | null = null;
 /**
  * A graph whose load-time list names two algorithms, counting how often each is asked to start.
  *
- * Counted at `runs.start` rather than off the run notifications: the run registry reuses a run
+ * Counted at the runs API's `startVia` rather than off the run notifications: the run registry reuses a run
  * already under way for the same result, so the notifications alone cannot tell one request from
  * seven -- but each extra request still freezes a snapshot and may re-run over a graph that is
  * still arriving.
@@ -31,15 +32,16 @@ async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> 
     document.body.innerHTML = '<canvas id="on-load-canvas"></canvas>';
     const { Graph: GraphClass } = await import("../../src/Graph.js");
     const made = new GraphClass(document.getElementById("on-load-canvas") as HTMLCanvasElement);
-    made.styles.config.data.algorithms = ["degree", "pagerank"];
-    made.runAlgorithmsOnLoad = true;
+    await made.getSession().config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree", "pagerank"] } });
 
     const starts = new Map<string, number>();
-    const { runs } = made.getSession();
-    const start = runs.start.bind(runs);
-    vi.spyOn(runs, "start").mockImplementation((algorithm, params, options) => {
+    // Every start goes through startVia: the on-load list hands it the deferred dispatch of the
+    // step that added the rows, and runs.start hands it the session's own.
+    const runs = sessionRunsOf(made.getSession());
+    const startVia = runs.startVia.bind(runs);
+    vi.spyOn(runs, "startVia").mockImplementation((dispatch, algorithm, params, options) => {
         starts.set(algorithm, (starts.get(algorithm) ?? 0) + 1);
-        return start(algorithm, params, options);
+        return startVia(dispatch, algorithm, params, options);
     });
 
     graph = made;
@@ -52,7 +54,7 @@ async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> 
  */
 async function settle(target: Graph): Promise<void> {
     for (let round = 0; round < 50; round++) {
-        await target.operationQueue.waitForCompletion();
+        await operationQueueOf(target).waitForCompletion();
         const busy = target
             .getSession()
             .runs.list()

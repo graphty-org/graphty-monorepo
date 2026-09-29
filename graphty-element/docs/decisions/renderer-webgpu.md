@@ -33,7 +33,8 @@ Each of these was found by drawing the same styled scene with both renderers and
 - **Animated edges failed to bind on a page with two engines.** Babylon's greased line binds one
   empty colours texture shared by every engine on the page, created on whichever engine asked
   first and disposed with whichever engine is disposed first. WebGL tolerated the stale binding;
-  WebGPU refused the draw. The element now gives each scene its own.
+  WebGPU refused the draw. The element now gives each animated line its own, created on that
+  line's scene and disposed with it.
 - **Lines and arrow caps were missing for the first second, or for ever.** The element's line,
   patterned-line and arrow-cap shaders are GLSL. Babylon compiles GLSL for WebGPU with glslang and
   twgsl, which it fetches from `cdn.babylonjs.com` on the first compile, and it skips every mesh
@@ -86,11 +87,14 @@ on this branch's base, a load-path cost that is not the renderer's.
 
 What they say:
 
-- **The frame is spent on the CPU under both.** Babylon deciding which meshes are active is 70 to
-  90 percent of every frame; the GPU is busy for 9 to 21 ms of a 60 to 105 ms WebGL frame. WebGPU
-  removes draw-call overhead, and at three draw calls there is none to remove.
-- **Neither renderer is faster.** WebGPU was slower in three rows and faster in one, by margins a
-  single run on a shared machine does not separate.
+- **The frame is spent on the CPU, at least under WebGL.** Babylon deciding which meshes are
+  active is 70 to 87 percent of every WebGL frame and 67 to 70 percent of every WebGPU frame; the
+  GPU is busy for 9 to 21 ms of a 60 to 105 ms WebGL frame. GPU time under WebGPU was not
+  measured, so that half is inferred from the active-mesh share, not shown. WebGPU removes
+  draw-call overhead, and at three draw calls there is none to remove.
+- **Neither renderer is shown to be faster.** WebGPU was slower in three rows and faster in one --
+  100k nodes orbiting, by 32% at the median and 2.8 times at p95 -- and one run per row on a
+  shared machine does not separate those margins from noise.
 - **WebGPU loads 7 to 40 times slower.** That is a real cost a reader would feel, and the reason
   it happens is not yet known.
 

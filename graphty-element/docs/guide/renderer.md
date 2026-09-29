@@ -50,7 +50,7 @@ drawing.
 | Solid and patterned edges, arrow caps | The same, once the compiler is loaded (see below)      |
 | Animated edges                        | The same                                               |
 | Node glow and outline                 | The same                                               |
-| Screenshots (`captureScreenshot`)     | The same                                               |
+| Screenshots (`captureScreenshot`)     | Expected the same; not yet tested under WebGPU         |
 | VR and AR                             | Not available: the buttons report the mode unavailable |
 
 **VR and AR need WebGL.** WebXR draws into a WebGL layer, and no shipping browser offers it a

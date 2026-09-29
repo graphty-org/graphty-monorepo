@@ -212,7 +212,9 @@ function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adj
  * with the same `n - 1` under `normalized` and no extrapolation to the whole graph -- the UNSCALED rule sampled
  * betweenness follows. So a sample of every node gives exactly the exact scores (up to the order floating-point
  * sums are added in), and on a sample of `k` sources `1 / score` is the summed distance to those `k` sources:
- * multiply the plain score by `k / n` for the Eppstein-Wang estimate of the exact one. On an undirected snapshot
+ * multiply the plain score by `k / n` for the Eppstein-Wang estimate of the exact one. A `harmonic` score (normalized
+ * or not) sums reciprocal distances, so it needs the inverse, `n / k`; a `normalized` plain score divides by the
+ * number of sources reached, which already rescales it, so it needs no factor. On an undirected snapshot
  * the in-arcs are the out-arcs. Two corners are measured from the source's side and so differ from an exact run
  * even over a full sample: a weighted `cutoff` (the node just past it is admitted from the source's end of the
  * path) and a negative weight (the legacy settle rule is not symmetric).

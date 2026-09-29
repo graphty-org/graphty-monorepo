@@ -133,8 +133,9 @@ other nodes reached, `harmonic: true` for harmonic closeness, which handles disc
 weights as distances. `nodeClosenessCentrality(graph, node)` scores one node.
 
 On a big graph, sample: `k` draws that many sources (the same ones every time) and `sources` names them. Each node is
-then scored from its distances to those sources alone, unscaled, and `sourcesUsed` says how many ran. Multiply a sampled
-score by `k / n` to estimate the exact one; a sample of every node gives the exact score.
+then scored from its distances to those sources alone, unscaled, and `sourcesUsed` says how many ran. To estimate the exact
+score, multiply a plain sampled score by `k / n`, a `harmonic` one (normalized or not) by `n / k`, and leave a
+`normalized` one as it is (it already divides by the sources reached); a sample of every node gives the exact score.
 
 <!-- doc-check -->
 

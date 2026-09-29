@@ -771,10 +771,10 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
                 ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
-        closenessCentrality: async (s, options) =>
+        closenessCentrality: (s, options) =>
             acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(s, options)
-                ? await acc.closenessCentrality(s, closenessSources(s, options))
-                : indexed.closenessCentrality(s, options),
+                ? acc.closenessCentrality(s, closenessSources(s, options))
+                : Promise.resolve(indexed.closenessCentrality(s, options)),
         labelPropagation: (s, options) =>
             acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)

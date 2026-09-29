@@ -633,8 +633,10 @@ describe("accelerated(acc)", () => {
             // the exact directed run still goes: every node is its own source
             await dispatcher.closenessCentrality(d);
             expect(calls).toEqual([["closenessCentrality", d, { weighted: false }]]);
-            // a bad sample is refused before the accelerator is reached
-            await expect(dispatcher.closenessCentrality(s, { k: 7 })).rejects.toThrow(RangeError);
+            // a bad sample is refused before the accelerator is reached, synchronously as betweenness refuses one
+            expect(() => dispatcher.closenessCentrality(s, { k: 7 })).toThrow(RangeError);
+            expect(() => dispatcher.betweennessCentrality(s, { k: 7 })).toThrow(RangeError);
+            expect(calls).toEqual([["closenessCentrality", d, { weighted: false }]]);
         });
 
         it("runs the CPU port for every call the accelerator would answer differently", async () => {

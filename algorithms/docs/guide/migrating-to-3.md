@@ -244,7 +244,8 @@ the same `(n, k)` draws the same sources every time; with both, `k` must equal `
 
 A sampled score is each node's closeness from its distances TO the sampled sources (over in-arcs on a directed graph),
 with the same formula as the exact score and no extrapolation: `1 / score` is the summed distance to the sources the
-node reaches. Multiply by `k / n` for the Eppstein-Wang estimate of the exact score. A sample of every node gives the
+node reaches. Multiply a plain score by `k / n` for the Eppstein-Wang estimate of the exact score; a `harmonic` score needs `n / k`
+instead, and a `normalized` one needs no factor. A sample of every node gives the
 exact scores. `nodeClosenessCentrality` takes no sampling options.
 
 On the accelerator seam, `AlgorithmAccelerator.closenessCentrality` takes `ClosenessAcceleratorOptions` (`weighted`,

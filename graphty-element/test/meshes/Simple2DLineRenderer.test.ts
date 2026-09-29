@@ -44,6 +44,19 @@ describe("Simple2DLineRenderer", () => {
         assert(Math.abs(mesh.position.z - 0.0) < 0.01, "Z position should be near 0.0");
     });
 
+    test("a Z on an endpoint does not lengthen the line drawn in the XY plane", () => {
+        // The quad lies in XY and the camera looks down Z, so its length must be the XY distance.
+        // The 3D distance made a line whose endpoint carried a Z run past both of its nodes.
+        const start = new Vector3(0, 0, 0);
+        const end = new Vector3(3, 4, 20);
+        const created = Simple2DLineRenderer.create(start, end, 0.1, "#ff0000", 1.0, scene);
+        assert.closeTo(created.scaling.x, 5, 1e-6, "create: length is the XY distance");
+
+        const updated = Simple2DLineRenderer.create(start, new Vector3(1, 0, 0), 0.1, "#ff0000", 1.0, scene);
+        Simple2DLineRenderer.updatePositions(updated, start, end);
+        assert.closeTo(updated.scaling.x, 5, 1e-6, "updatePositions: length is the XY distance");
+    });
+
     test("create handles vertical lines", () => {
         const start = new Vector3(0, 0, 0);
         const end = new Vector3(0, 1, 0);

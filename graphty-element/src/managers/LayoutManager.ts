@@ -1196,6 +1196,10 @@ export class LayoutManager implements Manager {
     /**
      * Hand the engine the coordinates the `arrangement` hook has just written. After a restore,
      * the pre-steps of any build still computing from the coordinates it held before are dropped.
+     *
+     * A 2D ENGINE THEN PUTS EVERY NODE BACK ON THE PLANE, for the reason `replayPins` does: a Z
+     * written while the view is 2D -- a script's `positions.set`, a restore -- is hidden by the
+     * camera but drawn by the node's edges. The engine publishes the flattened row like any move.
      * @param restoring - Whether undo, redo, a restore or a rollback wrote them.
      */
     loadArrangement(restoring: boolean): void {
@@ -1203,7 +1207,26 @@ export class LayoutManager implements Manager {
             this.#generation++;
         }
 
-        this.layoutEngine?.loadArrangement();
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        engine.loadArrangement();
+        if (this.engineDimension !== 2) {
+            return;
+        }
+
+        const { positions } = this.dataManager;
+        const placed = { x: 0, y: 0, z: 0 };
+        for (const node of this.dataManager.nodes.values()) {
+            if (positions.isPlaced(node.index)) {
+                positions.read(node.index, placed);
+                if (placed.z !== 0) {
+                    layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
+                }
+            }
+        }
     }
 
     /**

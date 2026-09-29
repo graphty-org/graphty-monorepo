@@ -50,6 +50,8 @@ describe("Node Behavior Tests", () => {
 
         // Simulate drag start
         node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
+        // A drop pins what the pointer PLACED, so the drag moves the node.
+        node.dragHandler?.onDragUpdate(new Vector3(1, 0, 0));
         assert.equal(node.dragging, true);
 
         // Simulate drag end
@@ -74,6 +76,8 @@ describe("Node Behavior Tests", () => {
 
         // Test drag start: a stopped (not paused) layout runs again so neighbours respond
         node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
+        // A drop pins what the pointer PLACED, so the drag moves the node.
+        node.dragHandler?.onDragUpdate(new Vector3(1, 0, 0));
         assert.equal(node.dragging, true);
         assert.isTrue(graph.isRunning());
 

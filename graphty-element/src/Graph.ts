@@ -296,6 +296,12 @@ export class Graph implements GraphContext {
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
     initialized = false;
+
+    /**
+     * The signal of the queued build of the opening layout: it fires when a layout the consumer
+     * asked for replaces the default before it is built. See {@link Graph.openingSignalFor}.
+     */
+    #openingSignal: AbortSignal | undefined;
     enableDetailedProfiling?: boolean;
     /** The view settings, as set; see {@link ViewSettings}. Written only through `writeViewSettings`. */
     private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
@@ -933,6 +939,7 @@ export class Graph implements GraphContext {
             .queueOperationAsync(
                 "layout-set",
                 async (context) => {
+                    this.#openingSignal = context.signal;
                     await this.buildOpeningLayout(context.signal);
                 },
                 { description: "Setting the default layout" },
@@ -1216,7 +1223,9 @@ export class Graph implements GraphContext {
             // it. Without this a layout built with a Z axis would keep one the orthographic camera
             // cannot show, and each flat 2D edge -- sized from the 3D distance -- would run past
             // its nodes into empty space.
-            await this.buildOpeningLayout();
+            // Under the queued build's signal, so a layout the consumer has already asked for still
+            // replaces the default before it is built. See `openingSignalFor`.
+            await this.buildOpeningLayout(this.#openingSignal);
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -3430,6 +3439,14 @@ export class Graph implements GraphContext {
         choice: LayoutChoice,
         how: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
     ): Promise<void> {
+        // The default nobody chose is built only until a layout the consumer asked for replaces
+        // it, and a build of it already under way stops when that happens. See `openingSignalFor`.
+        const opening = how.restoring ? undefined : this.openingSignalFor(choice);
+        const superseded = (): boolean => opening?.aborted === true;
+        if (superseded()) {
+            return;
+        }
+
         const twoD = choice.dimension === "2d";
         // VR and AR draw in 3D: an undo or redo that makes the scene flat ends the session first.
         if (twoD && this.viewSettings.graph.immersive !== undefined) {
@@ -3441,11 +3458,50 @@ export class Graph implements GraphContext {
             this.enterDimension(twoD);
         }
 
-        await layoutManagerInternals.apply(this.layoutManager, choice, how);
+        const signal =
+            opening === undefined || how.signal === undefined
+                ? (how.signal ?? opening)
+                : AbortSignal.any([how.signal, opening]);
+        try {
+            await layoutManagerInternals.apply(this.layoutManager, choice, {
+                ...how,
+                ...(signal === undefined ? {} : { signal }),
+            });
+        } catch (error) {
+            if (superseded() && isAbort(error)) {
+                return;
+            }
+
+            throw error;
+        }
 
         if (switching) {
             this.settleDimension(twoD, !how.restoring);
         }
+    }
+
+    /**
+     * The signal a build of a value of the `layout` slice stops on because the consumer chose a
+     * layout: the queued opening build's, while the value is still the default nobody chose.
+     *
+     * WHY. `viewMode = "2d"` assigned before the element is attached writes the dimension into
+     * the slice at once -- as the default layout, in 2D -- and builds it, while the consumer's
+     * `layout`, assigned in the same tick, waits its turn behind the data load. That default
+     * engine then held the data when it arrived and moved it for however many frames ran before
+     * the consumer's layout was built, and the consumer's layout starts from the arrangement it
+     * inherits: a seeded Fruchterman-Reingold drew one of two different graphs depending on
+     * whether a frame landed in between. In 3D nothing is built early, so the consumer's layout
+     * was the first to see the data. The consumer's layout reads the dimension from the slice
+     * when its turn comes, so the default loses nothing by never being built.
+     *
+     * A consumer's choice always carries options of its own (`layout.set` freezes a fresh
+     * object), so a value holding the default's own options object was never chosen by anyone.
+     * @param choice - The value.
+     * @returns The signal, or undefined when the value is a layout someone chose.
+     */
+    private openingSignalFor(choice: LayoutChoice): AbortSignal | undefined {
+        const unchosen = choice.engine === DEFAULT_LAYOUT.engine && choice.options === DEFAULT_LAYOUT.options;
+        return unchosen ? this.#openingSignal : undefined;
     }
 
     /**

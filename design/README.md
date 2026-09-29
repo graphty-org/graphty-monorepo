@@ -81,6 +81,8 @@ Documents generally follow these patterns:
 - [`rendering/edge-styles-design.md`](rendering/edge-styles-design.md) - Edge styling system
 - [`xr/xr-camera.md`](xr/xr-camera.md) - VR/AR camera design
 - [`ui/properties-sidebar-design.md`](ui/properties-sidebar-design.md) - Properties panel design
+- [`ui/framework/`](ui/framework/README.md) - The graphty app design framework: objects, principles, interaction patterns, the element contract and the one-way doors every screen is designed against
+- [`ui/object-first-ux/`](ui/object-first-ux/README.md) - An object-first, Figma-style exploration of the app: analysis, proposal, critique rounds and HTML mocks with screenshots (`mocks/`)
 
 ### Future Work
 - [`ai/ai-multi-turn.md`](ai/ai-multi-turn.md) - Multi-turn LLM conversations

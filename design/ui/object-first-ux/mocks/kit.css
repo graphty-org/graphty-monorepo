@@ -1,0 +1,1935 @@
+/* kit.css -- the mock kit for the object-first graphty UX mocks.
+ *
+ * Every value here is taken from the measured Figma study in
+ * design/ui/figma/ (components.md for sizes and states, tokens/tokens.json
+ * for colours). The chrome is: one 11px body size, 24px controls, 32px
+ * rows, 40px section headers, 240px panels, a 56px rail, radii 2 / 5 / 13,
+ * one accent blue, dark menus and tooltips in both themes.
+ *
+ * Theme: light is the default. Set <html data-theme="dark"> for dark. The
+ * kit ships no icons; kit.html carries an inline SVG sprite the mocks copy.
+ *
+ * Naming: every class starts with "k-". A state that a mock needs to show
+ * without a pointer (hover, pressed, focus) is also a class: .is-hover,
+ * .is-pressed, .is-focus, .is-open, .is-on, .is-selected, .is-disabled.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Tokens                                                              */
+/* ------------------------------------------------------------------ */
+
+:root {
+  color-scheme: light;
+
+  /* Type. Inter is a variable font in Figma, so 450 and 550 exist; on a
+     system font they round to 400 and 500 or 600, which is acceptable. */
+  --k-font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --k-font-mono: ui-monospace, "Roboto Mono", Menlo, Consolas, monospace;
+  --k-fw-body: 450;
+  --k-fw-strong: 550;
+  --k-text-body: var(--k-fw-body) 11px/16px var(--k-font);          /* menu items, tooltips, values, buttons, rows */
+  --k-text-body-strong: var(--k-fw-strong) 11px/16px var(--k-font); /* section titles, active tab, toast */
+  --k-text-heading: var(--k-fw-strong) 13px/22px var(--k-font);     /* panel title, file name */
+  --k-text-heading-md: var(--k-fw-strong) 15px/25px var(--k-font);  /* empty-state heading */
+  --k-text-caption: 500 9px/14px var(--k-font);                     /* caption above a two-column field */
+  --k-text-rail: var(--k-fw-body) 9px/14px var(--k-font);           /* rail labels */
+  --k-ls-body: 0.055px;
+  --k-ls-heading: -0.032px;
+  --k-ls-caption: 0.27px;
+
+  /* Spacing: 4 / 8 / 16, with 12 only at section bottoms. */
+  --k-space-1: 4px;
+  --k-space-2: 8px;
+  --k-space-3: 12px;
+  --k-space-4: 16px;
+  --k-space-6: 24px;
+  --k-space-8: 32px;
+
+  /* Radii */
+  --k-radius-sm: 2px;    /* checkbox, swatch, key cap, size badge */
+  --k-radius-md: 5px;    /* every button, input, select, tab, row highlight */
+  --k-radius-lg: 13px;   /* menus, popovers, dialogs, toolbar, toast */
+  --k-radius-full: 9999px;
+
+  /* Fixed sizes */
+  --k-rail-w: 56px;
+  --k-panel-w: 240px;
+  --k-row-h: 32px;
+  --k-control-h: 24px;
+  --k-section-header-h: 40px;
+  --k-toolbar-h: 48px;
+  --k-menu-row-h: 24px;
+  --k-tree-indent: 24px;
+  --k-statusbar-h: 24px;
+
+  /* Motion: the chrome is instant except a 100ms colour ease on hover-revealed
+     bits and the switch knob. */
+  --k-duration-sm: 100ms;
+
+  /* Colours, light. Text and icons are translucent black so they sit on
+     white, grey and blue alike. */
+  --k-bg: #fff;
+  --k-bg-secondary: #f5f5f5;          /* field fill, track, tab selected */
+  --k-bg-hover: #f5f5f5;              /* row hover, rail hover, tool hover */
+  --k-bg-pressed: #e6e6e6;
+  --k-bg-tertiary: #e6e6e6;
+  --k-bg-transparent-hover: #0000000d;
+  --k-bg-transparent-pressed: #0000001a;
+  --k-bg-selected: #e5f4ff;           /* selected row, open trigger, toggle on, active rail */
+  --k-bg-selected-hover: #bde3ff;     /* hover on a child of the selection */
+  --k-bg-selected-secondary: #f2f9ff; /* children of a selected row, hover on a toggle that is on */
+  --k-bg-brand: #0d99ff;              /* primary button, active tool, blue checkbox */
+  --k-bg-brand-hover: #007be5;
+  --k-bg-brand-pressed: #0768cf;
+  --k-bg-disabled: #d9d9d9;
+  --k-bg-menu: #1e1e1e;               /* menus and tooltips, both themes */
+  --k-bg-menu-selected: #0c8ce9;      /* menu row highlight (brand blue in the dark scope) */
+  --k-bg-toast: #2c2c2c;              /* toast, both themes */
+  --k-bg-mode: #f5f5f5;               /* toolbar mode switch track */
+  --k-bg-mode-hover: #e6e6e6;
+  --k-bg-danger: #f24822;
+  --k-bg-danger-hover: #dc3412;
+  --k-bg-danger-pressed: #bd2915;
+  --k-bg-danger-tertiary: #ffe2e0;
+  --k-bg-success: #14ae5c;
+  --k-bg-success-tertiary: #e0f6e5;
+  --k-bg-warning: #ffcd29;
+  --k-bg-warning-tertiary: #fff1c2;
+  --k-bg-info: #e5f4ff;
+  --k-bg-component-tertiary: #f1e5ff;
+  --k-canvas: #f5f5f5;                /* the graph canvas behind the chrome */
+
+  --k-text: #000000e5;
+  --k-text-secondary: #00000080;
+  --k-text-tertiary: #0000004d;       /* placeholder, caret, type icons */
+  --k-text-disabled: #0000004d;
+  --k-text-brand: #007be5;
+  --k-text-onbrand: #fff;
+  --k-text-onbrand-secondary: #fffc;
+  --k-text-ondisabled: #fff;
+  --k-text-danger: #dc3412;
+  --k-text-success: #009951;
+  --k-text-warning: #b86200;
+  --k-text-component: #8638e5;
+  --k-text-menu: #fff;
+  --k-text-menu-secondary: #ffffffb2;
+  --k-text-menu-disabled: #fff6;
+
+  --k-border: #e6e6e6;                /* dividers, field border, hover outline */
+  --k-border-translucent: #0000001a;  /* secondary button, panel edge */
+  --k-border-translucent-strong: #0003; /* checkbox, switch */
+  --k-border-selected: #0d99ff;       /* focus ring, selected border */
+  --k-border-selected-strong: #007be5;
+  --k-border-disabled: #e6e6e6;
+  --k-border-danger: #ffc7c2;
+  --k-border-danger-strong: #dc3412;
+  --k-border-success: #b9ebc6;
+  --k-border-warning: #f5dfa8;
+
+  --k-scrollbar: #b3b3b380;
+  --k-text-highlight: rgba(13, 153, 255, .4);
+
+  /* Elevation. Panels have no shadow; they are separated by 1px lines. */
+  --k-shadow-100: 0 0 .5px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.15);                                   /* mode-switch thumb */
+  --k-shadow-200: 0 0 .5px rgba(0,0,0,.18), 0 3px 8px rgba(0,0,0,.1), 0 1px 3px rgba(0,0,0,.1);          /* floating toolbar */
+  --k-shadow-300: 0 0 .5px rgba(0,0,0,.15), 0 5px 12px rgba(0,0,0,.13), 0 1px 3px rgba(0,0,0,.1);        /* tooltip */
+  --k-shadow-400: 0 0 .5px rgba(0,0,0,.12), 0 10px 16px rgba(0,0,0,.12), 0 2px 5px rgba(0,0,0,.15);      /* menu, popover */
+  --k-shadow-500: 0 0 .5px rgba(0,0,0,.08), 0 10px 24px rgba(0,0,0,.18), 0 2px 5px rgba(0,0,0,.15);      /* modal */
+  --k-shadow-toast: 0 1px 3px rgba(0,0,0,.4), inset 0 0 .5px rgba(255,255,255,.3), inset 0 .5px 0 rgba(255,255,255,.1), 0 0 .5px rgba(0,0,0,.5);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --k-bg: #2c2c2c;
+  --k-bg-secondary: #383838;
+  --k-bg-hover: #383838;
+  --k-bg-pressed: #444;
+  --k-bg-tertiary: #444;
+  --k-bg-transparent-hover: #ffffff0d;
+  --k-bg-transparent-pressed: #ffffff1a;
+  --k-bg-selected: #394360;
+  --k-bg-selected-hover: #4a5878;
+  --k-bg-selected-secondary: #32394d;
+  --k-bg-brand: #0c8ce9;
+  --k-bg-brand-hover: #0a6dc2;
+  --k-bg-brand-pressed: #105cad;
+  --k-bg-disabled: #757575;
+  --k-bg-mode: #444;
+  --k-bg-mode-hover: #383838;
+  --k-bg-danger: #e03e1a;
+  --k-bg-danger-hover: #c4381c;
+  --k-bg-danger-pressed: #963323;
+  --k-bg-danger-tertiary: #60332a;
+  --k-bg-success: #198f51;
+  --k-bg-success-tertiary: #2f483c;
+  --k-bg-warning: #f3c11b;
+  --k-bg-warning-tertiary: #5c4100;
+  --k-bg-info: #394360;
+  --k-bg-component-tertiary: #473956;
+  --k-canvas: #1e1e1e;
+
+  --k-text: #fff;
+  --k-text-secondary: #ffffffb2;
+  --k-text-tertiary: #fff6;
+  --k-text-disabled: #fff6;
+  --k-text-brand: #7cc4f8;
+  --k-text-ondisabled: #2c2c2c;
+  --k-text-danger: #fca397;
+  --k-text-success: #7cd797;
+  --k-text-warning: #f7d15f;
+  --k-text-component: #d1a8ff;
+
+  --k-border: #444;
+  --k-border-translucent: #ffffff1a;
+  --k-border-translucent-strong: #fff3;
+  --k-border-selected: #0c8ce9;
+  --k-border-selected-strong: #7cc4f8;
+  --k-border-disabled: #444;
+  --k-border-danger: #864537;
+  --k-border-danger-strong: #fca397;
+  --k-border-success: #517361;
+  --k-border-warning: #7a5800;
+
+  --k-shadow-100: 0 0 .5px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1), inset 0 0 1px rgba(255,255,255,.3);
+  --k-shadow-200: 0 3px 8px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.3);
+  --k-shadow-300: 0 5px 12px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.3);
+  --k-shadow-400: 0 10px 16px rgba(0,0,0,.35), 0 2px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.35);
+  --k-shadow-500: 0 10px 24px rgba(0,0,0,.45), 0 3px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.35);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+.k-app, .k-app *, .k-ui, .k-ui * { box-sizing: border-box; }
+
+.k-app, .k-ui {
+  font: var(--k-text-body);
+  letter-spacing: var(--k-ls-body);
+  color: var(--k-text);
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+  user-select: none;
+}
+:where(.k-app, .k-ui) :where(button, input) { /* zero specificity: a class rule (.k-btn, .k-mode-opt) always wins */
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: default;
+}
+.k-app svg, .k-ui svg { display: block; flex: none; }
+
+/* Icons: the 24px box with a 12px glyph is the standard; 16px boxes are
+   for tree rows and inline slots. Glyphs use currentColor. */
+.k-icon { width: 24px; height: 24px; }
+.k-icon-16 { width: 16px; height: 16px; }
+
+/* Text helpers */
+.k-strong { font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body); }
+.k-heading { font: var(--k-text-heading); letter-spacing: var(--k-ls-heading); }
+.k-heading-md { font: var(--k-text-heading-md); letter-spacing: -0.075px; }
+.k-caption { font: var(--k-text-caption); letter-spacing: var(--k-ls-caption); color: var(--k-text-secondary); }
+.k-secondary { color: var(--k-text-secondary); }
+.k-tertiary { color: var(--k-text-tertiary); }
+.k-brand { color: var(--k-text-brand); }
+.k-mono { font-family: var(--k-font-mono); }
+
+/* Focus ring: 1px brand, keyboard focus only, offset +1 on buttons and
+   -1 inside fields and joined groups. Rest state carries a transparent
+   outline so focus never moves layout. .is-focus shows it statically. */
+.k-app :focus { outline: none; }
+.k-app :focus-visible, .k-ui :focus-visible, .is-focus {
+  outline: 1px solid var(--k-border-selected) !important;
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------------ */
+/* App frame: rail 56 | left panel 240 | canvas | right panel 240       */
+/* ------------------------------------------------------------------ */
+
+.k-app {
+  display: grid;
+  /* rail and right panel carry their 1px border outside the 56 / 240 content */
+  grid-template-columns: calc(var(--k-rail-w) + 1px) var(--k-panel-w) minmax(0, 1fr) calc(var(--k-panel-w) + 1px);
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  background: var(--k-bg);
+  position: relative;
+  overflow: hidden;
+}
+.k-app.has-statusbar { grid-template-rows: minmax(0, 1fr) var(--k-statusbar-h); }
+.k-app.no-left { grid-template-columns: calc(var(--k-rail-w) + 1px) minmax(0, 1fr) calc(var(--k-panel-w) + 1px); }
+.k-app.no-right { grid-template-columns: calc(var(--k-rail-w) + 1px) var(--k-panel-w) minmax(0, 1fr); }
+
+.k-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 16px;
+  background: var(--k-bg);
+  border-right: 1px solid var(--k-border);
+  overflow: hidden;
+}
+.k-rail-btn {
+  width: 56px; height: 56px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 4px 0; gap: 2px;
+  background: none; border: 0;
+}
+.k-rail-pill {
+  width: 32px; height: 32px; border-radius: var(--k-radius-md);
+  display: grid; place-items: center;
+  color: var(--k-text);
+}
+.k-rail-label {
+  font: var(--k-text-rail); letter-spacing: 0.045px;
+  width: 40px; text-align: center; white-space: nowrap; overflow: hidden;
+  color: var(--k-text);
+}
+.k-rail-btn:hover .k-rail-pill, .k-rail-btn.is-hover .k-rail-pill,
+.k-rail-btn:active .k-rail-pill, .k-rail-btn.is-pressed .k-rail-pill { background: var(--k-bg-hover); }
+.k-rail-btn.is-active .k-rail-pill { background: var(--k-bg-selected); color: var(--k-text-brand); }
+.k-rail-sep { width: 16px; height: 1px; background: var(--k-border); margin: 8px 0 7px; }
+.k-rail-spacer { flex: 1; }
+.k-rail-btn:focus-visible { outline: none !important; }
+.k-rail-btn:focus-visible .k-rail-pill, .k-rail-btn.is-focus .k-rail-pill {
+  outline: 1px solid var(--k-border-selected); outline-offset: 0;
+}
+
+.k-panel {
+  display: flex; flex-direction: column;
+  background: var(--k-bg);
+  min-height: 0; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;
+}
+.k-panel::-webkit-scrollbar { display: none; }
+.k-panel-left { border-right: 1px solid var(--k-border); }
+.k-panel-right { border-left: 1px solid var(--k-border-translucent); padding-bottom: 50px; }
+
+.k-canvas { position: relative; background: var(--k-canvas); overflow: hidden; min-width: 0; }
+
+.k-statusbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 8px;
+  border-top: 1px solid var(--k-border);
+  background: var(--k-bg);
+  color: var(--k-text-secondary);
+}
+.k-statusbar-spacer { flex: 1; }
+
+/* Panel header rows */
+
+/* Left panel group header (Pages / Layers): 240 x 40, title at x+16,
+   chevron on hover, 24px actions 8px from the right edge. */
+.k-panel-header {
+  display: flex; align-items: center;
+  height: var(--k-section-header-h);
+  padding: 0 8px 0 16px;
+  flex: none;
+}
+.k-panel-header .k-panel-title {
+  flex: 1; display: flex; align-items: center; gap: 4px;
+  font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body);
+  height: 24px; margin-left: -8px; padding: 0 8px; border-radius: var(--k-radius-md);
+}
+.k-panel-header .k-panel-title .k-icon-16 { opacity: 0; transition: opacity var(--k-duration-sm) ease-out; color: var(--k-text-tertiary); }
+.k-panel-header:hover .k-panel-title .k-icon-16, .k-panel-header.is-hover .k-panel-title .k-icon-16 { opacity: 1; }
+
+/* Selection type row (top of the right panel): 48 tall + 1px line,
+   title 13/22 550, 24px actions 4px apart. */
+.k-panel-type {
+  display: flex; align-items: center; gap: 4px;
+  height: 49px; padding: 0 8px;
+  border-bottom: 1px solid var(--k-border);
+  flex: none;
+}
+.k-panel-type .k-heading { flex: 1; padding-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Section: header 40 + rows + 12 bottom + 1 divider */
+.k-section { padding-bottom: 12px; border-bottom: 1px solid var(--k-border); flex: none; }
+.k-section-header {
+  display: flex; align-items: center;
+  height: var(--k-section-header-h);
+  padding: 0 8px 0 16px;
+}
+.k-section-header.is-collapsible { padding-left: 0; }
+.k-section-caret {
+  width: 16px; height: 32px; display: grid; place-items: center;
+  color: var(--k-text-tertiary);
+  transition: color var(--k-duration-sm) ease-out;
+}
+.k-section-title {
+  flex: 1; min-width: 0;
+  font: var(--k-text-body-strong); line-height: 32px; letter-spacing: normal;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color var(--k-duration-sm) ease-out;
+}
+.k-section-actions { display: flex; gap: 4px; }
+.k-section-header.is-empty .k-section-title,
+.k-section-header.is-empty .k-section-caret,
+.k-section-header.is-empty .k-icon-btn { color: var(--k-text-secondary); }
+.k-section-header.is-empty:hover .k-section-title, .k-section-header.is-empty.is-hover .k-section-title,
+.k-section-header.is-empty:hover .k-section-caret, .k-section-header.is-empty.is-hover .k-section-caret,
+.k-section-header.is-empty:hover .k-icon-btn, .k-section-header.is-empty.is-hover .k-icon-btn { color: var(--k-text); }
+
+/* ------------------------------------------------------------------ */
+/* Property rows: | 16 | A 88 | 8 | B 88 | 8 | icon 24 | 8 | = 240      */
+/* ------------------------------------------------------------------ */
+
+.k-row {
+  display: grid;
+  grid-template-columns: 88px 88px 24px;
+  column-gap: 8px;
+  align-items: center;
+  height: var(--k-row-h);
+  padding: 0 8px 0 16px;
+}
+.k-row > .k-span-2 { grid-column: span 2; width: 184px; }   /* a 184-wide control */
+.k-row > .k-span-3 { grid-column: span 3; width: 216px; }   /* full 216 */
+.k-row-2 { height: 50px; }                         /* two labelled columns: 9px caption, 3 gap, 24 control */
+.k-field { display: flex; flex-direction: column; gap: 3px; }
+.k-row-flex { display: flex; align-items: center; gap: 8px; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-row-flex > .k-grow { flex: 1; min-width: 0; }
+.k-row-actions { display: flex; gap: 4px; }
+/* label + control, popover style: | 16 | label 72 | 8 | control | 16 | */
+.k-row-labeled { display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 8px; align-items: center; height: var(--k-row-h); padding: 0 16px; }
+.k-row-labeled > .k-label { color: var(--k-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-legend { height: 16px; color: var(--k-text-secondary); font-weight: 400; }
+
+
+/* ------------------------------------------------------------------ */
+/* Inputs (24 tall)                                                    */
+/* ------------------------------------------------------------------ */
+
+/* Filled input with an optional 24px leading slot (a letter or icon that is
+   the scrub handle). Hover: 1px border. Focus: 1px brand. */
+.k-input {
+  display: flex; align-items: center; flex: none;
+  height: var(--k-control-h); width: 88px;
+  border-radius: var(--k-radius-md);
+  background: var(--k-bg-secondary);
+  outline: 1px solid transparent; outline-offset: -1px;
+  color: var(--k-text);
+}
+.k-input-slot {
+  width: 24px; height: 24px; flex: none;
+  display: grid; place-items: center;
+  color: var(--k-text-secondary);
+  font-weight: 400; cursor: ew-resize;
+}
+.k-input input, .k-input .k-input-value {
+  flex: 1; min-width: 0; height: 24px;
+  padding: 0 8px 0 0; margin: 0;
+  background: none; border: 0; outline: none !important;
+  line-height: 24px; color: inherit;
+}
+.k-input input:first-child, .k-input .k-input-value:first-child { padding-left: 8px; }
+.k-input .k-input-value { display: flex; align-items: center; }
+.k-input input::placeholder { color: var(--k-text-tertiary); }
+.k-input input::selection { background: var(--k-text-highlight); }
+.k-input:hover, .k-input.is-hover { outline-color: var(--k-border); }
+.k-input:focus-within, .k-input.is-focus { outline: 1px solid var(--k-border-selected) !important; outline-offset: -1px; }
+.k-input.is-disabled { background: var(--k-bg); outline-color: var(--k-border-disabled); color: var(--k-text-disabled); }
+.k-input.is-disabled .k-input-slot { color: var(--k-text-disabled); cursor: default; }
+.k-input.is-invalid { outline-color: var(--k-border-danger-strong); }
+.k-input.is-mixed input, .k-input.is-mixed .k-input-value { color: var(--k-text-secondary); }
+/* Trailing chevron (combo input) or trailing icon slot */
+.k-input-chevron, .k-input-end {
+  width: 24px; height: 24px; flex: none; display: grid; place-items: center;
+  color: var(--k-text-tertiary); border-radius: 0 var(--k-radius-md) var(--k-radius-md) 0;
+}
+.k-input-chevron:hover { background: var(--k-bg-transparent-hover); }
+/* Suffix such as "%" that is also the scrub handle */
+.k-input-suffix { width: 14px; height: 24px; flex: none; display: grid; place-items: center; color: var(--k-text-secondary); cursor: ew-resize; }
+
+/* Search field: leading 16px magnifier in a 24px slot, clear button after typing. */
+.k-search { width: 156px; }
+.k-search .k-input-slot { cursor: default; }
+
+/* Inline rename: replaces a row name in place, 24 tall, white, 1px brand border. */
+.k-rename {
+  height: 24px; padding: 0 0 0 7px; width: 176px;
+  background: var(--k-bg); border: 1px solid var(--k-border-selected); border-radius: var(--k-radius-md);
+  outline: none !important; line-height: 22px;
+}
+
+/* Select: the one OUTLINED field. 24 tall, text at 8, 24px chevron slot. */
+.k-select {
+  flex: none;
+  display: inline-grid; grid-template-columns: minmax(0, 1fr) 24px; align-items: center;
+  height: var(--k-control-h); width: 88px; padding-left: 8px; padding-right: 0;
+  background: var(--k-bg); border: 0;
+  box-shadow: inset 0 0 0 1px var(--k-border);
+  border-radius: var(--k-radius-md);
+  color: var(--k-text); text-align: left;
+  outline: 1px solid transparent; outline-offset: -1px;
+}
+.k-select > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.k-select .k-icon { color: var(--k-text-tertiary); }
+.k-select:focus-visible, .k-select.is-focus { outline: 1px solid var(--k-border-selected) !important; outline-offset: -1px; }
+.k-select.is-disabled { color: var(--k-text-disabled); }
+.k-select.is-disabled .k-icon { color: var(--k-text-disabled); }
+
+/* Paint composite: | chit 14 @5 | hex 77 | 1px | opacity 38 | % 14 | = 156 */
+.k-paint {
+  display: flex; align-items: center; flex: none;
+  height: var(--k-control-h); width: 156px;
+  border-radius: var(--k-radius-md);
+  background: var(--k-bg-secondary);
+  outline: 1px solid transparent; outline-offset: -1px;
+}
+.k-paint:hover, .k-paint.is-hover { background: var(--k-bg-pressed); }
+.k-paint:focus-within, .k-paint.is-focus { outline-color: var(--k-border-selected); }
+.k-paint .k-swatch { margin: 0 5px; }
+.k-paint-hex { width: 77px; height: 24px; padding-left: 3px; text-transform: uppercase; }
+.k-paint-hex input { width: 100%; height: 24px; background: none; border: 0; outline: none !important; padding: 0; line-height: 24px; text-transform: uppercase; }
+.k-paint-divider { width: 1px; height: 24px; background: var(--k-bg); flex: none; }
+.k-paint-opacity { width: 38px; height: 24px; padding-left: 7px; }
+.k-paint-opacity input { width: 100%; height: 24px; background: none; border: 0; outline: none !important; padding: 0; line-height: 24px; }
+.k-paint .k-name { flex: 1; padding-left: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Swatch (chit): 14 x 14, radius 2, half-pixel inner border. --swatch sets the colour. */
+.k-swatch {
+  width: 14px; height: 14px; flex: none;
+  border-radius: var(--k-radius-sm);
+  background: var(--swatch, #d9d9d9);
+  box-shadow: inset 0 0 0 .5px var(--k-border);
+}
+.k-swatch-16 { width: 16px; height: 16px; border-radius: 20%; }
+.k-swatch-round { border-radius: 50%; }
+.k-swatch.is-gradient { background: linear-gradient(90deg, var(--from, #0d99ff), var(--to, #f24822)); }
+.k-swatch.is-focus, .k-swatch:focus-visible { outline: none !important; box-shadow: inset 0 0 0 1px var(--k-border-selected); }
+
+/* Segmented control: track 24 tall on the field fill, no padding; options
+   share the width; the checked face is white with a 1px inset border. */
+.k-seg {
+  display: flex; flex: none; height: var(--k-control-h);
+  background: var(--k-bg-secondary); border-radius: var(--k-radius-md);
+}
+.k-seg-opt {
+  flex: 1 1 0; min-width: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--k-radius-md);
+  color: var(--k-text-secondary);
+  background: none; border: 0; padding: 0;
+  white-space: nowrap;
+}
+.k-seg-opt.has-text { padding: 0 8px; }
+.k-seg-opt.is-checked { background: var(--k-bg); color: var(--k-text); box-shadow: inset 0 0 0 1px var(--k-border); }
+.k-seg.is-disabled .k-seg-opt { color: var(--k-text-disabled); }
+
+/* Checkbox: 16px face, radius 2, label 8px right, 24 tall (32 in a panel row).
+   Neutral variant stays grey when checked; .k-check-blue fills brand. */
+.k-check { display: inline-flex; align-items: center; gap: 8px; height: 24px; position: relative; }
+.k-check input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.k-check-box {
+  width: 16px; height: 16px; flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--k-radius-sm);
+  background: var(--k-bg-secondary);
+  box-shadow: inset 0 0 0 1px var(--k-border-translucent-strong);
+  color: var(--k-text);
+  outline: 1px solid transparent; outline-offset: 1px;
+}
+.k-check-box svg { display: none; width: 16px; height: 16px; }
+.k-check.is-checked .k-check-box .k-check-tick, .k-check:has(input:checked) .k-check-box .k-check-tick { display: block; }
+.k-check.is-mixed .k-check-box .k-check-dash, .k-check:has(input:indeterminate) .k-check-box .k-check-dash { display: block; }
+.k-check:hover .k-check-box, .k-check.is-hover .k-check-box { background: var(--k-bg-pressed); }
+.k-check.is-pressed .k-check-box { background: var(--k-bg-disabled); }
+.k-check-blue.is-checked .k-check-box, .k-check-blue:has(input:checked) .k-check-box,
+.k-check-blue.is-mixed .k-check-box {
+  background: var(--k-bg-brand); color: #fff; box-shadow: inset 0 0 0 1px var(--k-border-translucent);
+}
+.k-check-blue.is-checked:hover .k-check-box, .k-check-blue.is-checked.is-hover .k-check-box { box-shadow: inset 0 0 0 1px var(--k-border-translucent-strong); }
+.k-check-blue.is-checked.is-pressed .k-check-box { background: var(--k-bg-brand-hover); }
+.k-check.is-focus { outline: none !important; }
+.k-check.is-focus .k-check-box, .k-check:has(input:focus-visible) .k-check-box { outline-color: var(--k-border-selected); }
+.k-check.is-disabled { color: var(--k-text-disabled); }
+.k-check.is-disabled .k-check-box { background: transparent; box-shadow: inset 0 0 0 1px var(--k-border-disabled); color: var(--k-text-disabled); }
+.k-check-blue.is-disabled.is-checked .k-check-box { background: var(--k-bg-disabled); box-shadow: none; color: var(--k-text-ondisabled); }
+
+/* Toggle switch: 32 x 16 track (radius full), 12 x 8 pill knob at +4 (off) or +16 (on). */
+.k-switch {
+  display: inline-block; width: 32px; height: 16px; position: relative; flex: none;
+  border-radius: var(--k-radius-full);
+  background: var(--k-bg-secondary);
+  box-shadow: inset 0 0 0 1px var(--k-border-translucent-strong);
+  transition: background var(--k-duration-sm) cubic-bezier(.645,.045,.355,1);
+}
+.k-switch::after {
+  content: ""; position: absolute; top: 4px; left: 4px;
+  width: 12px; height: 8px; border-radius: var(--k-radius-full);
+  background: #fff; box-shadow: 0 0 0 1px #0003;
+  transition: transform var(--k-duration-sm) ease-out;
+}
+.k-switch:hover, .k-switch.is-hover { background: var(--k-bg-pressed); }
+.k-switch.is-on { background: var(--k-bg-brand); }
+.k-switch.is-on::after { transform: translateX(12px); box-shadow: 0 0 0 1px #0000001a; }
+.k-switch.is-on.is-pressed { background: var(--k-bg-brand-hover); }
+.k-switch.is-mixed { background: var(--k-bg-brand); }
+.k-switch.is-mixed::after { width: 10px; height: 2px; top: 7px; left: 11px; box-shadow: none; }
+.k-switch.is-disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--k-border-disabled); }
+.k-switch.is-disabled::after { background: var(--k-text-disabled); box-shadow: none; }
+.k-switch.is-disabled.is-on { background: var(--k-bg-disabled); box-shadow: none; }
+.k-switch.is-disabled.is-on::after { background: #fff; }
+.k-switch.is-focus, .k-switch:focus-visible { outline: 1px solid var(--k-border-selected-strong) !important; outline-offset: 1px; }
+.k-switch-row { display: inline-flex; align-items: center; gap: 8px; height: 24px; }
+
+/* ------------------------------------------------------------------ */
+/* Buttons                                                             */
+/* ------------------------------------------------------------------ */
+
+/* Ghost icon button: 24 x 24 (or 32), radius 5, transparent. */
+.k-icon-btn {
+  width: 24px; height: 24px; padding: 0; flex: none;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--k-radius-md);
+  background: transparent; color: var(--k-text);
+  outline: 1px solid transparent; outline-offset: -1px;
+  position: relative;
+}
+.k-icon-btn-32 { width: 32px; height: 32px; }
+.k-icon-btn:hover, .k-icon-btn.is-hover { background: var(--k-bg-transparent-hover); }
+.k-icon-btn:active, .k-icon-btn.is-pressed { background: var(--k-bg-transparent-pressed); }
+.k-icon-btn.is-open, .k-icon-btn[aria-expanded="true"] { background: var(--k-bg-selected); color: var(--k-text-brand); }
+.k-icon-btn.is-open:hover, .k-icon-btn.is-open.is-hover { background: var(--k-bg-selected-secondary); }
+.k-icon-btn.is-disabled, .k-icon-btn:disabled { color: var(--k-text-disabled); background: transparent; }
+.k-icon-btn.k-secondary-outline { outline-color: var(--k-border-translucent); }
+
+/* Toggle icon button: an icon button that is a checkbox. .is-on fills
+   blue-tint with brand icon. The eye variant (.k-eye) never fills; it swaps glyphs. */
+.k-toggle-btn.is-on { background: var(--k-bg-selected); color: var(--k-text-brand); }
+.k-toggle-btn.is-on:hover, .k-toggle-btn.is-on.is-hover { background: var(--k-bg-selected-secondary); }
+.k-toggle-btn.is-on:active, .k-toggle-btn.is-on.is-pressed { background: var(--k-bg-selected); }
+.k-toggle-btn.k-eye.is-on { background: transparent; color: var(--k-text); }
+.k-toggle-btn.k-eye.is-on:hover, .k-toggle-btn.k-eye.is-on.is-hover { background: var(--k-bg-transparent-hover); }
+.k-toggle-btn.is-disabled.is-on { background: var(--k-bg-disabled); color: var(--k-text-ondisabled); }
+.k-toggle-btn .k-icon-off { display: block; } .k-toggle-btn .k-icon-on { display: none; }
+.k-toggle-btn.is-on .k-icon-off { display: none; } .k-toggle-btn.is-on .k-icon-on { display: block; }
+
+/* Text buttons: md 24 tall padding 0 8; lg 32 tall padding 0 12; radius 5. */
+.k-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: var(--k-control-h); padding: 0 8px;
+  border: 0; border-radius: var(--k-radius-md);
+  background: var(--k-bg-brand); color: var(--k-text-onbrand);
+  font: var(--k-text-body); letter-spacing: var(--k-ls-body);
+  outline: 1px solid transparent; outline-offset: 1px;
+  white-space: nowrap; position: relative;
+}
+.k-btn-lg { height: 32px; padding: 0 12px; }
+.k-btn .k-icon:first-child { margin-left: -4px; }
+.k-btn:hover, .k-btn.is-hover { background: var(--k-bg-brand-hover); }
+.k-btn:active, .k-btn.is-pressed { background: var(--k-bg-brand-pressed); color: var(--k-text-onbrand-secondary); }
+.k-btn.is-disabled, .k-btn:disabled { background: var(--k-bg-disabled); color: var(--k-text-ondisabled); }
+.k-btn.is-loading { cursor: progress; }
+.k-btn.is-loading > :not(.k-spinner) { opacity: 0; }
+.k-btn.is-loading .k-spinner { position: absolute; left: 50%; top: 50%; margin: -8px 0 0 -8px; }
+
+.k-btn-secondary { background: transparent; color: var(--k-text); outline-color: var(--k-border-translucent); outline-offset: -1px; }
+.k-btn-secondary:hover, .k-btn-secondary.is-hover { background: var(--k-bg-transparent-hover); }
+.k-btn-secondary:active, .k-btn-secondary.is-pressed { background: var(--k-bg-transparent-pressed); color: var(--k-text); }
+.k-btn-secondary.is-disabled, .k-btn-secondary:disabled { background: transparent; color: var(--k-text-disabled); outline-color: var(--k-border-disabled); }
+.k-btn-secondary.is-focus, .k-btn-secondary:focus-visible { box-shadow: 0 0 0 1px var(--k-bg), 0 0 0 2px var(--k-border-selected); outline-color: var(--k-border-translucent) !important; outline-offset: -1px !important; }
+
+.k-btn-ghost { background: transparent; color: var(--k-text); }
+.k-btn-ghost:hover, .k-btn-ghost.is-hover { background: var(--k-bg-transparent-hover); }
+.k-btn-ghost:active, .k-btn-ghost.is-pressed { background: var(--k-bg-transparent-pressed); color: var(--k-text); }
+.k-btn-ghost.is-disabled, .k-btn-ghost:disabled { background: transparent; color: var(--k-text-disabled); }
+
+.k-btn-danger { background: var(--k-bg-danger); }
+.k-btn-danger:hover, .k-btn-danger.is-hover { background: var(--k-bg-danger-hover); }
+.k-btn-danger:active, .k-btn-danger.is-pressed { background: var(--k-bg-danger-pressed); }
+
+.k-btn-danger-secondary { background: transparent; color: var(--k-text-danger); outline-color: var(--k-border-danger); outline-offset: -1px; }
+.k-btn-danger-secondary:hover, .k-btn-danger-secondary.is-hover { background: var(--k-bg-transparent-hover); }
+.k-btn-danger-secondary:active, .k-btn-danger-secondary.is-pressed { background: var(--k-bg-transparent-pressed); color: var(--k-text-danger); }
+
+.k-btn .k-shortcut { padding-left: 4px; color: var(--k-text-onbrand-secondary); }
+.k-btn-secondary .k-shortcut, .k-btn-ghost .k-shortcut { color: var(--k-text-secondary); }
+
+/* Link */
+.k-link { color: var(--k-text-brand); text-decoration: none; }
+
+/* Joined button group: three 24-tall buttons on the field fill, outer
+   radii only, no gaps. */
+.k-joined { display: inline-flex; height: 24px; }
+.k-joined > .k-icon-btn { border-radius: 0; background: var(--k-bg-secondary); flex: 1; }
+.k-joined > .k-icon-btn:first-child { border-radius: var(--k-radius-md) 0 0 var(--k-radius-md); }
+.k-joined > .k-icon-btn:last-child { border-radius: 0 var(--k-radius-md) var(--k-radius-md) 0; }
+.k-joined > .k-icon-btn:hover, .k-joined > .k-icon-btn.is-hover, .k-joined > .k-icon-btn.is-pressed { background: var(--k-bg-pressed); }
+
+/* Pill tabs: 24 tall, padding 0 8, gap 4; selected is weight 550 on the field fill. */
+.k-tabs { display: flex; gap: 4px; }
+.k-tab {
+  height: 24px; padding: 0 8px; border: 0; border-radius: var(--k-radius-md);
+  background: transparent; color: var(--k-text-secondary);
+  display: inline-flex; align-items: center;
+}
+.k-tab:hover, .k-tab.is-hover { background: var(--k-bg-hover); }
+.k-tab.is-selected { background: var(--k-bg-secondary); color: var(--k-text); font-weight: var(--k-fw-strong); }
+
+/* ------------------------------------------------------------------ */
+/* Tree (layer) rows: 32 tall, 24px per level, caret 16, icon 16,      */
+/* name at 40, eye/lock on hover. Fills are pseudo elements.           */
+/* ------------------------------------------------------------------ */
+
+.k-tree { display: flex; flex-direction: column; width: 100%; }
+.k-tree-row {
+  --depth: 0;
+  display: flex; align-items: center;
+  height: var(--k-row-h);
+  padding-left: calc(var(--depth) * var(--k-tree-indent));
+  position: relative; isolation: isolate;
+  color: var(--k-text);
+}
+.k-tree-row::before, .k-tree-row::after { content: ""; position: absolute; z-index: -1; display: none; }
+.k-tree-caret {
+  width: 16px; height: 32px; flex: none;
+  display: grid; place-items: center;
+  color: var(--k-text-tertiary);
+  opacity: 0;
+}
+.k-tree:hover .k-tree-caret, .k-tree.show-carets .k-tree-caret, .k-tree-row.is-expanded .k-tree-caret { opacity: 1; }
+.k-tree-row.is-expanded .k-tree-caret svg { transform: rotate(90deg); }
+.k-tree-row.is-leaf .k-tree-caret { visibility: hidden; }
+.k-tree-icon {
+  width: 16px; height: 32px; flex: none;
+  display: grid; place-items: center;
+  color: var(--k-text-tertiary);
+}
+.k-tree-row.is-top .k-tree-icon, .k-tree-row.is-selected .k-tree-icon { color: var(--k-text); }
+.k-tree-name {
+  flex: 1; min-width: 0; margin-left: 8px;
+  line-height: 32px; font-weight: 400;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.k-tree-row.is-top .k-tree-name { font-weight: 600; }
+.k-tree-meta { color: var(--k-text-secondary); margin-left: 8px; flex: none; }
+.k-tree-actions {
+  display: flex; gap: 4px; margin-right: 12px; margin-left: 4px; flex: none;
+  opacity: 0; transition: opacity var(--k-duration-sm) ease-out;
+}
+.k-tree-row:hover .k-tree-actions, .k-tree-row.is-hover .k-tree-actions,
+.k-tree-row.is-hidden .k-tree-actions, .k-tree-row.is-locked .k-tree-actions { opacity: 1; }
+/* Hover: pill inset 4 8 0 12 */
+.k-tree-row:hover::after, .k-tree-row.is-hover::after {
+  display: block; inset: 4px 8px 0 12px; height: 24px; border-radius: var(--k-radius-md);
+  background: var(--k-bg-hover);
+}
+/* Selected: pill inset 4 8 4 12 */
+.k-tree-row.is-selected::after {
+  display: block; inset: 4px 8px 4px 12px; border-radius: var(--k-radius-md);
+  background: var(--k-bg-selected);
+}
+/* Selected and expanded: square bottom corners and a 4px band in the child tint */
+.k-tree-row.is-selected.is-expanded::after {
+  inset: 4px 8px 0 12px; border-radius: var(--k-radius-md) var(--k-radius-md) 0 0;
+  border-bottom: 4px solid var(--k-bg-selected-secondary); background-clip: padding-box;
+}
+/* Contiguous multi-selection: one merged block */
+.k-tree-row.is-selected.is-run-start::after { inset: 4px 8px 0 12px; border-radius: var(--k-radius-md) var(--k-radius-md) 0 0; }
+.k-tree-row.is-selected.is-run-mid::after { inset: 0 8px 0 12px; border-radius: 0; }
+.k-tree-row.is-selected.is-run-end::after { inset: 0 8px 4px 12px; border-radius: 0 0 var(--k-radius-md) var(--k-radius-md); }
+/* Child of a selected parent: full-height band from the panel edge */
+.k-tree-row.is-child-selected::before { display: block; inset: 0 8px 0 0; background: var(--k-bg-selected-secondary); }
+.k-tree-row.is-child-selected.is-last::before { inset: 0 8px 4px 0; border-radius: 0 0 var(--k-radius-md) var(--k-radius-md); }
+.k-tree-row.is-child-selected:hover::after, .k-tree-row.is-child-selected.is-hover::after { background: var(--k-bg-selected-hover); }
+/* Hidden layer: name and icon fade, closed eye stays */
+.k-tree-row.is-hidden .k-tree-name, .k-tree-row.is-hidden .k-tree-icon { color: var(--k-text-disabled); }
+/* Drag target and insertion line */
+.k-tree-row.is-drop-target { box-shadow: inset 0 0 0 1px var(--k-border-selected); }
+.k-tree-insert { height: 2px; background: var(--k-text); margin-left: calc(16px + var(--depth, 0) * var(--k-tree-indent)); margin-right: 8px; }
+/* Sticky expanded top-level row */
+.k-tree-row.is-sticky { position: sticky; top: 0; background: var(--k-bg); box-shadow: 0 1px 0 0 var(--k-border); z-index: 1; }
+/* Component-ish accent (purple) for a row that is a reusable thing */
+.k-tree-row.is-component .k-tree-name, .k-tree-row.is-component .k-tree-icon { color: var(--k-text-component); }
+
+/* Simple list row (page row): 240 x 32 wrapper (padding 4 8) around a 224 x 24 pill */
+.k-list-row { height: 32px; padding: 4px 8px; }
+.k-list-row > .k-list-pill {
+  height: 24px; padding: 0 8px; border-radius: var(--k-radius-md);
+  display: flex; align-items: center; gap: 8px; line-height: 24px; font-weight: 400;
+}
+.k-list-row:hover > .k-list-pill, .k-list-row.is-hover > .k-list-pill, .k-list-row.is-current > .k-list-pill { background: var(--k-bg-hover); }
+.k-list-row.is-current > .k-list-pill { font-weight: var(--k-fw-strong); }
+
+/* ------------------------------------------------------------------ */
+/* Dark menu: #1e1e1e in both themes, radius 13, rows 24, highlight     */
+/* inset 8px radius 5, shortcut column, 1px separators with 8px above   */
+/* and below.                                                          */
+/* ------------------------------------------------------------------ */
+
+.k-menu {
+  display: inline-flex; flex-direction: column;
+  min-width: 152px; padding: 8px 0;
+  background: var(--k-bg-menu); color: var(--k-text-menu);
+  border-radius: var(--k-radius-lg);
+  box-shadow: var(--k-shadow-400);
+  font: var(--k-text-body); letter-spacing: var(--k-ls-body);
+}
+.k-menu-item {
+  display: flex; align-items: center; gap: 4px;
+  height: var(--k-menu-row-h); margin: 0 8px; padding: 0 8px;
+  border-radius: var(--k-radius-md);
+  white-space: nowrap;
+}
+.k-menu-check { width: 16px; height: 16px; flex: none; display: grid; place-items: center; opacity: 0; }
+.k-menu-item.is-checked .k-menu-check { opacity: 1; }
+.k-menu-item .k-icon { color: #fff; }
+.k-menu-label { flex: 1; min-width: 0; }
+.k-menu-shortcut { padding-left: 16px; color: var(--k-text-menu-secondary); }
+.k-menu-sub { width: 24px; height: 24px; margin-right: -8px; display: grid; place-items: center; color: var(--k-text-menu-secondary); }
+.k-menu-item:hover, .k-menu-item.is-active { background: var(--k-bg-menu-selected); }
+.k-menu-item:hover .k-menu-shortcut, .k-menu-item.is-active .k-menu-shortcut,
+.k-menu-item:hover .k-menu-sub, .k-menu-item.is-active .k-menu-sub { color: var(--k-text-onbrand-secondary); }
+.k-menu-item.is-disabled { color: var(--k-text-menu-disabled); }
+.k-menu-item.is-disabled .k-menu-shortcut { color: var(--k-text-menu-disabled); }
+.k-menu-item.is-disabled:hover { background: transparent; }
+.k-menu-item.is-danger { color: #fca397; }
+.k-menu-item.is-danger:hover, .k-menu-item.is-danger.is-active { background: #e03e1a; color: #fff; }
+.k-menu-sep { height: 1px; margin: 8px 0; background: #ffffff1a; }
+.k-menu-heading { height: 24px; padding: 0 16px; display: flex; align-items: center; color: var(--k-text-menu-secondary); }
+.k-menu-scroll { height: 24px; display: grid; place-items: center; color: var(--k-text-menu-secondary); }
+/* Key cap inside a menu or the shortcuts panel */
+.k-kbd { display: inline-block; min-width: 16px; padding: 0 4px; border: 1px solid #ffffffb2; border-radius: var(--k-radius-sm); color: #ffffffb2; line-height: 16px; text-align: center; }
+
+/* ------------------------------------------------------------------ */
+/* Tooltip: 24 tall, padding 4 8, radius 5, #1e1e1e, arrow 14 x 7.     */
+/* Shows after 1000ms cold (500 on the rail), hides 300ms after leave. */
+/* ------------------------------------------------------------------ */
+
+.k-tooltip {
+  display: inline-flex; align-items: center;
+  height: 24px; padding: 4px 8px; max-width: 180px;
+  background: var(--k-bg-menu); color: #fff;
+  border-radius: var(--k-radius-md);
+  box-shadow: var(--k-shadow-300);
+  font: var(--k-text-body); letter-spacing: var(--k-ls-body);
+  white-space: nowrap; position: relative; pointer-events: none;
+}
+.k-tooltip .k-shortcut { margin-left: 12px; color: var(--k-text-menu-secondary); }
+.k-tooltip::after { content: ""; position: absolute; width: 0; height: 0; border: 7px solid transparent; }
+/* below its trigger: arrow points up from the top edge */
+.k-tooltip.k-tip-below::after { left: 50%; top: -7px; margin-left: -7px; border-top: 0; border-bottom: 7px solid var(--k-bg-menu); }
+/* above its trigger: 12 x 6 arrow at the bottom */
+.k-tooltip.k-tip-above::after { left: 50%; bottom: -6px; margin-left: -6px; border-width: 6px; border-bottom: 0; border-top: 6px solid var(--k-bg-menu); }
+/* right of its trigger (rail): 6 x 12 arrow at the left */
+.k-tooltip.k-tip-right::after { top: 50%; left: -6px; margin-top: -6px; border-width: 6px; border-left: 0; border-right: 6px solid var(--k-bg-menu); }
+.k-tooltip.is-wrap { height: auto; min-height: 24px; white-space: normal; }
+
+/* ------------------------------------------------------------------ */
+/* Floating toolbar: 48 tall, radius 13, padding 8, gap 8; tool 32 x 32 */
+/* plus a 16 x 32 chevron; mode switch with a sliding thumb.           */
+/* ------------------------------------------------------------------ */
+
+.k-toolbar {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: var(--k-toolbar-h); padding: 8px;
+  background: var(--k-bg);
+  border-radius: var(--k-radius-lg);
+  box-shadow: var(--k-shadow-200);
+}
+.k-toolbar-float { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); }
+.k-toolbar-divider { width: 1px; height: 48px; margin: -8px 0; background: var(--k-border); flex: none; }
+.k-tool-group { display: flex; gap: 1px; }
+.k-tool {
+  width: 32px; height: 32px; padding: 4px; flex: none;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--k-radius-md);
+  background: transparent; color: var(--k-text);
+  outline: 1px solid transparent; outline-offset: -1px;
+}
+.k-tool:hover, .k-tool.is-hover, .k-tool:active, .k-tool.is-pressed { background: var(--k-bg-hover); }
+.k-tool.is-selected, .k-tool[aria-pressed="true"] { background: var(--k-bg-brand); color: #fff; }
+.k-tool.is-selected.is-focus, .k-tool.is-selected:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 1px var(--k-bg), 0 0 0 1px var(--k-bg), 0 0 0 2px var(--k-border-selected);
+}
+.k-tool:focus-visible, .k-tool.is-focus { outline-offset: -1px; }
+.k-tool-chevron {
+  width: 16px; height: 32px; padding: 4px 0; flex: none;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--k-radius-md);
+  background: transparent; color: var(--k-text);
+}
+.k-tool-chevron:hover, .k-tool-chevron.is-hover { background: var(--k-bg-hover); }
+.k-tool-chevron:active, .k-tool-chevron.is-pressed, .k-tool-chevron.is-open { background: var(--k-bg-pressed); }
+.k-tool-label { display: inline-flex; align-items: center; height: 24px; padding-right: 8px; gap: 0; border-radius: var(--k-radius-md); }
+
+/* Mode switch: 122 x 32 track, padding 2, options 28 x 28 radius 3, white thumb */
+.k-mode {
+  display: inline-flex; gap: 2px; height: 32px; padding: 2px;
+  background: var(--k-bg-mode); border-radius: var(--k-radius-md);
+}
+.k-mode-opt {
+  width: 28px; height: 28px; padding: 0; border: 0;
+  display: grid; place-items: center;
+  border-radius: 3px; background: transparent; color: var(--k-text-secondary);
+}
+.k-mode-opt:hover, .k-mode-opt.is-hover { background: var(--k-bg-mode-hover); }
+.k-mode-opt.is-selected { background: var(--k-bg); color: var(--k-text-brand); box-shadow: var(--k-shadow-100); }
+
+/* Contextual secondary bar: 40 tall, 8px above the main toolbar */
+.k-toolbar-secondary { height: 40px; padding: 8px; }
+.k-toolbar-secondary .k-toolbar-divider { height: 40px; }
+
+/* ------------------------------------------------------------------ */
+/* Popover, dialog, toast                                              */
+/* ------------------------------------------------------------------ */
+
+/* Light popover: 240 wide, radius 13, header 40 with a 1px inset line,
+   body rows 32 tall with a 16px inset. */
+.k-popover {
+  width: 240px; background: var(--k-bg); color: var(--k-text);
+  border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-400);
+  overflow: hidden;
+}
+.k-popover-header, .k-dialog-header {
+  display: flex; align-items: center; gap: 4px;
+  height: 40px; padding: 0 8px 0 16px;
+  box-shadow: inset 0 -1px 0 var(--k-border);
+  font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body);
+}
+.k-popover-header > .k-title, .k-dialog-header > .k-title { flex: 1; min-width: 0; }
+.k-popover-body { padding: 8px 0; }
+.k-popover-body .k-row-labeled:first-child { margin-top: 4px; }
+
+/* Modal dialog: 480 wide (320 for confirmations), radius 13, footer 40 */
+.k-dialog {
+  width: 480px; background: var(--k-bg); color: var(--k-text);
+  border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-500);
+  overflow: hidden;
+}
+.k-dialog-sm { width: 320px; }
+.k-dialog-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.k-dialog-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  height: 40px; padding: 0 8px 0 16px;
+  box-shadow: inset 0 1px 0 var(--k-border);
+}
+.k-backdrop { background: #00000080; }
+
+/* Toast: pill 40 tall, radius 13, #2c2c2c in both themes, 11/550 message */
+.k-toast {
+  display: inline-flex; align-items: center;
+  height: 40px; padding: 0 8px;
+  background: var(--k-bg-toast); color: #fff;
+  border-radius: var(--k-radius-lg);
+  box-shadow: var(--k-shadow-toast);
+  font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body);
+  white-space: nowrap;
+}
+.k-toast-msg { display: flex; align-items: center; gap: 8px; padding: 8px; }
+.k-toast-btn {
+  height: 24px; padding: 0 8px; margin-left: 8px;
+  background: transparent; color: #fff; border: 0; border-radius: var(--k-radius-md);
+  outline: 1px solid rgba(255,255,255,.1); outline-offset: -1px;
+  font: var(--k-text-body);
+}
+.k-toast-btn:hover, .k-toast-btn.is-hover { background: #373737; }
+.k-toast-close {
+  width: 33px; height: 40px; margin: 0 -8px 0 8px;
+  display: grid; place-items: center;
+  border: 0; border-left: 1px solid #ffffff1a; background: transparent; color: #ffffffb2;
+}
+.k-toast-float { position: absolute; left: 50%; bottom: calc(12px + var(--k-toolbar-h) + 16px); transform: translateX(-50%); }
+
+/* ------------------------------------------------------------------ */
+/* Empty states, chips, progress                                       */
+/* ------------------------------------------------------------------ */
+
+/* Empty-state row: a section header whose title is secondary and whose
+   only action is "+". Clicking the title ADDS an item. */
+.k-section-header.is-empty { cursor: default; }
+
+/* Empty-state block: heading 15/25, body secondary, one primary button */
+.k-empty {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  padding: 16px;
+}
+.k-empty .k-heading-md { margin: 0; }
+.k-empty p { margin: 0; color: var(--k-text-secondary); }
+
+/* Status chip: 16 tall, padding 0 4, radius 5, 1px outline; tinted
+   variants use the tertiary background with the strong text colour.
+   .k-chip-md is the 24-tall version for a status bar or a row. */
+.k-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 16px; padding: 0 4px;
+  border-radius: var(--k-radius-md);
+  outline: 1px solid var(--k-border); outline-offset: -1px;
+  color: var(--k-text-secondary);
+  font: var(--k-text-body); letter-spacing: var(--k-ls-body);
+  white-space: nowrap;
+}
+.k-chip-md { height: 24px; padding: 0 8px; }
+.k-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.k-chip-brand { background: var(--k-bg-info); color: var(--k-text-brand); outline-color: transparent; }
+.k-chip-success { background: var(--k-bg-success-tertiary); color: var(--k-text-success); outline-color: transparent; }
+.k-chip-warning { background: var(--k-bg-warning-tertiary); color: var(--k-text-warning); outline-color: transparent; }
+.k-chip-danger { background: var(--k-bg-danger-tertiary); color: var(--k-text-danger); outline-color: transparent; }
+.k-chip-component { background: var(--k-bg-component-tertiary); color: var(--k-text-component); outline-color: transparent; }
+.k-chip-solid { background: var(--k-bg-brand); color: #fff; outline-color: transparent; }
+
+/* Notification dot: 5px brand with a 2px surface ring, top right of an icon */
+.k-dot { position: absolute; top: 3px; right: 3px; width: 9px; height: 9px; border-radius: 50%; background: var(--k-bg-brand); box-shadow: inset 0 0 0 2px var(--k-bg); }
+
+/* Progress bar: 4px track on the pressed grey, brand fill. --value sets the width. */
+.k-progress {
+  width: 100%; height: 4px; border-radius: var(--k-radius-full);
+  background: var(--k-bg-tertiary); overflow: hidden; position: relative;
+}
+.k-progress-bar { height: 100%; width: var(--value, 0%); background: var(--k-bg-brand); border-radius: inherit; }
+.k-progress.is-indeterminate .k-progress-bar { width: 40%; position: absolute; animation: k-indeterminate 1.2s linear infinite; }
+.k-progress.is-success .k-progress-bar { background: var(--k-bg-success); }
+.k-progress.is-danger .k-progress-bar { background: var(--k-bg-danger); }
+@keyframes k-indeterminate { from { left: -40%; } to { left: 100%; } }
+.k-progress-row { display: flex; align-items: center; gap: 8px; height: 24px; }
+.k-progress-row .k-progress { flex: 1; }
+
+/* Spinner: 16px ring */
+.k-spinner {
+  width: 16px; height: 16px; flex: none;
+  border-radius: 50%;
+  border: 1.5px solid currentColor; border-right-color: transparent;
+  animation: k-spin .8s linear infinite;
+}
+@keyframes k-spin { to { transform: rotate(360deg); } }
+
+/* Overlay scrollbar look-alike (a 6px pill) for mocks that show one */
+.k-scroll-thumb { position: absolute; right: 2px; width: 6px; border-radius: 6px; background: var(--k-scrollbar); }
+
+/* Divider helpers */
+.k-divider { height: 1px; background: var(--k-border); }
+.k-divider-v { width: 1px; align-self: stretch; background: var(--k-border); }
+
+/* Canvas overlays (screen-space, constant size at every zoom) */
+.k-hover-outline { outline: 2px solid var(--k-border-selected); }
+.k-selection-box { outline: 1px solid var(--k-border-selected); }
+.k-size-badge { display: inline-block; height: 16px; padding: 0 5px; border-radius: var(--k-radius-sm); background: var(--k-bg-brand); color: #fff; font: 500 11px/16px var(--k-font); }
+.k-marquee { background: #0d99ff1f; outline: 1px solid var(--k-border-selected); }
+
+@media (prefers-reduced-motion: reduce) {
+  .k-progress.is-indeterminate .k-progress-bar { animation: none; width: 100%; opacity: .5; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Object-first frame parts, shared by the screen mocks                */
+/* ------------------------------------------------------------------ */
+
+/* Inter is the typeface every measurement assumes; without this the mocks
+   fall back to DejaVu Sans and the 450 / 550 weights collapse. */
+@font-face { font-family: Inter; font-weight: 100 900; font-style: normal; font-display: block; src: url("inter-roman-latin.woff2") format("woff2"); }
+
+/* The frame without an activity rail: left 240 | canvas | right 240 + 1px edge. */
+.k-app.no-rail { grid-template-columns: var(--k-panel-w) minmax(0, 1fr) calc(var(--k-panel-w) + 1px); }
+
+/* Left panel file header: 48 tall, 16px menu glyph, the dataset name at 13/22,
+   a 16px tertiary chevron at the right edge (the file menu). */
+.k-panel-file { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 16px; flex: none; border-bottom: 1px solid var(--k-border); }
+.k-panel-file .k-heading { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-panel-file .k-icon-16 { flex: none; }
+
+/* Right panel top bar: 48 tall, the zoom menu as a ghost button at the left,
+   Share (the one filled button) at the right. */
+.k-panel-top { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px; flex: none; border-bottom: 1px solid var(--k-border); }
+.k-panel-top .k-zoom { padding: 0 4px 0 8px; gap: 0; }
+.k-panel-top .k-spacer { flex: 1; }
+
+/* Inspector title block inside the 49px type row: a secondary 11/14 line
+   (the kind, or the file) and the 13/22 name, both starting at x 16. */
+.k-panel-type .k-title2 { flex: 1; min-width: 0; padding-left: 8px; display: flex; flex-direction: column; justify-content: center; }
+.k-panel-type .k-title2 .k-heading { padding: 0; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-panel-type .k-title2 .k-secondary { line-height: 14px; }
+
+/* Property row: | 16 | label 68 | 8 | control 140 | 8 | = 240. One layout for
+   every labelled row of the Dataset inspector. A lone select fills the 140;
+   a select beside a note is 90 wide (k-fixed); beside an icon button it
+   takes what is left. */
+.k-prop { display: grid; grid-template-columns: 68px minmax(0, 140px); column-gap: 8px; align-items: center; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-prop > .k-label { color: var(--k-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-prop > .k-ctl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.k-prop .k-select { grid-template-columns: minmax(0, 1fr) 20px; }
+.k-prop > .k-ctl > .k-select { flex: 1 1 auto; width: auto; min-width: 0; }
+.k-prop > .k-ctl > .k-select.k-fixed { flex: none; width: 90px; }
+.k-prop > .k-ctl > .k-note { white-space: nowrap; color: var(--k-text-secondary); margin-left: auto; }
+.k-prop > .k-ctl.k-gap-1 { gap: 4px; }
+.k-btn-export { padding: 0 4px; flex: 1 1 auto; min-width: 0; }
+
+/* Two read-only label / value pairs on one 32px row, one per 88px column. */
+.k-kv { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; min-width: 0; }
+.k-kv > .k-secondary { flex: none; }
+
+/* A sentence in secondary text that wraps (the one-line reading). */
+.k-row-text { padding: 0 16px 8px; color: var(--k-text-secondary); line-height: 16px; }
+
+/* A disclosure row: text at the left, a tertiary chevron-right at the edge. */
+.k-row-disclose { display: flex; align-items: center; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-row-disclose > span { flex: 1; min-width: 0; }
+.k-row-disclose .k-icon { color: var(--k-text-tertiary); }
+
+/* Locked mini paint row (the Dataset's default look): a 112px paint
+   (chit, hex, value) then a 24px lock. */
+.k-paint.k-paint-mini { width: 112px; }
+.k-paint-mini .k-paint-hex { width: 56px; }
+.k-paint-mini .k-paint-opacity { width: 31px; padding-left: 5px; }
+.k-lock-12 { width: 24px; height: 24px; display: grid; place-items: center; color: var(--k-text-secondary); flex: none; }
+.k-lock-12 svg { width: 12px; height: 12px; }
+
+/* A count after a section title ("Attributes 2"). */
+.k-section-count { color: var(--k-text-secondary); margin-left: 8px; font-weight: var(--k-fw-body); }
+
+/* ------------------------------------------------------------------ */
+/* Width helpers (last, so they override a control's default width)    */
+/* ------------------------------------------------------------------ */
+.k-w-88 { width: 88px; }
+.k-w-156 { width: 156px; }
+.k-w-184 { width: 184px; }
+.k-w-208 { width: 208px; }
+.k-w-fill { width: 100%; flex: 1 1 auto; }
+
+/* ================================================================== */
+/* Round-2 additions: the object-first screens, generated by             */
+/* tmp/object-first/gen/render.mjs. Every mock draws these parts from    */
+/* one function each; no screen adds a <style> of its own.              */
+/* ================================================================== */
+
+/* Canvas colours per theme: the default node and edge grey, the ink that
+   outlines and labels use, and the selection halo (the same in both). */
+:root {
+  --k-canvas-node: #b3b3b3;
+  --k-canvas-edge: #b3b3b3;
+  --k-canvas-ink: #1e1e1e;
+  --k-halo: #ffb800;
+  --k-toolbar-labeled-h: 56px;
+  --k-dock-handle-h: 32px;
+  --k-transport-h: 40px;
+}
+:root[data-theme="dark"] {
+  --k-canvas-node: #757575;
+  --k-canvas-edge: #5a5a5a;
+  --k-canvas-ink: #ffffff;
+}
+
+/* Mock page chrome: a 1440 x 900 frame on a grey page and a 60px dark
+   caption under it. */
+.k-mockpage { margin: 0; background: #d9d9d9; }
+.k-frame { width: var(--k-frame-w, 1440px); height: var(--k-frame-h, 900px); position: relative; overflow: hidden; }
+/* The caption bar is .k-mock-caption, not .k-caption: .k-caption (line 231) is
+   the 9px field caption above a two-column input. */
+.k-mock-caption { width: var(--k-frame-w, 1440px); height: 60px; padding: 12px 16px; background: #1e1e1e; color: #fff; font: var(--k-text-body); letter-spacing: var(--k-ls-body); overflow: hidden; }
+.k-mock-caption b { font-weight: var(--k-fw-strong); }
+.k-mock-caption span { color: #ffffffb2; }
+.k-frame-dim { position: absolute; font: 400 10px/14px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; }
+
+/* The canvas column: the graph, then optional strips under it (the time
+   transport bar, the open dock), then the dock handle. */
+.k-canvas { display: flex; flex-direction: column; }
+.k-canvas-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.k-canvas-stage > svg.k-graph { position: absolute; inset: 0; width: 100%; height: 100%; }
+.k-graph text { font-family: var(--k-font); font-size: 11px; font-weight: 500; fill: var(--k-canvas-ink); }
+.k-scrim { position: absolute; inset: 0; background: var(--k-bg-secondary); opacity: .6; }
+
+/* Left panel file header: the dataset name (13/22 550) and its chevron are
+   one split button; before a load the name is "graphty" in secondary text.
+   No menu glyph. */
+.k-panel-file .k-file-chevron { color: var(--k-text-tertiary); }
+
+/* Tree rows: the count parts sit 8px apart; state glyphs and chips follow. */
+.k-count { display: inline-flex; gap: 5px; white-space: nowrap; }
+.k-tree-row .k-tree-meta { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
+.k-tree-row.is-top .k-tree-name { font-weight: var(--k-fw-strong); } /* the root row is 550 like every selected row, not Figma's 600 */
+.k-tree-row.is-selected .k-tree-name { font-weight: var(--k-fw-strong); }
+.k-tree-row.is-stale .k-tree-name { opacity: .5; }
+.k-tree-row.is-frozen .k-tree-name { color: var(--k-text-secondary); }
+.k-tree-row.is-suggestion .k-tree-name, .k-tree-row.is-suggestion .k-tree-icon { color: var(--k-text-secondary); }
+.k-tree-row.is-suggestion .k-tree-name { font-weight: 400; }
+.k-tree-row .k-tree-actions.is-shown { opacity: 1; }
+.k-tree-chip { width: 14px; height: 14px; flex: none; margin-left: 4px; margin-right: 2px; position: relative; }
+.k-state-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; display: inline-block; }
+.k-state-dot.is-stale { background: var(--k-bg-warning); }
+.k-state-dot.is-failed { background: var(--k-bg-danger); }
+.k-state-glyph { width: 16px; height: 16px; color: var(--k-text-secondary); }
+.k-run-mini { height: 20px; padding: 0 6px; font: var(--k-text-body); }
+.k-ring { width: 12px; height: 12px; flex: none; }
+.k-ring circle { fill: none; stroke-width: 2; }
+.k-ring .k-ring-track { stroke: var(--k-bg-tertiary); }
+.k-ring .k-ring-bar { stroke: var(--k-bg-brand); stroke-linecap: butt; transform: rotate(-90deg); transform-origin: 50% 50%; }
+
+/* Style chips (14 x 14): a swatch, a ring, a ramp, a strip of group colours,
+   a size glyph, a line sample. An override dot; a faded (covered) chip. */
+.k-chip-swatch { width: 14px; height: 14px; border-radius: var(--k-radius-sm); background: var(--swatch, #d9d9d9); box-shadow: inset 0 0 0 .5px var(--k-border); display: block; position: relative; }
+.k-chip-swatch.is-ring { background: var(--k-bg); box-shadow: inset 0 0 0 2px var(--swatch, #1e1e1e); }
+.k-chip-swatch.is-ramp { background: linear-gradient(90deg, var(--stops)); }
+.k-chip-swatch.is-strip { background: linear-gradient(90deg, var(--stops)); }
+.k-chip-swatch.is-locked { background: var(--swatch, #b3b3b3); display: grid; place-items: center; color: #fff; }
+.k-chip-swatch.is-locked svg { width: 10px; height: 10px; }
+.k-chip-swatch.is-faded { opacity: .5; }
+.k-chip-swatch .k-override-dot { position: absolute; right: -2px; bottom: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--k-text); box-shadow: 0 0 0 1.5px var(--k-bg); }
+.k-chip-svg { width: 14px; height: 14px; display: block; }
+
+/* Right panel top bar (48): the framing pill (a borderless select) at the
+   left, Export (the one filled button) at the right. */
+.k-panel-top .k-framing { width: auto; box-shadow: none; padding-left: 8px; }
+.k-panel-top .k-framing.is-disabled { color: var(--k-text-disabled); }
+
+/* Inspector header block: title 48, summary 32, reading 32, tabs 32 = 144;
+   never scrolls, never changes with the tab. */
+.k-insp-head { flex: none; border-bottom: 1px solid var(--k-border); }
+.k-insp-title { display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 8px 0 16px; }
+.k-insp-title .k-title2 { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.k-insp-title .k-title2 .k-secondary { line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-insp-title .k-title2 .k-heading { line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-insp-summary { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 16px; white-space: nowrap; overflow: hidden; }
+.k-insp-summary .k-chip-swatch, .k-insp-summary .k-chip-svg { flex: none; }
+.k-insp-summary .k-secondary { margin-left: 0; }
+.k-insp-reading { display: flex; align-items: flex-start; gap: 4px; min-height: 32px; padding: 0 8px 0 16px; color: var(--k-text-secondary); }
+.k-insp-reading > span { flex: 1; min-width: 0; line-height: 16px; padding-top: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.k-insp-reading .k-icon-btn { color: var(--k-text-secondary); margin-top: -4px; }
+.k-insp-tabs { display: flex; gap: 4px; align-items: center; height: 32px; padding: 0 8px 0 16px; }
+.k-insp-tabs .k-tab { padding: 0 4px; font-weight: var(--k-fw-strong); }
+.k-insp-body { display: flex; flex-direction: column; }
+
+/* Inspector rows. Two label / value pairs on a row: the .k-row grid's
+   88 / 88 columns; a value with an action ("Change...") spans both. */
+.k-row .k-kv { min-width: 0; }
+.k-row .k-kv-wide { grid-column: span 3; width: 216px; }
+.k-row .k-kv .k-link { margin-left: auto; padding-left: 4px; flex: none; }
+.k-row-right { justify-content: flex-end; }
+.k-paint-row { display: flex; align-items: center; gap: 4px; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-paint-row .k-paint-label { width: 68px; margin-right: 4px; /* the control lands at the property rows' x (16 + 68 + 8) */ flex: none; color: var(--k-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-paint-row .k-paint { width: 100px; }
+.k-paint-row .k-paint .k-paint-hex { width: 50px; }
+.k-paint-row .k-paint .k-paint-opacity { width: 30px; padding-left: 4px; }
+.k-paint-row .k-paint-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }
+.k-paint-row.is-inherited { color: var(--k-text-secondary); }
+.k-paint-row .k-row-actions { margin-left: auto; }
+.k-legend-strip { height: 14px; border-radius: var(--k-radius-sm); background: linear-gradient(90deg, var(--stops)); box-shadow: inset 0 0 0 .5px var(--k-border); }
+.k-legend-row { display: flex; align-items: center; gap: 8px; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-legend-row .k-legend-strip { flex: 1; }
+.k-legend-ends { display: flex; justify-content: space-between; padding: 0 8px 0 16px; height: 16px; margin-top: -8px; color: var(--k-text-secondary); font-size: 9px; }
+.k-table-row { display: grid; align-items: center; height: var(--k-row-h); padding: 0 8px 0 16px; column-gap: 8px; }
+.k-table-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-table-row.is-head { color: var(--k-text-secondary); }
+.k-table-row.is-selected { background: var(--k-bg-selected); }
+.k-row-progress { display: flex; align-items: center; gap: 8px; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-row-progress .k-progress { flex: 1; }
+.k-disclose-summary { color: var(--k-text-secondary); margin-left: 8px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: var(--k-fw-body); }
+.k-row-text.is-row { height: var(--k-row-h); display: flex; align-items: center; padding-bottom: 0; }
+
+/* Labelled toolbar: 56 tall; 40 x 40 tool buttons with a 16px icon over an
+   8px label; Select and Hand stay 32 x 32 with no label; chevrons 16 x 40;
+   disabled tools at 30 percent, labels included. */
+.k-toolbar.k-toolbar-labeled { height: var(--k-toolbar-labeled-h); }
+.k-toolbar-labeled .k-toolbar-divider { height: var(--k-toolbar-labeled-h); }
+.k-toolbar-labeled .k-tool-group { align-items: center; gap: 0; } /* the 725px arithmetic has no gap between a tool and its chevron */
+.k-tool-lg { width: 40px; min-width: 0; height: 40px; padding: 5px 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; overflow: visible; }
+.k-tool-lg .k-icon-16 { width: 16px; height: 16px; }
+.k-tool-name { font: 500 8px/10px var(--k-font); letter-spacing: 0.1px; white-space: nowrap; margin: 0 -4px; }
+.k-tool-chevron-lg { height: 40px; }
+.k-tool.is-disabled, .k-tool-chevron.is-disabled { opacity: .3; background: transparent; }
+.k-mode-opt.has-text { width: 28px; font: var(--k-text-body); letter-spacing: var(--k-ls-body); }
+.k-mode.is-disabled .k-mode-opt { color: var(--k-text-disabled); }
+.k-toolbar-float.k-toolbar-labeled { bottom: 12px; }
+
+/* The secondary bar: 40 tall, dark, radius 13, 8px above the toolbar. Its
+   sentence holds a dark select, a ghost text button, the one light button
+   and Cancel. */
+.k-secondary-bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(12px + var(--k-toolbar-labeled-h) + 8px); display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; background: var(--k-bg-menu); color: #fff; border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-300); white-space: nowrap; }
+.k-secondary-bar .k-select { background: transparent; color: #fff; box-shadow: inset 0 0 0 1px #ffffff4d; width: auto; padding-right: 0; }
+.k-secondary-bar .k-select .k-icon { color: #ffffffb2; }
+.k-secondary-bar .k-btn-ghost { color: #fff; }
+.k-secondary-bar .k-btn-ghost:hover { background: #ffffff1a; }
+.k-secondary-bar .k-btn-light { background: #fff; color: #1e1e1e; }
+.k-secondary-bar .k-cancel { color: #ffffffb2; padding: 0 4px; }
+
+/* A tool flyout: the dark menu with 32px rows led by the kind icon of the
+   row it makes; the face row bold; technical name in secondary white; cost
+   at the right; "..." for the parameters popover; proposed rows at 50%. */
+.k-flyout { position: absolute; bottom: calc(12px + var(--k-toolbar-labeled-h) + 8px); min-width: 280px; padding: 8px 0; }
+.k-flyout.has-secondary { bottom: calc(12px + var(--k-toolbar-labeled-h) + 8px + 40px + 8px); }
+.k-flyout .k-menu-item { height: 32px; gap: 8px; }
+.k-flyout .k-menu-item .k-tree-icon { height: 32px; color: #fff; }
+.k-flyout .k-menu-item.is-face .k-menu-label { font-weight: var(--k-fw-strong); }
+.k-flyout .k-menu-tech { color: var(--k-text-menu-secondary); padding-left: 4px; }
+.k-flyout .k-menu-cost { padding-left: 16px; color: var(--k-text-menu-secondary); margin-left: auto; }
+.k-flyout .k-menu-issue { padding-left: 8px; color: var(--k-text-menu-secondary); font-size: 9px; }
+.k-flyout .k-menu-item.is-proposed { opacity: .5; }
+.k-flyout .k-menu-dots { width: 24px; height: 24px; margin-right: -8px; display: grid; place-items: center; color: var(--k-text-menu-secondary); border-radius: var(--k-radius-md); }
+.k-flyout .k-menu-dots.is-pressed { background: #ffffff33; color: #fff; }
+.k-flyout .k-menu-target { display: flex; align-items: center; gap: 8px; height: 32px; margin: 0 8px; padding: 0 8px; color: var(--k-text-menu-secondary); }
+.k-flyout .k-menu-target .k-seg { width: 120px; background: #ffffff1a; }
+.k-flyout .k-menu-target .k-seg-opt { color: #ffffffb2; }
+.k-flyout .k-menu-target .k-seg-opt.is-checked { background: #fff; color: #1e1e1e; box-shadow: none; }
+.k-flyout .k-menu-foot { height: 24px; padding: 0 16px; display: flex; align-items: center; color: var(--k-text-menu-secondary); font-size: 9px; }
+.k-flyout .k-menu-check-row .k-check-box { background: #ffffff1a; box-shadow: inset 0 0 0 1px #ffffff4d; }
+
+/* An anchored popover on the canvas (240 wide, light) with a caret. */
+.k-popover.is-anchored { position: absolute; }
+.k-popover.is-anchored::after { content: ""; position: absolute; width: 0; height: 0; border: 7px solid transparent; }
+.k-popover.is-anchored.k-caret-bottom::after { left: var(--caret-x, 50%); bottom: -7px; margin-left: -7px; border-bottom: 0; border-top: 7px solid var(--k-bg); }
+.k-popover.is-anchored.k-caret-left::after { top: var(--caret-y, 50%); left: -7px; margin-top: -7px; border-left: 0; border-right: 7px solid var(--k-bg); }
+.k-popover .k-row-text.is-row { padding-left: 16px; }
+.k-popover-foot { display: flex; align-items: center; justify-content: flex-end; height: 32px; padding: 0 16px; }
+
+/* Legend card: 160 wide, panel surface, 200 shadow; bottom right of the
+   canvas, its bottom edge 12px above the toolbar's top, 12px from the panel. */
+.k-legend-card { position: absolute; right: 12px; bottom: calc(12px + var(--k-toolbar-labeled-h) + 12px); width: 160px; background: var(--k-bg); border-radius: var(--k-radius-md); box-shadow: var(--k-shadow-200); padding: 8px 0; }
+.k-legend-block { padding: 4px 0; }
+.k-legend-block + .k-legend-block { border-top: 1px solid var(--k-border); margin-top: 4px; }
+.k-legend-title { display: flex; align-items: center; height: 24px; padding: 0 8px 0 12px; font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body); }
+.k-legend-note { padding: 0 12px 4px; color: var(--k-text-secondary); font-size: 9px; line-height: 12px; }
+.k-legend-item { display: flex; align-items: center; gap: 8px; height: 20px; padding: 0 8px 0 12px; }
+.k-legend-item .k-chip-swatch, .k-legend-item .k-chip-svg { flex: none; }
+.k-legend-item .k-legend-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-legend-item .k-legend-count { color: var(--k-text-secondary); flex: none; }
+.k-legend-ramp { margin: 4px 12px 0; height: 12px; border-radius: var(--k-radius-sm); background: linear-gradient(90deg, var(--stops)); }
+.k-legend-ramp-ends { display: flex; justify-content: space-between; padding: 2px 12px 0; color: var(--k-text-secondary); font-size: 9px; line-height: 12px; }
+.k-legend-line { width: 28px; height: 14px; flex: none; }
+
+/* The bottom dock: closed, its tab strip stays as a 24px handle above the
+   status bar; open, the same strip heads the dock. */
+.k-dock-handle { flex: none; height: var(--k-dock-handle-h); display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--k-bg); border-top: 1px solid var(--k-border); }
+.k-dock-handle .k-tab, .k-dock-head .k-tab { height: 24px; padding: 0 4px; font-weight: var(--k-fw-strong); }
+.k-dock-handle.is-disabled .k-tab { color: var(--k-text-disabled); }
+.k-dock { flex: none; display: flex; flex-direction: column; background: var(--k-bg); border-top: 1px solid var(--k-border); }
+.k-dock-head { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--k-border); }
+.k-dock-head .k-tabs { gap: 4px; }
+.k-dock-head .k-spacer { flex: 1; }
+.k-dock-table { display: grid; grid-auto-rows: 32px; align-items: center; }
+.k-dock-table .k-cell { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--k-border); height: 32px; line-height: 32px; }
+.k-dock-table .k-cell.is-head { font-weight: var(--k-fw-strong); }
+.k-dock-table .k-cell.is-selected { background: var(--k-bg-selected); }
+.k-dock-table .k-cell.is-handle { color: var(--k-text-tertiary); padding: 0; text-align: center; }
+
+/* The time transport bar: 40 tall, full canvas width, above the dock. */
+.k-transport { flex: none; display: flex; align-items: center; gap: 8px; height: var(--k-transport-h); padding: 0 8px 0 16px; background: var(--k-bg); border-top: 1px solid var(--k-border); white-space: nowrap; }
+.k-transport .k-window { font-weight: var(--k-fw-strong); }
+.k-transport .k-slider { flex: 1; min-width: 0; height: 24px; position: relative; margin: 0 8px; }
+.k-transport .k-slider-track { position: absolute; left: 0; right: 0; top: 11px; height: 2px; background: var(--k-bg-tertiary); }
+.k-transport .k-slider-tick { position: absolute; top: 8px; width: 1px; height: 8px; background: var(--k-border); }
+.k-transport .k-slider-tick.is-change { background: var(--k-text); top: 6px; height: 12px; }
+.k-transport .k-slider-band { position: absolute; top: 6px; height: 12px; background: var(--k-bg-selected); border-left: 2px solid var(--k-bg-brand); border-right: 2px solid var(--k-bg-brand); }
+.k-transport .k-slider-end { position: absolute; top: 20px; font-size: 9px; color: var(--k-text-secondary); }
+.k-transport .k-slider-end.is-right { right: 0; }
+.k-transport .k-counts { color: var(--k-text-secondary); }
+
+/* Status bar items, in priority order; the "?" ghost button at the right. */
+.k-statusbar .k-status-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.k-statusbar .k-status-item .k-icon-16 { color: var(--k-text-secondary); }
+.k-statusbar .k-status-item .k-link { cursor: default; }
+.k-statusbar .k-status-sep { width: 1px; height: 12px; background: var(--k-border); }
+.k-statusbar .k-status-help { width: 20px; height: 20px; color: var(--k-text-secondary); }
+.k-statusbar .k-status-help .k-icon { width: 20px; height: 20px; }
+
+/* The Welcome sheet (screen 1): heading, drop zone, one filled button, the
+   sample list with chevrons, Recent. */
+.k-welcome { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 432px; padding: 16px 16px 8px; background: var(--k-bg); border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-400); display: flex; flex-direction: column; gap: 8px; }
+.k-welcome .k-heading-md { margin: 0 0 4px; }
+.k-dropzone { width: 400px; height: 120px; border: 1px dashed var(--k-border); border-radius: var(--k-radius-md); display: grid; place-items: center; color: var(--k-text-secondary); }
+.k-sample-list { margin: 4px -8px 0; display: flex; flex-direction: column; }
+.k-sample-list .k-list-pill { position: relative; padding-right: 0; }
+.k-sample-list .k-sample-size { margin-left: auto; color: var(--k-text-secondary); }
+.k-sample-list .k-icon { color: var(--k-text-tertiary); }
+.k-sample-list .k-sample-heading { height: 24px; display: flex; align-items: center; padding: 0 8px; color: var(--k-text-secondary); margin-top: 4px; }
+
+/* Canvas overlays that a spec can place: a marquee, a tool cursor. */
+.k-marquee-box { position: absolute; background: #0d99ff1f; outline: 1px solid var(--k-border-selected); }
+.k-tool-cursor { position: absolute; width: 24px; height: 24px; color: var(--k-text); filter: drop-shadow(0 0 1px #fff); }
+
+/* Toolbar reference page. */
+.k-refpage { padding: 24px 32px 64px; background: var(--k-bg); color: var(--k-text); }
+.k-refpage h1 { font: var(--k-text-heading-md); margin: 0 0 4px; }
+.k-refpage h2 { font: var(--k-text-heading); letter-spacing: var(--k-ls-heading); margin: 32px 0 8px; }
+.k-refpage p { color: var(--k-text-secondary); margin: 0 0 12px; max-width: 760px; line-height: 16px; }
+.k-refpage .k-ref-bar { position: relative; height: 136px; background: var(--k-canvas); border-radius: var(--k-radius-md); }
+.k-refpage .k-ref-bar .k-toolbar { position: absolute; left: 24px; top: 16px; }
+.k-refpage .k-ref-callout { position: absolute; top: 100px; font: 400 9px/12px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; white-space: nowrap; transform: translateX(-50%); text-align: center; }
+.k-refpage .k-ref-callout::before { content: ""; position: absolute; left: 50%; top: -10px; height: 8px; width: 1px; background: var(--k-border-translucent-strong); }
+.k-refpage .k-ref-dim { position: absolute; top: 80px; height: 1px; background: var(--k-text-secondary); }
+.k-refpage .k-ref-dim span { position: absolute; left: 50%; top: -7px; transform: translateX(-50%); font: 400 9px/12px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; background: var(--k-canvas); padding: 0 4px; }
+.k-refpage .k-ref-columns { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.k-refpage .k-ref-columns .k-flyout { position: static; }
+.k-refpage .k-ref-col-title { font: var(--k-text-body-strong); margin: 0 0 8px; }
+.k-refpage .k-ref-strips { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.k-refpage .k-ref-strips .k-secondary-bar { position: static; transform: none; }
+.k-refpage .k-ref-strips .k-popover { box-shadow: var(--k-shadow-400); }
+.k-refpage .k-ref-foot { color: var(--k-text-secondary); margin-top: 24px; }
+
+/* ================================================================== */
+/* Round-2, pass 2: the shared parts the twelve screens needed once    */
+/* their specs were written. Still drawn by render.mjs only.           */
+/* ================================================================== */
+
+/* The secondary bar sizes to its sentence (an absolutely positioned box
+   at left: 50% otherwise gets half the stage as its available width and
+   squeezes its last item, Cancel, out past its edge). */
+.k-secondary-bar { width: max-content; }
+
+/* The legend card lifts above the secondary bar while a tool is armed
+   (40 bar + 8 gap) and is hidden while a flyout or a popover is open on
+   the stage: a transient overlay wins the corner. */
+.k-legend-card.has-secondary { bottom: calc(12px + var(--k-toolbar-labeled-h) + 8px + 40px + 12px); }
+
+/* A popover flipped to the left of its anchor carries a right-pointing caret. */
+.k-popover.is-anchored.k-caret-right::after { top: var(--caret-y, 50%); right: -7px; margin-top: -7px; border-right: 0; border-left: 7px solid var(--k-bg); }
+
+/* Tree rows at 240 px. The row's parts yield in a fixed order when the
+   name, the count and the chip do not all fit: the technical name in
+   parentheses (secondary text after the plain name) drops first, then the
+   count drops its parts from the right ("34 nodes  78 edges" becomes
+   "34 nodes"), and only then does the plain name get an ellipsis. The order
+   is the flex-shrink weights (100000, 10000, 1): an item yields only once
+   the heavier ones are frozen at their minimum. The technical name and the
+   count are one-line flex boxes whose overflow wraps to a second, clipped
+   line, so a part is shown whole or not at all; the count is never
+   narrower than its widest part (min-content). The eye and the lock appear
+   on hover and when they carry state (hidden, locked), never merely because
+   the row is selected: a selected row keeps its count and chip readable,
+   and its inspector header carries the same two buttons. */
+.k-tree-row { padding-right: 0; }
+.k-tree-row .k-tree-name { flex: 0 1 auto; min-width: 0; }
+.k-tree-row .k-tree-tech { flex: 1 100000 auto; min-width: 0; display: flex; flex-wrap: wrap; align-content: flex-start; height: 32px; overflow: hidden; color: var(--k-text-secondary); font-weight: 400; line-height: 32px; }
+.k-tree-row .k-tree-tech > i { width: 0; height: 32px; flex: none; } /* a zero-width first line, so the name wraps out of the 32px box when it does not fit */
+.k-tree-row .k-tree-tech > span { flex: none; white-space: nowrap; margin-left: 4px; }
+/* Two controls on one row (a switch beside a select) use the kit's captioned
+   two-column row: a 9px caption over each 88px control. */
+.k-row-2 .k-field-ctl { height: 24px; display: flex; align-items: center; }
+.k-tree-row > .k-state-dot, .k-tree-row > .k-state-glyph { margin-left: 4px; }
+.k-tree-row .k-tree-meta { flex: 0 10000 auto; min-width: min-content; margin-left: 4px; height: 32px; overflow: hidden; justify-content: flex-end; }
+.k-count { display: inline-flex; flex-wrap: wrap; align-content: flex-start; justify-content: flex-end; column-gap: 4px; height: 32px; line-height: 32px; overflow: hidden; min-width: min-content; }
+.k-count > span { white-space: nowrap; }
+.k-tree-row .k-tree-actions { margin-right: 6px; }
+.k-tree-row.is-more .k-tree-name { color: var(--k-text-secondary); }
+
+/* Flyouts in the app frame draw only registered rows; a divider before the
+   batch rows. */
+.k-flyout .k-menu-sep { margin: 4px 0; }
+
+/* Inspector rows. */
+.k-prop.k-label-wide { grid-template-columns: 96px minmax(0, 112px); }
+.k-prop.k-label-fill { grid-template-columns: minmax(0, 1fr) auto; }
+.k-prop > .k-ctl > .k-input { flex: 1 1 0; width: auto; min-width: 0; }
+.k-prop > .k-ctl > .k-select.k-fixed { flex: 1 1 auto; width: auto; }
+.k-prop > .k-ctl > .k-note { flex: none; margin-left: 0; }
+.k-prop > .k-ctl > .k-row-actions { flex: none; margin-left: auto; }
+.k-select.has-strip { padding-left: 5px; }
+.k-select .k-select-strip { height: 14px; border-radius: var(--k-radius-sm); background: linear-gradient(90deg, var(--stops)); box-shadow: inset 0 0 0 .5px var(--k-border); }
+.k-row-checks { gap: 6px; }
+.k-row-checks .k-check { gap: 6px; }
+.k-row-checks .k-check > span:last-child { white-space: nowrap; }
+.k-row-checks > .k-link { margin-left: auto; flex: none; }
+.k-kv.is-secondary > span { color: var(--k-text-secondary); }
+.k-kv > .k-kv-note { color: var(--k-text-secondary); flex: none; }
+.k-kv > .k-info { color: var(--k-text-tertiary); flex: none; }
+.k-kv > .k-kv-chevron { margin-left: auto; color: var(--k-text-tertiary); flex: none; }
+.k-row-2 > .k-icon-btn { align-self: end; }
+.k-row-note { padding: 8px 16px; color: var(--k-text-secondary); line-height: 16px; }
+.k-row-note.is-caption { padding-top: 0; margin-top: -4px; }
+.k-chit { width: 14px; height: 14px; padding: 0; border: 0; background: none; display: block; position: relative; flex: none; cursor: default; }
+.k-paint-row .k-paint-value.is-secondary { color: var(--k-text-secondary); }
+.k-group-swatch { display: flex; align-items: center; gap: 8px; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-group-swatch .k-gs-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-group-swatch .k-gs-count { color: var(--k-text-secondary); flex: none; }
+.k-attr-row { display: flex; align-items: center; gap: 8px; height: var(--k-row-h); padding: 0 8px 0 16px; }
+.k-attr-row .k-attr-type { width: 16px; height: 16px; color: var(--k-text-tertiary); flex: none; }
+.k-attr-row .k-attr-type.is-role { color: var(--k-text); }
+.k-attr-row .k-attr-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-attr-row .k-attr-filled { color: var(--k-text-secondary); flex: none; width: 36px; text-align: right; }
+.k-insp-summary .k-link, .k-insp-summary .k-secondary { flex: none; }
+
+/* The dock: a Style chip in an object column's header; a scrollbar thumb
+   when the table is scrolled. */
+.k-dock { position: relative; }
+.k-dock-table .k-cell.is-head .k-chip-swatch, .k-dock-table .k-cell.is-head .k-chip-svg { display: inline-block; vertical-align: -2px; margin-right: 6px; }
+.k-dock-scroll { position: absolute; right: 2px; width: 6px; border-radius: 3px; background: var(--k-bg-tertiary); }
+
+/* The transport bar: the window band is translucent and drawn under the
+   tick and change marks, with 4 x 16 handles at its ends. */
+.k-transport .k-slider-band { background: #0d99ff2e; border: 0; }
+.k-transport .k-slider-band::before, .k-transport .k-slider-band::after { content: ""; position: absolute; top: -2px; width: 4px; height: 16px; border-radius: 2px; background: var(--k-bg-brand); }
+.k-transport .k-slider-band::before { left: -2px; }
+.k-transport .k-slider-band::after { right: -2px; }
+
+/* The reference page's fit band: the bar inside a canvas of a given width
+   between two 240 px panel outlines, the legend card above its right end. */
+.k-refpage .k-ref-fit { position: relative; height: 280px; margin-top: 16px; display: flex; background: var(--k-canvas); border-radius: var(--k-radius-md); overflow: hidden; }
+.k-refpage .k-ref-fit .k-ref-panel { width: 240px; flex: none; background: var(--k-bg); border: 1px solid var(--k-border); display: grid; place-items: center; font: 400 9px/12px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; }
+.k-refpage .k-ref-fit .k-ref-canvas { position: relative; flex: 1; }
+.k-refpage .k-ref-fit .k-ref-canvas .k-toolbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px; }
+.k-refpage .k-ref-fit .k-ref-canvas .k-legend-card { position: absolute; }
+.k-refpage .k-ref-fit .k-ref-canvas-label { position: absolute; left: 12px; top: 10px; font: 400 9px/12px var(--k-font-mono); color: var(--k-text-secondary); letter-spacing: 0; }
+.k-refpage .k-ref-strips .k-popover { width: 240px; }
+
+/* Round-2, pass 3. A modal dialog on the stage (the Import dialog, the
+   reload dialog): the kit's 480 px dialog centred over a scrim, its rows the
+   inspector's own row types. */
+.k-canvas-stage .k-dialog { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); }
+.k-dialog .k-popover-body { padding: 8px 0; }
+.k-dialog .k-table-row { padding: 0 16px; }
+.k-dialog .k-table-row > span { color: var(--k-text); }
+.k-dialog .k-table-row.is-head > span { color: var(--k-text-secondary); }
+/* Counts outside the tree (a summary row, the welcome list, the transport bar)
+   use the tree's count box, so "N nodes  M edges" is one spelling everywhere. */
+.k-insp-summary .k-count, .k-sample-size .k-count, .k-transport .k-count { height: auto; line-height: inherit; }
+.k-sample-size .k-count > span + span, .k-transport .k-count > span + span { margin-left: 4px; }
+.k-dialog .k-prop { grid-template-columns: 68px minmax(0, 1fr); }
+.k-dialog .k-prop > .k-ctl > .k-select, .k-dialog .k-prop > .k-ctl > .k-select.k-fixed { flex: none; width: 140px; }
+.k-dialog .k-prop > .k-ctl > .k-seg.k-w-fill { width: auto; flex: none; }
+.k-dialog .k-row .k-kv-wide { width: auto; grid-column: 1 / -1; }
+
+/* ================================================================== */
+/* Round 3: the key-function screens (16 to 100). Menus that hang from  */
+/* any control, insets (a second state of the same screen), text        */
+/* fields, radios, charts, the History and Assistant docks, the status   */
+/* bar's coloured chips, canvas marks. Still drawn by render.mjs only.   */
+/* ================================================================== */
+
+/* The file header: the name, the unsaved dot, the chevron box (pressed
+   while the file menu is open). */
+.k-panel-file .k-file-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.k-panel-file .k-file-name .k-heading { flex: 0 1 auto; }
+.k-unsaved-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--k-text-secondary); flex: none; }
+.k-file-chevron-box { width: 24px; height: 24px; border-radius: var(--k-radius-md); display: grid; place-items: center; flex: none; }
+.k-panel-file.is-open .k-file-chevron-box { background: var(--k-bg-pressed); }
+.k-panel-file.is-open .k-file-chevron { color: var(--k-text); }
+
+/* Tree additions: Find's result headings and node rows, a glyph after the
+   name (Focus, the assistant's sparkle, a collapsed group), a "new" badge,
+   the active Dataset (the graph on the canvas), rename in place, a row being
+   dragged and the insertion line, a system row. */
+.k-tree-heading { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 16px; color: var(--k-text-secondary); font-weight: var(--k-fw-strong); }
+.k-tree-heading > span:first-child { flex: none; }
+.k-tree-heading .k-tree-heading-count { margin-left: auto; font-weight: 400; }
+.k-select.k-select-sm { width: auto; height: 20px; font-weight: 400; color: var(--k-text); }
+.k-tree-row.is-node .k-tree-name { flex: 0 1 auto; }
+.k-tree-row .k-tree-id { color: var(--k-text-secondary); margin-left: 6px; flex: 1 1 auto; white-space: nowrap; overflow: hidden; }
+.k-tree-glyph { width: 16px; height: 16px; flex: none; margin-left: 4px; color: var(--k-text-secondary); }
+.k-tree-badge { flex: none; margin-left: 6px; height: 16px; padding: 0 4px; border-radius: var(--k-radius-md); background: var(--k-bg-info); color: var(--k-text-brand); line-height: 16px; font-size: 10px; }
+.k-tree-row.is-new::before { display: block; inset: 0 8px 0 0; background: var(--k-bg-selected-secondary); }
+.k-tree-active { position: absolute; left: 3px; top: 8px; width: 3px; height: 16px; border-radius: 2px; background: var(--k-bg-brand); z-index: 1; }
+.k-tree-row.is-active .k-tree-name { font-weight: var(--k-fw-strong); }
+.k-tree-row.is-dragging { opacity: .5; }
+.k-tree-row.is-system .k-tree-name { color: var(--k-text-secondary); font-style: italic; }
+.k-tree-insert { background: var(--k-bg-brand); position: relative; z-index: 2; margin-top: -1px; margin-bottom: -1px; }
+.k-tree-name.is-rename { overflow: visible; margin-right: 4px; }
+.k-rename-field { display: inline-flex; align-items: center; height: 24px; padding: 0 6px; margin-left: -7px; background: var(--k-bg); border: 1px solid var(--k-border-selected); border-radius: var(--k-radius-md); line-height: 22px; }
+.k-rename-sel { background: var(--k-text-highlight, #0d99ff40); }
+
+/* Find: the Objects header becomes a focused search field. */
+.k-find-head { gap: 4px; padding-left: 8px; }
+.k-find-input { flex: 1; width: auto; background: var(--k-bg); }
+.k-find-count { flex: none; padding-right: 8px; color: var(--k-text-secondary); }
+.k-caret-bar { display: inline-block; width: 1px; height: 13px; margin-left: 1px; background: var(--k-text); vertical-align: -2px; }
+
+/* Floats in the frame layer: dark menus, insets, tooltips, placed by the
+   page's positioning script against their anchors. */
+.k-frame-layer { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.k-float-menu { position: absolute; min-width: 200px; z-index: 31; }
+.k-float-menu .k-menu-item { gap: 8px; }
+.k-float-menu .k-menu-label { display: flex; align-items: baseline; gap: 6px; overflow: hidden; }
+.k-menu-note, .k-menu-reason { color: var(--k-text-menu-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-menu-item.is-disabled .k-menu-reason { color: var(--k-text-menu-disabled); }
+.k-menu-item.is-active .k-menu-note { color: var(--k-text-onbrand-secondary); }
+.k-menu-icon { color: currentColor !important; }
+.k-menu-heading { font-size: 10px; letter-spacing: .2px; }
+.k-inset { position: absolute; width: 256px; }
+.k-inset .k-popover { width: 100%; box-shadow: var(--k-shadow-400); outline: 1px solid var(--k-border); }
+.k-inset-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin: 0 0 4px 8px; border-radius: 10px; background: #1e1e1e; color: #fff; font-size: 10px; font-weight: var(--k-fw-strong); letter-spacing: .2px; }
+.k-float-tip { position: absolute; z-index: 32; max-width: 240px; }
+.k-float-tip.is-multi { flex-direction: column; align-items: stretch; padding: 6px 10px; gap: 2px; height: auto; }
+.k-tip-title { font-weight: var(--k-fw-strong); }
+.k-tip-line { display: flex; gap: 8px; }
+.k-tip-key { color: var(--k-text-menu-secondary); min-width: 64px; }
+.k-popover.is-above-scrim { z-index: 5; }
+
+/* Status bar chips: a limit (amber), an error (red), a notice (brand or
+   green), each with its links. */
+.k-statusbar .k-status-chip { height: 18px; padding: 0 6px 0 4px; border-radius: var(--k-radius-md); gap: 4px; }
+.k-status-chip.is-error { background: var(--k-bg-danger-tertiary); color: var(--k-text-danger); }
+.k-status-chip.is-warning { background: var(--k-bg-warning-tertiary); color: var(--k-text-warning); }
+.k-status-chip.is-success { background: var(--k-bg-success-tertiary); color: var(--k-text-success); }
+.k-status-chip.is-info { background: var(--k-bg-info); color: var(--k-text-brand); }
+.k-status-chip .k-icon-16 { color: currentColor !important; }
+.k-status-chip .k-link { color: inherit; font-weight: var(--k-fw-strong); text-decoration: underline; text-underline-offset: 2px; }
+
+/* The secondary bar's free parts: a dark text field, a picked-node chip,
+   a live count, secondary words, a disabled button. */
+.k-secondary-bar .k-bar-field { display: inline-flex; align-items: center; height: 24px; min-width: 64px; padding: 0 8px; border-radius: var(--k-radius-md); background: #ffffff1a; box-shadow: inset 0 0 0 1px var(--k-border-selected); }
+.k-secondary-bar .k-caret-bar { background: #fff; }
+.k-secondary-bar .k-bar-chip { display: inline-flex; align-items: center; gap: 2px; height: 22px; padding: 0 4px 0 8px; border-radius: 11px; background: #ffffff26; }
+.k-secondary-bar .k-bar-chip .k-icon-16 { color: #ffffffb2; }
+.k-secondary-bar .k-bar-count { font-weight: var(--k-fw-strong); }
+.k-secondary-bar .k-bar-secondary { color: #ffffffb2; }
+.k-secondary-bar .k-btn.is-disabled { opacity: .4; }
+.k-btn.is-disabled { opacity: .4; }
+
+/* Dialogs: a wider label column (labels are not cut), selects that keep a
+   useful width beside a note, pairs that use the width, tabs, a footer note. */
+.k-dialog .k-prop { grid-template-columns: 112px minmax(0, 1fr); padding-right: 16px; }
+.k-dialog .k-prop.k-label-wide { grid-template-columns: 112px minmax(0, 1fr); }
+.k-dialog .k-prop > .k-ctl > .k-select, .k-dialog .k-prop > .k-ctl > .k-select.k-fixed { width: 168px; }
+.k-dialog .k-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; padding-right: 16px; }
+.k-dialog .k-row .k-kv-wide { width: auto; grid-column: 1 / -1; }
+.k-dialog .k-row-flex, .k-dialog .k-row-note, .k-dialog .k-row-text { padding-right: 16px; }
+.k-dialog-tabs { padding: 8px 16px 0; }
+.k-seg.k-seg-fill { width: 100%; }
+.k-seg.k-seg-fill .k-seg-opt { flex: 1; }
+.k-dialog-footer .k-dialog-foot-note { margin-right: auto; color: var(--k-text-secondary); }
+.k-dialog-sm .k-prop { grid-template-columns: 80px minmax(0, 1fr); }
+.k-canvas-stage .k-dialog-sm { top: 40%; }
+
+/* The Export sheet's footer bar, pinned to the right panel's foot. */
+.k-panel-right.has-sheet-foot { padding-bottom: 0; position: relative; }
+.k-sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 48px; padding: 0 8px 0 16px; background: var(--k-bg); border-top: 1px solid var(--k-border); }
+.k-sheet-foot .k-grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Rows. */
+.k-field-row .k-ctl > .k-input, .k-row-flex > .k-field-fill { flex: 1 1 auto; width: auto; min-width: 0; }
+.k-row-flex.k-field-row { gap: 8px; }
+.k-input.is-invalid { outline: 1px solid var(--k-border-danger-strong) !important; outline-offset: -1px; }
+.k-input-suffix.is-text { width: auto; padding: 0 8px 0 4px; cursor: default; white-space: nowrap; }
+.k-row-error { display: flex; align-items: flex-start; gap: 4px; padding: 0 16px 6px; margin-top: -2px; color: var(--k-text-danger); line-height: 16px; }
+.k-row-error.is-indented { padding-left: calc(16px + 68px + 8px); }
+.k-dialog .k-row-error.is-indented { padding-left: calc(16px + 112px + 8px); }
+.k-row-error .k-icon-16 { margin-top: 0; }
+.k-radio-row { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; }
+.k-radio { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--k-border-strong, #b3b3b3); flex: none; background: var(--k-bg); }
+.k-radio-row.is-checked .k-radio { box-shadow: inset 0 0 0 4px var(--k-bg-brand); }
+.k-radio-row.is-disabled { color: var(--k-text-disabled); }
+.k-radio-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-radio-note { flex: none; color: var(--k-text-secondary); }
+.k-radio-label { color: var(--k-text-secondary); }
+.k-ta-wrap { padding: 4px 16px 8px; position: relative; }
+.k-textarea { background: var(--k-bg-secondary); border-radius: var(--k-radius-md); padding: 4px 8px; line-height: 16px; }
+.k-textarea.is-focus { outline: 1px solid var(--k-border-selected); outline-offset: -1px; background: var(--k-bg); }
+.k-textarea.is-invalid { outline-color: var(--k-border-danger-strong); }
+.k-textarea.k-mono, .k-mono .k-input-value { font-family: var(--k-font-mono); font-size: 11px; letter-spacing: 0; }
+.k-ta-line { white-space: pre-wrap; word-break: break-word; }
+.k-squiggle { text-decoration: underline wavy var(--k-text-danger); text-underline-offset: 3px; text-decoration-skip-ink: none; }
+.k-ta-suggest { margin-top: 4px; background: var(--k-bg-menu); color: #fff; border-radius: var(--k-radius-md); padding: 4px 0; box-shadow: var(--k-shadow-300); }
+.k-ta-sug { display: flex; justify-content: space-between; height: 22px; align-items: center; margin: 0 4px; padding: 0 8px; border-radius: var(--k-radius-md); }
+.k-ta-sug.is-active { background: var(--k-bg-menu-selected); }
+.k-ta-sug-note { color: var(--k-text-menu-secondary); }
+.k-ta-label { color: var(--k-text-secondary); }
+.k-rule-line { display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px 0 16px; }
+.k-rule-not { flex: none; height: 24px; padding: 0 6px; border: 0; border-radius: var(--k-radius-md); background: transparent; color: var(--k-text-tertiary); box-shadow: inset 0 0 0 1px var(--k-border); }
+.k-rule-not.is-on { background: var(--k-bg-selected); color: var(--k-text-brand); box-shadow: none; }
+.k-rule-line .k-rule-field { flex: 1 1 0; width: auto; min-width: 0; }
+.k-rule-line .k-rule-op { flex: none; width: 48px; }
+.k-rule-line .k-rule-value { flex: none; width: 40px; }
+.k-rule-line .k-icon-btn { flex: none; }
+.k-pattern-row { padding: 4px 16px; }
+.k-pattern-row text, .k-scatter-row text, .k-dock-chart text { font: 400 10px/1 var(--k-font); fill: var(--k-text-secondary); }
+.k-pattern-row text { fill: var(--k-text); font-weight: var(--k-fw-strong); }
+.k-scatter-row { padding: 4px 16px; }
+.k-scatter-row .k-axis-label { fill: var(--k-text); }
+.k-histogram-row { height: 64px; padding: 8px 8px 0 16px; display: flex; gap: 8px; align-items: flex-start; }
+.k-hist-ends { display: flex; justify-content: space-between; width: 160px; font-size: 9px; line-height: 12px; color: var(--k-text-secondary); }
+.k-was { color: var(--k-text-tertiary); margin-right: 4px; flex: none; }
+.k-tone-error { color: var(--k-text-danger) !important; }
+.k-tone-warning { color: var(--k-text-warning) !important; }
+.k-tone-success { color: var(--k-text-success) !important; }
+.k-row-text.k-tone-error, .k-row-text.k-tone-warning { gap: 4px; }
+.k-row-note.is-toned { display: flex; gap: 6px; align-items: flex-start; margin: 4px 16px; padding: 6px 8px; border-radius: var(--k-radius-md); }
+.k-row-note.is-toned.k-tone-error { background: var(--k-bg-danger-tertiary); }
+.k-row-note.is-toned.k-tone-warning { background: var(--k-bg-warning-tertiary); }
+.k-row-note.is-toned.k-tone-success { background: var(--k-bg-success-tertiary); }
+.k-row-note.is-toned .k-icon-16 { flex: none; }
+.k-row-flex.is-wrap { flex-wrap: wrap; height: auto; min-height: 32px; padding-top: 4px; padding-bottom: 4px; row-gap: 6px; }
+.k-row-flex.is-wrap > .k-grow { flex-basis: 100%; }
+.k-table-row.is-muted > span { color: var(--k-text-tertiary) !important; }
+.k-cell-in { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; overflow: hidden; vertical-align: middle; }
+.k-cell-in > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-cell-icon { color: var(--k-text-secondary); }
+.k-cell-btn { height: 20px; padding: 0 6px; }
+.k-attr-row.is-pressed { background: var(--k-bg-hover); border-radius: var(--k-radius-md); margin: 0 8px; padding-left: 8px; padding-right: 0; }
+.k-attr-row .k-icon-btn.is-pressed { background: var(--k-bg-pressed); }
+.k-attr-note { color: var(--k-text-tertiary); flex: none; }
+.k-chip-x { display: inline-grid; place-items: center; margin-right: -2px; color: var(--k-text-secondary); }
+.k-summary-failed { color: var(--k-text-danger); }
+.k-summary-stale { color: var(--k-text-warning); }
+.k-insp-tabs.is-disabled .k-tab { color: var(--k-text-disabled); background: transparent; }
+.k-row.is-wide { grid-template-columns: minmax(0, 1fr); }
+.k-row.is-wide .k-kv-wide { grid-column: 1; width: auto; }
+.k-row-2.k-row .k-field .k-caption { white-space: nowrap; }
+.k-row-note.is-caption { white-space: normal; }
+.k-prop.k-label-fill > .k-label { overflow: visible; white-space: normal; line-height: 14px; }
+
+/* The dock: the History list, the Assistant transcript, a chart above the
+   table, a footer, a cell being edited, a header menu. */
+.k-hist { flex: 1; min-height: 0; overflow: hidden; }
+.k-hist-row { display: grid; grid-template-columns: 24px 220px 180px 100px 124px minmax(0, 1fr); align-items: center; height: 32px; padding: 0 8px 0 4px; border-bottom: 1px solid var(--k-border); position: relative; }
+.k-hist-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-hist-icon { display: grid; place-items: center; color: var(--k-text-secondary); }
+.k-hist-by { display: inline-flex; align-items: center; gap: 4px; }
+.k-hist-by .k-icon-16 { color: var(--k-text-brand); }
+.k-hist-tag { margin-left: 8px; height: 16px; padding: 0 4px; border-radius: var(--k-radius-md); background: var(--k-bg-secondary); color: var(--k-text-secondary); font-size: 10px; line-height: 16px; display: inline-block; }
+.k-hist-row.is-current::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 2px; background: var(--k-bg-brand); }
+.k-hist-row.is-current { font-weight: var(--k-fw-strong); }
+.k-hist-row.is-current .k-hist-tag { background: var(--k-bg-info); color: var(--k-text-brand); }
+.k-hist-row.is-undone > span:not(.k-hist-actions) { opacity: .5; }
+.k-hist-row.is-hover { background: var(--k-bg-hover); }
+.k-hist-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.k-hist-note { display: flex; align-items: center; height: 32px; padding: 0 12px; color: var(--k-text-secondary); }
+.k-dock.is-assistant { display: flex; flex-direction: column; }
+.k-as { flex: 1; min-height: 0; overflow: hidden; padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
+.k-as-turn { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+.k-as-who { display: inline-flex; align-items: center; gap: 4px; color: var(--k-text-secondary); font-weight: var(--k-fw-strong); height: 20px; }
+.k-as-who .k-icon-16 { color: var(--k-text-brand); }
+.k-as-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.k-as-text { line-height: 20px; }
+.k-as-turn.is-you .k-as-text { align-self: flex-start; background: var(--k-bg-secondary); border-radius: var(--k-radius-md); padding: 0 8px; }
+.k-as-tool { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px 0 2px; border-radius: var(--k-radius-md); box-shadow: inset 0 0 0 1px var(--k-border); color: var(--k-text-secondary); font-family: var(--k-font-mono); font-size: 10px; letter-spacing: 0; max-width: 560px; }
+.k-as-tool .k-spacer { flex: 1; }
+.k-as-tool .k-link { font-family: var(--k-font); font-size: 11px; }
+.k-as-made { display: flex; align-items: center; gap: 6px; height: 24px; }
+.k-as-made .k-icon-16 { color: var(--k-text-brand); }
+.k-as-privacy { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 16px; color: var(--k-text-secondary); border-top: 1px solid var(--k-border); }
+.k-as-privacy .k-link { margin-left: auto; }
+.k-as-composer { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; }
+.k-as-input { flex: 1; width: auto; }
+.k-as-input .k-icon-btn { margin-right: 0; }
+.k-dock-chart-box { flex: none; padding: 6px 8px 2px; border-bottom: 1px solid var(--k-border); }
+.k-dock-chart-title { padding: 0 8px; color: var(--k-text-secondary); height: 16px; }
+.k-dock-chart { display: block; }
+.k-dock-foot { display: flex; align-items: center; gap: 12px; height: 32px; padding: 0 12px; border-top: 1px solid var(--k-border); }
+.k-dock-table .k-cell.is-editing { padding: 0 4px; overflow: visible; position: relative; }
+.k-cell-edit { display: flex; align-items: center; height: 24px; margin-top: 4px; padding: 0 6px; background: var(--k-bg); border-radius: var(--k-radius-md); outline: 1px solid var(--k-border-selected); line-height: 24px; }
+.k-cell-edit.is-invalid { outline-color: var(--k-border-danger-strong); }
+.k-cell-error { position: absolute; left: 4px; top: 30px; z-index: 2; height: 20px; padding: 0 6px; line-height: 20px; border-radius: var(--k-radius-md); background: var(--k-bg-danger); color: #fff; white-space: nowrap; }
+.k-cell-menu { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 4px; vertical-align: middle; border-radius: var(--k-radius-md); }
+.k-cell-menu.is-open { background: var(--k-bg-pressed); }
+
+/* Canvas marks: a rubber band, the export frame, the drop overlay, a
+   centred stage card, the minimap, two panes, callouts, summary nodes. */
+.k-rubber { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.k-export-frame { position: absolute; outline: 1.5px dashed var(--k-border-selected); outline-offset: 0; box-shadow: 0 0 0 9999px #0000000f; }
+.k-export-frame span { position: absolute; left: 0; top: -22px; height: 18px; padding: 0 6px; border-radius: var(--k-radius-md); background: var(--k-bg-brand); color: #fff; line-height: 18px; white-space: nowrap; }
+.k-drop { position: absolute; inset: 8px; border: 2px dashed var(--k-bg-brand); border-radius: var(--k-radius-lg); background: #0d99ff14; display: grid; place-items: center; z-index: 3; }
+.k-drop span { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--k-radius-lg); background: var(--k-bg-brand); color: #fff; font-weight: var(--k-fw-strong); }
+.k-stage-card { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 3; }
+.k-stage-card .k-popover { width: 300px; box-shadow: var(--k-shadow-400); }
+.k-minimap { position: absolute; left: 12px; bottom: calc(12px + var(--k-toolbar-labeled-h) + 12px); width: 176px; background: var(--k-bg); border-radius: var(--k-radius-md); box-shadow: var(--k-shadow-200); padding: 0 8px 8px; }
+.k-minimap-head { display: flex; align-items: center; gap: 6px; height: 32px; font-weight: var(--k-fw-strong); }
+.k-minimap-head .k-icon-btn { margin-left: auto; margin-right: -6px; }
+.k-minimap svg { display: block; background: var(--k-canvas); border-radius: var(--k-radius-sm); }
+.k-panes { position: absolute; inset: 0; display: flex; }
+.k-pane { position: relative; height: 100%; }
+.k-pane > svg.k-graph { position: absolute; inset: 0; width: 100%; height: 100%; }
+.k-pane-title { position: absolute; left: 12px; top: 10px; z-index: 1; height: 22px; padding: 0 8px; line-height: 22px; border-radius: var(--k-radius-md); background: var(--k-bg); box-shadow: var(--k-shadow-100); font-weight: var(--k-fw-strong); }
+.k-pane-divider { width: 1px; height: 100%; background: var(--k-border); flex: none; }
+.k-legend-card.is-pane { top: 44px; bottom: auto; right: 12px; width: 150px; }
+.k-legend-shape { width: 14px; height: 14px; flex: none; color: var(--k-text); }
+.k-legend-ramp { position: relative; }
+.k-legend-mid { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--k-text); }
+.k-legend-ramp-ends { position: relative; }
+.k-legend-mid-label { position: absolute; transform: translateX(-50%); }
+.k-graph text.k-callout-text { font-weight: 450; }
+.k-graph text.k-meta-label { font-weight: var(--k-fw-strong); }
+
+/* Toolbar: a greyed mode segment; the armed tool's label may spill 2 px
+   each side (revision.md 3.1), so its fill spills with it. */
+.k-mode-opt.is-disabled { color: var(--k-text-disabled); }
+.k-mode-opt.is-pressed { background: var(--k-bg-mode-hover); }
+.k-tool-lg.is-selected { width: 44px; margin: 0 -2px; }
+.k-framing-x { display: grid; place-items: center; margin-left: 4px; color: var(--k-text-secondary); }
+.k-panel-top .k-framing { max-width: 176px; }
+.k-panel-top .k-framing.is-open { background: var(--k-bg-pressed); }
+.k-panel-top .k-btn.is-pressed { background: var(--k-bg-brand-pressed); }
+.k-panel-top .k-framing { grid-template-columns: minmax(0, 1fr) auto 24px; }
+
+/* Present mode: the canvas fills the window; the pill is the only control. */
+.k-app.k-present { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.k-present .k-canvas-stage > svg.k-graph { position: absolute; inset: 0; }
+.k-present-pill { bottom: 24px !important; }
+
+/* The Welcome sheet's error block, in the drop zone's place. */
+.k-welcome-error { border-radius: var(--k-radius-md); background: var(--k-bg-danger-tertiary); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.k-welcome-error-title { display: flex; align-items: center; gap: 6px; color: var(--k-text-danger); font-weight: var(--k-fw-strong); }
+.k-welcome-error p { margin: 0; line-height: 16px; }
+.k-welcome-error-details { display: grid; grid-template-columns: 56px 1fr; column-gap: 8px; row-gap: 2px; font-family: var(--k-font-mono); font-size: 10px; letter-spacing: 0; }
+.k-welcome-error-details .k-secondary { font-family: var(--k-font); font-size: 11px; }
+.k-welcome-error-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+.k-stage-card .k-popover.is-card .k-popover-header { box-shadow: none; }
+
+/* A paint row with hex, opacity and two row actions fits 240 px: the paint
+   narrows to 88 and the actions sit flush, so the minus is never cut. */
+.k-paint-row:has(.k-paint + .k-row-actions) { padding-right: 4px; }
+.k-paint-row .k-paint:has(+ .k-row-actions) { width: 90px; flex: none; }
+.k-paint-row .k-paint:has(+ .k-row-actions) .k-paint-hex { width: 49px; }
+.k-paint-row .k-paint:has(+ .k-row-actions) .k-paint-opacity { width: 26px; padding-left: 4px; }
+.k-paint-row .k-paint:has(+ .k-row-actions) .k-input-suffix { display: none; }
+.k-paint-row .k-row-actions { gap: 0; }
+.k-paint-row .k-paint-value { flex: 1 1 0; }
+
+/* A disabled filled button reads as disabled, not as a faint brand button;
+   long field values are cut with an ellipsis inside their field. */
+.k-btn.is-disabled:not(.k-btn-secondary):not(.k-btn-ghost):not(.k-btn-light) { opacity: 1; background: var(--k-bg-tertiary); color: var(--k-text-disabled); }
+.k-btn-secondary.is-disabled, .k-btn-ghost.is-disabled { opacity: 1; color: var(--k-text-disabled); }
+.k-field-fill .k-input-value { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; line-height: 24px; }
+.k-sample-size .k-count + .k-count { margin-left: 4px; }
+.k-float-menu > .k-menu { min-width: 200px; display: flex; }
+.k-float-menu .k-inset-tag { display: flex; width: max-content; }
+.k-inset-tag { white-space: nowrap; width: max-content; max-width: none; }
+.k-tree-insert::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--k-bg-brand); border-radius: 50%; background: var(--k-bg); }
+.k-float-menu .k-menu-heading { height: auto; min-height: 24px; white-space: normal; line-height: 14px; padding-top: 5px; padding-bottom: 5px; }
+.k-panel-top .k-framing { max-width: 160px; min-width: 0; }
+.k-panel-top > .k-btn { flex: none; }
+.k-tool-lg.is-selected { width: 48px; margin: 0 -4px; }
+.k-tool-lg.is-selected .k-tool-name { letter-spacing: -0.2px; }
+.k-secondary-bar .k-btn-ghost.is-disabled { color: #ffffff59; opacity: 1; }
+.k-secondary-bar .k-btn-light.is-disabled { background: #ffffff2e; color: #ffffff8c; opacity: 1; }
+
+/* ================================================================== */
+/* Round 4: the rail, its panels, the icon-only toolbar, the view-mode  */
+/* button, the command palette, the light secondary bar               */
+/* (round-4/revision-round-4.md; measurements from visual-language.md). */
+/* Still drawn by render.mjs only; these rules override the round-2     */
+/* labelled toolbar and dark secondary bar above.                       */
+/* ================================================================== */
+
+/* The toolbar is 48 tall again (it was 56 with labels), so every float
+   that sits above it (legend, minimap, flyout, secondary bar) moves down. */
+:root { --k-toolbar-labeled-h: 48px; }
+
+/* Frame: rail 57 | left panel 240 | canvas | inspector 241 (the kit's
+   default .k-app grid). The left panel's edge against the canvas is the
+   translucent panel edge (visual-language.md 2.1). */
+.k-panel-left { border-right: 1px solid var(--k-border-translucent); }
+.k-rail { position: relative; z-index: 1; }
+.k-rail-pill { position: relative; }
+.k-rail-pill .k-dot { top: -2px; right: -2px; }
+.k-rail-foot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.k-rail-foot .k-icon-btn { color: var(--k-text); }
+.k-rail-btn.is-active .k-rail-label { color: var(--k-text); }
+
+/* Rail panels: a 40 px title row, rows, an optional pinned foot. */
+.k-panel-rows { display: flex; flex-direction: column; flex: none; }
+.k-panel-foot { position: sticky; bottom: 0; margin-top: auto; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 16px; flex: none; background: var(--k-bg); border-top: 1px solid var(--k-border); }
+.k-panel-foot .k-shortcut { color: var(--k-text-secondary); padding-left: 8px; }
+.k-state-dot.is-drift { background: var(--k-text-tertiary); }
+
+/* Data panel rows: a dataset (name row, then its source in secondary text
+   at the name's x), a column with its role chip and completeness bar. */
+.k-ds-source { height: 16px; line-height: 16px; padding: 0 8px 0 40px; margin-bottom: 8px; color: var(--k-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-role-chip { flex: none; height: 16px; padding: 0 4px; border-radius: var(--k-radius-md); background: var(--k-bg-secondary); color: var(--k-text-secondary); line-height: 16px; }
+.k-attr-bar { flex: none; width: 32px; height: 4px; border-radius: var(--k-radius-full); background: var(--k-bg-tertiary); overflow: hidden; }
+.k-attr-bar > i { display: block; height: 100%; background: var(--k-text-secondary); }
+.k-attr-bar + .k-attr-filled { width: 32px; font-variant-numeric: tabular-nums; }
+.k-attr-row.is-hover { background: var(--k-bg-hover); }
+
+/* Styles panel: a paint-order row: kind icon, name, the channels it holds
+   (a channel lost to a higher row struck through), chip, eye or lock. */
+.k-po-row .k-tree-name { flex: 1 1 auto; }
+.k-po-ch { flex: 0 1 auto; min-width: 0; margin-left: 8px; color: var(--k-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-po-ch s { color: var(--k-text-tertiary); }
+.k-po-row > .k-icon-btn, .k-po-row > .k-lock-12 { margin-right: 8px; margin-left: 4px; }
+
+/* AI panel: the conversation fills the height; the privacy line and the
+   composer sit at the foot; turns stack (no 96 px speaker column). */
+.k-panel-left.is-ai { overflow: hidden; }
+.k-panel-left.is-ai .k-as { padding: 8px 8px 8px 16px; gap: 12px; }
+.k-panel-left.is-ai .k-as-turn { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.k-panel-left.is-ai .k-as-text { line-height: 16px; }
+.k-panel-left.is-ai .k-as-turn.is-you .k-as-text { padding: 4px 8px; }
+.k-panel-left.is-ai .k-as-tool { max-width: 100%; overflow: hidden; }
+.k-panel-left.is-ai .k-as-tool > span:nth-child(2) { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-panel-left.is-ai .k-as-tool .k-spacer { display: none; }
+.k-panel-left.is-ai .k-as-tool .k-link { flex: none; }
+.k-panel-left.is-ai .k-as-made { flex-wrap: wrap; height: auto; min-height: 24px; }
+.k-panel-left.is-ai .k-as-privacy { height: auto; align-items: flex-start; padding: 8px 8px 8px 16px; line-height: 16px; flex: none; }
+.k-panel-left.is-ai .k-as-privacy .k-icon-16 { margin-top: 0; }
+.k-panel-left.is-ai .k-as-composer { height: 48px; padding: 0 8px 0 16px; flex: none; border-top: 1px solid var(--k-border); }
+.k-panel-left.is-ai .k-as-composer .k-input-value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Toolbar (round-4 section 3.1): 48 tall, 32 px icon-only tools, 16 x 32
+   chevrons 1 px after their tool, full-height dividers, then the 40 x 32
+   view-mode button whose face is the mode's two characters and a caret. */
+.k-toolbar .k-tool-group { gap: 1px; align-items: center; }
+.k-mode-btn { width: 40px; height: 32px; padding: 0 0 0 4px; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 0; border: 0; border-radius: var(--k-radius-md); background: transparent; color: var(--k-text); font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body); outline: 1px solid transparent; outline-offset: -1px; }
+.k-mode-btn .k-mode-caret { width: 16px; height: 16px; color: var(--k-text-secondary); }
+.k-mode-btn:hover, .k-mode-btn.is-hover { background: var(--k-bg-hover); }
+.k-mode-btn.is-open { background: var(--k-bg-selected); color: var(--k-text-brand); }
+.k-mode-btn.is-open .k-mode-caret { color: var(--k-text-brand); }
+.k-mode-btn.is-xr { color: var(--k-text-brand); }
+.k-mode-btn.is-disabled { color: var(--k-text-disabled); }
+
+/* A tooltip that names a control, its key and one sentence (the toolbar's
+   labels; the rail's names). Body text, the key in secondary white 12 px
+   after the name. */
+.k-tooltip.k-tip-rich { flex-direction: column; align-items: flex-start; gap: 0; max-width: 240px; min-height: 24px; height: auto; padding: 4px 8px; }
+.k-tip-rich > div { line-height: 16px; }
+.k-tip-rich .k-tip-title { font-weight: var(--k-fw-body); }
+.k-tip-rich .k-shortcut { margin-left: 12px; color: var(--k-text-menu-secondary); }
+.k-tooltip.k-tip-rich:not(.k-tip-above):not(.k-tip-right):not(.k-tip-below)::after { display: none; }
+
+/* The secondary bar is a light surface (compact-mantine SecondaryToolbar,
+   spec 11.3): 40 tall, radius 13, elevation 200, 8 px above the toolbar;
+   its one filled button is Run or Create; Options is the gear, Cancel the X. */
+.k-secondary-bar { bottom: calc(12px + 48px + 8px); background: var(--k-bg); color: var(--k-text); box-shadow: var(--k-shadow-200); padding: 0 8px 0 16px; }
+.k-secondary-bar .k-select { background: var(--k-bg); color: var(--k-text); box-shadow: inset 0 0 0 1px var(--k-border); padding-right: 0; }
+.k-secondary-bar .k-select .k-icon { color: var(--k-text-tertiary); }
+.k-secondary-bar .k-btn-ghost { color: var(--k-text); }
+.k-secondary-bar .k-btn-ghost:hover { background: var(--k-bg-transparent-hover); }
+.k-secondary-bar .k-cancel { color: var(--k-text-secondary); }
+.k-secondary-bar .k-bar-field { background: var(--k-bg); }
+.k-secondary-bar .k-caret-bar { background: var(--k-text); }
+.k-secondary-bar .k-bar-chip { background: var(--k-bg-secondary); }
+.k-secondary-bar .k-bar-chip .k-icon-16 { color: var(--k-text-secondary); }
+.k-secondary-bar .k-bar-secondary { color: var(--k-text-secondary); }
+.k-secondary-bar .k-btn-ghost.is-disabled { color: var(--k-text-disabled); }
+.k-secondary-bar .k-btn.is-disabled:not(.k-btn-ghost) { background: var(--k-bg-disabled); color: var(--k-text-ondisabled); opacity: 1; }
+.k-split { display: inline-flex; gap: 1px; flex: none; }
+.k-split > .k-btn:first-child { border-radius: var(--k-radius-md) 0 0 var(--k-radius-md); }
+.k-split > .k-split-caret { width: 20px; padding: 0; border-radius: 0 var(--k-radius-md) var(--k-radius-md) 0; }
+.k-split.is-disabled > .k-btn { background: var(--k-bg-disabled); color: var(--k-text-ondisabled); }
+.k-legend-card.has-secondary { bottom: calc(12px + 48px + 8px + 40px + 12px); }
+
+/* Flyouts and the mode menu: dark menus with 24 px rows (visual-language.md
+   2.3), 8 px above the toolbar (48 above it while the secondary bar shows). */
+.k-flyout { bottom: calc(12px + 48px + 8px); }
+.k-flyout.has-secondary { bottom: calc(12px + 48px + 8px + 40px + 8px); }
+.k-flyout .k-menu-item { height: 24px; }
+.k-flyout .k-menu-item .k-tree-icon { height: 24px; }
+.k-flyout .k-menu-target { height: 32px; }
+
+/* The command palette (compact-mantine QuickActions, spec 11.9): 529 x 354,
+   light, radius 13, elevation 200, 8 px above the toolbar, centred on it. */
+.k-palette { position: absolute; left: 50%; bottom: calc(12px + 48px + 8px); transform: translateX(-50%); width: 529px; height: 354px; display: flex; flex-direction: column; overflow: hidden; background: var(--k-bg); border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-200); z-index: 4; }
+.k-palette-search { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; font: 400 13px/24px var(--k-font); letter-spacing: -0.003px; border-bottom: 1px solid var(--k-border); }
+.k-palette-search .k-icon-16 { color: var(--k-text-secondary); }
+.k-palette-search .k-caret-bar { margin-left: -6px; }
+.k-palette-tabs { flex: none; padding: 4px 16px; }
+.k-palette-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 0 8px; }
+.k-palette-head { height: 24px; display: flex; align-items: center; padding: 0 16px; color: var(--k-text-secondary); font: var(--k-text-body-strong); letter-spacing: var(--k-ls-body); }
+.k-palette-row { display: flex; align-items: center; gap: 8px; height: 32px; margin: 0 8px; padding: 0 8px; border-radius: var(--k-radius-md); font: 400 13px/24px var(--k-font); letter-spacing: -0.003px; white-space: nowrap; }
+.k-palette-row.is-active { background: var(--k-bg-selected); }
+.k-palette-icon { width: 16px; height: 16px; flex: none; color: var(--k-text-secondary); }
+.k-palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.k-palette-note { margin-left: 8px; color: var(--k-text-secondary); font-size: 11px; }
+.k-palette-key { flex: none; color: var(--k-text-secondary); font: var(--k-text-body); }
+
+/* Type (visual-language.md section 13, items 2 and 3): pill tabs are 450 in
+   secondary ink and the selected one 550; a tree row's weight comes from
+   its level (the root 600, nested rows 400), never from being selected. */
+.k-insp-tabs .k-tab, .k-dock-handle .k-tab, .k-dock-head .k-tab { font-weight: var(--k-fw-body); }
+.k-insp-tabs .k-tab.is-selected, .k-dock-handle .k-tab.is-selected, .k-dock-head .k-tab.is-selected { font-weight: var(--k-fw-strong); }
+.k-tree-row.is-top .k-tree-name { font-weight: 600; }
+.k-tree-row.is-selected:not(.is-top) .k-tree-name { font-weight: 400; }
+
+/* The reference page: the rail's outline in the fit band, the tooltips in a
+   row, the mode menu in a column. */
+.k-refpage .k-ref-fit .k-ref-rail { width: 57px; }
+.k-refpage .k-ref-bar { height: 160px; }
+.k-refpage .k-ref-callout.is-low { top: 128px; }
+.k-refpage .k-ref-fit .k-ref-panel:last-child { width: 241px; }
+.k-refpage .k-ref-tips { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.k-refpage .k-ref-tips .k-float-tip { position: static; }
+.k-refpage .k-ref-columns .k-float-menu { position: static; }
+.k-panel-left.is-ai .k-as-input { flex: 1 1 0; min-width: 0; width: auto; }
+.k-panel-left.is-ai .k-as-composer > .k-btn { flex: none; }
+.k-ds-row .k-tree-meta { margin-right: 8px; }

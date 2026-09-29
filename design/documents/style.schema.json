@@ -18,9 +18,9 @@
             "minLength": 1,
             "maxLength": 256,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
-            "description": "The style's identity across saves: a reverse-domain name (org.example-lab.expression-overlay) is recommended. It is the template id of its layers, so opening a style whose id is already applied replaces the earlier layers by default (style.md, 'Reading and applying' rule 9). Ids starting graphty. or graphty: in any case, and URLs on graphty.app, are reserved.",
+            "description": "The style's identity across saves: a reverse-domain name (org.example-lab.expression-overlay) is recommended. It is the template id of its layers, so opening a style whose id is already applied from the same place replaces the earlier layers by default (style.md, 'Reading and applying' rule 9). Ids starting graphty. or graphty:, and ids holding graphty.app followed by /, :, . or the end, in any case, are reserved.",
             "not": {
-                "pattern": "^([Gg][Rr][Aa][Pp][Hh][Tt][Yy][.:]|[Hh][Tt][Tt][Pp][Ss]?://([^/]*[.])?[Gg][Rr][Aa][Pp][Hh][Tt][Yy][.][Aa][Pp][Pp]([/:]|$))"
+                "pattern": "^[Gg][Rr][Aa][Pp][Hh][Tt][Yy][.:]|[Gg][Rr][Aa][Pp][Hh][Tt][Yy][.][Aa][Pp][Pp]([/:.]|$)"
             }
         },
         "styleVersion": {

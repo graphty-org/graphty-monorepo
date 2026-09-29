@@ -59,12 +59,13 @@ To check a file by hand before sharing it, validate it against this directory's 
 command from this directory:
 
 ```sh
-npx -y -p ajv-cli@5 -p ajv-formats ajv validate --spec=draft2020 -c ajv-formats --allow-union-types \
+npx -y -p ajv-cli@5 -p ajv-formats ajv validate --spec=draft2020 -c ajv-formats --allow-union-types --all-errors \
     -s container.schema.json -r style.schema.json -r recipe.schema.json -r data.schema.json -d team-colours.graphty.json
 ```
 
 The `-p ajv-formats -c ajv-formats` pair and `--allow-union-types` are needed: the schemas use URL
-formats and union types. Without a command line, `openDocument(text, { apply: false })` reports
+formats and union types; the shorter `npx ajv-cli validate` form fails before it checks anything.
+`--all-errors` lists every problem in one pass instead of stopping at the first. Without a command line, `openDocument(text, { apply: false })` reports
 every problem the schemas would, and more, without changing anything ("Opening a file someone sent
 you").
 
@@ -94,7 +95,7 @@ Save this as `team-overview.graphty.json`:
             "version": 1,
             "id": "org.example.team-overview",
             "commands": [
-                { "op": "graph.filter", "where": "data.confidence >= `0.4`", "on": "edges" },
+                { "op": "graph.filter", "where": "data.confidence >= `0.4`", "on": "edges", "dropIsolated": true },
                 { "op": "algo.run", "algorithm": "pagerank", "as": "influence", "params": { "weight": "confidence" } },
                 { "op": "algo.run", "algorithm": "louvain", "as": "groups" },
                 { "op": "layout.set", "id": "force", "options": { "seed": 42 } }
@@ -111,20 +112,24 @@ Load a graph whose edges have a `confidence` column, then open the recipe and as
 const { report } = await element.session.data.openDocument(text, { run: true });
 ```
 
-The edges below 0.4 confidence are filtered out, and every later command sees only the rest.
-PageRank runs weighted by `confidence`, Louvain finds groups, and the graph is laid out from a
-fixed seed. On a graph with no `confidence` column the filter and everything after it are skipped
+The edges below 0.4 confidence are filtered out, and so are the nodes left with no edge
+(`dropIsolated`; without it they stay, and Louvain makes each a group of its own). Every later
+command sees only the rest. PageRank runs weighted by `confidence`, Louvain finds groups, and the
+graph is laid out from a fixed seed (`force` is drawn by its default engine, ngraph, which takes
+`seed`). On a graph with no `confidence` column the filter and everything after it are skipped
 and reported, naming the column; `report` suggests the nearest names your data has, and
 `openDocument(text, { run: true, columns: { confidence: "score" } })` reads yours instead. Each run
 paints its suggested colouring, above your own layers; to keep a colouring of your own on top (a
-style colouring nodes by a `community` column, say), write `"style": false` on the run. The same data on the same release gives the same numbers every
+style colouring nodes by a `community` column, say), write `"style": false` on the run -- the
+report's `W_PAINTS_OVER` notice says so when a run's colouring would cover one of yours. The same
+data on the same release gives the same numbers every
 time, under the conditions of recipe.md, "Same data, same results" -- one of which is the same kind
 of machine: a WebGPU accelerator computes in single precision and the CPU in double, and version 1
 cannot make a replay use one or the other; the report says when a replay's precision differs from
 the recording's. Opening a recipe without `run: true` runs nothing: it reports what would run and
 what it would cost. Recipes are specified for graphty-element 3.0.0; no release replays one yet.
 
-A recipe records the analysis you ran in graphty; you rarely write one by hand.
+A recipe records the analysis you ran in graphty; you rarely write one from scratch.
 `session.data.saveDocument({ recipe: { id } })` saves the analysis commands of a session as a
 recipe, and the look as a style, in one file; your data is written only when you ask for it
 (recipe.md, "Recording"; container.md, "Writing a file" rule 4). A run made on the selection, on
@@ -149,9 +154,17 @@ for STRING's space-separated bulk download:
             "kind": "graphty-recipe",
             "version": 1,
             "id": "org.example-lab.ppi-core",
+            "recipeVersion": "1.0.0",
+            "description": "STRING bulk protein.links files (combined_score 0 to 1000). In a browser it fits the organisms whose core at 700 has under 100,000 interacting pairs; for larger ones (human) replay it in Node with raised limits.",
             "directed": false,
             "parallelEdges": false,
-            "table": { "edgeSource": "protein1", "edgeTarget": "protein2", "delimiter": " ", "repeatedEdges": "max" },
+            "table": {
+                "edgeSource": "protein1",
+                "edgeTarget": "protein2",
+                "delimiter": " ",
+                "repeatedEdges": "first",
+                "filterWhileReading": true
+            },
             "commands": [
                 { "op": "graph.filter", "where": "data.combined_score >= `700`", "on": "edges", "dropIsolated": true },
                 { "op": "algo.run", "algorithm": "louvain", "as": "modules", "scope": "largest-component" }
@@ -161,30 +174,69 @@ for STRING's space-separated bulk download:
 }
 ```
 
-Open it first, then import your table through it, look at the plan, and run:
+Open it first, then import your table through it, look at the plan, and run. STRING distributes
+its files as `.txt.gz`; the platform's `DecompressionStream` decompresses one while it is read:
 
 ```js
 const opened = await element.session.data.openDocument(recipeText);
 const recipe = opened.recipes[0];
-await recipe.import({ type: "csv", config: { file } });
-console.log(recipe.report); // what bound, how many edges the filter keeps, what it will cost
+const stream = file.stream().pipeThrough(new DecompressionStream("gzip")); // or config: { file } for a .txt
+await recipe.import({ type: "csv", config: { stream } });
+console.log(recipe.report); // what bound, how many rows the filter dropped, what it will cost
 recipe.run();
 ```
 
-`recipe.import` reads the file the way the recipe's `table` and `directed` say: here space-separated,
-undirected, each pair's two rows merged into one edge. The recipe's leading edge filter is applied
-while the file is read, so a download far larger than the page could hold is read down to the
-edges the recipe keeps, and the report says so; what is left must still fit the import limits
-("Limits"). Then the recipe binds and plans, and `recipe.report` holds that plan. It
-runs nothing until you call `run()`.
+`recipe.import` reads the file the way the recipe's `table` and `directed` say: here
+space-separated and undirected, with each pair's two rows (`A B` and `B A`) merged into one edge
+that keeps the first row's columns. `repeatedEdges` combines only the edge weight (`sum`, `min`,
+`max`); every other column of a merged edge is the first row's (the last row's for `last`), and
+STRING's file has no weight column, so `first` says what happens. Its source is a `file` (a
+browser `File`, or any `Blob`), a `stream` of bytes, a `url` it fetches, or `data`, a string for
+small text; the first three are read as a stream, row by row, never held as one string.
+
+Nothing runs until you call `run()`. In a Node script or a nightly job, the same recipe replays
+headless with `createGraphSession()`, which draws nothing and so may raise the load ceilings
+("Limits"):
+
+```js
+import { openAsBlob } from "node:fs";
+import { createGraphSession } from "@graphty/graphty-element/session";
+
+const session = createGraphSession({ limits: { nodes: 1_000_000, edges: 5_000_000 } });
+const [recipe] = (await session.data.openDocument(recipeText)).recipes;
+const blob = await openAsBlob("9606.protein.links.v12.0.txt.gz");
+await recipe.import({ type: "csv", config: { stream: blob.stream().pipeThrough(new DecompressionStream("gzip")) } });
+await recipe.run();
+```
+
+**How a large download fits.** The recipe's leading edge filters are applied to each row while the
+file is read, so a download of millions of rows is read down to the rows the recipe keeps; the
+report's `appliedWhileReading` says how many each filter dropped. Then `repeatedEdges` merges the
+kept rows, and only then are the load ceilings checked, on the edges left after the merge: for
+STRING, on interacting pairs, not on rows. The kept rows are held to twice the edge ceiling before
+the merge. Filtering rows while reading gives exactly the graph filtering after import gives when
+no rows are merged; when they are, a pair is kept if any of its rows passes, which is the same
+answer whenever a pair's rows agree on the filtered column, as STRING's two rows of a pair always
+do. `filterWhileReading: true` is the recipe's author saying so; without it, a table whose rows are
+merged is read whole and filtered after import (recipe.md, "Table data" rule 4). In a browser the
+ceilings stay 50,000 nodes and 100,000 edges: human STRING at 700 is larger and is refused there
+with `E_TOO_LARGE`, naming the Node route.
 
 Your own options win: pass `edgeSource`, `delimiter` or anything else in `config`, and the report
-says where they differ from the recipe's. A file whose first line does not hold the recipe's
-endpoint columns (a Gephi `edges.csv` headed `Source,Target,Weight`) is read by the importer's own
-rules, as if the recipe named none, and the report says so. A plain `data.import` never takes
-anything from a recipe. A node table and an edge table are imported one after the other, the
-second with `{ mode: "merge" }` as `recipe.import`'s second argument; the plan is made again after
-each.
+says where they differ from the recipe's. A file whose first line holds the recipe's
+endpoint columns neither when split by the recipe's delimiter nor by the one the importer detects
+(a Gephi `edges.csv` headed `Source,Target,Weight`) is read by the importer's own rules, as if the recipe
+named none, and the report says so. A plain `data.import` never takes anything from a recipe. A
+node table and an edge table are imported one after the other, the second with `{ mode: "merge" }`
+as `recipe.import`'s second argument; the plan is made again after each. A GraphML or other file
+that marks its own structure can be imported through `recipe.import` too; it is read as a plain
+import reads it, because `table` and `directed` are for tables, and the plan follows.
+
+**Recording an analysis of a file too large to load whole.** A plain import of the full download
+is refused before you can filter it, so start from a recipe holding only `table` and the filter:
+open it, import through it, run your algorithms by hand, then save with
+`saveDocument({ recipe: { id } })`. The recorder writes the `table` the import was read with and the
+filters it applied while reading, then your runs (recipe.md, "Recording" rule 5).
 
 Check the scale of a column the recipe compares with a number: STRING's web export has
 `combined_score` from 0 to 1, where this recipe expects 0 to 1000 ("What version 1 does not
@@ -214,8 +266,11 @@ how it expects a table to be read before you import one through it.
 
 An application that opens documents for a person SHOULD show that preview first -- each member's
 `summary`, every recipe's costs and `wouldStart`, the file's own `wouldStart`, and every notice --
-and SHOULD NOT pass `run: true` unless the person asked for the recipes to run. This says what is
-shown and when, not how it looks.
+and SHOULD NOT pass `run: true` unless the person asked for the recipes to run. When it holds a
+recipe with a `table`, it SHOULD offer to import data for that recipe, which calls that
+application's `import()`, so a person who uses the application rather than a script reads their
+table with the recipe's columns and delimiter instead of retyping them; its ordinary data import
+takes nothing from a recipe. This says what is shown and offered and when, not how it looks.
 
 ## The documents in this directory
 
@@ -301,7 +356,11 @@ listed in "Where this lives in the packages".
 2. **The edge weight** is the edge column `weight` after every import, whatever the file called it:
    a CSV's `weight` or `Weight` header, a GraphML or GEXF `weight`, GML's `value`, Pajek's third
    column. The file's own name is not a second column; graph-io keeps it only so an export can
-   write it back. A file with no weight gives edges no `weight` value. An edge whose weight is not
+   write it back. A file that also has a field literally named `weight` besides the one the weight
+   is read from (a GML edge with `value 3` and `weight 0.2`) keeps that field as the column
+   `weight_1`, and the import report says so. A file with no weight gives edges no `weight` value,
+   and neither does an edge whose weight the file left empty: graph-format marks such a weight as
+   defaulted, and the session record leaves `weight` unset there instead of writing the default 1. An edge whose weight is not
    a number (`NA`, empty) is kept, with no `weight` value, and the import report counts it; an
    import never drops an edge for its weight, because every unweighted analysis would then see
    another network. graphty-element's
@@ -311,25 +370,31 @@ listed in "Where this lives in the packages".
    key's `attr.name`, a GEXF attribute's `title`, a JSON member name, a Neo4j property. A label the
    format itself defines (GEXF, GML and DOT `label`, a Pajek vertex label) is the column `label`;
    GraphML defines none, so a GraphML file's display name is whatever key it declares (Cytoscape
-   writes `name`). A neo4j-admin import CSV's `:LABEL` field is the node column `labels` (plural,
-   as graph-io names it), as text written the way the file writes it (`Supplier;Company` for a
-   node with two labels), and `:TYPE` the edge column `type`. So `label` means a display name in
-   every format, and never a type. The field a knowledge graph most depends on -- an element's
-   type -- lands under a different name in each format, and a style or recipe shared across them
-   needs the caller's `columns`, `nodeColumns` or `edgeColumns` rename:
+   writes `name`). The field a knowledge graph most depends on -- an element's type -- lands under
+   a different name, and sometimes a different spelling of its values, in each format and each
+   export route. A rename can fix a name but never a value, so a style or recipe for Neo4j data is
+   written against one export route, and its `description` names it:
 
-    | Format    | An element's type                      | Its display name               |
-    | --------- | -------------------------------------- | ------------------------------ |
-    | Neo4j     | `labels` (nodes, text), `type` (edges) | a property                     |
-    | GraphML   | an attribute the file declares         | an attribute the file declares |
-    | GEXF      | an attribute the file declares         | `label`                        |
-    | GML, DOT  | an attribute the file declares         | `label`                        |
-    | CSV, JSON | a column the file has                  | a column                       |
+    | Source                                                                         | An element's type                                                                    | Its display name               |
+    | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------ |
+    | Neo4j, neo4j-admin import CSVs (`apoc.export.csv.all` with `bulkImport: true`) | `labels` on nodes, text as the file writes it (`Supplier;Company`); `type` on edges  | a property                     |
+    | Neo4j, `apoc.export.graphml.all`                                               | `labels` on nodes, text with a leading colon (`:Supplier:Company`); `label` on edges | a property                     |
+    | GraphML from other tools                                                       | an attribute the file declares                                                       | an attribute the file declares |
+    | GEXF                                                                           | an attribute the file declares                                                       | `label`                        |
+    | GML, DOT                                                                       | an attribute the file declares                                                       | `label`                        |
+    | CSV, JSON                                                                      | a column the file has                                                                | a column                       |
+
+    So `label` is a display name in GEXF, GML and DOT, and a relationship's type in APOC's
+    GraphML. A style or recipe shared across formats needs the caller's `columns`, `nodeColumns`
+    or `edgeColumns` rename for the name.
 
 4. **Value types** are the file's own where it declares them (GraphML and GEXF keys, Neo4j header
    types, JSON values). Where the file declares none (CSV, DOT), graph-io types each column as a
-   whole: a column of numbers is numbers, and one `NA` cell makes the whole column text. An
-   unquoted empty cell is no value. So an ordering comparison (`<`, `>`), a weight and a numeric
+   whole: a column of numbers is numbers, and one `NA` cell makes the whole column text. A column
+   of `true` and `false`, written exactly so, is booleans; `TRUE` and `FALSE`, as R's `write.csv`
+   writes them, stay text, which ``== `true` `` does not match and which a bare
+   `where: "data.significant"` counts as true, because text that is not empty is true. Compare such
+   a column as text (`data.significant == 'TRUE'`). An unquoted empty cell is no value. So an ordering comparison (`<`, `>`), a weight and a numeric
    scale read a value as a number when it is one or is text that reads as a decimal number
    (`"0.01"`), and treat every other value (`NA`) as not a number: it never matches such a
    comparison and is never painted by a numeric scale. A style and a recipe treat it the same way
@@ -340,8 +405,11 @@ listed in "Where this lives in the packages".
    missing and counts it with `W_COLUMN_TYPE`. GraphML, GML, DOT, Pajek and CSV produce no lists.
 6. **Rows are imported as given**, unless the `repeatedEdges` import option says otherwise
    (container.md, "Import options"). A CSV row is one edge, so a file listing each pair twice
-   (`A B` and `B A`) gives two edges. A compressed file (`.gz`) is not read: the import fails with
-   `E_PARSE_FAILED`, saying that the file is compressed and must be decompressed first.
+   (`A B` and `B A`) gives two edges. `repeatedEdges` combines only the edge weight; every other
+   column of a merged edge is its first row's, or its last row's for `last`. A compressed file
+   (`.gz`) is not read as it is: the import fails with `E_PARSE_FAILED`, saying that the file is
+   compressed and that a `stream` piped through the platform's `DecompressionStream("gzip")`
+   reads it ("Replaying a recipe on your own table").
 
 Where each importer finds its structure when no import option says otherwise:
 
@@ -354,7 +422,7 @@ Where each importer finds its structure when no import option says otherwise:
 | DOT                                              | the edge statement                                                                                                                                                               | the node's ID                                      | the `weight` attribute           | `digraph` directed, `graph` undirected                                                                                                            |
 | Pajek                                            | the arc or edge line                                                                                                                                                             | the vertex number                                  | the line's third column          | `*Arcs` directed, `*Edges` undirected                                                                                                             |
 | JSON                                             | the dialect's own names (node-link: `source`, `target`)                                                                                                                          | the dialect's own (node-link: `id`)                | `weight`                         | the dialect's own flag, else graph-io's default for the dialect: undirected for node-link, d3 and vis; directed for jgf, cytoscape and graphology |
-| neo4j-admin import CSV (the CSV variant `neo4j`) | `:START_ID`, `:END_ID`                                                                                                                                                           | `:ID`                                              | the `weight` property            | always directed                                                                                                                                   |
+| neo4j-admin import CSV (the CSV variant `neo4j`) | `:START_ID`, `:END_ID`                                                                                                                                                           | `:ID`                                              | the `weight` property            | directed                                                                                                                                          |
 
 The `directed` import option overrides the last column for every format.
 
@@ -445,8 +513,10 @@ This is what the documents are for, so the rules are stated together here and in
    resolves. A held recipe never runs by itself: the caller reads the plan and calls `run()`,
    whatever `run` the opening was given.
 6. **Opening the same thing twice.** A recipe applied again to the same data is refused unless the
-   caller says otherwise (recipe.md, "Applying a recipe"). A style opened again replaces the layers
-   its earlier opening added (style.md, "Reading and applying").
+   caller says otherwise (recipe.md, "Applying a recipe"). A style opened again from the same file
+   replaces the layers its earlier opening added; a style from another file that claims the same
+   `id` adds its layers beside them and the report names the collision (style.md, "Reading and
+   applying" rule 9).
 7. **One report shape.** Opening returns a report per member (container.md, "The report"): what
    applied, what was skipped or switched off, and why, with an error code and a sentence a person
    can act on.
@@ -482,8 +552,10 @@ A document is data from someone else.
    document it came from, so a document cannot make its layers look like the reader's own. A
    document's `generator` and `graphty.provenance` are claims the file makes about itself; a
    reader shows them as such, never as verified. Style and recipe ids starting `graphty.` or
-   `graphty:`, in any case, and URLs on `graphty.app` are reserved for graphty-element, so a file
-   cannot pass off a recipe as the shipped overview. Ids hold only letters, digits and `. _ : / -`,
+   `graphty:`, and ids holding `graphty.app` followed by `/`, `:`, `.` or nothing, in any case, are
+   reserved for graphty-element, so a file cannot pass off a recipe as the shipped overview under
+   any spelling of its URL; a preview marks a document recipe whose `name` is a shipped recipe's
+   name ("General") as not the shipped one. Ids hold only letters, digits and `. _ : / -`,
    so an id cannot hide a character that reverses or hides text.
 6. **Text is text.** Every string from a document -- labels, names, descriptions, and every string a
    report quotes from one (a column, an `href`, an unknown member's name) -- is rendered as text,
@@ -493,7 +565,9 @@ A document is data from someone else.
 ## Limits
 
 A reader MUST enforce these before applying anything, and refuse the file with `E_TOO_LARGE`,
-naming the limit, when one is exceeded. A caller MAY raise them.
+naming the limit, when one is exceeded. A caller MAY raise every limit of this list through
+`openDocument`'s `limits` and `openingSeconds` options, except the load ceilings of the last item, which only a session that
+draws nothing raises.
 
 - a file of at most 64 MB, given as text or bytes, nested at most 64 levels deep. The depth is
   checked by one pass over the raw text that counts brackets outside strings, before the text is
@@ -508,9 +582,15 @@ naming the limit, when one is exceeded. A caller MAY raise them.
 - an expression (a selector's `where`, a recipe scope's `where`) of at most 1,024 characters and 32
   levels of nesting, checked before it is parsed; a longer one fails its layer or its command, not
   the file;
-- at most 100 entries in any list of a report -- a member's notices, the document's own notices,
-  `leftOut`, each list of a style report -- then one notice giving the count of the rest; and every
-  string a report quotes from the document cut to 256 characters;
+- at most 100 entries in a report's lists of notices and of left-out items -- a member's notices,
+  the document's own notices, `leftOut`, a style report's `unbound`, `refused` and `replaced` --
+  then one notice giving the count of the rest. The plan lists are never cut: a recipe report's
+  `commands` and `columns` and a style report's `layers` hold every command, column and layer,
+  because a preview that cut them could not show what the file will do; the 1,000-command and
+  1,000-layer limits bound them. A string a report repeats from the document's own structure (a
+  `where`, a `description`, a member, layer or command `name`) is given whole, up to its schema
+  limit; a string it quotes from the data or from a member this reader does not know is cut to
+  256 characters;
 - every channel value an encoding produces is checked against the channel's own range when it is
   painted, as a `set` value is: a number is clamped to the range, text is cut to 1,024 characters,
   and the report counts each (style.md, "Channels and values");
@@ -525,19 +605,32 @@ naming the limit, when one is exceeded. A caller MAY raise them.
   characters, and one layer at most that times the number of elements. After opening, a
   document's layers cost what the same layers made by hand cost when the data changes;
 - nearest-name suggestions for a missing column cover the first 100 missing names of the whole
-  file, compare each only with the first 1,000 columns of its table and only names of at most 256
-  characters, and give up on a pair past an edit distance of 3, so one pair costs at most a few
-  hundred steps; the opening budget is checked between comparisons. Past those bounds a report
-  says suggestions were not searched;
+  file and compare each only with the first 1,000 columns of its table, and only names of at most
+  256 characters. A column is suggested when, lower-cased and with every character but letters
+  and digits removed, it is within an edit distance of 3 of the missing name, or when the two
+  share a word of at least three letters, words being split at a change from lower to upper case,
+  at digits and at every other character, compared without case: `logFC` suggests
+  `log2FoldChange` (the word `log`), and `adj.P.Val` suggests `adj_p_val`. Names this different
+  get no suggestion: `padj` suggests nothing on data whose column is `FDR`, and the person who
+  knows the two mean the same passes `columns`. One pair costs at most a few hundred steps; the
+  opening budget is checked between comparisons. Past those bounds a report says suggestions were
+  not searched;
+- a referenced data member's file of at most 256 MB, counted in decoded bytes as they arrive: a
+  `resolve` returns a stream or bytes (container.md, "Applying a file"), and one that fetches stops
+  reading and the import is refused with `E_TOO_LARGE` once the decoded body passes the limit, so
+  a small compressed response that decodes to gigabytes is cut off at the limit, not after it.
+  Embedded data counts toward the 64 MB of the file;
 - every import, a preview's scratch import and a data member's included, is held to
   graphty-element's published load ceilings: 50,000 nodes and 100,000 edges today
   (`DEFAULT_LIMITS.renderCeiling` and `edgesDrawn`, measured as what the renderer can hold), past
-  which the import is refused with `E_TOO_LARGE`. They are not raisable by a caller today; they
-  rise when the renderer's cost per element falls. Embedded data also counts toward the 64 MB. A
-  referenced file has no byte limit of its own: a table read through a recipe is filtered row by
-  row by the recipe's leading edge filters while it is read (recipe.md, "Table data"), so only
-  what the recipe keeps counts toward the ceilings. A recipe's `description` says which downloads
-  it fits (for STRING, which organisms at which threshold).
+  which the import is refused with `E_TOO_LARGE`. A session that draws nothing --
+  `createGraphSession()` from the `./session` entry point, in Node or a worker -- may raise them
+  with its `limits` option, because they measure the renderer; an element on a page cannot, and
+  they rise there when the renderer's cost per element falls. They count the graph as it is
+  built: for a table read through a recipe, after the recipe's leading edge filters dropped rows
+  while reading and after `repeatedEdges` merged the kept rows, with the kept rows held to twice
+  the edge ceiling before the merge (recipe.md, "Table data" rule 4). A recipe's `description`
+  says which downloads it fits (for STRING, which organisms at which threshold).
 
 Every lookup of a column, a run or a member by a name taken from a document is a lookup of an own
 name (a map, or `Object.hasOwn`), so a column named `constructor` or `toString` in a document binds
@@ -560,7 +653,8 @@ the graphty app can; the app draws the Save and Open controls and calls the elem
 | Apply one recipe member              | `session.recipes.apply(recipe, options)` (recipe.md, "Applying a recipe")                           |
 | Import a table for a recipe          | `application.import(source, options)` (recipe.md, "Table data")                                     |
 | Read a run's results                 | `session.results.get(runId)` (shipped in 2.x; recipe.md, "Same data, same results")                 |
-| Replay in a script or a CI job       | `createGraphSession()` from the `./session` entry point, which runs in Node with no page            |
+| Write results as columns to a file   | `session.data.export(format, options)` (export-mapping.md, "The export call")                       |
+| Replay in a script or a CI job       | `createGraphSession({ limits })` from the `./session` entry point, which runs in Node with no page  |
 | Record the session's analysis        | `session.recipes.record(options)` (recipe.md, "Recording")                                          |
 | List algorithms, options and layouts | `session.catalog.algorithms()`, `session.catalog.layouts()` (shipped in 2.x; recipe.md)             |
 | Check a file by hand                 | the schemas of this directory, with the command under "Your first style"                            |
@@ -581,6 +675,16 @@ groups, and are marked (3.0.0):
 - an import remembering which columns it read an edge's ends and a node's id from, and
   `RecipeApplication.import`, which reads a table with the recipe's `table` and `directed` and
   applies the recipe's leading edge filters row by row while it reads (recipe.md, "Table data");
+  an import source `stream` (a `ReadableStream` of bytes), and a table read from a `file`, a
+  `stream` or a `url` as a stream, row by row, never held as one string;
+- `createGraphSession({ limits })` raising the load ceilings for a session that draws nothing,
+  and the ceilings counted after a recipe's read-time filters and the merge of repeated rows
+  ("Limits");
+- a session record leaving `weight` unset where graph-format's weight-set bit says the weight was
+  defaulted, and a file's own field named `weight` kept as `weight_1` ("What every importer
+  produces" rule 2);
+- the `directed` and `repeatedEdges` import options applied to a `neo4j`-variant CSV like any
+  other;
 - the delimiter hint in the error of a table import that found no endpoint columns ("What every
   importer produces");
 - import options of a data member checked against the options the format declares, with no
@@ -595,7 +699,8 @@ groups, and are marked (3.0.0):
   the element API design sketched, including the opening budget, checked inside a layer's
   evaluation ("Limits"), and the document-wide recipe budget;
 - per-layer failure, the kept state of a refused layer, a flag that tells a layer switched off for a
-  missing column from one the user switched off, the `waiting` layer state, session-scoped carried
+  missing column from one the user switched off, the `waiting` and `failing` layer states (a
+  layer that throws while it paints, which 2.x leaves enabled and silent), session-scoped carried
   palettes, the check that refuses a binding with both `domain` and `clamp` (2.x throws only while
   painting), and the `columns` and `onRepeat` options of `applyTemplate` (style.md, "Reading and
   applying"). For `applyTemplate`, the changes that alter a published contract wait for 3.0.0
@@ -607,8 +712,8 @@ groups, and are marked (3.0.0):
 - tied categories ordered by code point, not by the reader's locale (style.md, "Bindings" rule 8)
   (3.0.0);
 - keeping each layer's text as read, before a `columns` rename or a namespace rewrote it, and the
-  unknown object members of each layer and command, so a save writes them back (style.md,
-  "Writing"; container.md, "Writing a file" rule 3);
+  unknown object members of each layer, so a save writes them back (style.md, "Writing";
+  container.md, "Writing a file" rule 3);
 - a graphty-element 2.x patch release in which `applyTemplate` refuses an object whose `kind` is
   present and not `"graphty-style"`, or whose `layers` is not an array, with
   `E_UNSUPPORTED_VERSION` and a sentence saying the file needs a newer graphty-element, instead of
@@ -618,10 +723,12 @@ groups, and are marked (3.0.0):
   checking every value an encoding produces against its channel (style.md, "Channels and values";
   recipe.md, "Running");
 - `session.recipes.apply` and `session.recipes.record` (recipe.md);
-- the `graph.filter` command as the session's filter, with `"graph"`, `"largest-component"` and a
-  `where` scope evaluated within what the recipe's filters keep (recipe.md, "Commands" rules 5 and
-  13), and a new filter rule that drops the nodes left with no edge after the filter's other
-  rules: the existing `degree` rule reads the whole graph's degree, so it cannot say this;
+- the applier's handling of `graph.filter`, which is recipe syntax, not a session command: each
+  run is given the recipe's kept graph as an explicit inline scope, with `"graph"`,
+  `"largest-component"` and a `where` scope evaluated within it, and the kept graph is shown
+  through the session's own `visibility.set` (recipe.md, "Commands" rules 5 and 13); and a new
+  filter rule that drops the nodes left with no edge after the filter's other rules: the existing
+  `degree` rule reads the whole graph's degree, so it cannot say this;
 - every command a recipe can run stopping when it reaches the cap -- run where the applier can
   terminate it, or checking its cancellation signal inside its inner loop -- and every cost class
   an upper bound that counts every option multiplying the work (Girvan-Newman's `maxIterations`
@@ -637,22 +744,26 @@ groups, and are marked (3.0.0):
 - an option of type `attribute` or `partition` accepting an earlier run's result
   (`{ "result": "<as>.<field>" }`; recipe.md, "Commands" rule 4);
 - a `randomised` and an `orderDependent` fact in every algorithm descriptor, the run's `seed`
-  feeding the algorithm's own seed option (label propagation's `randomSeed` today), a seed drawn
+  feeding the algorithm's own seed option (label propagation's `randomSeed` today) and a
+  command that gives that option in `params` refused, a seed drawn
   and reported in the caveats for every randomised or sampled run given none whose seed option
   has no published default, and every layout engine with a seed option reporting the seed it
   used, so a recorded run or layout can always be replayed with the seed it used;
 - a run record that keeps the run's `RunStyle` and, for a run on the visible graph, the filter
   and the time window in force when it started, and a layout record that keeps when the layout
   was set and the filter in force then (recipe.md, "Recording");
-- an application's `remove()` restoring the filter and the layout it replaced, and an opening, a
-  `run()` and a `remove()` each being one undoable step (recipe.md, "Applying a recipe");
+- an application's `remove()` restoring the filter and the layout it replaced, and the undo steps
+  of an opening, a `run()` and a `remove()` (recipe.md, "Applying a recipe", "Undo");
 - the largest-component scope choosing among tied components by the rule of recipe.md, "Commands"
   rule 5, and an edge-predicate scope (`on: "edges"`) for runs;
 - the cost gate holding a sampled run's own estimate to the cap, and a cost estimate for every
   layout engine (recipe.md, "Running");
-- an export path from the session through graph-io's JSON exporter, for `saveDocument`'s embedded
-  data (container.md, "Writing a file" rule 4), and the export option that names result columns
-  (export-mapping.md, "Results as columns" rule 2);
+- `session.data.export`, the export path from the session through graph-io's exporters, with the
+  `resultNames` option that names result columns (export-mapping.md, "The export call"), which
+  `saveDocument`'s embedded data uses too (container.md, "Writing a file" rule 4);
+- the recorder writing `table` from every table import that built the graph, the SHA-256 of each
+  imported file in the recipe report, and `record()`'s `sources` (recipe.md, "Recording" and "The
+  replay report");
 - the error and warning codes and the report shapes of "Error and warning codes" below.
 
 ## What version 1 does not cover
@@ -660,7 +771,9 @@ groups, and are marked (3.0.0):
 Stated plainly so no one discovers it from a failed file. Each is a later version's work.
 
 - **Reading instructions for data**: which column is the id beyond the import options, joins,
-  column types and value ranges, filtering rows while a file is read, reading compressed files.
+  column types and value ranges, general row filtering, reading compressed files by an import
+  option. (A recipe's leading edge filters are applied while its table is read, recipe.md, "Table
+  data" rule 4, and a compressed file is read through a `stream` the caller decompresses.)
   The data plan, in [drafts/](drafts/), is the design work. Until then a referenced file takes
   graphty-element's import options, which are only those of container.md, "Import options". Four
   consequences:
@@ -673,7 +786,9 @@ Stated plainly so no one discovers it from a failed file. Each is a later versio
       column before replaying a recipe that compares it with a number.
     - **Joins and other preparation.** A data member is one file. Node names that live in a second
       file (STRING's `protein.info` with `preferred_name`, a DESeq2 table keyed by gene symbol)
-      cannot be attached; combine them into one GraphML or node-link JSON file first. In R:
+      cannot be attached to it; in a session, import the second file with `mode: "merge"` and
+      `idColumn`, and to carry both inside a document, combine them into one GraphML or node-link
+      JSON file first. In R:
       `g <- igraph::graph_from_data_frame(edges, directed = FALSE, vertices = de_table)` then
       `igraph::write_graph(g, "net.graphml", "graphml")`, where the first column of `de_table`
       holds the node ids spelled exactly as the edge list spells them; in Python, NetworkX's
@@ -681,24 +796,30 @@ Stated plainly so no one discovers it from a failed file. Each is a later versio
       so a recipe that needs one says so in its `description`, the first thing a person replaying
       it reads.
     - **STRING's bulk downloads** list every interaction twice (`A B` and `B A`), are undirected,
-      separate columns by single spaces and are distributed only as `.txt.gz`. Decompress the file,
-      then import it with `delimiter: " "`, `edgeSource: "protein1"`, `edgeTarget: "protein2"`,
-      `directed: false` and `repeatedEdges: "max"`, which on an undirected import merges the two
-      rows of each pair. A recipe's `table` and `directed` carry those options for `recipe.import`
+      separate columns by single spaces and are distributed only as `.txt.gz`. Read one through a
+      `stream` piped through `DecompressionStream("gzip")`, with `delimiter: " "`,
+      `edgeSource: "protein1"`, `edgeTarget: "protein2"`, `directed: false` and
+      `repeatedEdges: "first"`, which on an undirected import merges the two rows of each pair and
+      keeps the first row's `combined_score` (both rows carry the same one). A recipe's `table` and `directed` carry those options for `recipe.import`
       ("Replaying a recipe on your own table"), a data member carries them for its file, and
       `saveDocument` writes them for the file the session was loaded from (container.md, "Writing
       a file" rule 4).
-    - **Repeated pairs and direction** are flagged, not changed. When more than half of a directed
-      graph's edges have a reverse twin, the recipe report carries `W_DIRECTION_DIFFERS` suggesting
-      `directed: false`; when more than half of an undirected graph's connected pairs are held by
-      two or more edges, it carries `W_PARALLEL_EDGES` suggesting `repeatedEdges`. Both apply
-      whatever the recipe records.
-    - **Neo4j.** Only neo4j-admin import CSVs (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`) are read,
-      as the CSV variant `neo4j`. APOC's `apoc.export.csv.all` writes nodes and relationships in
-      one file (`_id`, `_labels`, `_start`, `_end`, `_type`), and a Browser query export is any
-      table; neither is read as a graph. Export with `apoc.export.graphml.all` instead, whose
-      GraphML graphty-element reads, or split an APOC CSV into a node table and an edge table and
-      import them with `idColumn: "_id"`, then `edgeSource: "_start"` and `edgeTarget: "_end"`.
+    - **Repeated pairs and direction** are flagged, not changed. `W_DIRECTION_DIFFERS` has two
+      triggers: the recipe's `directed` differs from the graph's (recipe.md, "Binding to a new
+      graph" rule 5), and, whatever the recipe records, more than half of a directed graph's edges
+      have a reverse twin, when it suggests `directed: false`. Likewise `W_PARALLEL_EDGES` comes
+      from `parallelEdges: false`, or from more than half of an undirected graph's connected pairs
+      being held by two or more edges, when it suggests `repeatedEdges`.
+    - **Neo4j.** Two export routes are read, and they spell types differently ("What every
+      importer produces" rule 3). The one a style or recipe for Neo4j data SHOULD be written
+      against is neo4j-admin import CSVs (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`), which
+      `apoc.export.csv.all` writes with `bulkImport: true` and graphty-element reads as the CSV
+      variant `neo4j`. `apoc.export.graphml.all` also gives a file graphty-element reads, with
+      node labels as `:Supplier:Company` and the relationship type in `label`. APOC's plain
+      `apoc.export.csv.all` writes nodes and relationships in one file (`_id`, `_labels`,
+      `_start`, `_end`, `_type`), and a Browser query export is any table; neither is read as a
+      graph as it is: split such a file into a node table and an edge table and import them with
+      `idColumn: "_id"`, then `edgeSource: "_start"` and `edgeTarget: "_end"`.
 - **What a weight means.** A recipe cannot say whether a weight is a strength (bigger is closer) or a
   distance (bigger is farther). Path-based algorithms (betweenness, closeness, shortest paths) read
   a weight as a distance, so a confidence or correlation column must not be their weight. A
@@ -776,7 +897,10 @@ A new published `GraphtyWarningCode` union, for notices that do not stop anythin
 | `W_COLUMN_TYPE`          | a column compared with or scaled as a number holds values that are not numbers; details `{ column, count }`                    |
 | `W_DIRECTION_DIFFERS`    | the graph's direction differs from the recipe's, or a directed graph looks undirected                                          |
 | `W_PARALLEL_EDGES`       | a recipe recorded on a graph without parallel edges replayed on one with them, or most pairs of an undirected graph held twice |
-| `W_TABLE_COLUMNS_DIFFER` | the table data was read with options other than the recipe's `table`, or without them                                          |
+| `W_TABLE_COLUMNS_DIFFER` | the table data was read with options other than the recipe's `table` (another delimiter included), or without them             |
+| `W_FILTER_AFTER_IMPORT`  | a recipe's leading edge filter was not applied while its table was read, and runs after import instead; the reason is named    |
+| `W_MATCHES_NOTHING`      | a style layer's selector bound and matched no element; the column's most frequent values are listed when it compares a text    |
+| `W_ID_COLLISION`         | a style opened from another file claims the `id` of a style already opened; its layers were added, not replaced                |
 | `W_PAINTS_OVER`          | a run's suggested colouring, or a file's style layer, will paint a channel an enabled layer already paints                     |
 | `W_RELEASE_DIFFERS`      | the file or recipe was written by another release of graphty-element                                                           |
 | `W_PRECISION_DIFFERS`    | a run replays in another precision than its recipe records (`recordedPrecision`)                                               |
@@ -784,7 +908,8 @@ A new published `GraphtyWarningCode` union, for notices that do not stop anythin
 | `W_FEW_VALUES`           | fewer than half of the elements a style layer or a recipe command reads have a value at a path it reads                        |
 | `W_GRAPHTY_*`            | the loss notes of an export (export-mapping.md, "Loss notes graphty-element adds")                                             |
 
-`E_TOO_LARGE` and `E_CAP_EXCEEDED` are widened to the document limits and the recipe budgets, and
+`E_TOO_LARGE` and `E_CAP_EXCEEDED` are widened to the document limits, the referenced-data limit
+and the recipe budgets, and
 `E_UNKNOWN_FORMAT` to "this JSON text is not a graphty document", with `details.available` listing
 the data formats the caller can import it as instead, and to a data member whose `format` or
 `dialect` the reader's catalogue lacks, with details `{ format, dialect, available }`. Every other condition reuses an existing code
@@ -811,7 +936,12 @@ with the reason. Objections that were taken are reflected in the text.
 "weight"] }`) was raised again for groups whose members use different tools; it is still a
   second binding rule every reader must implement, and a list chosen by one author binds a
   column of another meaning on the next dataset (`weight` is not always a confidence). A recipe's
-  top level is an open object, so a later version can add it without breaking version 1 files.
+  top level is an open object, so a later version can add it without breaking version 1 files. It
+  was raised a third time, per column (`"aliases": { "relation": ["type", "interaction", "label"] }`),
+  for a group whose members use five tools, with the same answer. What was taken instead: a
+  recipe's `table` may list several readings for tables headed differently (recipe.md, "Table
+  data" rule 1), and nearest-name suggestions now also offer a column sharing a word with the
+  missing one ("Limits"), so `logFC` suggests `log2FoldChange`.
 - _Declare the attributes a recipe needs as slots, with measurement level and weight role, and bind
   them before running._ Replaced by the owner's decision that a recipe is a replayed journal whose
   commands name columns directly. What the slots were for -- knowing before running what a recipe
@@ -862,10 +992,12 @@ with the reason. Objections that were taken are reflected in the text.
 - _Let a scope combine a predicate with the largest component, or a node predicate with an edge
   predicate._ Not taken as a scope: the owner put filters in version 1, and a `graph.filter` before
   a run on `"largest-component"` says the same thing, while a scope stays one rule for one run.
-- _Read `.gz` files._ Not taken for version 1: the catalogue publishes no such option. A
-  compressed file fails with a reason that says to decompress it. Filtering rows while reading,
-  which the same objection named, is now done for a table read through a recipe, by the recipe's
-  own leading edge filters; direction and repeated pairs are import options.
+- _Read `.gz` files by an import option._ Not taken for version 1: the catalogue publishes no such
+  option. An import takes a `stream` instead, which the platform's `DecompressionStream`
+  decompresses in one line (README, "Replaying a recipe on your own table"), and a compressed file
+  given as it is fails with a reason naming that line. Filtering rows while reading, which the same
+  objection named, is done for a table read through a recipe, by the recipe's own leading edge
+  filters; direction and repeated pairs are import options.
 - _Let a quoted path segment hold a dot._ Not taken for version 1: every style graphty-element 2.x
   wrote must stay a version 1 style that 2.x reads, and 2.x refuses such a segment. The caller's
   `columns` map, which rewrites parsed paths, reaches any column name.
@@ -888,8 +1020,10 @@ with the reason. Objections that were taken are reflected in the text.
   produces", as a rule graphty-element must meet before recipes ship.
 - _Derive the template id from the file's digest, so a file cannot choose which look it replaces._
   Not taken: replacing an earlier opening by the style's `id` is how a corrected edition of a look
-  replaces the last one, and a digest changes with every edit. The reader chose to open the file,
-  the report lists every layer it replaced, and ids starting `graphty.` are reserved.
+  replaces the last one, and a digest changes with every edit. What was taken instead: an `id`
+  replaces by default only an opening from the same place (the same `base` directory or
+  `fileName`); a style from elsewhere that claims the id is added beside it with
+  `W_ID_COLLISION` (style.md, "Reading and applying" rule 9).
 - _Warn about every predicate that compares an identifier-like column with a literal._ Taken only
   for what can be told reliably: a comparison of a community number from an earlier run with a
   literal is reported on recording and replay, and a save lists every literal a written predicate
@@ -918,9 +1052,6 @@ with the reason. Objections that were taken are reflected in the text.
   missing column. How the two tables' keys are matched and conflicts resolved is a join, the data
   plan's work, and `saveDocument` refuses to write one reference for a graph built from two
   imports.
-- _Let `columns` rename a column to the node id._ Not taken: an id is structure, not a column. Two
-  label layers, `data.id` below `data.name`, give a label on either kind of file (style.md, "Coming
-  from Cytoscape").
 - _Rename the palette `blue-orange`, or add a `blue-red` alias._ Not taken for version 1: palette
   ids are graphty-element 2.x's published ids. The warning is in the Cytoscape translation table
   where a person looks for it.
@@ -947,9 +1078,9 @@ with the reason. Objections that were taken are reflected in the text.
 - _Stamp each opened layer with a digest of its document, and refuse by default to replace layers
   another document added._ Taken in part: a template id derived from a name, a file name or a
   digest never replaces by default, so two files that share a name do not wipe each other. An
-  authored `id` still replaces by default, because that is how a corrected edition of a look
-  replaces the last one; the preview and the report list every layer it replaces, and ids of
-  graphty-element's own are reserved.
+  authored `id` replaces by default only an opening from the same place, because that is how a
+  corrected edition of a look replaces the last one; the preview and the report list every layer
+  it replaces, and ids of graphty-element's own are reserved.
 - _Add a test for list membership (`'Supplier' in data.labels`) to the expression language._ Not
   taken for version 1: the language has no functions or membership operators. A Neo4j node's
   labels are now text (`Supplier`, or `Supplier;Company`), so the single-label case colours and
@@ -979,7 +1110,22 @@ with the reason. Objections that were taken are reflected in the text.
   "Saving your look" are the first things this page shows. A guide belongs to the documentation
   site, written from this page when graphty-element 3.0.0 ships.
 - _Name the second dataset in a replay example._ Not a defect of the format: recipe.md's worked
-  example replays one recipe on a GraphML file, on a CSV edge list and on a directed import.
+  example replays one recipe on a GraphML file, on a CSV edge list headed `source,target,weight`
+  and on a directed import.
+- _Report a `passthrough` label reading `data.id` when every id reads as a number._ Not taken: a
+  number is a legitimate label (Pajek's vertex numbers, a numbered sample), so the notice would
+  fire on correct files. The two-layer label is now the portable form style.md's worked example
+  shows, and "Paths" rule 4 says what a lone `data.id` label shows on a Cytoscape export.
+- _Let a data member's `href` be left for the caller to supply, read with the recipe's `table`._ Not
+  taken: a data member names one file so that `sha256` and consent mean something. Reading a
+  table the caller picks is what the recipe's application `import()` does, and an application
+  holding such a recipe offers it ("Opening a file someone sent you").
+- _Hold a data member's real import to a time budget._ Not taken as a separate budget: the
+  referenced-data byte limit and the load ceilings ("Limits") bound what an import reads and
+  builds, and a stream that never ends is cut off at the byte limit.
+- _Let the caller raise the load ceilings everywhere._ Taken only for a session that draws nothing:
+  the ceilings measure what the renderer can hold, so an element on a page keeps them, and
+  `createGraphSession({ limits })` raises them ("Limits").
 
 ## Sources
 

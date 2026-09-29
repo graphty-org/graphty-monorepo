@@ -13,10 +13,45 @@ The owner decided on 2026-09-28 what an export contains: "whatever the format su
    wherever the format has a place for it.
 2. Everything the format cannot represent is reported as a loss note before anything is written. It
    is never dropped silently.
-3. The export API is graphty-element's; the writers are graph-io's. This page specifies what an
-   export contains, not the API's name or signature. Comparing a replay does not wait for it: a
-   run's results are read in the session with `session.results.get(runId)`, which graphty-element
-   2.x already has (recipe.md, "Same data, same results").
+3. The export call is graphty-element's; the writers are graph-io's. This page specifies the call
+   ("The export call") and what an export contains.
+
+## The export call
+
+```ts
+session.data.export(format: string, options?: {
+    include?: {
+        results?: readonly string[] | "all"; // run ids whose results become columns; default "all"
+        positions?: boolean; // default true where the format holds positions
+        columns?: readonly string[]; // the imported columns to write; default every one
+    };
+    resultNames?: Record<string, string>; // run id -> the <run> part of its column names ("Results as columns" rule 2)
+    table?: "nodes" | "edges"; // CSV only: which table this file holds; default "edges"
+    layers?: readonly string[]; // the style layers whose drawn appearance is written; default every enabled one
+    spreadsheetSafe?: boolean; // CSV only: prefix formula-like cells ("Per format"); default true
+}): Promise<{
+    readonly blob: Blob;
+    stream(): ReadableStream<Uint8Array>;
+    readonly loss: readonly LossNote[]; // graph-io's notes and "Loss notes graphty-element adds"
+}>
+```
+
+`format` is a format id of graphty-element's catalogue (`csv`, `graphml`, `gexf`, `gml`, `dot`,
+`pajek`, `json`, `neo4j`). The call refuses before writing anything when result names collide
+("Results as columns" rule 2), naming each collision. It works the same in a `createGraphSession()`
+session in Node, where nothing is drawn; there the drawn appearance is the resolved style values,
+and positions are written only when a layout ran. After a recipe runs, a node table with the
+results of its runs `bridges` and `core`, for pathway enrichment in R:
+
+```js
+const { blob } = await session.data.export("csv", { table: "nodes" });
+await fs.promises.writeFile("proteins.csv", Buffer.from(await blob.arrayBuffer()));
+// columns: the node id, the imported columns, bridges.value, bridges.rank, core.value, ...
+```
+
+A run a recipe made is named by its `as` whatever namespace the application gave it, so two
+replays of one recipe, on two machines or under two namespaces, write the same column names, and
+their files compare column by column (recipe.md, "Same data, same results").
 
 ## The export model
 

@@ -60,10 +60,10 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
         // Options arrive already checked and with the declared default filled in.
         const { strength } = this.schemaOptions;
 
-        // The graph as a graph-format snapshot. Undirected, and every recorded interaction between
-        // two nodes merged into one tie whose weight is their SUM. The weights come from the
-        // attribute the reader chose; the element fills them and records the choice as the run's
-        // weight caveat.
+        // The graph as a graph-format snapshot, undirected, with every edge between two nodes merged
+        // into one tie. Parallel edges in one direction merge by SUM; a reciprocal pair (A -> B and
+        // B -> A) keeps one direction's weight, not their sum. The weights come from the attribute
+        // the reader chose; the element fills them and records the choice as the run's weight caveat.
         const input = context.input("undirected", {
             simplify: "sum",
             weight: { attribute: strength, meaning: "strength" },
@@ -109,7 +109,10 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
             caveats: declaredCaveats({
                 direction: "undirected",
                 method: "tie weight over the weaker end's strength",
-                notes: ["Every edge between the same two nodes is one tie; their strengths are summed."],
+                notes: [
+                    "Every edge between the same two nodes is one tie. Parallel edges in one direction " +
+                        "sum their strengths; a reciprocal pair keeps one direction's strength.",
+                ],
             }),
         };
     }

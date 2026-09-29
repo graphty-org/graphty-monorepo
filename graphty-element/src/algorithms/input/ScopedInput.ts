@@ -33,6 +33,7 @@ import {
     makeMask,
     maskTest,
     type NodeMask,
+    type TypedArrayData,
     type U32,
 } from "@graphty/graph-format";
 
@@ -70,7 +71,7 @@ export interface ScopedInputOptions {
      * The edge attribute that fills the weights, and whether a weight is a distance or a
      * strength. The element fills `graph.weights` (and the subgraph's, merged by `simplify`) from
      * it -- an edge carrying no number there weighs 1 -- and records it as the run's
-     * `caveats.weight`. `null` reads the graph unweighted. Absent, the weights are the ones the
+     * `caveats.weight`. `null` reads the graph unweighted, the subgraph included. Absent, the weights are the ones the
      * graph was loaded with (`data.knownFields.edgeWeightPath`), whose meaning the run does not
      * state.
      */
@@ -361,10 +362,41 @@ function scopedInput(
     return current === base ? base : inputs.put(holder, membership, orientation, simplify, current, declared);
 }
 
+/** The dtypes whose `data` is one number per component per row, so it can be handed on as is. */
+const NUMERIC_DTYPES: ReadonlySet<string> = new Set(["f32", "f64", "i32", "u32", "u8"]);
+
+/**
+ * A table's columns that hold a number in every row, as typed arrays to rebuild them from. These
+ * are the element's bookkeeping columns -- the edge ids among them -- which the store's snapshot
+ * carries; a column with unset rows or of another dtype is not carried, and the weights' own
+ * shadow column is rebuilt with them.
+ * @param table - The table.
+ * @returns The columns, by name.
+ */
+function completeNumericColumns(table: GraphSnapshot["edges"]): Record<string, ColumnInput> {
+    const out: Record<string, ColumnInput> = {};
+    for (const column of table) {
+        // The weight-role column (the f64 shadow of the weights) is rebuilt with the weights.
+        if (
+            NUMERIC_DTYPES.has(column.dtype) &&
+            column.nullCount === 0 &&
+            column.meta.role !== "weight" &&
+            "data" in column
+        ) {
+            out[column.meta.name] = {
+                data: column.data as TypedArrayData,
+                decl: { dtype: column.dtype, components: column.meta.components, role: column.meta.role ?? undefined },
+            };
+        }
+    }
+
+    return out;
+}
+
 /**
  * The declared graph with its weights read from an edge attribute: the same nodes, and the same
  * edges in the same rows, so a row of it is a row of the store's snapshot and every mask and edge
- * id carries over.
+ * id carries over, and so do the store's complete numeric columns (the edge ids among them).
  * @param declared - The store's snapshot.
  * @param values - The attribute, by edge row; null for an unweighted graph.
  * @returns The snapshot.
@@ -377,7 +409,15 @@ function reweighted(declared: GraphSnapshot, values: readonly unknown[] | null):
             ? undefined
             : Float64Array.from(values, (value) => (typeof value === "number" && Number.isFinite(value) ? value : 1));
 
-    return fromEdgeArrays({ directed: declared.directed, ids, src, dst, weights });
+    return fromEdgeArrays({
+        directed: declared.directed,
+        ids,
+        src,
+        dst,
+        weights,
+        nodeColumns: completeNumericColumns(declared.nodes),
+        edgeColumns: completeNumericColumns(declared.edges),
+    });
 }
 
 /**
@@ -389,6 +429,8 @@ function reweighted(declared: GraphSnapshot, values: readonly unknown[] | null):
  * @param membership - The scope's bitmaps, or null for the whole graph.
  * @param orientation - The orientation.
  * @param simplify - The merge policy.
+ * @param unweighted - Whether the run asked for no weights: merged edges then stay unweighted,
+ *   rather than weighing as many as the edges merged into them.
  * @param numeric - The named edge columns that hold numbers.
  * @returns The input.
  */
@@ -397,6 +439,7 @@ function uncachedInput(
     membership: InputMembership | null,
     orientation: InputOrientation,
     simplify: SimplifyPolicy,
+    unweighted: boolean,
     numeric: readonly string[] = [],
 ): DerivedInput {
     let current: DerivedInput =
@@ -409,7 +452,10 @@ function uncachedInput(
 
     if (simplify !== "none" && current.snapshot.flags.multigraph) {
         const edgeReducers = Object.fromEntries(numeric.map((name) => [name, simplify]));
-        current = chained(current, counted(current.snapshot.simplified({ weights: simplify, edgeReducers })));
+        current = chained(
+            current,
+            counted(current.snapshot.simplified({ weights: unweighted ? "first" : simplify, edgeReducers })),
+        );
     }
 
     return current;
@@ -523,7 +569,7 @@ export function createScopedInput(
         ...(weight === undefined ? {} : { weight }),
         derived(): DerivedInput {
             if (derived === null && declared !== store) {
-                derived = uncachedInput(declared, membership, orientation, simplify);
+                derived = uncachedInput(declared, membership, orientation, simplify, weight === null);
             }
 
             derived ??=
@@ -551,7 +597,8 @@ export function createScopedInput(
                 const carrier = declared.withColumns(nodeColumns, edgeColumns);
                 withNamed = {
                     size: named.size,
-                    snapshot: uncachedInput(carrier, membership, orientation, simplify, numeric).snapshot,
+                    snapshot: uncachedInput(carrier, membership, orientation, simplify, weight === null, numeric)
+                        .snapshot,
                 };
             }
 

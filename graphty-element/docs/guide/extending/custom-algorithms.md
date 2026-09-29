@@ -80,10 +80,10 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
         // Options arrive already checked and with the declared default filled in.
         const { strength } = this.schemaOptions;
 
-        // The graph as a graph-format snapshot. Undirected, and every recorded interaction between
-        // two nodes merged into one tie whose weight is their SUM. The weights come from the
-        // attribute the reader chose; the element fills them and records the choice as the run's
-        // weight caveat.
+        // The graph as a graph-format snapshot, undirected, with every edge between two nodes merged
+        // into one tie. Parallel edges in one direction merge by SUM; a reciprocal pair (A -> B and
+        // B -> A) keeps one direction's weight, not their sum. The weights come from the attribute
+        // the reader chose; the element fills them and records the choice as the run's weight caveat.
         const input = context.input("undirected", {
             simplify: "sum",
             weight: { attribute: strength, meaning: "strength" },
@@ -129,7 +129,10 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
             caveats: declaredCaveats({
                 direction: "undirected",
                 method: "tie weight over the weaker end's strength",
-                notes: ["Every edge between the same two nodes is one tie; their strengths are summed."],
+                notes: [
+                    "Every edge between the same two nodes is one tie. Parallel edges in one direction " +
+                        "sum their strengths; a reciprocal pair keeps one direction's strength.",
+                ],
             }),
         };
     }
@@ -207,7 +210,8 @@ pair `A -> B`, `B -> A` becomes one edge, which keeps the lower row's weight). T
   or a `"strength"`. The element fills `graph.weights` from it (an edge with no number there
   weighs 1), merges it into `subgraph()` by `simplify`, and states it as the run's
   `caveats.weight`, so the run cannot read one weight and report another. `weight: null` reads the
-  graph unweighted. Without it the weights are the ones the graph was loaded with, whose meaning
+  graph unweighted, and `subgraph()` stays unweighted too: merged parallel edges do not weigh as
+  many as they merged. Without it the weights are the ones the graph was loaded with, whose meaning
   the run does not state.
 
 In a snapshot the neighbours of row `r` are `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `edgeList()`
@@ -261,6 +265,9 @@ override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | 
 The value of the option is a path. `confidence` or `data.confidence` names an attribute the
 records carry; `results.<run>.<field>` names what an earlier run published, so one algorithm can
 build on another's result. A row whose element carries no value is unset (`isSet(row)` is false).
+An attribute that both nodes and edges carry under the same name is read on the nodes; give an
+edge attribute a name no node attribute uses. A partition is always read on the nodes, and the
+weight on the edges, so a result field of the other kind is refused like a missing one.
 A name that nothing in the graph carries is refused with `E_OPTION_RANGE` before your loop runs,
 and a column asked for an option you did not declare as an attribute or partition with
 `E_UNKNOWN_OPTION`.

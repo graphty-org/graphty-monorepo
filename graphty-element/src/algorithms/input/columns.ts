@@ -134,9 +134,14 @@ export function sessionColumns(
             if (path.startsWith(RESULT_PREFIX)) {
                 const [run, field, ...rest] = path.slice(RESULT_PREFIX.length).split(".");
                 const result = field === undefined || rest.length > 0 ? undefined : session.results.get(run);
-                const kind =
-                    on ??
-                    result?.fields.find((candidate) => candidate.name === field && candidate.kind !== "graph")?.kind;
+                // The field must exist on the kind of element the caller reads: a partition is
+                // read on nodes and a weight on edges, so an edge field is no partition.
+                const kind = result?.fields.find(
+                    (candidate) =>
+                        candidate.name === field &&
+                        candidate.kind !== "graph" &&
+                        (on ?? candidate.kind) === candidate.kind,
+                )?.kind;
                 if (result === undefined || (kind !== "node" && kind !== "edge")) {
                     return null;
                 }

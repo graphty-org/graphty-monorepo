@@ -68,8 +68,11 @@ await element.session.data.addNodes([{ id: "a" }]); // the engine follows the gr
 A one-pass layout is now a descriptor and a function, registered with `registerSnapshotLayout`
 from `@graphty/graphty-element/extend` (or the bundle). The element's own one-pass layouts are
 built on it, and it hands the layout pins, the rows an add introduced, an abort signal and a
-progress channel. `SimpleLayoutEngine` keeps working through 3.x, so nothing has to change now; a
-live layout, stepped frame by frame, still extends `LayoutEngine`. See
+progress channel. `SimpleLayoutEngine` keeps working through 3.x, so nothing has to change now,
+and so does its protected `pairWeights` helper (with `pairWeightKey`): the summed weight of the
+parallel edges between two nodes, read from the element's graph store. Both are deprecated; a
+snapshot layout reads the weights from the `stored` graph its input carries. A live layout,
+stepped frame by frame, still extends `LayoutEngine`. See
 [Custom layouts](./extending/custom-layouts).
 
 ```typescript

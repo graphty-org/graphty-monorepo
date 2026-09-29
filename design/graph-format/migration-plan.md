@@ -658,7 +658,9 @@ start node other than 0).
 **element-static-layout-engines.** `SimpleLayoutEngine` loads the undirected snapshot and the
 position array, calls `indexed.*`, writes with `toPositionColumn`, reseeds with
 `fromPositionColumn` and the pinned mask, and reloads on snapshot replacement. Delete
-`LayoutEngine.pairWeights`, `pairWeightKey` and the per-call `{ nodes, edges }` objects. Kamada-Kawai
+`LayoutEngine.pairWeights`, `pairWeightKey` and the per-call `{ nodes, edges }` objects. (Superseded for the two helpers by the owner's 2026-09-28 extension-contract
+decision: they came back, deprecated, for third-party `SimpleLayoutEngine` subclasses; the built-in
+engines still do not use them.) Kamada-Kawai
 gets the derived `1 / sum` column of section 3 (parallel weights summed first). `FixedLayout` reads
 the position array. Done when: no engine imports a positional layout function,
 `weighted-layouts.test.ts` passes without `pairWeights` (its "sums two parallel edges" case

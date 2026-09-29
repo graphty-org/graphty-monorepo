@@ -20,7 +20,7 @@ import { readonlyPositions, writableLane } from "../data/lane";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
-import type { Node } from "../Node";
+import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 
 export interface Position {
@@ -46,6 +46,17 @@ interface Coords {
 export interface EdgePosition {
     src: Position;
     dst: Position;
+}
+
+/**
+ * The key of an ordered endpoint pair in a `pairWeights` map. JSON, so no node id -- a string or a
+ * number with any characters -- can collide with another.
+ * @param source - the source node id
+ * @param target - the target node id
+ * @returns a key unique to that ordered pair
+ */
+function orderedPairKey(source: NodeIdType, target: NodeIdType): string {
+    return JSON.stringify([source, target]);
 }
 
 type LayoutEngineClass = new (opts: object) => LayoutEngine;
@@ -479,6 +490,47 @@ export abstract class LayoutEngine {
      */
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
         return heldEdgeProblems(this.edges, drawn);
+    }
+
+    /**
+     * The summed weight of every ordered endpoint pair these edges cover, read from the element's
+     * graph store, or null when every weight is 1 or the edges reach no store.
+     *
+     * Parallel edges between the same two nodes are SUMMED into one number, keyed by
+     * {@link LayoutEngine.pairWeightKey}. None of the element's own engines call this.
+     * @param edges - the edges to read, usually `this._edges`
+     * @returns pair key to summed weight, or null
+     * @deprecated Register the layout with `registerSnapshotLayout` from
+     * `@graphty/graphty-element/extend` and read the weights of the snapshot input's `stored` graph.
+     */
+    protected pairWeights(edges: readonly Edge[]): Map<string, number> | null {
+        // An engine driven without an element has edges whose parent answers none of this.
+        const weights = edges[0]?.parentGraph?.getDataManager?.()?.getSnapshot?.()?.edgeList().weights ?? null;
+        if (weights === null) {
+            return null;
+        }
+
+        const summed = new Map<string, number>();
+        let informative = false;
+        for (const e of edges) {
+            const stored = e.index >= 0 && e.index < weights.length ? weights[e.index] : 1;
+            informative ||= stored !== 1;
+            const key = orderedPairKey(e.srcId, e.dstId);
+            summed.set(key, (summed.get(key) ?? 0) + stored);
+        }
+
+        return informative ? summed : null;
+    }
+
+    /**
+     * The key an ordered endpoint pair is filed under in a {@link LayoutEngine.pairWeights} map.
+     * @param source - the edge's source node id
+     * @param target - the edge's target node id
+     * @returns a key unique to that ordered pair
+     * @deprecated See {@link LayoutEngine.pairWeights}.
+     */
+    protected pairWeightKey(source: NodeIdType, target: NodeIdType): string {
+        return orderedPairKey(source, target);
     }
 
     /**

@@ -71,7 +71,10 @@ built on it, and it hands the layout pins, the rows an add introduced, an abort 
 progress channel. `SimpleLayoutEngine` keeps working through 3.x, so nothing has to change now,
 and so does its protected `pairWeights` helper (with `pairWeightKey`): the summed weight of the
 parallel edges between two nodes, read from the element's graph store. Both are deprecated; a
-snapshot layout reads the weights from the `stored` graph its input carries. A live layout,
+snapshot layout reads the weights from the `stored` graph its input carries. The protected
+`reportClampedWeights` helper is removed: the warning it logged about edge weights at or below
+zero is now logged by the Kamada-Kawai engine itself, and a subclass that called it should drop
+the call or log its own warning. A live layout,
 stepped frame by frame, still extends `LayoutEngine`. See
 [Custom layouts](./extending/custom-layouts).
 
@@ -275,3 +278,28 @@ nodes and keeps every existing one where it was.
 
 CSV, JSON, GEXF and GraphML files are read through `@graphty/graph-io`: JSON keys with null values
 are dropped, mixed-type CSV columns widen to text, and CSV node ids stay text.
+
+## Some algorithm results differ from 2.x
+
+The traversal and path algorithms now run on the graph snapshot, and a few of their answers change
+on purpose:
+
+- **PageRank and strongly connected components on an undirected graph** read every edge both ways.
+  2.x read each undirected edge as one arc in the direction it was declared, so an undirected edge
+  A-B gave A=0.351, B=0.649 and two components. Now it gives A=0.5, B=0.5 and one component: the
+  strong components of an undirected graph are its connected pieces.
+- **Prim and Bellman-Ford break equal-cost ties by edge order.** Prim takes the lower edge index
+  and Bellman-Ford relaxes arcs in row order, where 2.x broke ties by heap insertion order. Total
+  tree weight and every distance are unchanged, but on an unweighted graph another tree or another
+  route of the same cost may be flagged.
+- **Bellman-Ford with a negative cycle marks no route.** 2.x walked the predecessor chain round the
+  cycle.
+- **A node option naming no node is refused** with `E_OPTION_RANGE`: a BFS or DFS target, a DFS
+  source, a Bellman-Ford target. Dijkstra and the BFS source already were. 2.x walked everything
+  and reported the target not found (BFS, DFS), returned no result (DFS source) or marked no route
+  (Bellman-Ford).
+- **PageRank personalization entries naming no node** are left out instead of taking a share of
+  the random jump, and a one-node graph whose personalization gives it 0 ranks 1, not 0.
+- **Under `acceleration: "required"`** with an accelerator attached, a PageRank with a
+  personalization, initial ranks or an undirected graph, and a BFS with a target, throw
+  `E_NO_ACCELERATOR`. 2.x answered them on the CPU.

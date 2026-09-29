@@ -516,18 +516,25 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
     },
     /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
        (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the
-       estimate sees predicts: 1 or 2 on a path, 4 to 6 on clique rings and dense random graphs,
-       10 to 72 on random m >= 4n and scale-free graphs, 121 to 338 on trees, 263 to 415 on random
-       m = 1.2n, 63 to over 1,000 on grids and 478 to over 1,000 on stars, so the whole bound is
-       charged. Refitted on 2026-09-29, after the element moved it onto the dispatcher's CPU port:
-       on those shapes at 10,000 to 200,000 nodes the setup cost 0.55 to 2.3 ns per element per
-       unit of log2(n + m) (48 ns on the object graph before), and a pass 1.7 to 7.1 ns per
-       element, the most on sparse random graphs, whose passes miss the cache most. Pinned at
-       3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and 7.4 ns per pass
-       (1 / (45 * the iterative rate)): 1.7x to 2.7x over graphs that run the whole bound, far
-       more over graphs that converge early. Mean degree does not predict the pass count either (a
-       grid and random m = 2n both have mean degree 4, and take over 199 and about 33). The class
-       model charged each pass at the iterative rate, 333 ns per element. */
+       estimate sees predicts, so the whole bound is charged, and a graph that converges early
+       reads as pessimistic by 1,000 / its pass count:
+       - a path settles in 1 or 2 passes: every node but the two ends has the same degree, so the
+         start vector (1 everywhere) changes only near the ends and meets the tolerance at once;
+       - clique rings and dense random graphs settle in 4 to 6, and random m = 5n in about 11:
+         their degrees cluster tightly, so the start vector is already close, and the gap is wide;
+       - scale-free graphs settle in about 50: their hubs dominate the leading eigenvector;
+       - random m = 1.2n takes 263 to 415, growing with n: it is barely past its percolation
+         threshold, so its gap is narrow;
+       - trees take 121 to 338, grids 63 to over 1,000 and stars 478 to over 1,000, so those run
+         most or all of the bound.
+       Mean degree does not predict the pass count either (a grid and random m = 2n both have mean
+       degree 4, and take over 199 and about 33). Refitted on 2026-09-29, after the element moved
+       it onto the dispatcher's CPU port: on those shapes at 10,000 to 200,000 nodes the setup cost
+       0.55 to 2.3 ns per element per unit of log2(n + m) (48 ns on the object graph before), and a
+       pass 1.7 to 7.1 ns per element, the most on sparse random graphs, whose passes miss the
+       cache most. Pinned at 3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and
+       7.4 ns per pass (1 / (45 * the iterative rate)): 1.7x to 2.7x over graphs that run the whole
+       bound. The class model charged each pass at the iterative rate, 333 ns per element. */
     eigenvector: {
         term: (iterations) => `(n + m) log2(n + m) + k(n + m) with k=${group(iterations)}`,
         seconds: (nodes, edges, rates, iterations) =>

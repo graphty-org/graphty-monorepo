@@ -1,4 +1,3 @@
-import { connectedComponents, stronglyConnectedComponents } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { ResultElementValues } from "../session/results";
@@ -51,12 +50,10 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
         const { snapshot, run } = this.accelerated("stronglyConnectedComponents", "directed");
 
         context.report({ phase: "Finding pieces", total: null });
-        const { value, precision } = await run((_dispatch, s) =>
-            Promise.resolve(
-                s.directed
-                    ? stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
-                    : connectedComponents(s),
-            ),
+        const { value, precision } = await run((dispatch, s) =>
+            s.directed
+                ? dispatch.stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
+                : dispatch.connectedComponents(s),
         );
 
         const nodes: ResultElementValues[] = [];

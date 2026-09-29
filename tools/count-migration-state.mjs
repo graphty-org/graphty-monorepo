@@ -7,7 +7,7 @@
  * the dispatcher are read from algorithms/dist. Everything else is read from source.
  *
  * Usage: node tools/count-migration-state.mjs              (from the repository root)
- *        node tools/count-migration-state.mjs --self-test  (prove the import reader; no build needed)
+ *        node tools/count-migration-state.mjs --self-test  (prove the import and run-callback readers; no build needed)
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -89,6 +89,70 @@ function valueImports(text, moduleRe) {
     return names;
 }
 
+/**
+ * What the run callbacks of an algorithm adapter call. A run callback is a function handed to the
+ * `run` that `accelerated()` returns: written inline (`run((dispatch, s) => ...)`) or bound to a
+ * name first (`work = (dispatch, s) => ...; run(work)`). Only the callbacks are read, so a port
+ * called before `run` (to check the input, say) is not counted as a port call inside one.
+ * @param text - the adapter's source text
+ * @returns whether a callback calls a member of its first parameter (the dispatcher), and the
+ *   `@graphty/algorithms` imports (or `indexed.` members) a callback calls
+ */
+function runCallbackCalls(text) {
+    const file = ts.createSourceFile("x.ts", text, ts.ScriptTarget.ESNext, true);
+    const ports = new Set();
+    for (const st of file.statements) {
+        if (ts.isImportDeclaration(st) && st.moduleSpecifier.text === "@graphty/algorithms") {
+            const b = st.importClause?.namedBindings;
+            if (st.importClause?.isTypeOnly !== true && b !== undefined && ts.isNamedImports(b)) {
+                b.elements.filter((el) => !el.isTypeOnly).forEach((el) => ports.add(el.name.text));
+            }
+        }
+    }
+    const isFn = (n) => n !== undefined && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
+    const named = new Map();
+    const callbacks = [];
+    const collect = (n) => {
+        if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && isFn(n.right)) {
+            named.set(n.left.getText(file), [...(named.get(n.left.getText(file)) ?? []), n.right]);
+        }
+        if (ts.isVariableDeclaration(n) && isFn(n.initializer)) {
+            named.set(n.name.getText(file), [...(named.get(n.name.getText(file)) ?? []), n.initializer]);
+        }
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "run") {
+            callbacks.push(n.arguments[0]);
+        }
+        ts.forEachChild(n, collect);
+    };
+    collect(file);
+    const fns = callbacks.flatMap((a) =>
+        isFn(a) ? [a] : a !== undefined && ts.isIdentifier(a) ? (named.get(a.text) ?? []) : [],
+    );
+    let dispatcher = false;
+    const portCalls = [];
+    for (const fn of fns) {
+        const param = fn.parameters[0]?.name.getText(file);
+        const visit = (n) => {
+            if (ts.isCallExpression(n)) {
+                const callee = n.expression;
+                if (
+                    (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)) &&
+                    callee.expression.getText(file) === param
+                ) {
+                    dispatcher = true;
+                } else if (ts.isIdentifier(callee) && ports.has(callee.text)) {
+                    portCalls.push(callee.text);
+                } else if (ts.isPropertyAccessExpression(callee) && callee.expression.getText(file) === "indexed") {
+                    portCalls.push(callee.getText(file));
+                }
+            }
+            ts.forEachChild(n, visit);
+        };
+        visit(fn.body);
+    }
+    return { dispatcher, portCalls };
+}
+
 const LAYOUT_RE = /^@graphty\/layout$/;
 const GRAPH_IO_RE = /^@graphty\/graph-io(\/[a-z0-9-]+)?$/;
 
@@ -106,6 +170,29 @@ if (process.argv.includes("--self-test")) {
     ];
     for (const [text, re, want] of cases) {
         const got = valueImports(text, re);
+        if (JSON.stringify(got) !== JSON.stringify(want)) {
+            console.error(
+                `count-migration-state self-test: ${JSON.stringify(text)} gave ${JSON.stringify(got)}, want ${JSON.stringify(want)}`,
+            );
+            process.exit(1);
+        }
+    }
+    const imp = 'import { primMST, isBipartite } from "@graphty/algorithms";\n';
+    const runCases = [
+        ["run((dispatch, s) => dispatch.primMST(s));", { dispatcher: true, portCalls: [] }],
+        ["run((d, s) => d[member](s));", { dispatcher: true, portCalls: [] }],
+        ["run((dispatch, s) => primMST(s));", { dispatcher: false, portCalls: ["primMST"] }],
+        [
+            "run((dispatch, s) => { dispatch.primMST(s); return primMST(s); });",
+            { dispatcher: true, portCalls: ["primMST"] },
+        ],
+        ["isBipartite(x); run((dispatch, s) => dispatch.m(s));", { dispatcher: true, portCalls: [] }],
+        ["let work; work = (dispatch, s) => primMST(s); run(work);", { dispatcher: false, portCalls: ["primMST"] }],
+        ["run((dispatch, s) => indexed.primMST(s));", { dispatcher: false, portCalls: ["indexed.primMST"] }],
+        ["// dispatch.primMST(s)\nrun((dispatch, s) => primMST(s));", { dispatcher: false, portCalls: ["primMST"] }],
+    ];
+    for (const [text, want] of runCases) {
+        const got = runCallbackCalls(imp + text);
         if (JSON.stringify(got) !== JSON.stringify(want)) {
             console.error(
                 `count-migration-state self-test: ${JSON.stringify(text)} gave ${JSON.stringify(got)}, want ${JSON.stringify(want)}`,
@@ -249,9 +336,21 @@ const adapterDir = join(root, "graphty-element/src/algorithms");
 const adapters = readdirSync(adapterDir).filter((f) => /Algorithm\.ts$/.test(f) && f !== "Algorithm.ts");
 const adapterText = (f) => readFileSync(join(adapterDir, f), "utf8");
 const adapterName = (f) => f.replace("Algorithm.ts", "");
-const onDispatcher = (f) => /\baccelerated\(/.test(adapterText(f));
+// On the dispatcher: enters accelerated(), a run callback calls a dispatcher member
+// (dispatch.primMST(...), dispatch[member](...)), and no run callback calls a port it imported.
+const onDispatcher = (f) => {
+    const calls = runCallbackCalls(adapterText(f));
+    return /\baccelerated\(/.test(adapterText(f)) && calls.dispatcher && calls.portCalls.length === 0;
+};
 print("algorithm adapters", adapters.length);
 print("adapters on the dispatcher", adapters.filter(onDispatcher).map(adapterName));
+print(
+    "adapters calling a port inside a run callback",
+    adapters
+        .map((f) => ({ f, calls: runCallbackCalls(adapterText(f)).portCalls }))
+        .filter(({ calls }) => calls.length > 0)
+        .map(({ f, calls }) => `${adapterName(f)} (${calls.join(" ")})`),
+);
 // A port is a top-level @graphty/algorithms export since algorithms 3.0 (indexed.* before it).
 const callsPort = (f) =>
     /\bindexed\./.test(adapterText(f)) || valueImports(adapterText(f), /^@graphty\/algorithms$/).length > 0;

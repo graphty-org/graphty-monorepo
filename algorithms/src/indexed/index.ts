@@ -30,7 +30,7 @@ export { type BipartiteOptions, type BipartiteResult, isBipartite } from "./bipa
 export { closenessCentrality, type ClosenessOptions, nodeClosenessCentrality } from "./closeness.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
-export { degreeCentrality, type DegreeCentralityOptions } from "./degree.js";
+export { degreeCentrality, type DegreeCentralityOptions, degrees, type DegreesResult } from "./degree.js";
 export {
     DeltaPageRank,
     type DeltaPageRankComputeOptions,

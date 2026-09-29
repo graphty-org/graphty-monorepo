@@ -661,6 +661,7 @@ describe("accelerated(acc)", () => {
             "closenessCentrality",
             "commonNeighborsPrediction",
             "connectedComponents",
+            "degrees",
             "depthFirstSearch",
             "edgeBetweennessCentrality",
             "eigenvectorCentrality",
@@ -930,6 +931,22 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
             const want = indexed.depthFirstSearch(directed, 0, { order: "post" });
             expect(got).toEqual(want);
             expect(got.visitedCount).toBeGreaterThan(1);
+        });
+
+        it("depthFirstSearch walks any adjacency view, not only a snapshot", async () => {
+            const view = directed.reverse();
+            const got = await d.depthFirstSearch(view, 0);
+            expect(got).toEqual(indexed.depthFirstSearch(view, 0));
+            expect(got).not.toEqual(indexed.depthFirstSearch(directed, 0));
+        });
+
+        it("degrees equals the port on both kinds of graph", async () => {
+            for (const s of [directed, undirected]) {
+                const got = await d.degrees(s);
+                const want = indexed.degrees(s);
+                expect([...got.inDegree]).toEqual([...want.inDegree]);
+                expect([...got.outDegree]).toEqual([...want.outDegree]);
+            }
         });
 
         it("stronglyConnectedComponents equals the port", async () => {

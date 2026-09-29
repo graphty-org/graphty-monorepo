@@ -1,7 +1,7 @@
 // Compiled by `tsc -p tsconfig.typecheck.json` inside `npm run lint`, never executed. Imports go
 // through the package barrel, as the GPU package's equivalent files do, so what is pinned here is
 // the PUBLIC surface rather than a source path.
-import type { GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
+import type { AdjacencyView, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 import { expectTypeOf } from "vitest";
 
 import {
@@ -72,3 +72,7 @@ expectTypeOf(allPairsShortestPath(s)).toMatchTypeOf<ApspCycleResultLike>();
 expectTypeOf(accelerated(null).allPairsShortestPath(s)).resolves.toMatchTypeOf<ApspCycleResultLike>();
 expectTypeOf(labelPropagation(s)).toMatchTypeOf<LabelResultLike>();
 expectTypeOf(accelerated(acc).labelPropagation(s)).resolves.toEqualTypeOf<LabelResultLike>();
+
+// ---- depth-first search walks any adjacency view, as its port does; degrees are the declared halves
+expectTypeOf<AcceleratedAlgorithms["depthFirstSearch"]>().parameter(0).toEqualTypeOf<AdjacencyView>();
+expectTypeOf(accelerated(null).degrees(s)).resolves.toEqualTypeOf<{ readonly inDegree: U32; readonly outDegree: U32 }>();

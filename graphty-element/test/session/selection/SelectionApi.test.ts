@@ -343,7 +343,10 @@ describe("membership testing", () => {
                 return harness.store.getSnapshot();
             },
         });
-        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "a", "b")] });
+        // Looked up once: edgeBetween reads a whole snapshot from the session and scans its edges,
+        // so calling it inside the loop would make this test time that helper, not membership.
+        const ab = edgeBetween(harness, "a", "b");
+        selection.applyNow({ nodes: ["a"], edges: [ab] });
         const materialised = selection.nodes;
         const reads = snapshotReads;
 
@@ -351,7 +354,7 @@ describe("membership testing", () => {
             selection.has("a");
             selection.has("nobody");
             selection.has(7);
-            selection.has(edgeBetween(harness, "a", "b"));
+            selection.has(ab);
         }
 
         assert.strictEqual(snapshotReads, reads, "membership never went back to the store");

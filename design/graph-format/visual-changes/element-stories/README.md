@@ -106,7 +106,9 @@ that the drag held. With this behaviour 8 of 8 renders of the story are byte-ide
 before build ([element-layout-stories](../element-layout-stories/README.md), "Switching to the
 fixed layout kept the previous layout's coordinates"), so the story no longer differs from before
 the migration. `probes/fixed-probe.mjs` reports the largest distance of any node from its data
-position over repeated loads of the story.
+position over repeated loads of the story; on a Storybook built from the integration branch after
+the undo work merged, 8 of 8 loads put all five nodes exactly on their data positions (largest
+distance 0).
 
 ## Stories that differ only while they are still moving
 

@@ -105,6 +105,16 @@ Remote logging client and server for browser debugging. Provides a lightweight b
 
 ---
 
+### @graphty/visual-review
+
+[![npm version](https://img.shields.io/npm/v/@graphty/visual-review.svg)](https://www.npmjs.com/package/@graphty/visual-review)
+
+Visual regression review for any Storybook, with nothing hosted: GitHub Actions screenshots every story, baselines live in git (Git LFS), and you accept or reject each change in a page served from your own machine, while a required check keeps unreviewed changes from merging. `npx visual-review init` sets a repository up. [Documentation](https://graphty.app/docs/visual-review/).
+
+[View package](./visual-review)
+
+---
+
 ### @graphty/compact-mantine
 
 [![npm version](https://img.shields.io/npm/v/@graphty/compact-mantine.svg)](https://www.npmjs.com/package/@graphty/compact-mantine)

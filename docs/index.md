@@ -26,6 +26,10 @@ features:
     details: Graph layout algorithms. Force-directed, geometric, hierarchical, and spectral layouts in 2D/3D.
     link: /layout/api/generated/
     linkText: API Reference
+  - title: visual-review
+    details: Visual regression review for any Storybook. Captures in GitHub Actions, baselines in git, review on your own machine.
+    link: /visual-review/
+    linkText: Documentation
   - title: Live Examples
     details: Try interactive demos - Storybook components, algorithm visualizations, and layout examples.
     link: https://graphty.app/storybook/graphty-element/

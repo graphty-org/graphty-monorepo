@@ -424,11 +424,12 @@ export class ArrowCapBatch {
      *
      * The direction it points along, the world-space length it is drawn at and its colour --
      * the three things that were uniforms on a cap's own material and are now rows in the
-     * batch's own arrays. Null on a batch whose caps hold colour on a shared material.
+     * batch's own arrays -- plus where a pattern segment is cut off, -1 for drawn whole. Null on
+     * a batch whose caps hold colour on a shared material.
      * @param index - The slot.
      * @returns What the shader reads for that slot, or null when it reads none of it.
      */
-    appearanceOf(index: number): { direction: Vector3; size: number; colour: Color3 } | null {
+    appearanceOf(index: number): { direction: Vector3; size: number; colour: Color3; clip: number } | null {
         if (!this.billboard) {
             return null;
         }
@@ -448,6 +449,7 @@ export class ArrowCapBatch {
                 this.billboard.arrowColor[colourAt + 1],
                 this.billboard.arrowColor[colourAt + 2],
             ),
+            clip: this.billboard.arrowClip[index],
         };
     }
 
@@ -630,10 +632,11 @@ export class ArrowCap {
 
     /**
      * What the billboard shader draws this cap with: the direction it points along, the length
-     * it is drawn at and its colour. Null for a cap whose colour is on its batch's material.
-     * @returns The three per-instance values, or null.
+     * it is drawn at, its colour and where it is cut off (-1 for whole). Null for a cap whose
+     * colour is on its batch's material.
+     * @returns The per-instance values, or null.
      */
-    get drawnAppearance(): { direction: Vector3; size: number; colour: Color3 } | null {
+    get drawnAppearance(): { direction: Vector3; size: number; colour: Color3; clip: number } | null {
         return this.batch?.appearanceOf(this.slot) ?? null;
     }
 

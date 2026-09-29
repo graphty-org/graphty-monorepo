@@ -146,3 +146,38 @@ test("elements of one shape share one batch, and 2D splits it only by what its m
         cleanup();
     }
 });
+
+test("only the last segment of a connected pattern is clipped, however its length changes", () => {
+    const { scene, cleanup } = createTestScene();
+
+    try {
+        for (const pattern of ["zigzag", "sinewave"] as const) {
+            const line = PatternedLineRenderer.create(
+                pattern,
+                Vector3.Zero(),
+                new Vector3(1, 0, 0),
+                0.1,
+                "#ff0000",
+                1.0,
+                scene,
+                false,
+            );
+
+            // Grow and shrink through lengths whose remainders clip the last segment, so a segment
+            // clipped while it was last is no longer last on the next length.
+            for (const length of [1.1, 3.3, 7.4, 2.2, 0.9, 5.05]) {
+                line.update(Vector3.Zero(), new Vector3(length, 0, 0));
+
+                const clips = line.elements.map((element) => element.drawnAppearance?.clip);
+                assert.isAbove(clips.length, 1, `${pattern} at ${String(length)} draws several segments`);
+                clips.slice(0, -1).forEach((clip, i) => {
+                    assert.strictEqual(clip, -1, `${pattern} at ${String(length)}: segment ${String(i)} is whole`);
+                });
+            }
+
+            line.dispose();
+        }
+    } finally {
+        cleanup();
+    }
+});

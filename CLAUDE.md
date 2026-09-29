@@ -268,14 +268,14 @@ The `tools/` directory contains build scripts:
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
-| `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Its `PENDING` list holds the problems not yet fixed and may only shrink. CI and pre-push |
+| `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 | `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
 | `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
-| `check-legacy-use.mjs` | Fails on a new use of the legacy graph API the graph-format migration replaces (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). Uses not yet migrated are in `legacy-use-baseline.json`; `--update-baseline` rewrites it, `--self-test` seeds one use per rule |
+| `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 

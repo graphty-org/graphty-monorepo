@@ -24,15 +24,10 @@
  * The legacy names are read from the algorithms and layout sources with the TypeScript compiler,
  * so a name that gains @deprecated is caught without editing this file.
  *
- * Uses that exist while the migration is under way are listed in tools/legacy-use-baseline.json,
- * as key -> count. A use not in the baseline, or more uses of a key than it records, fails. An
- * entry that no longer matches only prints a note, so a branch that removes a use does not have
- * to touch the baseline; `--update-baseline` rewrites it. The migration is finished when the
- * baseline is `{}`.
+ * The migration is finished, so there is no allow-list: any use fails.
  *
- * Usage: node tools/check-legacy-use.mjs                   (exit 1 on a use the baseline lacks)
- *        node tools/check-legacy-use.mjs --update-baseline (record the current uses)
- *        node tools/check-legacy-use.mjs --self-test       (prove each rule fires on a seeded fixture)
+ * Usage: node tools/check-legacy-use.mjs              (exit 1 on any use)
+ *        node tools/check-legacy-use.mjs --self-test  (prove each rule fires on a seeded fixture)
  */
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -317,38 +312,8 @@ function check(rootDir) {
 }
 
 /**
- * Counts each key.
- * @param keys - the finding keys
- * @returns key -> count, keys sorted
- */
-function countKeys(keys) {
-    const counts = {};
-    for (const k of keys) {
-        counts[k] = (counts[k] ?? 0) + 1;
-    }
-    return counts;
-}
-
-/**
- * Compares the findings with a baseline.
- * @param keys - the finding keys
- * @param baseline - key -> count
- * @returns uses beyond the baseline, and baseline entries with fewer uses than recorded
- */
-function compare(keys, baseline) {
-    const counts = countKeys(keys);
-    const added = Object.entries(counts)
-        .filter(([k, n]) => n > (baseline[k] ?? 0))
-        .map(([k, n]) => `${k} (${n} use(s), baseline ${baseline[k] ?? 0})`);
-    const stale = Object.entries(baseline)
-        .filter(([k, n]) => (counts[k] ?? 0) < n)
-        .map(([k, n]) => `${k} (${counts[k] ?? 0} use(s), baseline ${n})`);
-    return { added, stale };
-}
-
-/**
- * Builds a small workspace with one seeded use per rule and checks each is reported, that the
- * replacement API is not, and that the baseline admits exactly what it records.
+ * Builds a small workspace with one seeded use per rule and checks each is reported and that the
+ * replacement API is not.
  */
 function selfTest() {
     const dir = mkdtempSync(join(tmpdir(), "legacy-use-"));
@@ -498,17 +463,6 @@ function selfTest() {
             const extra = found.filter((k) => !expected.includes(k));
             throw new Error(`self-test: missing ${JSON.stringify(missing)}, unexpected ${JSON.stringify(extra)}`);
         }
-        const baseline = countKeys(found);
-        if (compare(found, baseline).added.length !== 0) {
-            throw new Error("self-test: a use the baseline records was reported as new");
-        }
-        delete baseline[expected[0]];
-        if (compare(found, baseline).added.length !== 1) {
-            throw new Error("self-test: a use missing from the baseline was not reported");
-        }
-        if (compare([], countKeys(found)).stale.length !== new Set(expected).size) {
-            throw new Error("self-test: removed uses were not listed as stale");
-        }
         console.log(`check-legacy-use self-test: passed (${expected.length} seeded uses, 7 rules)`);
     } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -520,35 +474,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         selfTest();
         process.exit(0);
     }
-    const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-    const baselineFile = join(rootDir, "tools", "legacy-use-baseline.json");
-    const keys = check(rootDir);
-    if (process.argv.includes("--update-baseline")) {
-        writeFileSync(baselineFile, `${JSON.stringify(countKeys(keys), null, 4)}\n`);
-        console.log(`check-legacy-use: recorded ${keys.length} use(s) in tools/legacy-use-baseline.json`);
-        process.exit(0);
-    }
-    const baseline = existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, "utf8")) : {};
-    const { added, stale } = compare(keys, baseline);
-    // A stale entry fails too: left in place it lets the removed use come back unnoticed.
-    if (stale.length > 0) {
-        console.error(`Baseline entries with fewer uses than recorded (run --update-baseline to drop them):`);
-        for (const s of stale) {
-            console.error(`  ${s}`);
-        }
-    }
-    if (added.length > 0) {
-        for (const a of added) {
-            console.error(a);
+    const keys = check(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
+    if (keys.length > 0) {
+        for (const k of keys) {
+            console.error(k);
         }
         console.error(
-            `\n${added.length} new use(s) of the legacy graph API. Use the graph-format replacement ` +
+            `\n${keys.length} use(s) of the legacy graph API. Use the graph-format replacement ` +
                 "(design/graph-format/migration-plan.md); see the rules at the top of tools/check-legacy-use.mjs.",
         );
         process.exit(1);
     }
-    if (stale.length > 0) {
-        process.exit(1);
-    }
-    console.log(`check-legacy-use: no new legacy use (${keys.length} recorded in the baseline still present)`);
+    console.log("check-legacy-use: no use of the legacy graph API");
 }

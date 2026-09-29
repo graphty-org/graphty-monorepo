@@ -10,24 +10,42 @@ travels with the code; the staging copy is historical. Paths of the form `packag
 older passages below mean `graph-format/` in this repository. The landing did not change either
 package's source.
 
-Last updated: 2026-09-28, after the owner's decision to ship one breaking release (see "Final
-state of every phase"). The Summary, "Migration state" and "Final state of every phase" below
-were checked against `feat/graph-format-migration` at `d40e0301`, the integration branch the
-migration lands on before it reaches master (it includes origin/master up to `f1486172`); the
-plan to finish the migration is `migration-plan.md` in this directory. Every count in the tables
-is printed by `node tools/count-migration-state.mjs` (after building algorithms), except the
-baseline totals of `node tools/check-legacy-use.mjs` and `node tools/check-data-source-migration.mjs`,
-which the checks print themselves. Four figures are not printed by any command: the split of the
-34 legacy functions that do not reach a port into 24 whose port differs and 10 waiting for an
-owner decision (sorted by the reason each conversion commit records), the split of the 64 indexed
-functions into 61 algorithms and 3 named helpers, the 15 snapshot layouts (listed by name in L1),
-and the 16 positional layouts and 8 generator aliases that commit 45ded070 deleted (from that
-commit's message). Version numbers are the package.json versions at that commit; the branch has
-not been released, so none of its breaking changes is on npm yet. The versions merging would
-release come from `nx release --dry-run --skip-publish`. The sections after "Final state of every
-phase" are the historical record of the graph-format and graph-io implementation and landing
-(2026-09-13 to 2026-09-18) and are kept as written; their version numbers and "A1 has not
-started" are no longer current.
+Last updated: 2026-09-29, when the migration finished (see "Finished state" below). The Summary,
+"Migration state" and "Final state of every phase" sections after it are the record of
+2026-09-28, checked against `feat/graph-format-migration` at `d40e0301` while the migration was
+still under way, and are kept as written; where they disagree with "Finished state", "Finished
+state" is current. The sections after "Final state of every phase" are the historical record of
+the graph-format and graph-io implementation and landing (2026-09-13 to 2026-09-18); their version
+numbers and "A1 has not started" are no longer current.
+
+## Finished state (2026-09-29)
+
+The graph-format migration is complete on `feat/graph-format-migration`, which reaches master
+through pull request #587. Every count below is printed by `node tools/count-migration-state.mjs`
+(after `pnpm exec nx run-many -t build`); the versions are those `pnpm exec nx release --dry-run
+--skip-publish` computes from the branch's commits.
+
+| What                                                 | Count                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snapshot algorithms in `@graphty/algorithms`         | 64 functions and 4 classes, top-level exports since 3.0.0 (the `indexed` namespace stays as a deprecated alias of the same names until 4.0), in 36 port files. The dispatcher (`accelerated`) has 30 methods.                                                                                                                                               |
+| Legacy functions and classes left                    | 0 functions, 0 classes. The legacy `Graph`, the id-keyed implementations and the Map-of-Maps signatures are removed.                                                                                                                                                                                                                                        |
+| graphty-element algorithm adapters on the dispatcher | 25 of 25, counting as the migration plan does (section 5): 18 run through `accelerated()`, 6 call their snapshot port directly (bipartite matching, Girvan-Newman, Leiden, link prediction, max flow, min cut) and degree counts the snapshot's edge list. None builds a legacy `Graph`; `Algorithm.algorithmGraph()` and `AlgorithmGraphView` are removed. |
+| graphty-element static layout engines                | 14 of 14 on the snapshot layout contract (`SnapshotLayoutEngine`), the contract a third-party layout registers through: the 13 that call a `@graphty/layout` snapshot layout, and fixed, which places nodes at positions in their data. No `SimpleLayoutEngine` subclass is left.                                                                           |
+| graphty-element data sources on graph-io             | 7 of 7 (CSV, DOT, GEXF, GML, GraphML, JSON, Pajek).                                                                                                                                                                                                                                                                                                         |
+| graphty-element parsers of its own                   | 0: no papaparse, no fast-xml-parser, no hand-written tokeniser.                                                                                                                                                                                                                                                                                             |
+| `@deprecated` exports                                | algorithms: `indexed` (the alias above). layout: `indexed`, `rescaleLayout`, `rescaleLayoutDict`, each removed in the next major.                                                                                                                                                                                                                           |
+
+The two checks that guarded the migration no longer carry an allow-list: any use of the legacy
+graph API fails `tools/check-legacy-use.mjs` (the baseline file `tools/legacy-use-baseline.json`
+is deleted), and any element data source that parses a file itself fails
+`tools/check-data-source-migration.mjs`. Both run in CI and in `tools/prepush.sh`.
+
+Merging releases graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0 (the one breaking
+release window the owner chose on 2026-09-28), with graph-format 1.2.0, graph-io 0.3.10 and
+webgpu-graph-algorithms 0.6.13. Every accepted result difference of the flow, cut, matching and
+isomorphism functions is in the BREAKING CHANGE footer of commit b341c0ed, and the remaining
+differences of the removal are in the footer of commit 8962e042, so both reach the algorithms
+3.0.0 changelog.
 
 ## Summary
 

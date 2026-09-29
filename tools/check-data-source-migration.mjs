@@ -12,10 +12,7 @@
  *     parsePajek, tokenizeLine (Pajek) or tokenize (the DOT and GML tokenisers), as a function,
  *     a method, a class property or a variable
  *
- * PENDING lists the problems the element's data sources still have while their move onto
- * graph-io is in progress. A problem in PENDING is reported but does not fail the check; a new
- * problem fails it, and so does a PENDING entry that no longer occurs, so the list can only
- * shrink. The move is finished when PENDING is empty.
+ * The move onto graph-io is finished, so there is no allow-list: any problem fails.
  *
  * Usage: node tools/check-data-source-migration.mjs              (exit 1 on a problem)
  *        node tools/check-data-source-migration.mjs --self-test  (prove each rule fires)
@@ -24,9 +21,6 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-/** Problems the element still has; each is removed by the change that fixes it. */
-const PENDING = [];
 
 const DATA_DIR = "graphty-element/src/data";
 const SRC_DIR = "graphty-element/src";
@@ -115,20 +109,6 @@ function check(rootDir) {
         problems.push(`${DATA_DIR}/csv-variant-detection.ts: exists`);
     }
     return problems.sort();
-}
-
-/**
- * Splits a check's problems against the pending list.
- * @param problems - what check() found
- * @param pending - the problems that are allowed for now
- * @returns the new problems, the pending ones still present, and the pending ones now gone
- */
-function compare(problems, pending) {
-    return {
-        fresh: problems.filter((p) => !pending.includes(p)),
-        known: problems.filter((p) => pending.includes(p)),
-        stale: pending.filter((p) => !problems.includes(p)),
-    };
 }
 
 /**
@@ -235,18 +215,12 @@ function selfTest() {
 
         const { log, error } = console;
         console.log = console.error = () => {};
-        const codes = [run(dir, [line]), run(dir, []), run(dir, [line, `${DATA_DIR}/gone.ts: exists`])];
+        const failing = run(dir);
+        rmSync(join(dir, `${DATA_DIR}/dot.ts`));
+        const passing = run(dir);
         Object.assign(console, { log, error });
-        if (JSON.stringify(codes) !== "[0,1,1]") {
-            throw new Error(`exit codes for pending, new and stale problems: expected [0,1,1], got ${codes}`);
-        }
-
-        const { fresh, known, stale } = compare(
-            [`${DATA_DIR}/a.ts: imports papaparse`, `${DATA_DIR}/b.ts: imports papaparse`],
-            [`${DATA_DIR}/a.ts: imports papaparse`, `${DATA_DIR}/c.ts: imports papaparse`],
-        );
-        if (fresh.length !== 1 || known.length !== 1 || stale.length !== 1 || !fresh[0].includes("b.ts")) {
-            throw new Error(`pending comparison is wrong: ${JSON.stringify({ fresh, known, stale })}`);
+        if (failing !== 1 || passing !== 0) {
+            throw new Error(`exit codes with and without a problem: expected 1 and 0, got ${failing} and ${passing}`);
         }
         console.log("check-data-source-migration self-test: passed");
     } finally {
@@ -255,36 +229,22 @@ function selfTest() {
 }
 
 /**
- * Checks a tree against a pending list and prints the verdict.
+ * Checks a tree and prints the verdict.
  * @param rootDir - the repository root
- * @param pending - the problems that are allowed for now
- * @returns the process exit code: 1 on a new problem or a pending entry that no longer occurs
+ * @returns the process exit code: 1 on any problem
  */
-function run(rootDir, pending) {
-    const { fresh, known, stale } = compare(check(rootDir), pending);
-    for (const p of known) {
-        console.log(`pending: ${p}`);
-    }
-    for (const p of fresh) {
+function run(rootDir) {
+    const problems = check(rootDir);
+    for (const p of problems) {
         console.error(p);
     }
-    for (const p of stale) {
+    if (problems.length > 0) {
         console.error(
-            `fixed but still listed: ${p} -- delete it from PENDING in tools/check-data-source-migration.mjs`,
-        );
-    }
-    if (fresh.length > 0 || stale.length > 0) {
-        console.error(
-            `\n${fresh.length} new problem(s), ${stale.length} stale pending entr(y/ies). ` +
-                "graphty-element data sources read files through @graphty/graph-io importers.",
+            `\n${problems.length} problem(s). graphty-element data sources read files through @graphty/graph-io importers.`,
         );
         return 1;
     }
-    console.log(
-        known.length === 0
-            ? "check-data-source-migration: every element data source reads files through @graphty/graph-io"
-            : `check-data-source-migration: no new problems; ${known.length} pending`,
-    );
+    console.log("check-data-source-migration: every element data source reads files through @graphty/graph-io");
     return 0;
 }
 
@@ -293,5 +253,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         selfTest();
         process.exit(0);
     }
-    process.exit(run(resolve(dirname(fileURLToPath(import.meta.url)), ".."), PENDING));
+    process.exit(run(resolve(dirname(fileURLToPath(import.meta.url)), "..")));
 }

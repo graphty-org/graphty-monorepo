@@ -173,10 +173,9 @@ jobs:
             - name: Migration count script
               run: pnpm run check:migration-counts
 
-            # Reads source only. A new use of the legacy graph API (a legacy algorithms or layout
-            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails;
-            # the uses the graph-format migration has not removed yet are in
-            # tools/legacy-use-baseline.json. The same check runs in tools/prepush.sh.
+            # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
+            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
+            # The same check runs in tools/prepush.sh.
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 

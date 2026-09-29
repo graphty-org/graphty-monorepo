@@ -252,9 +252,16 @@ const adapterName = (f) => f.replace("Algorithm.ts", "");
 const onDispatcher = (f) => /\baccelerated\(/.test(adapterText(f));
 print("algorithm adapters", adapters.length);
 print("adapters on the dispatcher", adapters.filter(onDispatcher).map(adapterName));
+// A port is a top-level @graphty/algorithms export since algorithms 3.0 (indexed.* before it).
+const callsPort = (f) =>
+    /\bindexed\./.test(adapterText(f)) || valueImports(adapterText(f), /^@graphty\/algorithms$/).length > 0;
 print(
-    "adapters calling indexed.* directly",
-    adapters.filter((f) => !onDispatcher(f) && /\bindexed\./.test(adapterText(f))).map(adapterName),
+    "adapters calling a snapshot port directly",
+    adapters.filter((f) => !onDispatcher(f) && callsPort(f)).map(adapterName),
+);
+print(
+    "adapters on neither (compute over the snapshot themselves)",
+    adapters.filter((f) => !onDispatcher(f) && !callsPort(f)).map(adapterName),
 );
 const buildsLegacy = adapters.filter((f) =>
     /\balgorithmGraph\(|new AlgorithmGraph\b|toAlgorithmGraph\(/.test(adapterText(f)),
@@ -283,9 +290,15 @@ print(
 const layoutDir = join(root, "graphty-element/src/layout");
 const layoutText = (f) => readFileSync(join(layoutDir, f), "utf8");
 const engines = readdirSync(layoutDir).filter(
-    (f) => f.endsWith(".ts") && /extends SimpleLayoutEngine\b/.test(layoutText(f)),
+    (f) =>
+        f.endsWith(".ts") &&
+        /\bexport class \w+ extends (SimpleLayoutEngine|SnapshotLayoutEngine)\b/.test(layoutText(f)),
 );
-print("SimpleLayoutEngine subclasses", engines);
+print("static layout engines (SimpleLayoutEngine or SnapshotLayoutEngine subclasses)", engines);
+print(
+    "of them on the snapshot layout contract (SnapshotLayoutEngine)",
+    engines.filter((f) => /\bexport class \w+ extends SnapshotLayoutEngine\b/.test(layoutText(f))),
+);
 print(
     "of them calling a @graphty/layout layout",
     engines.filter((f) => valueImports(layoutText(f), LAYOUT_RE).length > 0),
@@ -297,17 +310,3 @@ print(
     "data sources importing @graphty/graph-io",
     sources.filter((f) => valueImports(readFileSync(join(dataDir, f), "utf8"), GRAPH_IO_RE).length > 0),
 );
-
-// The legacy-use baseline of tools/check-legacy-use.mjs.
-const baseline = JSON.parse(readFileSync(join(root, "tools/legacy-use-baseline.json"), "utf8"));
-const byRule = {};
-for (const [key, count] of Object.entries(baseline)) {
-    const rule = key.split(" ")[1];
-    byRule[rule] = (byRule[rule] ?? 0) + count;
-}
-print("legacy-use baseline entries", Object.keys(baseline).length);
-print(
-    "legacy-use baseline uses",
-    Object.values(baseline).reduce((a, c) => a + c, 0),
-);
-print("legacy-use baseline uses by rule", JSON.stringify(byRule));

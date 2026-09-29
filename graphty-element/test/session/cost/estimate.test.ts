@@ -116,21 +116,34 @@ describe("estimateCost: the synchronous answer", () => {
 
     it("uses the pair term for a heavy algorithm", () => {
         const estimate = estimateCost({
+            algorithm: "girvan-newman",
+            descriptor: algorithmByKey("girvan-newman"),
+            statistics: statistics(),
+        });
+
+        assert.equal(estimate.costClass, "heavy");
+        assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+        assert.include(estimate.basis, "n * m");
+    });
+
+    it("charges betweenness one BFS per source rather than the class' pair term", () => {
+        const estimate = estimateCost({
             algorithm: "betweenness",
             descriptor: algorithmByKey("betweenness"),
             statistics: statistics(),
         });
 
         assert.equal(estimate.costClass, "heavy");
-        assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+        assert.closeTo(estimate.seconds, (1000 * 5000) / (11 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
+        assert.include(estimate.basis, "n(n + m)");
     });
 
-    it("charges closeness one BFS per source rather than betweenness' pair term, and scales with calibration", () => {
+    it("charges closeness one BFS per source rather than the class' pair term, and scales with calibration", () => {
         const input = { algorithm: "closeness", descriptor: algorithmByKey("closeness"), statistics: statistics() };
         const estimate = estimateCost(input);
 
         assert.equal(estimate.costClass, "heavy");
-        assert.closeTo(estimate.seconds, (1000 * 5000) / (3 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
+        assert.closeTo(estimate.seconds, (1000 * 5000) / (24 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
         assert.include(estimate.basis, "n(n + m)");
 
         const halfSpeed = Object.fromEntries(
@@ -171,7 +184,7 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
 
         assert.closeTo(
             estimate.seconds,
-            (bound * 5000) / DEFAULT_COST_RATES.iterativeElementsPerSecond,
+            (bound * 5000) / (100 * DEFAULT_COST_RATES.iterativeElementsPerSecond),
             1e-12,
             "the estimate must be the schema's bound times the work, not a copied number",
         );

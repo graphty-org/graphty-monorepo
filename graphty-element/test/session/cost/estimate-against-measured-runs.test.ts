@@ -44,18 +44,11 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 
-import {
-    betweennessCentrality,
-    closenessCentrality,
-    ConvergenceError,
-    eigenvectorCentrality,
-    type Graph as AlgorithmGraph,
-    louvain,
-    pageRank,
-} from "@graphty/algorithms";
+import { accelerated, type Graph as AlgorithmGraph, louvain } from "@graphty/algorithms";
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
+import { createScopedInput, orientationOf } from "../../../src/algorithms/input/ScopedInput";
 import { toAlgorithmGraph } from "../../../src/algorithms/utils/snapshotGraph";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import type { AlgorithmKey } from "../../../src/catalog/types";
@@ -83,16 +76,18 @@ const MAX_PESSIMISM = 4;
 interface Row {
     /** The catalogue key the estimate is made for. */
     readonly key: AlgorithmKey;
-    /** The graph orientation the element's wrapper asks `algorithmGraph` for. */
-    readonly mode: "directed" | "undirected";
     /** Node counts to measure at, smallest first. */
     readonly sizes: readonly number[];
     /** The graph measured at each size. Defaults to a sparse random graph with m = 5n. */
     readonly shape?: Shape;
     /** What the graph is, when it is not the default, for the test's name. */
     readonly shapeName?: string;
-    /** The work the element's wrapper does after building the graph, with its default options. */
-    readonly run: (graph: AlgorithmGraph, nodes: number) => unknown;
+    /**
+     * The work the element's wrapper does, from the graph as the element stores it, with its
+     * default options: `onObjectGraph` for a wrapper that still builds an `@graphty/algorithms`
+     * Graph, `onSnapshot` for one that runs the dispatcher's CPU port over the snapshot.
+     */
+    readonly run: (data: DataManager, nodes: number) => unknown;
     /**
      * Why the pessimism bound is not asserted on this row, when it is not. The optimism bound
      * always is: a row like this exists to prove the estimate stays SAFE on a graph where the
@@ -239,37 +234,57 @@ const cliqueRing: Shape = (nodes) =>
         }
     });
 
-/** Eigenvector centrality with the element's default options. */
-const eigenvector = (graph: AlgorithmGraph): unknown => {
-    try {
-        return eigenvectorCentrality(graph, {
-            normalized: true,
-            maxIterations: 1000,
-            tolerance: 1e-6,
-            mode: "total",
-            endpoints: false,
-        });
-    } catch (error) {
-        // A graph that needs more than the bound runs every pass and then throws, which the element
-        // reports as E_NOT_CONVERGED. The reader waited for all of those passes all the same.
-        if (error instanceof ConvergenceError) {
-            return error;
-        }
+/**
+ * A wrapper that builds an `@graphty/algorithms` Graph (`algorithmGraph`), which every run pays for.
+ * @param mode - The orientation the wrapper asks for.
+ * @param work - What it runs on the graph.
+ * @returns The row's run.
+ */
+const onObjectGraph =
+    (mode: "directed" | "undirected", work: (graph: AlgorithmGraph, nodes: number) => unknown) =>
+    (data: DataManager, nodes: number): unknown =>
+        work(toAlgorithmGraph(data, mode), nodes);
 
-        throw error;
-    }
-};
+/** The dispatcher with no accelerator: the CPU port the element runs when none is attached. */
+const cpu = accelerated(null);
+
+/**
+ * A wrapper that runs the dispatcher over the snapshot (`Algorithm.accelerated`), read through the
+ * same input accessor, which derives the undirected view and simplifies. The CPU port does
+ * its work synchronously inside the call and hands back a settled promise, so timing the call
+ * times the work.
+ * @param mode - The orientation: the declared snapshot, or its undirected view.
+ * @param work - The dispatcher call.
+ * @returns The row's run.
+ */
+const onSnapshot =
+    (mode: "directed" | "undirected", work: (s: GraphSnapshot) => Promise<unknown>) =>
+    (data: DataManager): unknown =>
+        // A rejection is still a finished run: eigenvector centrality rejects with ConvergenceError
+        // after every pass of its bound, which the element reports as E_NOT_CONVERGED. The reader
+        // waited for all of those passes all the same.
+        work(createScopedInput(data, orientationOf(mode)).subgraph()).catch((error: unknown) => error);
+
+/** Eigenvector centrality with the element's default options. */
+const eigenvector = onSnapshot("undirected", (s) =>
+    cpu.eigenvectorCentrality(s, { normalized: true, maxIterations: 1000, tolerance: 1e-6, mode: "total" }),
+);
+
+/** PageRank as the element runs its plain directed case, at the schema's smallest tolerance. */
+const pageRankRun = onSnapshot("directed", (s) =>
+    cpu.pageRank(s, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, weighted: false }),
+);
 
 /** Louvain with the element's default options. */
-const louvainRun = (graph: AlgorithmGraph): unknown =>
-    louvain(graph, { resolution: 1, maxIterations: 100, tolerance: 1e-6, useOptimized: true });
+const louvainRun = onObjectGraph("undirected", (graph) =>
+    louvain(graph, { resolution: 1, maxIterations: 100, tolerance: 1e-6, useOptimized: true }),
+);
 
 const ROWS: readonly Row[] = [
     {
         key: "degree",
-        mode: "directed",
         sizes: [50_000, 100_000],
-        run: (graph, nodes) => {
+        run: onObjectGraph("directed", (graph, nodes) => {
             const out: object[] = [];
             for (let id = 0; id < nodes; id++) {
                 const inDegree = graph.inDegree(id);
@@ -278,74 +293,68 @@ const ROWS: readonly Row[] = [
             }
 
             return out;
-        },
+        }),
     },
     // The estimate prices the whole iteration bound, so the row held to both bounds is one that
     // runs most of it: 1e-10 is the smallest tolerance the element's schema accepts, and on a
-    // directed path PageRank takes 78 to 83 of its 100 passes to reach it at these sizes. A random
-    // graph converges in about 20 (9 or 10 at the default 1e-6) since pageRank stopped leaking rank
-    // on 2026-09-24, so there the estimate is 17 to 31x over and only its optimism is held.
+    // directed path PageRank takes 70 to 75 of its 100 passes to reach it at these sizes. A random
+    // m = 5n graph converges in about 26, so there the estimate is 4x to 7x over and only its
+    // optimism is held.
     {
         key: "pagerank",
-        mode: "directed",
-        sizes: [16_000, 32_000],
+        sizes: [200_000, 400_000],
         shape: path,
         shapeName: "path",
-        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, useDelta: true }),
+        run: pageRankRun,
     },
     {
         key: "pagerank",
-        mode: "directed",
-        sizes: [4_000, 8_000],
-        run: (graph) => pageRank(graph, { dampingFactor: 0.85, maxIterations: 100, tolerance: 1e-10, useDelta: true }),
-        optimismOnly: "this graph converges in about 20 of the 100 passes the estimate charges",
+        sizes: [100_000, 200_000],
+        run: pageRankRun,
+        optimismOnly: "this graph converges in about 26 of the 100 passes the estimate charges",
     },
     {
         key: "betweenness",
-        mode: "undirected",
         sizes: [600, 1_200],
         shape: random(4),
         shapeName: "random, m = 4n",
-        run: (graph) => betweennessCentrality(graph),
+        run: onSnapshot("undirected", (s) => cpu.betweennessCentrality(s)),
     },
     {
         key: "closeness",
-        mode: "undirected",
-        sizes: [600, 1_200],
+        sizes: [1_200, 2_400],
         shape: random(4),
         shapeName: "random, m = 4n",
-        run: (graph) => closenessCentrality(graph),
+        run: onSnapshot("undirected", (s) => cpu.closenessCentrality(s)),
     },
-    // Closeness' slowest shapes per unit of n(n + m) measured on 2026-09-23: a sparse random
-    // graph and a path; and a dense one, where the per-edge share of the work is largest.
+    // Closeness' slowest shape per unit of n(n + m) measured on 2026-09-29, a sparse random graph;
+    // a path; and a dense graph, the fastest, where the model's charge for an edge is largest.
     {
         key: "closeness",
-        mode: "undirected",
-        sizes: [1_200],
+        sizes: [2_400],
         shape: random(1.2),
         shapeName: "random, m = 1.2n",
-        run: (graph) => closenessCentrality(graph),
+        run: onSnapshot("undirected", (s) => cpu.closenessCentrality(s)),
     },
     {
         key: "closeness",
-        mode: "undirected",
-        sizes: [1_500],
+        sizes: [3_000],
         shape: path,
         shapeName: "path",
-        run: (graph) => closenessCentrality(graph),
+        run: onSnapshot("undirected", (s) => cpu.closenessCentrality(s)),
     },
     {
         key: "closeness",
-        mode: "undirected",
-        sizes: [400],
+        sizes: [800],
         shape: random(50),
         shapeName: "random, m = 50n",
-        run: (graph) => closenessCentrality(graph),
+        run: onSnapshot("undirected", (s) => cpu.closenessCentrality(s)),
+        optimismOnly: "an edge is a sequential scan and costs a fraction of the node visit n(n + m) prices it at",
     },
     // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
     // where the graph runs them all: a small grid (never converges, and throws) and a star (979).
-    { key: "eigenvector", mode: "undirected", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
-    { key: "eigenvector", mode: "undirected", sizes: [50_000], shape: star, shapeName: "star", run: eigenvector },
+    { key: "eigenvector", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
+    { key: "eigenvector", sizes: [50_000], shape: star, shapeName: "star", run: eigenvector },
     // Shapes that converge early, which nothing the estimate can see predicts.
     ...(
         [
@@ -357,7 +366,6 @@ const ROWS: readonly Row[] = [
     ).map(
         ([shape, shapeName, sizes, passes]): Row => ({
             key: "eigenvector",
-            mode: "undirected",
             sizes,
             shape,
             shapeName,
@@ -368,7 +376,7 @@ const ROWS: readonly Row[] = [
     // Louvain on the graphs it is run on, held to both bounds: its model is pinned under the
     // slowest of these per element (scale-free), and the sizes are large enough that the per-element
     // growth its log term charges is visible.
-    { key: "louvain", mode: "undirected", sizes: [20_000, 50_000], run: louvainRun },
+    { key: "louvain", sizes: [20_000, 50_000], run: louvainRun },
     ...(
         [
             [random(1.2), "random, m = 1.2n", [50_000, 100_000]],
@@ -379,7 +387,6 @@ const ROWS: readonly Row[] = [
     ).map(
         ([shape, shapeName, sizes]): Row => ({
             key: "louvain",
-            mode: "undirected",
             sizes,
             shape,
             shapeName,
@@ -399,7 +406,6 @@ const ROWS: readonly Row[] = [
     ).map(
         ([shape, shapeName, sizes]): Row => ({
             key: "louvain",
-            mode: "undirected",
             sizes,
             shape,
             shapeName,
@@ -628,8 +634,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
             it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));
-                const once = (index: number): unknown =>
-                    row.run(toAlgorithmGraph(graphs[index].data, row.mode), row.sizes[index]);
+                const once = (index: number): unknown => row.run(graphs[index].data, row.sizes[index]);
 
                 once(0); // warm-up, untimed
 

@@ -1,9 +1,8 @@
 /**
  * @file The 3.0 migration guide lists every algorithm result that differs from 2.x on purpose.
  *
- * These differences were decided when the traversal and path algorithms moved onto the graph
- * snapshot. A reader upgrading from 2.x who sees a different PageRank or a new E_OPTION_RANGE
- * error must find the reason in the guide, not only in a commit body.
+ * These differences were decided when the built-in algorithms moved onto the graph snapshot. A
+ * reader upgrading from 2.x who sees a different PageRank or a new E_OPTION_RANGE error must find the reason in the guide, not only in a commit body.
  */
 
 import { readFileSync } from "node:fs";
@@ -26,7 +25,7 @@ function section(heading: string): string {
 }
 
 describe("migrating-to-3.md", () => {
-    it("lists every traversal and path result that differs from 2.x", () => {
+    it("lists the traversal and path results that differ from 2.x", () => {
         const text = section("Some algorithm results differ from 2.x");
         for (const phrase of [
             "PageRank",
@@ -39,6 +38,40 @@ describe("migrating-to-3.md", () => {
             "personalization",
             'acceleration: "required"',
             "E_NO_ACCELERATOR",
+            "pre-order",
+            "Prim start node",
+            "Bellman-Ford source",
+            'method: "power-iteration"',
+            "useDelta",
+        ]) {
+            assert.include(text, phrase);
+        }
+    });
+
+    it("lists the centrality, community, flow, cut, matching, all-pairs and link results", () => {
+        const text = section("Some algorithm results differ from 2.x");
+        for (const phrase of [
+            "k-core",
+            "self-loop",
+            "Louvain",
+            "useOptimized",
+            "Label Propagation",
+            "HITS `mode`",
+            "Katz `mode`",
+            "eigenvector centrality",
+            "net flow",
+            "capacity: 0",
+            "fewer than two nodes",
+            "`source` equal to the `sink`",
+            "exactly first",
+            "Stoer-Wagner",
+            "s-t min cut",
+            "Karger",
+            "Bipartite matching",
+            "Floyd-Warshall eccentricity",
+            "5,792",
+            "E_TOO_LARGE",
+            "Adamic-Adar",
         ]) {
             assert.include(text, phrase);
         }

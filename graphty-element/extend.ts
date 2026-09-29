@@ -246,10 +246,13 @@ export type { Caveats, Progress } from "./src/session/runs/types";
  * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format
  * snapshots and bitmaps: the full `GraphSnapshot`, the scope's `NodeMask` and `EdgeMask` over it,
  * and the compact `subgraph()` of the scope for a class that declares `static scopeInput =
- * "subgraph"`. The three types are graph-format's own, published here so a plugin names them
- * without a second dependency; they tie this entry point to `@graphty/graph-format` 1.x.
+ * "subgraph"`. The three types and `maskTest`, which reads a mask, are graph-format's own,
+ * published here from the element's copy so a plugin never installs graph-format itself: the
+ * element depends on graph-format rather than peering it, so a plugin's own copy could be on
+ * another major than the snapshots it is handed.
  */
 export type { EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
+export { maskTest } from "@graphty/graph-format";
 
 /*
  * THE OLDER OPTION SCHEMA, KEPT FOR BACK-COMPAT AND DEPRECATED. It is a second vocabulary for the

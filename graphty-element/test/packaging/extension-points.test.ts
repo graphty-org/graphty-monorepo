@@ -17,6 +17,7 @@ import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { maskTest } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import * as catalog from "../../catalog";
@@ -85,6 +86,18 @@ describe("the six extension points, from a published entry point", () => {
     it("publishes the error vocabulary a plugin reports through", () => {
         assert.typeOf(extend.GraphtyError, "function");
         assert.typeOf(extend.isGraphtyError, "function");
+    });
+
+    it("publishes maskTest from the element's own graph-format, so a plugin reads masks without its own copy", () => {
+        // graph-format is a regular dependency, not a peer, so a plugin's own copy can be on
+        // another major than the snapshots and masks the element hands it.
+        assert.strictEqual(extend.maskTest, maskTest);
+        const mask = new Uint32Array([0b101]);
+
+        assert.deepEqual(
+            [0, 1, 2].map((row) => extend.maskTest(mask, row)),
+            [true, false, true],
+        );
     });
 
     it("publishes format detection, which a consumer used to have to reimplement", () => {

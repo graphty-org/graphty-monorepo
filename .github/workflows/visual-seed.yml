@@ -49,9 +49,12 @@ jobs:
               env:
                   HUSKY: "0"
 
-            # build-storybook depends on ^build, so nx builds the packages each Storybook imports first.
+            # As ci.yml's build job does, the packages are built before their Storybooks: build-storybook
+            # depends only on ^build, and compact-mantine's Storybook also reads its own dist/.
             - name: Build Storybooks
-              run: pnpm exec nx run-many -t build-storybook -p graphty-element,compact-mantine --parallel=2
+              run: |
+                  pnpm exec nx run-many -t build -p graphty-element,compact-mantine --parallel=2
+                  pnpm exec nx run-many -t build-storybook -p graphty-element,compact-mantine --parallel=2
               env:
                   NODE_OPTIONS: "--max-old-space-size=8192"
 

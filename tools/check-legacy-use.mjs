@@ -349,7 +349,7 @@ function selfTest() {
                 'export * from "./algorithms/index.js";',
                 'export * from "./data-structures/index.js";',
                 'export * as indexed from "./indexed/index.js";',
-                '/** @deprecated use the top-level names */',
+                "/** @deprecated use the top-level names */",
                 'export * as oldIndexed from "./indexed/index.js";',
                 'export { toSnapshot } from "./indexed/to-snapshot.js";',
                 'export { graphToMap } from "./utils/graph-converters.js";',

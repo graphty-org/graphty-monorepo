@@ -81,7 +81,7 @@ import { Graph } from "../../../index.js";
  * point and its registration from another.
  */
 import { GraphtyLogger, LogLevel, type LogRecord, type Sink } from "../../../logging";
-import type { GraphSession, LayerSpec, NodeId } from "../../../session";
+import type { GraphSession, LayerSpec } from "../../../session";
 import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
@@ -423,8 +423,8 @@ class AtlasLinks extends DeclaredAlgorithm {
      * @returns What was measured, or null when there was nothing to measure.
      */
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const graph = this.algorithmGraph("undirected");
-        const ids = [...graph.nodes()].map((node) => node.id as NodeId);
+        const graph = context.input("undirected").subgraph();
+        const ids = Array.from({ length: graph.nodeCount }, (_, row) => graph.ids.idOf(row));
 
         if (ids.length === 0) {
             return null;
@@ -438,7 +438,8 @@ class AtlasLinks extends DeclaredAlgorithm {
             context.signal.throwIfAborted();
 
             const id = ids[index];
-            measured.push({ id, values: { value: [...graph.neighbors(id)].length } });
+            // The neighbours of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
+            measured.push({ id, values: { value: graph.rowPtr[index + 1] - graph.rowPtr[index] } });
 
             context.report({ phase: "Counting links", completed: index + 1, total: ids.length });
             await context.yieldNow();

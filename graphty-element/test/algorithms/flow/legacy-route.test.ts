@@ -23,8 +23,8 @@ import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionA
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../../src/algorithms/results";
-import { toAlgorithmGraph } from "../../../src/algorithms/utils/snapshotGraph";
 import type { Graph } from "../../../src/Graph";
+import { toAlgorithmGraph } from "../../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
 
 type Edge = MockGraphOpts["edges"] extends (infer E)[] | undefined ? E : never;

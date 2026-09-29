@@ -1,6 +1,1 @@
-{
-    "graphty-element/src/algorithms/Algorithm.ts legacy-graph-bridge toAlgorithmGraph": 1,
-    "graphty-element/src/algorithms/Algorithm.ts legacy-import Graph": 1,
-    "graphty-element/src/algorithms/utils/snapshotGraph.ts legacy-graph-construction AlgorithmGraph": 1,
-    "graphty-element/src/algorithms/utils/snapshotGraph.ts legacy-import Graph": 1
-}
+{}

@@ -123,8 +123,8 @@ export interface CostRates {
  * to 6.9x, because a per-iteration pass allocates and a single linear pass does not.
  *
  * The linear rate is NOT the consumer's. Its 20M elements/s timed a pass over degrees already in
- * memory, but an element run builds a fresh `@graphty/algorithms` Graph from the snapshot every
- * time (`toAlgorithmGraph`) and then writes one result object per node. Measured on 2026-09-23 that
+ * memory, but an element run then built a fresh `@graphty/algorithms` object graph from the
+ * snapshot every time and wrote one result object per node. Measured on 2026-09-23 that
  * whole path retires 1.7-4.4M elements/s for degree under plain Node (n = 10,000 to 200,000,
  * m = 5n, falling with size) and about 1.1M/s at n = 100,000 inside a vitest worker, so 20M was
  * optimistic by 5x to 18x. It is pinned at 1M, the floor of that band.

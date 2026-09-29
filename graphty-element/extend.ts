@@ -215,14 +215,20 @@ export type { Node, NodeIdType } from "./src/Node";
  * alternative is hand-writing every field descriptor including its `results.$.<name>` path
  * string, which is a path format a plugin should never have to know.
  *
- * There is deliberately no edge-id helper here any more. An edge result is keyed by the element's
- * own `Edge.id`, which a plugin reads off the edge it is measuring; the pair string that used to
- * be published names a PAIR, and a pair cannot name one of two parallel edges.
+ * An edge result is keyed by the element's own edge id, which a plugin reads from its input:
+ * `input.edgeId(row)` for a row of `graph`, and `input.subgraphEdgeIds(row)` for a row of
+ * `subgraph()`, which names every edge a merged row stands for. A pair of endpoints cannot name
+ * one of two parallel edges, so nothing here builds an id from one.
  */
 export type { AlgorithmStatics } from "./src/algorithms/Algorithm";
 export { Algorithm } from "./src/algorithms/Algorithm";
-export type { ScopedInput, ScopedInputOptions, ScopeInputDeclaration } from "./src/algorithms/input/ScopedInput";
-export { metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
+export type {
+    AlgorithmGraphMode,
+    ScopedInput,
+    ScopedInputOptions,
+    ScopeInputDeclaration,
+} from "./src/algorithms/input/ScopedInput";
+export { edgeMetricFields, metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
 export {
     communityFieldSpecs,
@@ -233,23 +239,24 @@ export {
 } from "./src/algorithms/results/fields";
 export type { AlgorithmOutput, AlgorithmRunContext, ResultFieldSpec } from "./src/algorithms/results/types";
 export { declaredCaveats, forEachChunked } from "./src/algorithms/results/types";
-export type { AlgorithmGraphMode, AlgorithmGraphView } from "./src/algorithms/utils/snapshotGraph";
 export type { RegisteredAlgorithm } from "./src/catalog/registry";
 export { clearRegisteredAlgorithmsForTesting, registeredAlgorithmDescriptors } from "./src/catalog/registry";
 export type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, ResultShape } from "./src/catalog/types";
 export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
-export type { Caveats, Progress } from "./src/session/runs/types";
+export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
 
 /*
  * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format
  * snapshots and bitmaps: the full `GraphSnapshot`, the scope's `NodeMask` and `EdgeMask` over it,
  * and the compact `subgraph()` of the scope for a class that declares `static scopeInput =
- * "subgraph"`. The three types are graph-format's own, published here so a plugin names them
+ * "subgraph"`. Attributes, earlier results and weights arrive as columns of those snapshots:
+ * `input.column(option)` for a declared "attribute" or "partition" option, and the `weight` input
+ * option for the weights. The types are graph-format's own, published here so a plugin names them
  * without a second dependency; they tie this entry point to `@graphty/graph-format` 1.x.
  */
-export type { EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
+export type { Column, EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
 
 /*
  * THE OLDER OPTION SCHEMA, KEPT FOR BACK-COMPAT AND DEPRECATED. It is a second vocabulary for the

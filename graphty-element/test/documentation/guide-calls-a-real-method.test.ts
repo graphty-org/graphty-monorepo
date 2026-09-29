@@ -149,10 +149,9 @@ function callsOn(file: string, receiver: string): { name: string; line: number }
 /**
  * Guides that rebind one of the two names to something else, and are skipped for that name.
  *
- * `custom-algorithms.md` writes `const graph = this.algorithmGraph("undirected")` -- the
- * algorithm's own read-only view of the data, which is a different object with a different API.
- * Every `graph.` on that page is about that object, so checking it against the renderer's class
- * would be checking the wrong class.
+ * `custom-algorithms.md` reads `input.graph` -- the run's graph-format snapshot, which is a
+ * different object with a different API. Every `graph.` on that page is about that object, so
+ * checking it against the renderer's class would be checking the wrong class.
  */
 const REBOUND: Record<string, readonly string[]> = {
     graph: ["docs/guide/extending/custom-algorithms.md"],

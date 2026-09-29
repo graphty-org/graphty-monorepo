@@ -56,21 +56,40 @@ interface MetricValueName {
  * @returns The uniform field list for the node-metric shape.
  */
 export function nodeMetricFields(value: MetricValueName): readonly FieldDescriptor[] {
+    return metricFieldsOf("node", value);
+}
+
+/**
+ * Build the fields every edge-metric result publishes: the node-metric set, over edges.
+ * @param value - What this metric's primary value is called.
+ * @returns The uniform field list for the edge-metric shape.
+ */
+export function edgeMetricFields(value: MetricValueName): readonly FieldDescriptor[] {
+    return metricFieldsOf("edge", value);
+}
+
+/**
+ * The metric field list over one kind of element.
+ * @param kind - Nodes or edges.
+ * @param value - What the primary value is called.
+ * @returns The fields.
+ */
+function metricFieldsOf(kind: "node" | "edge", value: MetricValueName): readonly FieldDescriptor[] {
     return [
         metricField({
             name: "value",
             plainName: value.plainName,
             technicalName: value.technicalName,
-            kind: "node",
+            kind,
             type: value.type ?? "number",
             ...(value.unit === undefined ? {} : { unit: value.unit }),
         }),
-        metricField({ name: "rank", plainName: "Rank", technicalName: "rank", kind: "node", type: "integer" }),
+        metricField({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
         metricField({
             name: "percentile",
             plainName: "Percentile",
             technicalName: "percentile",
-            kind: "node",
+            kind,
             type: "number",
         }),
         metricField({ name: "min", plainName: "Lowest", technicalName: "min", kind: "graph", type: "number" }),

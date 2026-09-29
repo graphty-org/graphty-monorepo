@@ -41,11 +41,11 @@ import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../src/algorithms/PrimAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
 import { StronglyConnectedComponentsAlgorithm } from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
-import { toAlgorithmGraph } from "../../src/algorithms/utils/snapshotGraph";
 import type { NodeId } from "../../src/catalog/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { toAlgorithmGraph } from "../helpers/legacy-algorithm-graph";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 
 /**

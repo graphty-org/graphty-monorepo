@@ -7,7 +7,7 @@ object-first design (`design/ui/object-first-ux/round-2/revision.md`) either did
 described without drawing. For each gap it gives the design (where the reader starts, what they
 see, the rows, the keys, the errors), what graphty-element must provide, and the mock that draws
 it. The mocks are `design/ui/object-first-ux/mocks/v2/screen-33.png` to `screen-42.png`, built from
-the specs in `tmp/object-first/gen/screens/screen-33.mjs` to `screen-42.mjs`.
+the specs in `design/ui/object-first-ux/gen/screens/screen-33.mjs` to `screen-42.mjs`.
 
 Paths are under `/home/apowers/Projects/graphty-monorepo/`. `#NNN` is an issue in
 graphty-org/graphty-monorepo. `session.xxx` is a member of graphty-element's session API

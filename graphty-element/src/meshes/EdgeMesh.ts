@@ -566,6 +566,10 @@ void main() {
             {
                 width: options.width,
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
+                // Babylon otherwise binds one colours texture shared by every engine on the page
+                // and disposed with whichever engine goes first. WebGL tolerates the stale
+                // binding; WebGPU refuses the draw ("Trying to bind a null gpu texture").
+                colorsTexture: this.emptyColorsTexture(scene),
             },
             scene,
         );
@@ -580,6 +584,29 @@ void main() {
         return mesh as Mesh;
     }
 
+    /** One empty colours texture per scene, for {@link createAnimatedLine}. */
+    private static readonly emptyColors = new WeakMap<Scene, RawTexture>();
+
+    private static emptyColorsTexture(scene: Scene): RawTexture {
+        let texture = this.emptyColors.get(scene);
+        if (texture === undefined) {
+            texture = new RawTexture(
+                new Uint8Array(4),
+                1,
+                1,
+                Engine.TEXTUREFORMAT_RGBA,
+                scene,
+                false,
+                false,
+                Engine.TEXTURE_NEAREST_NEAREST,
+            );
+            texture.name = "edge-moving-empty-colors";
+            this.emptyColors.set(scene, texture);
+        }
+
+        return texture;
+    }
+
     private static createAnimatedTexture(baseColor: Color3, movingColor: Color3, scene: Scene): RawTexture {
         const r1 = Math.floor(baseColor.r * 255);
         const g1 = Math.floor(baseColor.g * 255);
@@ -588,13 +615,14 @@ void main() {
         const g2 = Math.floor(movingColor.g * 255);
         const b2 = Math.floor(movingColor.b * 255);
 
-        const textureData = new Uint8Array([r1, g1, b1, r2, g2, b2]);
+        // RGBA, not RGB: WebGPU has no three-channel texture format, and Babylon refuses one there.
+        const textureData = new Uint8Array([r1, g1, b1, 255, r2, g2, b2, 255]);
 
         const texture = new RawTexture(
             textureData,
-            textureData.length / 3,
+            textureData.length / 4,
             1,
-            Engine.TEXTUREFORMAT_RGB,
+            Engine.TEXTUREFORMAT_RGBA,
             scene,
             false,
             true,

@@ -342,6 +342,24 @@ function declaredIterationBound(
     return typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0 ? fallback : undefined;
 }
 
+/** The option that samples a run's sources, by catalogue key: set, the run costs that share of the exact one. */
+const SAMPLE_OPTIONS: Readonly<Partial<Record<string, string>>> = { closeness: "k" };
+
+/**
+ * The sample size a run asks for through its own option, such as closeness's `k`.
+ * @param descriptor - The algorithm's descriptor.
+ * @param params - The parameters the run would use.
+ * @returns The sample size, or undefined when the run is not sampled that way.
+ */
+function optionSample(
+    descriptor: AlgorithmDescriptor,
+    params: Readonly<Record<string, unknown>> | undefined,
+): number | undefined {
+    const name = SAMPLE_OPTIONS[descriptor.key];
+    const value = name === undefined ? undefined : params?.[name];
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 /**
  * The option values a run would use: the caller's, with the declared defaults filled in. What a
  * plugin's `costUnits` is handed, so an option that multiplies the work is priced.
@@ -735,7 +753,9 @@ export function estimateCost(input: CostInput): CostEstimate {
     const declared = declaredIterationBound(descriptor, input.params);
     const iterations = declared ?? ASSUMED_ITERATION_BOUND;
 
-    const sampleFactor = input.sample === undefined || nodes === 0 ? 1 : Math.min(1, Math.max(0, input.sample / nodes));
+    // A run's own sampling option (closeness's `k`) prices it like a sample the gate chose.
+    const sample = input.sample ?? optionSample(descriptor, input.params);
+    const sampleFactor = sample === undefined || nodes === 0 ? 1 : Math.min(1, Math.max(0, sample / nodes));
     // A plugin's own work units replace the class term, so the rate, a timing taken here and the
     // calibration all scale them exactly as they scale a built-in's.
     // costUnits counts every iteration itself, so no iteration bound is guessed when it is declared.
@@ -782,8 +802,8 @@ export function estimateCost(input: CostInput): CostEstimate {
             ? (OWN_COST_MODELS[descriptor.key]?.term(iterations) ?? termFor(costClass, iterations))
             : "the algorithm's own work units",
     ];
-    if (input.sample !== undefined) {
-        notes.push(`sampled at ${group(input.sample)} of ${group(nodes)} nodes`);
+    if (sample !== undefined) {
+        notes.push(`sampled at ${group(sample)} of ${group(nodes)} nodes`);
     }
 
     if (scope !== undefined && scope.exact === false) {

@@ -402,7 +402,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * is off", "no accelerator", "below `acceleration.minNodes`" or "this accelerator does not
      * implement that" up front, and under `acceleration="required"` it throws `E_NO_ACCELERATOR`
      * rather than answering quietly. A capability the element does not forward (betweenness,
-     * closeness, k-core and Louvain today) never asks the controller, so it runs on the CPU and
+     * k-core and Louvain today) never asks the controller, so it runs on the CPU and
      * says `f64` even under `"required"`. A call the dispatcher itself keeps on the CPU port (an
      * option or a graph shape the device's kernel is not defined for, such as a Katz `alpha` whose
      * series may diverge) runs there and says `f64` under `"auto"`; under `"required"` it throws

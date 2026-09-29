@@ -157,6 +157,19 @@ describe("estimateCost: the synchronous answer", () => {
         assert.equal(slow.confidence, "calibrated");
     });
 
+    it("prices closeness run with its own k option as that share of the exact run", () => {
+        const input = {
+            algorithm: "closeness",
+            descriptor: algorithmByKey("closeness"),
+            statistics: statistics({ nodeCount: 10000, edgeCount: 50000 }),
+        };
+        const exact = estimateCost(input);
+        const sampled = estimateCost({ ...input, params: { k: 100 } });
+        assert.closeTo(sampled.seconds, exact.seconds / 100, 1e-9);
+        assert.include(sampled.basis, "sampled at 100 of 10,000 nodes");
+        assert.equal(estimateCost({ ...input, params: { k: null } }).seconds, exact.seconds);
+    });
+
     it("says in words where the number came from", () => {
         const estimate = estimateCost({
             algorithm: "degree",

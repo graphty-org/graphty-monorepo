@@ -1,10 +1,11 @@
-import { type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
 import { kamadaKawai } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
-import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom } from "./SnapshotLayoutEngine";
 
 const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
@@ -143,12 +144,14 @@ type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
 /**
  * Kamada-Kawai layout engine using spring-embedder energy minimization
  */
-export class KamadaKawaiLayout extends SimpleLayoutEngine {
+export class KamadaKawaiLayout extends SnapshotLayoutEngine {
     static type = "kamada-kawai";
     static maxDimensions = 3;
     static override honoursWeights = true;
     static zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
-    scalingFactor = 50;
+    /** Layout units to scene units. */
+    private static readonly scale = 50;
+    protected readonly dimensions: 2 | 3;
     config: KamadaKawaiLayoutConfigType;
 
     /**
@@ -158,6 +161,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     constructor(opts: KamadaKawaiLayoutOpts) {
         super(opts);
         this.config = KamadaKawaiLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -170,6 +174,14 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     }
 
     /**
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
+     */
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
      * Compute node positions using Kamada-Kawai algorithm
      *
      * A WEIGHT IS INVERTED ON THE WAY IN, and that is the one thing about this engine a reader
@@ -179,19 +191,23 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
      * larger number is a stronger connection. Nothing on screen would say which convention was in
      * force. So the element hands this solver `1 / weight` and the whole package keeps one
      * reading: heavier means more strongly connected, means drawn closer together.
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
      */
-    doLayout(): void {
-        this.stale = false;
+    protected compute(input: SnapshotLayoutInput): F32 {
         const dim = layoutDim(this.config.dim);
-        const weighted = this.config.weighted ? withDistances(this.graph, this.sourceGraph) : null;
-        this.result = kamadaKawai(weighted ?? this.graph, {
+        const weighted = this.config.weighted ? withDistances(input.graph, input.stored) : null;
+        return sceneUnits(
+            kamadaKawai(weighted ?? input.graph, {
             dist: this.distances(),
-            pos: this.startPositions(dim) ?? this.rowsOfRecord(this.config.pos, dim),
+            pos: startFrom(input, dim, KamadaKawaiLayout.scale) ?? this.rowsOfRecord(this.config.pos, dim),
             weight: weighted === null ? false : DISTANCE_COLUMN,
             scale: this.config.scale,
             center: this.config.center ?? undefined,
             dim,
-        });
+        }),
+            KamadaKawaiLayout.scale,
+        );
     }
 
     /**

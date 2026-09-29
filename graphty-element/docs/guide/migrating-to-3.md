@@ -63,6 +63,20 @@ Calling them on the element's engine from outside would leave it out of step wit
 await element.session.data.addNodes([{ id: "a" }]); // the engine follows the graph
 ```
 
+## SimpleLayoutEngine is deprecated
+
+A one-pass layout is now a descriptor and a function, registered with `registerSnapshotLayout`
+from `@graphty/graphty-element/extend` (or the bundle). The element's own one-pass layouts are
+built on it, and it hands the layout pins, the rows an add introduced, an abort signal and a
+progress channel. `SimpleLayoutEngine` keeps working through 3.x, so nothing has to change now; a
+live layout, stepped frame by frame, still extends `LayoutEngine`. See
+[Custom layouts](./extending/custom-layouts).
+
+```typescript
+// 2.x: class MyLayout extends SimpleLayoutEngine { doLayout() { /* fill this.positions */ } }
+registerSnapshotLayout({ descriptor, compute: (input) => myCoordinates(input.graph) });
+```
+
 ## Setting getters read the value in effect
 
 A settings getter such as `nodeIdPath`, `repeatedEdges`, `edgeWeightPath`, `directed`,

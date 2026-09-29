@@ -461,9 +461,10 @@ function directKamadaKawai(table: Readonly<Record<string, number>>): Arrangement
         dim: 2,
     });
 
-    // The engine multiplies every coordinate by its scaling factor and stores it as an f32, so the
-    // comparison has to be made against the same numbers rather than against the raw values.
-    const scale = new KamadaKawaiLayout({ dim: 2, scale: 1 }).scalingFactor;
+    // The engine multiplies every coordinate by its layout-to-scene factor (50 scene units per
+    // layout unit) and stores it as an f32, so the comparison has to be made against the same
+    // numbers rather than against the raw values.
+    const scale = 50;
     const out: Record<string, readonly [number, number, number]> = {};
     for (let i = 0; i < placed.n; i++) {
         out[String(undirected.ids.idOf(i))] = [

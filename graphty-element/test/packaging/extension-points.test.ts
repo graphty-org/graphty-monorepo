@@ -28,6 +28,7 @@ const REGISTRATION_SURFACES: readonly { point: string; name: keyof typeof extend
     { point: "File format", name: "DataSource", shape: "class" },
     { point: "Camera", name: "registerCameraView", shape: "function" },
     { point: "Layout", name: "LayoutEngine", shape: "class" },
+    { point: "Layout", name: "registerSnapshotLayout", shape: "function" },
     { point: "Algorithm", name: "Algorithm", shape: "class" },
     { point: "Logging", name: "registerLogSink", shape: "function" },
 ];

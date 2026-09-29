@@ -275,9 +275,14 @@ describe("the element's renderer attribute", () => {
         });
         host.appendChild(element);
         await element.updateComplete;
-        for (let wait = 0; wait < 600 && !initialized; wait++) {
+        for (let wait = 0; wait < 600 && !(initialized && element.graph.initialized); wait++) {
             await frames(1);
         }
+
+        // Babylon imports each shader the first time it compiles it. Removing the element with
+        // those imports in flight leaves them to resolve after this file's page has gone, where
+        // they reject unhandled -- so the scene is let finish compiling first.
+        await element.graph.scene.whenReadyAsync();
 
         try {
             const status = element.rendererStatus;

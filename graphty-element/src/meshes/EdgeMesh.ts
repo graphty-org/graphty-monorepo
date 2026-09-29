@@ -499,11 +499,11 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-         
+
         _cache: MeshCache,
     ): Mesh {
         // Use custom line renderer if flag is enabled
-         
+
         if (this.USE_CUSTOM_RENDERER) {
             const points = [
                 new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
@@ -584,26 +584,25 @@ void main() {
         return mesh as Mesh;
     }
 
-    /** One empty colours texture per scene, for {@link createAnimatedLine}. */
-    private static readonly emptyColors = new WeakMap<Scene, RawTexture>();
-
+    /**
+     * An empty colours texture for one animated line, disposed with it. Not shared: the line's
+     * mesh disposes its material's textures when it goes, so a shared one would be disposed under
+     * every other line still using it.
+     * @param scene - The scene the line is drawn in.
+     * @returns The texture.
+     */
     private static emptyColorsTexture(scene: Scene): RawTexture {
-        let texture = this.emptyColors.get(scene);
-        if (texture === undefined) {
-            texture = new RawTexture(
-                new Uint8Array(4),
-                1,
-                1,
-                Engine.TEXTUREFORMAT_RGBA,
-                scene,
-                false,
-                false,
-                Engine.TEXTURE_NEAREST_NEAREST,
-            );
-            texture.name = "edge-moving-empty-colors";
-            this.emptyColors.set(scene, texture);
-        }
-
+        const texture = new RawTexture(
+            new Uint8Array(4),
+            1,
+            1,
+            Engine.TEXTUREFORMAT_RGBA,
+            scene,
+            false,
+            false,
+            Engine.TEXTURE_NEAREST_NEAREST,
+        );
+        texture.name = "edge-moving-empty-colors";
         return texture;
     }
 
@@ -639,7 +638,7 @@ void main() {
         mesh: GreasedLineBaseMesh,
         texture: RawTexture,
         scene: Scene,
-         
+
         _animationSpeed?: number,
     ): void {
         const material = mesh.material as StandardMaterial;

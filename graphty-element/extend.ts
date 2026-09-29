@@ -5,14 +5,13 @@
  * import { LayoutEngine, registerPalette } from "@graphty/graphty-element/extend";
  * ```
  *
- * SEVEN THINGS CAN BE BROUGHT TO THE ELEMENT FROM OUTSIDE, and the list is closed: a palette, a
- * file format, a data source (a remote or streaming loader), a camera view, a layout, an
- * algorithm and a log destination. A file format and a data source are both `DataSource` classes. Everything else that
+ * SIX THINGS CAN BE BROUGHT TO THE ELEMENT FROM OUTSIDE TODAY, and the list is closed: a palette, a
+ * file format, a camera view, a layout, an algorithm and a log destination. Everything else that
  * looks registrable -- a scale, a node mesh shape, a lifecycle manager, a natural-language
  * command, a hardware accelerator -- is internal, and a consumer who finds one of those is not
  * promised it keeps working.
  *
- * THE RULE THE SEVEN ARE HELD TO: an extension must be able to do everything its built-in peer can.
+ * THE RULE THE SIX ARE HELD TO: an extension must be able to do everything its built-in peer can.
  * It appears in `session.catalog` so a picker can offer it; it is addressable by the key a
  * consumer types and a saved document records; it reports progress and honours cancellation
  * wherever its built-in peer does; it is configured through the same options mechanism; it
@@ -49,7 +48,7 @@
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
 // ---------------------------------------------------------------------------------------------
-// Options: one mechanism for all seven points
+// Options: one mechanism for all six points
 // ---------------------------------------------------------------------------------------------
 
 /*
@@ -102,9 +101,10 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
  * retries with backoff, chunking, per-record validation, error aggregation, and declaring the
  * direction the file states.
  *
- * The same class is the extension point for a REMOTE OR STREAMING source -- a service query, a
- * paged API, a database: `sourceFetchData` is an async generator, so it fetches a page and yields
- * its records as one chunk before it asks for the next.
+ * A REMOTE OR STREAMING LOADER -- a service query, a paged API, a database -- is the seventh
+ * extension point, and it gets a contract of its own, separate from file readers, that is not
+ * published yet. Do not register one as a file format: a reader must claim a file extension and a
+ * media type, so a service would show up in file detection and file pickers.
  */
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
@@ -354,7 +354,7 @@ export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErr
 export { GraphtyError, isGraphtyError } from "./src/errors";
 
 // ---------------------------------------------------------------------------------------------
-// Acceleration: internal, and not one of the seven. A factory, registered by name, called with the
+// Acceleration: internal, and not one of the six. A factory, registered by name, called with the
 // ceiling it must respect.
 // ---------------------------------------------------------------------------------------------
 

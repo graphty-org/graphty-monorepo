@@ -1,23 +1,25 @@
 # Extension points
 
-Seven things can be brought to graphty-element from outside. The list is closed: it is what a third
+Six things can be brought to graphty-element from outside today. The list is closed: it is what a third
 party may build against, and what the element promises not to break.
 
 | Extension point | What you bring                                                                             | Guide                                                |
 | --------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
 | Palette         | A named set of colour anchors a style layer ramps through                                  | [Custom palettes](./custom-palettes)                 |
-| File format     | A reader for a graph file the element does not ship, or a graph-io importer wrapped as one | [Custom data sources](./custom-data-sources)         |
-| Data source     | A remote or streaming loader: a service query, a paged API, a database                     | [Custom data sources](./custom-data-sources)         |
+| File format     | A reader for a graph file the element does not ship, or a graph-io importer wrapped as one | [Custom file formats](./custom-data-sources)         |
 | Camera          | A way of deciding where the viewer stands and what they look at                            | [Custom camera views](./custom-cameras)              |
 | Layout          | An engine that decides where nodes sit                                                     | [Custom layouts](./custom-layouts)                   |
 | Algorithm       | Something computed over the graph that publishes a result                                  | [Custom algorithms](./custom-algorithms)             |
 | Logging         | A destination the element's log records are delivered to                                   | [Custom log destinations](./custom-log-destinations) |
 
+A seventh, the remote or streaming loader -- a service query, a paged API, a database -- will get a
+contract of its own, separate from file readers. It is not published yet.
+
 ## The promise
 
 **An extension can do everything its built-in equivalent can.** Whatever the element's own
 palettes, importers, cameras, layouts, algorithms and log destinations can do, yours can do by the
-same route and with types you can import. Concretely, every one of the seven:
+same route and with types you can import. Concretely, every one of the six:
 
 - appears in `session.catalog`, so a picker can offer it beside the element's own;
 - is addressable by the key you choose, wherever a built-in name is accepted;

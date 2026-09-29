@@ -608,7 +608,7 @@ written.
 
 ## Custom Data Sources
 
-Read a format the element does not ship, wrap a graph-io importer, or load from a service. See [Custom Data Sources](./extending/custom-data-sources) for details.
+Read a format the element does not ship, or wrap a graph-io importer as one. See [Custom File Formats](./extending/custom-data-sources) for details.
 
 ## Interactive Examples
 

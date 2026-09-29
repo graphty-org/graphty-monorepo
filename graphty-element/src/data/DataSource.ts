@@ -3,6 +3,7 @@ import type { CommonImportOptions, GraphImporter, ImportReport } from "@graphty/
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
+import { MIN_CONTENT_CONFIDENCE } from "../catalog/detect";
 import { publishFormatDescriptor } from "../catalog/formatRegistry";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
@@ -180,28 +181,20 @@ export interface DataSourceChunk {
     edges: AdHocData[];
 }
 
-/**
- * What a file said about its own direction, as its parser read it.
- *
- * A graph is directed or it is not, and the snapshot carries exactly one flag for the whole
- * graph, so this is one boolean and not a per-edge answer. `null` from a data source means the
- * FILE said nothing -- an edge list with no header that names direction, a JSON document with no
- * `directed` key -- and a source that says nothing leaves the element's own `data.directed`
- * configuration standing, which is what "auto" means.
- */
 /** How {@link DataSource.fromImporter} runs the importer it wraps. */
 export interface ImporterSourceOptions<Opts> {
     /**
-     * Options handed to the importer on every load. The options a host passes that the
-     * descriptor declares are laid over them. `ids` defaults to "string", so an id stays the text
-     * the file wrote.
+     * Options handed to the importer on every load. A descriptor option the host passes is laid
+     * over them; a descriptor option the host leaves out fills its default only where these name
+     * no value. `ids` defaults to "string", so an id stays the text the file wrote.
      */
     readonly importOptions?: Partial<Opts & CommonImportOptions>;
     /**
      * The words in the file that stated its direction, which the element shows beside it
      * (`directednessSource.statedBy`). Return null when the file stated none: the element's own
-     * `data.directed` setting then stands. Left out, every file is taken to state the direction the
-     * importer read, in the words "the <plainName> file".
+     * `data.directed` setting then stands. Left out, no file states a direction: a graph-io
+     * importer applies its own default when the file is silent (CSV's is directed), and the
+     * adapter cannot tell that default from a statement, so it claims none on the file's behalf.
      * @param snapshot - the imported graph; `snapshot.directed` is the direction the importer read
      * @param report - the importer's report
      * @returns the words, or null
@@ -215,6 +208,15 @@ export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => Dat
     readonly descriptor: FormatDescriptor;
 };
 
+/**
+ * What a file said about its own direction, as its parser read it.
+ *
+ * A graph is directed or it is not, and the snapshot carries exactly one flag for the whole
+ * graph, so this is one boolean and not a per-edge answer. `null` from a data source means the
+ * FILE said nothing -- an edge list with no header that names direction, a JSON document with no
+ * `directed` key -- and a source that says nothing leaves the element's own `data.directed`
+ * configuration standing, which is what "auto" means.
+ */
 export interface DeclaredDirection {
     /** True when the file declares a directed graph. */
     readonly directed: boolean;
@@ -725,11 +727,17 @@ export abstract class DataSource {
             );
         }
 
-        const { importOptions = {}, statedBy = () => `the ${descriptor.plainName} file` } = options;
+        const { importOptions = {}, statedBy } = options;
+        const sniff = importer.sniff?.bind(importer);
 
         return class ImporterDataSource extends DataSource {
             static override readonly type: string = descriptor.id;
             static override readonly descriptor: FormatDescriptor = descriptor;
+            // The importer's sniffer, held to the confidence the built-in sniffers are held to.
+            static override readonly detect =
+                sniff === undefined
+                    ? undefined
+                    : (sample: string): boolean => sniff(new TextEncoder().encode(sample)) >= MIN_CONTENT_CONFIDENCE;
 
             readonly #config: BaseDataSourceConfig;
             readonly #options: Record<string, unknown>;
@@ -744,16 +752,33 @@ export abstract class DataSource {
                 return this.#config;
             }
 
+            /**
+             * The fixed options, with the descriptor options the host passed laid over them and
+             * the defaults of the ones it left out filling only what the fixed options leave open.
+             * @returns the options handed to the importer
+             */
+            #importerOptions(): Opts & CommonImportOptions {
+                const merged: Record<string, unknown> = { ...this.#options, ...importOptions };
+                const passed = this.#config as unknown as Record<string, unknown>;
+                for (const [name, value] of Object.entries(this.#options)) {
+                    if (passed[name] !== undefined) {
+                        merged[name] = value;
+                    }
+                }
+
+                return merged as Opts & CommonImportOptions;
+            }
+
             async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
                 const imported = await importWhole(
                     importer,
                     await this.getContent(),
-                    { ...importOptions, ...this.#options } as Opts & CommonImportOptions,
+                    this.#importerOptions(),
                     this.errorAggregator,
                     { firstDeclarationWins: true },
                 );
                 const { snapshot, report } = imported;
-                const words = statedBy(snapshot, report);
+                const words = statedBy?.(snapshot, report) ?? null;
                 if (words !== null) {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
                 }

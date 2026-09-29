@@ -88,7 +88,7 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
  * 0.05 for any XML prolog. Answering it would hand a file the element cannot read to a reader
  * that then reports a parse error instead of "unknown format". CSV has its own test, below.
  */
-const MIN_CONTENT_CONFIDENCE = 0.5;
+export const MIN_CONTENT_CONFIDENCE = 0.5;
 
 /**
  * Whether graph-io's CSV answer names a table the element's CSV reader can split.

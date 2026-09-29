@@ -24,7 +24,10 @@ import {
     type BaseDataSourceConfig,
     DataSource,
     type DataSourceChunk,
+    detectFormats,
     type FormatDescriptor,
+    type GraphImporter,
+    type ImporterReport,
     isGraphtyError,
 } from "../../extend";
 import { createGraphSession } from "../../session";
@@ -43,6 +46,8 @@ const ACME_GML: FormatDescriptor = {
 const AcmeGml = DataSource.register(
     DataSource.fromImporter(gmlImporter, ACME_GML, {
         importOptions: { ids: "canonical", positions: false, weightFrom: null },
+        // GML always states a direction: the directed key, or the specification's default for its absence.
+        statedBy: () => "the Acme GML file",
     }),
 );
 
@@ -84,6 +89,51 @@ class LinesDataSource extends DataSource {
 }
 
 DataSource.register(LinesDataSource);
+
+/** The importer options the spy importer below was last handed. */
+let spied: Record<string, unknown> = {};
+
+/**
+ * An importer that adds one `a -> b` edge, never states a direction, records its options and
+ * recognises any file that begins "SPY".
+ */
+const spyImporter: GraphImporter = {
+    format: "spy",
+    extensions: [".spy"],
+    mimeTypes: ["text/vnd.acme.spy"],
+    sniff: (head) => (new TextDecoder().decode(head).startsWith("SPY") ? 1 : 0),
+    import(_input, sink, options) {
+        spied = { ...options };
+        sink.addEdgeRecord("a", "b", {});
+        const report: ImporterReport = {
+            format: "spy",
+            counts: { nodes: 0, edges: 1, skippedNodes: 0, skippedEdges: 0, expandedMixed: 0 },
+            issues: [],
+            errorCount: 0,
+            warningCount: 0,
+            truncated: false,
+            lossy: [],
+            durationMs: 0,
+        };
+        return Promise.resolve(report);
+    },
+};
+
+DataSource.register(
+    DataSource.fromImporter(
+        spyImporter,
+        {
+            id: "acme-spy",
+            plainName: "Acme Spy",
+            extensions: [".spy"],
+            mimeTypes: ["text/vnd.acme.spy"],
+            canImport: true,
+            canExport: false,
+            options: [{ name: "mode", plainName: "Mode", type: "string", default: "fast" }],
+        },
+        { importOptions: { mode: "exact" } as Record<string, unknown> },
+    ),
+);
 
 const CORPUS = join(__dirname, "..", "helpers", "corpus", "gml");
 
@@ -186,14 +236,42 @@ describe("DataSource.fromImporter", () => {
         assert.deepEqual(await failure("acme-gml"), builtIn);
     });
 
-    it("declares no direction when told the file states none", async () => {
-        const Quiet = DataSource.fromImporter(gmlImporter, { ...ACME_GML, id: "acme-quiet" }, { statedBy: () => null });
+    it("declares no direction when no statedBy is given", async () => {
+        const Quiet = DataSource.fromImporter(gmlImporter, { ...ACME_GML, id: "acme-quiet" });
         const source = new Quiet({ data: DOCUMENTS.directed });
         for await (const chunk of source.getData()) {
             assert.isAbove(chunk.nodes.length, 0);
         }
 
         assert.isNull(source.declaredDirection);
+    });
+
+    it("declares no direction for a file that states none, as the built-in CSV source does", async () => {
+        const wrapped = await load("acme-spy", "SPY");
+        const builtIn = await load("csv", "source,target\na,b\n");
+        assert.deepEqual(
+            [(wrapped as { directedness: unknown }).directedness, (wrapped as { by: unknown }).by],
+            [(builtIn as { directedness: unknown }).directedness, (builtIn as { by: unknown }).by],
+        );
+        assert.strictEqual((wrapped as { by: unknown }).by, "unsettled");
+    });
+
+    it("keeps a fixed importer option over a declared default the host did not pass", async () => {
+        await read("acme-spy", "SPY");
+        assert.strictEqual(spied.mode, "exact");
+
+        const source = DataSource.get("acme-spy", { data: "SPY", mode: "slow" } as { data: string });
+        assert.isNotNull(source);
+        for await (const chunk of source.getData()) {
+            assert.isAtLeast(chunk.edges.length, 0);
+        }
+
+        assert.strictEqual(spied.mode, "slow");
+    });
+
+    it("recognises the format from content through the importer's sniffer", () => {
+        assert.include(detectFormats({ sample: "SPY a b" }), "acme-spy");
+        assert.notInclude(detectFormats({ sample: "graph [ node [ id 1 ] ]" }), "acme-spy");
     });
 
     it("refuses something that is not an importer", () => {

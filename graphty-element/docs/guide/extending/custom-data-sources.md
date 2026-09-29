@@ -1,16 +1,13 @@
-# Custom data sources
+# Custom file formats
 
-The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship, or a
-source that is not a file at all -- a service query, a paged API, a database -- is a class
-extending `DataSource`, and registering it puts it everywhere the built-in seven are: in the
-catalogue an import dialog reads, in extension and content detection, and in every call that
-names a format by string.
+The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship is a
+class extending `DataSource`, and registering it puts the format everywhere the built-in seven
+are: in the catalogue an import dialog reads, in extension and content detection, and in every
+call that names a format by string.
 
 There are two ways to write one:
 
-- **Extend `DataSource` yourself** (below). Your `sourceFetchData` is an async generator, so a
-  remote or streaming source fetches a page, yields its records as a chunk, and only then asks
-  for the next; the graph grows as the chunks arrive.
+- **Extend `DataSource` yourself** (below).
 - **Wrap a graph-io importer** with `DataSource.fromImporter` (see
   [Wrapping a graph-io importer](#wrapping-a-graph-io-importer)), when you already have one or
   would rather push into a builder than build records.
@@ -237,12 +234,20 @@ What the class does around your importer:
   and the line of the last error, and the graph on screen stays as it was. Take `ImportError` from
   `./extend`, not from your own copy of graph-io: the element recognises it with `instanceof`,
   which fails across copies.
-- The direction your importer set on the sink is declared as the file's, with the words
-  `statedBy` returns (by default "the <plainName> file"). Return `null` from `statedBy` for a
-  file that stated no direction, and the element's own `data.directed` setting stands.
-- The options your descriptor declares are checked against what a host passes, filled with their
-  defaults and handed to your importer; `importOptions` fixes the rest (graph-io's
-  `CommonImportOptions`, such as `ids`).
+- The direction your importer set on the sink is declared as the file's only when `statedBy`
+  returns words for it, which the element shows beside the graph's direction. Left out, or
+  returning `null`, the file stated no direction and the element's own `data.directed` setting
+  stands: a graph-io importer applies its own default to a silent file, and the element cannot
+  tell that default from a statement.
+- Your importer's `sniff`, if it has one, recognises the format from content: a file whose
+  first bytes it rates at 0.5 or more is detected as yours, as the built-in sniffers are.
+- The options your descriptor declares are checked against what a host passes and handed to your
+  importer. `importOptions` fixes the rest (graph-io's `CommonImportOptions`, such as `ids`); a
+  value the host passes wins over it, and a declared option's default fills only what
+  `importOptions` leaves open.
+
+Remote and streaming loaders -- a service query, a paged API, a database -- will get a contract of
+their own, separate from file readers. It is not published yet.
 
 ## Using it
 

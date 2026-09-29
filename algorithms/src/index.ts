@@ -34,6 +34,8 @@ export type {
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     CommunityResultLike,
     CorenessResultLike,
     EdgeScoresResultLike,

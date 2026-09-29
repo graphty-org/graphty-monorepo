@@ -138,7 +138,7 @@ export interface AlgorithmAccelerator {
     ): Promise<BfsResultLike>;
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
-    closenessCentrality?(s: GraphSnapshot, options?: HitsOptionsLike): Promise<ScoresResultLike>;
+    closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
     betweennessCentrality?(s: GraphSnapshot, options?: BetweennessAcceleratorOptions): Promise<ScoresResultLike>;
     edgeBetweennessCentrality?(
         s: GraphSnapshot,
@@ -199,6 +199,22 @@ export interface BetweennessAcceleratorOptions {
     readonly endpoints?: boolean | undefined;
     readonly sources?: readonly number[] | undefined;
     readonly k?: number | undefined;
+}
+
+/**
+ * Closeness options as the accelerator sees them: `weighted` always explicit, and `sources` as node INDICES --
+ * present for a sampled run, absent for the exact one from every node. With `sources` the member scores every
+ * node from its distances to those sources, as the CPU port's sampled closeness does (duplicates run twice).
+ * @public
+ */
+export interface ClosenessAcceleratorOptions {
+    readonly weighted?: boolean | undefined;
+    readonly sources?: readonly number[] | undefined;
+}
+
+/** Closeness scores with the number of sources run: `nodeCount` exact, the sample's length sampled. @public */
+export interface ClosenessResultLike extends ScoresResultLike {
+    readonly sourcesUsed: number;
 }
 
 // ============================================================ the dispatcher (design 9.2 lines 2950-2957)
@@ -282,6 +298,9 @@ export interface BetweennessAcceleratorOptions {
  * its own. `closenessCentrality` goes only for the plain score -- no `normalized`,
  * `harmonic`, `cutoff` or `weights` override -- and hands the accelerator an explicit `weighted`,
  * because the WebGPU member otherwise defaults it from the snapshot where the port defaults it off.
+ * A sampled closeness (`sources` or `k`) goes too, handed the sources the port would run -- the caller's
+ * or the port's `k` draw -- but only on an undirected snapshot: the port measures each node's distance TO
+ * the sources, which the accelerator's searches from the sources give only when distance is symmetric.
  *
  * `depthFirstSearch`, `degrees`, `stronglyConnectedComponents`, `leiden`, `girvanNewman`, `maxFlow`,
  * `minSTCut`, `stoerWagner`, `kargerMinCut`, `commonNeighborsPrediction`, `adamicAdarPrediction`,
@@ -315,7 +334,7 @@ export interface AcceleratedAlgorithms {
     allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
     betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
-    closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ScoresResultLike>;
+    closenessCentrality(s: GraphSnapshot, options?: ClosenessOptions): Promise<ClosenessResultLike>;
     depthFirstSearch(g: AdjacencyView, start: number, options?: DfsOptions): Promise<DfsResult>;
     degrees(s: GraphSnapshot): Promise<DegreesResult>;
     stronglyConnectedComponents(s: GraphSnapshot, options?: ArcOrderOption): Promise<LabelResult>;
@@ -361,17 +380,35 @@ function explicitSources(
 
 /**
  * Whether the accelerator's closeness member answers the port's question: only the plain
- * `1 / sum(distance)` score over the snapshot's own weights.
+ * `1 / sum(distance)` score over the snapshot's own weights, and a sampled one only undirected.
+ * @param s - The snapshot
  * @param options - The caller's port options
  * @returns True when the call may go to the accelerator
  */
-function acceleratorAnswersCloseness(options: ClosenessOptions | undefined): boolean {
+function acceleratorAnswersCloseness(s: GraphSnapshot, options: ClosenessOptions | undefined): boolean {
+    const sampled = options?.sources !== undefined || options?.k !== undefined;
     return (
+        (!sampled || !s.directed) &&
         options?.normalized !== true &&
         options?.harmonic !== true &&
         options?.cutoff === undefined &&
         options?.weights === undefined
     );
+}
+
+/**
+ * Closeness options for the accelerator: an explicit `weighted`, and for a sampled run the sources the port
+ * would run, spelled out.
+ * @param s - The snapshot
+ * @param options - The caller's port options
+ * @returns The options for the accelerator
+ */
+function closenessSources(s: GraphSnapshot, options: ClosenessOptions | undefined): ClosenessAcceleratorOptions {
+    const weighted = options?.weighted === true;
+    if (options?.sources === undefined && options?.k === undefined) {
+        return { weighted };
+    }
+    return { weighted, sources: resolveSources(s.nodeCount, options.sources, options.k, "closenessCentrality") };
 }
 
 /**
@@ -734,10 +771,10 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.edgeBetweennessCentrality !== undefined && !s.flags.multigraph && options?.alive === undefined
                 ? acc.edgeBetweennessCentrality(s, explicitSources(s, options))
                 : Promise.resolve(indexed.edgeBetweennessCentrality(s, options)),
-        closenessCentrality: (s, options) =>
-            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(options)
-                ? acc.closenessCentrality(s, { weighted: options?.weighted === true })
-                : Promise.resolve(indexed.closenessCentrality(s, options)),
+        closenessCentrality: async (s, options) =>
+            acc?.closenessCentrality !== undefined && acceleratorAnswersCloseness(s, options)
+                ? await acc.closenessCentrality(s, closenessSources(s, options))
+                : indexed.closenessCentrality(s, options),
         labelPropagation: (s, options) =>
             acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)

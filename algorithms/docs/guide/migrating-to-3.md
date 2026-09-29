@@ -170,7 +170,8 @@ graph-format), `toSnapshot` (build the snapshot directly), `CSRGraph`, `toCSRGra
 is already compressed sparse rows), `heuristics` and `pathfindingUtils` (a heuristic is now a function of two node
 indices), and the id-keyed result and option types. The `Indexed`-prefixed type names of 2.x (`IndexedPageRankOptions`,
 `IndexedMinCutResult` and the rest) are now the plain names (`PageRankOptions`, `MinCutResult`). `PriorityQueue`,
-`UnionFind`, `ConvergenceError`, `PathWalkError` and `accelerated` are unchanged.
+`UnionFind`, `ConvergenceError`, `PathWalkError` and `accelerated` are unchanged, except for the closeness member of
+the accelerator seam (see "Sampled closeness" below).
 
 ## Results that differ from 2.x
 
@@ -233,3 +234,19 @@ graphs named:
 - **k-core** does not count a self-loop toward its node's core number, and refuses a directed graph.
 - **Delta PageRank.** `DeltaPageRank` and `PriorityDeltaPageRank` run over a frozen snapshot: `update()` no longer reads
   a graph changed after construction.
+
+## Sampled closeness
+
+`closenessCentrality` takes the two sampling options `betweennessCentrality` has: `sources`, a list of node indices to
+run from (a duplicate runs twice), or `k`, how many distinct sources to draw. The draw is the one betweenness makes, so
+the same `(n, k)` draws the same sources every time; with both, `k` must equal `sources.length`, and a bad value throws a
+`RangeError`. The result carries `sourcesUsed`, the number of sources run (`nodeCount` for the exact score).
+
+A sampled score is each node's closeness from its distances TO the sampled sources (over in-arcs on a directed graph),
+with the same formula as the exact score and no extrapolation: `1 / score` is the summed distance to the sources the
+node reaches. Multiply by `k / n` for the Eppstein-Wang estimate of the exact score. A sample of every node gives the
+exact scores. `nodeClosenessCentrality` takes no sampling options.
+
+On the accelerator seam, `AlgorithmAccelerator.closenessCentrality` takes `ClosenessAcceleratorOptions` (`weighted`,
+and `sources` for a sampled run) and resolves to a `ClosenessResultLike`, which adds `sourcesUsed`. The dispatcher hands a
+sampled call to the accelerator only on an undirected graph, with the sources already drawn.

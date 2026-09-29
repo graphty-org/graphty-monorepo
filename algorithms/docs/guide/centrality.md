@@ -132,6 +132,27 @@ Closeness is 1 over the sum of the distances to the other nodes. Pass `normalize
 other nodes reached, `harmonic: true` for harmonic closeness, which handles disconnected graphs, and `weighted: true` to read edge
 weights as distances. `nodeClosenessCentrality(graph, node)` scores one node.
 
+On a big graph, sample: `k` draws that many sources (the same ones every time) and `sources` names them. Each node is
+then scored from its distances to those sources alone, unscaled, and `sourcesUsed` says how many ran. Multiply a sampled
+score by `k / n` to estimate the exact one; a sample of every node gives the exact score.
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { closenessCentrality } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+
+const sampled = closenessCentrality(graph, { sources: [graph.ids.requireIndex("a")] });
+console.log(sampled.sourcesUsed); // 1
+console.log(sampled.scores[graph.ids.requireIndex("d")].toFixed(3)); // 0.333: d is 3 from a
+```
+
 ## Eigenvector Centrality
 
 A node is important if it is connected to other important nodes.

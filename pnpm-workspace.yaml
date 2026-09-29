@@ -36,6 +36,8 @@ overrides:
     "adm-zip@<0.6.1": ^0.6.1
     "koa@>=3.0.0 <3.1.2": ^3.1.2
     "ws@>=8.0.0 <8.21.0": ^8.21.0
+    # ... and undici 7 below 7.29.1 (GHSA-rfgv-xxqx-mfg5, GHSA-w293-vg96-wgc3).
+    "undici@>=7.0.0 <7.29.1": ^7.29.1
     # @nx/react -> webpack -> terser-webpack-plugin asks for serialize-javascript 6.
     "serialize-javascript@<7.0.5": ^7.0.5
     # @nx/react -> express asks for qs 6.14.

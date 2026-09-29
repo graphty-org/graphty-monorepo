@@ -46,27 +46,15 @@
         },
         "directed": {
             "type": "boolean",
-            "description": "The direction of the graph the recipe was recorded on. A replay on a graph of the other direction is reported (recipe.md, 'Binding to a new graph' rule 5)."
+            "description": "The direction of the graph the recipe was recorded on. A replay on a graph of the other direction is reported (recipe.md, 'Binding to a new graph' rule 2)."
         },
         "parallelEdges": {
             "type": "boolean",
-            "description": "Whether the graph the recipe was recorded on held more than one edge between a pair of nodes. false makes a replay on a graph that does hold them report it before anything runs (recipe.md, 'Binding to a new graph' rule 5)."
+            "description": "Whether the graph the recipe was recorded on held more than one edge between a pair of nodes. false makes a replay on a graph that does hold them report it before anything runs (recipe.md, 'Binding to a new graph' rule 2)."
         },
         "table": {
-            "oneOf": [
-                {
-                    "$ref": "#/$defs/tableReading"
-                },
-                {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 16,
-                    "items": {
-                        "$ref": "#/$defs/tableReading"
-                    }
-                }
-            ],
-            "description": "For data read from a table (CSV): how it is read. Defaults for a table imported for this recipe through its application's import() or as the file's own data member; the caller's options win, and the endpoint columns, delimiter and variant are used only when the file's first line holds the reading's endpoint columns. A list is tried in order and the first reading that passes is used (recipe.md, 'Table data'). Ignored for formats that mark endpoints themselves."
+            "$ref": "#/$defs/tableReading",
+            "description": "For data read from a table (CSV): how it is read, as defaults for a table imported through this recipe's application import(). The caller's options win, and the endpoint columns, delimiter and variant are used only when the file's first line holds the endpoint columns (recipe.md, 'Table data'). Ignored for formats that mark endpoints themselves."
         },
         "generator": {
             "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/generator",
@@ -166,50 +154,16 @@
                 },
                 "repeatedEdges": {
                     "enum": ["keep", "first", "last", "sum", "min", "max", "error"],
-                    "description": "What a second edge between the same two nodes becomes. sum, min and max combine one column, the edge weight or the one combineColumn names; every other column of a merged edge is its first row's (its last row's for last)."
-                },
-                "combineColumn": {
-                    "$ref": "#/$defs/tableColumn",
-                    "description": "The column sum, min and max combine, kept under its own name; the edge weight when absent."
-                },
-                "columns": {
-                    "$ref": "#/$defs/renames",
-                    "description": "Renames for this tool's headers: the recipe's column name to the header that holds it ({\"volume\": \"amount\"}). The header test requires every header named here; the renames apply only when this reading passes it, before the weight is found, and the recipe's commands and the file's styles then bind to the recipe's names. For a neo4j reading, a header is named without its type suffix (recipe.md, 'Table data' rule 1)."
-                },
-                "nodeColumns": {
-                    "$ref": "#/$defs/renames",
-                    "description": "The same, for this tool's node table only: only a node table is tested for these headers."
-                },
-                "edgeColumns": {
-                    "$ref": "#/$defs/renames",
-                    "description": "The same, for this tool's edge table only: only an edge table is tested for these headers."
-                },
-                "filterWhileReading": {
-                    "type": "boolean",
-                    "description": "Apply the recipe's leading edge filters to each row while the table is read even when rows are merged: a pair is kept when any of its rows passes. Without it, a table whose rows are merged is read whole and filtered after import (recipe.md, 'Table data' rule 4). Default false."
+                    "description": "What a second edge between the same two nodes becomes. sum, min and max combine the edge weight; every other column of a merged edge is its first row's (its last row's for last)."
                 }
             },
-            "description": "One way of reading a table: the import option names of container.md, 'Import options' -- the columns holding an edge's two ends and a node's id, the delimiter, the CSV shape, what repeated rows become and the column they combine -- plus filterWhileReading and the renames columns, nodeColumns and edgeColumns. Its members follow the import options, which grow within version 1; a reader tries the readings in order up to the first one holding a member it does not know, and refuses the import there when none before it passed (recipe.md, 'Table data' rule 7)."
-        },
-        "renames": {
-            "type": "object",
-            "maxProperties": 256,
-            "propertyNames": {
-                "minLength": 1,
-                "maxLength": 256,
-                "not": {
-                    "const": "__proto__"
-                }
-            },
-            "additionalProperties": {
-                "$ref": "#/$defs/tableColumn"
-            }
+            "description": "How a table is read: the import options of recipe.md, 'Table data' rule 1 -- the columns holding an edge's two ends and a node's id, the delimiter, the CSV shape and what repeated rows become. Its members follow the import options, which grow within version 1; an import through a recipe whose table holds a member the reader does not know is refused (recipe.md, 'Table data' rule 5)."
         },
         "predicate": {
             "type": "string",
             "minLength": 1,
             "maxLength": 1024,
-            "description": "A predicate in graphty-element's expression language (style.md, 'Expressions') over the table 'on' names: columns as data.<column> or by their bare name (confidence >= 0.4), earlier results as results.<as>.<field>; numbers, true, false and null may be written bare. Reads columns only: the structural paths of style.md, 'Paths' rule 4 are refused."
+            "description": "A predicate in graphty-element's expression language (style.md, 'Expressions') over the table 'on' names: columns as data.<column> or by their bare name (confidence >= 0.4), earlier results as results.<as>.<field>; numbers, true, false and null may be written bare. Reads columns only: the structural paths of style.md, 'Paths' rule 3 are refused."
         },
         "on": {
             "enum": ["nodes", "edges"]

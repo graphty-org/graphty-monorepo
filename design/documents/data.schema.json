@@ -2,9 +2,9 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-data/v1.json",
     "title": "graphty data member, version 1",
-    "description": "The graph itself inside a graphty document (container.md, 'The data member'): either embedded as one of graph-io's JSON dialects, or a reference to a file in any format graphty-element reads. Normative for what a writer produces. Its members are closed: a reader skips a data member with a member this schema does not list.",
+    "description": "The graph itself inside a graphty document (container.md, 'The data member'), embedded as one of graph-io's JSON dialects. Normative for what a writer produces. Its members are closed: a reader skips a data member with a member this schema does not list.",
     "type": "object",
-    "required": ["kind", "version", "format"],
+    "required": ["kind", "version", "format", "dialect", "graph"],
     "properties": {
         "kind": {
             "const": "graphty-data"
@@ -21,89 +21,23 @@
             "maxLength": 65536
         },
         "format": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9.:_-]*$",
-            "maxLength": 128,
-            "description": "A format id from graphty-element's format catalogue: json, csv, graphml, gexf, gml, dot, pajek, or one a plugin registered. Embedded data is always json."
+            "const": "json",
+            "description": "Embedded data is always json."
         },
         "dialect": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
             "pattern": "^[a-z][a-z0-9-]*$",
-            "description": "The graph-io JSON dialect of embedded data: node-link, d3, jgf, cytoscape, graphology, vis, or one a later graph-io adds. Required with graph. A reader whose graph-io does not read it skips the member with E_UNKNOWN_FORMAT."
+            "description": "The graph-io JSON dialect of the embedded graph: node-link, d3, jgf, cytoscape, graphology, vis, or one a later graph-io adds. A reader whose graph-io does not read it skips the member with E_UNKNOWN_FORMAT."
         },
         "graph": {
             "type": ["object", "array"],
             "description": "The graph, embedded as a JSON value in the named dialect, written with that dialect's own member names."
         },
-        "href": {
-            "type": "string",
-            "format": "uri-reference",
-            "minLength": 1,
-            "maxLength": 4096,
-            "description": "Where the data file is: a path relative to the document, or an https: URL with no user name or password. Checked after resolution and never fetched without the caller's consent (container.md, 'The data member').",
-            "not": {
-                "pattern": "^[^/?#]*//[^/?#]*@"
-            }
-        },
-        "options": {
-            "type": "object",
-            "propertyNames": {
-                "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
-                "maxLength": 128,
-                "not": {
-                    "enum": [
-                        "url",
-                        "data",
-                        "file",
-                        "format",
-                        "chunkSize",
-                        "errorLimit",
-                        "filename",
-                        "size",
-                        "edgeSrcIdPath",
-                        "edgeDstIdPath",
-                        "__proto__"
-                    ]
-                }
-            },
-            "description": "Import options of a referenced file, by the names graphty-element's format catalogue declares for the named format (container.md, 'Import options'). The list is open and checked against the reading release's catalogue: in version 1, edgeSource, edgeTarget, directed and repeatedEdges for every format, delimiter, variant and idColumn for CSV, nodeIdPath for JSON. The keys graphty-element keeps for its own use (url, data, file, ...) are never import options of a document. Column and field names are plain names, never evaluated.",
-            "additionalProperties": {
-                "type": ["string", "number", "boolean"],
-                "maxLength": 256
-            }
-        },
-        "sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$",
-            "description": "The SHA-256 of the referenced file's bytes, lower-case hex."
-        },
         "extensions": {
             "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
         }
-    },
-    "if": {
-        "required": ["graph"]
-    },
-    "then": {
-        "required": ["dialect"],
-        "properties": {
-            "format": {
-                "const": "json"
-            },
-            "href": false,
-            "options": false,
-            "sha256": false
-        },
-        "description": "Embedded data: graph and dialect, format json, and none of the members of a reference."
-    },
-    "else": {
-        "required": ["href"],
-        "properties": {
-            "dialect": false
-        },
-        "description": "Referenced data: href, and no dialect."
     },
     "unevaluatedProperties": false
 }

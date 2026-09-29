@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://graphty.app/schema/documents/graphty-document/v1.json",
     "title": "graphty document, version 1",
-    "description": "The one JSON file every graphty document is (container.md). Normative for what a writer produces. A member whose kind and version this schema knows is checked against that kind's own schema; a member of any other kind or version is checked only for its kind and version, so a file carrying a member of a later kind or version is still a valid version 1 document. A new value inside a version 1 member (a channel, a shape, an import option) is valid against the copy of this schema of a release that knows it; each release's copy is also published as .../graphty-document/v1/<release>.json (container.md, 'Versions' rule 2). A reader follows container.md for what fails.",
+    "description": "The one JSON file every graphty document is (container.md). Normative for what a writer produces. A member whose kind and version this schema knows is checked against that kind's own schema; a member of any other kind or version is checked only for its kind and version, so a file carrying a member of a later kind or version is still a valid version 1 document. A new value inside a version 1 member (a channel, a shape, an import option) is valid against the copy of this schema of a release that knows it (container.md, 'Versions' rule 2). A reader follows container.md for what fails.",
     "type": "object",
     "required": ["kind", "version", "members"],
     "properties": {
@@ -37,7 +37,7 @@
                 "minLength": 1,
                 "maxLength": 128
             },
-            "description": "Member kinds a reader must know to read this file at all. A reader that does not know one, or that skips a member of one for any reason, refuses the whole file (container.md, 'Reading a file' rule 9)."
+            "description": "Member kinds a reader must know to read this file at all. A reader that does not know one, or that skips a member of one for any reason, refuses the whole file (container.md, 'Reading a file' rule 8)."
         },
         "members": {
             "type": "array",
@@ -73,49 +73,7 @@
             "propertyNames": {
                 "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
             },
-            "description": "Data for other software, under reverse-domain names (org.example.tool). The name graphty and names starting graphty. are reserved for graphty-element. A reader keeps what it does not understand and never interprets it.",
-            "properties": {
-                "graphty.provenance": {
-                    "type": "object",
-                    "properties": {
-                        "authors": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "required": ["name"],
-                                "properties": {
-                                    "name": {
-                                        "type": "string",
-                                        "maxLength": 1024
-                                    },
-                                    "email": {
-                                        "type": "string",
-                                        "maxLength": 1024
-                                    },
-                                    "orcid": {
-                                        "type": "string",
-                                        "maxLength": 64
-                                    }
-                                }
-                            }
-                        },
-                        "licence": {
-                            "type": "string",
-                            "maxLength": 256,
-                            "description": "An SPDX licence id."
-                        },
-                        "citation": {
-                            "type": "string",
-                            "maxLength": 65536
-                        },
-                        "doi": {
-                            "type": "string",
-                            "maxLength": 256
-                        }
-                    },
-                    "description": "Who made the document or member and how to cite it (container.md, 'Extensions'). A later version promotes it to members."
-                }
-            }
+            "description": "Data for other software, under reverse-domain names (org.example.tool). The name graphty and names starting graphty. are reserved for graphty-element; version 1 defines none. A reader keeps what it does not understand and never interprets it."
         },
         "member": {
             "type": "object",

@@ -1,4 +1,4 @@
-# Story changes for the owner to review on pull request #587
+# Story changes for the owner to review before the migration release
 
 The graph-format migration moves `@graphty/algorithms`, `@graphty/layout` and graphty-element
 onto graph-format snapshots and ships as one breaking release (graphty-element 3.0.0, algorithms
@@ -46,8 +46,8 @@ differences the owner accepted on 2026-09-28 (a deterministic greedy visiting or
 ignored by default, and `edgeMatch` seeing every arc and self-loop). It follows from the 3.0 result
 shape: both results are typed arrays indexed by node, where 2.x returned a Map filled in search
 order. algorithms' migration guide (`algorithms/docs/guide/migrating-to-3.md`, "Matching and
-isomorphism") names it. It stands until the owner decides it with the other changes on pull
-request #587.
+isomorphism") names it. It stands until the owner decides it with the other changes on the pull
+request that brings the rest of `feat/graph-format-migration` to master.
 
 The layout counts are from each record's own capture (visual-review, 1200x900). The story
 comparison counts pixels at 1000x800 with a per-channel threshold, so its numbers can differ by a

@@ -23,7 +23,12 @@ numbers and "A1 has not started" are no longer current.
 The graph-format migration is complete on `feat/graph-format-migration`. Pull request #587
 merged an earlier state of the branch into master on 2026-09-29 (merge `719c506d`), but no
 release was cut from it: master's packages are still algorithms 2.1.2, layout 1.10.5 and
-graphty-element 2.6.2. About 100 commits made on the branch after that merge -- the algorithms
+graphty-element 2.6.2. That merge did put breaking commits on master -- layout's `feat(layout)!:`
+45ded070 and `fix(layout)!:` d5668514, and graphty-element's `fix(graphty-element)!:` ea80b527 --
+and the release workflow (`.github/workflows/release.yml`) releases the newest master commit whose
+CI, GPU and Hosts lanes are all green. So the first green master commit publishes layout 2.0.0 and
+graphty-element 3.0.0 from the unfinished state, without the algorithms 3.0 removal, unless a
+release is held until the rest of the branch reaches master. About 100 commits made on the branch after that merge -- the algorithms
 3.0 removal, the plugin algorithm accessor, the snapshot layout contract, the format writers, the
 data-source adapter from a graph-io importer, and graph-format and graph-io as regular
 dependencies -- are on no pull request yet. They reach master through a new pull request from
@@ -48,7 +53,7 @@ graph API fails `tools/check-legacy-use.mjs` (the baseline file `tools/legacy-us
 is deleted), and any element data source that parses a file itself fails
 `tools/check-data-source-migration.mjs`. Both run in CI and in `tools/prepush.sh`.
 
-Merging that pull request releases graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0 (the one breaking
+If no release is cut before it, merging that pull request releases graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0 (the one breaking
 release window the owner chose on 2026-09-28), with graph-format 1.2.0, graph-io 0.3.10 and
 webgpu-graph-algorithms 0.6.13. Every accepted result difference of the flow, cut, matching and
 isomorphism functions, and of the rest of the removal, is in a BREAKING CHANGE footer of a
@@ -90,7 +95,8 @@ summarised here; the counts that changed are E1, D1 and IO1.
 
 ## Final state of every phase
 
-What is left before pull request #587 can merge, under the owner's decisions of 2026-09-28 (one
+What was left before pull request #587 could merge (it merged on 2026-09-29; see "Finished state"
+for how the rest reaches master), under the owner's decisions of 2026-09-28 (one
 breaking release: graphty-element 3.0.0, algorithms 3.0.0, layout 2.0.0, no deprecation release
 first). The item list and its order are in `migration-plan.md`, "Revision of 2026-09-28".
 
@@ -116,7 +122,8 @@ and redo work, merge `a778a43f`), so graphty-element 3.0.0 carries both.
 - **2.0: partial.** Layout's removal is merged. The algorithms 3.0 removal is to land on this
   branch now, together with the element's plugin-seam removal.
 - **Visual review: open.** `visual-changes/README.md` is the one list of story changes for the
-  owner to review on pull request #587. None is reviewed yet.
+  owner to review (the list named pull request #587, which merged on 2026-09-29; the review moves
+  to the pull request that brings the rest of the branch to master). None is reviewed yet.
 - **Issues:** #101 and #102 are fixed on an unmerged branch and close when it reaches master;
   #85 (graph-format declared as both peer and dependency) is fixed on this branch: graph-format
   and graph-io are regular dependencies of graphty-element only, and it closes when the branch

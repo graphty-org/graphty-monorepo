@@ -156,7 +156,8 @@ replaced, so it was compared too.
 The order in the last two rows is not one of the three matching and isomorphism differences the
 owner accepted on 2026-09-28. It comes with the 3.0 result shape: a mapping or a matching is a
 typed array indexed by node, where 2.x returned a Map filled in the order its search found the
-pairs. The algorithms migration guide now says so; the owner decides it on pull request #587.
+pairs. The algorithms migration guide now says so; the owner decides it on the pull request that brings the rest
+of `feat/graph-format-migration` to master.
 
 ![Label Propagation, before (left) and after (right)](algorithms-label-propagation.png)
 

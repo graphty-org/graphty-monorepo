@@ -25,7 +25,8 @@ pull request #574):
    migration, the undo and redo work of pull request #553, and the removal of
    `Algorithm.algorithmGraph()` and `AlgorithmGraphView`), algorithms 3.0.0 (the legacy `Graph`
    removed, `indexed.*` promoted to the top level) and layout 2.0.0, all released by the owner
-   merging pull request #587. There is no deprecation release first and no second pull request,
+   merging pull request #587. (#587 merged an earlier state of the branch on 2026-09-29; the rest
+   reaches master through a new pull request, see `STATUS.md`, "Finished state".) There is no deprecation release first and no second pull request,
    so every removal lands on `feat/graph-format-migration` now. Pull request #553's branch is
    already merged into it (`a778a43f`).
 2. **Plugin algorithms get a snapshot accessor**: `edgeId(row)` on the graph,
@@ -129,6 +130,7 @@ counts are in `STATUS.md`), `mig/element-static-layout-engines-r1` (its fixes ar
   integration branch with `git merge` and pushes the integration branch. No agent merges a pull
   request and no agent pushes to master.
 - The integration branch reaches master through ONE pull request, #587, which the owner merges.
+  (#587 merged on 2026-09-29 before the branch was finished; the rest goes through a new pull request.)
   (The earlier two-release plan is superseded; see "Revision of 2026-09-28".)
 - Before starting, every item merges `origin/master` into its branch. Items that touch files an open
   pull request also touches wait until that pull request has merged and been absorbed (item

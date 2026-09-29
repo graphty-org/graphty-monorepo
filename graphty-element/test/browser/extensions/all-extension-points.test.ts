@@ -894,6 +894,7 @@ describe("every registration surface the published entry points carry", () => {
     const SURFACES: Readonly<Record<string, { suite: string } | { excluded: string; coveredBy?: string }>> = {
         "extend.registerPalette": { suite: "browser/extensions/palette-extension.test.ts" },
         "extend.DataSource": { suite: "browser/extensions/format-extension.test.ts" },
+        "extend.registerFormatWriter": { suite: "browser/extensions/format-extension.test.ts" },
         "extend.registerCameraView": { suite: "browser/extensions/camera-extension.test.ts" },
         "extend.LayoutEngine": { suite: "browser/extensions/layout-extension.test.ts" },
         "extend.SimpleLayoutEngine": { suite: "browser/extensions/layout-extension.test.ts" },

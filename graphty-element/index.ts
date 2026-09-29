@@ -126,6 +126,7 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
+export type { ExportGraphOptions, ExportResult } from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -144,6 +145,8 @@ export { Algorithm } from "./src/algorithms/Algorithm";
 export { registerCameraView } from "./src/catalog/cameraRegistry";
 export { registerLogSink } from "./src/catalog/logSinkRegistry";
 export { registerPalette } from "./src/catalog/paletteRegistry";
+export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
+export { registerFormatWriter } from "./src/catalog/writerRegistry";
 export type {
     SnapshotLayoutAnswer,
     SnapshotLayoutInput,

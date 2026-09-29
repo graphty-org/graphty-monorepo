@@ -585,6 +585,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
+            exportGraph: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -843,6 +844,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
+            exportGraph: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1208,6 +1210,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/OperationQueueManager.ts",
         half: "renderer",
         whole: QUEUE,
+    },
+    {
+        name: "ExportResult",
+        file: "src/data/export.ts",
+        half: "renderer",
+        whole: READ,
     },
     {
         name: "StylePainter",

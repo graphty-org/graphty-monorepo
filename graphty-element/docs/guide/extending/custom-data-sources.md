@@ -170,9 +170,9 @@ published so a drop target can ask what it is holding before it loads anything:
 ```ts
 import { detectFormat, detectFormats } from "@graphty/graphty-element/catalog";
 
-detectFormat({ filename: "team.roster" });          // "roster"
-detectFormat({ sample: "roster directed\n..." });    // "roster"
-detectFormats({ filename: "notes.xml" });            // every claimant, best first
+detectFormat({ filename: "team.roster" }); // "roster"
+detectFormat({ sample: "roster directed\n..." }); // "roster"
+detectFormats({ filename: "notes.xml" }); // every claimant, best first
 ```
 
 The order is:
@@ -200,15 +200,15 @@ Two record conventions, both inherited:
 
 ## How it is refused
 
-| What is wrong | Code |
-| --- | --- |
-| No `static type`, no `static descriptor`, a descriptor `id` that disagrees with `static type`, no extensions or media types, or `canExport: true` | `E_BAD_COMMAND`, `details.field` naming it |
-| A format id the element itself ships | `E_DUPLICATE_PLUGIN` |
-| A name nothing registered, or detection that matched nothing | `E_UNKNOWN_FORMAT`, with `details.available` |
-| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
-| An option value outside the declared range | `E_OPTION_RANGE` |
-| A file that will not parse | `E_PARSE_FAILED`, with `details.format` and `details.line` |
-| A source that will not fetch | `E_FETCH_FAILED`, with the url and the status |
+| What is wrong                                                                                                                                     | Code                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| No `static type`, no `static descriptor`, a descriptor `id` that disagrees with `static type`, no extensions or media types, or `canExport: true` | `E_BAD_COMMAND`, `details.field` naming it                 |
+| A format id the element itself ships                                                                                                              | `E_DUPLICATE_PLUGIN`                                       |
+| A name nothing registered, or detection that matched nothing                                                                                      | `E_UNKNOWN_FORMAT`, with `details.available`               |
+| An option the descriptor does not declare                                                                                                         | `E_UNKNOWN_OPTION`, with `details.candidates`              |
+| An option value outside the declared range                                                                                                        | `E_OPTION_RANGE`                                           |
+| A file that will not parse                                                                                                                        | `E_PARSE_FAILED`, with `details.format` and `details.line` |
+| A source that will not fetch                                                                                                                      | `E_FETCH_FAILED`, with the url and the status              |
 
 A coded failure reaches both routes unchanged: the promise `addDataFromSource` returns, and the
 `data-loading-error` event.
@@ -225,11 +225,106 @@ try {
 }
 ```
 
+## Writing the format
+
+A writer is a graph-io exporter -- an object with `check`, `export` and `exportToString` -- and
+the format's descriptor with `canExport: true`. Take the types from `./extend`, not from your own
+copy of graph-io, so the snapshot you are handed is the type the element builds.
+
+```ts
+import { type GraphExporter, type GraphSnapshot, registerFormatWriter } from "@graphty/graphty-element/extend";
+
+function write(snapshot: GraphSnapshot): string {
+    const lines: string[] = [];
+    for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+        lines.push(`${snapshot.ids.idOf(snapshot.edgeSource(edge))} ${snapshot.ids.idOf(snapshot.edgeTarget(edge))}`);
+    }
+    return lines.join("\n") + "\n";
+}
+
+const exporter: GraphExporter = {
+    format: "edge-lines",
+    // What the format can hold without loss.
+    capabilities: {
+        mixedDirection: false,
+        multiEdges: true,
+        selfLoops: true,
+        edgeIds: "none",
+        idCharset: "any",
+        dtypes: [],
+        components: false,
+        lists: false,
+        json: false,
+        defaults: false,
+        options: false,
+        hierarchy: false,
+        temporal: "none",
+        graphAttributes: false,
+        positions: false,
+        viz: false,
+    },
+    check: (snapshot) =>
+        snapshot.nodes.names().length === 0
+            ? []
+            : [
+                  {
+                      code: "W_EDGE_LINES_ATTRIBUTES",
+                      message: "node attributes are not written",
+                      column: null,
+                      count: null,
+                  },
+              ],
+    async *export(snapshot) {
+        yield new TextEncoder().encode(write(snapshot));
+    },
+    exportToString: (snapshot) => Promise.resolve(write(snapshot)),
+};
+
+registerFormatWriter({
+    descriptor: {
+        id: "edge-lines",
+        plainName: "Edge Lines",
+        extensions: [".edges"],
+        mimeTypes: ["text/plain"],
+        canImport: false,
+        canExport: true,
+        options: [],
+    },
+    exporter,
+});
+
+const result = await element.exportGraph("edge-lines");
+```
+
+What the element does around it:
+
+- The format appears in `session.catalog.formats()` with `canExport: true`. With a reader
+  registered under the same id, the two are one entry with both flags true, and they must agree
+  on `plainName`, `extensions` and `mimeTypes` or the second registration is refused
+  (`E_BAD_COMMAND`, `details.field: "descriptor"`). A writer with no reader never takes part in
+  detection.
+- The snapshot you are handed carries the node and edge attributes, the current positions (the
+  `position` role column), every published algorithm result as columns named
+  `results.<runId>.<field>`, and the drawn colour, size and edge width (`color`, `size`,
+  `thickness` role columns). Write what your format has a place for; report the rest from
+  `check()` as loss notes, which `exportGraph` returns with the document. The element's own
+  bookkeeping columns are never in it.
+- `writerOptions` declares the options your writer takes, as `OptionDescriptor`s. An export that
+  names any other option is refused with `E_UNKNOWN_OPTION`; graph-io's `sanitizeIds` and
+  `onMixedDirection` always pass through.
+- A throw from your writer reaches the caller as a `GraphtyError`: `E_UNSUPPORTED` when it carries
+  a string `code` (you refused this graph under these options), `E_INTERNAL` otherwise, with your
+  error as `cause`.
+- Registration refuses a built-in id (`E_DUPLICATE_PLUGIN`), a descriptor without
+  `canExport: true`, an exporter without the three methods, and an exporter whose `format` is not
+  the descriptor's id (`E_BAD_COMMAND`, `details.field` naming it).
+
 ## Deliberate limits
 
-**Reading only.** There is no writer seam to register into, so a descriptor claiming
-`canExport: true` is refused rather than lying to a "Save as" menu. Writing is a follow-on, and
-when it exists the same class will carry it.
+**A reader's descriptor says `canExport: false`.** Writing is registered separately, with
+`registerFormatWriter` (below), which marks the catalogue entry writable. A reader descriptor that
+claims `canExport: true` on its own is refused, so a "Save as" menu never offers a format nothing
+writes.
 
 **An import cannot be cancelled.** No built-in import can be either, so nothing is being withheld
 -- but it is an absence worth knowing about rather than discovering.

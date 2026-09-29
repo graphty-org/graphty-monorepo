@@ -6,14 +6,15 @@
  * about reading it. That is everything a file picker, a drag-and-drop target and an import dialog
  * need, and none of it requires importing a data source or a renderer.
  *
- * `canExport` is false everywhere today, and saying so is the point: the element registers seven
- * importers and no exporter, so a consumer that builds a "Save as" menu from this list builds an
- * empty one instead of an unimplemented one.
+ * Every built-in format can be written: `exportGraph(format)` hands the graph to the graph-io
+ * exporter of that format. A Neo4j admin-import file is written as `csv` with
+ * `{ variant: "neo4j" }`, the same name the CSV reader recognises it under.
  */
 
 import type { CSVVariant } from "../data/CSVDataSource";
-import { registeredFormatById, registeredFormatDescriptors } from "./formatRegistry";
+import { registeredFormatDescriptors } from "./formatRegistry";
 import type { FormatDescriptor, KNOWN_FORMAT_IDS, OptionDescriptor } from "./types";
+import { catalogFormatDescriptors } from "./writerRegistry";
 
 /** A built-in format name no registered data source reads. */
 export interface UnservedFormat {
@@ -109,7 +110,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".json"],
         mimeTypes: ["application/json"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: [...jsonOptions, ...endpointOptions],
     },
     {
@@ -118,7 +119,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".csv", ".tsv", ".tab", ".edges", ".edgelist"],
         mimeTypes: ["text/csv", "text/tab-separated-values", "text/plain"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: [...csvOptions, ...endpointOptions],
     },
     {
@@ -127,7 +128,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".graphml", ".xml"],
         mimeTypes: ["application/graphml+xml", "application/xml", "text/xml"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: endpointOptions,
     },
     {
@@ -141,7 +142,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".gexf", ".xml"],
         mimeTypes: ["application/gexf+xml", "application/xml", "text/xml"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: endpointOptions,
     },
     {
@@ -150,7 +151,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".gml"],
         mimeTypes: ["text/plain"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: endpointOptions,
     },
     {
@@ -159,7 +160,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".dot", ".gv"],
         mimeTypes: ["text/vnd.graphviz", "text/plain"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: endpointOptions,
     },
     {
@@ -168,7 +169,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         extensions: [".net", ".paj"],
         mimeTypes: ["text/plain"],
         canImport: true,
-        canExport: false,
+        canExport: true,
         options: endpointOptions,
     },
 ];
@@ -209,7 +210,10 @@ export const UNSERVED_FORMAT_IDS: readonly UnservedFormat[] = [
  * format.
  */
 export function formatDescriptor(id: string): FormatDescriptor | undefined {
-    return FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === id) ?? registeredFormatById(id)?.descriptor;
+    return (
+        FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === id) ??
+        catalogFormatDescriptors().find((descriptor) => descriptor.id === id)
+    );
 }
 
 /**

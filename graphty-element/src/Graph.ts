@@ -57,7 +57,7 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -76,6 +76,7 @@ import {
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
+import { buildExportSnapshot, type ExportGraphOptions, type ExportResult, exportSnapshot } from "./data/export";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
@@ -105,6 +106,7 @@ import {
     type ViewMasks,
 } from "./managers";
 import { layoutManagerInternals } from "./managers/LayoutManager";
+import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -134,6 +136,7 @@ import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
+import { toColorValue } from "./session/styles/channels";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -5466,6 +5469,45 @@ export class Graph implements GraphContext {
             exported[name] = state;
         }
         return exported;
+    }
+
+    /**
+     * Write the graph in a file format.
+     *
+     * The export carries whatever the format can represent: every node and edge with its
+     * attributes, the current positions, every published algorithm result (as attributes named
+     * by the result's path, `results.<runId>.<field>`) and the colour, size and edge width each
+     * element is drawn with. What the format has no place for is listed in `lossNotes`, one note
+     * per kind of omission; nothing is dropped silently. The element's internal ids and columns
+     * are never written.
+     *
+     * Every built-in format can be written, and so can any format a writer was registered for
+     * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
+     * "neo4j" })`.
+     * @param format - The format id, as `session.catalog.formats()` lists it.
+     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`.
+     * @returns The loss notes, and the document as text or as UTF-8 chunks.
+     * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
+     * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option a registered writer does not accept,
+     * `E_UNSUPPORTED` when the writer refuses this graph under these options.
+     */
+    async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
+        await this.operationQueue.waitForCompletion();
+        const painter = this.getStylePainter();
+        const { snapshot, notes } = buildExportSnapshot(this.session, {
+            nodeStyle: (row) => {
+                const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
+                return {
+                    color: paint.color ?? toColorValue(paint.style.texture?.color as string | undefined),
+                    size: paint.style.shape?.size,
+                };
+            },
+            edgeStyle: (row) => {
+                const { style } = painter.edgePaint(row) ?? bootstrapEdgePaint();
+                return { color: toColorValue(style.line?.color), width: style.line?.width };
+            },
+        });
+        return exportSnapshot(snapshot, format, options, notes);
     }
 
     /**

@@ -154,6 +154,11 @@ export type {
     SnapshotLayoutRegistration,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
+// The simple tier's verbs, so a page with no build step reaches them from the bundle too.
+export { defineAlgorithm } from "./src/simple/defineAlgorithm";
+export { defineLayout } from "./src/simple/defineLayout";
+export { defineLogDestination } from "./src/simple/defineLogDestination";
+export { definePalette } from "./src/simple/definePalette";
 
 // =============================================================================
 // Events

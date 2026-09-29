@@ -168,6 +168,8 @@ const config: KnipConfig = {
                           "src/graphty-element.ts!",
                       ]
                     : []),
+                // The self-contained bundle's entry, built by vite.bundle.config.ts.
+                "bundle.ts!",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",

@@ -46,7 +46,7 @@ import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, RunId } from "../../catalog/types";
 import { RESULT_ROOT, type RunResult } from "../results";
-import { edgeSpaceOf } from "../scope";
+import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 

@@ -84,7 +84,7 @@ export {
     registeredPaletteDescriptors,
     registerPalette,
 } from "./src/catalog/paletteRegistry";
-export type { PaletteDescriptor, PaletteId } from "./src/catalog/types";
+export type { PaletteDescriptor, PaletteId, PaletteRegistration } from "./src/catalog/types";
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -271,7 +271,7 @@ export type {
     ScopedInputOptions,
     ScopeInputDeclaration,
 } from "./src/algorithms/input/ScopedInput";
-export { edgeMetricFields, metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
+export { communityFields, edgeMetricFields, metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
 export {
     communityFieldSpecs,
@@ -345,6 +345,56 @@ export {
 } from "./src/catalog/logSinkRegistry";
 export type { LogSinkDescriptor, LogSinkId } from "./src/catalog/types";
 export { KNOWN_LOG_SINK_IDS } from "./src/catalog/types";
+
+// ---------------------------------------------------------------------------------------------
+// The simple tier: one plain definition object per point
+// ---------------------------------------------------------------------------------------------
+
+/*
+ * EASY THINGS EASY. Each `define*` verb takes one plain object -- an id and the one or two
+ * functions that are the author's own logic -- and builds the ordinary registration of the point
+ * from it, filed through the point's published verb above. There is no second registry: a
+ * simple-tier extension IS an advanced one once registered, so it reaches every route a built-in
+ * does, and it can graduate to the advanced form under the same id.
+ *
+ * An algorithm or a layout reads the graph as a `GraphView`: nodes and edges with their real ids,
+ * `neighbors()`, `edges()`, `edge.other(node)`, `attr(path)`, `number(path)`, `strength(path)`
+ * and `weight(path)`. `compareNodeIds` is the order the view iterates in.
+ */
+export type { OptionDescriptorDomain } from "./src/catalog/types";
+export type { DefaultPalettes } from "./src/session/styles";
+export { defineAlgorithm } from "./src/simple/defineAlgorithm";
+export { defineLayout } from "./src/simple/defineLayout";
+export { defineLogDestination } from "./src/simple/defineLogDestination";
+export { definePalette } from "./src/simple/definePalette";
+export type {
+    AlgorithmContext,
+    AlgorithmDefinition,
+    ColorVisionDeficiency,
+    DefaultPaletteControls,
+    DefinitionBase,
+    EdgeScoreDefinition,
+    EdgeView,
+    GraphView,
+    GroupingDefinition,
+    LayoutContext,
+    LayoutDefinition,
+    LogDestinationDefinition,
+    LogLevelName,
+    NodeId,
+    NodeScoreDefinition,
+    NodeView,
+    OptionShorthand,
+    OptionsShorthand,
+    OptionValuesOf,
+    PaletteDefinition,
+    PlainLogRecord,
+    Point,
+    Score,
+    ShorthandValue,
+    WholeGraphScoreDefinition,
+} from "./src/simple/types";
+export { compareNodeIds } from "./src/simple/view";
 
 // ---------------------------------------------------------------------------------------------
 // How a plugin reports a failure

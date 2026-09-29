@@ -38,6 +38,12 @@ released), whose branch is merged into this one. That pull request is where the 
 reviews the story changes listed in `visual-changes/README.md`; that review is the only step
 between the branch and its release, and only the owner can take it.
 
+The last merge of master brought in the element's simple extension tier (`defineAlgorithm`,
+`defineLayout`, `definePalette`, `defineLogDestination`, pull request #588), written against 2.x.
+In the merge its guides say it is available from graphty-element 3.0 (the release that now ships
+it), and `defineLayout` compiles to the element's internal one-pass base `StaticLayoutEngine`
+rather than the deprecated `SimpleLayoutEngine`.
+
 Every count below except the parser row is printed by `node
 tools/count-migration-state.mjs` (after `pnpm exec nx run-many -t build`); the parser row is
 what `tools/check-data-source-migration.mjs` and `tools/check-legacy-use.mjs` enforce. The versions are those `pnpm exec nx release --dry-run

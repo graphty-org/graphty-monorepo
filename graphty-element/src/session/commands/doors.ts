@@ -278,6 +278,9 @@ const EXECUTE = exempt(
     "Runs a command; every op declares itself in COMMANDS, and the verb it reaches has its own row.",
 );
 const TOOLS = exempt("Registers or lists assistant tools; it runs none of them.");
+const PALETTE_DEFAULTS = exempt(
+    "Chooses the palette a layer written later takes when it names none; a project file saves the layer's resolved palette, and a reapply rewrites layers through style.patch.",
+);
 const QUEUE = exempt("Schedules work; the doors that queue work have their own rows.");
 const EVENTS = exempt("Publishes and subscribes to events; it changes no state.");
 const KEYS = exempt("API keys are secrets of this machine, never saved in a project file.");
@@ -464,6 +467,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.template", document: { version: 1, layers: [] } }],
     ),
     toDocument: READ,
+    setDefaultPalettes: PALETTE_DEFAULTS,
 };
 
 /**
@@ -484,6 +488,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
+            setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,

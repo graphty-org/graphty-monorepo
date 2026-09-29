@@ -1,16 +1,266 @@
 # Custom algorithms
 
-An algorithm computes something over the graph and publishes a result. The element runs it beside
-its own, derives a ranking, a distribution, a summary and a plain-language reading from what it
-returns, and paints a picture from the SHAPE of the result rather than from styling the algorithm
-supplies.
+Available from graphty-element 3.0.
 
-Extend `DeclaredAlgorithm` and register the class. That is what makes a third party's algorithm a
-first-class one: a class the catalogue does not carry cannot be started as a run, and progress,
-cancellation, a cost estimate before the click, a ranking, a summary, a reading and the derived
-picture all hang off a run.
+An algorithm computes something over the graph and publishes a result: a score for every node, a
+score for every edge, or a group for every node. You write the part that is yours -- how to score
+one node, say -- and the element does the rest: it lists your algorithm beside its own, checks the
+options a reader passes, runs it with progress and cancellation, ranks and summarises what it
+returns, and colours the graph from it.
 
-## The whole of it
+## Your first algorithm
+
+A score for every node from an edge attribute: the summed `confidence` of the edges touching the
+node.
+
+```ts
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
+
+// Confidence-weighted degree: the summed confidence of the edges touching a node.
+// options.confidence is the attribute's NAME; strength() reads each edge's value.
+defineAlgorithm({
+    id: "acme-confidence-degree",
+    options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
+    node: (node, { options }) => node.strength(options.confidence),
+});
+```
+
+And its companion, a score for every edge: its confidence relative to the scores of its two ends.
+
+```ts
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
+
+// An edge's confidence relative to the confidence-weighted degrees of its two ends.
+defineAlgorithm({
+    id: "acme-confidence-share",
+    options: { confidence: { type: "attribute", on: "edge", default: "confidence" } },
+    edge: (edge, { options }) => {
+        const c = edge.weight(options.confidence);
+        const a = edge.source.strength(options.confidence);
+        const b = edge.target.strength(options.confidence);
+        return c === undefined || !a || !b ? undefined : c / Math.sqrt(a * b);
+    },
+});
+```
+
+**Use it:**
+
+```ts
+element.run("acme-confidence-degree", {}, { as: "strength" }); // colours the nodes
+element.run("acme-confidence-share", {}, { as: "share" }); // colours the edges
+```
+
+`element` is the `<graphty-element>` on your page. The middle `{}` is the run's options (none
+here, so each takes its default); `{ as: "strength" }` names the result. A run colours the graph
+when it first completes, with no style code: a node score becomes a colour ramp over the nodes it
+measured, an edge score one over the edges. Your own style layer reaches the values at
+`results.strength.value` and `results.share.value` -- the path is `results.<as name>.value` -- and a
+script reads them from the result the run resolves to: `(await element.run(...)).node(id)?.value`.
+The colour layer is written just after the run resolves, so a script that inspects the style
+layers straight after the `await` may not see it yet.
+
+An edge score is keyed by the element's edge id. To read each one with its two ends -- to compare
+with a Python result, say -- walk the result's ranking and look the edge up:
+
+```ts
+const share = await element.run("acme-confidence-share", {}, { as: "share" });
+for (const { id, value } of share.ranking("value")) {
+    const edge = element.session.data.edge(String(id)); // { id, source, target, ...attributes }
+    console.log(edge?.source, edge?.target, value);
+}
+```
+
+`strength()` counts a self-loop once. NetworkX's `G.degree(weight="confidence")` counts it twice
+and reads a missing weight as 1; to match it, add `node.edgesTo(node)` once more
+([the overview](./index#coming-from-networkx) has the whole comparison).
+
+With a bundler, import `defineAlgorithm` from `@graphty/graphty-element/extend`. On a page with no
+build step, import it from the bundle, as in
+[the overview's whole working page](./index#two-tiers-start-simple).
+
+### What the element does for you
+
+- **Options.** `options` declares what a reader may change. `confidence` above is an attribute
+  option: its value is the NAME of an edge attribute, the reader can point it at another
+  (`element.run("acme-confidence-degree", { confidence: "score" })`), and a name no edge carries
+  is refused before your code runs. `spacing: 2`, `label: "name"` and `weighted: false` declare a
+  number, a text and a yes/no option with their defaults, and
+  `passes: { type: "integer", default: 30, min: 1, max: 200 }` a bounded one. Your function
+  receives every option already checked and defaulted.
+- **The loop.** `node` is called once per node and `edge` once per edge; you never write the loop,
+  the progress report or the cancellation check. Each call must return the score itself: an
+  `async` `node` is refused with a message that says so.
+- **"Not measured".** Returning `undefined`, `null`, `NaN` or an infinity leaves that node or edge
+  out of the result, which is different from a score of 0. Only the elements you measured are
+  ranked, summarised and coloured: the rest keep whatever the layers beneath painted.
+- **Missing values.** `strength` and `weight` leave out an edge with no number at the attribute,
+  and the run's record says how many there were (`run.caveats.notes`). You never write `?? 0`.
+- **The rest.** The catalogue entry a picker offers (`session.catalog.algorithms()`, named "Acme
+  confidence degree" from the id unless you give a `name`), a cost estimate before the click, the
+  ranking, distribution and summary of every result, and saved documents that record the run by
+  your id.
+
+The graph your function reads is described, with its rules, in
+[the overview](./index#the-graph-an-algorithm-or-a-layout-reads): `node.neighbors()`,
+`node.edges()`, `edge.other(node)`, `node.strength(path)`, `node.attr(path)` and the rest.
+
+### When something is wrong
+
+The first line of every error names your algorithm and the part at fault, so it is the line to
+search for.
+
+| What you wrote                                           | What you see                                                                                                              |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| No `node`, `edge`, `nodes` or `groups`, or more than one | `E_BAD_COMMAND` from `defineAlgorithm`, naming the four                                                                   |
+| An id with capitals, spaces, dots or colons              | `E_BAD_COMMAND`: `"id" must be lower-case words joined by hyphens ...`                                                    |
+| A function that throws                                   | the run fails with `E_EXTENSION_FAILED`: `acme-x: node() threw for node "c" (TypeError: ...)`, your error kept as `cause` |
+| An attribute name no edge carries                        | the run fails with `E_OPTION_RANGE` before your code runs, listing what the edges do carry                                |
+| An option the definition does not declare                | the run fails with `E_UNKNOWN_OPTION`                                                                                     |
+
+In TypeScript, the options are typed from your declaration, so the first line of a type error
+spells out the whole options type. **Read the last line**, which names the mistake:
+
+```text
+error TS2551: Property 'confidance' does not exist on type
+  'OptionValuesOf<{ readonly confidence: { readonly type: "attribute"; ... } }>'.
+  Did you mean 'confidence'?
+```
+
+### An optional weight
+
+A score that should also run on a graph with no weights declares the attribute with
+`default: null`. It is unbound until the reader picks one; until then every edge weighs 1. The
+run's record says which weight the numbers used -- whichever edge attribute your code read through
+`weight`, `strength` or `weightTo` -- and every attribute it read. An optional
+`weights: { option: "weight", meaning: "distance" }` member says what a larger weight MEANS; left
+out, a weight is read as a strength:
+
+```ts
+import { defineAlgorithm, type EdgeView } from "@graphty/graphty-element/extend";
+
+// The strongest single tie of each node. With no weight attribute picked, every edge weighs 1.
+// A node with no weighted edge gets -Infinity, which is "not measured".
+const heaviest = (edges: readonly EdgeView[], weight: string | undefined) =>
+    Math.max(...edges.map((edge) => edge.weight(weight) ?? -Infinity));
+
+defineAlgorithm({
+    id: "acme-strongest-tie",
+    options: { weight: { type: "attribute", on: "edge", default: null } },
+    node: (node, { options }) => heaviest(node.edges(), options.weight),
+});
+```
+
+```ts
+element.run("acme-strongest-tie", {}, { as: "tie" }); // every edge weighs 1
+element.run("acme-strongest-tie", { weight: "confidence" }, { as: "tie" }); // the reader's weight
+```
+
+`node.weightTo(other, options.weight)` is the weight between two nodes, parallel edges added, and
+`undefined` when they are not adjacent -- or when they are, but none of their edges has a number
+at the attribute. A helper that takes an edge imports the `EdgeView` type, as here.
+
+Options that name nodes are checked too. `seeds: { type: "node-set", default: [] }` takes a list of
+node ids, and `start: { type: "node-id" }` one; an id the graph does not have is refused with
+`E_OPTION_RANGE` before your code runs, so you need no check of your own. The ids arrive as the
+reader wrote them and match only as the data spelled them: `"0"` on a graph whose ids are numbers
+is refused, not silently missed. `min` and `max` are inclusive, so an option that must stay above
+0 -- a convergence tolerance -- takes a small positive minimum:
+`tolerance: { type: "number", default: 1e-6, min: 1e-12, max: 1 }`.
+
+### Four kinds of function
+
+A definition carries exactly one of these, and the function decides what is published:
+
+| Function                 | Called               | Publishes                                                                     |
+| ------------------------ | -------------------- | ----------------------------------------------------------------------------- |
+| `node(node, context)`    | once per node        | a score per node, at `results.<as>.value`                                     |
+| `edge(edge, context)`    | once per edge        | a score per edge, at `results.<as>.value`                                     |
+| `nodes(graph, context)`  | once, may be `async` | a score per node, from a `Map` of node id to number                           |
+| `groups(graph, context)` | once, may be `async` | a group per node, at `results.<as>.group`, from a `Map` of node id to a label |
+
+`context` holds `options` and `graph` (the whole graph). Prefer `node` or `edge` whenever the
+method fits: the element owns their loop, so they can never freeze the page.
+
+A grouping walks the whole graph itself. Connected components, with each group named after its
+first node:
+
+```ts
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
+
+// Connected components: each node's group is named after the first node of its component.
+defineAlgorithm({
+    id: "acme-components",
+    groups: (graph) => {
+        const group = new Map();
+        for (const start of graph.nodes()) {
+            if (group.has(start.id)) continue;
+            group.set(start.id, start.id);
+            const queue = [start];
+            for (const node of queue) {
+                for (const next of node.neighbors()) {
+                    if (group.has(next.id)) continue;
+                    group.set(next.id, start.id);
+                    queue.push(next);
+                }
+            }
+        }
+        return group;
+    },
+});
+```
+
+A method that makes several passes over the graph uses `nodes`, and awaits `context.progress`
+once per pass. That await lets the page draw a frame and stops a cancelled run; without it the
+run cannot be cancelled and the page freezes until it ends. `passes` names the option that
+counts the passes, so the cost estimate grows with it:
+
+```ts
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
+
+// PageRank: on every pass, each node's rank flows to its neighbours, shared out by its degree.
+defineAlgorithm({
+    id: "acme-rank",
+    options: { passes: { type: "integer", default: 30, min: 1, max: 200 } },
+    passes: "passes",
+    async nodes(graph, { options, progress }) {
+        const n = graph.nodeCount;
+        let rank = new Map(graph.nodes().map((node) => [node.id, 1 / n]));
+        for (let pass = 1; pass <= options.passes; pass++) {
+            const next = new Map();
+            for (const node of graph.nodes()) {
+                const from = node.edges().map((edge) => edge.other(node));
+                next.set(node.id, 0.15 / n + 0.85 * from.reduce((sum, m) => sum + (rank.get(m.id) ?? 0) / m.degree, 0));
+            }
+            rank = next;
+            await progress(pass / options.passes); // lets the page draw, and stops a cancelled run
+        }
+        return rank;
+    },
+});
+```
+
+`context` also has `note(text)`, a sentence for the run's caveats, and
+`converged(done, iterations)`, which records how an iterative method ended. A definition that
+reads edge direction declares `direction: "directed"`; without it the directed accessors
+(`outEdges()` and the rest) throw rather than guess.
+
+### When you need more
+
+Move to the advanced tier below when your algorithm needs a result that is not a score or a
+group (a path, a set of nodes, pairs of nodes), several values per node in one result, control
+over how parallel edges merge, a seed or sampling, or speed on graphs of about 100,000 nodes and
+more. Keep the same id when you do: documents, saved options and style layers that name
+`results.<as>.value` keep working, because the advanced version publishes under the same names.
+
+## Advanced: full control
+
+The advanced tier is the class the simple tier builds for you. Extend `DeclaredAlgorithm` and
+register the class: you write the descriptor the catalogue shows, read the graph as graph-format
+arrays, walk it yourself and build the output. That is what a class the catalogue carries needs
+to be started as a run -- progress, cancellation, a cost estimate before the click, a ranking, a
+summary, a reading and the derived picture all hang off a run.
+
+### The whole of it
 
 A tie-strength measure over an interaction log, where two people can be linked by many recorded
 interactions: for every tie, the share of the weaker person's total strength that the tie carries.
@@ -145,7 +395,7 @@ DeclaredAlgorithm.register(TieStrength);
 no percentile and no statistics -- those are the element's to derive, and deriving them per
 algorithm is how two algorithms come to disagree about what a percentile is.
 
-## Running it
+### Running it
 
 ```ts
 // From the element
@@ -182,7 +432,10 @@ calibrated the estimate reports `"calibrated"`, like a built-in's. The older
 `static cost = (n, m) => seconds` still works, but those seconds cannot be scaled to the device,
 so its estimate always reports `"modelled"`; `costUnits` wins when a class declares both.
 
-## Reading the graph
+`costUnits` is also handed the run's option values, the declared defaults filled in, so an option
+that multiplies the work is priced: `(n, m, options) => (n + m) * Number(options.maxIterations)`.
+
+### Reading the graph
 
 `context.input(orientation, options)` is the only way an algorithm reads the graph. It hands over
 graph-format snapshots -- typed arrays in compressed sparse row form -- built from the graph the
@@ -228,7 +481,7 @@ that merged parallel edges -- or a reciprocal pair -- stands for all of them, so
 published under every id behind it, as the example does. Columns whose names begin with
 `graphty.` are the element's own bookkeeping: do not read them.
 
-## Attributes and earlier results
+### Attributes and earlier results
 
 Declare an option of type `"attribute"` (on nodes or edges) or `"partition"` (a grouping of nodes),
 and read what it names with `input.column(name)`. The reader picks the attribute; your code never
@@ -272,7 +525,7 @@ A name that nothing in the graph carries is refused with `E_OPTION_RANGE` before
 and a column asked for an option you did not declare as an attribute or partition with
 `E_UNKNOWN_OPTION`.
 
-## Computing over the run's scope
+### Computing over the run's scope
 
 A run can be scoped to part of the graph -- a kept [set](../sets), the selection, a community
 another run found. Declare `static scopeInput = "subgraph"` and your algorithm computes over that
@@ -298,7 +551,7 @@ for the scope only." The cost estimate is then the whole graph's, so a small sco
 run the whole graph is too large for. `register` publishes the declaration as the descriptor's
 `scopeInput`; leave it out of the descriptor, which is refused if it disagrees with the class.
 
-## Chunking, for free
+### Chunking, for free
 
 `forEachChunked` walks a collection in chunks of 1024, reporting at the start of each and yielding
 between them, so a long pass is one call rather than a hand-written loop -- the example uses it.
@@ -308,10 +561,11 @@ indistinguishable, on a big graph, from one that has hung.
 
 Field-spec builders exist for every shape: `metricFieldSpecs`, `communityFieldSpecs`,
 `PATH_FIELD_SPECS`, `LAYERED_GROUPING_FIELD_SPECS` and `setFieldSpecs`, and `nodeMetricFields` and
-`edgeMetricFields` build a metric descriptor's fields. `checkShapeContract` tells you whether your
+`edgeMetricFields` build a metric descriptor's fields, `communityFields` a community one's, and
+`metricField` any other. `checkShapeContract` tells you whether your
 fields match the shape you declared.
 
-## Moving from `algorithmGraph()`
+### Moving from `algorithmGraph()`
 
 graphty-element 3.0 removed `Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type. They
 handed over an `@graphty/algorithms` object graph that held one edge per pair of nodes, so a plugin
@@ -326,7 +580,7 @@ session. Read `context.input(...)` instead:
 | `graph.neighbors(id)`                           | `g.colIdx.subarray(g.rowPtr[row], g.rowPtr[row + 1])`, rows mapped to ids      |
 | an edge id from `scope.resolve` and `data.edge` | `input.edgeId(row)`, or `input.subgraphEdgeIds(row)` for a row of `subgraph()` |
 
-## How it is refused
+### How it is refused
 
 | What is wrong                                                          | Code                                            |
 | ---------------------------------------------------------------------- | ----------------------------------------------- |
@@ -351,10 +605,10 @@ throw new GraphtyError({
 });
 ```
 
-A plain `Error` -- a bug in your code -- is given `E_INTERNAL` with the original kept as `cause`,
+In the advanced tier, a plain `Error` -- a bug in your code -- is given `E_INTERNAL` with the original kept as `cause`,
 rather than escaping raw into a consumer's handler.
 
-## The styling rule
+### The styling rule
 
 Your result must carry a row **only** for an element the algorithm has something to say about. The
 element derives a style layer whose selector matches exactly the elements that carry a value, so a
@@ -364,9 +618,9 @@ instruction -- and, because layers stack, it erases whatever the layers beneath 
 Do not ship styling with your algorithm. There is no `suggestedStyles` field, and dimming or
 greying what your algorithm did not select is a reader's choice, not yours.
 
-## Deliberate limits
+### Deliberate limits
 
-**An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
+**An advanced algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
 renderer-backed `Graph`, as it does for every one of the element's own. `@graphty/graphty-element/extend`
 resolving in Node buys you type-checking rather than a headless test.
 

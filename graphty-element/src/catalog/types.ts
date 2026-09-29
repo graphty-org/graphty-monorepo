@@ -329,8 +329,17 @@ export interface OptionChoice {
     label: string;
 }
 
+/**
+ * Which kind of element an "attribute" or "partition" option reads. Without it, neither a form nor
+ * the element can tell whether "confidence" names a node attribute or an edge attribute.
+ */
+export interface OptionDescriptorDomain {
+    /** Nodes (the default) or edges. Meaningful only for type "attribute" or "partition". */
+    on?: "node" | "edge";
+}
+
 /** One configurable option, as plain JSON a form can render with no knowledge of Zod. */
-export interface OptionDescriptor {
+export interface OptionDescriptor extends OptionDescriptorDomain {
     name: string;
     plainName: string;
     technicalName?: string;
@@ -675,6 +684,16 @@ export interface PaletteDescriptor {
     capacity: number | null;
     colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
 }
+
+/**
+ * What `registerPalette` accepts: a {@link PaletteDescriptor} whose derived and optional members
+ * may be left off. `capacity` is derived from the kind and the colours, and a missing
+ * `colorblindSafe` is no claim.
+ */
+export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorblindSafe"> & {
+    capacity?: number | null;
+    colorblindSafe?: PaletteDescriptor["colorblindSafe"];
+};
 
 /**
  * One camera view: a named way of deciding where the viewer stands and what they look at.

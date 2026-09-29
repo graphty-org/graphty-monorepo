@@ -26,6 +26,7 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
@@ -190,6 +191,29 @@ export class Graphty extends LitElement {
      */
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.#graph.select(target, op);
+    }
+
+    /**
+     * Choose the palette a colour binding uses when it names none, one per palette kind.
+     *
+     * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
+     * layer is written, so a saved document always names a concrete palette: call it before
+     * loading data or adding layers. A later call warns and names the layers that keep the
+     * previous default, or with `reapply: true` repaints them with the new one.
+     * @param palettes - A palette id per kind: `categorical`, `sequential` and `diverging`.
+     * @param options - How a late call treats the layers already written.
+     * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @since 2.7.0
+     * @example
+     * ```ts
+     * import { definePalette } from "@graphty/graphty-element/extend";
+     *
+     * definePalette({ id: "acme-brand", kind: "categorical", colors: ["#0B1D51", "#1B7F79"] });
+     * element.setDefaultPalettes({ categorical: "acme-brand" });
+     * ```
+     */
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
+        this.session.styles.setDefaultPalettes(palettes, options);
     }
 
     /**

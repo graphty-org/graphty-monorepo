@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (46 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (50 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure
@@ -57,6 +57,7 @@ graphty-element/
 |   |-- meshes/               # Babylon.js mesh factories
 |   |-- screenshot/           # Screenshot capture utilities
 |   |-- shaders/              # Custom GLSL shaders
+|   |-- simple/               # The simple extension tier: define* verbs, the graph view, beginner errors
 |   |-- types/                # Shared type declarations
 |   |-- ui/                   # UI overlay components
 |   |-- utils/                # Utility functions (incl. styleHelpers)

@@ -317,7 +317,7 @@ export class PatternedLineRenderer {
                 return this.createDiamondGeometry();
             case "dash-dot":
                 // Phase 3: For dash-dot, default to box (first shape)
-                // Actual alternation is handled via shapeType parameter in createPatternMesh
+                // Actual alternation is handled via the shapeType parameter of createPatternElement
                 return this.createBoxGeometry(3.0);
             case "sinewave":
                 return this.createSinewaveSegmentGeometry();

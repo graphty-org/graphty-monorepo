@@ -10,6 +10,7 @@ import { assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { edgeLineFor } from "../helpers/edgeLine";
 import { asData } from "../helpers/testSetup";
 
 /**
@@ -516,7 +517,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "transform-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -532,7 +533,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "scale-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -546,7 +547,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "3d-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -565,7 +566,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "negative-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -584,7 +585,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "orient-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 

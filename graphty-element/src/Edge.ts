@@ -150,8 +150,9 @@ export class Edge {
     /**
      * The mesh this edge's line is drawn by.
      *
-     * NOT ALWAYS THIS EDGE'S OWN MESH ANY MORE. A straight solid line in 3D is drawn as one thin
-     * instance of a batch shared by every edge of the same appearance, and this then points at
+     * NOT ALWAYS THIS EDGE'S OWN MESH ANY MORE. Every line but a patterned one -- straight or
+     * curved, 2D or 3D -- is drawn as thin instances of a batch shared by every edge of the same
+     * appearance, and this then points at
      * the batch's mesh -- so it still answers what the line is drawn as, and it is still the
      * thing to ask whether the renderer's geometry has been disposed under it, but disposing it
      * or enabling it would reach every other edge in the batch. This edge's private `lineBatch` says
@@ -315,7 +316,8 @@ export class Edge {
      * finds one batch where it used to find one mesh per edge. The edge itself is where the
      * answer moved to: the batch's name carries the interned appearance, exactly as the instance
      * name did, and the length is the drawn extent the bounding box used to carry.
-     * @returns The appearance, or null for an edge that still owns its line mesh.
+     * @returns The appearance, or null for a patterned line, whose elements are read through
+     *     {@link Edge.drawnPattern}.
      */
     get drawnLine(): { name: string; length: number; visibility: number; centre: Vector3 } | null {
         if (this.lineBatch === null) {
@@ -329,8 +331,20 @@ export class Edge {
             // A curve's length is its whole run's.
             length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
             visibility: batch.mesh.visibility,
-            centre: batch.centreOf(this.lineSlots[0]),
+            centre: this.curveMiddle(batch),
         };
+    }
+
+    /**
+     * The middle of this edge's run of slots: the middle of its one slot for a straight line, and
+     * for a curve the middle of its middle segment, or the joint between its two middle ones.
+     * @param batch - The batch the slots are in.
+     * @returns The point, as a fresh vector.
+     */
+    private curveMiddle(batch: EdgeLineBatch): Vector3 {
+        const n = this.lineSlots.length;
+
+        return n % 2 === 1 ? batch.centreOf(this.lineSlots[(n - 1) / 2]) : batch.endsOf(this.lineSlots[n / 2])[0];
     }
 
     /**
@@ -367,10 +381,10 @@ export class Edge {
     /**
      * Where this edge's line is drawn, as the middle of the segment on screen.
      *
-     * ONE ANSWER FOR BOTH RENDERERS, which is the point of it. An edge that still owns its line
-     * mesh -- a curve, a patterned line, anything in 2D -- carries the middle of its segment in
-     * that mesh's position, and an edge drawn as a slot in a batch carries it in the slot's
-     * matrix. Asking the edge rather than its mesh gets the same number either way, and is the
+     * ONE ANSWER FOR BOTH RENDERERS, which is the point of it. A patterned line carries the
+     * middle of its segment in its wrapper's position, and an edge drawn as slots in a batch
+     * carries it in the slots' matrices -- for a curve, the middle of the curve, not of its first
+     * segment. Asking the edge rather than its mesh gets the right number either way, and is the
      * only way to get it for a batched edge, whose mesh sits at the origin and is shared with
      * every other edge of the same appearance.
      * @returns The middle of the drawn line.
@@ -545,8 +559,8 @@ export class Edge {
         // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
         // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
         // layout engine (its own standing TODO), so this method keeps being called on edges whose
-        // dataset was dropped. Without this guard the bezier branch below would build a brand new
-        // line mesh for an edge nobody owns.
+        // dataset was dropped. Without this guard the style branch below would take a brand new
+        // slot (or build a patterned line) for an edge nobody owns.
         if (this.disposed) {
             return;
         }
@@ -809,13 +823,7 @@ export class Edge {
             return this.lineBatch.mesh;
         }
 
-        const mesh = EdgeMesh.create(this.context.getMeshCache(), options, style, this.context.getScene());
-
-        mesh.isPickable = false;
-        mesh.metadata = mesh.metadata ?? {};
-        mesh.metadata.parentEdge = this;
-
-        return mesh;
+        return EdgeMesh.createPatternedLine(options, style, this.context.getScene());
     }
 
     /**
@@ -1037,7 +1045,7 @@ export class Edge {
      * Say whether this edge is selected.
      *
      * The state is recorded and nothing is drawn from it yet. An edge line in 3D is an instance of
-     * ONE cached mesh per edge style (`EdgeMesh.create` interns it under `edge-style-<id>`), so a
+     * ONE batch per edge style (`EdgeMesh.lineBatch` interns it under `edge-style-<id>`), so a
      * per-edge colour or alpha is not available without giving the selected edge a mesh of its
      * own; see the report accompanying this change for what that needs. Recording it here rather
      * than dropping it is what lets the renderer draw it the moment that lands, and what keeps the
@@ -1116,13 +1124,6 @@ export class Edge {
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
-        } else if (this.mesh.metadata?.isBezierCurve) {
-            // PHASE 5: Bezier curves have baked-in geometry, no transformation needed
-            // The curve geometry is already in world coordinates from createBezierLine()
-            // Transforming would move/rotate/scale the curve incorrectly
-        } else {
-            // Solid lines: Transform via position/rotation/scaling
-            EdgeMesh.transformMesh(this.mesh, srcPoint, dstPoint);
         }
     }
 

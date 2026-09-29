@@ -31,6 +31,7 @@ import type { EdgeStyleConfig } from "../../src/config";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { edgeLineFor } from "../helpers/edgeLine";
 import { create2DMeshScene, createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
 /** The eight line types that are drawn as a run of small meshes rather than as one line. */
@@ -45,19 +46,15 @@ interface EdgeArgs {
     width?: number;
     color?: string;
     styleId?: string;
-    src?: Vector3;
-    dst?: Vector3;
 }
 
 function makeEdge(args: EdgeArgs): Mesh | InstancedMesh | PatternedLineMesh {
     counter += 1;
-    return EdgeMesh.create(
+    return edgeLineFor(
         ctx.cache,
         { styleId: args.styleId ?? `edge-${counter}`, width: args.width ?? 20, color: args.color ?? "#FF0000" },
         args.style,
         ctx.scene,
-        args.src,
-        args.dst,
     ) as Mesh | InstancedMesh | PatternedLineMesh;
 }
 
@@ -71,12 +68,12 @@ describe("Edge Golden Masters", () => {
             ctx.dispose();
         });
 
-        test("a solid line is a cached instance drawn by the billboard shader", () => {
-            const mesh = makeEdge({ style: { line: { type: "solid" } } }) as InstancedMesh;
+        test("a solid line is drawn from a batch mesh with the billboard shader", () => {
+            const mesh = makeEdge({ style: { line: { type: "solid" } } }) as Mesh;
 
-            assert.instanceOf(mesh, InstancedMesh);
+            assert.instanceOf(mesh, Mesh);
+            assert.notInstanceOf(mesh, InstancedMesh, "an edge is a slot in the batch, not an instance");
             assert.instanceOf(mesh.material, ShaderMaterial);
-            assert.equal(ctx.cache.size(), 1);
         });
 
         test("solid is the default when the style names no type", () => {
@@ -84,13 +81,13 @@ describe("Edge Golden Masters", () => {
             const explicit = makeEdge({ style: { line: { type: "solid" } } });
 
             assert.equal(implicit.constructor.name, explicit.constructor.name);
-            assert.instanceOf(implicit, InstancedMesh);
+            assert.notInstanceOf(implicit, PatternedLineMesh);
         });
 
         test("a style with no line block at all still produces a line", () => {
             const mesh = makeEdge({ style: {} });
 
-            assert.instanceOf(mesh, InstancedMesh);
+            assert.instanceOf(mesh, Mesh);
         });
 
         PATTERNED_TYPES.forEach((lineType) => {
@@ -110,13 +107,11 @@ describe("Edge Golden Masters", () => {
             assert.equal(ctx.cache.size(), 0);
         });
 
-        test("two edges sharing a style id share one cached solid line", () => {
-            const first = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared-solid" }) as InstancedMesh;
-            const second = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared-solid" }) as InstancedMesh;
+        test("two edges sharing a style id share one line batch", () => {
+            const first = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared-solid" });
+            const second = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared-solid" });
 
-            assert.notStrictEqual(first, second, "each edge gets its own instance");
-            assert.strictEqual(first.sourceMesh, second.sourceMesh);
-            assert.equal(ctx.cache.size(), 1);
+            assert.strictEqual(first, second, "each edge is a slot in the one batch");
         });
 
         test("an animation speed swaps the billboard shader for a scrolling texture", () => {
@@ -245,26 +240,16 @@ describe("Edge Golden Masters", () => {
             ctx.dispose();
         });
 
-        test("a bezier is a per-edge mesh flagged so nothing transforms it again", () => {
-            const mesh = makeEdge({
-                style: { line: { type: "solid", bezier: true } },
-                src: new Vector3(0, 0, 0),
-                dst: new Vector3(5, 0, 0),
-            }) as Mesh;
+        test("a bezier is drawn from the batch a straight line of its appearance is drawn from", () => {
+            // Each segment of the curve is a slot in that batch, placed by `Edge.placeCurve`.
+            const curve = makeEdge({ style: { line: { type: "solid", bezier: true } }, styleId: "shared" });
+            const straight = makeEdge({ style: { line: { type: "solid" } }, styleId: "shared" });
 
-            assert.isTrue(mesh.metadata.isBezierCurve);
-            assert.equal(ctx.cache.size(), 0);
-            assert.isAbove(mesh.getTotalVertices(), 4, "a curve needs more than the four corners of a quad");
-        });
-
-        test("bezier is ignored without both endpoints", () => {
-            const mesh = makeEdge({ style: { line: { type: "solid", bezier: true } } });
-
-            assert.instanceOf(mesh, InstancedMesh);
+            assert.strictEqual(curve, straight);
         });
 
         test("bezier silently wins over a line pattern", () => {
-            // REPORTED, NOT FIXED. `EdgeMesh.create` tests `style.line.bezier` before it looks at
+            // REPORTED, NOT FIXED. `EdgeMesh.lineBatch` tests `style.line.bezier` before it looks at
             // the line type, so `{type: "dash", bezier: true}` -- a style the schema accepts in
             // full -- draws a SOLID curve and the dashes are gone. Nothing warns. This is the same
             // shape of defect as the gradient node colours that rendered flat white: the schema
@@ -273,22 +258,15 @@ describe("Edge Golden Masters", () => {
             //
             // This asserts what happens today so the behaviour is at least recorded. It fails the
             // moment patterned beziers work, which is the right prompt to update it.
-            const mesh = makeEdge({
-                style: { line: { type: "dash", bezier: true } },
-                src: new Vector3(0, 0, 0),
-                dst: new Vector3(5, 0, 0),
-            });
+            const mesh = makeEdge({ style: { line: { type: "dash", bezier: true } }, styleId: "dashed-curve" });
+            const solid = makeEdge({ style: { line: { type: "solid", bezier: true } }, styleId: "dashed-curve" });
 
             assert.notInstanceOf(mesh, PatternedLineMesh);
-            assert.isTrue((mesh as Mesh).metadata.isBezierCurve);
+            assert.strictEqual(mesh, solid, "drawn from the solid curve's batch");
         });
 
         test("bezier opacity reaches the mesh", () => {
-            const mesh = makeEdge({
-                style: { line: { type: "solid", bezier: true, opacity: 0.3 } },
-                src: new Vector3(0, 0, 0),
-                dst: new Vector3(5, 0, 0),
-            });
+            const mesh = makeEdge({ style: { line: { type: "solid", bezier: true, opacity: 0.3 } } });
 
             assert.equal(mesh.visibility, 0.3);
         });

@@ -234,6 +234,23 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
     });
 
+    it("puts a curve's drawn centre at the middle of the curve, not of its first segment", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none", "edge.curvature": true });
+        await frame();
+        await frame();
+
+        const edge = edges()[0];
+        const curve = edge.drawnCurve;
+        assert.isNotNull(curve);
+        assert.isAbove(curve.length, 3, "a curve is drawn as several segments");
+
+        // A symmetric curve's middle is as far from one end as from the other.
+        const centre = edge.drawnCentre;
+        const fromStart = Vector3.Distance(centre, curve[0]);
+        const fromEnd = Vector3.Distance(centre, curve[curve.length - 1]);
+        assert.closeTo(fromStart, fromEnd, 1e-3 * (fromStart + fromEnd), "the centre is midway along the curve");
+    });
+
     it("uploads a cap batch's matrices, and draws the moved matrix, when a node moves", async () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();

@@ -230,114 +230,34 @@ void main() {
     }
 
     /**
-     * Creates an edge mesh based on the specified style configuration.
-     *
-     * This factory method handles all edge types:
-     * - Solid lines (with optional animation)
-     * - Patterned lines (dot, dash, diamond, sinewave, zigzag, etc.)
-     * - Bezier curves (smooth curved lines between nodes)
-     * - 2D and 3D rendering modes
-     *
-     * Solid lines in 3D mode are cached via MeshCache for performance.
-     * Bezier curves and patterned lines are created per-edge (no caching).
-     * @param cache - MeshCache instance for caching reusable meshes
-     * @param options - Edge mesh options including styleId, width, and color
-     * @param style - Full edge style configuration
-     * @param scene - Babylon.js scene
-     * @param srcPoint - Optional source point for bezier curves
-     * @param dstPoint - Optional destination point for bezier curves
-     * @returns The created edge mesh (AbstractMesh or PatternedLineMesh)
+     * Build the line for a patterned style: a run of pattern elements, each a slot in a batch
+     * shared by every element of its shape. Every other line is a slot in a line batch
+     * ({@link EdgeMesh.lineBatch}), and this is only ever asked for when that answered null.
+     * @param options - Edge mesh options including width and color.
+     * @param style - Full edge style configuration; its `line.type` is one of the patterns.
+     * @param scene - Babylon.js scene.
+     * @returns The patterned line.
      */
-    static create(
-        cache: MeshCache,
-        options: EdgeMeshOptions,
-        style: EdgeStyleConfig,
-        scene: Scene,
-        srcPoint?: Vector3,
-        dstPoint?: Vector3,
-    ): AbstractMesh | PatternedLineMesh {
-        const lineType = style.line?.type ?? "solid";
-
-        // PHASE 5: Bezier curves use CustomLineRenderer with multi-point paths (individual meshes, no caching)
-        // Each bezier curve has unique geometry based on src/dst points, so can't be cached
-        if (style.line?.bezier && srcPoint && dstPoint) {
-            const bezierPoints = this.createBezierLine(srcPoint, dstPoint);
-
-            // Convert flat array to Vector3 array
-            const points: Vector3[] = [];
-            for (let i = 0; i < bezierPoints.length; i += 3) {
-                points.push(new Vector3(bezierPoints[i], bezierPoints[i + 1], bezierPoints[i + 2]));
-            }
-
-            // Create line mesh with bezier points
-            const lineConfig = style.line;
-            const mesh = CustomLineRenderer.create(
-                {
-                    points,
-                    width: options.width * 20, // Scale factor to match GreasedLine sizing
-                    color: options.color,
-                    opacity: lineConfig.opacity,
-                },
-                scene,
-            );
-
-            // Apply opacity to mesh visibility
-            if (lineConfig.opacity !== undefined) {
-                mesh.visibility = lineConfig.opacity;
-            }
-
-            // Mark as bezier curve so it's not transformed by transformEdgeMesh()
-            // Bezier curves have their geometry baked in world coordinates
-            mesh.metadata = { isBezierCurve: true };
-
-            return mesh;
-        }
-
-        // PHASE 5: Pattern lines use PatternedLineRenderer (individual meshes, no caching)
-        // See: design/mesh-based-patterned-lines.md Phase 5
-        // Note: Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
-        if (PATTERNED_TYPES.includes(lineType)) {
-            return PatternedLineRenderer.create(
-                lineType as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
-                new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
-                new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-                options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
-                options.color,
-                style.line?.opacity ?? 1.0,
-                scene,
-                this.is2DMode(scene), // Pass 2D mode detection flag
-                style.line?.patternCount, // undefined means follow the spacing rule
-            );
-        }
-
-        // PHASE 2: Solid lines in 2D mode use Simple2DLineRenderer
-        // 2D mode uses world-space StandardMaterial meshes instead of billboard shaders
-        // Its rectangle is laid along the unit segment, so transformMesh places it like a 3D line.
-        if (lineType === "solid" && this.is2DMode(scene)) {
-            return Simple2DLineRenderer.createBatchMesh(
-                options.width / 40, // Convert back from scaled width to match 3D line thickness
-                options.color,
-                style.line?.opacity ?? 1.0,
-                scene,
-            );
-        }
-
-        // Solid lines can use caching (3D mode only, since 2D is handled above)
-        const cacheKey = `edge-style-${options.styleId}`;
-        return cache.get(cacheKey, () => {
-            if (style.line?.animationSpeed) {
-                return this.createAnimatedLine(options, style, scene);
-            }
-
-            return this.createStaticLine(options, style, scene, cache);
-        });
+    static createPatternedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): PatternedLineMesh {
+        // Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
+        return PatternedLineRenderer.create(
+            style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
+            new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
+            new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
+            options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+            options.color,
+            style.line?.opacity ?? 1.0,
+            scene,
+            this.is2DMode(scene), // Pass 2D mode detection flag
+            style.line?.patternCount, // undefined means follow the spacing rule
+        );
     }
 
     /**
      * The thin-instance batch that draws one edge appearance, or null for a patterned line.
      *
-     * EVERY LINE BUT A PATTERNED ONE IS A SLOT HERE (issues #419 and #444), and the choice is the
-     * one {@link EdgeMesh.create} makes, in the same order, so a style draws what it always drew:
+     * EVERY LINE BUT A PATTERNED ONE IS A SLOT HERE (issues #419 and #444), so a style draws what
+     * it always drew:
      *
      * - a curve is a run of slots in the solid line's batch, one per straight segment, placed by
      *   the edge as its ends move (`Edge.placeCurve`) -- in 2D as well, which is what it drew

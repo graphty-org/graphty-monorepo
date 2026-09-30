@@ -552,7 +552,10 @@ describe("centrality and community adapters on the index-based ports", () => {
             assert.notProperty(fake, "betweennessCentrality");
             assert.notProperty(fake, "closenessCentrality");
             const graph = await graphWith(WEIGHTED_MULTI, fake, true, "required");
-            for (const algorithm of [new BetweennessCentralityAlgorithm(graph), new ClosenessCentralityAlgorithm(graph)]) {
+            for (const algorithm of [
+                new BetweennessCentralityAlgorithm(graph),
+                new ClosenessCentralityAlgorithm(graph),
+            ]) {
                 let thrown: unknown;
                 try {
                     await algorithm.run();

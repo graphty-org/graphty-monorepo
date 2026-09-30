@@ -319,9 +319,7 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
 
         it("one node below the floor stays on the CPU port and says f64", async () => {
             const { fake, handed } = fourMemberFake();
-            const output = await computed(
-                new ClusteringCoefficientAlgorithm(await graphWith(ring(floor - 1), fake)),
-            );
+            const output = await computed(new ClusteringCoefficientAlgorithm(await graphWith(ring(floor - 1), fake)));
             assert.strictEqual(handed.triangleCount.length, 0);
             assert.strictEqual(output.caveats.precision, "f64");
             assert.deepStrictEqual(output.graph, { transitivity: 0, triangleCount: 0 });

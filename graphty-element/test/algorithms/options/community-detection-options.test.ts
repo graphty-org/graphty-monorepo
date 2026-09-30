@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";

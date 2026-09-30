@@ -27,7 +27,29 @@
             "storybook": "layout/storybook-static",
             "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run layout:build-storybook",
             "workers": 4,
-            "seedFromDefaultBranch": false
+            "seedFromDefaultBranch": true
+        },
+        "algorithms": {
+            "storybook": "algorithms/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run algorithms:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true,
+            "waitFor": {
+                "selector": "graphty-element",
+                "method": "waitForStableFrame",
+                "failOnConsole": "Graph settled timeout"
+            }
+        },
+        "graphty": {
+            "storybook": "graphty/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run graphty:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true,
+            "waitFor": {
+                "selector": "graphty-element",
+                "method": "waitForStableFrame",
+                "failOnConsole": "Graph settled timeout"
+            }
         }
     }
 }

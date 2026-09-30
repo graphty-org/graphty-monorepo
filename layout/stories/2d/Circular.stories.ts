@@ -4,20 +4,15 @@
  * Demonstrates circular layout where nodes are positioned in a circle.
  * Shows animation from random initial positions to final circular positions.
  *
- * IMPORTANT: This story uses the actual circularLayout implementation
+ * IMPORTANT: This story uses the actual circular implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { circularLayout } from "@graphty/layout";
+import { circular, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -47,13 +42,13 @@ function createCircularStory(args: CircularArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final circular layout using actual algorithm
-    const finalPositions = circularLayout(layoutGraph, scale, [0, 0], 2);
+    const finalPositions = toPositionMap(circular(snapshot, { scale, center: [0, 0] }), snapshot.ids);
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -64,10 +59,7 @@ function createCircularStory(args: CircularArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Circular Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Positions ${nodeCount} nodes evenly around a circle with scale ${scale}.`,
-    );
+    updateInfoPanel(infoPanel, `Positions ${nodeCount} nodes evenly around a circle with scale ${scale}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -117,15 +109,7 @@ const meta: Meta<CircularArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         scale: {
@@ -152,7 +136,7 @@ type Story = StoryObj<CircularArgs>;
 /**
  * Circular layout story - positions nodes evenly around a circle.
  *
- * This story uses the actual `circularLayout()` function from @graphty/layout.
+ * This story uses the actual `circular()` function from @graphty/layout.
  * The play function animates from random positions to the final circular arrangement.
  */
 export const Circular: Story = {

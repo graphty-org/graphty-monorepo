@@ -8,9 +8,26 @@ import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
 import type { Node } from "./Node";
+import type { StyleChange } from "./session/styles/StylesApi";
+import type { HistoryCause } from "./session/types";
 
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
+
+type AnyEvent = GraphEvent | NodeEvent | EdgeEvent | AiEvent;
+
+/**
+ * The event a listener for `K` receives: every member of the event unions whose `type` admits `K`.
+ * Not `Extract<AnyEvent, { type: K }>`, which drops a member whose `type` is itself a union --
+ * the generic events -- and would hand their listeners `never`.
+ */
+export type EventOfType<K extends EventType> = AnyEvent extends infer E
+    ? E extends AnyEvent
+        ? K extends E["type"]
+            ? E
+            : never
+        : never
+    : never;
 
 export type GraphEventType = GraphEvent["type"];
 export type NodeEventType = NodeEvent["type"];
@@ -25,6 +42,7 @@ export type GraphEvent =
     | GraphDataAddedEvent
     | GraphSnapshotReplacedEvent
     | GraphSnapshotDroppedEvent
+    | GraphDataClearedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
     | GraphGenericEvent
@@ -33,6 +51,7 @@ export type GraphEvent =
     | DataLoadingErrorSummaryEvent
     | DataLoadingCompleteEvent
     | ElementsRemovedEvent
+    | StyleChangedEvent
     | SelectionChangedEvent;
 
 /**
@@ -93,6 +112,8 @@ export interface GraphDataLoadedEvent {
          */
         loadId?: number;
     };
+    /** What loaded it; absent for a load that does not yet come through the session's history. */
+    cause?: HistoryCause;
 }
 
 export interface GraphDataAddedEvent {
@@ -101,6 +122,13 @@ export interface GraphDataAddedEvent {
     count: number;
     shouldStartLayout: boolean;
     shouldZoomToFit: boolean;
+    /**
+     * What added the rows: a command, or undo, redo or a rollback bringing them back. Absent for a
+     * load that does not yet come through the session's history (a data source, a file, a URL).
+     * The element starts a layout, frames the camera and runs the on-load algorithms only for
+     * rows a command or such a load added, never for rows undo or redo brought back.
+     */
+    cause?: HistoryCause;
 }
 
 /**
@@ -137,6 +165,15 @@ export interface GraphSnapshotDroppedEvent {
     type: "snapshot-dropped";
 }
 
+/**
+ * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that
+ * replaces the dataset -- after every node and edge is gone. It carries nothing, so it survives
+ * structured cloning; a consumer that wants the new counts reads them.
+ */
+export interface GraphDataClearedEvent {
+    type: "data-cleared";
+}
+
 export interface GraphLayoutInitializedEvent {
     type: "layout-initialized";
     layoutType: string;
@@ -168,12 +205,14 @@ export interface GraphGenericEvent {
         | "operation-start"
         | "operation-complete"
         | "operation-progress"
+        // How far a layout on the snapshot contract has got: `layoutType`, `fraction` (0 to 1, or
+        // null when the layout cannot say) and an optional `message`, as the layout reported them.
+        | "layout-progress"
         | "operation-obsoleted"
         | "animation-progress"
         | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
-        | "style-changed"
         // Emitted when auto-framing has finished moving the camera around the whole graph. It
         // was emitted and not declared, so `addListener` could not name it and no consumer could
         // subscribe to an event the element was already sending.
@@ -184,6 +223,24 @@ export interface GraphGenericEvent {
         // for -- so anything that photographs, records or measures the view wants this one.
         | "graph-frame-stable";
     [key: string]: unknown;
+}
+
+/**
+ * Emitted after the style stack changed and the graph was repainted for it.
+ *
+ * The detail is counts and words, never layers, so it survives structured cloning; a consumer
+ * that wants the stack itself reads `session.styles.list()`.
+ */
+export interface StyleChangedEvent {
+    type: "style-changed";
+    /** Which style verb produced the change. */
+    reason: StyleChange["reason"];
+    /** How many layers the change touched. */
+    layers: number;
+    /** How much was repainted, or null when no renderer is bound. */
+    painted: StyleChange["painted"];
+    /** The paths the changed layers read that nothing in the session answers yet. */
+    unresolvedPaths: string[];
 }
 
 // Data loading events
@@ -306,6 +363,8 @@ export interface ElementsRemovedEvent {
     nodes: NodeId[];
     /** Every edge that was attached to one of them, and therefore went with it. */
     edges: EdgeId[];
+    /** What removed them; absent for a removal that does not yet come through the history. */
+    cause?: HistoryCause;
 }
 
 // Selection events

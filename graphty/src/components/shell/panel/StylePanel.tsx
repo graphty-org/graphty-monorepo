@@ -68,8 +68,8 @@ export interface LayoutQuickPick {
 
 /**
  * The quick picks spec 03 section 2.4 asks for, with 5.8's ship state applied:
- * only the force layout is registered in graphty-element today, so the other
- * three are drawn and disabled with their reason rather than omitted.
+ * the layouts graphty-element does not register yet are drawn and disabled with
+ * their reason rather than omitted.
  */
 const DEFAULT_LAYOUT_PICKS: readonly LayoutQuickPick[] = [
     { value: "ngraph", label: "Force directed" },
@@ -184,6 +184,8 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
     } = props;
 
     const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
+    // The Arrangement header is tagged Coming only while a pick really is unbuilt.
+    const someLayoutUnbuilt = layoutPicks.some((pick) => pick.disabledReason !== undefined);
 
     const legendChip = keyChipFor("toggleLegend");
     const legendName = legendChip === null ? "Show legend" : `Show legend (${legendChip})`;
@@ -236,10 +238,10 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
             </Box>
 
             {/*
-                Three of the four picks are unbuilt and contiguous, so 5.8's
-                GROUP form applies: one tag on the header, one sentence behind
-                the header's info circle, and the rows dimmed and disabled
-                instead of tagged one by one.
+                When some picks are unbuilt, 5.8's GROUP form applies: one tag
+                on the header, one sentence behind the header's info circle,
+                and the rows dimmed and disabled instead of tagged one by one.
+                When every pick works there is nothing to tag.
             */}
             <Box data-testid="style-arrangement">
                 <PanelSection
@@ -247,8 +249,8 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                     label={ARRANGEMENT_LABEL}
                     technicalName={ARRANGEMENT_TECHNICAL_NAME}
                     defaultOpen
-                    info={COMING_GROUP_SENTENCE}
-                    actions={<ComingTag />}
+                    info={someLayoutUnbuilt ? COMING_GROUP_SENTENCE : undefined}
+                    actions={someLayoutUnbuilt ? <ComingTag /> : undefined}
                 >
                     <FieldRow
                         groupLabel="Arrangement"

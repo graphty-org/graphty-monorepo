@@ -4,20 +4,15 @@
  * Demonstrates Kamada-Kawai layout using path-length cost-function optimization.
  * Shows animation from random initial positions to final optimized positions.
  *
- * IMPORTANT: This story uses the actual kamadaKawaiLayout implementation
+ * IMPORTANT: This story uses the actual kamadaKawai implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { kamadaKawaiLayout } from "@graphty/layout";
+import { kamadaKawai, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -47,21 +42,13 @@ function createKamadaKawaiStory(args: KamadaKawaiArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final Kamada-Kawai layout using actual algorithm
-    const finalPositions = kamadaKawaiLayout(
-        layoutGraph,
-        null, // dist - auto-computed
-        null, // pos - auto-initialized
-        "weight", // weight attribute
-        scale,
-        [0, 0],
-        2,
-    );
+    const finalPositions = toPositionMap(kamadaKawai(snapshot, { scale, center: [0, 0], dim: 2 }), snapshot.ids);
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -72,10 +59,7 @@ function createKamadaKawaiStory(args: KamadaKawaiArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Kamada-Kawai Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Path-length cost-function optimization with scale ${scale}.`,
-    );
+    updateInfoPanel(infoPanel, `Path-length cost-function optimization with scale ${scale}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -125,15 +109,7 @@ const meta: Meta<KamadaKawaiArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         scale: {
@@ -160,7 +136,7 @@ type Story = StoryObj<KamadaKawaiArgs>;
 /**
  * Kamada-Kawai layout story - path-length cost-function optimization.
  *
- * This story uses the actual `kamadaKawaiLayout()` function from @graphty/layout.
+ * This story uses the actual `kamadaKawai()` function from @graphty/layout.
  * The play function animates from random positions to the optimized arrangement.
  */
 export const KamadaKawai: Story = {

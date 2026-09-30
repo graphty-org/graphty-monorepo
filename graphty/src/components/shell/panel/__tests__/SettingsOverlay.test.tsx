@@ -10,7 +10,8 @@ import {
     readPersistedLabelSettings,
     writePersistedLabelSettings,
 } from "../../defaults/loadDefaults";
-import { SETTINGS_SECTIONS, SettingsOverlay, type SettingsOverlayProps } from "../SettingsOverlay";
+import { SettingsOverlay, type SettingsOverlayProps } from "../SettingsOverlay";
+import { SETTINGS_SECTIONS } from "../settingsSections";
 
 /**
  * The key store Settings is handed by the shell, stubbed: the AI pane is a real pane

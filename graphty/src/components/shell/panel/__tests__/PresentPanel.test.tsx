@@ -100,9 +100,9 @@ describe("PresentPanel", () => {
             expect(screen.getByRole("button", { name: "Data options" })).toBeInTheDocument();
         });
 
-        /* graphty-element has no data exporter, so nothing here can act. Drawn enabled, each
-           control took a click and snapped back, because nothing supplied its value. */
-        it("draws every control disabled, because the element has no exporter yet", async () => {
+        /* The app does not call graphty-element's exportGraph yet, so nothing here can act. Drawn
+           enabled, each control took a click and snapped back, because nothing supplied its value. */
+        it("draws every control disabled, because the app has not wired the export yet", async () => {
             renderPanel({ onExportData: vi.fn(), onCopyNodeIds: vi.fn(), onOpenDataOptions: vi.fn() });
 
             fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
@@ -113,6 +113,16 @@ describe("PresentPanel", () => {
             expect(screen.getByRole("checkbox", { name: "Include notes" })).toBeDisabled();
             expect(screen.getByRole("textbox", { name: "Data format" })).toBeDisabled();
             expect(screen.getByRole("textbox", { name: "Scope" })).toBeDisabled();
+        });
+
+        /* The format list comes from the element's catalogue, so the field names the first
+           format the element can write. */
+        it("names the first data format the element's catalogue says it can write", async () => {
+            renderPanel();
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+
+            expect(await screen.findByRole("textbox", { name: "Data format" })).toHaveValue("JSON");
         });
     });
 

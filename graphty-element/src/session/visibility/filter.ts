@@ -38,43 +38,38 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
+import { runIdOfRef } from "../../catalog/sets/canonical";
+import { assertRuleTree, parseScope } from "../../catalog/sets/parse";
+import type {
+    EdgeId,
+    NodeId,
+    Path,
+    Query,
+    ResultItem,
+    RuleTree,
+    RunId,
+    Scope,
+    SelectionDirection,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { type ComponentLabels, edgeSpaceOf,type ElementMask } from "../scope/index";
+import { rankEntries, topOfRanking } from "../results/statistics";
+import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
+import {
+    type ChainStep,
+    type DependencySources,
+    followedGroup,
+    followsGroup,
+    visibilityCycle,
+} from "../sets/dependencies";
 
 // ---------------------------------------------------------------------------------------------
 // What a consumer asks for
 // ---------------------------------------------------------------------------------------------
 
-/** Which arcs a degree filter counts. */
-export type FilterDirection = "in" | "out" | "all";
-
-/**
- * What to keep.
- *
- * Ten kinds, of which eight speak about nodes, one (`edges`) speaks about edges, and three
- * (`all`, `any`, `not`) combine the others. A group with no members constrains nothing: an empty
- * list in a form means "nothing chosen", not "nothing allowed", and a filter builder that blanked
- * the graph the moment its last chip was removed would be unusable.
- */
-export type Filter =
-    | { readonly kind: "expression"; readonly where: Query }
-    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
-    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
-    | {
-          readonly kind: "degree";
-          readonly min?: number;
-          readonly max?: number;
-          readonly direction?: FilterDirection;
-      }
-    | { readonly kind: "component"; readonly id: number }
-    | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
-    | { readonly kind: "edges"; readonly where: Query }
-    | { readonly kind: "all"; readonly of: readonly Filter[] }
-    | { readonly kind: "any"; readonly of: readonly Filter[] }
-    | { readonly kind: "not"; readonly of: Filter };
+// The rule tree and its direction live with the other definition types; this module compiles them.
+export type { RuleTree } from "../../catalog/types";
 
 /** How wide a step a time window advances by, when something advances it. */
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
@@ -166,6 +161,66 @@ export interface FilterSources {
      * @returns The unresolved paths.
      */
     readonly unresolvedPathsOf?: (where: Query) => readonly Path[];
+    /**
+     * What a `member` leaf's set covers. Absent refuses a `member` leaf.
+     * @param scope - The referenced set.
+     * @returns Its node half, and its edge half when its reading speaks edges.
+     */
+    readonly scope?: (scope: Scope) => ScopeLeaf;
+    /**
+     * A run's current result, as `item` and `threshold` leaves read it. Absent refuses both over
+     * `results.*`; a run it does not know leaves the leaf holding nothing.
+     * @param run - The run.
+     * @returns The result, or undefined when the run has none.
+     */
+    readonly result?: (run: RunId) => FilterRunResult | undefined;
+    /**
+     * What a held item's execution held, captured when its run re-executed, as bitmaps over the
+     * snapshot (design/sets 5.2). Absent, or undefined for an item: nothing was captured, and a
+     * held execution that is no longer current holds nothing.
+     * @param item - The item, with its execution.
+     * @returns Its node bitmap when its field lives on nodes, its edge bitmap when on edges.
+     */
+    readonly captured?: (item: ResultItem) => CapturedHalves | undefined;
+}
+
+/** A captured item's members over the snapshot: null for a half the item's field does not live on. */
+export interface CapturedHalves {
+    readonly nodes: U32 | null;
+    readonly edges: U32 | null;
+}
+
+/** A run's current result, as the compiler reads it. */
+export interface FilterRunResult {
+    /** The token of the execution these values belong to; compared for equality only. */
+    readonly execution: string | undefined;
+    /** Which fields the result publishes per node, per edge or for the graph. */
+    readonly fields: readonly { readonly name: string; readonly kind: "node" | "edge" | "graph" }[];
+    /**
+     * One node's value for a field.
+     * @param index - The dense node index.
+     * @param field - The field.
+     * @returns The value, or undefined when the node carries none.
+     */
+    nodeValue(index: number, field: string): unknown;
+    /**
+     * One edge's value for a field.
+     * @param index - The dense (logical) edge index.
+     * @param field - The field.
+     * @returns The value, or undefined when the edge carries none.
+     */
+    edgeValue(index: number, field: string): unknown;
+}
+
+/**
+ * What a `member` leaf speaks: the referenced set's nodes, and its edges only when the set is read
+ * `listed` or `clipped`. `edges: null` is silent, exactly as a node leaf is.
+ */
+export interface ScopeLeaf {
+    /** Node bitmap over the snapshot. */
+    readonly nodes: U32;
+    /** Edge bitmap over the snapshot, or null when the set is read `induced`. */
+    readonly edges: U32 | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -210,6 +265,9 @@ const FILTER_KINDS = [
     "component",
     "neighborhood",
     "edges",
+    "member",
+    "item",
+    "threshold",
     "all",
     "any",
     "not",
@@ -253,6 +311,19 @@ function malformed(message: string, details: Readonly<Record<string, unknown>>):
  */
 function outOfRange(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
     return new GraphtyError({ code: "E_OPTION_RANGE", message, source: "data", details });
+}
+
+/**
+ * The refusal of a visibility filter that reads what it computes.
+ * @param through - The references followed, ending with `"visible"` or `"search"`.
+ * @returns The error to throw.
+ */
+function readsItself(through: readonly ChainStep[]): GraphtyError {
+    return malformed(
+        `This filter reads ${through.map((step) => `"${step}"`).join(" through ")}, which is what the visibility ` +
+            "filter computes, so it would depend on itself. Create a set from the current members instead.",
+        { reason: "cycle", through },
+    );
 }
 
 /**
@@ -322,14 +393,14 @@ function assertQuery(where: unknown, kind: string): void {
  * @param filter - The filter to check.
  * @throws A `GraphtyError` when any part of it is not a filter.
  */
-function assertFilter(filter: Filter): void {
+function assertFilter(filter: RuleTree): void {
     if (typeof filter !== "object" || filter === null || typeof filter.kind !== "string") {
         throw malformed(`A filter is an object with a "kind" of ${FILTER_KINDS.join(", ")}.`, { filter });
     }
 
     // Kept beside the switch, and typed as a plain string, so the refusal below can name a kind
     // the union does not contain -- which is exactly the case a runtime check exists for.
-    const {kind} = filter;
+    const { kind } = filter;
 
     switch (filter.kind) {
         case "expression":
@@ -378,6 +449,21 @@ function assertFilter(filter: Filter): void {
                     depth: filter.depth,
                 });
             }
+
+            return;
+        case "member":
+            // The filter computes "visible", and "search" will read the filter: either one here is
+            // a filter reading itself.
+            if (filter.of === "visible" || (filter.of as unknown) === "search") {
+                throw readsItself([filter.of as ChainStep]);
+            }
+
+            parseScope(filter.of);
+
+            return;
+        case "item":
+        case "threshold":
+            assertRuleTree(filter);
 
             return;
         case "all":
@@ -480,15 +566,105 @@ function assertTimeWindow(window: TimeWindow): void {
  * Check a filter and a window before anything starts working on them.
  * @param filter - The filter, or null for none.
  * @param window - The time window, or null for none.
+ * @param dependencies - Where the references a `member` leaf makes are looked up, so a filter that
+ *     reaches `"visible"` or `"search"` through kept sets is refused (`details.reason: "cycle"`), and
+ *     one whose item follows a partition group (`"follow-group"`).
  * @throws A `GraphtyError` when either is malformed.
  */
-export function assertVisibility(filter: Filter | null, window: TimeWindow | null): void {
+export function assertVisibility(
+    filter: RuleTree | null,
+    window: TimeWindow | null,
+    dependencies?: DependencySources,
+): void {
     if (filter !== null) {
         assertFilter(filter);
+
+        const through = dependencies === undefined ? null : visibilityCycle(filter, dependencies);
+        if (through !== null) {
+            throw readsItself(through);
+        }
+
+        const group = dependencies === undefined ? null : followedGroup(filter, dependencies);
+        if (group !== null) {
+            throw followsGroup(group);
+        }
     }
 
     if (window !== null) {
         assertTimeWindow(window);
+    }
+}
+
+/**
+ * Refuse a filter or a window this session could not evaluate, without evaluating it: the checks
+ * {@link compileVisibility} makes before it walks anything, so a filter is refused before it is
+ * recorded rather than on every later evaluation.
+ * @param filter - The filter, or null for none.
+ * @param window - The time window, or null for none.
+ * @param sources - What this session can evaluate with.
+ * @throws A `GraphtyError` when either is malformed or needs a capability this session lacks.
+ */
+export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | null, sources: FilterSources): void {
+    assertVisibility(filter, window);
+
+    const check = (each: RuleTree): void => {
+        switch (each.kind) {
+            case "expression":
+                if (sources.match === undefined) {
+                    throw unsupported("expression", "a query engine");
+                }
+
+                return;
+            case "edges":
+                if (sources.matchEdges === undefined) {
+                    throw unsupported("edges", "a query engine for edges");
+                }
+
+                return;
+            case "range":
+            case "categories":
+                if (sources.values === undefined) {
+                    throw unsupported(each.kind, "a source of attribute values");
+                }
+
+                return;
+            case "component": {
+                if (sources.components === undefined) {
+                    throw unsupported("component", "the connected components");
+                }
+
+                const { count } = sources.components();
+                if (each.id >= count) {
+                    throw outOfRange(
+                        `This graph has ${String(count)} components, so there is no component ${String(each.id)}.`,
+                        {
+                            id: each.id,
+                            count,
+                        },
+                    );
+                }
+
+                return;
+            }
+            case "all":
+            case "any":
+                each.of.forEach(check);
+                return;
+            case "not":
+                check(each.of);
+                return;
+            default:
+                // "degree" and "neighborhood" read only the graph.
+                return;
+        }
+    };
+
+    if (filter !== null) {
+        check(filter);
+    }
+
+    if (window !== null && sources.values === undefined) {
+        throw unsupported("window", "a source of attribute values");
     }
 }
 
@@ -515,7 +691,7 @@ interface CompileContext {
 }
 
 /** One filter's two halves, before they are folded together. */
-interface CompiledHalves {
+export interface CompiledHalves {
     /** The node test, or null when this filter says nothing about nodes. */
     readonly node: ElementTest | null;
     /** The edge test, or null when this filter says nothing about edges. */
@@ -552,12 +728,7 @@ function markFor(context: CompileContext, path: Path): PathMark {
  * @param mark - The mark to set when a value is there.
  * @returns The value, or undefined when there is none.
  */
-function readValue(
-    read: (index: number, path: Path) => unknown,
-    index: number,
-    path: Path,
-    mark: PathMark,
-): unknown {
+function readValue(read: (index: number, path: Path) => unknown, index: number, path: Path, mark: PathMark): unknown {
     const value = read(index, path);
 
     if (value === undefined || value === null) {
@@ -718,7 +889,7 @@ function degreeTest(
     context: CompileContext,
     min: number | undefined,
     max: number | undefined,
-    direction: FilterDirection | undefined,
+    direction: SelectionDirection | undefined,
 ): ElementTest {
     const { graph } = context;
     let degrees: U32;
@@ -812,6 +983,190 @@ function neighborhoodTest(context: CompileContext, seeds: readonly NodeId[], dep
     return (index) => reached[index] === 1;
 }
 
+/** A leaf that holds nothing: its node half matches no node, and it is silent on edges. */
+const NOTHING: CompiledHalves = { node: () => false, edge: null };
+
+/**
+ * A run's result, or a refusal when this session reads none.
+ * @param context - The compile context.
+ * @param kind - The leaf kind asking, for the message.
+ * @param run - The run.
+ * @returns The result, or undefined when the run has none.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session has no results.
+ */
+function resultOf(context: CompileContext, kind: string, run: RunId): FilterRunResult | undefined {
+    const { result } = context.sources;
+
+    if (result === undefined) {
+        throw unsupported(kind, "a results registry");
+    }
+
+    return result(run);
+}
+
+/**
+ * The halves on which a result publishes a field per element.
+ * @param result - The result.
+ * @param field - The field.
+ * @returns Whether nodes and edges carry it.
+ */
+function fieldHalves(result: FilterRunResult, field: string): { node: boolean; edge: boolean } {
+    const kinds = result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+
+    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+}
+
+/**
+ * The test over one half of an item: the element's value equals the key's, or is an array
+ * holding it.
+ * @param read - Reads one element's value.
+ * @param wanted - The key's value.
+ * @param mark - The path's mark.
+ * @returns The test.
+ */
+function itemTest(read: (index: number) => unknown, wanted: unknown, mark: PathMark): ElementTest {
+    return (index) => {
+        const value = read(index);
+        if (value === undefined || value === null) {
+            return false;
+        }
+
+        mark.seen = true;
+
+        return value === wanted || (Array.isArray(value) && value.includes(wanted));
+    };
+}
+
+/**
+ * The elements one item of a result holds. A run with no result, a field the result does not
+ * publish per element, and a held execution that is no longer current all hold nothing.
+ * @param context - The compile context.
+ * @param item - The item.
+ * @returns The halves the field lives on.
+ */
+function compileItem(context: CompileContext, item: ResultItem): CompiledHalves {
+    const run = runIdOfRef(item.result) as RunId;
+    const { field, value } = item.key;
+    const result = resultOf(context, "item", run);
+    const mark = markFor(context, `results.${run}.${field}`);
+
+    // A held execution that is no longer current reads what its run's re-run captured, and
+    // nothing when no capture was kept.
+    if (item.run !== undefined && item.run !== result?.execution) {
+        const held = context.sources.captured?.(item);
+        if (held === undefined || (held.nodes === null && held.edges === null)) {
+            return NOTHING;
+        }
+
+        mark.seen = true;
+        const { nodes, edges } = held;
+
+        return {
+            node: nodes === null ? null : (index) => maskTest(nodes, index),
+            edge: edges === null ? null : (index) => maskTest(edges, index),
+        };
+    }
+
+    if (result === undefined) {
+        return NOTHING;
+    }
+
+    const halves = fieldHalves(result, field);
+    if (!halves.node && !halves.edge) {
+        return NOTHING;
+    }
+
+    return {
+        node: halves.node ? itemTest((index) => result.nodeValue(index, field), value, mark) : null,
+        edge: halves.edge ? itemTest((index) => result.edgeValue(index, field), value, mark) : null,
+    };
+}
+
+/**
+ * The members of one half that pass a threshold's cut, or null when no element of the half
+ * carries a finite number for the path (the half is silent).
+ * @param count - The elements in the half.
+ * @param read - Reads one element's value.
+ * @param filter - The threshold.
+ * @param mark - The path's mark.
+ * @returns The members, one byte per element.
+ */
+function thresholdHalf(
+    count: number,
+    read: (index: number) => unknown,
+    filter: Extract<RuleTree, { kind: "threshold" }>,
+    mark: PathMark,
+): Uint8Array | null {
+    const population: { id: number; value: number }[] = [];
+    for (let index = 0; index < count; index++) {
+        const value = read(index);
+        if (typeof value === "number" && Number.isFinite(value)) {
+            population.push({ id: index, value });
+        }
+    }
+
+    if (population.length === 0) {
+        return null;
+    }
+
+    mark.seen = true;
+    const hit = new Uint8Array(count);
+    if (filter.top !== undefined) {
+        for (const entry of topOfRanking(rankEntries(population), filter.top).entries) {
+            hit[entry.id as number] = 1;
+        }
+    } else {
+        const cut = filter.above ?? Number.POSITIVE_INFINITY;
+        for (const entry of population) {
+            if (entry.value > cut) {
+                hit[entry.id] = 1;
+            }
+        }
+    }
+
+    return hit;
+}
+
+/**
+ * The elements whose value for a path passes a threshold's cut. Each half whose elements carry
+ * the value is ranked on its own and speaks; when none does, the leaf holds nothing.
+ * @param context - The compile context.
+ * @param filter - The threshold.
+ * @returns The halves.
+ */
+function compileThreshold(context: CompileContext, filter: Extract<RuleTree, { kind: "threshold" }>): CompiledHalves {
+    const { graph } = context;
+    const mark = markFor(context, filter.path);
+    let readNode: ((index: number) => unknown) | null;
+    let readEdge: ((index: number) => unknown) | null;
+
+    if (filter.path.startsWith("results.")) {
+        const rest = filter.path.slice("results.".length);
+        const dot = rest.indexOf(".");
+        const run = rest.slice(0, dot);
+        const field = rest.slice(dot + 1);
+        const result = resultOf(context, "threshold", run);
+        const halves = result === undefined ? { node: false, edge: false } : fieldHalves(result, field);
+        readNode = halves.node && result !== undefined ? (index) => result.nodeValue(index, field) : null;
+        readEdge = halves.edge && result !== undefined ? (index) => result.edgeValue(index, field) : null;
+    } else {
+        const values = valuesOf(context, "threshold");
+        readNode = (index) => values.nodeValue(index, filter.path);
+        readEdge = (index) => values.edgeValue(index, filter.path);
+    }
+
+    const nodes = readNode === null ? null : thresholdHalf(graph.nodeCount, readNode, filter, mark);
+    const edges = readEdge === null ? null : thresholdHalf(graph.edgeCount, readEdge, filter, mark);
+    if (nodes === null && edges === null) {
+        return NOTHING;
+    }
+
+    return {
+        node: nodes === null ? null : (index) => nodes[index] === 1,
+        edge: edges === null ? null : (index) => edges[index] === 1,
+    };
+}
+
 /**
  * Fold a list of tests into one, WITHOUT short-circuiting.
  *
@@ -868,7 +1223,7 @@ function fold(tests: readonly (ElementTest | null)[], mode: "all" | "any"): Elem
  * @returns The two halves, either of which may be null.
  * @throws A `GraphtyError` when the filter needs a capability this session does not have.
  */
-function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
+function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
     switch (filter.kind) {
         case "expression":
             return { node: expressionTest(context, filter.where), edge: null };
@@ -884,6 +1239,23 @@ function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
+        case "member": {
+            if (context.sources.scope === undefined) {
+                throw unsupported("member", "a scope resolver");
+            }
+
+            const leaf = context.sources.scope(filter.of);
+            const { edges } = leaf;
+
+            return {
+                node: (index) => maskTest(leaf.nodes, index),
+                edge: edges === null ? null : (index) => maskTest(edges, index),
+            };
+        }
+        case "item":
+            return compileItem(context, filter.item);
+        case "threshold":
+            return compileThreshold(context, filter);
         case "all":
         case "any": {
             const members = filter.of.map((member) => compileOne(member, context));
@@ -908,6 +1280,19 @@ function compileOne(filter: Filter, context: CompileContext): CompiledHalves {
             };
         }
     }
+}
+
+/**
+ * Compile a rule tree into its two halves, for a rule set: the same compiler the visibility
+ * filter runs, so a rule and a filter can never disagree. The tree is already validated.
+ * @param graph - The snapshot every test is written against.
+ * @param filter - The tree.
+ * @param sources - Where to read what the compiler cannot compute.
+ * @returns The node test and the edge test, either null when the tree is silent about it.
+ * @throws A `GraphtyError` when the tree needs a capability the sources lack.
+ */
+export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: FilterSources): CompiledHalves {
+    return compileOne(filter, { graph, sources, marks: new Map<Path, PathMark>(), unresolvedQueries: new Set<Path>() });
 }
 
 /**
@@ -966,7 +1351,7 @@ function compileWindow(window: TimeWindow, context: CompileContext): CompiledHal
  */
 export function compileVisibility(
     graph: GraphSnapshot,
-    filter: Filter | null,
+    filter: RuleTree | null,
     window: TimeWindow | null,
     sources: FilterSources,
 ): CompiledVisibility {
@@ -989,16 +1374,19 @@ export function compileVisibility(
         halves.push(compileWindow(window, context));
     }
 
-    const folded = halves.length === 0 ? SILENT : {
-        node: fold(
-            halves.map((half) => half.node),
-            "all",
-        ),
-        edge: fold(
-            halves.map((half) => half.edge),
-            "all",
-        ),
-    };
+    const folded =
+        halves.length === 0
+            ? SILENT
+            : {
+                  node: fold(
+                      halves.map((half) => half.node),
+                      "all",
+                  ),
+                  edge: fold(
+                      halves.map((half) => half.edge),
+                      "all",
+                  ),
+              };
 
     return {
         node: folded.node,
@@ -1112,8 +1500,8 @@ export async function runPassInSlices(
     signal: AbortSignal,
     report: (completed: number, total: number) => void,
 ): Promise<void> {
-    const {nodeCount} = pass.graph;
-    const {edgeCount} = pass.graph;
+    const { nodeCount } = pass.graph;
+    const { edgeCount } = pass.graph;
     const total = nodeCount + edgeCount;
     let deadline = performance.now() + SLICE_MS;
 

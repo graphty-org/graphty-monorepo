@@ -5,21 +5,16 @@
  * Nodes are distributed evenly on a sphere surface using Fibonacci spiral.
  * Shows animation from random initial positions to final spherical arrangement.
  *
- * IMPORTANT: This story uses the actual circularLayout implementation
+ * IMPORTANT: This story uses the actual circular implementation
  * from @graphty/layout with dim=3 to demonstrate real package behavior.
- * In 3D mode, circularLayout distributes nodes on a sphere using Fibonacci spiral.
+ * In 3D mode, circular distributes nodes on a sphere using Fibonacci spiral.
  */
 
-import { circularLayout } from "@graphty/layout";
+import { circular, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandom3DPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandom3DPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     cleanup3DScene,
     create3DControls,
@@ -52,18 +47,16 @@ function createSphericalStory(args: SphericalArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random 3D positions
     const randomPositions = generateRandom3DPositions(generatedGraph, 200, seed);
 
-    // Compute final Spherical layout using circularLayout with dim=3
-    // circularLayout uses Fibonacci spiral for even distribution on a sphere when dim=3
-    const finalPositions = circularLayout(
-        layoutGraph,
-        radius, // scale (acts as sphere radius)
-        [0, 0, 0], // center (3D)
-        3, // dim = 3 for spherical layout
+    // Compute final Spherical layout using circular with dim=3
+    // circular uses Fibonacci spiral for even distribution on a sphere when dim=3
+    const finalPositions = toPositionMap(
+        circular(snapshot, { scale: radius, center: [0, 0, 0], dim: 3 }),
+        snapshot.ids,
     );
 
     // Create main container
@@ -157,15 +150,7 @@ const meta: Meta<SphericalArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         radius: {
@@ -192,7 +177,7 @@ type Story = StoryObj<SphericalArgs>;
 /**
  * Spherical layout story - nodes evenly distributed on a sphere using Fibonacci spiral.
  *
- * This story uses the actual `circularLayout()` function from @graphty/layout with dim=3.
+ * This story uses the actual `circular()` function from @graphty/layout with dim=3.
  * The play function animates from random 3D positions to the spherical arrangement.
  */
 export const Spherical: Story = {

@@ -7,8 +7,17 @@
 # interactions and storybook projects are CI-only; tools/prepush.sh says why, with
 # the wall clock each one costs.
 #
-# To skip this hook: git push --no-verify
+# To skip this hook: git push --no-verify (this skips the Git LFS upload too; after such a push of
+# baseline images, run `git lfs push origin <branch>`)
 # To run manually: pnpm run prepush:fast
+
+# Git LFS first: upload the baseline images this push points at (tools/lfs-pre-push.sh says why
+# it is here and not in git-lfs's own hook). It reads git's ref lines on stdin; nothing below does.
+./tools/lfs-pre-push.sh "$@" || exit 1
+
+# Secret scan of every file this branch changes since it left origin/master. It runs here as
+# well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
+./tools/scan-secrets.sh "$(git merge-base origin/master HEAD)" HEAD || exit 1
 
 # Run the prepush validation script
 pnpm run prepush:fast

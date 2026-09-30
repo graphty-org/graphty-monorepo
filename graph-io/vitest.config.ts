@@ -13,7 +13,6 @@ export default defineConfig({
         // past birpc's hardcoded 60 s RPC timeout on a CI runner and fails a green run
         setupFiles: ["./test/setup/yield-to-event-loop.ts"],
         coverage: {
-            all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: "coverage",

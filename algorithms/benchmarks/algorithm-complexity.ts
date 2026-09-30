@@ -198,7 +198,7 @@ export const algorithmConfigs: Record<string, AlgorithmConfig> = {
 };
 
 // Helper function to get config for an algorithm
-export function getAlgorithmConfig(algorithmName: string, isQuick: boolean): AlgorithmConfig | undefined {
+export function getAlgorithmConfig(algorithmName: string, _isQuick: boolean): AlgorithmConfig {
     const config = algorithmConfigs[algorithmName];
     if (!config) {
         // Default config for unknown algorithms
@@ -216,7 +216,7 @@ export function getAlgorithmConfig(algorithmName: string, isQuick: boolean): Alg
 // Get appropriate graph sizes for an algorithm
 export function getGraphSizes(algorithmName: string, isQuick: boolean): number[] {
     const config = getAlgorithmConfig(algorithmName, isQuick);
-    return isQuick ? config!.quickSizes : config!.comprehensiveSizes;
+    return isQuick ? config.quickSizes : config.comprehensiveSizes;
 }
 
 // Get edge density for an algorithm

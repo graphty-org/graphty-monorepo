@@ -1,8 +1,9 @@
-/// <reference types="@vitest/browser/providers/playwright" />
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -65,7 +66,7 @@ const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
  * the NVIDIA GPU only with the extracted libEGL tree on LD_LIBRARY_PATH; the variable is prepended when set,
  * otherwise Playwright inherits process.env unchanged (undefined). Only defined values are copied (LaunchOptions.env
  * is a string map).
- * @returns the env map for `launch.env`, or undefined
+ * @returns the env map for `launchOptions.env`, or undefined
  */
 function browserLaunchEnv(): Record<string, string> | undefined {
     const eglDir = process.env.GRAPHTY_EGL_LIB_DIR;
@@ -87,7 +88,7 @@ function browserLaunchEnv(): Record<string, string> | undefined {
  * @returns the names in command-line order
  */
 function selectedProjects(): string[] {
-    const argv = process.argv;
+    const {argv} = process;
     const names: string[] = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -141,12 +142,15 @@ const DEVICE_ERROR_TESTS: readonly string[] = [
 ];
 
 /**
- * Whether this run selected the device-error project. It then runs ONE FILE AT A TIME: `fileParallelism` is one of
- * vitest's NonProjectOptions (like the `maxWorkers` of nodeForks below), so a project that sets it is ignored and the
- * root is the only place it takes effect. Selecting the project together with another one makes the WHOLE run
- * serial, which is why the lanes give it an invocation of its own.
+ * Whether this run selected the device-error project or the limits project. Either one then runs ONE FILE AT A
+ * TIME. The device-error files break a device on purpose; the limits files allocate up to the adapter's whole
+ * buffer limit (oom-scope asks for exactly `maxBufferSize`), and two of them side by side on one GPU starve each
+ * other. The setting sits at the root because Vitest 3 listed `fileParallelism` (like the `maxWorkers` of nodeForks
+ * below) among its NonProjectOptions and ignored it inside a project; Vitest 4 accepts both per project, and moving
+ * them there is a separate change. At the root, selecting either project together with another one makes the WHOLE
+ * run serial, which is why the lanes give each an invocation of its own.
  */
-const deviceErrorRun = projects.includes("node-device-errors");
+const serialRun = projects.includes("node-device-errors") || projects.includes("node-limits");
 
 /**
  * The browser-side benchmark bridge (spec 11.6 item 8, 11.7): a browser test cannot write files, so it calls
@@ -226,9 +230,9 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * processor and memory cost (G5-F2 measured 515 s of summed case time without coverage against 1,048 s with).
  * `--maxWorkers=<n>` on the command line still overrides it.
  *
- * It APPLIES for the first time here. It used to be written inside each node project, where vitest drops it:
- * `maxWorkers` is one of the NonProjectOptions (`vitest/dist/chunks/reporters.d.*.d.ts` line 2347, the same list
- * that holds `fileParallelism`), so a project that sets it is ignored without a warning and the pool takes its own
+ * It APPLIES for the first time here. It used to be written inside each node project, where Vitest 3 dropped it:
+ * `maxWorkers` was one of its NonProjectOptions (the same list that held `fileParallelism`), so a project that set
+ * it was ignored without a warning and the pool takes its own
  * default of `availableParallelism() - 1`. The hang report of CI run 35788215777 shows that default: three forks
  * (`node (vitest 1)` .. `node (vitest 3)`) on the four-core runner under `--coverage`, where this asks for two.
  * Measured on the dev box, the whole node project on four pinned cores with coverage: three forks before the move,
@@ -242,16 +246,14 @@ const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, a
 
 export default defineConfig({
     test: {
-        // Root, not per project: vitest lists maxWorkers among its NonProjectOptions, so a project that sets it
-        // is silently ignored (see nodeForks above). It applies to every project, and the node ones are the only
-        // ones it binds: the browser project runs its files one at a time through browser.fileParallelism.
+        // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
+        // only ones it binds: the browser project runs its files one at a time through its own fileParallelism.
         maxWorkers: nodeForks,
-        // Root, not per project, for the same reason: one file at a time for the device-error run (see below).
-        fileParallelism: deviceErrorRun ? false : undefined,
+        // Root, not per project, likewise: one file at a time for the device-error and limits runs (see serialRun).
+        fileParallelism: serialRun ? false : undefined,
         // verbose prints a line per test: useful locally, needless noise in CI
         reporters: process.env.CI ? ["default"] : ["verbose"],
         coverage: {
-            all: true,
             provider: "v8",
             // On a runner only lcov.info is uploaded and json-summary carries the thresholds, so the html and
             // json reporters are memory spent on files nothing reads -- and this project's processes end the run
@@ -289,13 +291,14 @@ export default defineConfig({
             {
                 test: {
                     // The files that break a device on purpose (DEVICE_ERROR_TESTS above), one file at a time, in
-                    // the `node` project's environment. It does NOT stop a worker dying: the graphics lane's abort
-                    // on 2026-09-23 came three seconds after this set's last four validation errors, and nothing
-                    // here changes what the driver does. What it changes is the blast radius. A worker that dies
-                    // here takes eleven files with it instead of the hundred and ten that were running beside it,
-                    // the `node` project still reports and still writes its coverage, and the file that died is the
-                    // one the run was on -- which is the whole of the diagnosis, since a dead worker leaves only
-                    // "Channel closed" with no file name (G4-F14).
+                    // the `node` project's environment. The graphics lane's worker abort on 2026-09-23, three
+                    // seconds after this set's last four validation errors, was not the errors themselves: it was
+                    // dawn-node polling a Dawn instance that had already been freed once its GPU handle was
+                    // dropped, which PR #451 fixed in createNodeGpu (one instance per flag list, never freed). The
+                    // project stays because it keeps the blast radius small at no cost: a worker that dies here
+                    // takes eleven files with it instead of the hundred and ten that were running beside it, the
+                    // `node` project still reports and still writes its coverage, and the file that died is the one
+                    // the run was on -- a dead worker leaves only "Channel closed" with no file name.
                     name: "node-device-errors",
                     globals: true,
                     environment: "node",
@@ -309,6 +312,8 @@ export default defineConfig({
             },
             {
                 test: {
+                    // The multi-gigabyte limit files. One file at a time, in an invocation of their own (serialRun
+                    // above), so an out-of-memory test never shares the GPU with the main suite.
                     name: "node-limits",
                     globals: true,
                     environment: "node",
@@ -337,22 +342,27 @@ export default defineConfig({
                         GRAPHTY_NOISE_FLOOR_WRITE: noiseFloorWrite,
                     },
                     setupFiles: ["test/setup/browser.ts"],
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
-                        provider: "playwright",
-                        fileParallelism: false,
+                        provider: playwright(),
                         commands: { appendBenchRecord, writeNoiseFixture, recordNoiseRow },
                         instances: [
                             browserName === "webkit"
-                                ? { browser: "webkit", launch: { env: browserLaunchEnv() } }
+                                ? {
+                                      browser: "webkit",
+                                      provider: playwright({ launchOptions: { env: browserLaunchEnv() } }),
+                                  }
                                 : {
                                       browser: "chromium",
-                                      launch: {
-                                          args: [...BROWSER_FLAGS[browserGpu]],
-                                          channel: BROWSER_CHANNEL[browserGpu],
-                                          env: browserLaunchEnv(),
-                                      },
+                                      provider: playwright({
+                                          launchOptions: {
+                                              args: [...BROWSER_FLAGS[browserGpu]],
+                                              channel: BROWSER_CHANNEL[browserGpu],
+                                              env: browserLaunchEnv(),
+                                          },
+                                      }),
                                   },
                         ],
                     },

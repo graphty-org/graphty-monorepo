@@ -4,7 +4,7 @@
  * records, composition, lifecycle, and every error code the builder names.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX, MAX_COUNT } from "../../src/constants.js";
@@ -447,6 +447,27 @@ describe("GraphBuilder edges", () => {
         expect(Array.from(b.inEdgesOf(1))).toEqual([]);
     });
 
+    it("findEdges walks the shorter endpoint's incidence lists, so a hub-to-leaf lookup costs the leaf", () => {
+        for (const directed of [true, false]) {
+            const b = new GraphBuilder({ directed });
+            for (let i = 0; i < 1000; i++) {
+                b.addEdge("hub", `leaf${i}`);
+            }
+            b.addEdge("hub", "leaf500");
+            const hub = b.indexOf("hub");
+            const leaf = b.indexOf("leaf500");
+            // The link columns are what a walk steps along; count the steps.
+            const { staging } = b as unknown as {
+                staging: { nextOut: { get: () => number }; nextIn: { get: () => number } };
+            };
+            const outSteps = vi.spyOn(staging.nextOut, "get");
+            const inSteps = vi.spyOn(staging.nextIn, "get");
+            expect(Array.from(b.findEdges(hub, leaf))).toEqual([500, 1000]);
+            expect(Array.from(b.findEdges(leaf, hub))).toEqual(directed ? [] : [500, 1000]);
+            expect(outSteps.mock.calls.length + inSteps.mock.calls.length).toBeLessThan(20);
+        }
+    });
+
     it("findEdges on an undirected builder matches either orientation", () => {
         const b = new GraphBuilder({ directed: false });
         b.addEdge("a", "b");
@@ -462,7 +483,7 @@ describe("GraphBuilder edges", () => {
         expect(Array.from(b.inEdgesOf(0))).toEqual([0, 1]);
     });
 
-    it("counts mutations for topology and weight changes only", () => {
+    it("counts topology, weight and attribute changes, but not freeze or a repeated addNode", () => {
         const b = new GraphBuilder({ directed: true });
         expect(b.mutationCount).toBe(0);
         expect(b.dirty).toBe(true);
@@ -477,17 +498,17 @@ describe("GraphBuilder edges", () => {
         b.setEdgeValue("y", 0, 2);
         b.setGraphValue("g", 1);
         b.setMeta({ name: "n" });
-        expect(b.mutationCount).toBe(3);
+        expect(b.mutationCount).toBe(8);
         b.setEdgeWeight(0, 2);
-        expect(b.mutationCount).toBe(4);
+        expect(b.mutationCount).toBe(9);
         b.freeze();
-        expect(b.mutationCount).toBe(4);
+        expect(b.mutationCount).toBe(9);
         expect(b.dirty).toBe(false);
         b.setNodeValue("x", 0, 2);
-        expect(b.dirty).toBe(false);
+        expect(b.dirty).toBe(true);
         b.removeEdge(0);
         expect(b.dirty).toBe(true);
-        expect(b.mutationCount).toBe(5);
+        expect(b.mutationCount).toBe(11);
     });
 });
 
@@ -535,7 +556,7 @@ describe("GraphBuilder direction", () => {
         const m = b.mutationCount;
         b.setDirected(true, { expand: true });
         expect(b.directed).toBe(true);
-        expect(b.mutationCount).toBe(m + 1);
+        expect(b.mutationCount).toBeGreaterThan(m);
         expect(b.edgeCount).toBe(5);
         expect(b.edgeBound).toBe(6);
         expect(b.edgeEndpoints(4)).toEqual([1, 0]);
@@ -1224,23 +1245,95 @@ describe("GraphBuilder composition", () => {
         ]);
     });
 
-    it("declaring and resolving many columns by name costs linear time (a Map beside the column array)", () => {
-        const time = (count: number): number => {
-            const b = new GraphBuilder({ directed: true });
-            b.addNode("a");
-            const t0 = performance.now();
-            for (let i = 0; i < count; i++) {
-                b.declareNodeColumn({ name: `c${i}`, dtype: "f64" });
-            }
-            for (let i = 0; i < count; i++) {
-                b.nodeColumn(`c${i}`);
-                b.setNodeValue(`c${i}`, 0, i);
-            }
-            return performance.now() - t0;
-        };
-        const small = Math.min(time(4000), time(4000), time(4000));
-        const large = Math.min(time(16_000), time(16_000), time(16_000));
-        // 4x the columns may cost at most 12x (linear plus noise); the former scan cost 16x and more
-        expect(large / Math.max(small, 5)).toBeLessThan(12);
+    it("declaring and resolving many columns by name costs linear work (a Map beside the column array)", () => {
+        // Count reads of the node column array by index. A name lookup through the Map reads one
+        // slot; a scan by name reads every earlier column, which is quadratic over the loop below.
+        const count = 4000;
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        const { staging } = b as unknown as { staging: { nodeColumns: unknown[] } };
+        let reads = 0;
+        staging.nodeColumns = new Proxy(staging.nodeColumns, {
+            get(target, key, receiver): unknown {
+                if (typeof key === "string" && /^\d+$/.test(key)) {
+                    reads++;
+                }
+                return Reflect.get(target, key, receiver);
+            },
+        });
+        for (let i = 0; i < count; i++) {
+            b.declareNodeColumn({ name: `c${i}`, dtype: "f64" });
+        }
+        for (let i = 0; i < count; i++) {
+            expect(b.nodeColumn(`c${i}`)).toBe(i);
+            b.setNodeValue(`c${i}`, 0, i);
+        }
+        // a scan by name reads tens of millions of slots here (24,006,000 when last measured)
+        expect(reads).toBeLessThan(10 * count);
+        const snapshot = b.freeze();
+        expect(snapshot.nodes.value("c0", 0)).toBe(0);
+        expect(snapshot.nodes.value(`c${count - 1}`, 0)).toBe(count - 1);
+    });
+});
+
+describe("GraphBuilder mutationCount and dirty count every change the next freeze would show", () => {
+    function frozen(): GraphBuilder {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b", 1);
+        b.declareNodeColumn({ name: "x", dtype: "f32" });
+        b.declareEdgeColumn({ name: "y", dtype: "f32" });
+        b.freeze();
+        return b;
+    }
+
+    const writes: [string, (b: GraphBuilder) => void][] = [
+        ["setNodeValue", (b) => b.setNodeValue("x", 0, 5)],
+        ["setEdgeValue", (b) => b.setEdgeValue("y", 0, 5)],
+        ["setNodeColumn", (b) => b.setNodeColumn("z", new Float32Array(b.nodeBound))],
+        ["setEdgeColumn", (b) => b.setEdgeColumn("z", new Float32Array(b.edgeBound))],
+        ["setGraphValue", (b) => b.setGraphValue("title", "t")],
+        ["setMeta", (b) => b.setMeta({ name: "g" })],
+        ["addNodeRecord on an existing node", (b) => b.addNodeRecord("a", { x: 7 })],
+        ["declareNodeColumn", (b) => b.declareNodeColumn({ name: "w", dtype: "u8" })],
+        ["declareEdgeColumn", (b) => b.declareEdgeColumn({ name: "w", dtype: "u8" })],
+        ["addExtensionTable", (b) => b.addExtensionTable("t", [{ name: "c", dtype: "u8" }])],
+        [
+            "addExtensionRow",
+            (b) => {
+                const t = b.addExtensionTable("t", [{ name: "c", dtype: "u8" }]);
+                b.freeze();
+                b.addExtensionRow(t, [1]);
+            },
+        ],
+        [
+            "addGraph merging attributes onto existing nodes",
+            (b) => {
+                const other = new GraphBuilder({ directed: true });
+                other.addNodeRecord("a", { x: 9 });
+                const snapshot = other.freeze();
+                b.freeze();
+                b.addGraph(snapshot);
+            },
+        ],
+    ];
+
+    for (const [name, write] of writes) {
+        it(name, () => {
+            const b = frozen();
+            const before = b.mutationCount;
+            expect(b.dirty).toBe(false);
+            write(b);
+            expect(b.mutationCount).toBeGreaterThan(before);
+            expect(b.dirty).toBe(true);
+        });
+    }
+
+    it("an unset of an undeclared name and a same-shape redeclare change nothing and do not count", () => {
+        const b = frozen();
+        const before = b.mutationCount;
+        b.setNodeValue("absent", 0, undefined);
+        b.declareNodeColumn({ name: "x", dtype: "f32" });
+        expect(b.mutationCount).toBe(before);
+        expect(b.dirty).toBe(false);
     });
 });

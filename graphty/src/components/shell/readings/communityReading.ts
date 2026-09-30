@@ -45,6 +45,8 @@ import { formatCount, formatModularity, formatPercent, modularityBand, modularit
 export interface CommunityGroupSize {
     /** The community id the run assigned. */
     readonly communityId: number;
+    /** What graphty-element calls it, e.g. "Group 1"; the legend's swatch for it says the same. */
+    readonly name: string;
     /** How many nodes are in it. */
     readonly size: number;
 }
@@ -234,17 +236,16 @@ export interface CommunityBodyRow {
  * The result body: one row per group, largest first, capped at
  * {@link COMMUNITY_MANY_GROUPS_THRESHOLD}.
  *
- * Rows are named by RANK, not by community id -- "Group 1" is the largest group, which
- * is how every board labels them (RunRecordPopout.dc.html:403-406, CategoryTable.dc.html:56:
- * "they keep their instance labels Group 1 to Group 6 ... because those are the
- * result's own"). The "links inside" column spec 5828 names is not built here: it needs
+ * Rows carry the name graphty-element gives each group ("Group 1" is the largest), which is
+ * also what the legend labels its colour with, so a group is called the same thing in both
+ * places. The "links inside" column spec 5828 names is not built here: it needs
  * per-group internal edge counts, which no run reports yet.
  * @param statistics - the community statistics, groups largest first.
  * @returns one row per group, up to the cap.
  */
 export function communityResultBody(statistics: CommunityStatistics): readonly CommunityBodyRow[] {
-    return statistics.groups.slice(0, COMMUNITY_MANY_GROUPS_THRESHOLD).map((group, index) => ({
-        name: `Group ${index + 1}`,
+    return statistics.groups.slice(0, COMMUNITY_MANY_GROUPS_THRESHOLD).map((group) => ({
+        name: group.name,
         value: `${formatCount(group.size)} ${pluralise(group.size, "member")}`,
     }));
 }

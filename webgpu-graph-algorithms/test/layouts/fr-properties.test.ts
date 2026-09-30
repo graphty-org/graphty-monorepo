@@ -14,7 +14,7 @@
  * shrink instead (STEPS); numRuns stays at 200 on every adapter.
  */
 
-import { INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import fc from "fast-check";
 
 import { FR_REHEAT_FRACTION, FR_START_TEMPERATURE } from "../../src/constants.js";
@@ -24,6 +24,7 @@ import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingol
 import type { FruchtermanReingoldStats } from "../../src/types/layout.js";
 import type { FruchtermanReingoldOptions } from "../../src/types/options.js";
 import { asF32, paritySnapshot, pinMask, startPositions, xyzOf } from "../helpers/fa2-parity.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const NUM_RUNS = 200;
@@ -452,45 +453,51 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
                     fc.integer({ min: 0, max: n - 1 }),
                     async (seed, pin) => {
                         const options: FruchtermanReingoldOptions = { ...BASE, seed, fixed: pinMask(n, pin) };
-                        await withSim(ctx, options, async (sim) => {
-                            const positions = new Float32Array(3 * n).fill(Number.NaN);
-                            sim.load(s, positions);
-                            const before = xyzOf(asF32((await sim.inspect?.("positions")) ?? new Float32Array(0)), n);
-                            const run = sim.debugRunStages;
-                            const read = sim.inspect;
-                            if (run === undefined || read === undefined) {
-                                throw new Error("ctx.debug.inspect was not honoured");
-                            }
-                            await run.call(sim, "K5");
-                            const force = asF32(await read.call(sim, "force"));
-                            const after = xyzOf(asF32(await read.call(sim, "positions")), n);
-                            const temperature = temperatureOf(0);
-                            expect(temperature).toBe(Math.fround(FR_START_TEMPERATURE));
-                            const margin = temperature * 4 * ULP + POSITION_ROUNDING;
-                            for (let i = 0; i < n; i++) {
-                                const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
-                                const dp = Math.hypot(
-                                    after[3 * i] - before[3 * i],
-                                    after[3 * i + 1] - before[3 * i + 1],
+                        const once = (): Promise<{ before: F32; force: F32; after: F32 }> =>
+                            withSim(ctx, options, async (sim) => {
+                                const positions = new Float32Array(3 * n).fill(Number.NaN);
+                                sim.load(s, positions);
+                                const before = xyzOf(
+                                    asF32((await sim.inspect?.("positions")) ?? new Float32Array(0)),
+                                    n,
                                 );
-                                expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
-                                if (i === pin) {
-                                    expect(dp, `pinned node ${i} moved`).toBe(0);
-                                    continue;
+                                const run = sim.debugRunStages;
+                                const read = sim.inspect;
+                                if (run === undefined || read === undefined) {
+                                    throw new Error("ctx.debug.inspect was not honoured");
                                 }
-                                expect(dp, `node ${i}: |dp| <= t`).toBeLessThanOrEqual(temperature + margin);
-                                if (f < temperature) {
-                                    expect(
-                                        Math.abs(dp - f),
-                                        `node ${i}: |dp| == |F| below the cap`,
-                                    ).toBeLessThanOrEqual(f * 4 * ULP + POSITION_ROUNDING);
-                                } else {
-                                    expect(dp, `node ${i}: |dp| == t at the cap`).toBeGreaterThanOrEqual(
-                                        temperature - margin,
-                                    );
-                                }
+                                await run.call(sim, "K5");
+                                const force = asF32(await read.call(sim, "force"));
+                                const after = xyzOf(asF32(await read.call(sim, "positions")), n);
+                                return { before, force, after };
+                            });
+                        const first = await once();
+                        const { before, force, after } = await once();
+                        expectBitwiseEqual(first.before, before, "start positions, run 1 vs run 2");
+                        expectBitwiseEqual(first.force, force, "force, run 1 vs run 2");
+                        expectBitwiseEqual(first.after, after, "positions after K5, run 1 vs run 2");
+                        const temperature = temperatureOf(0);
+                        expect(temperature).toBe(Math.fround(FR_START_TEMPERATURE));
+                        const margin = temperature * 4 * ULP + POSITION_ROUNDING;
+                        for (let i = 0; i < n; i++) {
+                            const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
+                            const dp = Math.hypot(after[3 * i] - before[3 * i], after[3 * i + 1] - before[3 * i + 1]);
+                            expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
+                            if (i === pin) {
+                                expect(dp, `pinned node ${i} moved`).toBe(0);
+                                continue;
                             }
-                        });
+                            expect(dp, `node ${i}: |dp| <= t`).toBeLessThanOrEqual(temperature + margin);
+                            if (f < temperature) {
+                                expect(Math.abs(dp - f), `node ${i}: |dp| == |F| below the cap`).toBeLessThanOrEqual(
+                                    f * 4 * ULP + POSITION_ROUNDING,
+                                );
+                            } else {
+                                expect(dp, `node ${i}: |dp| == t at the cap`).toBeGreaterThanOrEqual(
+                                    temperature - margin,
+                                );
+                            }
+                        }
                     },
                 ),
                 { numRuns: NUM_RUNS },

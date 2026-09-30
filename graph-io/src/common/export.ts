@@ -421,7 +421,7 @@ function checkColumns(
             }
             continue;
         }
-        if (role === "open") {
+        if (role === "open" || role === "spellsOpen") {
             // The open bits are written by the format's own temporal syntax when it has one; the
             // column's u8 storage is never an attribute dtype, so no dtype note either way.
             if (extras.openIntervals !== true) {

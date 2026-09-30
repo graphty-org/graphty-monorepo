@@ -136,15 +136,20 @@ const nodeCount = graph.getNodeCount();
 const edgeCount = graph.getEdgeCount();
 ```
 
-Edge records are read through the session, by the edge's own id. Ask for the ids first:
+Records are read through the session: one at a time by id, or every one at once.
 
 ```typescript
 const session = element.session;
+const { nodes, edges } = await session.scope.resolve("graph");
 
-for (const id of (await session.scope.resolve("graph")).edges) {
-    const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
-}
+const record = session.data.edge(id); // { id, source, target, ...the file's own keys }
+const everyNode = session.data.nodes(); // [{ id, ...the file's own keys }, ...]
+const everyEdge = session.data.edges(); // [{ id, source, target, ... }, ...]
 ```
+
+`nodes()` and `edges()` walk the whole graph on each call, so read them when the graph changes
+rather than every frame. Every record is read-only; change the graph through `session.data`'s
+verbs, each of which is one undoable step.
 
 "The edge between two nodes" is plural, because a graph may hold more than one:
 
@@ -202,6 +207,23 @@ const degree = run.result.node("node1")?.value;
 
 // Put the algorithm's own suggested picture back, after a reader cleared it
 graph.applySuggestedStyles("degree");
+```
+
+### Sets
+
+A set is a named group of nodes and edges that a run, a layout, a style layer, the visibility
+filter, the selection and the camera all accept as their `scope`. See [Sets](./sets).
+
+```typescript
+const team = element.session.sets.create(
+    { kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" },
+    { name: "Team" },
+);
+
+await element.run("degree", {}, { scope: { set: team } });
+await element.setLayout("ngraph", {}, { scope: { set: team } });
+
+const { nodes, edges } = await element.session.scope.count({ set: team });
 ```
 
 ### Camera Control
@@ -323,6 +345,10 @@ const unsubscribe = graph.onAiStatusChange((status) => {
 graph.disableAiControl();
 ```
 
+One message is one undoable step. A command you register with
+`graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
+[Undo and History](./undo#commands-you-register-with-the-ai-assistant).
+
 ### Voice Input
 
 Enable voice commands:
@@ -360,15 +386,44 @@ graph.zoomToFit();
 
 ## Batch Operations
 
-For bulk updates, use batch operations to prevent intermediate renders:
+To make several changes one undoable step, make them through the `tx` the callback receives:
 
 ```typescript
-await graph.batchOperations(async () => {
-    await graph.addNodes(manyNodes);
-    await graph.addEdges(manyEdges);
-    // Layout runs once at the end
+await graph.batchOperations(async (tx) => {
+    await tx.data.addNodes(manyNodes);
+    await tx.data.addEdges(manyEdges);
+    await tx.layout.set("circular");
 });
 ```
+
+One undo takes the whole batch back, and a throw inside the callback rolls it back. A call on
+`graph` itself during the callback is a step of its own, and logs a warning naming the `tx` verb
+to use instead.
+
+## Undo and Redo
+
+Every change a project saves is one undoable step, and the session keeps the history:
+
+```typescript
+const session = graph.getSession();
+
+await session.undo();
+await session.redo();
+session.canUndo; // whether undo() would do anything
+session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
+
+// Several changes as one step, through the tx the callback receives
+await session.transaction("Recolour", async (tx) => {
+    await tx.styles.add(spec);
+    await tx.layout.set("circular");
+});
+
+// Any command in the vocabulary, as data
+await session.execute({ op: "visibility.context", show: false });
+```
+
+See [Undo and History](./undo) for what is and is not undoable, transactions, work still
+running, events and the memory budget.
 
 ## Event Handling
 

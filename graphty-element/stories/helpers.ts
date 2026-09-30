@@ -521,7 +521,7 @@ type RenderArg1 = Parameters<NonNullable<Meta["render"]>>[0];
 type RenderArg2 = Parameters<NonNullable<Meta["render"]>>[1];
 
 export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => {
-    const g = document.createElement("graphty-element") as Graphty;
+    const g = document.createElement("graphty-element");
 
     // Set runAlgorithmsOnLoad BEFORE setting data, because data loading triggers
     // the algorithm-run operation which checks this property

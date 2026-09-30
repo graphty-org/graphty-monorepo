@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, primMST } from "@graphty/algorithms";
+import { primMST } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { edgeEnds, toSnapshot } from "../utils/snapshot.js";
 import {
     COLORS,
     createAnimationControls,
@@ -41,23 +38,6 @@ interface PrimArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph with weights.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
-}
-
-/**
  * Animation step for Prim visualization.
  */
 interface PrimStep {
@@ -73,11 +53,12 @@ interface PrimStep {
  * Run Prim's algorithm and create animation steps.
  */
 function runPrimAndCreateSteps(generatedGraph: GeneratedGraph, startNode: number): PrimStep[] {
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
     const steps: PrimStep[] = [];
 
     // Run actual Prim's algorithm
-    const result = primMST(graph, startNode);
+    const mst = primMST(graph, { start: graph.ids.requireIndex(startNode) });
+    const result = { edges: edgeEnds(graph, mst.edges), totalWeight: mst.totalWeight };
 
     // Track which edges are in the MST result
     const mstEdges = new Set<string>();

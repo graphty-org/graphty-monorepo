@@ -18,13 +18,19 @@
  *
  * It fails when a shard names a package nx does not know: a renamed project would otherwise match
  * no affected name and its shards would silently never run on a pull request again.
+ *
+ * SHARDS is also exported: tools/run-tests.sh imports it to run a shard locally with the exact
+ * command CI runs, so the two cannot drift. Importing the file runs nothing.
  */
+
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
 const dirName = (project) => project.replace(/^@graphty\//, "");
 
-const SHARDS = [
+export const SHARDS = [
     // graph-format - single shard (Node.js, no browser)
     {
         shard: "graph-format",
@@ -124,6 +130,14 @@ const SHARDS = [
         "test-command": "pnpm exec nx run remote-logger:coverage",
         "needs-browser": true,
     },
+    // visual-review - single shard (Node.js, plus Chromium for the review page and capture tests;
+    // coverage counts trusted/lib, trusted/gate.mjs and capture/)
+    {
+        shard: "visual-review",
+        package: "visual-review",
+        "test-command": "pnpm exec nx run visual-review:coverage",
+        "needs-browser": true,
+    },
     // compact-mantine - single shard (uses Playwright for browser-based vitest)
     {
         shard: "compact-mantine",
@@ -145,10 +159,13 @@ const SHARDS = [
     },
     // graphty-element browser tests (5 shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
+    // The first shard then runs the timing benchmarks on a real graph, without coverage.
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default --coverage`,
+        "test-command":
+            `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default --coverage` +
+            (n === 1 ? " && pnpm exec vitest run --project=browser-bench --reporter=default" : ""),
         "needs-browser": true,
     })),
     // graphty-element storybook tests (4 shards)
@@ -167,21 +184,28 @@ const SHARDS = [
     })),
 ];
 
-const [allArg, affectedArg] = process.argv.slice(2);
-if (allArg === undefined || affectedArg === undefined) {
-    console.error("usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>");
-    process.exit(2);
-}
-const all = new Set(JSON.parse(allArg).map(dirName));
-const affected = JSON.parse(affectedArg).map(dirName);
+function main() {
+    const [allArg, affectedArg] = process.argv.slice(2);
+    if (allArg === undefined || affectedArg === undefined) {
+        console.error("usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>");
+        process.exit(2);
+    }
+    const all = new Set(JSON.parse(allArg).map(dirName));
+    const affected = JSON.parse(affectedArg).map(dirName);
 
-const unknown = [...new Set(SHARDS.map((s) => s.package))].filter((p) => !all.has(p));
-if (unknown.length > 0) {
-    console.error(`test shards name packages nx does not know: ${unknown.join(", ")}`);
-    process.exit(1);
+    const unknown = [...new Set(SHARDS.map((s) => s.package))].filter((p) => !all.has(p));
+    if (unknown.length > 0) {
+        console.error(`test shards name packages nx does not know: ${unknown.join(", ")}`);
+        process.exit(1);
+    }
+
+    const include = SHARDS.filter((s) => affected.includes(s.package));
+    console.log(`affected=${JSON.stringify(affected)}`);
+    console.log(`test-matrix=${JSON.stringify({ include })}`);
+    console.log(`test-count=${include.length}`);
 }
 
-const include = SHARDS.filter((s) => affected.includes(s.package));
-console.log(`affected=${JSON.stringify(affected)}`);
-console.log(`test-matrix=${JSON.stringify({ include })}`);
-console.log(`test-count=${include.length}`);
+// Run only as the entry point, not when imported.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    main();
+}

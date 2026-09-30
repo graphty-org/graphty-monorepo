@@ -259,3 +259,56 @@ export const BEAMER_BETA = 24;
 export const SSSP_DELTA_FACTOR = 32;
 /** The bit pattern of +Infinity, the unreached sentinel of `dist` (P8 PD-9); interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
 export const F32_INF_BITS = 0x7f800000;
+/** Design 8.4 "k planned from maxBufferSize and a 25% budget": the share of `maxBufferSize` one betweenness source batch may hold. WebGPU exposes no device memory size, so this is a fraction of the largest buffer, not a memory measurement. */
+export const BC_BATCH_BUDGET_FRACTION = 0.25;
+/** Design 10.1's betweenness column: the most sources one betweenness batch runs together. */
+export const BC_MAX_BATCH = 64;
+/** Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)`. The design names the rule and no value; 2 is unmeasured and a benchmark run re-fixes it. */
+export const BC_EDGE_PARALLEL_GAMMA = 2;
+/** Backward-pass levels recorded per submit: each level is one dispatch with its own parameter record, so this bounds the uniform ring. */
+export const BC_BACKWARD_LEVELS_PER_SUBMIT = 64;
+/**
+ * Design 8.7: all-pairs shortest paths is a blocked Floyd-Warshall over `APSP_TILE x APSP_TILE` tiles. One tile of
+ * f32 is 4 KiB of workgroup memory and a workgroup stages at most two (8 KiB), inside the 16 KiB
+ * `maxComputeWorkgroupStorageSize` every WebGPU device reports. Interpolated into the prelude as `APSP_TILE`.
+ */
+export const APSP_TILE = 32;
+/**
+ * The blocked sweep records `3 x ceil(n / APSP_TILE)` dispatches (543 at the 5,792-node ceiling of a 128 MiB binding,
+ * 2,175 at a 2 GiB binding's 23,170, 3,072 at a 4 GiB binding's 32,767); above this many the driver splits the sweep
+ * into further submits. No binding offered today reaches it, so every sweep is one submit; the cap only stops a
+ * device with a binding above 4 GiB (`maxStorageBufferBindingSize` is a GPUSize64) from building one unbounded
+ * command buffer.
+ */
+export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
+/**
+ * Label propagation (design 8.6): passes recorded per submit, with ONE readback of the per-pass changed counts at the
+ * end of the submit. A readback costs about 2 ms in Chromium whatever it carries, so at one readback per pass a
+ * 10,000-node call spends more on synchronisation than the CPU spends on the whole algorithm
+ * (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md: 101 passes x 2 ms, 0.79x); eight passes per
+ * submit is the floor that decision sets. Even, so every submit holds as many descending as ascending passes of the
+ * alternating direction rule.
+ */
+export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
+/**
+ * Boruvka's minimum spanning tree (design 8.5): rounds recorded per submit, with one readback of the counters block
+ * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
+ * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
+ * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
+ * Declared ahead of the minimum-spanning-tree driver, which reads it when it lands.
+ */
+export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
+/** The per-row group-by-key (design 8.6): a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
+export const GROUP_ROW_THREAD_MAX = 32;
+/** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */
+export const GROUP_ROW_THREAD_LIMIT = 128;
+/**
+ * The most parallel arcs the simple symmetric graph build merges into one weighted arc. The merge sums each run of
+ * parallel arcs in one invocation, and llvmpipe stops every loop of an invocation after 65,535 steps in total and
+ * then quietly returns a short sum; a weighted build whose pair repeats more often is refused on every adapter.
+ */
+export const PARALLEL_MERGE_LIMIT = 65_000;
+/** The per-row group-by-key (design 8.6): the global open-addressing region of a workgroup-tier row holds this many slots per arc. */
+export const GROUP_HASH_LOAD_FACTOR = 2;
+/** Triangle counting (design 8.5): intersect two oriented rows by merge, but binary-search each element of the shorter row into the longer when their lengths differ by more than this factor. */
+export const TRIANGLE_BINARY_SEARCH_RATIO = 32;

@@ -1,8 +1,10 @@
-import { Edge as LayoutEdge, Node as LayoutNode, spiralLayout } from "@graphty/layout";
+import type { F32 } from "@graphty/graph-format";
+import { spiral } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Spiral Layout
@@ -63,11 +65,13 @@ type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
 /**
  * Spiral layout engine that arranges nodes along a spiral path
  */
-export class SpiralLayout extends SimpleLayoutEngine {
+export class SpiralLayout extends SnapshotLayoutEngine {
     static type = "spiral";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
-    scalingFactor = 80;
+    /** Layout units to scene units. */
+    private static readonly scale = 80;
+    protected readonly dimensions: 2 | 3;
     config: SpiralLayoutConfigType;
 
     /**
@@ -77,6 +81,7 @@ export class SpiralLayout extends SimpleLayoutEngine {
     constructor(opts: SpiralLayoutOpts) {
         super(opts);
         this.config = SpiralLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -94,20 +99,28 @@ export class SpiralLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions along a spiral path
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = spiralLayout(
-            { nodes, edges },
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-            this.config.resolution,
-            this.config.equidistant,
+    /**
+     * Compute node positions along a spiral path
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            spiral(input.graph, {
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+                resolution: this.config.resolution,
+                equidistant: this.config.equidistant,
+            }),
+            SpiralLayout.scale,
         );
     }
 }

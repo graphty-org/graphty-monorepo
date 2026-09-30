@@ -4,19 +4,16 @@
  * Demonstrates Floyd-Warshall's all-pairs shortest path algorithm with
  * step-by-step animation showing distance matrix updates.
  *
- * IMPORTANT: This story uses the actual floydWarshall implementation
+ * IMPORTANT: This story uses the actual allPairsShortestPath implementation
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { floydWarshall, Graph } from "@graphty/algorithms";
+import { allPairsShortestPath } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
 import {
     createAnimationControls,
     createStatusPanel,
@@ -39,23 +36,6 @@ interface FloydWarshallArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph with weights.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
-}
-
-/**
  * Animation step for Floyd-Warshall visualization.
  */
 interface FloydWarshallStep {
@@ -75,11 +55,19 @@ function runFloydWarshallAndCreateSteps(generatedGraph: GeneratedGraph): {
     steps: FloydWarshallStep[];
     finalDistances: Map<unknown, Map<unknown, number>>;
 } {
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
     const steps: FloydWarshallStep[] = [];
 
     // Run actual algorithm - use result for final distances
-    const algorithmResult = floydWarshall(graph);
+    const apsp = allPairsShortestPath(graph, { method: "floyd-warshall" });
+    const algorithmResult = { distances: new Map<unknown, Map<unknown, number>>() };
+    for (let i = 0; i < apsp.n; i++) {
+        const row = new Map<unknown, number>();
+        for (let j = 0; j < apsp.n; j++) {
+            row.set(graph.ids.idOf(j), apsp.dist[i * apsp.n + j]);
+        }
+        algorithmResult.distances.set(graph.ids.idOf(i), row);
+    }
 
     const nodeIds = generatedGraph.nodes.map((n) => n.id);
     const n = nodeIds.length;
@@ -116,7 +104,9 @@ function runFloydWarshallAndCreateSteps(generatedGraph: GeneratedGraph): {
 
         for (let i = 0; i < n; i++) {
             for (let j = 0; j < n; j++) {
-                if (i === j || i === k || j === k) {continue;}
+                if (i === j || i === k || j === k) {
+                    continue;
+                }
 
                 const throughK = dist[i][k] + dist[k][j];
                 const direct = dist[i][j];
@@ -342,11 +332,15 @@ function createFloydWarshallStory(args: FloydWarshallArgs): HTMLElement {
      * Play animation continuously.
      */
     function play(): void {
-        if (isPlaying) {return;}
+        if (isPlaying) {
+            return;
+        }
         isPlaying = true;
 
         function tick(): void {
-            if (!isPlaying) {return;}
+            if (!isPlaying) {
+                return;
+            }
 
             const hasMore = executeStep();
             if (hasMore) {
@@ -440,7 +434,7 @@ type Story = StoryObj<FloydWarshallArgs>;
 /**
  * Floyd-Warshall all-pairs shortest path algorithm story with interactive controls.
  *
- * This story uses the actual `floydWarshall()` function from @graphty/algorithms.
+ * This story uses the actual `allPairsShortestPath()` function from @graphty/algorithms.
  * Watch as the algorithm updates the distance matrix using intermediate vertices.
  */
 export const FloydWarshall: Story = {

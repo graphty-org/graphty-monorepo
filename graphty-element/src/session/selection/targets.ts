@@ -30,7 +30,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
@@ -62,8 +62,7 @@ const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
  */
 export type SelectionTextMode = "substring" | "exact" | "regex" | "attribute";
 
-/** Which way a neighbourhood target follows an edge. */
-export type SelectionDirection = "in" | "out" | "all";
+export type { SelectionDirection } from "../../catalog/types";
 
 // ---------------------------------------------------------------------------------------------
 // The target grammar
@@ -108,7 +107,7 @@ export type SelectionTarget =
     | ElementIdTarget
     | NeighborhoodTarget
     /** Every element a predicate matches, narrowed to a scope when one is named. */
-    | { readonly where: Query; readonly scope?: Scope }
+    | { readonly where: Query; readonly scope?: ScopeInput }
     /**
      * Every node a text search finds, narrowed to a scope when one is named.
      *
@@ -117,11 +116,11 @@ export type SelectionTarget =
      * the node's id and its attribute values. See {@link SelectionTextMode}. A leading `=` makes
      * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
      */
-    | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: Scope }
+    | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: ScopeInput }
     /** A pasted list of ids, which may name nodes, edges, or nothing at all. */
     | { readonly ids: readonly string[] }
-    /** Everything a scope covers. */
-    | { readonly scope: Scope }
+    /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
+    | { readonly scope: ScopeInput }
     /**
      * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
      * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
@@ -303,7 +302,7 @@ function addIds<TId>(mask: ElementMask<TId>, ids: Iterable<TId>): void {
  */
 function narrowToScope(
     context: TargetContext,
-    scope: Scope | undefined,
+    scope: ScopeInput | undefined,
     nodes: ElementMask<NodeId>,
     edges: ElementMask<EdgeId>,
 ): void {
@@ -315,12 +314,23 @@ function narrowToScope(
         throw unsupported("a scope", "a scope resolver");
     }
 
-    const resolved = context.scope.resolveNow(scope);
+    const resolved = context.scope.resolveNow(admitted(context.scope, scope));
     const inScope = emptyMasks(context);
     addIds(inScope.nodes, resolved.nodes);
     addIds(inScope.edges, resolved.edges);
     nodes.intersect(inScope.nodes);
     edges.intersect(inScope.edges);
+}
+
+/**
+ * A selection target's scope as a write door takes it: session edge ids to stable members, set
+ * ids checked as issued, validated.
+ * @param resolver - The scope resolver.
+ * @param scope - The scope as given.
+ * @returns The canonical scope.
+ */
+function admitted(resolver: ScopeResolver, scope: ScopeInput): Scope {
+    return resolver.canonical(resolver.admit(scope));
 }
 
 /**
@@ -712,7 +722,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
         }
 
         const { nodes, edges } = emptyMasks(context);
-        const resolved = context.scope.resolveNow(target.scope);
+        const resolved = context.scope.resolveNow(admitted(context.scope, target.scope));
         addIds(nodes, resolved.nodes);
         addIds(edges, resolved.edges);
 

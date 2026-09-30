@@ -1,0 +1,378 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/drafts/common/v1.json",
+    "title": "graphty documents: shared definitions, version 1",
+    "description": "Definitions every graphty document schema refers to. Behaviour is specified in README.md.",
+    "$defs": {
+        "fingerprint": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*:[0-9a-f]+$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "generator": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "extensions": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^(graphty|[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+)$"
+            }
+        },
+        "features": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            },
+            "uniqueItems": true
+        },
+        "httpsUrl": {
+            "type": "string",
+            "pattern": "^https://",
+            "maxLength": 2048
+        },
+        "fieldPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\u0000-\\u001f]+$",
+            "description": "README, Paths rule 3: a column key written as the column is named (dots are part of the key); never an expression.",
+            "not": {
+                "enum": ["__proto__", "constructor", "prototype"]
+            }
+        },
+        "expression": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "A JMESPath expression evaluated by graphty-element; at most 1024 characters and 32 levels of nesting."
+        },
+        "runId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "nodeId": {
+            "type": ["string", "number"]
+        },
+        "edgeMember": {
+            "type": "object",
+            "description": "graphty-element's EdgeMember: source and target plus exactly one of id, or ordinal with among. key is reserved by the element.",
+            "required": ["source", "target"],
+            "properties": {
+                "source": {
+                    "$ref": "#/$defs/nodeId"
+                },
+                "target": {
+                    "$ref": "#/$defs/nodeId"
+                },
+                "id": {
+                    "type": ["string", "number"]
+                },
+                "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "among": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "not": {
+                "required": ["key"]
+            },
+            "oneOf": [
+                {
+                    "required": ["id"],
+                    "not": {
+                        "anyOf": [
+                            {
+                                "required": ["ordinal"]
+                            },
+                            {
+                                "required": ["among"]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "required": ["ordinal", "among"],
+                    "not": {
+                        "required": ["id"]
+                    }
+                }
+            ]
+        },
+        "metadata": {
+            "type": "object",
+            "description": "Shared descriptive metadata allowed on every document and the envelope (README, Extension data and shared metadata).",
+            "properties": {
+                "$schema": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 65536
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 65536
+                },
+                "modifiedAt": {
+                    "$ref": "#/$defs/timestamp"
+                },
+                "generator": {
+                    "$ref": "#/$defs/generator"
+                },
+                "fingerprint": {
+                    "$ref": "#/$defs/fingerprint"
+                },
+                "features": {
+                    "$ref": "#/$defs/features"
+                },
+                "authors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["name"],
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "url": {
+                                "$ref": "#/$defs/httpsUrl"
+                            },
+                            "orcid": {
+                                "type": "string",
+                                "pattern": "^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$"
+                            }
+                        }
+                    }
+                },
+                "license": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An SPDX licence expression; the strict profile's validator checks its syntax."
+                },
+                "citation": {
+                    "type": "string"
+                },
+                "doi": {
+                    "type": "string",
+                    "pattern": "^10\\."
+                },
+                "derivedFrom": {
+                    "type": "object",
+                    "required": ["kind"],
+                    "properties": {
+                        "kind": {
+                            "type": "string"
+                        },
+                        "id": {
+                            "type": "string"
+                        },
+                        "version": {
+                            "type": "string"
+                        },
+                        "digest": {
+                            "$ref": "#/$defs/digest"
+                        },
+                        "authors": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["name"],
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "url": {
+                                        "$ref": "#/$defs/httpsUrl"
+                                    },
+                                    "orcid": {
+                                        "type": "string",
+                                        "pattern": "^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$"
+                                    }
+                                }
+                            }
+                        },
+                        "license": {
+                            "type": "string"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/httpsUrl"
+                        },
+                        "doi": {
+                            "type": "string",
+                            "pattern": "^10\\."
+                        }
+                    }
+                },
+                "handling": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "required": ["marking"],
+                            "properties": {
+                                "marking": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "note": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["marking"],
+                                "properties": {
+                                    "marking": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "note": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "description": "A list of handling markings; a single object is read as a list of one."
+                },
+                "extensions": {
+                    "$ref": "#/$defs/extensions"
+                },
+                "createdAt": {
+                    "$ref": "#/$defs/timestamp"
+                }
+            }
+        },
+        "attributeSlot": {
+            "type": "object",
+            "required": ["slot", "element", "name"],
+            "properties": {
+                "slot": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "element": {
+                    "enum": ["node", "edge"]
+                },
+                "name": {
+                    "$ref": "#/$defs/fieldPath"
+                },
+                "nameHints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/fieldPath"
+                    }
+                },
+                "level": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "categorical, ordinal, quantitative, temporal, identifier; an open enumeration"
+                },
+                "role": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "weightRole": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "distance or similarity; an open enumeration. A capacity is the separate role capacity."
+                },
+                "signed": {
+                    "type": "boolean"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "features": {
+                    "$ref": "#/$defs/features"
+                }
+            }
+        },
+        "filter": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "envelope.md, The active filter: predicates over the expression root.",
+            "properties": {
+                "nodes": {
+                    "$ref": "#/$defs/expression"
+                },
+                "edges": {
+                    "$ref": "#/$defs/expression"
+                },
+                "component": {
+                    "const": "largest",
+                    "description": "Keep only the largest weakly connected component of what the predicates keep (recipe.md, Scopes, for the tie rule)."
+                }
+            }
+        },
+        "dataUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^(https?://[^\\s\\\\]+|(?!\\.\\.?(/|$))[A-Za-z0-9._-]+(/(?!\\.\\.?(/|$))[A-Za-z0-9._-]+)*)$",
+            "description": "envelope.md, Fetching: an absolute https: URL (http: only when the caller allows it) with no whitespace or backslash, or a narrow relative reference: segments of letters, digits, dot, underscore and hyphen, none . or .., joined by /."
+        },
+        "importChain": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["document", "digest"],
+                "properties": {
+                    "document": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "digest": {
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/digest"
+                    },
+                    "at": {
+                        "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/timestamp"
+                    },
+                    "by": {
+                        "type": "string",
+                        "description": "The receiving user, supplied by the reader's application; never taken from the file."
+                    },
+                    "installation": {
+                        "type": "string",
+                        "description": "The reader installation that appended the entry."
+                    },
+                    "observed": {
+                        "type": "string",
+                        "description": "The file name or origin the reader opened the document from."
+                    }
+                }
+            },
+            "description": "Import chain: each reader appends its own entry; entries found in a file are that file's claim (README, Trust rule 6)."
+        },
+        "iri": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^(https?|urn):[^\\s]+$",
+            "description": "An absolute IRI naming a concept (http, https or urn). An identifier, never fetched and never rendered as a link."
+        }
+    }
+}

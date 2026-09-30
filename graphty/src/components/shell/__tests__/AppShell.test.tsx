@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
@@ -16,19 +17,24 @@ import { ACTIVITY_RAIL_WIDTH, NARROW_BREAKPOINT, STATUS_BAR_HEIGHT, TOP_BAR_HEIG
 const MANTINE_MODAL_Z_INDEX = 200;
 import {
     type AccelerationStatus,
+    createGraphSession,
+    type DataSourceInput,
+    type GraphSession,
     type GraphStatistics,
-    GraphtyError,
     type Histogram,
+    type ImportOptions,
     type Layer,
     type LayerSpec,
     type RunId,
     type RunResult,
 } from "@graphty/graphty-element/session";
 
+import { LAYOUT_METADATA } from "../../../data/layoutMetadata";
 import { createFakeSession, type FakeSession } from "../../../test/fakeSession";
 import { ACCELERATION_SETTINGS_STORAGE_KEY } from "../defaults/accelerationSettings";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID } from "../defaults/styleDescriptors";
-import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
+import { SHELL_LAYOUT_STORAGE_KEY } from "../shellLayoutStorage";
+import { LAYOUT_MENU_LABEL } from "../statusbar/LayoutChipMenu";
 
 /**
  * Renders the shell with the store pinned, so a board decides its own breakpoint and
@@ -37,12 +43,7 @@ import { SHELL_LAYOUT_STORAGE_KEY } from "../ShellContext";
  * @returns the render result.
  */
 function renderShell(shellWidth = 1440) {
-    const result = render(<AppShell initialShellWidth={shellWidth} measureViewport={false} persist={false} />);
-
-    // The element's load methods answer only when a board says how the load ended.
-    captureLoads(result.container);
-
-    return result;
+    return render(<AppShell initialShellWidth={shellWidth} measureViewport={false} persist={false} />);
 }
 
 /**
@@ -96,38 +97,82 @@ function reportSelection(container: HTMLElement, nodeId: string | number | null)
 }
 
 /**
+ * Announces that the mounted host has "upgraded": what `customElements.whenDefined` would
+ * resolve with once the element's module defined the tag. Replaced for every board.
+ */
+let announceUpgrade: () => void = () => undefined;
+
+beforeEach(() => {
+    let resolve: () => void = () => undefined;
+    const upgraded = new Promise<CustomElementConstructor>((done) => {
+        resolve = () => {
+            done(HTMLElement);
+        };
+    });
+    announceUpgrade = resolve;
+    const whenDefined = customElements.whenDefined.bind(customElements);
+    vi.spyOn(customElements, "whenDefined").mockImplementation((name) =>
+        name === "graphty-element" ? upgraded : whenDefined(name),
+    );
+});
+
+/**
+ * Stands the element's session, and the element members the shell calls, on the mounted host.
+ *
+ * The host is not upgraded in these boards (nothing imports the element's module), so each is
+ * an own property: `session`, and the camera, selection and XR members the shell calls on the
+ * element itself. Standing them is the upgrade, so it is announced the way the platform would.
+ * @param element - the mounted `graphty-element`.
+ * @param session - the stand-in session.
+ * @param members - element members beyond the no-op defaults.
+ */
+function standElement(element: Element, session: GraphSession, members: Readonly<Record<string, unknown>> = {}): void {
+    const defaults: Record<string, unknown> = {
+        setXRConfig: vi.fn(),
+        selectNode: vi.fn(() => true),
+        deselectNode: vi.fn(),
+        zoomToFit: vi.fn(),
+        zoomStep: vi.fn(() => Promise.resolve()),
+        zoomToSelection: vi.fn(() => Promise.resolve()),
+        resetCamera: vi.fn(() => Promise.resolve()),
+        loadCameraPreset: vi.fn(() => Promise.resolve()),
+    };
+
+    for (const [name, value] of Object.entries({ ...defaults, ...members, session })) {
+        Object.defineProperty(element, name, { configurable: true, value });
+    }
+
+    announceUpgrade();
+}
+
+/**
  * Stands a graph on the mounted host and lets the shell read its style stack.
  *
- * `Graphty`'s handle reads `element.graph` through a getter every time it is asked, and its
- * style effect subscribes to `session.on("style:changed")`, so a graph put on the element here
- * reaches the shell by the same route the real element's does -- which is what makes this a
- * test of the shell's own upward channel rather than of a mock.
+ * `Graphty`'s handle reads `element.session` every time it is asked, and its style effect
+ * subscribes to `session.on("style:changed")`, so a session put on the element here reaches the
+ * shell by the same route the real element's does -- which is what makes this a test of the
+ * shell's own upward channel rather than of a mock.
  * @param container - the render result's container.
  * @param names - the layers the stack holds beyond the element's own two, bottom first.
+ * @param importer - what a load does; see {@link elementImporter}.
  * @returns the fake session, to assert what the shell did to the stack.
  */
-function installGraph(container: HTMLElement, names: readonly string[]): FakeSession {
+function installGraph(
+    container: HTMLElement,
+    names: readonly string[],
+    importer?: (source: DataSourceInput, options?: ImportOptions) => Promise<void>,
+): FakeSession {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
 
-    const fake = createFakeSession();
+    const fake = createFakeSession(importer === undefined ? {} : { importer });
 
     for (const name of names) {
         fake.seed({ name, target: "node", selector: { match: "everything" } });
     }
 
-    // `graph` is a getter on the element's prototype, so the stand-in is an own
-    // property on this instance rather than an assignment, which the getter refuses.
-    Object.defineProperty(element, "graph", {
-        configurable: true,
-        value: {
-            runAlgorithm: () => Promise.resolve(),
-            getNodes: () => [],
-            getDataManager: () => ({}),
-            getSession: () => fake.session,
-        },
-    });
+    standElement(element as Element, fake.session);
 
     return fake;
 }
@@ -137,21 +182,20 @@ function installGraph(container: HTMLElement, names: readonly string[]): FakeSes
 /* -------------------------------------------------------------------------- */
 
 /** How many microtask turns a flush walks: enough for the run-then-read-then-paint chain. */
-const FLUSH_TURNS = 10;
+const FLUSH_TURNS = 30;
 
 /**
  * How long a flush waits for the wrapper to find the element's session.
  *
- * `Graphty` subscribes to `session.on("style:changed")`, and the session only exists once the
- * element has finished coming up -- which the element publishes no event for, so the wrapper
- * looks again on a timer. A board that installs a stand-in graph after the shell has mounted
- * is in exactly that state, so every flush waits one interval rather than each board knowing
- * about the timer.
+ * `Graphty` subscribes to `session.on("style:changed")` once the tag has upgraded, which it
+ * learns from `customElements.whenDefined`. A board that installs a stand-in graph after the
+ * shell has mounted announces the upgrade then, and every flush waits long enough for the
+ * wrapper and the shell to have re-rendered with the session.
  */
 const SESSION_BIND_MS = 80;
 
 /**
- * Lets the wrapper's session poll fire, so a graph installed after mount is seen.
+ * Lets the wrapper bind the session announced by a graph installed after mount.
  */
 async function settleSession(): Promise<void> {
     await act(async () => {
@@ -160,9 +204,6 @@ async function settleSession(): Promise<void> {
         });
     });
 }
-
-/** How many task turns a dropped file's read is given before the board asserts. */
-const FILE_READ_TURNS = 3;
 
 /**
  * Lets the load path's promise chain settle inside `act`.
@@ -198,9 +239,7 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
     expect(element).not.toBeNull();
 
     await act(async () => {
-        // The real element emits `data-loaded` and THEN resolves the load's promise.
         element?.dispatchEvent(new CustomEvent("data-loaded", { bubbles: true, composed: true }));
-        settleLoads(container);
 
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
@@ -210,17 +249,36 @@ async function reportLoadComplete(container: HTMLElement): Promise<void> {
 }
 
 /**
- * Reports the load FAILED, as graphty-element does when a parse or a fetch throws: the
- * load's own promise rejects with the element's error.
+ * Reports the load FAILED, as graphty-element does when a parse or a fetch throws.
+ *
+ * The element emits exactly one `data-loading-error` when a load throws, as a bubbling,
+ * composed CustomEvent, and the load's own promise rejects with the same error. The stand-in
+ * session's importer ({@link elementImporter}) rejects the load it is holding on this event,
+ * so the shell hears the failure the way it hears it from the real element: through the
+ * transaction the load is.
  * @param container - the render result's container.
- * @param message - what the element's `Error` says, the element's own error, or undefined for
- * a rejection that says nothing at all.
+ * @param message - what the element's `Error` says, or undefined for an error that says
+ * nothing at all.
  */
-async function reportLoadingError(container: HTMLElement, message?: string | Error): Promise<void> {
+async function reportLoadingError(container: HTMLElement, message?: string): Promise<void> {
+    const element = container.querySelector("graphty-element");
+
+    expect(element).not.toBeNull();
+
     await act(async () => {
-        settleLoads(container, {
-            reason: message === undefined || message instanceof Error ? message : new Error(message),
-        });
+        element?.dispatchEvent(
+            new CustomEvent("data-loading-error", {
+                bubbles: true,
+                composed: true,
+                detail: {
+                    type: "data-loading-error",
+                    error: message === undefined ? undefined : new Error(message),
+                    context: "parsing",
+                    format: "json",
+                    canContinue: false,
+                },
+            }),
+        );
 
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
@@ -278,24 +336,33 @@ function fileList(file: File): FileList {
  */
 async function dropFile(zone: HTMLElement, file: File): Promise<void> {
     const drop = new Event("drop", { bubbles: true, cancelable: true });
+    const element = document.querySelector("graphty-element");
+    const loadsBefore = element === null ? 0 : (recordedLoads.get(element)?.length ?? 0);
 
     Object.defineProperty(drop, "dataTransfer", { value: { files: fileList(file) } });
 
-    await act(async () => {
+    act(() => {
         zone.dispatchEvent(drop);
+    });
 
-        /* Waited out as a TASK, not as a handful of microtask turns. `loadFromFile` reads
-           the file (`await file.text()`), which is a real asynchronous read in the
-           browser, and only then assigns the element's data source. A board that ran on
-           microtasks alone told the element its data had failed to parse before the data
-           had reached it -- an order the application cannot produce, and one that hid a
-           `finishLoad` landing AFTER the failure it was supposed to precede. */
-        for (let turn = 0; turn < FILE_READ_TURNS; turn += 1) {
-            await new Promise((resolve) => {
-                window.setTimeout(resolve, 0);
-            });
-        }
+    /* Waited for, not counted out. The shell reads the file (`await file.text()`), a real
+       asynchronous read in the browser, before it hands the source to the session, so the drop
+       has landed once the load has reached the session -- or once the shell has refused it or
+       reported it failed, for a file that never gets that far. A board that reported the
+       element's answer before the load had reached the session would be answering a load
+       nobody had asked for yet. */
+    await waitFor(() => {
+        const reached = element !== null && (recordedLoads.get(element)?.length ?? 0) > loadsBefore;
+        const refused =
+            document.querySelector("[data-welcome-error]") !== null ||
+            document.querySelector("[data-status-float]") !== null;
+        // A drop on a drawn dataset asks before it replaces it, and loads nothing until answered.
+        const asked = screen.queryByRole("dialog", { name: "Replace the current graph?" }) !== null;
 
+        expect(reached || refused || asked).toBe(true);
+    });
+
+    await act(async () => {
         for (let turn = 0; turn < FLUSH_TURNS; turn += 1) {
             await Promise.resolve();
         }
@@ -320,105 +387,89 @@ function statusToast(container: HTMLElement): HTMLElement | null {
     return container.querySelector<HTMLElement>("[data-status-float]");
 }
 
-/** One load the shell asked the element for, as the element received it. */
+/** One `session.data.import` the shell made, as the stand-in session received it. */
 interface RecordedLoad {
-    /** The format the shell named, e.g. "json" or "gml"; undefined to have the element detect it. */
+    /** The data source type the shell named, e.g. "json" or "gml". */
     readonly dataSource: string | undefined;
-    /** What was loaded: `{data}` for an inline load, `{url}` for a served one, `{file}` for a file. */
+    /** Its config: `{data}` for an inline load, `{url}` for a served one. */
     readonly config: unknown;
-    /** Whether the shell asked the element to replace the graph. */
-    readonly replace: boolean | undefined;
+    /** Whether it replaced the graph or added to it. */
+    readonly mode: ImportOptions["mode"];
 }
 
-/** The loads an element stand-in has been asked for, and the ones still waiting for an answer. */
-interface LoadStub {
-    readonly loads: RecordedLoad[];
-    readonly waiting: {
-        readonly replace: boolean;
-        readonly resolve: (value: { loadId: number }) => void;
-        readonly reject: (error: unknown) => void;
-    }[];
-    /** What the stand-in does when a REPLACING load arrives: the element swaps the dataset then. */
-    onReplaced: () => void;
-}
-
-const loadStubs = new WeakMap<Element, LoadStub>();
+/** The loads each mounted element's stand-in session was asked for, in order. */
+const recordedLoads = new WeakMap<Element, RecordedLoad[]>();
 
 /**
- * Stands in for the element's three awaited load methods, WITHOUT letting the real element load.
+ * What a stand-in session's `data.import` does: records the load, and settles when the
+ * element says what became of it.
  *
- * The shell loads through `loadFromUrl`, `loadFromFile` and `addDataFromSource`, each of which
- * resolves once the element has the data and rejects when it does not. Each call is recorded and
- * left pending until the board says how it ended: {@link reportLoadComplete} resolves every
- * waiting load, {@link reportLoadingError} rejects them -- the two answers the real element gives.
- * Idempotent, so a board may call it and {@link installNovicePathGraph} may call it too.
+ * The element publishes `data-loaded` after the last chunk and `data-loading-error` when the
+ * data did not parse or could not be fetched, both as DOM events; a board says which with
+ * {@link reportLoadComplete} or {@link reportLoadingError}. So the load arrives, or fails,
+ * exactly when the board says it did, and not a turn earlier.
+ * @param element - the mounted `graphty-element`.
+ * @param onReplace - what a replacing load throws away in the stand-in.
+ * @returns the importer.
+ */
+function elementImporter(
+    element: Element,
+    onReplace?: () => void,
+): (source: DataSourceInput, options?: ImportOptions) => Promise<void> {
+    return (source, options) => {
+        recordedLoads.get(element)?.push({ dataSource: source.type, config: source.config, mode: options?.mode });
+
+        if (options?.mode !== "merge") {
+            onReplace?.();
+        }
+
+        return new Promise<void>((resolve, reject) => {
+            const stop = (): void => {
+                element.removeEventListener("data-loaded", onLoaded);
+                element.removeEventListener("data-loading-error", onError);
+            };
+            const onLoaded = (): void => {
+                stop();
+                resolve();
+            };
+            const onError = (event: Event): void => {
+                const { detail } = event as CustomEvent<{ error?: unknown; canContinue?: boolean } | undefined>;
+
+                if (detail?.canContinue === true) {
+                    return;
+                }
+
+                stop();
+                reject(detail?.error instanceof Error ? detail.error : new Error(""));
+            };
+
+            element.addEventListener("data-loaded", onLoaded);
+            element.addEventListener("data-loading-error", onError);
+        });
+    };
+}
+
+/**
+ * Stands a session on the mounted host that records every load the shell makes, WITHOUT
+ * letting the real element load anything.
+ *
+ * The shell loads through `session.data.import`, inside one transaction per load. A board
+ * that installs {@link installNovicePathGraph} afterwards replaces this session with one
+ * that answers the whole novice path; its loads land in the same list.
  * @param container - the render result's container.
  * @returns the loads, in the order the shell issued them.
  */
-function captureLoads(container: HTMLElement): RecordedLoad[] {
+function captureLoads(container: HTMLElement): readonly RecordedLoad[] {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
 
-    const existing = element === null ? undefined : loadStubs.get(element);
+    const loads: RecordedLoad[] = [];
 
-    if (existing !== undefined) {
-        return existing.loads;
-    }
+    recordedLoads.set(element as Element, loads);
+    installGraph(container, [], elementImporter(element as Element));
 
-    const stub: LoadStub = { loads: [], waiting: [], onReplaced: () => undefined };
-
-    const record = (load: RecordedLoad): Promise<{ loadId: number }> => {
-        stub.loads.push(load);
-
-        return new Promise((resolve, reject) => {
-            stub.waiting.push({ replace: load.replace === true, resolve, reject });
-        });
-    };
-
-    Object.defineProperty(element, "addDataFromSource", {
-        configurable: true,
-        value: (type: string, config: unknown, options?: { replace?: boolean }) =>
-            record({ dataSource: type, config, replace: options?.replace }),
-    });
-    Object.defineProperty(element, "loadFromUrl", {
-        configurable: true,
-        value: (url: string, options?: { format?: string; replace?: boolean }) =>
-            record({ dataSource: options?.format, config: { url }, replace: options?.replace }),
-    });
-    Object.defineProperty(element, "loadFromFile", {
-        configurable: true,
-        value: (file: File, options?: { format?: string; replace?: boolean }) =>
-            record({ dataSource: options?.format, config: { file }, replace: options?.replace }),
-    });
-
-    if (element !== null) {
-        loadStubs.set(element, stub);
-    }
-
-    return stub.loads;
-}
-
-/**
- * Answers every load the element stand-in is still holding.
- * @param container - the render result's container.
- * @param error - the rejection, or undefined to resolve them.
- */
-function settleLoads(container: HTMLElement, error?: { readonly reason: unknown }): void {
-    const element = container.querySelector("graphty-element");
-    const stub = element === null ? undefined : loadStubs.get(element);
-
-    for (const waiting of stub?.waiting.splice(0) ?? []) {
-        if (error === undefined) {
-            if (waiting.replace) {
-                stub?.onReplaced();
-            }
-
-            waiting.resolve({ loadId: 1 });
-        } else {
-            waiting.reject(error.reason);
-        }
-    }
+    return loads;
 }
 
 /**
@@ -589,9 +640,9 @@ interface StubGraph {
     /** Every algorithm run the shell asked for, in order. */
     readonly runAlgorithm: ReturnType<typeof vi.fn>;
     /** Every canvas selection the shell asked for, which is the spine's last hop. */
-    readonly selectNode: ReturnType<typeof vi.fn>;
+    readonly selectNode: Mock<(nodeId: string | number) => boolean>;
     /** Every clear of it. The element has to be told, or its own selection outlives the shell's. */
-    readonly deselectNode: ReturnType<typeof vi.fn>;
+    readonly deselectNode: Mock<() => void>;
     /** What the ELEMENT still holds, which is not always what the shell thinks it holds. */
     readonly elementHoldsSelection: () => string | number | null;
     /** The element's style stack, and the policy that paints a finished run. */
@@ -614,10 +665,6 @@ interface StubGraph {
      * @returns the run ids.
      */
     readonly runIds: (algorithm: string) => readonly RunId[];
-    /** The data manager, for the clear a replacing load makes. */
-    readonly dataManager: {
-        clear: ReturnType<typeof vi.fn>;
-    };
 }
 
 /**
@@ -654,7 +701,10 @@ const FIXTURE_HISTOGRAM_BINS = 20;
  * @param right - the other's.
  * @returns the comparison, for `Array.prototype.sort`.
  */
-function byValueThenPrintedId(left: readonly [string | number, number], right: readonly [string | number, number]): number {
+function byValueThenPrintedId(
+    left: readonly [string | number, number],
+    right: readonly [string | number, number],
+): number {
     if (left[1] !== right[1]) {
         return right[1] - left[1];
     }
@@ -965,9 +1015,6 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
 
     expect(element).not.toBeNull();
 
-    // The fixture IS the loaded data, so the real element is never asked to load anything.
-    captureLoads(container);
-
     const sized =
         options.synthetic === undefined
             ? CAT_SOCIAL_NETWORK
@@ -1087,22 +1134,32 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
        algorithm again re-serves the run the session holds or re-executes it: a graph that has
        grown under a held pass is a different graph, and the held numbers no longer describe it. */
     const styles = createFakeSession({
+        /* A replacing load throws the runs away with the data: a result describes the graph it
+           measured, so a run held over a dataset boundary would let the next load be served
+           numbers taken from a file nobody is looking at any more. The fixture's own records
+           stay standing, because these boards want a graph to load into. */
+        importer: elementImporter(element as Element, () => {
+            styles.forgetRuns();
+        }),
         result: resultFor,
         scope: () => [...nodes.keys()].join("|"),
         /* Read fresh on every call, because a board can grow the graph under the session
            (`addNode`), and the shape the shell reads has to move with it. */
         statistics: () => fixtureStatistics(nodes, edges, options.directedness ?? "undirected"),
+        records: () => ({
+            nodes: [...nodes.values()].map((node) => ({ ...node.data, id: node.id })),
+            edges: [...edges.values()].map((edge) => ({
+                ...edge.data,
+                id: edge.id,
+                source: edge.srcId,
+                target: edge.dstId,
+            })),
+        }),
     });
 
     for (const spec of options.extraLayers ?? []) {
         styles.seed(spec);
     }
-
-    const dataManager = {
-        nodes,
-        edges,
-        clear: vi.fn(),
-    };
 
     /* The ELEMENT EXECUTING an algorithm, recorded by the same spy the boards have always
        asserted against. It writes nothing: a run publishes one result object now, and this
@@ -1187,40 +1244,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
         selectedId = null;
         emitSelection(null);
     });
-    const graph = {
-        dataManager,
-        getDataManager: () => dataManager,
-        getNodes: () => [...nodes.values()],
-        getSession: () => styles.session,
-        runAlgorithm,
-        selectNode,
-        deselectNode,
-        addListener: vi.fn(),
-    };
-
-    Object.defineProperty(element, "graph", { configurable: true, value: graph });
-
-    /* The ELEMENT's `clearData`, which is what `GraphtyHandle.clearData` calls, and the swap
-       a REPLACING load makes once its data has arrived. The stand-in clears the same records
-       the real one does, so a board sees the graph actually empty rather than only the call
-       recorded.
-
-       THE RUNS GO WITH THE DATA. A result describes the graph it measured, so a run held over
-       a dataset boundary would let the next load be served numbers taken from a file nobody is
-       looking at any more. The fixture's own records stay standing, because these boards want
-       a graph to load into rather than the element's data lifecycle. */
-    const clearData = (): void => {
-        dataManager.clear();
-        styles.forgetRuns();
-    };
-
-    Object.defineProperty(element, "clearData", { configurable: true, value: clearData });
-
-    const loadStub = element === null ? undefined : loadStubs.get(element);
-
-    if (loadStub !== undefined) {
-        loadStub.onReplaced = clearData;
-    }
+    standElement(element as Element, styles.session, { selectNode, deselectNode });
 
     const addNode = (id: string): void => {
         nodes.set(id, { id, data: { id } });
@@ -1238,7 +1262,6 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
                 .filter((run) => run.algorithm === algorithm)
                 .map((run) => run.id),
         styles,
-        dataManager,
     };
 }
 
@@ -1252,8 +1275,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
  */
 function metricLayers(layers: readonly Layer[]): readonly Layer[] {
     return layers.filter(
-        (layer) =>
-            layer.source.by === "run" && ["degree", "pagerank", "betweenness"].includes(layer.source.algorithm),
+        (layer) => layer.source.by === "run" && ["degree", "pagerank", "betweenness"].includes(layer.source.algorithm),
     );
 }
 
@@ -1882,6 +1904,48 @@ describe("AppShell", () => {
             expect(container.querySelector("[data-canvas-graph='true']")).not.toBeNull();
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
         });
+
+        /* A dataset boundary takes away whatever had focus -- the Welcome rows, the docks, the
+           inspector -- so the shell hands focus to the canvas region rather than dropping a
+           keyboard reader on the page body (issue #259). */
+        it("moves focus to the canvas region when a sample loads", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const canvas = container.querySelector<HTMLElement>('[data-shell-region="canvas"]');
+
+            await waitFor(() => {
+                expect(document.activeElement).toBe(canvas);
+            });
+            expect(canvas?.tabIndex).toBe(-1);
+        });
+
+        it("moves focus to the canvas region, not the page body, when the dataset is closed", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+            fireEvent.click(screen.getByRole("button", { name: "Data" }));
+            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByRole("button", { name: "More" }));
+
+            const close = await screen.findByText("Close dataset. Starts a new session");
+
+            /* Focus parked on the menu row, so a canvas that already held it from the load
+               cannot pass this on its own. */
+            close.closest<HTMLElement>("[role='menuitem']")?.focus();
+            fireEvent.click(close);
+            await flushMicrotasks();
+
+            expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
+            await waitFor(() => {
+                expect(document.activeElement).toBe(container.querySelector('[data-shell-region="canvas"]'));
+            });
+            expect(document.activeElement).not.toBe(document.body);
+        });
     });
 
     describe("the Explore search field", () => {
@@ -1899,6 +1963,8 @@ describe("AppShell", () => {
            is held in the shell beside the panel's other remembered values. */
         it("holds what is typed, and still holds it after a panel switch", async () => {
             const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
 
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
@@ -1922,6 +1988,8 @@ describe("AppShell", () => {
         it("keeps the scope the reader picked", async () => {
             const { container } = await renderMeasuredShell();
 
+            captureLoads(container);
+
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
 
@@ -1944,6 +2012,8 @@ describe("AppShell", () => {
          */
         async function searchableShell(refuse?: string) {
             const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
 
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
@@ -2085,6 +2155,36 @@ describe("AppShell", () => {
 
             return result;
         }
+
+        /* graphty-element refuses a layer that writes no channel, so "+" asked for one it would
+           always refuse and swallowed the refusal: nothing appeared and nothing said why
+           (issue #380). */
+        it("adds a layer that paints one channel, so the element accepts it", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            const added = fake.layers().find((layer) => layer.name === "New Layer 1");
+
+            expect(added).toBeDefined();
+            expect(Object.keys(added?.set ?? {})).toHaveLength(1);
+            expect(within(screen.getByTestId("style-layers")).getByText("New Layer 1")).toBeInTheDocument();
+        });
+
+        it("tells the reader why the element refused a new layer", async () => {
+            const { container } = await renderStylePanel();
+            const fake = installGraph(container, []);
+
+            vi.spyOn(fake.session.styles, "add").mockRejectedValueOnce(new Error("the element said no"));
+            await settleSession();
+            fireEvent.click(screen.getByRole("button", { name: "Add a style layer" }));
+            await settleSession();
+
+            expect(statusToast(container)).toHaveTextContent("the element said no");
+        });
 
         it("commits an inline rename to graphty-element, which owns the names", async () => {
             const { container } = await renderStylePanel();
@@ -2404,7 +2504,8 @@ describe("AppShell", () => {
         /* A tie across the budget can leave the switch reading ON over a graph with no labels,
            so Settings > Performance shows the element's sentence for why. */
         it("says in Settings why a tie across the label budget left labels out", async () => {
-            const reason = "12 tie at 12, and taking them would make 12, more than the 11 asked for, so none are taken.";
+            const reason =
+                "12 tie at 12, and taking them would make 12, more than the 11 asked for, so none are taken.";
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
@@ -2502,21 +2603,27 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            installNovicePathGraph(container);
+
+            const graph = installNovicePathGraph(container);
+
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
             await reportLoadComplete(container);
 
+            const { history } = graph.styles.session;
+            const before = history.steps.length;
             const strip = container.querySelector('[data-canvas-overlay="insights"]') as HTMLElement;
 
             fireEvent.click(within(strip).getByText("Find groups"));
             await flushMicrotasks();
 
+            /* Spec 7.1 item 2: ONE step. The run and the encoding it paints are one step in the
+               element, and the shell records nothing of its own. */
+            expect(history.steps.length).toBe(before + 1);
+            expect(history.steps.at(-1)?.label).toBe("Ran louvain");
+
             fireEvent.click(screen.getByRole("button", { name: "History" }));
 
-            /* Spec 7.1 item 2: ONE entry. The encoding does not get a second one, because
-               nothing in this build can undo a style layer independently of the result, and
-               a row whose Undo does nothing is worse than no row. */
-            expect(await screen.findByText("1 entry, 0 undone")).toBeInTheDocument();
+            expect(await screen.findByText(`${String(before + 1)} entries, 0 undone`)).toBeInTheDocument();
             expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
         });
 
@@ -2594,6 +2701,7 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             const loads = captureLoads(container);
+
             const graph = installNovicePathGraph(container);
 
             fireEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
@@ -2613,12 +2721,9 @@ describe("AppShell", () => {
                go with them. Before this the shell renamed the dataset in the top bar
                while the old graph stayed on the canvas -- asserting a dataset that was
                never loaded -- and stacked a second set of 7.2 layers on the first. */
-            /* The layers go at once; the RECORDS go when the new sample has arrived, because
-               the element keeps the old graph until the new one has parsed. The load from
-               Welcome swapped too, over a graph that held nothing -- one rule for every
-               replacing load (6.12). */
-            expect(loads.map((load) => load.replace)).toEqual([true, true]);
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            /* Two replacing loads: the load from Welcome took the same route, over a graph
+               that held nothing -- one rule for every replacing load (6.12). */
+            expect(loads.map((load) => load.mode)).toEqual(["replace", "replace"]);
             expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 0);
             expect(screen.getByText("football.gml")).toBeInTheDocument();
 
@@ -2626,10 +2731,7 @@ describe("AppShell", () => {
                shell tagged and nothing else: an earlier version walked the stack by index,
                which took the `default` layer -- and with it every node's shape type -- so
                the next load died in mesh building and drew nothing at all. */
-            expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
-                "default",
-                "selection",
-            ]);
+            expect(graph.styles.layers().map((layer) => layer.name)).toEqual(["default", "selection"]);
 
             await reportLoadComplete(container);
 
@@ -2637,7 +2739,6 @@ describe("AppShell", () => {
             // boundary, so a second load is not a load with no defaults at all.
             expect(graph.runAlgorithm.mock.calls.map((call) => call[1])).toEqual([DEGREE_TYPE, DEGREE_TYPE]);
             expect(graph.styles.layers()).toHaveLength(ELEMENT_OWN_LAYER_COUNT + 1);
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
         });
 
         it("replaces the community layers on a re-run rather than stacking a second set", async () => {
@@ -2916,6 +3017,39 @@ describe("AppShell", () => {
                 within(within(inspector).getByTestId("histogram-values")).getByText("2 links: 5 nodes"),
             ).toBeInTheDocument();
             expect(inspector.querySelectorAll('[data-testid="histogram-bar"]')).toHaveLength(3);
+        });
+
+        it("takes a metric run's reading away on undo and brings it back on redo", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            await runSuggested("Most connected");
+
+            const inspector = screen.getByTestId("inspector");
+            const reading = "Mr_Whiskers is the most connected, with 4 links. The typical node has 3.";
+            const run = graph.styles.session.runs.list().find((each) => each.algorithm === "degree");
+
+            expect(run).toBeDefined();
+            expect(within(inspector).getByText(reading)).toBeInTheDocument();
+
+            /* The element's events for an undo of the run, then a redo of it. */
+            act(() => {
+                graph.styles.publish("run:changed", { run, phase: "removed" });
+            });
+            await waitFor(() => {
+                expect(within(inspector).queryByText(reading)).toBeNull();
+            });
+
+            act(() => {
+                graph.styles.publish("run:changed", { run, phase: "restored" });
+            });
+            await waitFor(() => {
+                expect(within(inspector).getByText(reading)).toBeInTheDocument();
+            });
         });
 
         /* Floor item 5, from the shell's side. `nodeMetricColourChannel` has its own
@@ -3289,11 +3423,13 @@ describe("AppShell", () => {
             fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
             await flushMicrotasks();
 
+            // The layers go with the load's own step, before the new data is in.
             expect(metricLayers(graph.styles.layers())).toHaveLength(0);
-            expect(graph.styles.layers().map((layer) => layer.name)).toEqual([
-                "default",
-                "selection",
-            ]);
+            expect(graph.styles.layers().map((layer) => layer.name)).toEqual(["default", "selection"]);
+
+            // The shell's own reading of the old dataset goes once the new one has arrived.
+            await reportLoadComplete(container);
+
             expect(screen.queryByLabelText("Legend")).toBeNull();
 
             // The result went with the data it described, so the summary is what is left.
@@ -3505,11 +3641,51 @@ describe("AppShell", () => {
                  categorical encoding rather than one layer per coloured group. */
             expect(within(inspector).getByText("Removes 1 style layer.")).toBeInTheDocument();
 
+            expect(graph.runIds("louvain")).toHaveLength(1);
+
             fireEvent.click(within(inspector).getByRole("button", { name: "Remove result" }));
 
+            /* The RUN goes as well as its layers: a result whose layers were swept while its run
+               stayed behind would come back, numbers and all, the next time anything read it. */
+            expect(graph.runIds("louvain")).toEqual([]);
             expect(communityLayers(graph.styles.layers())).toHaveLength(0);
             expect(screen.queryByLabelText("Legend")).toBeNull();
             expect(screen.getByTestId("inspector")).not.toHaveTextContent("Louvain, 20 nodes");
+        });
+
+        /* Every camera control is one call of the element's own door: the app holds no zoom
+           factor, no view table and no camera arithmetic of its own. */
+        it("moves the camera only through the element's doors", async () => {
+            const user = userEvent.setup();
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+
+            await loadCatSample(container);
+            reportSelection(container, CAT_SOCIAL_NETWORK.nodes[0].id);
+
+            const element = container.querySelector("graphty-element") as unknown as Record<
+                string,
+                ReturnType<typeof vi.fn>
+            >;
+
+            await user.click(screen.getByRole("button", { name: "Zoom in" }));
+            await user.click(screen.getByRole("button", { name: "Zoom out" }));
+            await user.click(screen.getByRole("button", { name: "Zoom to fit" }));
+            await user.click(screen.getByRole("button", { name: "Zoom to selection" }));
+
+            expect(element.zoomStep.mock.calls).toEqual([["in"], ["out"]]);
+            expect(element.zoomToFit).toHaveBeenCalledTimes(1);
+            expect(element.zoomToSelection).toHaveBeenCalledTimes(1);
+
+            for (const row of ["Top", "Front", "Side", "Reset view"]) {
+                await user.click(screen.getByRole("button", { name: "Views" }));
+                await user.click(await screen.findByRole("menuitem", { name: row }));
+            }
+
+            expect(element.loadCameraPreset.mock.calls).toEqual([["topView"], ["frontView"], ["sideView"]]);
+            expect(element.resetCamera).toHaveBeenCalledTimes(1);
         });
 
         /* A metric run owns exactly one layer, so the same sentence counts one. */
@@ -3700,14 +3876,152 @@ describe("AppShell", () => {
             const { container } = await renderMeasuredShell();
 
             captureLoads(container);
-            installNovicePathGraph(container);
+
+            const graph = installNovicePathGraph(container);
 
             await loadCatSample(container);
+
+            const { history } = graph.styles.session;
+            const before = history.steps.length;
+
             await runSuggested("Most connected");
+
+            expect(history.steps.length).toBe(before + 1);
 
             fireEvent.click(screen.getByRole("button", { name: "History" }));
 
-            expect(await screen.findByText("1 entry, 0 undone")).toBeInTheDocument();
+            expect(await screen.findByText(`${String(before + 1)} entries, 0 undone`)).toBeInTheDocument();
+        });
+    });
+
+    /* ---------------------------------------------------------------------- */
+    /* Undo, Redo and History are the element's                                */
+    /* ---------------------------------------------------------------------- */
+
+    describe("undo and redo", () => {
+        /**
+         * Mounts the shell over a stand-in session holding two recorded steps.
+         * @returns the session.
+         */
+        async function shellWithTwoSteps() {
+            const { container } = await renderMeasuredShell();
+            const fake = installGraph(container, []);
+
+            await settleSession();
+            await act(async () => {
+                await fake.session.styles.add({ name: "Hubs", selector: { match: "everything" } });
+                await fake.session.styles.add({ name: "Bridges", selector: { match: "everything" } });
+            });
+
+            return { container, session: fake.session };
+        }
+
+        it("undoes and redoes through the session from the top bar", async () => {
+            const { session } = await shellWithTwoSteps();
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+            expect(screen.getByRole("button", { name: "Redo" })).toBeEnabled();
+
+            fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(2);
+        });
+
+        it("names the step the next undo takes back in the Undo tooltip", async () => {
+            await shellWithTwoSteps();
+
+            fireEvent.mouseEnter(screen.getByRole("button", { name: "Undo" }));
+
+            expect(await screen.findByText(/^Undo Added layer Bridges \(/, {}, { timeout: 3000 })).toBeInTheDocument();
+        });
+
+        it("draws the session's steps in History and restores the one a row names", async () => {
+            const { session } = await shellWithTwoSteps();
+
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+            expect(await screen.findByText("2 entries, 0 undone")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: "Added layer Hubs" }));
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+            expect(await screen.findByText("2 entries, 1 undone")).toBeInTheDocument();
+        });
+
+        it("undoes once for Ctrl+Z pressed outside the canvas", async () => {
+            const { session } = await shellWithTwoSteps();
+
+            act(() => {
+                window.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+            });
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+        });
+
+        /* The element handles the undo keys itself while its canvas has focus, and marks the
+           press handled. The shell's own binding must then leave it alone, or one press would
+           undo two steps. */
+        it("undoes once for one Ctrl+Z pressed with the canvas focused", async () => {
+            const { container, session } = await shellWithTwoSteps();
+            const element = container.querySelector("graphty-element") as HTMLElement;
+
+            element.addEventListener("keydown", (event) => {
+                event.preventDefault();
+                void session.undo();
+            });
+
+            act(() => {
+                element.dispatchEvent(
+                    new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }),
+                );
+            });
+            await flushMicrotasks();
+
+            expect(session.history.position).toBe(1);
+        });
+
+        /* The layout control draws a copy of the element's layout choice, which the shell
+           re-reads whenever the element says the layout changed -- an undo included. */
+        it("puts the layout control back when a layout change is undone", async () => {
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            installNovicePathGraph(container);
+            await loadCatSample(container);
+
+            const before = LAYOUT_METADATA.find((entry) => entry.type === "ngraph");
+            const other = LAYOUT_METADATA.slice(0, 4).find((entry) => entry.type !== "ngraph");
+
+            if (before === undefined || other === undefined) {
+                throw new Error("the layout catalogue has no ngraph entry and a second quick pick");
+            }
+
+            const beforeTitle = `${before.label} (${before.type})`;
+            const otherTitle = `${other.label} (${other.type})`;
+
+            expect(screen.getByTitle(beforeTitle)).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
+            fireEvent.click(await screen.findByTitle(otherTitle));
+            await flushMicrotasks();
+
+            await waitFor(() => {
+                expect(screen.queryByTitle(beforeTitle)).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            await waitFor(() => {
+                expect(screen.getByTitle(beforeTitle)).toBeInTheDocument();
+            });
+            expect(screen.queryByTitle(otherTitle)).toBeNull();
         });
     });
 
@@ -3717,11 +4031,9 @@ describe("AppShell", () => {
 
     /*
      * The defect these stand on was not a quiet report. It was a WRONG one: on a
-     * malformed file, a 404 URL and unparsable pasted text alike the shell said the load
-     * had succeeded, because `GraphtyHandle.loadFromFile` ends in a property assignment
-     * and the element's setter discards the parse. So every board here drives a load that
-     * the shell's own promise chain resolves, and then has the element say what actually
-     * happened -- which is the only thing that ever did.
+     * malformed file, a 404 URL and unparsable pasted text alike the shell once said the
+     * load had succeeded. So every board here drives a load, and then has the element say
+     * what actually happened.
      */
     describe("the load that did not arrive", () => {
         /** JSON that stops mid-object: detectable as JSON, unparsable as a graph. */
@@ -3732,16 +4044,21 @@ describe("AppShell", () => {
             window.localStorage.clear();
         });
 
-        it("keeps the drawn dataset when a replacing load's data never parses", async () => {
+        it("keeps the previous dataset when a replacing load's data never parses", async () => {
             const { container } = await renderMeasuredShell();
 
+            captureLoads(container);
+
             const graph = installNovicePathGraph(container);
+
             await loadCatSample(container);
 
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
 
-            /* A second sample, from the Data panel: a REPLACING load. The shell names it at
-               once, while it arrives. */
+            const steps = graph.styles.session.history.steps.length;
+
+            /* A second sample, from the Data panel: a REPLACING load. The shell claims it at
+               once, and the element says a moment later that it did not arrive. */
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
             await flushMicrotasks();
@@ -3750,46 +4067,14 @@ describe("AppShell", () => {
 
             await reportLoadingError(container, "Unexpected token 'g' on line 1");
 
-            /* The element keeps the graph it would have replaced until the new data has
-               parsed, so the cat sample is still on the canvas -- and the shell says so: its
-               name is back, the counts are still drawn, and the failure is in the toast. */
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            /* The load was one transaction, so its failure rolled back to the dataset that was
+               drawn and recorded nothing: the top bar names that dataset again, the canvas is
+               not Empty, and the status bar still counts it. */
+            expect(graph.styles.session.history.steps).toHaveLength(steps);
             expect(container.querySelector("[data-canvas-welcome='true']")).toBeNull();
             expect(screen.queryByText("football.gml")).toBeNull();
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
             expect(container.querySelectorAll("[data-status-slot]").length).toBeGreaterThan(0);
-            expect(statusToast(container)?.textContent).toContain(
-                "Could not load football.gml. Unexpected token 'g' on line 1.",
-            );
-        });
-
-        it("does not let an overtaken load's rejection unwind the load that overtook it", async () => {
-            const { container } = await renderMeasuredShell();
-
-            installNovicePathGraph(container);
-            await loadCatSample(container);
-
-            fireEvent.click(screen.getByRole("button", { name: "Data" }));
-            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("Karate Club"));
-            await flushMicrotasks();
-            fireEvent.click(within(screen.getByRole("region", { name: "Data" })).getByText("College football"));
-            await flushMicrotasks();
-
-            expect(screen.getByText("football.gml")).toBeInTheDocument();
-
-            /* The element rejects the older load once the newer replacing load has started
-               (E_SUPERSEDED); only the karate load is answered here. */
-            const element = container.querySelector("graphty-element");
-            const stub = element === null ? undefined : loadStubs.get(element);
-
-            await act(async () => {
-                stub?.waiting.splice(0, 1)[0]?.reject(new Error("overtaken"));
-                await Promise.resolve();
-            });
-            await flushMicrotasks();
-
-            expect(screen.getByText("football.gml")).toBeInTheDocument();
-            expect(statusToast(container)?.textContent ?? "").not.toContain("karate.gml");
         });
 
         it("names the file the reader chose first, and keeps the reason the element gave", async () => {
@@ -3812,9 +4097,7 @@ describe("AppShell", () => {
                carries the name from the top of the load and leads the sentence with it.
                6.10 floor item 4 keeps the reason, in the words of whoever knew it. */
             expect(inline).not.toBeNull();
-            expect(inline?.textContent).toBe(
-                "Could not load friends.json. Unexpected token o in JSON at position 1.",
-            );
+            expect(inline?.textContent).toBe("Could not load friends.json. Unexpected token o in JSON at position 1.");
             expect(inline).toHaveAttribute("role", "alert");
 
             /* In the drop zone, beside the formats line, and not behind a door: spec 1034
@@ -3835,14 +4118,10 @@ describe("AppShell", () => {
         /* ------------------------------------------------------------------ */
 
         /*
-         * The dialog's own boards supply a rejecting `onLoad` of their own making, and for
-         * the input they use the real `AppShell.handleLoad` used to RESOLVE: pasted text
-         * goes through `GraphtyHandle.loadData`, which is two property assignments and
-         * cannot reject, so the dialog closed and `resetState` wiped the textarea while the
-         * element was still parsing. The reader's only copy of what they typed was gone,
-         * and the board claiming to prevent exactly that stayed green because it was
-         * testing its own stub. Nothing in the suite drove the dialog through the shell at
-         * all, so these two do -- one for each side of the contract.
+         * The dialog's own boards supply a rejecting `onLoad` of their own making. These two
+         * drive the dialog through the shell's real `handleLoad` instead, one for each side
+         * of the contract: the dialog keeps the reader's text when the load fails, and
+         * closes only once the data has arrived.
          */
         it("keeps the reader's pasted text in the dialog when the element refuses the load", async () => {
             const { container } = await renderMeasuredShell();
@@ -3885,11 +4164,10 @@ describe("AppShell", () => {
             ).toBeInTheDocument();
         });
 
-        /* The other side of it: the dialog may not close on ACCEPTANCE either, because
-           acceptance is only the property assignment. It closes when the element reports
-           the data arrived -- the same event that moves the reader to Explore on the
-           session's first load, which is why nothing of the dialog is left on screen
-           afterwards. */
+        /* The other side of it: the dialog may not close on ACCEPTANCE either. It closes when
+           the element reports the data arrived -- the same event that moves the reader to
+           Explore on the session's first load, which is why nothing of the dialog is left on
+           screen afterwards. */
         it("holds the dialog open until the element says the pasted data arrived", async () => {
             const { container } = await renderMeasuredShell();
 
@@ -3920,15 +4198,14 @@ describe("AppShell", () => {
             expect(screen.queryByRole("dialog")).toBeNull();
         });
 
-        /* A file dropped on a loaded graph REPLACES it, after the reader confirms. The
-           element keeps the current graph until the new file has parsed, so the replace is
-           safe to offer; the confirmation is for a good file dropped by mistake. */
-        it("replaces a loaded dataset with a dropped file once the reader confirms", async () => {
+        /* A file dropped on a drawn dataset replaces it, but only once the reader says so: a
+           file dropped by mistake must not throw away the dataset on the canvas. */
+        it("asks before a drop replaces the dataset, and replaces it once the reader confirms", async () => {
             const { container } = await renderMeasuredShell();
 
             const loads = captureLoads(container);
-            const graph = installNovicePathGraph(container);
 
+            installNovicePathGraph(container);
             await loadCatSample(container);
 
             const loadsAfterSample = loads.length;
@@ -3945,18 +4222,15 @@ describe("AppShell", () => {
             await flushMicrotasks();
 
             expect(loads).toHaveLength(loadsAfterSample + 1);
-            expect(loads.at(-1)?.replace).toBe(true);
+            expect(loads.at(-1)?.mode).not.toBe("merge");
 
             await reportLoadComplete(container);
 
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(2);
             expect(screen.getByText("extra.json")).toBeInTheDocument();
             expect(statusToast(container)).toBeNull();
         });
 
-        /* Cancelling the confirmation leaves everything as it was: the dataset, its name,
-           its layers and its results. */
-        it("leaves the loaded dataset, its layers and its results alone when the reader cancels a drop", async () => {
+        it("loads nothing when the reader cancels the replace a drop asked for", async () => {
             const { container } = await renderMeasuredShell();
 
             const loads = captureLoads(container);
@@ -3976,16 +4250,21 @@ describe("AppShell", () => {
             await flushMicrotasks();
 
             expect(loads).toHaveLength(loadsAfterSample);
-            expect(graph.dataManager.clear).toHaveBeenCalledTimes(1);
+            expect(graph.styles.session.history.steps).toHaveLength(1);
             expect(graph.styles.layers().map((layer) => layer.id)).toEqual(layersBefore);
             expect(screen.getByText(CAT_SOCIAL_NETWORK_NAME)).toBeInTheDocument();
         });
 
-        /* The retry the error sentence itself invites, on the zone it is drawn in. */
-        it("loads the retry the sentence invites after a failed load", async () => {
+        /* The retry the error sentence itself invites, on the zone it is drawn in. A failed
+           load is a transaction that rolled back and recorded nothing, so the shell clears
+           nothing after it -- a clear would be a step of its own -- and the retry is simply
+           the next load. */
+        it("records nothing for a failed load, and the retry the sentence invites works", async () => {
             const { container } = await renderMeasuredShell();
 
-            installNovicePathGraph(container);
+            captureLoads(container);
+
+            const graph = installNovicePathGraph(container);
             const zone = container.querySelector("[data-dragging]") as HTMLElement;
 
             expect(zone).not.toBeNull();
@@ -3993,13 +4272,14 @@ describe("AppShell", () => {
             await dropFile(zone, new File(["{oops"], "friends.json"));
 
             /* The optimistic claim first, which is the order the application produces: the
-               shell names the file while it arrives and the parse fails later. */
+               shell names the file as soon as the load starts, and the parse fails later. */
             await waitFor(() => {
                 expect(screen.getByText("friends.json")).toBeInTheDocument();
             });
 
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
 
+            expect(graph.styles.session.history.steps).toHaveLength(0);
             expect(container.querySelector("[data-canvas-welcome='true']")).not.toBeNull();
 
             /* And the reader is not left on an activity the rail has just disabled.
@@ -4040,25 +4320,24 @@ describe("AppShell", () => {
 
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
 
-            /* The ELEMENT detects the format, and refuses a file it cannot place with
-               E_UNKNOWN_FORMAT. Its message ends in the call a developer would type, so the
-               shell says what a reader can do instead. */
-            await dropFile(
-                screen.getByTestId("data-drop-zone"),
-                new File(["nothing here that reads like a graph"], "notes.txt"),
-            );
-            await reportLoadingError(
-                container,
-                new GraphtyError({
-                    code: "E_UNKNOWN_FORMAT",
-                    message: 'nothing recognised the format of "notes.txt".',
-                    source: "data",
-                }),
-            );
+            /* graphty-element refuses a file no format recognises before it loads anything: the
+               stand-in session answers the import with the element's own refusal, read from a
+               headless session asked the same thing. */
+            const notes = new File(["nothing here that reads like a graph"], "notes.txt");
+            const refusal = await createGraphSession()
+                .data.import({ config: { file: notes } })
+                .then(
+                    () => new Error("the element loaded a file it should have refused"),
+                    (error: unknown) => error as Error,
+                );
 
-            expect(inlineLoadError(container)?.textContent).toBe(
-                "Could not load notes.txt. Its format was not recognised. " +
-                    "Open it with Open file and pick the format from the list.",
+            expect((refusal as { code?: unknown }).code).toBe("E_UNKNOWN_FORMAT");
+            installGraph(container, [], () => Promise.reject(refusal));
+
+            await dropFile(screen.getByTestId("data-drop-zone"), notes);
+
+            expect(inlineLoadError(container)?.textContent).toMatch(
+                /^Could not load notes\.txt\. Its format was not recognised\. Open it with Open file and pick the format from the list\./,
             );
             expect(statusToast(container)?.textContent).toContain("Could not load notes.txt.");
 
@@ -4137,10 +4416,9 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByRole("button", { name: "Data" }));
             await dropFile(screen.getByTestId("data-drop-zone"), new File(["{oops"], "extra.json"));
             fireEvent.click(
-                within(await screen.findByRole("dialog", { name: "Replace the current graph?" })).getByRole(
-                    "button",
-                    { name: "Replace" },
-                ),
+                within(await screen.findByRole("dialog", { name: "Replace the current graph?" })).getByRole("button", {
+                    name: "Replace",
+                }),
             );
             await flushMicrotasks();
             await reportLoadingError(container, "Unexpected token o in JSON at position 1");
@@ -4434,41 +4712,34 @@ describe("AppShell", () => {
 
     describe("the node inspector's Pin verb", () => {
         /**
-         * Stands the element's three pin verbs on the mounted host.
+         * Watches the session's pin verbs on the mounted host.
          *
-         * They are the element's, not the graph's: `element.pin` / `unpin` / `pinnedNodes` are
-         * the published door, and reaching through `element.graph` to a node object is what
-         * they exist to replace. The stand-in records the id it was handed, because the id TYPE
-         * is the thing that decides whether the verb does anything -- the element looks a node
-         * up by exact map key, so a printed "1" finds nothing on a graph keyed by the number 1.
+         * Pins go through `session.positions`, one undoable step each. The ids are recorded,
+         * because the id TYPE is the thing that decides whether the verb does anything -- the
+         * element looks a node up by exact key, so a printed "1" finds nothing on a graph keyed
+         * by the number 1.
          * @param container - the render result's container.
          * @returns the ids pinned and unpinned, in call order.
          */
         function installPinVerbs(container: HTMLElement) {
-            const element = container.querySelector("graphty-element");
-
-            expect(element).not.toBeNull();
-
-            const pinned = new Set<string | number>();
+            const element = container.querySelector("graphty-element") as unknown as { session: GraphSession };
+            const { positions } = element.session;
             const pinnedWith: (string | number)[] = [];
             const unpinnedWith: (string | number)[] = [];
+            const pin = positions.pin.bind(positions);
+            const unpin = positions.unpin.bind(positions);
 
-            Object.defineProperties(element as HTMLElement, {
-                pin: {
-                    configurable: true,
-                    value: (id: string | number) => {
-                        pinnedWith.push(id);
-                        pinned.add(id);
-                    },
+            Object.assign(positions, {
+                pin: (ids: readonly (string | number)[]) => {
+                    pinnedWith.push(...ids);
+
+                    return pin(ids);
                 },
-                unpin: {
-                    configurable: true,
-                    value: (id: string | number) => {
-                        unpinnedWith.push(id);
-                        pinned.delete(id);
-                    },
+                unpin: (ids: readonly (string | number)[]) => {
+                    unpinnedWith.push(...ids);
+
+                    return unpin(ids);
                 },
-                pinnedNodes: { configurable: true, get: () => pinned },
             });
 
             return { pinnedWith, unpinnedWith };
@@ -4501,8 +4772,8 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            /* A printed "1" would leave `DataManager.nodes.get` looking for a key that is not
-               there, and `element.pin` returns nothing, so the miss would be silent: the verb
+            /* A printed "1" would name a key that is not there, and `session.positions.pin` skips
+               a node it does not hold, so the miss would be silent: the verb
                would read as wired and fix no node at all. */
             expect(pinnedWith).toEqual([selected]);
             expect(typeof pinnedWith[0]).toBe("number");
@@ -4516,12 +4787,34 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByTestId("inspector-actions-more"));
             fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
-            expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
+            expect(await screen.findByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
 
             fireEvent.click(screen.getByTestId("node-unpin"));
 
             expect(unpinnedWith).toEqual([selected]);
+            await waitFor(() => {
+                expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+            });
+        });
+
+        /* The pinned set is the element's; the badge follows it through an undo and a redo. */
+        it("takes the Pinned badge away when the pin is undone, and brings it back on redo", async () => {
+            await selectNumericNode();
+
+            fireEvent.click(screen.getByTestId("inspector-actions-more"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+            expect(await screen.findByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
             expect(screen.queryByTestId("node-pinned-badge")).toBeNull();
+
+            fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+            await flushMicrotasks();
+
+            expect(screen.getByTestId("node-pinned-badge")).toHaveTextContent("Pinned");
         });
 
         it("draws the badge for a node the reader pinned by DRAGGING it, without a second pick", async () => {
@@ -4531,12 +4824,9 @@ describe("AppShell", () => {
             installNovicePathGraph(container, { numericIds: true });
 
             const element = container.querySelector("graphty-element");
-            const pinned = new Set<string | number>();
-
-            Object.defineProperty(element as HTMLElement, "pinnedNodes", {
-                configurable: true,
-                get: () => pinned,
-            });
+            const pinned = (element as unknown as { session: GraphSession }).session.positions.pinned as Set<
+                string | number
+            >;
 
             await loadCatSample(container);
 
@@ -4617,7 +4907,13 @@ describe("AppShell", () => {
         it("draws the chip as soon as the element reports, with or without a dataset", async () => {
             const { container } = await renderMeasuredShell();
 
-            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu", vendor: "nvidia", architecture: "ampere" });
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "idle",
+                backend: "webgpu",
+                vendor: "nvidia",
+                architecture: "ampere",
+            });
 
             expect(screen.getByText("GPU acceleration: on (nvidia ampere)")).toBeInTheDocument();
         });
@@ -4629,6 +4925,52 @@ describe("AppShell", () => {
             fireEvent.click(screen.getByText("GPU acceleration: on"));
 
             expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+        });
+
+        /* The chip and the device-lost toast both open Settings, so both go through the
+           shell's one opener: a shortcuts sheet or a pop-out left open would be drawn beside
+           or over Settings (issue #184). */
+        it("closes the shortcuts sheet and an open pop-out when the chip opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, { policy: "auto", state: "idle", backend: "webgpu" });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(screen.getByText("GPU acceleration: on"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
+        });
+
+        it("closes the shortcuts sheet and an open pop-out when the device-lost toast opens Settings", async () => {
+            const { container } = await renderMeasuredShell();
+
+            await reportAcceleration(container, {
+                policy: "auto",
+                state: "error",
+                code: "E_DEVICE_LOST",
+                reason: "the accelerator's device was lost: reset",
+            });
+            fireEvent.click(screen.getByRole("button", { name: "History" }));
+            expect(await screen.findByText(/entries|entry/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Help and keyboard shortcuts" }));
+            fireEvent.click(await screen.findByRole("menuitem", { name: /Keyboard shortcuts/ }));
+            expect(screen.getByTestId("keyboard-shortcuts")).toBeInTheDocument();
+
+            fireEvent.click(within(statusToast(container) as HTMLElement).getByText("Open Settings"));
+
+            expect(screen.getByTestId("settings-acceleration")).toBeInTheDocument();
+            expect(screen.queryByTestId("keyboard-shortcuts")).toBeNull();
+            await waitFor(() => {
+                expect(screen.queryByText(/entries|entry/)).toBeNull();
+            });
         });
 
         it("reports a lost device through the toast and flips the chip, without dismissing itself", async () => {
@@ -4658,7 +5000,11 @@ describe("AppShell", () => {
         it("lets a failed load win the toast", async () => {
             const { container } = await renderMeasuredShell();
 
-            await dropFile(container.querySelector("[data-dragging]") as HTMLElement, new File(["{oops"], "bad.json"));
+            captureLoads(container);
+            await dropFile(
+                container.querySelector("[data-dragging]") as HTMLElement,
+                new File(["{oops"], "friends.json"),
+            );
             await reportLoadingError(container, "bad file");
             await reportAcceleration(container, {
                 policy: "auto",

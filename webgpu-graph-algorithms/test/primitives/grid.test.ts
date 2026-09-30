@@ -25,28 +25,14 @@ import {
     runGridCheck,
 } from "../helpers/grid.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { adapterClass, sampleStrided, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { testReduceScope } from "../helpers/segmented-reduce.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-/** Every 16th key and every 64th histogram / scan word: the committed fixtures of the unscaled random20k build. */
-const KEY_STRIDE = 16;
-const CELL_STRIDE = 64;
-
-/**
- * Every `stride`-th word.
- * @param words - the words
- * @param stride - the stride
- * @returns the sample
- */
-function sample(words: Uint32Array, stride: number): Uint32Array {
-    const out = new Uint32Array(Math.ceil(words.length / stride));
-    for (let i = 0; i < out.length; i++) {
-        out[i] = words[i * stride];
-    }
-    return out;
-}
+/** Every 17th key and every 65th histogram / scan word: the committed fixtures of the unscaled random20k build (odd, issue #267). */
+const KEY_STRIDE = 17;
+const CELL_STRIDE = 65;
 
 const DEFAULT_TUNING = {
     gridMax2D: LAYOUT_TUNING_DEFAULTS.gridMax2D,
@@ -114,13 +100,19 @@ describe("gridBuild (spec 7.7 G1-G3; P4-T8): equals the oracle bitwise, twice bi
                     for (let t2 = 0; t2 < scene.n; t2++) {
                         expect(first.sortedKey[t2]).toBe(want.cellKey[want.sortedIdx[t2]]);
                     }
-                    if (name === "outside5") {
-                        expect(want.outside).toBe(5);
+                    // nonfinite: nodes 0-3 and 5 carry a NaN or infinite x / y, node 4 a NaN z (outside in 3D only)
+                    const outsideCounts: Readonly<Record<string, number | undefined>> = {
+                        outside5: 5,
+                        nonfinite: dim === 3 ? 6 : 5,
+                    };
+                    const expectedOutside = outsideCounts[name];
+                    if (expectedOutside !== undefined) {
+                        expect(want.outside).toBe(expectedOutside);
                         let outside = 0;
                         for (let o = 0; o < scene.spec.outsideCells; o++) {
                             outside += first.cellHist[scene.spec.cells + o];
                         }
-                        expect(outside).toBe(5);
+                        expect(outside, `${name} ${dim}D: nodes in the outside pseudo-cells`).toBe(expectedOutside);
                     }
                     if (name === "coincident" || name === "onecell1k") {
                         expect(want.maxOccupancy).toBe(scene.n);
@@ -137,7 +129,7 @@ describe("gridBuild (spec 7.7 G1-G3; P4-T8): equals the oracle bitwise, twice bi
         requireGpu(t);
         const ctx = await acquire({ label: "grid-counting" });
         try {
-            for (const name of ["random20k", "outside5", "clumpy100"]) {
+            for (const name of ["random20k", "outside5", "nonfinite", "clumpy100"]) {
                 for (const dim of [2, 3] as const) {
                     const scene = gridScene(name, dim, gpuScale(), false);
                     const first = await runGridBuild(ctx, scene);
@@ -272,12 +264,12 @@ describe("gridBuild (spec 7.7 G1-G3; P4-T8): equals the oracle bitwise, twice bi
             expectBitwiseEqual(run.cellHist, want.cellHist, "random20k cellHist vs oracle");
             expectBitwiseEqual(run.cellStart, want.cellStart, "random20k cellStart vs oracle");
             const cls = adapterClass(ctx.caps);
-            writeNoiseFixture("grid-cell-key", "random20k", cls, sample(run.cellKey, KEY_STRIDE), "u32");
-            writeNoiseFixture("histogram", "random20k-cellHist", cls, sample(run.cellHist, CELL_STRIDE), "u32");
-            writeNoiseFixture("scan-add", "random20k-cellStart", cls, sample(run.cellStart, CELL_STRIDE), "u32");
-            writeNoiseFixture("grid-cell-key", "random20k", "oracle-f64", sample(want.cellKey, KEY_STRIDE), "u32");
-            writeNoiseFixture("histogram", "random20k-cellHist", "oracle-f64", sample(want.cellHist, CELL_STRIDE), "u32");
-            writeNoiseFixture("scan-add", "random20k-cellStart", "oracle-f64", sample(want.cellStart, CELL_STRIDE), "u32");
+            writeNoiseFixture("grid-cell-key", "random20k", cls, sampleStrided(run.cellKey, KEY_STRIDE), "u32");
+            writeNoiseFixture("histogram", "random20k-cellHist", cls, sampleStrided(run.cellHist, CELL_STRIDE), "u32");
+            writeNoiseFixture("scan-add", "random20k-cellStart", cls, sampleStrided(run.cellStart, CELL_STRIDE), "u32");
+            writeNoiseFixture("grid-cell-key", "random20k", "oracle-f64", sampleStrided(want.cellKey, KEY_STRIDE), "u32");
+            writeNoiseFixture("histogram", "random20k-cellHist", "oracle-f64", sampleStrided(want.cellHist, CELL_STRIDE), "u32");
+            writeNoiseFixture("scan-add", "random20k-cellStart", "oracle-f64", sampleStrided(want.cellStart, CELL_STRIDE), "u32");
         } finally {
             ctx.dispose();
         }

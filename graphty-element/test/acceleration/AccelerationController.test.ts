@@ -6,6 +6,7 @@ import {
     ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_MEASUREMENT,
+    ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY,
     type AccelerationPrecision,
     type AccelerationStatus,
     CPU_PRECISION,
@@ -16,6 +17,7 @@ import { GraphtyError, isGraphtyError } from "../../src/errors";
 import { GraphtyLogger } from "../../src/logging/GraphtyLogger.js";
 import { resetLoggingConfig } from "../../src/logging/LoggerConfig.js";
 import { LogLevel, type LogRecord } from "../../src/logging/types.js";
+import { DEFAULT_LIMITS } from "../../src/session/limits";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 
 /** A promise the test resolves when it wants to, for device loss and for work in flight. */
@@ -497,6 +499,39 @@ describe("AccelerationController: the acceleration.minNodes threshold", () => {
     });
 });
 
+describe("AccelerationController: the source-edge floor of a sampled search", () => {
+    const searcher = (): GraphAccelerator =>
+        fakeAccelerator({ members: { forceAtlas2: (): string => "gpu", betweennessCentrality: (): string => "gpu" } });
+    const nodeFloor = ACCELERATION_MIN_NODES_BY_CAPABILITY.betweennessCentrality ?? NaN;
+    const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY.betweennessCentrality ?? NaN;
+
+    it("takes the CPU path below it even past the node floor, and says why", async () => {
+        const controller = new AccelerationController({ registry: registryWith(searcher()) });
+        await controller.start();
+        const work = { capability: "betweennessCentrality", nodeCount: nodeFloor * 10 };
+
+        const below = controller.plan({ ...work, sourceEdges: sourceFloor - 1 });
+        assert.isFalse(below.accelerated);
+        assert.include(below.accelerated ? "" : below.reason, "source-edges");
+        assert.isTrue(controller.plan({ ...work, sourceEdges: sourceFloor }).accelerated);
+        // A work description with no source count is judged on the node floor alone.
+        assert.isTrue(controller.plan(work).accelerated);
+        controller.dispose();
+    });
+
+    it("does not apply under required or with a threshold the consumer set", async () => {
+        const required = new AccelerationController({ policy: "required", registry: registryWith(searcher()) });
+        await required.ready();
+        assert.isTrue(required.plan({ capability: "betweennessCentrality", nodeCount: 1, sourceEdges: 1 }).accelerated);
+        required.dispose();
+
+        const set = new AccelerationController({ registry: registryWith(searcher()), minNodes: 0 });
+        await set.start();
+        assert.isTrue(set.plan({ capability: "betweennessCentrality", nodeCount: 1, sourceEdges: 1 }).accelerated);
+        set.dispose();
+    });
+});
+
 describe("AccelerationController: the built-in floor of a traversal", () => {
     /** An accelerator that walks, so the floor and not the feature test is what decides. */
     const walker = (): GraphAccelerator =>
@@ -546,6 +581,20 @@ describe("AccelerationController: the built-in floor of a traversal", () => {
         assert.isTrue(at.accelerated);
         assert.strictEqual(controller.state, "idle");
         controller.dispose();
+    });
+
+    it("says of each floor whether the element can hold a graph that reaches it", () => {
+        // A floor above what the renderer will draw is a capability that never reaches the device,
+        // whatever hardware is attached: `DataManager` refuses a load past `renderCeiling` nodes or
+        // `edgesDrawn` edges with `E_TOO_LARGE`. The 2026-09-27 sweep found that only PageRank beats
+        // the CPU port inside that band, so PageRank is the one floor that has to stay reachable --
+        // lower any of the other three below the ceiling and it starts routing at a size where it
+        // was measured to be one and a half to ten times slower. Raising the ceiling (issue #419) is
+        // what lets the other three be measured through the element and brought under it.
+        assert.isAtMost(floorOf("pageRank"), DEFAULT_LIMITS.renderCeiling);
+        assert.isAbove(floorOf("breadthFirstSearch"), DEFAULT_LIMITS.renderCeiling);
+        assert.isAbove(floorOf("sssp"), DEFAULT_LIMITS.renderCeiling);
+        assert.isAbove(floorOf("connectedComponents"), DEFAULT_LIMITS.renderCeiling);
     });
 
     it("leaves the layout on the accelerator at every size: the zero was measured for it", async () => {
@@ -632,6 +681,22 @@ describe("AccelerationController: acceleration=required", () => {
             .catch((error: unknown) => error);
         assert.instanceOf(refusal, Error);
         assert.match(refusal.message, /acceleration is required/);
+        controller.dispose();
+    });
+
+    it("names the missing member, not a missing accelerator, when one is attached", async () => {
+        const controller = new AccelerationController({
+            policy: "required",
+            registry: registryWith(fakeAccelerator()),
+        });
+        await controller.ready();
+
+        const refusal = await controller
+            .run({ capability: "pageRank", nodeCount: 10_000 }, () => "gpu")
+            .catch((error: unknown) => error);
+        assert.instanceOf(refusal, Error);
+        assert.include(refusal.message, 'does not implement "pageRank"');
+        assert.notInclude(refusal.message, "no accelerator is attached");
         controller.dispose();
     });
 

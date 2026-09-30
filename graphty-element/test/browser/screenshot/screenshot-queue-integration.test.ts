@@ -1,6 +1,6 @@
 import { afterEach, assert, test } from "vitest";
 
-import type { Graph } from "../../../src/Graph";
+import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -55,7 +55,7 @@ test("concurrent screenshot and operations complete successfully", async () => {
         });
 
     // Queue another operation (use style-apply to avoid layout triggers)
-    const operationPromise = graph.operationQueue.queueOperationAsync("style-apply", () => {
+    const operationPromise = operationQueueOf(graph).queueOperationAsync("style-apply", () => {
         operationCompleted = true;
     });
 
@@ -72,7 +72,7 @@ test("screenshots wait for queued operations when waitForOperations is true", as
     let operationCompleted = false;
 
     // Queue a long operation first (use style-apply to avoid triggering layout-update)
-    const operationPromise = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+    const operationPromise = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
         await new Promise((resolve) => {
             setTimeout(resolve, 200);
         });
@@ -104,7 +104,7 @@ test("screenshots can proceed immediately when waitForOperations is false", asyn
         release = resolve;
     });
     let operationDone = false;
-    const operation = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+    const operation = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
         await gate;
         operationDone = true;
     });
@@ -131,7 +131,7 @@ test("operation queue continues after screenshot completes", async () => {
     });
 
     // Queue an operation after screenshot
-    await graph.operationQueue.queueOperationAsync("data-add", () => {
+    await operationQueueOf(graph).queueOperationAsync("data-add", () => {
         operationExecuted = true;
     });
 

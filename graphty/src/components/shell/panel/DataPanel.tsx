@@ -11,7 +11,7 @@ import { Box, Button, Group, Modal, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { standardModalStyles } from "../../../utils/modal-styles";
-import { LoadDataModal, type LoadDataRequest } from "../../LoadDataModal";
+import { type InputMethod, LoadDataModal, type LoadDataRequest } from "../../LoadDataModal";
 import { keyChipFor } from "../bindings";
 import type { ShellStateAxis } from "../types";
 import { PanelQuietButton } from "./panelButtons";
@@ -323,12 +323,15 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
     } = props;
 
     const [loadOpen, setLoadOpen] = useState(false);
+    /* The dialog's tab: each open verb lands the reader on the input it names. */
+    const [loadMethod, setLoadMethod] = useState<InputMethod>("file");
     /* A file dropped on a loaded graph, waiting for the reader to confirm the replace. */
     const [pendingDrop, setPendingDrop] = useState<File | null>(null);
     const loaded = stateAxis !== "empty" && stateAxis !== "loading";
     const dataTableTooltip = withChip(SHOW_DATA_TABLE_LABEL, keyChipFor("toggleDataDrawer"));
 
-    const openLoadDialog = (): void => {
+    const openLoadDialog = (method: InputMethod): void => {
+        setLoadMethod(method);
         setLoadOpen(true);
     };
 
@@ -417,12 +420,26 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                         h={PANEL_GRID.CONTROL_HEIGHT}
                         px={PANEL_GRID.TRAIL_GAP}
                         radius="sm"
-                        onClick={openLoadDialog}
+                        onClick={() => {
+                            openLoadDialog("file");
+                        }}
                     >
                         {OPEN_FILE_LABEL}
                     </Button>
-                    <PanelQuietButton onClick={openLoadDialog}>{OPEN_FROM_URL_LABEL}</PanelQuietButton>
-                    <PanelQuietButton title={PASTE_TITLE} aria-label={PASTE_TITLE} onClick={openLoadDialog}>
+                    <PanelQuietButton
+                        onClick={() => {
+                            openLoadDialog("url");
+                        }}
+                    >
+                        {OPEN_FROM_URL_LABEL}
+                    </PanelQuietButton>
+                    <PanelQuietButton
+                        title={PASTE_TITLE}
+                        aria-label={PASTE_TITLE}
+                        onClick={() => {
+                            openLoadDialog("paste");
+                        }}
+                    >
                         {loaded ? PASTE_LABEL : PASTE_TITLE}
                     </PanelQuietButton>
                 </Box>
@@ -527,7 +544,7 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                 </Box>
             )}
 
-            <LoadDataModal opened={loadOpen} onClose={closeLoadDialog} onLoad={onLoad} />
+            <LoadDataModal opened={loadOpen} initialMethod={loadMethod} onClose={closeLoadDialog} onLoad={onLoad} />
 
             <Modal
                 opened={pendingDrop !== null}
@@ -537,8 +554,8 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                 styles={standardModalStyles}
             >
                 <Text size="sm">
-                    Replace the current graph with {pendingDrop?.name}? If the file cannot be read, the current
-                    graph stays.
+                    Replace the current graph with {pendingDrop?.name}? If the file cannot be read, the current graph
+                    stays.
                 </Text>
                 <Group justify="flex-end" mt="md">
                     <Button variant="subtle" color="gray" onClick={cancelDrop}>

@@ -26,7 +26,7 @@ import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager } from "../../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -77,9 +77,17 @@ function createHarness(): Harness {
     const statsManager = new StatsManager(eventManager);
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
-    layoutManager.layoutEngine = new StillLayout();
+    layoutManagerInternals.setEngine(layoutManager, new StillLayout());
 
-    const context = new DefaultGraphContext(() => styles, dataManager, layoutManager, meshCache, scene, statsManager, {});
+    const context = new DefaultGraphContext(
+        () => styles,
+        dataManager,
+        layoutManager,
+        meshCache,
+        scene,
+        statsManager,
+        {},
+    );
     dataManager.setGraphContext(context);
 
     return {
@@ -181,6 +189,39 @@ describe("the id an edge carries", () => {
         }
 
         assert.strictEqual(harness.dataManager.lastImport?.counts.rejected, 1, "and the rejection is reported");
+    });
+
+    it("reports how many edges carry a file id and how many are matched by position", () => {
+        harness = createHarness();
+        harness.dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+        harness.dataManager.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "a" },
+        ]);
+
+        assert.deepStrictEqual(
+            harness.dataManager.lastImport?.edgeIdentity,
+            { idPath: null, byId: 0, byPosition: 2 },
+            "no id path: every edge by position",
+        );
+
+        const withIds = createHarness();
+        try {
+            (withIds.context.getStyles().config.data.knownFields as { edgeIdPath: string | null }).edgeIdPath = "key";
+            withIds.dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            withIds.dataManager.addEdges([
+                { source: "a", target: "b", key: "e1" },
+                { source: "a", target: "b" },
+            ]);
+
+            assert.deepStrictEqual(withIds.dataManager.lastImport?.edgeIdentity, {
+                idPath: "key",
+                byId: 1,
+                byPosition: 1,
+            });
+        } finally {
+            withIds.dispose();
+        }
     });
 
     it("is on a fresh Edge before the store has seen it, with no index yet", () => {

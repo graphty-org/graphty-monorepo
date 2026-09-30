@@ -228,11 +228,28 @@ describe("DataPanel", () => {
             expect(await screen.findByRole("dialog")).toBeInTheDocument();
         });
 
+        it.each([
+            ["Open file", "File"],
+            ["Open from URL", "URL"],
+            ["Paste data", "Paste"],
+        ])("opens the dialog from %s on its %s tab", async (button, tab) => {
+            renderPanel("empty");
+
+            fireEvent.click(screen.getByRole("button", { name: button }));
+
+            const dialog = await screen.findByRole("dialog");
+
+            expect(within(dialog).getByRole("radio", { name: tab })).toBeChecked();
+        });
+
         it("loads a dropped file through the one request shape", () => {
             const onLoad = acceptingLoad();
 
             renderPanel("empty", onLoad);
-            dropFile(screen.getByTestId("data-drop-zone"), new File(["{}"], "graph.json", { type: "application/json" }));
+            dropFile(
+                screen.getByTestId("data-drop-zone"),
+                new File(["{}"], "graph.json", { type: "application/json" }),
+            );
 
             expect(onLoad).toHaveBeenCalledWith(
                 expect.objectContaining({ inputMethod: "file", format: "auto", replaceExisting: true }),

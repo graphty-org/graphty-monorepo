@@ -83,8 +83,7 @@ export const ArrowText: Story = {
 
         await holds(
             scene.arrowCaptions.every((caption) => black(caption.colours[0])),
-            `Styles/Edge ArrowText: the captions are asked for in black and their canvases hold ` +
-                `${painted.join(", ")}`,
+            `Styles/Edge ArrowText: the captions are asked for in black and their canvases hold ${painted.join(", ")}`,
         );
     },
     args: {

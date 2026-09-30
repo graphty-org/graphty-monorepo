@@ -15,7 +15,14 @@ export interface LabelResult {
     groups(): U32[];
 }
 
-function withGroups(labels: U32, count: number): LabelResult {
+/**
+ * Wrap a dense label array as a `LabelResult`, computing the grouping on first use. Shared with the
+ * Louvain port, whose result is a partition with a modularity attached.
+ * @param labels - Dense label per node index
+ * @param count - Number of distinct labels
+ * @returns The partition
+ */
+export function withGroups(labels: U32, count: number): LabelResult {
     let cached: U32[] | null = null;
     return {
         labels,

@@ -208,6 +208,11 @@ describe("FR distributional parity: 100 iterations, metrics within the traced 10
     it(
         `writes the UNSCALED ${labelOf(MEMBER)} metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer asserts nothing a recording run does not need, and its unscaled f64 oracle runs are
+                // tens of seconds of synchronous work under coverage (issue #413)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const s = paritySnapshot(MEMBER.graph, 1, false);
             try {

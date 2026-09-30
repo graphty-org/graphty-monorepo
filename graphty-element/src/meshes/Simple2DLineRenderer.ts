@@ -28,9 +28,10 @@ export class Simple2DLineRenderer {
     static create(start: Vector3, end: Vector3, width: number, color: string, opacity: number, scene: Scene): Mesh {
         const mesh = new Mesh("line-2d", scene);
 
-        // Calculate line properties
+        // Calculate line properties. The length is the XY distance: the quad lies in XY and the
+        // camera looks down Z, so a Z on an endpoint must not stretch it past its nodes.
         const direction = end.subtract(start);
-        const length = direction.length();
+        const length = Math.hypot(direction.x, direction.y);
 
         // Create unit rectangle geometry (1x1 in XY plane, centered at origin)
         this.createUnitRectangle(mesh);
@@ -73,9 +74,10 @@ export class Simple2DLineRenderer {
      * @param end - New end position
      */
     static updatePositions(mesh: Mesh, start: Vector3, end: Vector3): void {
-        // Calculate line properties
+        // Calculate line properties. The length is the XY distance: the quad lies in XY and the
+        // camera looks down Z, so a Z on an endpoint must not stretch it past its nodes.
         const direction = end.subtract(start);
-        const length = direction.length();
+        const length = Math.hypot(direction.x, direction.y);
 
         // Get current width from mesh metadata
         const width = mesh.metadata?.lineWidth ?? 0.1;

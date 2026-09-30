@@ -570,7 +570,11 @@ fields match the shape you declared.
 `Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type are deprecated from graphty-element
 3.1 and will be removed in 4.0. A plugin that calls them keeps working on 3.x and reads the same
 graph it did on 3.0: an object graph with the `@graphty/algorithms` 2.x `Graph` methods, parallel
-edges merged with their weights summed. That graph holds one edge per pair of nodes, so a plugin
+edges merged with their weights summed. In TypeScript it is no longer the same TYPE as
+`@graphty/algorithms` 2.x's `Graph` (3.0 aliased that class; 3.1 carries a copy, and TypeScript
+compares classes with private fields by name), so a TypeScript plugin that passes it to its own
+`@graphty/algorithms@2` functions needs a cast, `this.algorithmGraph("directed") as unknown as Graph`,
+to compile; at run time nothing changed. That graph holds one edge per pair of nodes, so a plugin
 cannot name one of two parallel edges, and the only route to an edge id goes through the session.
 Read `context.input(...)` instead:
 

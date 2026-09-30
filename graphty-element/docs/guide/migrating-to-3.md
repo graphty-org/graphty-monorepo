@@ -78,6 +78,15 @@ the call or log its own warning. A live layout,
 stepped frame by frame, still extends `LayoutEngine`. See
 [Custom layouts](./extending/custom-layouts).
 
+## algorithmGraph() is deprecated
+
+`Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type are deprecated from graphty-element
+3.1 and removed in 4.0. A plugin algorithm that calls them keeps working through 3.x and gets the
+same object graph it did on 3.0; a TypeScript plugin that passes that graph to its own
+`@graphty/algorithms@2` functions now needs a cast to compile. New code reads its graph through
+`context.input(...)`. See
+[Moving from algorithmGraph()](./extending/custom-algorithms#moving-from-algorithmgraph).
+
 ```typescript
 // 2.x: class MyLayout extends SimpleLayoutEngine { doLayout() { /* fill this.positions */ } }
 registerSnapshotLayout({ descriptor, compute: (input) => myCoordinates(input.graph) });

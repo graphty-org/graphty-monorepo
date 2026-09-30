@@ -12,7 +12,7 @@ Features:
 
 Deprecated (removed in 4.0):
 
-- `Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type keep working and return the same object graph as 3.0. Move to `context.input(...).subgraph()`; the custom-algorithms guide maps each old call to its replacement.
+- `Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type keep working and return the same object graph as 3.0. In TypeScript, `AlgorithmGraphView` is no longer the `@graphty/algorithms` 2.x `Graph` type itself, so a plugin passing it to its own `@graphty/algorithms@2` functions needs a cast to compile; run time is unchanged. Move to `context.input(...).subgraph()`; the custom-algorithms guide maps each old call to its replacement.
 - `SimpleLayoutEngine`: a one-pass layout is now registered with `registerSnapshotLayout`.
 
 Fixes (the migration guide, "Algorithm results fixed in 3.x", lists every one):

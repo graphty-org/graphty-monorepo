@@ -1,3 +1,31 @@
+## 0.6.15 (2026-09-30)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** sampled closeness from the seam's sources ([#426](https://github.com/graphty-org/graphty-monorepo/issues/426))
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+- **webgpu-graph-algorithms:** expose betweenness on the accelerator and the barrel ([21853d18](https://github.com/graphty-org/graphty-monorepo/commit/21853d18))
+- **webgpu-graph-algorithms:** compute exact and sampled betweenness on the GPU ([adaf31bd](https://github.com/graphty-org/graphty-monorepo/commit/adaf31bd))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** correct sampled edge betweenness and the size bound ([e50f033b](https://github.com/graphty-org/graphty-monorepo/commit/e50f033b))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** measure the sampled betweenness crossover ([9daf8146](https://github.com/graphty-org/graphty-monorepo/commit/9daf8146))
+- **webgpu-graph-algorithms:** add the betweenness benchmark group ([ccedf52e](https://github.com/graphty-org/graphty-monorepo/commit/ccedf52e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.2
+- Updated algorithms to 3.0.0
+- Updated layout to 2.0.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.14 (2026-09-30)
 
 ### 🧱 Updated Dependencies

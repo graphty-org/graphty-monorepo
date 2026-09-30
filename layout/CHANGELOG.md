@@ -1,3 +1,18 @@
+## 2.0.2 (2026-09-30)
+
+### 🚀 Features
+
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.10
+- Updated graph-format to 1.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.1 (2026-09-30)
 
 ### 🧱 Updated Dependencies

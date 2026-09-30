@@ -28,10 +28,7 @@ describe("layout pace", () => {
         graph = undefined;
     });
 
-    async function settle(
-        frameMs: number,
-        minDelta = 0,
-    ): Promise<{ passes: number; steps: number; x: number }> {
+    async function settle(frameMs: number, minDelta = 0): Promise<{ passes: number; steps: number; x: number }> {
         graph = await createTestGraph();
         const inner = graph as unknown as { renderManager: RenderManager; updateManager: UpdateManager };
         release = inner.renderManager.holdFrames();

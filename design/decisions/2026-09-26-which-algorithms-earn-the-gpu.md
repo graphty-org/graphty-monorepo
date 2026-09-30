@@ -351,6 +351,288 @@ there is no element floor to set. When the element routes either, these crossove
 for triangles, 5,000 for label propagation -- are the floors, and label propagation also needs
 the element to accept the device's deterministic rule in place of the seeded one.
 
+### The element's floors re-measured against the 3.0 ports (2026-09-30)
+
+The earlier floors in graphty-element were set against the CPU code the element ran before the
+algorithms 3.0 migration (pull request #607). That code ran on a Map-based object graph. The new
+CPU ports run on the typed-array snapshot and are much faster: PageRank on 10,000 nodes now takes
+3 to 5 ms. This section re-measures every floor the element carries against those ports. It also
+measures the four capabilities the element routes for the first time: betweenness, all-pairs
+shortest paths, triangle counting and label propagation.
+
+**Method.** The runs used headless Chromium on the RTX 4070 SUPER, through ANGLE's Vulkan
+backend with the extracted libEGL on `LD_LIBRARY_PATH`. The browser project required the NVIDIA
+adapter, so SwiftShader could not stand in for the card. Both arms go through
+`@graphty/algorithms`' dispatcher with the element's default options. The CPU arm is
+`accelerated(null)`, the index-based port. The device arm is `accelerated(createAccelerator(ctx))`.
+So each arm includes what the element's run includes on that path, including the dispatcher's
+post-processing of an accelerator's result. The graphs are seeded random graphs of n nodes. Up to
+50,000 nodes they have ten edges a node, capped at the 100,000 edges the element holds. Past that
+they have ten edges a node, to find the kernel's own crossover. Every graph is undirected except
+PageRank's and HITS's, which are directed, as the element runs them. Katz was also run on graphs
+with one edge a node. At the default `alpha` the dispatcher sends Katz to the device only on graphs
+that sparse; on the denser graphs it stayed on the CPU at every size, marked "(CPU)" below.
+
+Each size ran the arms interleaved, flipping the order every round. One discarded pass of each arm
+came first; it also uploads the graph. The table gives medians of 15 rounds. Sizes above 20,000
+nodes had 9 rounds, and sizes where one CPU pass took over a second had 5. "GPU" is the call with
+the graph already resident, which is what a second run in the element sees. "Cold" releases the
+graph first, so the upload is inside the number.
+
+There were three full sweeps. The one-minute load average read 3.4 before and 9.6 after the first,
+12.6 and 8.8 around the second, and 7.5 and 8.2 around the third, on 32 hardware threads. Two
+things were competing for the machine. Other sessions were running browser test suites, one of
+them with a Chromium GPU process at 256 percent CPU, sharing both the processor and the card. A
+long-running `rerun` server held one core. A CPU median moved by up to 2x between sweeps
+(PageRank at 50,000 nodes: 17.9, 39.2 and 18.0 ms). The interleaved ratio mostly held, because
+both arms of a round ran under the same interference. The script, the three logs and the table
+generator are in `tmp/feat-element-route-new-gpu/` of the main checkout (`zz-floors.test.ts`,
+`sweep1.log` to `sweep3.log`, `floors.py`).
+
+**The floor rule.** A floor is the smallest measured node count from which the device's median
+beat the CPU port's at every measured size, graph shape and sweep at or above it. Only graphs the
+element can hold count: at most 100,000 edges up to 50,000 nodes. A single size that won under
+one load and lost under another is below the floor. So is a size that won at one density and lost
+at another.
+
+| capability                     | floor   | was     | the bracket                                                                                       |
+| ------------------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------- |
+| all-pairs shortest paths       | 300     | --      | 0.88x to 1.30x at 256, 1.19x to 1.90x at 300; 3.8x at the 5,792-node bound                        |
+| betweenness, exact and sampled | 400     | --      | exact 0.95x to 1.07x at 300; sampled 1.01x to 1.47x at 400; 9x to 28x sampled from 5,000          |
+| closeness, exact and sampled   | 4,000   | 5,800   | sampled 0.96x at 3,000; both 1.3x to 1.7x at 4,000                                                |
+| PageRank                       | 10,000  | 50,000  | 0.56x to 0.86x at 5,000, 1.04x to 1.55x at 10,000                                                 |
+| HITS                           | 15,000  | 15,000  | 0.59x to 0.78x at 10,000, 1.10x at 15,000                                                         |
+| Katz                           | 50,000  | 28,000  | 0.57x to 0.62x at 20,000, 1.23x to 1.28x at 50,000 (one edge a node)                              |
+| eigenvector                    | 100,000 | 28,000  | loses at every size the element holds (0.74x at best); 1.4x to 1.6x at 50,000 on ten edges a node |
+| BFS                            | 100,000 | 141,000 | 0.25x to 0.34x at 50,000 / 100,000, 0.68x to 0.74x at 50,000 / 500,000; 1.02x to 1.63x at 100,000 |
+| SSSP                           | 100,000 | 107,000 | 0.74x to 1.47x at 50,000; 1.76x to 2.73x at 100,000                                               |
+| connected components           | 100,000 | 132,000 | 0.29x to 0.55x at 50,000 / 100,000; 1.59x to 3.92x at 100,000                                     |
+| triangle count                 | 100,000 | --      | 1.15x to 1.34x at 10,000, but 0.81x to 0.92x at 50,000 / 100,000; 2.61x to 4.27x at 100,000       |
+| label propagation              | 100,000 | --      | 1.1x to 2.8x at 5,000 to 20,000, but 0.51x to 0.59x at 50,000 / 100,000; 3.0x to 4.3x at 100,000  |
+
+What this settles:
+
+- **Betweenness and all-pairs shortest paths route inside the element, from a few hundred
+  nodes.** Both cost enough CPU work per node that the device's fixed cost is paid back early.
+  Exact betweenness at 5,000 nodes is 4.1 to 4.4 s on the CPU port and 0.2 to 0.4 s on the device.
+  Chromium's readback round trip lifts the all-pairs crossover from the 64 to 72 measured in Node
+  to about 300.
+- **PageRank's floor falls from 50,000 to 10,000, and closeness's from 5,800 to 4,000.** The ports
+  are faster, but the device gained more. On these graphs PageRank converges in a few iterations,
+  and the device call stays flat at about 3 ms up to 50,000 nodes.
+- **Eigenvector and Katz floors rise.** Eigenvector loses at every size the element holds. Katz,
+  on the only graphs the dispatcher sends it on, crosses at 50,000 rather than 28,000. The old
+  figures were interpolated from kernel timings against an estimated port.
+- **BFS, SSSP and connected components still cross only above the 50,000-node ceiling**, between
+  50,000 and 100,000 nodes, a little lower than before. The cold call, which pays the upload,
+  still loses at every measured size up to 500,000 nodes for BFS and connected components: the
+  upload costs more than the traversal. So the resident floor is the best case, reached on the
+  second run over a graph.
+- **Triangle counting and label propagation earn on dense graphs and lose on sparse ones inside
+  the ceiling, so they are floored above it.** At 10,000 to 20,000 nodes on ten edges a node,
+  the device wins. At 50,000 nodes on the element's 100,000-edge limit, two edges a node, it loses.
+  The triangle count loses because the CPU port finishes in 6 ms and the device call costs 7 to
+  8 ms. Label propagation loses because the CPU port converged in 10 passes (22 ms) while the
+  device call took 38 to 42 ms, two to three times its time at 10,000 to 20,000 nodes on the same
+  edge count. The device's result carries no pass count, so how many passes it ran is inferred from
+  its time, not measured. A floor keyed on the node count alone cannot separate those shapes.
+  One keyed on the edge count, or on edges per node, could, and it would route both inside the
+  ceiling on dense graphs. Until then they reach the device only above 100,000 nodes, or through
+  `acceleration.minNodes` or `acceleration="required"`.
+- **Katz on a released snapshot throws.** The cold arm found it: after `release(s)`, the
+  device's `katzCentrality` fails with `E_RELEASED` where every other algorithm uploads the graph
+  again. Issue #623. The Katz rows below have no cold column.
+
+**Label propagation's two definitions.** The element now defaults to no seed, which runs
+synchronous passes: every node takes the lowest of its neighbours' best-voted labels, all at once,
+with passes alternating between moving labels only up and only down. That is the device's rule.
+Below the floor, and with no accelerator, the CPU runs the same rule through the dispatcher's new
+`labelPropagationSynchronous`, which calls the port of that name. The two differ in two details:
+which direction the first pass moves, and whether a node keeps a label tied for the lead. On tied
+votes they can therefore settle on different, equally valid partitions. On planted partitions they
+agree (adjusted Rand index at least 0.9, webgpu-graph-algorithms' own differential). A caller who
+sets `randomSeed` gets the seeded asynchronous (FLPA) partition. No GPU kernel implements that, so
+it always runs on the CPU and is refused under `acceleration="required"`.
+
+**Triangle counting's CPU side** did not exist before this change. It is `triangleCount` in
+`@graphty/algorithms`: orient each edge up the (degree, index) order and intersect the oriented
+rows. It returns the per-node counts, the local clustering coefficient and the transitivity,
+matching networkx on karate (45 triangles, transitivity 0.2557, average clustering 0.5706). The
+dispatcher routes it to the device and keeps the device's coefficient and transitivity when the
+device returns them. The element publishes it as the `clustering-coefficient` algorithm, the key
+issue #330 reserved.
+
+The full measurements:
+
+| algorithm                      | nodes / edges       | CPU ms | GPU ms | GPU cold ms | speedup, sweeps 1 / 2 / 3               |
+| ------------------------------ | ------------------- | -----: | -----: | ----------: | --------------------------------------- |
+| betweenness, exact             | 100 / 1,000         |    1.7 |    7.5 |         7.5 | 0.17x / 0.18x / 0.23x                   |
+| betweenness, exact             | 200 / 2,000         |    5.8 |   12.2 |        12.2 | 0.43x / 0.47x / 0.48x                   |
+| betweenness, exact             | 300 / 3,000         |   16.1 |   15.1 |        14.8 | -- / 0.95x / 1.07x                      |
+| betweenness, exact             | 400 / 4,000         |   28.6 |   20.7 |        19.6 | -- / 1.40x / 1.38x                      |
+| betweenness, exact             | 500 / 5,000         |   47.8 |   22.9 |        22.3 | 1.85x / 1.95x / 2.09x                   |
+| betweenness, exact             | 1,000 / 10,000      |  147.2 |   41.0 |        40.3 | 3.31x / 3.39x / 3.59x                   |
+| betweenness, exact             | 2,000 / 20,000      |  553.0 |   81.3 |        81.4 | 6.19x / 6.71x / 6.80x                   |
+| betweenness, exact             | 5,000 / 50,000      |  4,375 |  219.2 |       198.6 | 11.09x / 11.73x / 19.96x                |
+| betweenness, 100 sources       | 200 / 2,000         |    3.0 |    7.1 |         7.2 | 0.37x / 0.47x / 0.42x                   |
+| betweenness, 100 sources       | 300 / 3,000         |    5.0 |    7.3 |         7.2 | -- / 0.76x / 0.68x                      |
+| betweenness, 100 sources       | 400 / 4,000         |    7.4 |    7.3 |         7.3 | -- / 1.47x / 1.01x                      |
+| betweenness, 100 sources       | 500 / 5,000         |   10.1 |    7.4 |         7.4 | 1.11x / 1.43x / 1.36x                   |
+| betweenness, 100 sources       | 1,000 / 10,000      |   17.5 |    7.4 |         7.3 | 1.72x / 2.25x / 2.36x                   |
+| betweenness, 100 sources       | 2,000 / 20,000      |   27.3 |    7.5 |         7.3 | 2.92x / 3.41x / 3.64x                   |
+| betweenness, 100 sources       | 5,000 / 50,000      |   85.6 |    7.8 |         7.9 | 9.73x / 10.11x / 10.97x                 |
+| betweenness, 100 sources       | 10,000 / 100,000    |  198.0 |   10.9 |        13.4 | 8.68x / 8.81x / 18.17x                  |
+| betweenness, 100 sources       | 20,000 / 100,000    |  227.5 |    9.3 |        10.8 | 8.92x / 9.86x / 24.46x                  |
+| betweenness, 100 sources       | 50,000 / 100,000    |  359.6 |   12.7 |        15.0 | 14.29x / 26.21x / 28.31x                |
+| betweenness, 100 sources       | 20,000 / 200,000    |  351.2 |   20.0 |        22.6 | -- / 13.80x / 17.56x                    |
+| betweenness, 100 sources       | 50,000 / 500,000    |  916.4 |   30.5 |        61.3 | -- / 12.06x / 30.05x                    |
+| all-pairs shortest paths       | 16 / 60             |    0.0 |    2.3 |         2.3 | 0.00x / 0.00x / 0.00x                   |
+| all-pairs shortest paths       | 32 / 248            |    0.0 |    2.3 |         2.2 | 0.04x / 0.33x / 0.00x                   |
+| all-pairs shortest paths       | 64 / 640            |    0.2 |    2.3 |         2.3 | 0.08x / 0.12x / 0.09x                   |
+| all-pairs shortest paths       | 100 / 1,000         |    0.3 |    2.4 |         2.4 | 0.20x / 0.19x / 0.12x                   |
+| all-pairs shortest paths       | 128 / 1,280         |    0.7 |    2.5 |         2.4 | 0.33x / 0.23x / 0.28x                   |
+| all-pairs shortest paths       | 200 / 2,000         |    1.4 |    2.7 |         2.6 | 0.62x / 0.89x / 0.52x                   |
+| all-pairs shortest paths       | 256 / 2,560         |    2.3 |    2.5 |         2.5 | 1.30x / 1.04x / 0.92x                   |
+| all-pairs shortest paths       | 300 / 3,000         |    3.1 |    2.6 |         2.5 | 1.30x / 1.90x / 1.19x                   |
+| all-pairs shortest paths       | 350 / 3,500         |    4.3 |    2.8 |         2.6 | 1.53x / 2.37x / 1.54x                   |
+| all-pairs shortest paths       | 400 / 4,000         |    5.6 |    3.0 |         2.8 | 1.93x / 2.49x / 1.87x                   |
+| all-pairs shortest paths       | 450 / 4,500         |    6.8 |    3.1 |         2.9 | 2.03x / 1.97x / 2.19x                   |
+| all-pairs shortest paths       | 500 / 5,000         |    8.6 |    3.2 |         2.9 | 2.35x / 2.42x / 2.69x                   |
+| all-pairs shortest paths       | 1,000 / 10,000      |   35.7 |    5.1 |         4.4 | 6.77x / 6.85x / 7.00x                   |
+| all-pairs shortest paths       | 2,000 / 20,000      |  156.7 |   27.9 |        26.5 | 4.21x / 4.02x / 5.62x                   |
+| all-pairs shortest paths       | 4,000 / 40,000      |  634.1 |  135.0 |       137.0 | 4.39x / 4.50x / 4.70x                   |
+| all-pairs shortest paths       | 5,792 / 57,920      |  1,307 |  324.8 |       321.7 | 3.76x / 3.79x / 4.02x                   |
+| triangle count                 | 500 / 5,000         |    0.5 |    5.8 |         5.5 | 0.09x / 0.09x / 0.09x                   |
+| triangle count                 | 1,000 / 10,000      |    1.0 |    5.7 |         5.6 | 0.16x / 0.15x / 0.18x                   |
+| triangle count                 | 2,000 / 20,000      |    1.9 |    5.5 |         5.6 | 0.30x / 0.31x / 0.35x                   |
+| triangle count                 | 5,000 / 50,000      |    5.5 |    7.1 |         7.5 | 0.69x / 0.72x / 0.77x                   |
+| triangle count                 | 10,000 / 100,000    |    9.5 |    7.1 |         7.1 | 1.15x / 1.31x / 1.34x                   |
+| triangle count                 | 20,000 / 100,000    |    6.7 |    7.1 |         7.1 | 0.96x / 1.05x / 0.94x                   |
+| triangle count                 | 50,000 / 100,000    |    6.5 |    7.1 |         7.0 | 0.91x / 0.81x / 0.92x                   |
+| triangle count                 | 20,000 / 200,000    |   18.6 |    7.4 |         7.6 | -- / 2.51x / 2.51x                      |
+| triangle count                 | 50,000 / 500,000    |   48.1 |   13.5 |        18.4 | -- / 2.68x / 3.56x                      |
+| triangle count                 | 100,000 / 1,000,000 |  103.6 |   32.3 |        42.4 | 4.27x / 2.61x / 3.21x                   |
+| triangle count                 | 200,000 / 2,000,000 |  231.7 |   47.3 |        80.5 | 3.43x / 5.28x / 4.90x                   |
+| triangle count                 | 500,000 / 5,000,000 |  661.4 |  120.7 |       218.3 | 5.83x / 4.66x / 5.48x                   |
+| label propagation, synchronous | 500 / 5,000         |    0.9 |    8.0 |         7.9 | 0.10x / 0.11x / 0.11x                   |
+| label propagation, synchronous | 1,000 / 10,000      |    1.9 |    8.2 |         8.1 | 0.28x / 0.24x / 0.23x                   |
+| label propagation, synchronous | 2,000 / 20,000      |    3.6 |    8.2 |         8.2 | 0.42x / 0.42x / 0.44x                   |
+| label propagation, synchronous | 3,000 / 30,000      |    8.1 |    8.3 |         8.5 | -- / 0.87x / 0.98x                      |
+| label propagation, synchronous | 4,000 / 40,000      |   10.4 |   12.0 |        11.9 | -- / 0.81x / 0.87x                      |
+| label propagation, synchronous | 5,000 / 50,000      |   14.4 |    9.5 |         8.8 | 1.56x / 1.26x / 1.52x                   |
+| label propagation, synchronous | 10,000 / 100,000    |   35.8 |   12.6 |        12.6 | 2.45x / 2.61x / 2.84x                   |
+| label propagation, synchronous | 20,000 / 100,000    |   19.4 |   15.5 |        15.9 | 1.17x / 1.12x / 1.25x                   |
+| label propagation, synchronous | 50,000 / 100,000    |   21.9 |   37.6 |        37.5 | 0.51x / 0.59x / 0.58x                   |
+| label propagation, synchronous | 20,000 / 200,000    |   90.6 |   23.0 |        23.1 | -- / 3.41x / 3.94x                      |
+| label propagation, synchronous | 50,000 / 500,000    |  278.0 |   28.9 |        39.7 | -- / 5.17x / 9.62x                      |
+| label propagation, synchronous | 100,000 / 1,000,000 |  198.8 |   46.8 |        64.8 | -- / 3.03x / 4.25x                      |
+| label propagation, synchronous | 200,000 / 2,000,000 |  392.2 |   86.6 |       118.7 | -- / 4.45x / 4.53x                      |
+| PageRank                       | 500 / 5,000         |    0.3 |    2.7 |         2.7 | 0.11x / 0.10x / 0.11x                   |
+| PageRank                       | 1,000 / 10,000      |    0.2 |    2.4 |         2.4 | 0.11x / 0.16x / 0.08x                   |
+| PageRank                       | 2,000 / 20,000      |    0.5 |    2.5 |         2.5 | 0.30x / 0.28x / 0.20x                   |
+| PageRank                       | 5,000 / 50,000      |    1.4 |    2.5 |         2.6 | 0.86x / 0.76x / 0.56x                   |
+| PageRank                       | 10,000 / 100,000    |    3.0 |    2.7 |         2.6 | 1.04x / 1.55x / 1.11x                   |
+| PageRank                       | 15,000 / 100,000    |    4.4 |    2.8 |         2.7 | -- / 2.94x / 1.57x                      |
+| PageRank                       | 20,000 / 100,000    |    6.0 |    2.9 |         2.8 | 2.10x / 2.92x / 2.07x                   |
+| PageRank                       | 50,000 / 100,000    |   18.0 |    3.4 |         3.2 | 5.11x / 10.05x / 5.29x                  |
+| PageRank                       | 20,000 / 200,000    |    5.7 |    3.3 |         3.4 | -- / 2.55x / 1.73x                      |
+| PageRank                       | 50,000 / 500,000    |   15.1 |    3.7 |         9.0 | -- / 5.46x / 4.08x                      |
+| PageRank                       | 100,000 / 1,000,000 |   32.2 |    3.9 |         8.8 | 8.41x / 12.11x / 8.26x                  |
+| PageRank                       | 200,000 / 2,000,000 |   82.9 |    3.9 |        14.0 | 18.70x / 16.02x / 21.26x                |
+| PageRank                       | 500,000 / 5,000,000 |  260.2 |    7.2 |        55.7 | 10.55x / 21.46x / 36.14x                |
+| HITS                           | 500 / 5,000         |    0.5 |   10.3 |        10.1 | 0.06x / 0.03x / 0.05x                   |
+| HITS                           | 1,000 / 10,000      |    0.7 |   10.4 |        10.5 | 0.12x / 0.08x / 0.07x                   |
+| HITS                           | 2,000 / 20,000      |    1.4 |   10.5 |        10.5 | 0.12x / 0.14x / 0.13x                   |
+| HITS                           | 5,000 / 50,000      |    3.3 |   10.3 |        10.7 | 0.30x / 0.42x / 0.32x                   |
+| HITS                           | 10,000 / 100,000    |    6.3 |   10.7 |        10.5 | 0.65x / 0.78x / 0.59x                   |
+| HITS                           | 15,000 / 100,000    |   11.8 |   10.7 |        10.8 | -- / 1.11x / 1.10x                      |
+| HITS                           | 20,000 / 100,000    |   30.6 |   11.5 |        11.0 | 2.24x / 2.22x / 2.66x                   |
+| HITS                           | 50,000 / 100,000    |  122.8 |   68.6 |        70.2 | 2.65x / 1.72x / 1.79x                   |
+| HITS                           | 20,000 / 200,000    |   12.4 |   12.6 |        12.0 | -- / 1.01x / 0.98x                      |
+| HITS                           | 50,000 / 500,000    |   33.8 |    8.3 |        16.6 | -- / 3.57x / 4.07x                      |
+| HITS                           | 100,000 / 1,000,000 |   61.5 |    9.6 |        15.5 | -- / 4.38x / 6.41x                      |
+| Katz                           | 500 / 5,000         |    2.1 |    2.2 |         2.2 | 0.95x (CPU) / -- / --                   |
+| Katz                           | 1,000 / 10,000      |    1.4 |    1.4 |         1.5 | 0.98x (CPU) / 0.93x (CPU) / 1.00x (CPU) |
+| Katz                           | 2,000 / 20,000      |    8.7 |    8.9 |         8.9 | 0.98x (CPU) / -- / --                   |
+| Katz                           | 5,000 / 50,000      |   10.6 |   11.0 |        11.2 | 0.96x (CPU) / -- / --                   |
+| Katz                           | 10,000 / 100,000    |   18.7 |   19.8 |        20.0 | 0.93x (CPU) / 0.95x (CPU) / 0.94x (CPU) |
+| Katz                           | 20,000 / 100,000    |   31.3 |   33.4 |        33.3 | 0.94x (CPU) / -- / --                   |
+| Katz                           | 50,000 / 100,000    |   15.3 |   17.0 |        16.8 | 0.90x (CPU) / -- / --                   |
+| Katz, one edge a node          | 500 / 500           |    0.1 |    4.8 |          -- | -- / 0.00x / 0.02x                      |
+| Katz, one edge a node          | 1,000 / 1,000       |    0.1 |    4.7 |          -- | -- / 0.02x / 0.02x                      |
+| Katz, one edge a node          | 2,000 / 2,000       |    0.2 |    4.7 |          -- | -- / 0.04x / 0.04x                      |
+| Katz, one edge a node          | 5,000 / 5,000       |    1.0 |    5.4 |          -- | -- / 0.14x / 0.19x                      |
+| Katz, one edge a node          | 10,000 / 10,000     |    1.6 |    5.6 |          -- | -- / 0.32x / 0.29x                      |
+| Katz, one edge a node          | 20,000 / 20,000     |    3.5 |    5.6 |          -- | -- / 0.57x / 0.62x                      |
+| Katz, one edge a node          | 50,000 / 50,000     |    9.2 |    7.2 |          -- | -- / 1.23x / 1.28x                      |
+| Katz, one edge a node          | 100,000 / 100,000   |   19.5 |    9.4 |          -- | -- / 1.97x / 2.07x                      |
+| Katz, one edge a node          | 200,000 / 200,000   |   39.1 |   14.6 |          -- | -- / 2.81x / 2.68x                      |
+| eigenvector                    | 500 / 5,000         |    0.2 |    4.9 |         4.8 | 0.04x / 0.04x / 0.04x                   |
+| eigenvector                    | 1,000 / 10,000      |    0.3 |    4.8 |         4.8 | 0.06x / 0.08x / 0.06x                   |
+| eigenvector                    | 2,000 / 20,000      |    0.6 |    5.0 |         5.0 | 0.12x / 0.12x / 0.12x                   |
+| eigenvector                    | 5,000 / 50,000      |    1.7 |    5.3 |         5.2 | 0.30x / 0.32x / 0.32x                   |
+| eigenvector                    | 10,000 / 100,000    |    3.2 |    6.3 |         6.1 | 0.50x / 0.52x / 0.51x                   |
+| eigenvector                    | 20,000 / 100,000    |    6.7 |    9.1 |         8.8 | 0.68x / 0.73x / 0.74x                   |
+| eigenvector                    | 50,000 / 100,000    |   29.4 |   29.7 |        29.6 | 0.94x (CPU) / 0.96x (CPU) / 0.99x (CPU) |
+| eigenvector                    | 20,000 / 200,000    |    6.8 |    7.3 |         7.4 | -- / 0.85x / 0.93x                      |
+| eigenvector                    | 50,000 / 500,000    |   16.1 |   10.0 |        13.2 | -- / 1.37x / 1.61x                      |
+| eigenvector                    | 100,000 / 1,000,000 |   31.1 |   16.9 |        23.8 | -- / 1.80x / 1.84x                      |
+| eigenvector                    | 200,000 / 2,000,000 |   64.7 |   36.4 |        60.5 | -- / 1.32x / 1.78x                      |
+| eigenvector                    | 500,000 / 5,000,000 |  172.7 |   92.4 |       150.9 | -- / 1.20x / 1.87x                      |
+| BFS                            | 500 / 5,000         |    0.0 |    5.7 |         5.9 | 0.01x / 0.00x / 0.00x                   |
+| BFS                            | 1,000 / 10,000      |    0.0 |    6.2 |         6.0 | 0.01x / 0.02x / 0.00x                   |
+| BFS                            | 2,000 / 20,000      |    0.2 |    6.1 |         6.2 | 0.03x / 0.02x / 0.03x                   |
+| BFS                            | 5,000 / 50,000      |    0.3 |    6.1 |         6.2 | 0.07x / 0.05x / 0.05x                   |
+| BFS                            | 10,000 / 100,000    |    0.6 |    6.4 |         6.4 | 0.14x / 0.10x / 0.09x                   |
+| BFS                            | 20,000 / 100,000    |    0.9 |    6.5 |         6.5 | 0.19x / 0.13x / 0.14x                   |
+| BFS                            | 50,000 / 100,000    |    2.0 |    6.9 |         7.0 | 0.34x / 0.25x / 0.29x                   |
+| BFS                            | 20,000 / 200,000    |    1.3 |    6.1 |         6.1 | -- / 0.20x / 0.21x                      |
+| BFS                            | 50,000 / 500,000    |    6.2 |    9.1 |        15.5 | -- / 0.74x / 0.68x                      |
+| BFS                            | 100,000 / 1,000,000 |    8.2 |    8.0 |        11.5 | 1.04x / 1.63x / 1.02x                   |
+| BFS                            | 200,000 / 2,000,000 |   20.3 |    9.5 |        31.9 | 2.11x / 2.29x / 2.14x                   |
+| BFS                            | 500,000 / 5,000,000 |  102.1 |   13.4 |        72.3 | 3.27x / 2.81x / 7.62x                   |
+| SSSP                           | 500 / 5,000         |    0.1 |    6.1 |         6.2 | 0.02x / 0.01x / 0.02x                   |
+| SSSP                           | 1,000 / 10,000      |    0.1 |    6.3 |         6.5 | 0.02x / 0.01x / 0.02x                   |
+| SSSP                           | 2,000 / 20,000      |    0.2 |    5.8 |         6.2 | 0.04x / 0.05x / 0.03x                   |
+| SSSP                           | 5,000 / 50,000      |    0.6 |    6.0 |         6.2 | 0.09x / 0.10x / 0.10x                   |
+| SSSP                           | 10,000 / 100,000    |    1.2 |    5.9 |         6.0 | 0.24x / 0.18x / 0.20x                   |
+| SSSP                           | 20,000 / 100,000    |    1.9 |    6.2 |         6.5 | 0.38x / 0.28x / 0.31x                   |
+| SSSP                           | 50,000 / 100,000    |    5.1 |    6.9 |         7.0 | 0.99x / 1.47x / 0.74x                   |
+| SSSP                           | 20,000 / 200,000    |    2.5 |    6.9 |         7.2 | -- / 0.47x / 0.36x                      |
+| SSSP                           | 50,000 / 500,000    |    6.7 |    8.9 |        15.3 | -- / 1.02x / 0.75x                      |
+| SSSP                           | 100,000 / 1,000,000 |   15.8 |    9.0 |        12.5 | 2.73x / 2.24x / 1.76x                   |
+| SSSP                           | 200,000 / 2,000,000 |   42.7 |   10.1 |        31.5 | 7.16x / 3.23x / 4.23x                   |
+| SSSP                           | 500,000 / 5,000,000 |  133.3 |   14.7 |        62.7 | 4.33x / 11.49x / 9.07x                  |
+| connected components           | 500 / 5,000         |    0.1 |    6.8 |         6.8 | 0.00x / 0.03x / 0.01x                   |
+| connected components           | 1,000 / 10,000      |    0.3 |    4.6 |         4.8 | 0.04x / 0.43x / 0.07x                   |
+| connected components           | 2,000 / 20,000      |    0.4 |    2.7 |         2.8 | 0.19x / 0.21x / 0.15x                   |
+| connected components           | 5,000 / 50,000      |    0.6 |    2.6 |         4.9 | 0.22x / 0.43x / 0.23x                   |
+| connected components           | 10,000 / 100,000    |    1.3 |    4.6 |         5.0 | 0.48x / 0.84x / 0.28x                   |
+| connected components           | 20,000 / 100,000    |    1.5 |    6.9 |         7.1 | 0.56x / 0.82x / 0.22x                   |
+| connected components           | 50,000 / 100,000    |    2.2 |    7.6 |         7.8 | 0.51x / 0.55x / 0.29x                   |
+| connected components           | 20,000 / 200,000    |    2.6 |    5.2 |         5.7 | -- / 1.26x / 0.50x                      |
+| connected components           | 50,000 / 500,000    |    7.4 |    7.7 |        13.8 | -- / 2.03x / 0.96x                      |
+| connected components           | 100,000 / 1,000,000 |   14.3 |    9.0 |        19.7 | 3.92x / 3.01x / 1.59x                   |
+| connected components           | 200,000 / 2,000,000 |   29.4 |    8.9 |        46.4 | 3.06x / 5.05x / 3.30x                   |
+| connected components           | 500,000 / 5,000,000 |   84.0 |   22.1 |       145.6 | 2.66x / 2.97x / 3.80x                   |
+| closeness, exact               | 200 / 2,000         |    1.4 |   19.7 |        20.2 | 0.10x / 0.10x / 0.07x                   |
+| closeness, exact               | 500 / 5,000         |    9.4 |   49.2 |        48.7 | 0.26x / 0.22x / 0.19x                   |
+| closeness, exact               | 1,000 / 10,000      |   36.6 |   94.5 |        97.5 | 0.38x / 0.45x / 0.39x                   |
+| closeness, exact               | 2,000 / 20,000      |  159.2 |  187.1 |       189.7 | 0.81x / 0.88x / 0.85x                   |
+| closeness, exact               | 3,000 / 30,000      |  375.7 |  301.3 |       296.5 | -- / 1.29x / 1.25x                      |
+| closeness, exact               | 4,000 / 40,000      |  677.9 |  400.7 |       398.5 | -- / 1.72x / 1.69x                      |
+| closeness, exact               | 5,000 / 50,000      |  1,036 |  465.6 |       462.8 | 2.22x / 2.10x / 2.23x                   |
+| closeness, exact               | 10,000 / 100,000    |  4,615 |  968.0 |       983.1 | 4.31x / 3.96x / 4.77x                   |
+| closeness, 100 sources         | 500 / 5,000         |    2.1 |   13.0 |        12.8 | 0.21x / 0.15x / 0.16x                   |
+| closeness, 100 sources         | 1,000 / 10,000      |    3.9 |   13.0 |        12.7 | 0.33x / 0.30x / 0.30x                   |
+| closeness, 100 sources         | 2,000 / 20,000      |   10.5 |   13.7 |        13.0 | 0.74x / 0.66x / 0.77x                   |
+| closeness, 100 sources         | 3,000 / 30,000      |   12.1 |   12.5 |        12.5 | -- / 0.96x / 0.97x                      |
+| closeness, 100 sources         | 4,000 / 40,000      |   16.5 |   12.5 |        12.6 | -- / 1.33x / 1.32x                      |
+| closeness, 100 sources         | 5,000 / 50,000      |   20.5 |   13.8 |        14.4 | 1.52x / 1.81x / 1.49x                   |
+| closeness, 100 sources         | 10,000 / 100,000    |   44.0 |   12.5 |        12.5 | 3.35x / 3.67x / 3.52x                   |
+| closeness, 100 sources         | 20,000 / 100,000    |   69.7 |   13.8 |        14.1 | 4.81x / 4.09x / 5.05x                   |
+| closeness, 100 sources         | 50,000 / 100,000    |  178.4 |   14.8 |        15.1 | 8.50x / 6.83x / 12.05x                  |
+
 ### How the table was computed
 
 Every GPU figure is a sum of five terms, each measured on this repository's own benchmarks or
@@ -540,6 +822,10 @@ test is a readback and a Chromium readback is about 2 ms of round trip, while th
 a 5,000-node connected-components call in 1.3 ms. So the element declines the device for those three
 at every size a consumer can reach today, and raising the render ceiling is what would let them be
 measured here.
+
+**Superseded on 2026-09-30.** The element's floors were re-measured against the algorithms 3.0 CPU
+ports, and the four capabilities it routes for the first time were floored beside them; see "The
+element's floors re-measured against the 3.0 ports (2026-09-30)" above.
 
 ## What in the design this overrules, and how
 

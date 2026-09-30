@@ -34,6 +34,9 @@ overrides:
     # @nx/eslint > @nx/devkit > minimatch 10 > brace-expansion 5.
     "brace-expansion@>=4.0.0 <5.0.11": ^5.0.11
     "smol-toml@<1.7.1": ^1.7.1
+    # nx 22.7.12 also asks for axios ^1 and was locked to 1.18.1. Floor 1.20.0 covers
+    # GHSA-3pq3-5fj3-cg6v, GHSA-542g-h47m-68v8, GHSA-m8m8-qj5v-23w3 and GHSA-r4gj-5m52-g5wh.
+    "axios@<1.20.0": ^1.20.0
     # @nx/react -> @nx/module-federation -> @module-federation/dts-plugin pins adm-zip, koa and ws.
     "adm-zip@<0.6.1": ^0.6.1
     "koa@>=3.0.0 <3.1.2": ^3.1.2

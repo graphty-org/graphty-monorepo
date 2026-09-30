@@ -1,3 +1,121 @@
+# 3.0.0 (2026-09-30)
+
+### 🚀 Features
+
+- **algorithms:** sampled closeness centrality with sources, k and sourcesUsed ([#426](https://github.com/graphty-org/graphty-monorepo/issues/426))
+- **algorithms:** add degrees and let the dispatcher walk any adjacency view ([0355ab4f](https://github.com/graphty-org/graphty-monorepo/commit/0355ab4f))
+- ⚠️ **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+
+### 🩹 Fixes
+
+- **algorithms:** state the sampled closeness scale per form; throw like betweenness ([6b821750](https://github.com/graphty-org/graphty-monorepo/commit/6b821750))
+- ⚠️ **algorithms:** list the remaining 2.x result differences of flow, cut and isomorphism ([05373dc8](https://github.com/graphty-org/graphty-monorepo/commit/05373dc8))
+- **graphty-element:** refuse endpoints on eigenvector and record every port difference ([08608117](https://github.com/graphty-org/graphty-monorepo/commit/08608117))
+- **graphty-element:** count undirected degree once and tighten the katz convergence check ([a3047c17](https://github.com/graphty-org/graphty-monorepo/commit/a3047c17))
+- **graphty-element:** keep katz finite on accelerators and k-core, louvain off the controller ([30f0f89f](https://github.com/graphty-org/graphty-monorepo/commit/30f0f89f))
+- **algorithms:** give the hits and katz dispatchers the ports' answer on an accelerator ([c1215007](https://github.com/graphty-org/graphty-monorepo/commit/c1215007))
+
+### ⚠️ Breaking Changes
+
+- **algorithms:** list the remaining 2.x result differences of flow, cut and isomorphism ([05373dc8](https://github.com/graphty-org/graphty-monorepo/commit/05373dc8))
+  results differ from 2.x in these further cases.
+    - kargerMinCut on a graph of three or more components puts every node on
+      a side; 2.x dropped the components after the first two.
+    - Every Set and Map in the flow, cut, matching and isomorphism results
+      lists nodes in node order, and cut edges come by their source-side node
+      and then in edge order; 2.x followed the order its search met them. The
+      contents are unchanged.
+    - The findAllMappings option of isGraphIsomorphic is gone; with it set,
+      2.x answered false for every pair of graphs.
+    - A node that is only the target of an edge is a node to the max-flow
+      search: flow reaches such a sink. 2.x edmondsKarp on a Map-of-Maps
+      returned no flow when the source or the sink was not a key.
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+  the id-keyed API is removed. Build a snapshot with GraphBuilder or
+  fromEdgeArrays from @graphty/graph-format; read results with s.ids.toMap(values) and
+  s.ids.idOf(index).
+  Same name, snapshot signature and typed-array result now: adamicAdarForPairs,
+  adamicAdarPrediction, adamicAdarScore, allPairsShortestPath, astar, bellmanFord,
+  betweennessCentrality, breadthFirstSearch, closenessCentrality, commonNeighborsForPairs,
+  commonNeighborsPrediction, commonNeighborsScore, compareAdamicAdarWithCommonNeighbors,
+  connectedComponents, degreeCentrality, depthFirstSearch, dijkstra, edgeBetweennessCentrality,
+  eigenvectorCentrality, evaluateAdamicAdar, evaluateCommonNeighbors, findAllIsomorphisms,
+  getTopAdamicAdarCandidatesForNode, getTopCandidatesForNode, girvanNewman,
+  greedyBipartiteMatching, grsbm, hierarchicalClustering, hits, isBipartite, isGraphIsomorphic,
+  kargerMinCut, katzCentrality, kCoreDecomposition, kruskalMST, labelPropagation,
+  labelPropagationSemiSupervised, leiden, louvain, markovClustering, maximumBipartiteMatching,
+  minSTCut, nodeClosenessCentrality, pageRank, personalizedPageRank, primMST,
+  spectralClustering, stoerWagner, stronglyConnectedComponents, syncClustering, teraHAC,
+  topologicalSort, weaklyConnectedComponents, and the classes DeltaPageRank and
+  PriorityDeltaPageRank (constructed over a snapshot).
+  Removed, with their replacement: astarWithDetails -> astar; bellmanFordPath -> bellmanFord
+  then pathTo; bipartitePartition -> isBipartite(s).sides; calculateMCLModularity ->
+  modularity; condensationGraph -> condensation; connectedComponentsDFS ->
+  connectedComponents; createBipartiteFlowNetwork -> bipartiteFlowNetwork; dijkstraPath ->
+  dijkstra then pathTo, or bidirectionalDijkstra; edmondsKarp and fordFulkerson -> maxFlow
+  with algorithm "edmonds-karp" or "ford-fulkerson"; findStronglyConnectedComponents ->
+  stronglyConnectedComponents; floydWarshall and floydWarshallPath -> allPairsShortestPath;
+  getConnectedComponent, isConnected, largestConnectedComponent and
+  numberOfConnectedComponents -> connectedComponents; getKCore -> kCoreDecomposition;
+  hasCycleDFS -> hasCycle; hasNegativeCycle -> bellmanFord(...).hasNegativeCycle;
+  isStronglyConnected -> stronglyConnectedComponents; isWeaklyConnected ->
+  weaklyConnectedComponents; labelPropagationAsync -> labelPropagation or
+  labelPropagationSynchronous; minimumSpanningTree -> kruskalMST; nodeBetweennessCentrality,
+  nodeDegreeCentrality, nodeEigenvectorCentrality, nodeHITS and nodeKatzCentrality -> the
+  whole-graph function's value at the node's index; nodeWeightedClosenessCentrality and
+  weightedClosenessCentrality -> the closeness functions with weighted: true;
+  pageRankCentrality and topPageRankNodes -> pageRank(s).scores; shortestPathBFS and
+  singleSourceShortestPathBFS -> breadthFirstSearch; singleSourceShortestPath -> dijkstra;
+  transitiveClosure -> allPairsShortestPath with weighted: false; DirectionOptimizedBFS ->
+  directionOptimizedBfs.
+  Results that differ from 2.x: dijkstra, bellmanFord, astar and primMST take another of two
+  equally short paths or equally light trees (row order, not insertion order); distances and
+  total weights are unchanged. stronglyConnectedComponents lists components in Tarjan's order
+  (2.x findStronglyConnectedComponents used Kosaraju's), connectedComponents lists members in
+  node order (2.x connectedComponentsDFS used depth-first order), isBipartite returns an
+  unordered side mask. pageRank is a power iteration where 2.x ran the delta engine, so
+  iterations can differ by one and scores in the seventh decimal; on an undirected graph it
+  returns scores where 2.x threw. edgeBetweennessCentrality on an undirected graph gives each
+  edge twice the 2.x value (2.x put half the score on each of the "u-v" and "v-u" keys).
+  eigenvectorCentrality converges on some graphs where 2.x threw ConvergenceError (mostly
+  directed graphs with self-loops). katzCentrality with a negative beta gives other scores.
+  girvanNewman on an undirected graph with a self-loop counts the loop twice in its node's
+  degree, so its modularities differ and it can pick another best level; grsbm on such a graph
+  gives another root modularity. markovClustering throws a RangeError on an expansion that is
+  not a whole number of at least 1, an inflation that is not finite and above 0, a maxIterations
+  that is not a whole number, and a negative, NaN or infinite weight, all of which 2.x ran with. louvain and leiden visit
+  nodes in another seeded order and stop at other partitions. labelPropagation gives other
+  communities for the same randomSeed (a work queue, a uniform tie draw, another generator),
+  stops when every label is dominant, lets in-neighbours vote on a directed graph, ignores
+  self-loops and throws a RangeError on a negative, NaN or infinite weight;
+  labelPropagationSemiSupervised draws another random stream and renumbers labels; the
+  synchronous variant adds a swap guard. The all-pairs replacements of floydWarshall,
+  floydWarshallPath and transitiveClosure take the cheapest parallel edge, give a node distance
+  0 to itself despite a positive self-loop, return NaN distances and no path under a negative
+  cycle (a negative undirected edge is one), throw on a NaN or infinite weight, and refuse more
+  than 5,792 nodes unless maxNodes is raised. Adamic-Adar scores agree within 1e-9 but tied
+  pairs rank in another order, so a topK cut and the evaluation metrics can differ. modularity
+  reads weights and sums the null model over every pair, where calculateMCLModularity did
+  neither. spectralClustering gives other clusters on most graphs. teraHAC indexes distances by
+  node, where 2.x looked them up by parseInt of the id. maxFlow reports net flow on opposite
+  edges within capacity; minSTCut reports cut edges on numeric ids; stoerWagner adds the
+  weights of opposite directed edges; kargerMinCut is seeded; a source equal to the sink throws
+  a RangeError and a NaN weight throws. The matchings visit left nodes in node order and ignore
+  arc direction by default, so the greedy matching can differ in size and the maximum one can
+  pair other nodes; an isomorphism edgeMatch sees every pair of corresponding arcs and
+  self-loops, and directed graphs are checked on in-arcs too. kCoreDecomposition ignores
+  self-loops and refuses a directed graph. DeltaPageRank and PriorityDeltaPageRank run over a
+  frozen snapshot, so update() no longer reads a graph changed after construction.
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.10
+- Updated graph-format to 1.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.1 (2026-09-30)
 
 ### 🧱 Updated Dependencies
@@ -53,7 +171,7 @@
 - **algorithms:** add ring queue, bit set and indexed max heap scratch structures ([7cd48e20](https://github.com/graphty-org/graphty-monorepo/commit/7cd48e20))
 - **algorithms:** expose all-pairs shortest paths in the indexed namespace and dispatcher ([9e8ac371](https://github.com/graphty-org/graphty-monorepo/commit/9e8ac371))
 - **algorithms:** route labelPropagation through the accelerated() dispatcher ([c5416093](https://github.com/graphty-org/graphty-monorepo/commit/c5416093))
-- **algorithms:** export indexed.labelPropagation and its Indexed* types ([2a6e81fe](https://github.com/graphty-org/graphty-monorepo/commit/2a6e81fe))
+- **algorithms:** export indexed.labelPropagation and its Indexed\* types ([2a6e81fe](https://github.com/graphty-org/graphty-monorepo/commit/2a6e81fe))
 - **algorithms:** record predecessor arcs and walk all-pairs shortest paths ([31768197](https://github.com/graphty-org/graphty-monorepo/commit/31768197))
 - **algorithms:** directed snapshots in indexed label propagation ([78ff0b77](https://github.com/graphty-org/graphty-monorepo/commit/78ff0b77))
 - **algorithms:** self-loops, parallel edges and unweighted mode in indexed label propagation ([7c574a55](https://github.com/graphty-org/graphty-monorepo/commit/7c574a55))
@@ -202,7 +320,7 @@
 
 ### 🚀 Features
 
-- ⚠️  **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
+- ⚠️ **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
 
 ### 🩹 Fixes
 
@@ -213,9 +331,9 @@
 - **algorithms:** restore the doc comment orphaned from bellmanFord ([71a5b0ac](https://github.com/graphty-org/graphty-monorepo/commit/71a5b0ac))
 - **algorithms:** relax an undirected edge in both directions in Bellman-Ford ([08f83553](https://github.com/graphty-org/graphty-monorepo/commit/08f83553))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge  ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
+- **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
   callers that relied on eigenvectorCentrality returning
   unconverged scores at maxIterations now get a ConvergenceError. Long paths and
   large grids need more than the default 100 passes (networkx fails on the same

@@ -1,3 +1,18 @@
+## 2.0.2 (2026-09-30)
+
+### 🚀 Features
+
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.10
+- Updated graph-format to 1.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.1 (2026-09-30)
 
 ### 🧱 Updated Dependencies
@@ -11,7 +26,7 @@
 
 - **layout:** deprecate rescaleLayout and rescaleLayoutDict in favour of rescaleInPlace ([00832515](https://github.com/graphty-org/graphty-monorepo/commit/00832515))
 - **layout:** replace the html examples with redirects to the stories ([948b5b8a](https://github.com/graphty-org/graphty-monorepo/commit/948b5b8a))
-- ⚠️  **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+- ⚠️ **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
 - **layout:** add indexed bfs, bipartite, multipartite, planar and spectral ([c19a7622](https://github.com/graphty-org/graphty-monorepo/commit/c19a7622))
 - **layout:** add indexed kamadaKawai, forceAtlas2, fruchtermanReingold and arf ([e7278397](https://github.com/graphty-org/graphty-monorepo/commit/e7278397))
 - **layout:** add the indexed namespace with the geometric layouts ([23f41aad](https://github.com/graphty-org/graphty-monorepo/commit/23f41aad))
@@ -19,7 +34,7 @@
 
 ### 🩹 Fixes
 
-- ⚠️  **layout:** leave unplaced nodes out of toPositionMap and document the 2.0 result changes ([d5668514](https://github.com/graphty-org/graphty-monorepo/commit/d5668514))
+- ⚠️ **layout:** leave unplaced nodes out of toPositionMap and document the 2.0 result changes ([d5668514](https://github.com/graphty-org/graphty-monorepo/commit/d5668514))
 - **layout:** let knip see the indexed type test and correct the start-position docs ([67b940ce](https://github.com/graphty-org/graphty-monorepo/commit/67b940ce))
 - **visual-review:** capture layout as a canvas project and build layout before its storybook ([1974491a](https://github.com/graphty-org/graphty-monorepo/commit/1974491a))
 - **layout:** keep multipartiteLayout's one-layer fallback and count distinct planar edges ([0014a5d7](https://github.com/graphty-org/graphty-monorepo/commit/0014a5d7))
@@ -33,12 +48,12 @@
 - **layout:** draw a missing x or y of a given forceatlas2 row from the seed ([af5b122a](https://github.com/graphty-org/graphty-monorepo/commit/af5b122a))
 - **layout:** walk a duck-typed graph on every toLayoutSnapshot call ([b2699b5b](https://github.com/graphty-org/graphty-monorepo/commit/b2699b5b))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **layout:** leave unplaced nodes out of toPositionMap and document the 2.0 result changes  ([d5668514](https://github.com/graphty-org/graphty-monorepo/commit/d5668514))
+- **layout:** leave unplaced nodes out of toPositionMap and document the 2.0 result changes ([d5668514](https://github.com/graphty-org/graphty-monorepo/commit/d5668514))
   toPositionMap leaves out a node whose row is all NaN, and
   the Embedding type is no longer exported.
-- **layout:** make the snapshot layouts the only layouts and drop the generators  ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+- **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
   the positional layouts are removed. Replace each with
   the snapshot layout of the same algorithm, and toPositionMap(result,
   s.ids) where id-keyed positions are needed (s = toLayoutSnapshot(graph)

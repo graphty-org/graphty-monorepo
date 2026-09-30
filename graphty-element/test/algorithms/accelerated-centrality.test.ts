@@ -227,7 +227,7 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
     describe("routing", () => {
         it("carries the measured floors and forwards the three members, and not the unmeasured ones", () => {
             assert.strictEqual(floorOf("hits"), 15_000);
-            assert.strictEqual(floorOf("katzCentrality"), 50_000);
+            assert.strictEqual(floorOf("katzCentrality"), 100_000);
             assert.strictEqual(floorOf("eigenvectorCentrality"), 100_000);
 
             const noop = (): Promise<never> => Promise.reject(new Error("not called"));

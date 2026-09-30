@@ -427,7 +427,15 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * A floor is the smallest measured node count from which the device's median beat the CPU port's
  * at EVERY measured size, graph shape and sweep at or above it, counting only graphs the element
  * can hold (at most 100,000 edges up to 50,000 nodes). So a capability that wins at 10,000 nodes
- * and loses at 50,000 nodes with 100,000 edges is floored above 50,000. The full tables are in
+ * and loses at 50,000 nodes with 100,000 edges is floored above 50,000. The shapes measured are
+ * few: uniform random graphs for every capability, and for Katz also a sparse random graph (one
+ * edge a node) and a 200-wide grid. A graph unlike those can cross over somewhere else.
+ *
+ * The timings are of a graph already on the device. The first run on a freshly loaded graph also
+ * pays the upload, and several of the 100,000-node floors below do not hold for that first run
+ * (connected components took 19.7 ms against the CPU's 14.3 at 100,000 nodes when it had to upload).
+ * Every one of those floors is above the render ceiling, so today no run the element makes is
+ * affected. The full tables are in
  * `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, section "The element's floors
  * re-measured against the 3.0 ports (2026-09-30)".
  *
@@ -461,20 +469,24 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         // All-pairs shortest paths: 0.88x to 1.30x at 256 nodes, 1.19x to 1.90x from 300, 3.8x at
         // the 5,792-node bound. The run refuses a larger graph anyway.
         allPairsShortestPath: 300,
-        // Exact and sampled (100 sources) alike: exact 0.95x to 1.07x at 300, sampled 1.01x to
-        // 1.47x at 400; 3.3x to 3.6x exact at 1,000 and 9x to 28x sampled from 5,000.
+        // Exact: 0.95x to 1.07x at 300, 1.38x to 1.46x at 400, 3.3x to 3.6x at 1,000. A run also
+        // has to clear ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY, because its cost follows the
+        // number of sources, not the node count.
         betweennessCentrality: 400,
-        // Exact and sampled alike: sampled 0.96x at 3,000, both 1.3x to 1.7x at 4,000. The
-        // closeness adapter never sends an exact run above 30,000 nodes (see
+        // Exact and 100 sampled sources: sampled 0.96x at 3,000, both 1.3x to 1.7x at 4,000. A run
+        // also has to clear ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY. The closeness
+        // adapter never sends an exact run above 30,000 nodes (see
         // EXACT_CLOSENESS_MAX_ACCELERATED_NODES). Was 5,800.
         closenessCentrality: 4_000,
         // 0.56x to 0.86x at 5,000, 1.04x to 1.55x at 10,000, 2x at 20,000. Was 50,000.
         pageRank: 10_000,
         // 0.59x to 0.78x at 10,000, 1.10x at 15,000, 1.7x to 2.7x at 20,000 to 50,000. Unchanged.
         hits: 15_000,
-        // Measured on sparse graphs (one edge a node), the only ones on which the dispatcher sends
-        // Katz to the device at the default alpha: 0.6x at 20,000, 1.2x at 50,000. Was 28,000.
-        katzCentrality: 50_000,
+        // The dispatcher sends Katz to the device only where the series provably converges and the
+        // in-degrees are uneven: at the default alpha, sparse and bounded-degree graphs. On one
+        // edge a node: 0.6x at 20,000, 1.2x to 1.4x at 50,000, 2.3x at 100,000. On a 200-wide grid
+        // (two edges a node): 0.5x to 0.8x at 50,000, 1.4x at 100,000, 2.2x at 200,000. Was 28,000.
+        katzCentrality: 100_000,
         // Loses at every size the element holds (0.74x at best, at 20,000); 1.4x to 1.6x at
         // 50,000 nodes on ten edges a node, 1.2x to 1.9x above. Was 28,000.
         eigenvectorCentrality: 100_000,
@@ -493,3 +505,27 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         labelPropagation: 100_000,
     },
 );
+
+/**
+ * For a run that searches from a set of sources, the smallest (sources x edges) at which the
+ * device beat the CPU port. Applies on top of {@link ACCELERATION_MIN_NODES_BY_CAPABILITY}: a run
+ * must clear both.
+ *
+ * A node count alone cannot floor a sampled run. The device's cost of a sampled betweenness or
+ * closeness is a few milliseconds almost whatever the size, while the CPU port's grows with the
+ * number of sources times the number of edges -- so with ten sources the device loses at sizes
+ * where with a hundred it wins by 2x. An exact run counts every node as a source.
+ *
+ * Measured 2026-09-30, RTX 4070 SUPER, headless Chromium, the same method as the node floors:
+ * uniform random graphs of 400 to 50,000 nodes at ten edges a node up to 100,000 edges, with 1, 3,
+ * 10, 30 and 100 sources, two sweeps at load averages 4.3 to 6.1. Betweenness: every run of
+ * 500,000 or more won (1.5x to 9x). At 300,000 to 400,000 it lost on 400 and 1,000 nodes (0.86x
+ * to 0.90x) and won from 10,000 (1.0x to 1.6x); below 300,000 it lost everywhere. Closeness: on
+ * 4,000 nodes or more, every run of 1,000,000 or more won (1.2x to 7x), and every run below it
+ * lost except three sources on 50,000 nodes (1.0x to 1.25x).
+ */
+export const ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
+    Object.freeze({
+        betweennessCentrality: 500_000,
+        closenessCentrality: 1_000_000,
+    });

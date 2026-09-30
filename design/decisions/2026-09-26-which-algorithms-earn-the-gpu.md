@@ -370,8 +370,10 @@ post-processing of an accelerator's result. The graphs are seeded random graphs 
 50,000 nodes they have ten edges a node, capped at the 100,000 edges the element holds. Past that
 they have ten edges a node, to find the kernel's own crossover. Every graph is undirected except
 PageRank's and HITS's, which are directed, as the element runs them. Katz was also run on graphs
-with one edge a node. At the default `alpha` the dispatcher sends Katz to the device only on graphs
-that sparse; on the denser graphs it stayed on the CPU at every size, marked "(CPU)" below.
+with one edge a node and on a 200-wide grid. At the default `alpha` the dispatcher sends Katz to
+the device only where the series provably converges (`alpha` squared times the largest product of
+two neighbours' degrees below 1) and the in-degrees are uneven: sparse and bounded-degree graphs,
+such as those two. On ten edges a node it stayed on the CPU at every size, marked "(CPU)" below.
 
 Each size ran the arms interleaved, flipping the order every round. One discarded pass of each arm
 came first; it also uploads the graph. The table gives medians of 15 rounds. Sizes above 20,000
@@ -393,22 +395,23 @@ generator are in `tmp/feat-element-route-new-gpu/` of the main checkout (`zz-flo
 beat the CPU port's at every measured size, graph shape and sweep at or above it. Only graphs the
 element can hold count: at most 100,000 edges up to 50,000 nodes. A single size that won under
 one load and lost under another is below the floor. So is a size that won at one density and lost
-at another.
+at another. The shapes are few -- uniform random graphs, plus the sparse and grid Katz graphs -- so
+a graph unlike them can cross over elsewhere.
 
-| capability                     | floor   | was     | the bracket                                                                                       |
-| ------------------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------- |
-| all-pairs shortest paths       | 300     | --      | 0.88x to 1.30x at 256, 1.19x to 1.90x at 300; 3.8x at the 5,792-node bound                        |
-| betweenness, exact and sampled | 400     | --      | exact 0.95x to 1.07x at 300; sampled 1.01x to 1.47x at 400; 9x to 28x sampled from 5,000          |
-| closeness, exact and sampled   | 4,000   | 5,800   | sampled 0.96x at 3,000; both 1.3x to 1.7x at 4,000                                                |
-| PageRank                       | 10,000  | 50,000  | 0.56x to 0.86x at 5,000, 1.04x to 1.55x at 10,000                                                 |
-| HITS                           | 15,000  | 15,000  | 0.59x to 0.78x at 10,000, 1.10x at 15,000                                                         |
-| Katz                           | 50,000  | 28,000  | 0.57x to 0.62x at 20,000, 1.23x to 1.28x at 50,000 (one edge a node)                              |
-| eigenvector                    | 100,000 | 28,000  | loses at every size the element holds (0.74x at best); 1.4x to 1.6x at 50,000 on ten edges a node |
-| BFS                            | 100,000 | 141,000 | 0.25x to 0.34x at 50,000 / 100,000, 0.68x to 0.74x at 50,000 / 500,000; 1.02x to 1.63x at 100,000 |
-| SSSP                           | 100,000 | 107,000 | 0.74x to 1.47x at 50,000; 1.76x to 2.73x at 100,000                                               |
-| connected components           | 100,000 | 132,000 | 0.29x to 0.55x at 50,000 / 100,000; 1.59x to 3.92x at 100,000                                     |
-| triangle count                 | 100,000 | --      | 1.15x to 1.34x at 10,000, but 0.81x to 0.92x at 50,000 / 100,000; 2.61x to 4.27x at 100,000       |
-| label propagation              | 100,000 | --      | 1.1x to 2.8x at 5,000 to 20,000, but 0.51x to 0.59x at 50,000 / 100,000; 3.0x to 4.3x at 100,000  |
+| capability                     | floor   | was     | the bracket                                                                                         |
+| ------------------------------ | ------- | ------- | --------------------------------------------------------------------------------------------------- |
+| all-pairs shortest paths       | 300     | --      | 0.88x to 1.30x at 256, 1.19x to 1.90x at 300; 3.8x at the 5,792-node bound                          |
+| betweenness, exact and sampled | 400     | --      | exact 0.95x to 1.07x at 300, 1.38x to 1.40x at 400; also 500,000 source-edges (below)               |
+| closeness, exact and sampled   | 4,000   | 5,800   | sampled 0.96x at 3,000; both 1.3x to 1.7x at 4,000; also 1,000,000 source-edges (below)             |
+| PageRank                       | 10,000  | 50,000  | 0.56x to 0.86x at 5,000, 1.04x to 1.55x at 10,000                                                   |
+| HITS                           | 15,000  | 15,000  | 0.59x to 0.78x at 10,000, 1.10x at 15,000                                                           |
+| Katz                           | 100,000 | 28,000  | one edge a node: 1.23x to 1.46x at 50,000; 200-wide grid: 0.51x to 0.79x at 50,000, 1.4x at 100,000 |
+| eigenvector                    | 100,000 | 28,000  | loses at every size the element holds (0.74x at best); 1.4x to 1.6x at 50,000 on ten edges a node   |
+| BFS                            | 100,000 | 141,000 | 0.25x to 0.34x at 50,000 / 100,000, 0.68x to 0.74x at 50,000 / 500,000; 1.02x to 1.63x at 100,000   |
+| SSSP                           | 100,000 | 107,000 | 0.74x to 1.47x at 50,000; 1.76x to 2.73x at 100,000                                                 |
+| connected components           | 100,000 | 132,000 | 0.29x to 0.55x at 50,000 / 100,000; 1.59x to 3.92x at 100,000                                       |
+| triangle count                 | 100,000 | --      | 1.15x to 1.34x at 10,000, but 0.81x to 0.92x at 50,000 / 100,000; 2.61x to 4.27x at 100,000         |
+| label propagation              | 100,000 | --      | 1.1x to 2.8x at 5,000 to 20,000, but 0.51x to 0.59x at 50,000 / 100,000; 3.0x to 4.3x at 100,000    |
 
 What this settles:
 
@@ -420,9 +423,23 @@ What this settles:
 - **PageRank's floor falls from 50,000 to 10,000, and closeness's from 5,800 to 4,000.** The ports
   are faster, but the device gained more. On these graphs PageRank converges in a few iterations,
   and the device call stays flat at about 3 ms up to 50,000 nodes.
-- **Eigenvector and Katz floors rise.** Eigenvector loses at every size the element holds. Katz,
-  on the only graphs the dispatcher sends it on, crosses at 50,000 rather than 28,000. The old
-  figures were interpolated from kernel timings against an estimated port.
+- **Eigenvector and Katz floors rise.** Eigenvector loses at every size the element holds. Katz
+  crosses at 50,000 on one edge a node, but on a grid, which the dispatcher also sends to the
+  device, it still loses at 50,000 (0.51x to 0.79x) and wins from 100,000 (1.36x to 1.45x, 2.2x at
+  200,000). So its floor is 100,000, above the ceiling. The old figures were interpolated from
+  kernel timings against an estimated port.
+- **A sampled betweenness or closeness is floored on sources times edges as well.** The node
+  floors above were measured with 100 sources. The device's cost of a sampled run is a few
+  milliseconds almost whatever the size, while the CPU port's grows with the sources times the
+  edges, so with ten sources the device lost where with a hundred it won. A second sweep ran 1, 3,
+  10, 30 and 100 sources on 400 to 50,000 nodes (element shape, two sweeps, load averages 4.3 to
+  6.1). Betweenness won in every run of 500,000 source-edges or more (1.5x to 9x); below that it
+  lost everywhere except 300,000 to 400,000 on 10,000 nodes or more. Closeness, on 4,000 nodes or
+  more, won in every run of 1,000,000 or more (1.2x to 7x) and lost below it except three sources
+  on 50,000 nodes. So a run must clear the node floor and the source-edge floor, and an exact run
+  counts every node as a source. The script and logs are `zz-sampled-floors.test.ts`,
+  `sampled1.log` and `sampled2.log`, beside the others; the Katz grid runs are
+  `zz-katz-floors.test.ts`, `katz1.log` and `katz2.log`.
 - **BFS, SSSP and connected components still cross only above the 50,000-node ceiling**, between
   50,000 and 100,000 nodes, a little lower than before. The cold call, which pays the upload,
   still loses at every measured size up to 500,000 nodes for BFS and connected components: the
@@ -447,9 +464,13 @@ What this settles:
 synchronous passes: every node takes the lowest of its neighbours' best-voted labels, all at once,
 with passes alternating between moving labels only up and only down. That is the device's rule.
 Below the floor, and with no accelerator, the CPU runs the same rule through the dispatcher's new
-`labelPropagationSynchronous`, which calls the port of that name. The two differ in two details:
-which direction the first pass moves, and whether a node keeps a label tied for the lead. On tied
-votes they can therefore settle on different, equally valid partitions. On planted partitions they
+`labelPropagationSynchronous`, which calls the port of that name. The two differ in three details:
+which direction the first pass moves, whether a node keeps a label tied for the lead, and when a
+run that never settles stops. The CPU port notices when a pass returns the labels of two passes
+before, stops there and reports `converged: false`; the device runs to `maxIterations` and returns
+whichever half of the cycle that lands on, with no `converged` flag, so the element cannot report
+the non-convergence on that path. On tied votes they can therefore settle on different, equally
+valid partitions. On planted partitions they
 agree (adjusted Rand index at least 0.9, webgpu-graph-algorithms' own differential). A caller who
 sets `randomSeed` gets the seeded asynchronous (FLPA) partition. No GPU kernel implements that, so
 it always runs on the CPU and is refused under `acceleration="required"`.

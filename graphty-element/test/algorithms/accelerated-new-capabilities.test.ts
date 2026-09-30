@@ -21,7 +21,10 @@ import { assert, describe, it } from "vitest";
 import { AccelerationController } from "../../src/acceleration/AccelerationController";
 import { narrowAlgorithms } from "../../src/acceleration/narrow";
 import { AcceleratorRegistry } from "../../src/acceleration/registry";
-import { ACCELERATION_MIN_NODES_BY_CAPABILITY } from "../../src/acceleration/types";
+import {
+    ACCELERATION_MIN_NODES_BY_CAPABILITY,
+    ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY,
+} from "../../src/acceleration/types";
 import { BetweennessCentralityAlgorithm } from "../../src/algorithms/BetweennessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "../../src/algorithms/ClusteringCoefficientAlgorithm";
 import { FloydWarshallAlgorithm } from "../../src/algorithms/FloydWarshallAlgorithm";
@@ -182,6 +185,11 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
 
     describe("betweenness", () => {
         const floor = FLOORS.betweennessCentrality ?? NaN;
+        const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY.betweennessCentrality ?? NaN;
+        // A ring has as many edges as nodes, so its sources x edges is sources x n.
+        const exactRing = Math.ceil(Math.sqrt(sourceFloor));
+        const sampledRing = 1_000;
+        const sampledK = sourceFloor / sampledRing;
 
         it("with no accelerator, the exact run is the algorithms function's and says f64", async () => {
             const graph = await graphWith(LES_MIS);
@@ -209,23 +217,39 @@ describe("the capabilities routed since the algorithms 3.0 ports", () => {
             assert.strictEqual(caveats.method, "brandes-sampled");
         });
 
-        it("an exact run at the floor reaches the accelerator with every node as a source and says f32", async () => {
+        it("an exact run past both floors reaches the accelerator with every node as a source and says f32", async () => {
             const { fake, handed } = fourMemberFake();
-            const graph = await graphWith(ring(floor), fake);
+            const graph = await graphWith(ring(exactRing), fake);
             const { values, caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph));
             assert.strictEqual(handed.betweennessCentrality.length, 1);
-            assert.strictEqual((handed.betweennessCentrality[0] as { sources: number[] }).sources.length, floor);
+            assert.strictEqual((handed.betweennessCentrality[0] as { sources: number[] }).sources.length, exactRing);
             assert.strictEqual(caveats.precision, "f32");
             assert.strictEqual(values.get("n0"), 0.5);
         });
 
-        it("a sampled run at the floor reaches the accelerator with the drawn sources", async () => {
+        it("an exact run on a sparse graph at the node floor stays on the CPU port: too few source-edges", async () => {
             const { fake, handed } = fourMemberFake();
             const graph = await graphWith(ring(floor), fake);
-            const { caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph, { k: 10 }));
-            assert.strictEqual((handed.betweennessCentrality[0] as { sources: number[] }).sources.length, 10);
+            const { caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph));
+            assert.strictEqual(handed.betweennessCentrality.length, 0);
+            assert.strictEqual(caveats.precision, "f64");
+        });
+
+        it("a sampled run at the source-edge floor reaches the accelerator with the drawn sources", async () => {
+            const { fake, handed } = fourMemberFake();
+            const graph = await graphWith(ring(sampledRing), fake);
+            const { caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph, { k: sampledK }));
+            assert.strictEqual((handed.betweennessCentrality[0] as { sources: number[] }).sources.length, sampledK);
             assert.strictEqual(caveats.precision, "f32");
-            assert.strictEqual(caveats.sampleSize, 10);
+            assert.strictEqual(caveats.sampleSize, sampledK);
+        });
+
+        it("a sampled run one source below the source-edge floor stays on the CPU port and says f64", async () => {
+            const { fake, handed } = fourMemberFake();
+            const graph = await graphWith(ring(sampledRing), fake);
+            const { caveats } = await measured(graph, new BetweennessCentralityAlgorithm(graph, { k: sampledK - 1 }));
+            assert.strictEqual(handed.betweennessCentrality.length, 0);
+            assert.strictEqual(caveats.precision, "f64");
         });
 
         it("one node below the floor stays on the CPU port and says f64", async () => {

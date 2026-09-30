@@ -58,10 +58,12 @@ interface LabelPropagationOptions extends Record<string, unknown> {
  *   moving only up and only down so two neighbours cannot trade labels for ever. Deterministic.
  *   This is the definition a GPU runs, so it is the one routed to an accelerator above its floor;
  *   below the floor, or with no accelerator, `@graphty/algorithms`' synchronous port runs it. The
- *   two follow the same rule but differ in two details -- which direction the first pass moves,
- *   and whether a label tied for the lead is kept -- so on a graph with tied votes they can settle
- *   on different, equally valid partitions; on community structure they agree. `caveats.precision`
- *   says which one ran.
+ *   two follow the same rule but differ in three details -- which direction the first pass moves,
+ *   whether a label tied for the lead is kept, and how a run whose labels cycle ends -- so on a
+ *   graph with tied votes they can settle on different, equally valid partitions; on community
+ *   structure they agree. `caveats.precision` says which one ran. On a cycle (some weighted graphs)
+ *   the CPU stops when a pass repeats the labels of two passes before and reports `converged`
+ *   false; the device runs all `maxIterations` passes and reports no `converged` at all.
  * - A seed: the asynchronous (FLPA) definition. Nodes are visited one at a time in an order drawn
  *   from the seed, so one seed gives one partition. No GPU kernel has a seed to honour, so this
  *   always runs on the CPU, and under `acceleration="required"` it is refused.

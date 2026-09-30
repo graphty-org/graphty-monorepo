@@ -82,7 +82,9 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessO
         // Undirected: a shortest path may cross an edge in either direction, and betweenness halves
         // its raw counts for an undirected input because each pair is then reached twice.
         const { k } = this.schemaOptions;
-        const { snapshot, run } = this.accelerated("betweennessCentrality", "undirected");
+        const { snapshot, run } = this.accelerated("betweennessCentrality", "undirected", {
+            sources: k ?? Number.POSITIVE_INFINITY,
+        });
         // A k past the node count (a small scope, say) samples every node, which is the exact count.
         const drawn = k === null ? undefined : Math.min(k, snapshot.nodeCount);
         const sampled = drawn !== undefined;

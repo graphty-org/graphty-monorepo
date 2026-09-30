@@ -30,6 +30,7 @@ import {
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
     ACCELERATION_MIN_NODES_MEASUREMENT,
+    ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY,
     ACCELERATION_POLICY_DEFAULT,
     type AccelerationCapabilities,
     type AccelerationPolicy,
@@ -62,6 +63,12 @@ export interface AcceleratedWork {
      * `"required"`. Absent means true.
      */
     readonly forwarded?: boolean;
+    /**
+     * For a run that searches from a set of sources (betweenness, closeness): the sources times
+     * the edges, which is what its CPU cost follows. Compared against
+     * `ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY`. Absent means the capability has no such floor.
+     */
+    readonly sourceEdges?: number;
 }
 
 /**
@@ -576,6 +583,23 @@ export class AccelerationController {
                     `the graph has ${String(work.nodeCount)} nodes, below the ${String(floor)} at which ` +
                     `an accelerated "${work.capability}" was measured to beat the CPU path ` +
                     `(${ACCELERATION_MIN_NODES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
+            };
+        }
+
+        const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY[work.capability as FlooredCapability];
+        if (
+            sourceFloor !== undefined &&
+            work.sourceEdges !== undefined &&
+            !this.#explicitMinNodes &&
+            !required &&
+            work.sourceEdges < sourceFloor
+        ) {
+            return {
+                accelerated: false,
+                reason:
+                    `this run searches ${String(work.sourceEdges)} source-edges (sources times edges), below the ` +
+                    `${String(sourceFloor)} at which an accelerated "${work.capability}" was measured to beat the ` +
+                    `CPU path (${ACCELERATION_MIN_NODES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
             };
         }
 

@@ -18,7 +18,13 @@ const config: KnipConfig = {
     workspaces: {
         // Root workspace - shared configs and docs
         ".": {
-            entry: ["vite.shared.config.ts", "vitest.shared.config.ts", "docs/.vitepress/config.ts", "tools/*.mjs"],
+            entry: [
+                "vite.shared.config.ts",
+                "vitest.shared.config.ts",
+                "docs/.vitepress/config.ts",
+                "tools/*.mjs",
+                "tools/changelog-renderer.cjs",
+            ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignore: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
             ignoreDependencies: [
@@ -102,10 +108,11 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
-                "examples/**/*.ts",
+                // the config test/unit/golden-helper.test.ts runs a child vitest with
+                "test/helpers/golden-cases/vitest.config.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "examples/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Storybook implicit dependencies
@@ -130,7 +137,7 @@ const config: KnipConfig = {
 
         // Layout package
         layout: {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "scripts/**/*.{ts,js}"],
+            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
             project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
@@ -167,6 +174,8 @@ const config: KnipConfig = {
                           "src/graphty-element.ts!",
                       ]
                     : []),
+                // The self-contained bundle's entry, built by vite.bundle.config.ts.
+                "bundle.ts!",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",
@@ -225,8 +234,9 @@ const config: KnipConfig = {
                 "src/stubs/web-llm-stub.ts",
                 "src/**/*.test.{ts,tsx}",
                 "src/stories/**/*.stories.tsx",
+                "eslint-rules/**/*.test.ts",
             ],
-            project: ["src/**/*.{ts,tsx}!"],
+            project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts"],
             ignore: ["dist/**", "coverage/**", "node_modules/**"],
             ignoreDependencies: [
                 // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root

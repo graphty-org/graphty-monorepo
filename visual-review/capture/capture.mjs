@@ -4,15 +4,15 @@
  * Serves storybook-static on 127.0.0.1, reads the story list from index.json and every story's
  * `parameters.chromatic` from the preview's own `extract()`, then opens each story and mode in a
  * fresh browser context: a fixed start time, SwiftShader WebGL, a 1200 x 900 viewport at device
- * scale factor 2, as Chromatic captures. Each PNG is cropped to the story's rendered content (every
- * visible element, portals included) plus a 32 px margin; a canvas project keeps the viewport and
- * its full width, and is cropped only in height, never past the viewport. It waits
- * for Storybook's render (play functions included) and, for graphty-element, for
- * `waitForStableFrame()`; a story that errors or never settles is `failed`, never a picture,
+ * scale factor 2, as Chromatic captures. Each PNG is the whole canvas, never cropped to the content:
+ * the full page of the story iframe, which is the viewport unless the story overflows it. It waits
+ * for Storybook's render (play functions included) and, when the project's config names a
+ * `waitFor` (an element selector and a method returning a promise, such as graphty-element's
+ * `waitForStableFrame()`), for that; a story that errors or never settles is `failed`, never a picture,
  * after one retry in a new context, so a single timeout on a busy runner does not block a pull
  * request. WebGPU is removed from every page (`navigator.gpu` is deleted before any script runs):
  * no Chromium switch hides it, and whether an adapter request fails differs by host, so without
- * this graphty-element's CPU or GPU path would depend on the machine.
+ * this a component with a CPU and a GPU path would draw whichever the machine offers.
  * Anything that differs from its baseline, or has none, is captured once more in a new context,
  * so a real change, an unstable story and a one-off flake are told apart (see compare.mjs).
  *
@@ -21,16 +21,23 @@
  * second capture of an unstable one, and `baselines/<file>`: the baseline each changed, unstable
  * and removed item was compared with.
  *
- * With `reference`, a directory holding master's newest capture of the project (CI downloads it
- * on pull requests), a story with no baseline whose capture matches master's is `unseeded`, not
+ * A story renamed in the project's `renames.json` (see loadRenames) is compared with the baseline
+ * of its old id, mode by mode: `moved` when it looks the same, `changed` otherwise, each carrying
+ * `from`; that old baseline is then not reported `removed`. A rename whose new id is not a story
+ * is a `failed` item under the new id, so the page lists it; one whose old id is still a story
+ * does nothing.
+ *
+ * With `reference`, a directory holding the default branch's newest capture of the project (CI
+ * downloads it on pull requests), a story with no baseline whose capture matches it is `unseeded`, not
  * `new`: seeding is per story, so a story nobody has accepted yet does not block every pull
  * request, only one that changes it.
  */
 
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname, extname, join, normalize } from "node:path";
+import { dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
@@ -46,8 +53,6 @@ const CLOCK_START = "2026-01-01T12:00:00Z";
 const VIEWPORT = { width: 1200, height: 900 };
 /** Device pixels per CSS pixel, as Chromatic captures; recorded in results.json as `scale`. */
 const SCALE = 2;
-/** CSS pixels kept around the story's content box. */
-const MARGIN = 32;
 const RENDER_TIMEOUT = 30_000;
 const CHROMIUM_ARGS = [
     "--use-gl=angle",
@@ -152,6 +157,47 @@ export function storySettings(parameters, file) {
         includeAA: s.diffIncludeAntiAliasing === true,
         modes: modes.length > 0 ? modes : [{ name: null, globals: null }],
     };
+}
+
+/** A project's renames file, in its baselines directory. */
+const RENAMES = "renames.json";
+
+const STORY_ID = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * Reads a project's renames file, `<dir>/renames.json`: `[{ "from": "<old story id>", "to":
+ * "<new story id>" }]`, for stories whose id changed while they stayed the same story.
+ * @param {string} dir the project's baselines directory
+ * @returns {Promise<Map<string, string>>} the old id by new id; empty when there is no file
+ */
+async function loadRenames(dir) {
+    const path = join(dir, RENAMES);
+    let list;
+    try {
+        list = JSON.parse(await readFile(path, "utf8"));
+    } catch (e) {
+        if (e.code === "ENOENT") {
+            return new Map();
+        }
+        throw new Error(`${path}: ${e.message}`);
+    }
+    if (!Array.isArray(list)) {
+        throw new Error(`${path}: must be an array of { "from": "<old id>", "to": "<new id>" }`);
+    }
+    const byTo = new Map();
+    const froms = new Set();
+    list.forEach((r, i) => {
+        const ok = (v) => typeof v === "string" && v.length <= 200 && STORY_ID.test(v);
+        if (!ok(r?.from) || !ok(r?.to) || r.from === r.to) {
+            throw new Error(`${path}: entry ${i} must be { "from": "<old id>", "to": "<another id>" }`);
+        }
+        if (byTo.has(r.to) || froms.has(r.from)) {
+            throw new Error(`${path}: entry ${i} renames ${r.from} or to ${r.to} a second time`);
+        }
+        byTo.set(r.to, r.from);
+        froms.add(r.from);
+    });
+    return byTo;
 }
 
 async function pngsIn(dir) {
@@ -265,7 +311,7 @@ async function extract(browser, base) {
  * Renders one story and mode, retrying once in a new context when it fails.
  * @param {import("playwright").Browser} browser the browser
  * @param {string} url the story's full URL
- * @param {{ delay: number, stableFrame: boolean, canvas: boolean }} options as for shootOnce
+ * @param {{ delay: number, waitFor: object | null }} options as for shootOnce
  * @returns {Promise<{ png: Buffer | null, reason: string | null, console: string[] }>} the
  *     second attempt's result when the first failed
  */
@@ -278,13 +324,14 @@ async function shoot(browser, url, options) {
  * Renders one story and mode in a fresh context and screenshots it.
  * @param {import("playwright").Browser} browser the browser
  * @param {string} url the story's full URL
- * @param {{ delay: number, stableFrame: boolean, canvas: boolean }} options the story's delay,
- *     whether to wait for every graphty-element's stable frame, and whether the project draws on
- *     a canvas (see contentClip)
+ * @param {{ delay: number, waitFor: { selector: string, method: string, failOnConsole: string |
+ *     null } | null }} options the story's delay, and what to wait for after the render: the
+ *     promise `method` returns on every element matching `selector`, failing the story when a
+ *     console line contains `failOnConsole`
  * @returns {Promise<{ png: Buffer | null, reason: string | null, console: string[] }>} the PNG,
  *     or a reason it failed; a failure's console holds the rest of its message and any stack
  */
-async function shootOnce(browser, url, { delay, stableFrame, canvas }) {
+async function shootOnce(browser, url, { delay, waitFor }) {
     const context = await newContext(browser);
     const lines = [];
     const fail = (reason) => {
@@ -296,8 +343,8 @@ async function shootOnce(browser, url, { delay, stableFrame, canvas }) {
         const page = await context.newPage();
         page.on("console", (m) => lines.push(`${m.type()}: ${m.text()}`));
         page.on("pageerror", (e) => lines.push(`pageerror: ${e.stack ?? e.message}`));
-        // A fixed start that keeps running: setFixedTime would freeze Date.now(), which hangs
-        // graphty-element's input playback and recording, both timed with it.
+        // A fixed start that keeps running: setFixedTime would freeze Date.now(), which hangs any
+        // component timed with it (graphty-element's input playback and recording, for one).
         await page.clock.install({ time: CLOCK_START });
         await page.clock.resume();
         await page.goto(url, { waitUntil: "load", timeout: RENDER_TIMEOUT });
@@ -324,29 +371,34 @@ async function shootOnce(browser, url, { delay, stableFrame, canvas }) {
         }
         // A web font the story uses is fetched only once text needs it, which can be after the
         // render completed; a capture taken before it arrives draws the fallback face, so the
-        // text, the crop and anything placed beside the text all differ from a later capture.
+        // text and anything placed beside the text differ from a later capture.
         // Wait for every font in use, then for one frame drawn with them.
         await page.evaluate(async () => {
             await document.fonts.ready;
             await new Promise((r) => requestAnimationFrame(() => r()));
             await document.fonts.ready;
         });
-        if (stableFrame) {
-            await page.evaluate(async () => {
-                const graphs = [...document.querySelectorAll("graphty-element")];
-                await Promise.all(graphs.map((g) => /** @type {any} */ (g).waitForStableFrame()));
-                await new Promise((r) => requestAnimationFrame(() => r()));
-            });
-            if (lines.some((l) => l.includes("Graph settled timeout"))) {
-                return fail("Graph settled timeout");
+        if (waitFor) {
+            await page.evaluate(
+                async ({ selector, method }) => {
+                    const found = [...document.querySelectorAll(selector)];
+                    await Promise.all(found.map((el) => /** @type {any} */ (el)[method]()));
+                    await new Promise((r) => requestAnimationFrame(() => r()));
+                },
+                { selector: waitFor.selector, method: waitFor.method },
+            );
+            if (waitFor.failOnConsole && lines.some((l) => l.includes(waitFor.failOnConsole))) {
+                return fail(waitFor.failOnConsole);
             }
         }
         if (delay > 0) {
             await page.waitForTimeout(delay);
         }
-        const box = await page.evaluate(contentClip, { margin: MARGIN, canvas });
-        const beyond = box.x + box.width > VIEWPORT.width || box.y + box.height > VIEWPORT.height;
-        const png = await page.screenshot({ animations: "disabled", caret: "hide", clip: box, fullPage: beyond });
+        // The owner's rule: always the whole canvas, never cropped to the content. That is the
+        // full page of the story iframe -- the viewport, or everything a scroll would reach when
+        // the story is taller or wider -- so every story of a project is the same size unless
+        // it overflows.
+        const png = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
         return { png, reason: null, console: lines };
     } catch (e) {
         return fail(e.message);
@@ -356,104 +408,22 @@ async function shootOnce(browser, url, { delay, stableFrame, canvas }) {
 }
 
 /**
- * Runs in the page: the box to screenshot, in CSS pixels. It is the union of the story's ink:
- * each text run's own box, each replaced element (image, SVG, canvas, form control), and each
- * element that paints something of its own (a background other than the page's, a border, a
- * shadow, an outline). A block that only lays out -- the story root, a full-width wrapper --
- * adds nothing, so a single button is cropped to the button. Portals (tooltips, popovers) are
- * elements of the body too and count. Every box is cut to the ancestors whose overflow clips it
- * (so rows a scroll area hides do not stretch it; a fixed element escapes them). Then `margin`
- * is added, within the page. A canvas project (`canvas`) keeps the viewport: its full width, and
- * the ink's height plus the margin, never past the viewport, because a capture beyond it could
- * resize the canvas, which clears it. A story with no ink keeps the whole viewport.
- * @param {{ margin: number, canvas: boolean }} options the margin and whether it is a canvas project
- * @returns {{ x: number, y: number, width: number, height: number }} the clip
+ * Which build of this tool captured: the commit of its source checkout when it runs from one
+ * (a monorepo that develops it), else the installed package's name and version.
+ * @returns {string} a commit sha, or `@graphty/visual-review@<version>`
  */
-function contentClip({ margin, canvas }) {
-    const root = document.documentElement;
-    const W = canvas ? window.innerWidth : Math.max(root.scrollWidth, window.innerWidth);
-    const H = canvas ? window.innerHeight : Math.max(root.scrollHeight, window.innerHeight);
-    const transparent = (c) => c === "transparent" || /^rgba\(.*,\s*0\)$/.test(c);
-    const bodyBg = window.getComputedStyle(document.body).backgroundColor;
-    const pageBg = transparent(bodyBg) ? window.getComputedStyle(root).backgroundColor : bodyBg;
-    const REPLACED = new Set(["IMG", "SVG", "svg", "CANVAS", "VIDEO", "IFRAME", "INPUT", "TEXTAREA", "SELECT", "HR"]);
-    const paints = (st) =>
-        (!transparent(st.backgroundColor) && st.backgroundColor !== pageBg) ||
-        st.backgroundImage !== "none" ||
-        st.boxShadow !== "none" ||
-        (st.outlineStyle !== "none" && parseFloat(st.outlineWidth) > 0) ||
-        ["Top", "Right", "Bottom", "Left"].some(
-            (side) =>
-                st[`border${side}Style`] !== "none" &&
-                parseFloat(st[`border${side}Width`]) > 0 &&
-                !transparent(st[`border${side}Color`]),
-        );
-    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
-    const add = (r, c) => {
-        const [l, t, rr, b] = [
-            Math.max(r.left, c[0]),
-            Math.max(r.top, c[1]),
-            Math.min(r.right, c[2]),
-            Math.min(r.bottom, c[3]),
-        ];
-        if (rr > l && b > t) {
-            x0 = Math.min(x0, l + window.scrollX);
-            y0 = Math.min(y0, t + window.scrollY);
-            x1 = Math.max(x1, rr + window.scrollX);
-            y1 = Math.max(y1, b + window.scrollY);
-        }
-    };
-    const ALL = [-Infinity, -Infinity, Infinity, Infinity];
-    // Walks the tree with the clip its ancestors impose, as [left, top, right, bottom].
-    const visit = (parent, clipBox) => {
-        for (const e of parent.children) {
-            const style = window.getComputedStyle(e);
-            if (style.display === "none") {
-                continue;
-            }
-            const r = e.getBoundingClientRect();
-            const c = style.position === "fixed" ? ALL : clipBox;
-            if (style.visibility !== "hidden" && parseFloat(style.opacity) > 0) {
-                if (REPLACED.has(e.tagName) || paints(style)) {
-                    add(r, c);
-                }
-                for (const node of e.childNodes) {
-                    if (node.nodeType === 3 && node.textContent.trim() !== "") {
-                        const range = document.createRange();
-                        range.selectNodeContents(node);
-                        for (const tr of range.getClientRects()) {
-                            add(tr, c);
-                        }
-                    }
-                }
-            }
-            const clipsX = style.overflowX !== "visible";
-            const clipsY = style.overflowY !== "visible";
-            const inner = [
-                clipsX ? Math.max(c[0], r.left) : c[0],
-                clipsY ? Math.max(c[1], r.top) : c[1],
-                clipsX ? Math.min(c[2], r.right) : c[2],
-                clipsY ? Math.min(c[3], r.bottom) : c[3],
-            ];
-            visit(e, inner);
-            // A web component draws inside its shadow root: graphty-element's canvas lives there.
-            if (e.shadowRoot) {
-                visit(e.shadowRoot, inner);
-            }
-        }
-    };
-    visit(document.body, ALL);
-    if (x1 <= x0 || y1 <= y0) {
-        return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+function toolVersion() {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(here, "../package.json"), "utf8"));
+    const installed = `${pkg.name}@${pkg.version}`;
+    if (here.split(sep).includes("node_modules")) {
+        return installed;
     }
-    const left = canvas ? 0 : Math.max(0, Math.floor(x0 - margin));
-    const right = canvas ? W : Math.min(W, Math.ceil(x1 + margin));
-    const top = Math.max(0, Math.floor(y0 - margin));
-    const bottom = Math.min(H, Math.ceil(y1 + margin));
-    if (right <= left || bottom <= top) {
-        return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+    try {
+        return git("-C", here, "rev-parse", "HEAD");
+    } catch {
+        return installed;
     }
-    return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 const clip = (lines) => lines.slice(0, MAX_CONSOLE).map((l) => l.slice(0, MAX_LINE));
@@ -541,9 +511,9 @@ async function loadReference(dir) {
 /**
  * Captures one project.
  * @param {{ project: string, storybook: string, baselines: string, out: string, workers: number,
- *     stableFrame: boolean, canvas?: boolean, reference?: string | null, stories?: string[] | null,
- *     log?: (line: string) => void }} options `stableFrame` waits for every graphty-element's
- *     `waitForStableFrame()`; `canvas` keeps the viewport (see contentClip); `reference` is master's capture (see above); `stories` keeps only
+ *     waitFor?: object | null, reference?: string | null, stories?: string[] | null,
+ *     log?: (line: string) => void }} options `waitFor` is the project's config entry (see
+ *     shootOnce); `reference` is the default branch's capture (see above); `stories` keeps only
  *     the story ids starting with one of these prefixes, for a quick local preview, and then no
  *     baseline is reported removed
  * @returns {Promise<object>} the final results.json contents
@@ -554,8 +524,7 @@ export async function capture({
     baselines,
     out,
     workers,
-    stableFrame,
-    canvas = false,
+    waitFor = null,
     reference = null,
     stories = null,
     log = console.log,
@@ -563,9 +532,9 @@ export async function capture({
     const started = Date.now();
     await mkdir(join(out, "baselines"), { recursive: true });
     await mkdir(join(out, "second"), { recursive: true });
-    const ids = storyIds(JSON.parse(await readFile(join(storybook, "index.json"), "utf8"))).filter(
-        (id) => !stories || stories.some((p) => id.startsWith(p)),
-    );
+    const allIds = storyIds(JSON.parse(await readFile(join(storybook, "index.json"), "utf8")));
+    const ids = allIds.filter((id) => !stories || stories.some((p) => id.startsWith(p)));
+    const renames = await loadRenames(baselines);
     const refs = await loadReference(reference);
     const [server, base] = await serve(storybook);
     // One browser per worker: every page of a browser shares its one GPU process, so with
@@ -586,6 +555,35 @@ export async function capture({
         // A story whose own parameters exclude it while it still has a baseline is reported as
         // removed, so a pull request cannot drop a story from review without the owner seeing it.
         const newlyExcluded = new Set();
+        // Old baselines a rename compares a story with (or reports as a broken rename): not removed.
+        const renamed = new Set();
+        const renameErrors = [];
+        const known = new Set(allIds);
+        for (const [to, from] of stories ? [] : renames) {
+            if (known.has(to)) {
+                continue;
+            }
+            // Only a rename with an old baseline left to move is an error; once it is accepted the
+            // old baselines are gone, and the entry does nothing.
+            for (const file of existing) {
+                const [id, mode = null] = file.slice(0, -4).split(".");
+                if (id === from && BASELINE_NAME.test(file)) {
+                    renamed.add(file);
+                    renameErrors.push({
+                        id: to,
+                        mode,
+                        file: fileName(to, mode),
+                        from,
+                        threshold: DEFAULT_THRESHOLD,
+                        includeAA: false,
+                        ...EMPTY,
+                        status: "failed",
+                        reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
+                    });
+                }
+            }
+        }
+        items.push(...renameErrors);
         for (const id of ids) {
             const s = storySettings(params[id] ?? {}, await loadSettings(baselines, id));
             for (const mode of s.modes) {
@@ -599,11 +597,22 @@ export async function capture({
                 if (s.disableSnapshot) {
                     items.push({ ...common, ...EMPTY, status: "excluded", reason: s.reason });
                 } else {
-                    jobs.push({ ...common, url: base + storyUrl(id, mode.globals), delay: s.delay });
+                    // Renamed: compared with the old id's baseline of this mode, while the new id
+                    // has none of its own (after the accept it does, and the rename is done).
+                    // A rename from an id that is still a story is not a move: it does nothing.
+                    const old =
+                        renames.has(id) && !known.has(renames.get(id)) ? fileName(renames.get(id), mode.name) : null;
+                    const from = old && !existing.has(file) && existing.has(old) ? renames.get(id) : null;
+                    if (from) {
+                        renamed.add(old);
+                    }
+                    jobs.push({ ...common, from, url: base + storyUrl(id, mode.globals), delay: s.delay });
                 }
             }
         }
-        const gone = stories ? [] : [...existing].filter((f) => !planned.has(f) && BASELINE_NAME.test(f));
+        const gone = stories
+            ? []
+            : [...existing].filter((f) => !planned.has(f) && !renamed.has(f) && BASELINE_NAME.test(f));
 
         const emojiFont = hasEmojiFont();
         if (emojiFont === false) {
@@ -629,7 +638,7 @@ export async function capture({
                 gpu,
                 cpu: await cpuModel(),
                 emojiFont,
-                tool: git("-C", dirname(fileURLToPath(import.meta.url)), "rev-parse", "HEAD"),
+                tool: toolVersion(),
             },
             items,
         };
@@ -654,10 +663,12 @@ export async function capture({
         }
 
         const run = async (browser, job) => {
-            const { url, delay, ...common } = job;
-            const baseline = await readBaseline(join(baselines, job.file));
+            const { url, delay, from, ...rest } = job;
+            // `from` only on a renamed story, so results.json of a project with no renames is as before.
+            const common = from ? { ...rest, from } : rest;
+            const baseline = await readBaseline(join(baselines, from ? fileName(from, job.mode) : job.file));
             const reference = baseline ? null : (refs.images.get(job.file) ?? null);
-            const opts = { threshold: job.threshold, includeAA: job.includeAA, reference };
+            const opts = { threshold: job.threshold, includeAA: job.includeAA, reference, moved: from !== null };
             const failed = (shot, prefix = "") => ({
                 ...common,
                 ...EMPTY,
@@ -666,30 +677,36 @@ export async function capture({
                 reason: prefix + shot.reason,
                 console: clip(shot.console),
             });
-            const first = await shoot(browser, url, { delay, stableFrame, canvas });
+            const first = await shoot(browser, url, { delay, waitFor });
             if (!first.png) {
                 return failed(first);
             }
             let result = classify({ baseline, first: first.png, ...opts });
             let second = null;
             if (result.status === "changed" || result.status === "new") {
-                second = await shoot(browser, url, { delay, stableFrame, canvas });
+                second = await shoot(browser, url, { delay, waitFor });
                 if (!second.png) {
                     return failed(second, "second capture: ");
                 }
                 result = classify({ baseline, first: first.png, second: second.png, ...opts });
             }
             const { status } = result;
-            if (["changed", "new", "unseeded", "unstable"].includes(status)) {
-                await writeFile(join(out, job.file), first.png);
+            // A moved capture is also its baseline when the bytes are the same: the page reads it.
+            if (["changed", "moved", "new", "unseeded", "unstable"].includes(status)) {
+                // The capture results.json names: the second one when the first was a flake.
+                await writeFile(join(out, job.file), result.flaky ? second.png : first.png);
             }
             if (status === "unstable") {
                 await writeFile(join(out, "second", job.file), second.png);
             }
-            if (baseline && (status === "changed" || status === "unstable")) {
+            const ownBaseline = status === "moved" && result.baseline !== result.capture;
+            if (baseline && (status === "changed" || status === "unstable" || ownBaseline)) {
                 await writeFile(join(out, "baselines", job.file), baseline);
             }
-            const lines = status === "unchanged" ? [] : clip([...first.console, ...(second?.console ?? [])]);
+            const lines =
+                status === "unchanged" || status === "moved"
+                    ? []
+                    : clip([...first.console, ...(second?.console ?? [])]);
             return { ...common, ...result, reason: null, console: lines };
         };
 

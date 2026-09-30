@@ -8,7 +8,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { WHOLE_GRAPH_CAVEAT } from "../../../src/algorithms/input/maskBack";
 import { isGraphtyError } from "../../../src/errors";
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { ElementSession } from "../../../src/session/types";
 
 /** Forty nodes on a path. */
@@ -27,7 +27,7 @@ describe("a run over a set", () => {
         await graph.init();
         await graph.addNodes(IDS.map((id) => ({ id })));
         await graph.addEdges(IDS.slice(1).map((id, index) => ({ src: IDS[index], dst: id })));
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -75,7 +75,7 @@ describe("a run over a set", () => {
             { src: "w1", dst: "w2", weight: 1 },
             { src: "w2", dst: "w3", weight: 1 },
         ]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         // Every node stays visible; only the edges heavier than 2 do.
         await session.visibility.set({ kind: "edges", where: "data.weight > `2`" });
 

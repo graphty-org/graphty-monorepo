@@ -8,15 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, pageRank } from "@graphty/algorithms";
+import { pageRank } from "@graphty/algorithms";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { byId } from "../utils/snapshot.js";
 import {
     applyHeatMap,
     createHeatMapLegend,
@@ -39,11 +37,11 @@ interface PageRankArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms directed Graph.
+ * Freeze GeneratedGraph as a directed snapshot.
  * PageRank requires a directed graph.
  */
-function toDirectedGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: true });
+function toDirectedGraph(generatedGraph: GeneratedGraph): GraphSnapshot {
+    const graph = new GraphBuilder({ directed: true });
 
     for (const node of generatedGraph.nodes) {
         graph.addNode(node.id);
@@ -58,7 +56,7 @@ function toDirectedGraph(generatedGraph: GeneratedGraph): Graph {
         }
     }
 
-    return graph;
+    return graph.freeze();
 }
 
 /**
@@ -72,11 +70,8 @@ function createPageRankStory(args: PageRankArgs): HTMLElement {
     const graph = toDirectedGraph(generatedGraph);
 
     // Calculate PageRank using actual algorithm
-    const result = pageRank(graph, {
-        dampingFactor,
-        maxIterations,
-        useDelta: false, // Use standard algorithm for smaller graphs
-    });
+    const pr = pageRank(graph, { dampingFactor, maxIterations });
+    const result = { ranks: byId(graph, pr.scores), iterations: pr.iterations, converged: pr.converged };
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -117,7 +112,9 @@ function createPageRankStory(args: PageRankArgs): HTMLElement {
      */
     function updateScoresDisplay(): void {
         const scoresEl = infoPanel.querySelector("[data-scores]");
-        if (!scoresEl) {return;}
+        if (!scoresEl) {
+            return;
+        }
 
         scoresEl.innerHTML = "";
 
@@ -147,7 +144,9 @@ function createPageRankStory(args: PageRankArgs): HTMLElement {
      * Apply centrality visualization.
      */
     function apply(): void {
-        if (isApplied) {return;}
+        if (isApplied) {
+            return;
+        }
         isApplied = true;
 
         // Apply heat map coloring

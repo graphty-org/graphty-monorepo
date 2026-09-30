@@ -29,6 +29,7 @@ import "../../src/algorithms";
 
 import { afterEach, assert, describe, it } from "vitest";
 
+import { operationQueueOf } from "../../src/Graph";
 import { Graphty } from "../../src/graphty-element";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "../../src/managers/StylePainter";
 import cats from "../helpers/cat-social-network-2.json";
@@ -161,7 +162,7 @@ describe("once the picture has settled", () => {
 
             graph.applySuggestedStyles("graphty:kruskal");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await session.styles.settled();
             await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 

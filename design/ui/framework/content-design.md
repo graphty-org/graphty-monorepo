@@ -22,8 +22,11 @@ chrome: panel tooltips, menu headings, Report problem, feedback, the start scree
 
 **Delivery.** The element publishes finished reader text, an error's cause apart from its
 developer message, by the route each key names (`element-needs.md`, "Reader text and
-formatting"). The English is an unpublished value; the event names, kinds and slots a host
-switches on are published names (`one-way-doors.md` door 87, Host names for reader text). **Every slot has a source**: a field on the key's route. A slot the
+formatting"). Each message is published as a key and its named parameters, the template's slots,
+beside the English `text`, which is an unpublished default: a host that wants other words, or
+another language, supplies a template per key and never parses English (`decided-doors.md`, "Host
+names for reader text"). The key scheme, `graphty.<area>.<message>`, and its stability rules are
+`message-catalog.md`, "Published keys". **Every slot has a source**: a field on the key's route. A slot the
 element does not publish yet is an `element-needs.md` row, and its key's words are not final until
 that row lands, because otherwise the app would have to guess a graph fact.
 
@@ -328,7 +331,11 @@ adds a key there.
 ## Rejected alternatives
 
 - **Finished strings in documents**: a copy that drifts.
-- **The app importing element keys or writing element sentences**: a privilege a third party lacks.
+- **The app writing element sentences, or rewording an element key for itself**: every host may
+  supply its own words by key, but the graphty app does not, so wrong words are fixed in the
+  element for every consumer (section 1).
+- **Kinds and slots per event with no key**: a host that disagreed with one word would have to
+  switch on event kinds and rebuild every sentence of that kind.
 - **One verb per recovery class**: a class covers causes that need different fixes, so the cause
   picks the verb. **Every verb of a class on a notice**: three next steps is a menu, not an answer.
 - **A domain threshold beside a value, even from a recipe**: it misstates on random graphs.
@@ -336,7 +343,7 @@ adds a key there.
 - **Past-tense undo labels**: "Undo Ran PageRank" reads wrong.
 - **A floor ("< 0.001")**: the bulk of a large graph's PageRank reads the same.
 - **Merge as the only answer to parallel edges**: a fraud or traffic multigraph loses its edges.
-- **Localization now**: deferred; ICU keeps it possible.
+- **Localization now**: deferred; the published keys and ICU keep it possible.
 
 ## Sources
 

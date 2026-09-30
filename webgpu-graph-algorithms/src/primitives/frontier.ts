@@ -72,6 +72,8 @@ export const W: Readonly<{
     deltaBits: 23;
     path: 24;
     nextDegreeSum: 25;
+    stackTop: 26;
+    sigmaOverflow: 27;
 }> = Object.freeze({
     frontierCount: 0,
     nextFrontierCount: 1,
@@ -99,6 +101,8 @@ export const W: Readonly<{
     deltaBits: 23,
     path: 24,
     nextDegreeSum: 25,
+    stackTop: 26,
+    sigmaOverflow: 27,
 });
 
 /** The words a `reset` seeds (every other word is zeroed). */

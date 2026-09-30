@@ -29,7 +29,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import type { StyleChange } from "../../src/session/styles";
 
@@ -164,7 +164,7 @@ async function reload(): Promise<void> {
     graph.getDataManager().clear();
     await graph.addNodes(RELOADED_NODES);
     await graph.addEdges(RELOADED_EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 }
 
 beforeEach(async () => {
@@ -183,13 +183,17 @@ beforeEach(async () => {
 
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 });
 
-afterEach(() => {
+afterEach(async () => {
     stopWatching?.();
     stopWatching = null;
 
+    // Drained before the graph is thrown away. A style edit is a queued run, and the element
+    // schedules a repaint behind every finished run -- so disposing while the queue still holds
+    // one runs that repaint against a store the dispose has already emptied.
+    await operationQueueOf(graph).waitForCompletion();
     graph.dispose();
     container.remove();
 });
@@ -458,7 +462,10 @@ describe("what a reader is told about a real run", () => {
         // The element's own edge id, which is a counter. The first edge this fixture added gets
         // "0"; the pair string it used to be is now an id naming nothing.
         assert.doesNotThrow(() => session.styles.explain({ edge: "0" }));
-        assert.strictEqual(syncCodeOf(() => session.styles.explain({ node: "zz" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            syncCodeOf(() => session.styles.explain({ node: "zz" })),
+            "E_BAD_COMMAND",
+        );
     });
 
     it("names the layer that painted one element, and the colour it painted", async () => {
@@ -562,8 +569,8 @@ describe("the layers a run put on the graph", () => {
 
         assert.deepStrictEqual(removal.layerIds, [layer.id], "and says so before it goes");
 
-        // The removal is a style edit, which is queued like every other one.
-        await graph.operationQueue.waitForCompletion();
+        // The removal is a style edit, written at once and repainted on the session's lane.
+        await graph.waitForSettled();
 
         assert.isUndefined(
             session.styles.get(layer.id),
@@ -572,14 +579,14 @@ describe("the layers a run put on the graph", () => {
     });
 
     it("names none for a run nothing was painted from", async () => {
-        const run = session.runs.start("degree", {}, { as: "degree" });
+        const run = session.runs.start("degree", {}, { as: "degree", style: false });
         await run;
 
         assert.deepStrictEqual(session.runs.bindings("no-such-run"), []);
         assert.deepStrictEqual(
             session.runs.bindings(run.id),
             [],
-            "a run whose suggestion has not landed reports nothing rather than guessing",
+            "a run that painted nothing reports nothing rather than guessing",
         );
     });
 });
@@ -659,7 +666,7 @@ describe("a stack over a graph a node was removed from", () => {
 
         await graph.removeNodes(["f"]);
         session.runs.remove(run.id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (const id of ["a", "b", "c", "d", "e"]) {
             assert.strictEqual(colorOf(id), base, `node ${id} is back to the colour beneath the layer`);
@@ -676,7 +683,7 @@ describe("a stack over a graph a node was removed from", () => {
         // b sits at index 1, so every node after it moves down one index. The run's measurements
         // are kept by node, so each survivor still carries the degree it was painted from.
         await graph.removeNodes(["b"]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (const id of survivors) {
             assert.strictEqual(colorOf(id), before.get(id), `node ${id} shows its own paint, not its neighbour's`);

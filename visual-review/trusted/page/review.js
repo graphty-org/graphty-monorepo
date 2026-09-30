@@ -11,22 +11,24 @@ const app = document.getElementById("app");
 const crumbs = document.getElementById("crumbs");
 const statusLine = document.getElementById("status");
 
-const REVIEWABLE = ["changed", "new", "removed", "unstable", "failed"];
-const ACCEPTABLE = ["changed", "new", "removed"];
+const REVIEWABLE = ["changed", "moved", "new", "removed", "unstable", "failed"];
+const ACCEPTABLE = ["changed", "moved", "new", "removed"];
 // A story with no baseline that this pull request did not change: shown, never a decision here.
 const UNSEEDED = "unseeded";
 const NO_BASELINE = "no baseline yet";
 const statusLabel = (status) => (status === UNSEEDED ? NO_BASELINE : status);
-// Errors first (their own list), then what changed, then new, unstable and removed stories.
-const RANK = { failed: 0, changed: 1, new: 2, unstable: 3, removed: 4, unseeded: 5 };
+// Errors first (their own list), then what changed, then moved, new, unstable and removed stories.
+const RANK = { failed: 0, changed: 1, moved: 2, new: 3, unstable: 4, removed: 5, unseeded: 6 };
 const FLASH_MS = 333; // one image each third of a second: about 1.5 full cycles a second
-// "fit" (the default) is real size, shrunk to the pane when the image is wider; 1 is real size:
-// one CSS pixel per CSS pixel the story was drawn at, scrolling when wider than the pane.
+// "fit" (the default) shows the whole of both images in their panes, at one scale, never above real
+// size; 1 is real size: one CSS pixel per CSS pixel the story was drawn at, scrolling when larger.
 const ZOOMS = ["fit", 1, 2, 4, 8];
 const CRISP_FROM = 4; // from this zoom on, pixels are drawn as hard squares
 const GROW = 10; // image pixels the spotlight and the changed boxes grow each changed pixel by
 const SPOT_ALPHA = 190; // the spotlight's dimming, out of 255, as Chromatic's focus mask
 const RE_REVIEW = "re-review: your earlier accept was replaced by master's baseline";
+// The grid's decision filters, and how a decision reads on a tile.
+const DECISIONS = { accept: "Accepted", reject: "Rejected", exclude: "Excluded" };
 
 const state = {
     targets: [],
@@ -35,7 +37,10 @@ const state = {
     data: null, // GET /api/pr/:id/:project
     filter: "undecided", // the grid opens on what still needs a decision
     text: "", // the grid's text filter
-    index: 0,
+    index: 0, // the item shown, in `sequence`
+    // The files of this pass through the stories, frozen when a story is opened from the grid:
+    // deciding one never drops it, so Previous goes back to it and its Undo.
+    sequence: [],
     lastFile: null, // the item last opened, highlighted when the grid comes back
     view: "side", // side | flash | highlight | spotlight
     zoom: "fit",
@@ -43,10 +48,27 @@ const state = {
     held: null, // the view to return to when Space is released
     pending: "reject", // what Enter in the reason box does
     screen: "targets",
+    job: null, // the newest Finish, from GET /api/finish-status
+    armed: null, // the bulk Undo button pressed once: its second press undoes
 };
+const running = () => state.job?.running === true;
+const VIEWS = ["side", "flash", "highlight", "spotlight"];
+const FILTERS = ["undecided", "all", ...REVIEWABLE, UNSEEDED, ...Object.keys(DECISIONS)];
+let routing = false; // true while the page follows the address (a link opened, Back, Forward)
 const images = new Map();
 const diffs = new Map();
 let flashTimer = null;
+let factor = 1; // CSS pixels per image pixel of the pictures on the stage
+let shownBoxes = []; // the changed boxes of the item on the stage
+let stageKey = null; // "file|zoom" of what is on the stage, to keep its scroll across view changes
+// At fit, the stage refits when the window (or an iPad's orientation) changes its size.
+const refit = new ResizeObserver(() => {
+    const stage = document.getElementById("stage");
+    if (state.screen === "story" && state.zoom === "fit" && stage?.querySelector(".sheet")) {
+        fit(stage);
+        showBox(stage, shownBoxes, false);
+    }
+});
 
 // ---------------------------------------------------------------- helpers
 
@@ -68,8 +90,10 @@ function render(...children) {
     app.replaceChildren(...children.filter((c) => c !== null && c !== undefined && c !== false));
 }
 
+// Clearing the status line during a Finish shows the Finish's step instead, so a screen that
+// opens while it runs (a reload, Visual review, a link) never blanks its progress.
 function say(text, isError = false) {
-    statusLine.textContent = text;
+    statusLine.textContent = text === "" && running() ? finishing() : text;
     statusLine.className = isError ? "error" : "";
 }
 
@@ -115,6 +139,8 @@ function loaded(url) {
 
 const componentOf = (id) => id.split("--")[0];
 const itemName = (item) => (item.mode ? `${item.id} (${item.mode})` : item.id);
+// A renamed story (renames.json) is compared with its old id's baseline: say which.
+const movedFrom = (item) => (item.from ? `moved from ${item.from}` : "");
 const short = (sha) => (sha ? sha.slice(0, 10) : "none");
 const decisionOf = (item) => state.data?.decisions[item.file] ?? null;
 const isLocal = () => state.target?.local === true;
@@ -158,12 +184,22 @@ function visibleItems() {
         items = state.data.items.filter((i) => REVIEWABLE.includes(i.status));
         if (state.filter === "undecided") {
             items = items.filter((i) => !decisionOf(i));
+        } else if (Object.hasOwn(DECISIONS, state.filter)) {
+            items = items.filter((i) => decisionOf(i)?.decision === state.filter);
         } else if (state.filter !== "all") {
             items = items.filter((i) => i.status === state.filter);
         }
     }
     return ordered(text ? items.filter((i) => i.file.includes(text)) : items);
 }
+
+// The items of the frozen pass, in its order; an item gone from a reloaded project is left out.
+function passItems() {
+    const byFile = new Map(state.data.items.map((i) => [i.file, i]));
+    return state.sequence.map((f) => byFile.get(f)).filter(Boolean);
+}
+
+const current = () => passItems()[state.index];
 
 function progress() {
     const items = state.data.items.filter((i) => REVIEWABLE.includes(i.status));
@@ -181,24 +217,39 @@ function stopFlash() {
 
 // ---------------------------------------------------------------- screen: targets
 
-async function showTargets() {
+async function loadTargets() {
+    say("Loading pull requests and captures...");
+    try {
+        const [prs, status] = await Promise.all([api("/api/prs"), api("/api/finish-status")]);
+        state.targets = prs.targets;
+        state.job = status.job;
+        say("");
+        if (running()) {
+            // A reload during a Finish, on any screen: follow the running one, never offer a second.
+            watchFinish();
+        }
+        return true;
+    } catch (err) {
+        say(err.message, true);
+        return false;
+    }
+}
+
+async function showTargets(notice = "") {
     stopFlash();
     state.screen = "targets";
     setCrumbs();
-    say("Loading pull requests and captures...");
-    try {
-        state.targets = (await api("/api/prs")).targets;
-        say("");
-    } catch (err) {
-        say(err.message, true);
+    if (!(await loadTargets())) {
         return;
     }
+    remember();
+    say(notice);
     if (state.targets.length === 0) {
-        render(el("p", {}, "No open pull request has a CI run, and no master run was given."));
+        render(finishOutcome(), el("p", {}, "No open pull request has a CI run, and no master run was given."));
         return;
     }
     const finishable = state.targets.find((t) => !t.local);
-    render(finishable ? signerBlock(finishable) : null, ...state.targets.map(targetCard));
+    render(finishOutcome(), finishable ? signerBlock(finishable) : null, ...state.targets.map(targetCard));
 }
 
 // The key Finish signs with comes from the server's environment, which is an agent's when an
@@ -313,15 +364,22 @@ function targetCard(t) {
         ),
         t.local
             ? null
-            : el(
-                  "p",
-                  {},
-                  el(
-                      "button",
-                      { type: "button", class: "primary", disabled: decided === 0, onclick: () => finishTarget(t) },
-                      `Finish ${t.pr === null ? "seed" : `#${t.pr}`} (${decided} decisions)`,
-                  ),
-              ),
+            : running() && state.job.target === t.id
+              ? el("p", { class: "finish-running" }, `Finish is running: ${state.job.step}...`)
+              : el(
+                    "p",
+                    {},
+                    el(
+                        "button",
+                        {
+                            type: "button",
+                            class: "primary",
+                            disabled: decided === 0 || running(),
+                            onclick: () => finishTarget(t),
+                        },
+                        `Finish ${t.pr === null ? "seed" : `#${t.pr}`} (${decided} decisions)`,
+                    ),
+                ),
     );
 }
 
@@ -333,6 +391,7 @@ async function openProject(target, project) {
     state.filter = "undecided";
     state.text = "";
     state.lastFile = null;
+    state.sequence = [];
     say("Loading...");
     try {
         await reload();
@@ -369,8 +428,11 @@ const thumbs = new IntersectionObserver((entries) => {
     }
 });
 
+// Opens item `index` of the grid, and freezes what the grid shows as the pass Next and Previous
+// walk through.
 function openItem(index) {
     say("");
+    state.sequence = visibleItems().map((i) => i.file);
     state.index = index;
     state.box = 0;
     showStory();
@@ -386,24 +448,54 @@ function tile(item, number) {
     }
     const d = decisionOf(item);
     return el(
-        "button",
-        {
-            type: "button",
-            class: `tile ${d ? `decided ${d.decision}` : ""} ${item.file === state.lastFile ? "current" : ""}`,
-            "data-file": item.file,
-            onclick: () => openItem(number - 1),
-        },
-        img,
-        el("span", { class: "name" }, el("span", { class: "number" }, `${number}`), " ", item.mode ?? ""),
-        el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
-        d ? el("span", { class: `badge ${d.decision}` }, d.decision) : null,
-        item.reReview ? el("span", { class: "badge warn", title: RE_REVIEW }, "re-review") : null,
+        "div",
+        { class: "tile-box" },
+        el(
+            "button",
+            {
+                type: "button",
+                class: `tile ${d ? `decided ${d.decision}` : ""} ${item.file === state.lastFile ? "current" : ""}`,
+                "data-file": item.file,
+                onclick: () => openItem(number - 1),
+            },
+            img,
+            el("span", { class: "name" }, el("span", { class: "number" }, `${number}`), " ", item.mode ?? ""),
+            el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
+            item.from ? el("span", { class: "moved-from", title: movedFrom(item) }, movedFrom(item)) : null,
+            item.reReview ? el("span", { class: "badge warn", title: RE_REVIEW }, "re-review") : null,
+        ),
+        decisionLine(item),
+    );
+}
+
+// An item's decision, with its reason, and an Undo that clears it without opening the story. A
+// reject an earlier Finish already posted stays: it is shown, never undone from the grid.
+function decisionLine(item) {
+    const d = decisionOf(item);
+    if (!d) {
+        return null;
+    }
+    const text = `${DECISIONS[d.decision]}${d.bulk ? " (not opened)" : ""}${d.reason ? `: ${d.reason}` : ""}`;
+    return el(
+        "div",
+        { class: `decision ${d.decision}`, "data-file": item.file },
+        el("span", { class: "what", title: text }, text),
+        d.posted
+            ? el("span", { class: "meta" }, "Posted by Finish: stays")
+            : el(
+                  "button",
+                  {
+                      type: "button",
+                      title: `Undo the ${d.decision} of ${itemName(item)}`,
+                      onclick: () => undo([item.file], itemName(item), true),
+                  },
+                  "Undo",
+              ),
     );
 }
 
 // A failed capture: its reason, and the console and stack output, in the errors list.
 function errorRow(item, number) {
-    const d = decisionOf(item);
     return el(
         "li",
         { class: item.file === state.lastFile ? "current" : null, "data-file": item.file },
@@ -413,7 +505,7 @@ function errorRow(item, number) {
             el("span", { class: "number" }, `${number}`),
             ` ${itemName(item)}`,
         ),
-        d ? el("span", { class: `badge ${d.decision}` }, d.decision) : null,
+        decisionLine(item),
         el("div", { class: "reason" }, item.reason ?? "no reason recorded"),
         item.console.length > 0
             ? el(
@@ -431,6 +523,76 @@ const undecidedIn = (component) =>
     state.data.items.filter(
         (i) => ACCEPTABLE.includes(i.status) && !decisionOf(i) && (!component || componentOf(i.id) === component),
     ).length;
+
+// The files whose decisions a bulk Undo in `component` (or the whole project) clears: every
+// decision not yet posted by Finish.
+const undoableIn = (component) =>
+    state.data.items
+        .filter((i) => decisionOf(i) && !decisionOf(i).posted && (!component || componentOf(i.id) === component))
+        .map((i) => i.file);
+
+// A bulk Undo asks by a second press: the first arms it, and any other redraw of the grid disarms it.
+function undoButton(component, label) {
+    const files = undoableIn(component);
+    if (isLocal() || files.length === 0) {
+        return null;
+    }
+    const key = component ?? "";
+    const where = component ? `the component ${component}` : state.project;
+    const armed = state.armed === key;
+    return el(
+        "button",
+        {
+            type: "button",
+            class: `undo-all ${armed ? "reject" : ""}`,
+            "data-armed": String(armed),
+            onclick: () => {
+                if (armed) {
+                    undo(files, where);
+                    return;
+                }
+                state.armed = key;
+                showGrid();
+                say(`Press Confirm to undo the decisions of ${where}, or Escape to cancel.`);
+            },
+        },
+        armed ? `Confirm: undo ${files.length} ${files.length === 1 ? "decision" : "decisions"}` : label(files.length),
+    );
+}
+
+// Clears decisions one by one through the same request as the story screen's U.
+// ponytail: one request per item; a bulk endpoint if a project ever holds thousands of decisions.
+async function undo(files, where, one = false) {
+    state.armed = null;
+    let done = 0;
+    try {
+        for (const file of files) {
+            await api("/api/decide", {
+                id: state.target.id,
+                project: state.project,
+                file,
+                decision: null,
+                reason: null,
+            });
+            done++;
+        }
+    } catch (err) {
+        say(`Undid ${done} of ${files.length}, then: ${err.message}`, true);
+    }
+    try {
+        await reload();
+    } catch (err) {
+        say(err.message, true);
+    }
+    if (done === files.length) {
+        say(
+            one
+                ? `${where}: undone, undecided again`
+                : `Undid ${done} ${done === 1 ? "decision" : "decisions"} of ${where}.`,
+        );
+    }
+    showGrid();
+}
 
 function showGrid() {
     stopFlash();
@@ -488,6 +650,7 @@ function showGrid() {
                           `Accept ${n} undecided`,
                       )
                     : null,
+                undoButton(component, (k) => `Undo ${k} ${k === 1 ? "decision" : "decisions"}`),
             ),
             el(
                 "div",
@@ -537,10 +700,18 @@ function showGrid() {
                 `Needs a decision (${state.data.items.filter((i) => REVIEWABLE.includes(i.status) && !decisionOf(i)).length})`,
             ),
             filterButton("all", `All (${state.data.items.filter((i) => REVIEWABLE.includes(i.status)).length})`),
-            ["changed", "new", "unstable", "removed", "failed"]
+            ["changed", "moved", "new", "unstable", "removed", "failed"]
                 .filter((s) => counts[s])
                 .map((s) => filterButton(s, `${s} (${counts[s]})`)),
             counts[UNSEEDED] ? filterButton(UNSEEDED, `${NO_BASELINE} (${counts[UNSEEDED]})`) : null,
+            isLocal()
+                ? null
+                : Object.entries(DECISIONS).map(([k, label]) =>
+                      filterButton(
+                          k,
+                          `${label} (${state.data.items.filter((i) => REVIEWABLE.includes(i.status) && decisionOf(i)?.decision === k).length})`,
+                      ),
+                  ),
             el("span", { class: "spacer" }),
             filterBox,
             goto,
@@ -551,6 +722,7 @@ function showGrid() {
                       "Accept all",
                   )
                 : null,
+            undoButton(null, () => "Undo all decisions"),
             finishButton(),
         ),
         isLocal()
@@ -589,6 +761,9 @@ function showGrid() {
             : null,
         ...(items.length === 0 ? [el("p", {}, "Nothing here.")] : sections),
     );
+    // An armed bulk Undo lasts until the next redraw: this render showed it, the next one does not.
+    state.armed = null;
+    remember();
     // Back from a story: show where it is in the grid.
     const current = app.querySelector(".current");
     current?.scrollIntoView({ block: "center" });
@@ -640,7 +815,7 @@ function singleImageNote(item) {
 function showStory() {
     stopFlash();
     state.screen = "story";
-    const items = visibleItems();
+    const items = passItems();
     if (items.length === 0) {
         showGrid();
         return;
@@ -696,7 +871,7 @@ function showStory() {
                     showStory();
                 },
             },
-            z === "fit" ? "Fit" : z === 1 ? "Real size (1x)" : `${z}x`,
+            z === "fit" ? "Fit to screen" : z === 1 ? "Real size (1x)" : `${z}x`,
         );
     const reason = el("input", {
         id: "reason",
@@ -743,92 +918,113 @@ function showStory() {
                   : null,
               reason,
           ];
+    // Keep the panes' scroll when only the view changes (F, H, S, Space) on the same item and zoom.
+    const oldFrame = document.querySelector("#stage .sheet")?.parentElement;
+    const keep =
+        oldFrame && stageKey === `${item.file}|${state.zoom}` ? [oldFrame.scrollLeft, oldFrame.scrollTop] : null;
+    // One screen: the controls, then the two panes taking all the height left, then the decisions.
     render(
         el(
             "div",
-            { class: "toolbar" },
-            el("button", { type: "button", onclick: () => move(-1), title: "K" }, "Previous"),
-            el("strong", { id: "position" }, `${state.index + 1} of ${items.length}`),
-            el("button", { type: "button", onclick: () => move(1), title: "J" }, "Next"),
-            el("strong", { id: "progress" }, progress()),
-            el("span", { class: "spacer" }),
-            el("button", { type: "button", onclick: showGrid, title: "Escape" }, "Back to the grid"),
-            finishButton(),
-        ),
-        el(
-            "h2",
-            {},
-            itemName(item),
-            " ",
-            el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
-            d ? el("span", { class: `badge ${d.decision}` }, `${d.decision}${d.reason ? `: ${d.reason}` : ""}`) : null,
-            sizeChanged
-                ? el(
-                      "span",
-                      { class: "badge warn" },
-                      `size changed ${item.baselineSize.join("x")} -> ${item.size.join("x")} image pixels`,
-                  )
-                : null,
-            item.flaky ? el("span", { class: "badge" }, "flaky") : null,
-            item.reReview ? el("span", { class: "badge warn" }, RE_REVIEW) : null,
-        ),
-        el(
-            "p",
-            { class: "meta" },
-            item.changedPixels !== null ? `${item.changedPixels} changed image pixels` : "",
-            item.bbox ? ` in [${item.bbox.join(", ")}]` : "",
-            ` at threshold ${item.threshold}; captured at ${scale()} image pixels per CSS pixel`,
-        ),
-        el(
-            "div",
-            { class: "toolbar" },
-            viewButton("side", "Side by side", ""),
-            viewButton("flash", "Flash", "F, or hold Space"),
-            viewButton("highlight", "Highlight", "H"),
-            viewButton("spotlight", "Spotlight", "S"),
-            note ? el("span", { id: "single-note", class: "meta" }, note) : null,
-            el("span", { class: "spacer" }),
-            ZOOMS.map(zoomButton),
+            { class: "story-view" },
             el(
-                "button",
-                {
-                    type: "button",
-                    id: "next-box",
-                    onclick: nextBox,
-                    title: "N",
-                    disabled: !item.baseline || !item.capture,
-                },
-                "Next changed box",
+                "div",
+                { class: "toolbar" },
+                el("button", { type: "button", onclick: () => move(-1), title: "K" }, "Previous"),
+                el("strong", { id: "position" }, `${state.index + 1} of ${items.length}`),
+                el("button", { type: "button", onclick: () => move(1), title: "J" }, "Next"),
+                el("strong", { id: "progress" }, progress()),
+                el("span", { class: "spacer" }),
+                el("button", { type: "button", onclick: showGrid, title: "Escape" }, "Back to the grid"),
+                finishButton(),
             ),
-            el("span", { id: "box-count", class: "meta" }),
-        ),
-        el("div", { id: "stage", class: `stage ${view} zoom-${state.zoom}` }),
-        item.console.length > 0
-            ? el(
-                  "section",
-                  { class: item.status === "failed" ? "errors" : null },
-                  el("h3", {}, item.status === "failed" ? `Error: ${item.reason ?? "capture failed"}` : "Console"),
-                  el("pre", { class: "console" }, item.console.join("\n")),
-              )
-            : null,
-        el(
-            "div",
-            { class: "actions" },
-            isLocal()
-                ? el("p", {}, "Local preview: look only. Only a CI capture of a pushed commit can be decided.")
-                : null,
-            unseeded
+            el(
+                "h2",
+                {},
+                itemName(item),
+                " ",
+                el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
+                item.from ? el("span", { class: "badge moved" }, movedFrom(item)) : null,
+                d
+                    ? el("span", { class: `badge ${d.decision}` }, `${d.decision}${d.reason ? `: ${d.reason}` : ""}`)
+                    : null,
+                sizeChanged
+                    ? el(
+                          "span",
+                          { class: "badge warn" },
+                          `size changed ${item.baselineSize.join("x")} -> ${item.size.join("x")} image pixels`,
+                      )
+                    : null,
+                item.flaky ? el("span", { class: "badge" }, "flaky") : null,
+                item.reReview ? el("span", { class: "badge warn" }, RE_REVIEW) : null,
+            ),
+            el(
+                "p",
+                { class: "meta" },
+                item.changedPixels !== null ? `${item.changedPixels} changed image pixels` : "",
+                item.bbox ? ` in [${item.bbox.join(", ")}]` : "",
+                ` at threshold ${item.threshold}; captured at ${scale()} image pixels per CSS pixel`,
+            ),
+            el(
+                "div",
+                { class: "toolbar" },
+                viewButton("side", "Side by side", ""),
+                viewButton("flash", "Flash", "F, or hold Space"),
+                viewButton("highlight", "Highlight", "H"),
+                viewButton("spotlight", "Spotlight", "S"),
+                note ? el("span", { id: "single-note", class: "meta" }, note) : null,
+                el("span", { class: "spacer" }),
+                ZOOMS.map(zoomButton),
+                el(
+                    "button",
+                    {
+                        type: "button",
+                        id: "next-box",
+                        onclick: nextBox,
+                        title: "N",
+                        disabled: !item.baseline || !item.capture,
+                    },
+                    "Next changed box",
+                ),
+                el("span", { id: "box-count", class: "meta" }),
+            ),
+            el("div", { id: "stage", class: `stage ${view} zoom-${state.zoom}` }),
+            item.console.length > 0
                 ? el(
-                      "p",
-                      {},
-                      "No baseline yet, and this pull request does not change it: it looks as on master. " +
-                          "Seed it from master's capture, or accept it on the pull request that changes it.",
+                      "details",
+                      {
+                          class: `console-block ${item.status === "failed" ? "errors" : ""}`,
+                          open: item.status === "failed",
+                      },
+                      el(
+                          "summary",
+                          {},
+                          item.status === "failed" ? `Error: ${item.reason ?? "capture failed"}` : "Console",
+                          ` (${item.console.length} lines)`,
+                      ),
+                      el("pre", { class: "console" }, item.console.join("\n")),
                   )
                 : null,
-            decidable ? decisionButtons : null,
+            el(
+                "div",
+                { class: "actions" },
+                isLocal()
+                    ? el("p", {}, "Local preview: look only. Only a CI capture of a pushed commit can be decided.")
+                    : null,
+                unseeded
+                    ? el(
+                          "p",
+                          {},
+                          "No baseline yet, and this pull request does not change it: it looks as on master. " +
+                              "Seed it from master's capture, or accept it on the pull request that changes it.",
+                      )
+                    : null,
+                decidable ? decisionButtons : null,
+            ),
         ),
     );
-    renderStage(item, view);
+    renderStage(item, view, keep);
+    remember();
 }
 
 // The changed pixels of an item, padded top-left to the larger size, grown by GROW pixels, and the
@@ -931,67 +1127,102 @@ function regions(grown, w, h) {
     return boxes.sort((p, q) => q[2] * q[3] - p[2] * p[3]);
 }
 
-// Sizes a picture: real size is its image pixels divided by the capture's scale, times the zoom;
-// "fit" is real size, no wider than its pane.
-function size(pic, naturalWidth) {
-    const factor = state.zoom === "fit" ? 1 : state.zoom;
-    pic.style.width = `${(naturalWidth / scale()) * factor}px`;
-    pic.style.maxWidth = state.zoom === "fit" ? "100%" : "none";
-    if (factor >= CRISP_FROM) {
-        pic.classList.add("crisp");
+// Sizes every picture on the stage at one scale, so equal-size images line up pixel for pixel in
+// their panes. At "fit" the largest of them fits its pane both ways (never above real size, one CSS
+// pixel per CSS pixel the story was drawn at); zoomed, it is real size times the zoom and the
+// panes scroll. Each pane's sheet is as large as the largest picture, so both scroll alike.
+function fit(stage) {
+    const pics = [...stage.querySelectorAll(".sheet > img, .sheet > canvas")];
+    const natural = (p) => [p.naturalWidth ?? p.width, p.naturalHeight ?? p.height];
+    let [w, h] = [1, 1];
+    for (const p of pics) {
+        const [x, y] = natural(p);
+        [w, h] = [Math.max(w, x), Math.max(h, y)];
     }
-    return pic;
+    const frame = stage.querySelector(".frame");
+    factor =
+        state.zoom === "fit"
+            ? Math.min(1 / scale(), frame.clientWidth / w, frame.clientHeight / h)
+            : state.zoom / scale();
+    for (const p of pics) {
+        const [x, y] = natural(p);
+        p.style.width = `${x * factor}px`;
+        p.style.height = `${y * factor}px`;
+        p.classList.toggle("crisp", factor * scale() >= CRISP_FROM);
+    }
+    for (const sheet of stage.querySelectorAll(".sheet")) {
+        sheet.style.width = `${w * factor}px`;
+        sheet.style.height = `${h * factor}px`;
+    }
 }
 
-async function renderStage(item, view) {
+// Two panes, always: the baseline on the left and the new image (or the view's picture) on the
+// right. A missing image leaves its pane empty, the same size, so the other one never moves.
+async function renderStage(item, view, keep) {
     const stage = document.getElementById("stage");
-    const label = (text) => el("div", { class: "label" }, text);
-    const figure = (text, pic) => el("figure", {}, label(text), el("div", { class: "frame" }, pic));
+    const pane = (text, ...pics) =>
+        el(
+            "figure",
+            {},
+            el("div", { class: "label", title: text }, text),
+            el(
+                "div",
+                { class: pics.length ? "frame" : "frame empty" },
+                pics.length ? el("div", { class: "sheet" }, pics) : null,
+            ),
+        );
     const imgOf = async (kind) => {
         const img = await loaded(await image(kind, item.file));
         img.alt = `${kind} of ${itemName(item)}`;
-        return size(img, img.naturalWidth);
+        return img;
     };
     try {
-        const both = Boolean(item.baseline && item.capture);
-        const diff = both ? await diffOf(item) : null;
-        if (view === "side") {
-            const panes = [];
-            if (item.baseline) {
-                panes.push(figure("Baseline", await imgOf("baseline")));
-            }
-            if (item.capture) {
-                panes.push(figure(item.baseline ? "New" : "New (no baseline)", await imgOf("capture")));
-            }
-            if (panes.length === 0) {
-                panes.push(el("p", {}, "No image: the story failed to render."));
-            }
-            stage.replaceChildren(...panes);
+        const diff = item.baseline && item.capture ? await diffOf(item) : null;
+        const left = item.baseline
+            ? pane(item.from ? `Baseline of ${item.from}` : "Baseline", await imgOf("baseline"))
+            : pane("No baseline");
+        let right;
+        if (!item.capture) {
+            right = pane(item.status === "failed" ? "No capture: it failed" : "No capture");
+        } else if (view === "side") {
+            right = pane(item.baseline ? "New" : "New (no baseline)", await imgOf("capture"));
         } else if (view === "flash") {
-            // The two images themselves, one after the other, each at its own size: no overlay.
+            // The two images themselves, one after the other in the same place: no overlay.
             const [base, next] = [await imgOf("baseline"), await imgOf("capture")];
-            const img = el("img", { alt: `flashing ${itemName(item)}`, src: base.src });
-            img.style.width = base.style.width;
-            img.style.maxWidth = base.style.maxWidth;
-            img.className = base.className;
-            const tag = label("Baseline");
-            stage.replaceChildren(el("figure", {}, tag, el("div", { class: "frame" }, img)));
+            next.style.visibility = "hidden";
+            right = pane("Flash: baseline", base, next);
+            right.classList.add("flashing");
+            const tag = right.querySelector(".label");
             let showingNew = false;
             flashTimer = setInterval(() => {
                 showingNew = !showingNew;
-                const shown = showingNew ? next : base;
-                img.src = shown.src;
-                img.style.width = shown.style.width;
-                img.style.maxWidth = shown.style.maxWidth;
-                tag.textContent = showingNew ? "New" : "Baseline";
+                base.style.visibility = showingNew ? "hidden" : "visible";
+                next.style.visibility = showingNew ? "visible" : "hidden";
+                tag.textContent = showingNew ? "Flash: new" : "Flash: baseline";
             }, FLASH_MS);
         } else if (view === "highlight") {
-            stage.replaceChildren(figure("Changed pixels in red over the dimmed baseline", highlight(item, diff)));
+            right = pane("Changed pixels in red over the dimmed baseline", highlight(item, diff));
         } else {
-            stage.replaceChildren(
-                figure("Spotlight: the new image, dimmed except around each change", spotlight(diff)),
-            );
+            right = pane("Spotlight: the new image, dimmed except around each change", spotlight(diff));
         }
+        stage.replaceChildren(left, right);
+        const frames = [...stage.querySelectorAll(".frame")];
+        // Zoomed, scrolling one pane scrolls the other to the same place.
+        for (const f of frames) {
+            f.addEventListener("scroll", () => {
+                for (const o of frames) {
+                    if (o !== f && (o.scrollLeft !== f.scrollLeft || o.scrollTop !== f.scrollTop)) {
+                        o.scrollLeft = f.scrollLeft;
+                        o.scrollTop = f.scrollTop;
+                    }
+                }
+            });
+        }
+        fit(stage);
+        refit.disconnect();
+        refit.observe(stage);
+        shownBoxes = diff ? diff.boxes : [];
+        stageKey = `${item.file}|${state.zoom}`;
         const count = document.getElementById("box-count");
         if (diff) {
             count.textContent =
@@ -999,6 +1230,11 @@ async function renderStage(item, view) {
                     ? "no changed box at this threshold"
                     : `box ${Math.min(state.box, diff.boxes.length - 1) + 1} of ${diff.boxes.length}`;
             showBox(stage, diff.boxes, false);
+        }
+        if (keep) {
+            for (const f of frames) {
+                [f.scrollLeft, f.scrollTop] = keep;
+            }
         }
     } catch (err) {
         stage.replaceChildren(el("p", { class: "error" }, err.message));
@@ -1017,22 +1253,23 @@ function showBox(stage, boxes, jump) {
     const [x, y, w, h] = boxes[state.box];
     const PAD = 16;
     for (const frame of stage.querySelectorAll(".frame")) {
-        const pic = frame.querySelector("img, canvas");
-        const natural = pic.naturalWidth ?? pic.width;
-        const shown = pic.getBoundingClientRect();
-        const f = shown.width / natural;
+        const sheet = frame.querySelector(".sheet");
+        if (!sheet) {
+            continue;
+        }
+        const [sw, sh] = [sheet.offsetWidth, sheet.offsetHeight];
         // The outline is drawn inside the image, so a box at an edge keeps all four sides.
-        const [left, top] = [Math.max(0, x * f - 2), Math.max(0, y * f - 2)];
-        const [right, bottom] = [Math.min(shown.width, (x + w) * f + 2), Math.min(shown.height, (y + h) * f + 2)];
-        frame.querySelector(".boxmark")?.remove();
+        const [left, top] = [Math.max(0, x * factor - 2), Math.max(0, y * factor - 2)];
+        const [right, bottom] = [Math.min(sw, (x + w) * factor + 2), Math.min(sh, (y + h) * factor + 2)];
+        sheet.querySelector(".boxmark")?.remove();
         const mark = el("div", { class: "boxmark" });
         Object.assign(mark.style, {
-            left: `${pic.offsetLeft + left}px`,
-            top: `${pic.offsetTop + top}px`,
+            left: `${left}px`,
+            top: `${top}px`,
             width: `${right - left}px`,
             height: `${bottom - top}px`,
         });
-        frame.append(mark);
+        sheet.append(mark);
         if (!jump) {
             frame.scrollLeft = 0;
             frame.scrollTop = 0;
@@ -1047,14 +1284,14 @@ function showBox(stage, boxes, jump) {
             }
             return end > scroll + view ? end - view + PAD : scroll;
         };
-        frame.scrollLeft = reveal(pic.offsetLeft + left, pic.offsetLeft + right, frame.scrollLeft, frame.clientWidth);
-        frame.scrollTop = reveal(pic.offsetTop + top, pic.offsetTop + bottom, frame.scrollTop, frame.clientHeight);
+        const [ox, oy] = [sheet.offsetLeft, sheet.offsetTop];
+        frame.scrollLeft = reveal(ox + left, ox + right, frame.scrollLeft, frame.clientWidth);
+        frame.scrollTop = reveal(oy + top, oy + bottom, frame.scrollTop, frame.clientHeight);
     }
 }
 
 async function nextBox() {
-    const items = visibleItems();
-    const item = items[state.index];
+    const item = current();
     if (!item?.baseline || !item?.capture) {
         return;
     }
@@ -1078,7 +1315,7 @@ function highlight(item, diff) {
         alpha: 0.2,
     });
     ctx.putImageData(out, 0, 0);
-    return size(canvas, diff.w);
+    return canvas;
 }
 
 // The new image with everything dimmed except the changed pixels grown by GROW pixels.
@@ -1095,7 +1332,7 @@ function spotlight(diff) {
         out.data[i * 4 + 3] = lit ? diff.b[i * 4 + 3] : Math.max(diff.b[i * 4 + 3], SPOT_ALPHA);
     }
     ctx.putImageData(out, 0, 0);
-    return size(canvas, diff.w);
+    return canvas;
 }
 
 async function acceptAll(component) {
@@ -1129,7 +1366,7 @@ async function acceptAll(component) {
 
 function move(step) {
     say("");
-    const count = visibleItems().length;
+    const count = passItems().length;
     state.index = (state.index + step + count) % count;
     state.box = 0;
     showStory();
@@ -1140,7 +1377,7 @@ async function decide(decision) {
         say("A local preview is only looked at: nothing is decided on it.", true);
         return;
     }
-    const items = visibleItems();
+    const items = passItems();
     const item = items[state.index];
     const before = decisionOf(item);
     if (decision === null && !before) {
@@ -1188,16 +1425,10 @@ async function decide(decision) {
     }
     state.pending = "reject";
     say(`${itemName(item)}: ${decision ?? "undone, undecided again"}`);
-    // With the "undecided" filter the decided item drops out, so the same index is the next one.
-    if (decision !== null && state.filter !== "undecided") {
+    // The pass is frozen, so a decided item stays in it: a decision moves on to the next one, and
+    // Previous comes back to it. Undo stays on the item.
+    if (decision !== null) {
         state.index = Math.min(state.index + 1, items.length - 1);
-    }
-    // Undo under the "undecided" filter brings the item back; stay on it.
-    if (decision === null && state.filter === "undecided") {
-        state.index = Math.max(
-            0,
-            visibleItems().findIndex((i) => i.file === item.file),
-        );
     }
     state.box = 0;
     showStory();
@@ -1211,7 +1442,7 @@ function finishButton() {
     }
     return el(
         "button",
-        { type: "button", class: "primary", onclick: () => finishTarget(state.target) },
+        { type: "button", class: "primary", disabled: running(), onclick: () => finishTarget(state.target) },
         `Finish ${targetLabel()}`,
     );
 }
@@ -1249,24 +1480,191 @@ async function finishTarget(target) {
     if (!confirm(lines.join("\n\n"))) {
         return;
     }
-    say("Finishing: committing, pushing, commenting...");
+    // Finish runs on the server and can take minutes; the page only starts it and then asks how it
+    // is going, so a dropped connection or a reload loses nothing.
+    say("Starting Finish...");
     try {
-        const out = await api("/api/finish", { id: target.id });
-        const parts = [
-            out.commit ? `Committed ${short(out.commit)} to ${out.branch}.` : "No commit (nothing accepted).",
-        ];
-        if (out.rejects > 0) {
-            parts.push(`${out.rejects} rejects posted.`);
-        }
-        if (out.pullRequest) {
-            parts.push(`Pull request: ${out.pullRequest}`);
-        }
-        parts.push(out.statusError ? `The commit status failed: ${out.statusError}` : `Status: ${out.status}.`);
-        await showTargets();
-        say(parts.join(" "), Boolean(out.statusError));
+        state.job = (await api("/api/finish", { id: target.id })).job;
     } catch (err) {
-        say("Finish failed; your decisions are kept. Fix the cause and press Finish again.", true);
-        app.prepend(el("pre", { class: "error" }, err.message));
+        // The request may have been lost after the server started it: ask before calling it failed.
+        state.job = await api("/api/finish-status")
+            .then((s) => s.job)
+            .catch(() => null);
+        if (!running() || state.job.target !== target.id) {
+            say("Finish failed; your decisions are kept. Fix the cause and press Finish again.", true);
+            app.prepend(el("pre", { class: "error" }, err.message));
+            return;
+        }
+    }
+    await watchFinish();
+}
+
+const finishing = () =>
+    `Finishing ${state.job.pr === null ? "the master seed" : `#${state.job.pr}`}: ${state.job.step}...`;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let watching = false;
+
+// Follows the running Finish to its end, then shows the targets with its outcome.
+async function watchFinish() {
+    if (watching) {
+        return;
+    }
+    watching = true;
+    try {
+        while (running()) {
+            say(finishing());
+            await sleep(1000);
+            try {
+                state.job = (await api("/api/finish-status")).job;
+            } catch (err) {
+                say(`Lost contact with the server (${err.message}); Finish goes on there. Retrying...`, true);
+                await sleep(2000);
+            }
+        }
+    } finally {
+        watching = false;
+    }
+    await showTargets();
+}
+
+// What the newest Finish did, shown above the targets until the server restarts.
+function finishOutcome() {
+    const job = state.job;
+    if (!job || job.running) {
+        return null;
+    }
+    const label = job.pr === null ? "the master seed" : `#${job.pr}`;
+    if (job.error !== null) {
+        return el(
+            "section",
+            { class: "card finish-outcome" },
+            el(
+                "p",
+                { class: "error" },
+                `Finish of ${label} failed; your decisions are kept. Fix the cause and press Finish again.`,
+            ),
+            el("pre", { class: "error" }, job.error),
+        );
+    }
+    const out = job.result;
+    const parts = [out.commit ? `Committed ${short(out.commit)} to ${out.branch}.` : "No commit (nothing accepted)."];
+    if (out.rejects > 0) {
+        parts.push(`${out.rejects} rejects posted.`);
+    }
+    if (out.issue) {
+        parts.push(`Issue: ${out.issue}`);
+    }
+    if (out.pullRequest) {
+        parts.push(`Pull request: ${out.pullRequest}`);
+    }
+    parts.push(out.statusError ? `The commit status failed: ${out.statusError}` : `Status: ${out.status}.`);
+    return el(
+        "section",
+        { class: "card finish-outcome" },
+        el("p", { class: out.statusError ? "error" : "" }, `Finish of ${label} done. `, parts.join(" ")),
+    );
+}
+
+// ---------------------------------------------------------------- the address
+
+// Every screen is in the address, after the session token, so a copied link opens it again:
+// #token=...&target=123&project=p&filter=undecided&q=text&item=file.png&view=side&zoom=fit
+// Only the fragment holds it: a browser never sends a fragment to a server or in a Referer.
+function hashFor() {
+    const p = new URLSearchParams({ token });
+    if (state.screen !== "targets") {
+        p.set("target", state.target.id);
+        p.set("project", state.project);
+        p.set("filter", state.filter);
+        if (state.text) {
+            p.set("q", state.text);
+        }
+    }
+    if (state.screen === "story") {
+        p.set("item", current().file);
+        p.set("view", state.held ?? state.view);
+        p.set("zoom", String(state.zoom));
+    }
+    return `#${p}`;
+}
+
+// Writes the screen into the address: a new history entry when the screen changes (so Back
+// returns to the one before), in place when only the item, view, zoom or filter does.
+function remember() {
+    const hash = hashFor();
+    if (hash === location.hash) {
+        return;
+    }
+    const was = new URLSearchParams(location.hash.slice(1));
+    const screen = was.has("item") ? "story" : was.has("target") ? "grid" : "targets";
+    const moved =
+        screen !== state.screen ||
+        (screen !== "targets" &&
+            (was.get("target") !== String(state.target.id) || was.get("project") !== state.project));
+    const push = !routing && moved;
+    history[push ? "pushState" : "replaceState"](null, "", hash);
+}
+
+// Shows the screen the address names; what no longer exists (a closed pull request, a story gone
+// from a new CI run) lands on the nearest screen that does, with a line saying so.
+async function route() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    routing = true;
+    try {
+        const id = p.get("target");
+        if (!id) {
+            await showTargets();
+            return;
+        }
+        if (!(await loadTargets())) {
+            return;
+        }
+        const target = state.targets.find((t) => String(t.id) === id);
+        const project = p.get("project");
+        if (!target || !target.projects.some((x) => x.project === project)) {
+            const what = target ? `${project} is not a project of ${id}` : `${id} is no longer listed`;
+            await showTargets(`${what}: showing every target.`);
+            return;
+        }
+        if (state.data === null || state.target?.id !== target.id || state.project !== project) {
+            state.sequence = [];
+            state.target = target;
+            state.project = project;
+            try {
+                await reload();
+            } catch (err) {
+                say(err.message, true);
+                return;
+            }
+        }
+        state.target = target;
+        state.filter = FILTERS.includes(p.get("filter")) ? p.get("filter") : "undecided";
+        state.text = p.get("q") ?? "";
+        const file = p.get("item");
+        if (!file) {
+            showGrid();
+            return;
+        }
+        const item = state.data.items.find((i) => i.file === file);
+        if (!item) {
+            showGrid();
+            say(`${file} is not in this CI run any more: showing the grid.`);
+            return;
+        }
+        // Back into the pass it came from keeps that pass; otherwise the grid's items, with this one.
+        if (!state.sequence.includes(file)) {
+            const shown = visibleItems();
+            state.sequence = (shown.includes(item) ? shown : ordered([...shown, item])).map((i) => i.file);
+        }
+        state.index = state.sequence.indexOf(file);
+        state.view = VIEWS.includes(p.get("view")) ? p.get("view") : "side";
+        const zoom = p.get("zoom") === "fit" ? "fit" : Number(p.get("zoom"));
+        state.zoom = ZOOMS.includes(zoom) ? zoom : "fit";
+        state.box = 0;
+        say("");
+        showStory();
+    } finally {
+        routing = false;
     }
 }
 
@@ -1289,7 +1687,8 @@ document.addEventListener("keydown", (e) => {
         if (inInput) {
             e.target.blur();
         }
-        if (state.screen === "story") {
+        if (state.screen === "story" || app.querySelector('[data-armed="true"]')) {
+            // From a story back to the grid; on the grid, it disarms a bulk Undo pressed once.
             say("");
             showGrid();
         }
@@ -1310,7 +1709,7 @@ document.addEventListener("keydown", (e) => {
     if (key === " ") {
         // Held: flash until released, then back to the view it came from.
         e.preventDefault();
-        const item = visibleItems()[state.index];
+        const item = current();
         if (!e.repeat && state.held === null && item?.baseline && item?.capture) {
             state.held = state.view;
             state.view = "flash";
@@ -1350,10 +1749,20 @@ document.addEventListener("keyup", (e) => {
         }
     }
 });
-document.getElementById("home").addEventListener("click", showTargets);
+document.getElementById("home").addEventListener("click", () => showTargets());
+document.getElementById("copy-link").addEventListener("click", async () => {
+    try {
+        await navigator.clipboard.writeText(location.href);
+        say("Link copied. It carries your session token: it opens this screen on any device.");
+    } catch {
+        // No clipboard (a page served over plain http to another device): the browser's own box.
+        prompt("Copy this link:", location.href);
+    }
+});
+window.addEventListener("popstate", () => route());
 
 if (token === "") {
     render(el("p", { class: "error" }, "No session token: open the URL that visual-review serve printed."));
 } else {
-    showTargets();
+    route();
 }

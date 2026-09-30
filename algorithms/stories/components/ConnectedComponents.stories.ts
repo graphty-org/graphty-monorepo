@@ -8,14 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { connectedComponents, Graph } from "@graphty/algorithms";
+import { connectedComponents } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    SeededRandom,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, SeededRandom } from "../utils/graph-generators.js";
+import { groupsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -100,23 +98,6 @@ function generateDisconnectedGraph(
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Color palette for components.
  */
 const COMPONENT_COLORS = [
@@ -138,10 +119,10 @@ function createComponentsStory(args: ComponentsArgs): HTMLElement {
 
     // Generate graph with disconnected components
     const generatedGraph = generateDisconnectedGraph(nodeCount, componentCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Get connected components using actual algorithm
-    const components = connectedComponents(graph);
+    const components = groupsOf(graph, connectedComponents(graph).labels);
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -280,7 +261,10 @@ function createComponentsStory(args: ComponentsArgs): HTMLElement {
 
         updateLegend();
         updateComponentsDisplay();
-        updateStatus(statusPanel, `Found ${components.length} connected component${components.length !== 1 ? "s" : ""}`);
+        updateStatus(
+            statusPanel,
+            `Found ${components.length} connected component${components.length !== 1 ? "s" : ""}`,
+        );
     }
 
     /**

@@ -8,6 +8,7 @@ import type { CommandContext, CommandResult, GraphCommand } from "../../../src/a
 function createMockContext(): CommandContext {
     return {
         graph: {} as CommandContext["graph"],
+        tx: {} as CommandContext["tx"],
         abortSignal: new AbortController().signal,
         emitEvent: () => {
             /* no-op */

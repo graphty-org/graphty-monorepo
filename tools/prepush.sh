@@ -145,6 +145,19 @@ fi
 # not only by the root, where hoisting hides the gap until the package builds somewhere else.
 run_step "Declared build tools" "pnpm run check:declared-tools"
 
+# graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
+# fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
+run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"
+
+# The import reader of tools/count-migration-state.mjs, which prints the counts in
+# design/graph-format/STATUS.md. Reads nothing from the repository.
+run_step "Migration count script" "pnpm run check:migration-counts"
+
+# No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
+# layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
+# source only, every push.
+run_step "Legacy graph API use" "pnpm run check:legacy-use"
+
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
 # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,

@@ -3,9 +3,10 @@
  * iframe.html whose preview object answers what capture reads from a real one.
  */
 
-import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PNG } from "pngjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { capture, hasEmojiFont } from "../capture/capture.mjs";
@@ -17,7 +18,7 @@ const PARAMS = {
     "demo--broken": {},
     "demo--small": {},
     "demo--late-font": {},
-    "demo--shadow": {},
+    "demo--tall": {},
 };
 
 const IFRAME = `<!doctype html><html><body><script>
@@ -37,23 +38,14 @@ if (id === "demo--broken") {
     Object.defineProperty(document.fonts, "ready", { get: () => late });
     document.body.insertAdjacentHTML("beforeend",
         "<div style='position:absolute;left:100px;top:100px;width:10px;height:10px;background:red'></div>");
-} else if (id === "demo--shadow") {
-    // A web component that draws a 200 x 300 canvas at (100, 100) inside its shadow root, as
-    // graphty-element does; the host element itself paints nothing.
-    const host = document.createElement("div");
-    host.attachShadow({ mode: "open" }).innerHTML =
-        "<canvas style='position:absolute;left:100px;top:100px;width:200px;height:300px'></canvas>";
-    document.body.append(host);
 } else if (id === "demo--small") {
-    // A 50 x 20 box at (100, 100), and a 10 x 10 portal-like box at (300, 40) outside it.
+    // A 50 x 20 box at (100, 100): far smaller than the viewport.
     document.body.insertAdjacentHTML("beforeend",
-        // A full-width wrapper with nothing of its own to paint does not widen the crop.
-        "<div style='position:absolute;left:0;top:0;width:100%;height:600px'>" +
-        "<div style='position:absolute;left:100px;top:100px;width:50px;height:20px;background:red'></div></div>" +
-        "<div style='position:fixed;left:300px;top:40px;width:10px;height:10px;background:blue'></div>" +
-        // Rows clipped by a scroll area do not count past the area's own box.
-        "<div style='position:absolute;left:120px;top:60px;width:20px;height:40px;overflow:auto'>" +
-        "<div style='height:2000px;background:green'></div></div>");
+        "<div style='position:absolute;left:100px;top:100px;width:50px;height:20px;background:red'></div>");
+} else if (id === "demo--tall") {
+    // A story 2000 px tall, taller than the 900 px viewport.
+    document.body.insertAdjacentHTML("beforeend",
+        "<div style='position:absolute;left:0;top:0;width:10px;height:2000px;background:red'></div>");
 } else {
     document.body.insertAdjacentHTML("beforeend", "<h1 style='font: 40px monospace'>" + (id ?? "preview") +
         (navigator.gpu ? " gpu" : " no-gpu") + "</h1>");
@@ -87,7 +79,7 @@ describe("capture", () => {
         const sb = storybook();
         const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
         const run = (out) =>
-            capture({ project: "demo", storybook: sb, baselines, out, workers: 2, stableFrame: false, log: () => {} });
+            capture({ project: "demo", storybook: sb, baselines, out, workers: 2, waitFor: null, log: () => {} });
 
         const firstOut = mkdtempSync(join(tmpdir(), "vr-out-"));
         const first = await run(firstOut);
@@ -136,7 +128,7 @@ describe("capture", () => {
                 baselines,
                 out,
                 workers: 1,
-                stableFrame: false,
+                waitFor: null,
                 log: () => {},
                 ...extra,
             });
@@ -158,9 +150,78 @@ describe("capture", () => {
         expect(tampered.items[0].status).toBe("new");
     }, 120_000);
 
-    it("captures at scale 2, cropped to the content plus 32 px, or the full width for a canvas project", async () => {
+    it("compares a renamed story with its old id's baseline and reports a broken rename", async () => {
         const sb = storybook();
-        const run = async (canvas, story = "demo--small") => {
+        const seedOut = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const run = (out, baselines) =>
+            capture({ project: "demo", storybook: sb, baselines, out, workers: 2, waitFor: null, log: () => {} });
+        await run(seedOut, mkdtempSync(join(tmpdir(), "vr-bl-")));
+
+        // Baselines under old ids: one that looks the same as its new story, one that does not,
+        // one whose rename names no story, and one renamed from an id that is still a story (which
+        // is no move, so it does nothing).
+        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        copyFileSync(join(seedOut, "demo--plain.png"), join(baselines, "old--plain.png"));
+        copyFileSync(join(seedOut, "demo--plain.png"), join(baselines, "old--small.png"));
+        copyFileSync(join(seedOut, "demo--plain.png"), join(baselines, "old--lost.dark.png"));
+        copyFileSync(join(seedOut, "demo--tall.png"), join(baselines, "demo--tall.png"));
+        writeFileSync(
+            join(baselines, "renames.json"),
+            JSON.stringify([
+                { from: "old--plain", to: "demo--plain" },
+                { from: "old--small", to: "demo--small" },
+                { from: "old--lost", to: "demo--nowhere" },
+                { from: "demo--tall", to: "demo--late-font" },
+            ]),
+        );
+        const out = mkdtempSync(join(tmpdir(), "vr-out-"));
+        const r = await run(out, baselines);
+        const items = byFile(r);
+        expect(items["demo--plain.png"]).toMatchObject({ status: "moved", from: "old--plain" });
+        // The page shows a moved item's capture as its baseline too, so the capture is uploaded.
+        expect(readFileSync(join(out, "demo--plain.png")).equals(readFileSync(join(seedOut, "demo--plain.png")))).toBe(
+            true,
+        );
+        expect(items["demo--small.png"]).toMatchObject({ status: "changed", from: "old--small" });
+        expect(items["demo--nowhere.dark.png"]).toMatchObject({
+            status: "failed",
+            from: "old--lost",
+            reason: "renames.json renames old--lost to demo--nowhere, but the Storybook has no story demo--nowhere: fix renames.json",
+        });
+        expect(items["demo--late-font.png"]).toMatchObject({ status: "new" });
+        expect(items["demo--late-font.png"].from).toBeUndefined();
+        expect(items["demo--tall.png"]).toMatchObject({ status: "unchanged" });
+        // Neither old id's baseline is reported removed, and no item of a story that was not
+        // renamed carries from.
+        expect(r.items.filter((i) => i.status === "removed")).toEqual([]);
+        expect(
+            r.items
+                .filter((i) => i.from)
+                .map((i) => i.file)
+                .sort(),
+        ).toEqual(["demo--nowhere.dark.png", "demo--plain.png", "demo--small.png"]);
+        expect(r.expected).toBe(r.items.length);
+    }, 120_000);
+
+    it("refuses a renames file that is not a list of distinct renames", async () => {
+        const baselines = mkdtempSync(join(tmpdir(), "vr-bl-"));
+        writeFileSync(join(baselines, "renames.json"), JSON.stringify([{ from: "a--b", to: "a--b" }]));
+        await expect(
+            capture({
+                project: "demo",
+                storybook: storybook(),
+                baselines,
+                out: mkdtempSync(join(tmpdir(), "vr-out-")),
+                workers: 1,
+                waitFor: null,
+                log: () => {},
+            }),
+        ).rejects.toThrow(/renames.json: entry 0 must be/);
+    }, 60_000);
+
+    it("captures the whole canvas at scale 2, never cropped to the content", async () => {
+        const sb = storybook();
+        const run = async (story) => {
             const out = mkdtempSync(join(tmpdir(), "vr-out-"));
             const r = await capture({
                 project: "demo",
@@ -168,25 +229,21 @@ describe("capture", () => {
                 baselines: mkdtempSync(join(tmpdir(), "vr-bl-")),
                 out,
                 workers: 1,
-                stableFrame: false,
-                canvas,
+                waitFor: null,
                 stories: [story],
                 log: () => {},
             });
-            return r.items[0].size;
+            return { size: r.items[0].size, png: PNG.sync.read(readFileSync(join(out, r.items[0].file))) };
         };
-        // Content spans x 100..310 and y 40..120; with the margin 68..342 and 8..152, doubled.
-        expect(await run(false)).toEqual([(342 - 68) * 2, (152 - 8) * 2]);
-        // A canvas project keeps the viewport's full width and crops only the height.
-        expect(await run(true)).toEqual([1200 * 2, (152 - 8) * 2]);
-        // The capture waits for the page's fonts: the box drawn when they settle is in it.
-        expect(await run(false, "demo--late-font")).toEqual([(442 - 68) * 2, (342 - 68) * 2]);
-        // A canvas inside a shadow root counts: 100..300 by 100..400, with the margin 68..332 by 68..432.
-        expect(await run(false, "demo--shadow")).toEqual([(332 - 68) * 2, (432 - 68) * 2]);
-        // A block-level heading is cropped to its text, not to the block's full width.
-        const [width] = await run(false, "demo--plain");
-        expect(width).toBeGreaterThan(200);
-        expect(width).toBeLessThan(1200);
+        // A small component sits in the full 1200 x 900 viewport, doubled.
+        expect((await run("demo--small")).size).toEqual([1200 * 2, 900 * 2]);
+        expect((await run("demo--plain")).size).toEqual([1200 * 2, 900 * 2]);
+        // A story taller than the viewport is captured to its full scroll height.
+        expect((await run("demo--tall")).size).toEqual([1200 * 2, 2000 * 2]);
+        // The capture waits for the page's fonts: the box drawn at (400, 300) when they settle is in it.
+        const { png } = await run("demo--late-font");
+        const at = (405 * 2 + 305 * 2 * png.width) * 4;
+        expect([...png.data.subarray(at, at + 3)]).toEqual([255, 0, 0]);
     }, 120_000);
 
     it("fails with a clear message when a baseline is a Git LFS pointer", async () => {
@@ -202,7 +259,7 @@ describe("capture", () => {
                 baselines,
                 out: mkdtempSync(join(tmpdir(), "vr-out-")),
                 workers: 1,
-                stableFrame: false,
+                waitFor: null,
                 stories: ["demo--plain"],
                 log: () => {},
             }),

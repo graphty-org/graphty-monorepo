@@ -379,7 +379,7 @@ describe("the resolution cache, input by input", () => {
         );
     });
 
-    it("hits again when an undo-shaped put restores the identical frozen record", () => {
+    it("hits again when an undo restores the identical frozen record", async () => {
         const f = new Fixture();
         const id = f.graph.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" });
         const prior = f.graph.sets.get(id);
@@ -387,9 +387,8 @@ describe("the resolution cache, input by input", () => {
         const before = f.set(id);
         f.graph.sets.redefine(id, { kind: "fixed", nodes: ["c"], reading: "induced" });
         assert.notStrictEqual(f.set(id), before);
-        f.graph.setsStore.transact(() => {
-            f.graph.setsStore.put(prior);
-        });
+        await f.graph.setsStore.dispatcher.undo();
+        assert.strictEqual(f.graph.sets.get(id), prior);
         assert.strictEqual(f.set(id), before);
     });
 

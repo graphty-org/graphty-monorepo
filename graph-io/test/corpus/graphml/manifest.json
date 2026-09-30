@@ -19,6 +19,14 @@
             "features": ["yfiles", "ShapeNode", "PolyLineEdge", "geometry", "colors"]
         },
         {
+            "path": "yed-graphics.graphml",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 4,
+            "expectedEdges": 4,
+            "features": ["yfiles", "ShapeNode", "PolyLineEdge", "arrows", "yfiles-columns"]
+        },
+        {
             "path": "got-network.graphml",
             "source": "https://github.com/melaniewalsh/sample-social-network-datasets",
             "license": "CC0",

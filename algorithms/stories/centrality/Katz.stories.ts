@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, katzCentrality } from "@graphty/algorithms";
+import { katzCentrality } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
     createHeatMapLegend,
@@ -40,23 +37,6 @@ interface KatzArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Create the Katz centrality visualization story.
  */
 function createKatzStory(args: KatzArgs): HTMLElement {
@@ -64,10 +44,10 @@ function createKatzStory(args: KatzArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Calculate Katz centrality using actual algorithm
-    const scores = katzCentrality(graph, { alpha, beta, maxIterations, normalized: true });
+    const scores = byId(graph, katzCentrality(graph, { alpha, beta, maxIterations, normalized: true }).scores);
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -106,7 +86,9 @@ function createKatzStory(args: KatzArgs): HTMLElement {
      */
     function updateScoresDisplay(): void {
         const scoresEl = scoresPanel.querySelector("[data-scores]");
-        if (!scoresEl) {return;}
+        if (!scoresEl) {
+            return;
+        }
 
         scoresEl.innerHTML = "";
 
@@ -136,7 +118,9 @@ function createKatzStory(args: KatzArgs): HTMLElement {
      * Apply centrality visualization.
      */
     function apply(): void {
-        if (isApplied) {return;}
+        if (isApplied) {
+            return;
+        }
         isApplied = true;
 
         // Apply heat map coloring

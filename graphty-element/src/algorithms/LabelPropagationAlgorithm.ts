@@ -1,4 +1,3 @@
-import { labelPropagation } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -15,6 +14,9 @@ import {
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 
+const RANDOM_SEED_DESCRIPTION =
+    "Visit the nodes in an order drawn from this seed, one at a time (empty = synchronous passes, which a GPU can run)";
+
 /**
  * Zod-based options schema for Label Propagation algorithm
  */
@@ -27,10 +29,10 @@ const labelPropagationOptionsSchema = defineOptions({
         },
     },
     randomSeed: {
-        schema: z.number().int().min(0).max(2147483647).default(42),
+        schema: z.number().int().min(0).max(2147483647).nullable().default(null),
         meta: {
             label: "Random Seed",
-            description: "Seed for reproducible tie-breaking",
+            description: RANDOM_SEED_DESCRIPTION,
             advanced: true,
         },
     },
@@ -42,12 +44,29 @@ const labelPropagationOptionsSchema = defineOptions({
 interface LabelPropagationOptions extends Record<string, unknown> {
     /** Maximum label propagation rounds */
     maxIterations: number;
-    /** Seed for reproducible tie-breaking */
-    randomSeed: number;
+    /** Seed of the asynchronous visit order, or null for synchronous passes. */
+    randomSeed: number | null;
 }
 
 /**
+ * Label propagation: every node takes the label most of its neighbours carry, until none moves.
  *
+ * Two definitions, chosen by `randomSeed`. Each is one definition wherever it runs:
+ *
+ * - No seed (the default): synchronous passes. Every node reads its neighbours' labels from the
+ *   previous pass and takes the lowest of the best-voted labels, with passes alternating between
+ *   moving only up and only down so two neighbours cannot trade labels for ever. Deterministic.
+ *   This is the definition a GPU runs, so it is the one routed to an accelerator above its floor;
+ *   below the floor, or with no accelerator, `@graphty/algorithms`' synchronous port runs it. The
+ *   two follow the same rule but differ in three details -- which direction the first pass moves,
+ *   whether a label tied for the lead is kept, and how a run whose labels cycle ends -- so on a
+ *   graph with tied votes they can settle on different, equally valid partitions; on community
+ *   structure they agree. `caveats.precision` says which one ran. On a cycle (some weighted graphs)
+ *   the CPU stops when a pass repeats the labels of two passes before and reports `converged`
+ *   false; the device runs all `maxIterations` passes and reports no `converged` at all.
+ * - A seed: the asynchronous (FLPA) definition. Nodes are visited one at a time in an order drawn
+ *   from the seed, so one seed gives one partition. No GPU kernel has a seed to honour, so this
+ *   always runs on the CPU, and under `acceleration="required"` it is refused.
  */
 export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
     static namespace = "graphty";
@@ -68,11 +87,12 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
         },
         randomSeed: {
             type: "integer",
-            default: 42,
+            default: null,
             label: "Random Seed",
-            description: "Seed for reproducible tie-breaking",
+            description: RANDOM_SEED_DESCRIPTION,
             min: 0,
             max: 2147483647,
+            required: false,
             advanced: true,
         },
     };
@@ -97,18 +117,26 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
 
         const { maxIterations, randomSeed } = this.schemaOptions;
 
-        // Undirected: a label spreads across an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
+        const synchronous = randomSeed === null;
+        // Undirected: a label spreads across an edge in either direction. Only the synchronous
+        // definition is one an accelerator answers.
+        const { snapshot, run } = this.accelerated("labelPropagation", "undirected", { accelerable: synchronous });
+        const { ids } = snapshot;
 
+        /* The CPU ports report their iterations and whether they converged; an accelerator's
+           result does not. */
         context.report({ phase: "Spreading labels", total: null });
-        const result = labelPropagation(graphData, {
-            maxIterations,
-            randomSeed,
-        });
+        const { value, precision } = await run((dispatch, s) =>
+            synchronous
+                ? dispatch.labelPropagationSynchronous(s, { maxIterations })
+                : dispatch.labelPropagation(s, { maxIterations, randomSeed }),
+        );
+        const converged = "converged" in value && typeof value.converged === "boolean" ? value.converged : undefined;
+        const iterations = "iterations" in value && typeof value.iterations === "number" ? value.iterations : undefined;
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: result.communities.get(String(nodeId)) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: value.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {
@@ -116,12 +144,13 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
             fields: communityFieldSpecs(false),
             nodes,
             caveats: declaredCaveats({
-                method: "label-propagation",
+                method: synchronous ? "label-propagation-synchronous" : "label-propagation",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
-                converged: result.converged,
-                iterations: result.iterations,
-                seed: randomSeed,
+                converged,
+                iterations,
+                ...(synchronous ? {} : { seed: randomSeed }),
+                precision,
                 notes: ["Label propagation does not score its own partition, so it reports no modularity."],
             }),
         };

@@ -136,11 +136,12 @@ describe("change notification", () => {
         const afterFirst = watched.resolves;
 
         await run.rerun();
-        // The re-run cleared the result when it queued and published a new one at its end.
-        assert.strictEqual(watched.resolves, afterFirst + 2);
+        // The re-run keeps the result it replaces until it publishes a new one at its end: the
+        // result is project state, read from the runs slice, so only the publish moves it.
+        assert.strictEqual(watched.resolves, afterFirst + 1);
 
         h.session.runs.remove("pr");
-        assert.strictEqual(watched.resolves, afterFirst + 3);
+        assert.strictEqual(watched.resolves, afterFirst + 2);
         assert.deepStrictEqual(watched.readies.at(-1)?.moved, [{ kind: "run", run: "pr" }]);
         assert.strictEqual(bystander.resolves, 0);
     });
@@ -193,7 +194,9 @@ describe("change notification", () => {
         });
 
         h.add([{ id: "f", weight: 9 }]);
-        const { serial } = h.session.data.snapshot();
+        h.session.data.snapshot();
+        // The store's own freeze: a consumer is handed a copy of it, with a serial of its own.
+        const { serial } = h.store.getSnapshot();
         await h.session.selection.apply({ nodes: ["a"] });
         assert.strictEqual(watched.resolves, 0, "queued: a selection change does not jump the frame");
 

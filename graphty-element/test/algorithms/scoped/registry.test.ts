@@ -31,6 +31,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:bfs": "on",
     "graphty:bipartite-matching": "on",
     "graphty:closeness": "on",
+    "graphty:clustering-coefficient": "on",
     "graphty:connected-components": "on",
     "graphty:degree": "on",
     "graphty:dfs": "on",
@@ -150,9 +151,6 @@ class Recording extends InputGraph {
                 return base.getSnapshot();
             },
             undirected: base.undirected,
-            // One edge's record by an id the input named, for an attribute the snapshot does not
-            // carry (a flow capacity): not a topology read, so it is not recorded.
-            getEdge: base.getEdge,
         };
     }
 }

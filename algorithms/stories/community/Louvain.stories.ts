@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, louvain } from "@graphty/algorithms";
+import { louvain } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { groupsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -33,23 +30,6 @@ interface LouvainArgs {
     graphType: GraphType;
     resolution: number;
     seed: number;
-}
-
-/**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
 }
 
 /**
@@ -74,10 +54,11 @@ function createLouvainStory(args: LouvainArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
 
     // Run Louvain algorithm
-    const result = louvain(graph, { resolution });
+    const lv = louvain(graph, { resolution });
+    const result = { communities: groupsOf(graph, lv.labels), modularity: lv.modularity };
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -229,7 +210,10 @@ function createLouvainStory(args: LouvainArgs): HTMLElement {
 
         updateLegend();
         updateCommunitiesDisplay();
-        updateStatus(statusPanel, `Found ${result.communities.length} communities (modularity: ${result.modularity.toFixed(4)})`);
+        updateStatus(
+            statusPanel,
+            `Found ${result.communities.length} communities (modularity: ${result.modularity.toFixed(4)})`,
+        );
     }
 
     /**

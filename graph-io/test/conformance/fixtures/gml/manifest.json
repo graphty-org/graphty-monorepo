@@ -1290,7 +1290,7 @@
           }
         ]
       },
-      "knownFailure": "string and bare-word node ids are rejected (sources.md 4.4)"
+      "roundTripFailure": "the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds \"mangle\" (sources.md 4.4)"
     },
     {
       "file": "authored/bareword-ids.gml",

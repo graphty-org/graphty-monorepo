@@ -4,9 +4,10 @@
  * The before and after of the selected step, as two short lists the reader can compare
  * down rather than a sentence about them.
  *
- * Cleaning steps rest on a mutation API that returns an inverse for undo, which design
- * 5.8 records as new work in graphty-element, so the surface is drawn at its target
- * shape and its verbs carry the unshipped treatment.
+ * A cleaning step is a step of graphty-element's own history (`session.history`, whose
+ * steps name the slices they changed), and undo takes it back. What is not built yet is the
+ * app's view that lists the steps which changed the graph and hands one to this surface,
+ * so its verbs carry the unshipped treatment.
  *
  * Only the header and the documented section skeleton are built in this pass.
  */

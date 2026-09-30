@@ -1,3 +1,15 @@
+## 1.3.14 (2026-09-30)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 1.3.13 (2026-09-30)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 1.3.12 (2026-09-29)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 1.3.11 (2026-09-28)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

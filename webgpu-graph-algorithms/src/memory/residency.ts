@@ -393,7 +393,8 @@ export class GraphResidency {
     /**
      * Uploads (or finds) a view: outDegree / inDegree / degreeOrder / reverseDegreeOrder upload one array each;
      * reverse and edgeList (P7) upload their arrays perArray, never into the arena, and are memoised per record so
-     * a second call uploads nothing (spec 4.3). coo and mate -> E_UNSUPPORTED until P11. packViews concatenates a
+     * a second call uploads nothing (spec 4.3). coo uploads its per-arc `src` (P11; the rest aliases the core); mate ->
+     * E_UNSUPPORTED. packViews concatenates a
      * reverse or edgeList view into ONE buffer at STORAGE_ALIGN offsets; on any other view `true` is E_UNSUPPORTED
      * { option: "packViews" }.
      * @param s - the snapshot
@@ -465,10 +466,20 @@ export class GraphResidency {
                 break;
             }
             case "coo":
+                // dst, arcToEdge and weights alias the core's colIdx / arcToEdge / weights (graph-format design 7.2):
+                // only the per-arc source is new, and a kernel binds the rest from core()
+                this.assertNotReleased(s);
+                this.assertNonEmpty(s);
+                if (s.arcCount === 0) {
+                    return Object.freeze({ view: name, bindings: Object.freeze({}), scalars: Object.freeze({}) });
+                }
+                array = s.coo().src;
+                bindingName = "src";
+                break;
             case "mate":
-                throw new WebGpuGraphError("E_UNSUPPORTED", `the ${name} view is not uploaded before P11`, {
-                    feature: `view:${name}`,
-                    hint: "outDegree, inDegree, degreeOrder, reverseDegreeOrder, reverse and edgeList are uploaded",
+                throw new WebGpuGraphError("E_UNSUPPORTED", "the mate view is not uploaded: no kernel reads it", {
+                    feature: "view:mate",
+                    hint: "outDegree, inDegree, degreeOrder, reverseDegreeOrder, coo, reverse and edgeList are uploaded",
                 });
             default:
                 throw invalid("name", name, "a view name");

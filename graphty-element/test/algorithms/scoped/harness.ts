@@ -13,6 +13,7 @@ import { type ResolvedInputScope, withRunInput } from "../../../src/algorithms/i
 import { detachedRunContext } from "../../../src/algorithms/results";
 import type { Graph } from "../../../src/Graph";
 import type { RunResult } from "../../../src/session/results";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 import { type EdgeSpec, InputGraph } from "../input/harness";
 
@@ -341,7 +342,7 @@ const scopedGraphs = fc.integer({ min: 1, max: 10 }).chain((size) =>
  */
 export async function assertOverGeneratedScopes(build: Build): Promise<void> {
     await fc.assert(
-        fc.asyncProperty(scopedGraphs, async ({ size, edges, members, listed }) => {
+        guardedAsyncProperty(scopedGraphs, async ({ size, edges, members, listed }) => {
             const ids = Array.from({ length: size }, (_, index) => `n${String(index)}`);
             const graph = new InputGraph(
                 ids,

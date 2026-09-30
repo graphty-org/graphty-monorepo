@@ -1,106 +1,52 @@
 /**
- * graphty/algorithms - Graph algorithms library for browser environments
+ * The graphty algorithms package: graph algorithms over `@graphty/graph-format` snapshots.
  *
- * A comprehensive TypeScript library implementing fundamental graph algorithms
- * optimized for browser environments and visualization applications.
+ * Every algorithm takes a frozen `GraphSnapshot` (or an `AdjacencyView` such as `snapshot.reverse()`,
+ * for the traversals and paths) first and an options object last, and returns typed arrays indexed
+ * by node or edge index plus scalars. Build a snapshot with `GraphBuilder` or `fromEdgeArrays` from
+ * `@graphty/graph-format`; `snapshot.ids` maps between node ids and indices.
  * @module
  */
 
-// Core exports
-export { Graph } from "./core/graph.js";
+// The algorithms, their options and their results.
+export * from "./indexed/index.js";
 
-// Type exports
-export type {
-    BellmanFordResult,
-    CentralityOptions,
-    CentralityResult,
-    CommunityResult,
-    ComponentResult,
-    DijkstraOptions,
-    Edge,
-    FloydWarshallResult,
-    GirvanNewmanOptions,
-    GraphConfig,
-    LouvainOptions,
-    MSTResult,
-    Node,
-    NodeId,
-    // NOTE: this explicit re-export SHADOWS the `PageRankOptions` that `export * from
-    // "./algorithms/index.js"` below re-exports from centrality/pagerank.ts, which is the one
-    // pageRank() actually takes. The two differ (`alpha` here, `dampingFactor` there), so
-    // `const o: PageRankOptions = { alpha: 0.9 }` compiles and is silently ignored. Neither is
-    // changed during the dual-API window (graph-format design 14.1 rule 1); this one is removed at
-    // 2.0. See design/decisions/2026-09-19-pagerank-options-shadowing.md.
-    PageRankOptions,
-    ShortestPathResult,
-    TraversalOptions,
-    TraversalResult,
-} from "./types/index.js";
-
-// Error exports
-export { ConvergenceError, PathWalkError } from "./errors.js";
-
-// Algorithm exports
-export * from "./algorithms/index.js";
-
-// Research algorithms exports (Priority 4)
-export * from "./research/index.js";
-
-// Data structure exports
-export * from "./data-structures/index.js";
-
-// Optimized algorithm exports
-export * from "./optimized/index.js";
-
-// Index-based implementations over @graphty/graph-format snapshots (graph-format design 14.1 rule 2).
-// A NAMESPACE, not a flat re-export: indexed.pageRank, indexed.dijkstra, indexed.breadthFirstSearch,
-// indexed.connectedComponents and indexed.kruskalMST all collide by name with the legacy functions above.
+/**
+ * The algorithms under their 2.x namespace, types included (`indexed.PageRankResult`).
+ * @deprecated Every algorithm is a top-level export since 3.0.0: `indexed.pageRank` is `pageRank`. Removed in 4.0.0.
+ */
 export * as indexed from "./indexed/index.js";
 
-// The graph-format bridge (graph-format design 14.6 row A1).
-export { toSnapshot } from "./indexed/to-snapshot.js";
+// Errors the algorithms throw.
+export { ConvergenceError, PathWalkError } from "./errors.js";
 
-// The accelerator seam (design/webgpu/webgpu-acceleration-plan.md section 9.2). Flat, NOT through the
-// namespace: the GPU package writes `import type { AlgorithmAccelerator } from "@graphty/algorithms"`.
+// General-purpose data structures.
+export * from "./data-structures/index.js";
+
+// The accelerator seam (design/webgpu/webgpu-acceleration-plan.md section 9.2): an accelerator such as
+// @graphty/webgpu-graph-algorithms satisfies AlgorithmAccelerator structurally, and accelerated(acc)
+// dispatches each call to it or to the CPU implementation above.
 export type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    ApspCycleResultLike,
     ApspResultLike,
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     CommunityResultLike,
     CorenessResultLike,
     EdgeScoresResultLike,
     HitsOptionsLike,
     HitsResultLike,
+    KatzOptionsLike,
     LabelResultLike,
     MstResultLike,
+    PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspResultLike,
 } from "./indexed/accelerator.js";
 export { accelerated } from "./indexed/accelerator.js";
-export type { BfsOptions, BfsResult } from "./indexed/bfs.js";
-export type { CommonNeighborsOptions } from "./indexed/common-neighbors.js";
-export type { LabelResult } from "./indexed/components.js";
-export type { SsspOptions, SsspResult } from "./indexed/dijkstra.js";
-// The `Indexed` prefix, as on the PageRank pair below: the flat names HITSOptions / HITSResult,
-// KatzCentralityOptions and LouvainOptions already belong to the legacy functions above, and two
-// option types one capital letter apart in the same barrel is a trap, not a convenience.
-export type { HitsOptions as IndexedHitsOptions, HitsResult as IndexedHitsResult } from "./indexed/hits.js";
-export type { CorenessResult } from "./indexed/k-core.js";
-export type { KatzOptions as IndexedKatzOptions, KatzResult as IndexedKatzResult } from "./indexed/katz.js";
-export type {
-    LouvainOptions as IndexedLouvainOptions,
-    LouvainResult as IndexedLouvainResult,
-} from "./indexed/louvain.js";
-export type { MstOptions, MstResult } from "./indexed/mst.js";
-// Aliased: the flat names are taken twice over (types/index.ts:96 and centrality/pagerank.ts:15).
-export type {
-    PageRankOptions as IndexedPageRankOptions,
-    PageRankResult as IndexedPageRankResult,
-} from "./indexed/pagerank.js";
-
-// Note: Configuration exports have been removed.
-// The library now automatically optimizes based on graph size.

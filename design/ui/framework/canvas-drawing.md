@@ -40,7 +40,7 @@ beside `config/palettes/` and tested there. A bare embed has no `--cm-*` tokens,
 names one: the module holds its own copy of the values it matches. The legend card copies Figma's
 floating toolbar card (figma-spec 2.6, level 200): its shadow (`--cm-elevation-200`), radius and
 padding, with figma-spec's legend line (11/16) as its row pitch, so a legend fits the canvas of a
-laptop. The roles stay internal (door 48, How the element learns theme and motion): a published role is a name that can never be removed, and no consumer has asked.
+laptop. The roles stay internal (`decided-doors.md`, "How the element learns theme and motion"): a published role is a name that can never be removed, and no consumer has asked.
 
 ### 1. Theme-following defaults
 
@@ -48,7 +48,7 @@ laptop. The roles stay internal (door 48, How the element learns theme and motio
 graphty's counterpart is `GraphStyle.background`, saved with the graph and winning when set. Only
 when it is unset do the element roles follow the host's theme, because a bare embed needs a default.
 **A theme change moves the roles, never a data color.** How the element learns the theme, and the
-`colorScheme` property that overrides it, are recommended in door 48 and specified in
+`colorScheme` property that overrides it, are decided (`decided-doors.md`, "How the element learns theme and motion") and specified in
 `element-contract.md` 15. In AR there is no background: the roles take the dark values, pending the
 passthrough measurement. A Look never sets a background (door 85, what a Look is). The light canvas
 is `#F5F5F5` (Figma's light canvas); the dark candidate is below.
@@ -133,7 +133,7 @@ one white band. The fill is never changed.
   selected element that is not drawn is counted in the not-drawn line.
 - **A halo tint fails**: the shipped gold measures 1.13:1 on the light canvas and turns Okabe-Ito
   blue green (`research/color-checks.md` 3.1).
-- **The published shape** is door 47, the canvas marks: a dark band and a light band whose order
+- **The published shape** is decided (`decided-doors.md`, "The canvas marks"): a dark band and a light band whose order
   the element resolves, never a fixed outer and inner color.
 
 ### 3. The key's shape follows the measurement level
@@ -285,7 +285,7 @@ nothing inside. Figma's hover is also one tone (`figma-crosswalk.md` 5).
 | -- | minimap viewport, two-tone frame | on the minimap | -- | the part of the graph in view | 3 | 1 + 1 |
 
 The widths live in the element-roles module, unpublished and provisional; the published mark schema
-carries each band's tone and dash only (door 47, The canvas marks). Calibration changes numbers,
+carries each band's tone and dash only (`decided-doors.md`, "The canvas marks"). Calibration changes numbers,
 never the order. **The worst case** is a node selected, in three highlights, compared, focused and
 hovered: rings 1, 2a to 2c, 3, 4 and 5, 26 CSS px beyond the silhouette before any band the
 three-band rule adds. It is the fixture for section 2, section 5 and section 6, beside **the lone-mark fixture**: each
@@ -295,7 +295,7 @@ applied, never refused.
 
 **Precedence.** Within ring 1, selection beats member. A selected set, group or path whose hull is
 drawn is marked by the hull alone; its members get the member ring only when no hull is drawn. The
-element must learn which set, group or path is selected, not only node ids (door 47).
+element must learn which set, group or path is selected, not only node ids (`decided-doors.md`, "The canvas marks").
 
 **One keeping order, at every size.** The cap applies to persistent rings only: they are capped at
 the larger of the node's screen radius and 4 CSS px (one selection mark), and past it are dropped
@@ -332,7 +332,7 @@ announced by `interaction-pattern-entries.md` 9.4; spoken forms are `content-des
 **Highlights and comparison stay marks, not paint.** Drawing only selection, member, focus and hover
 on the canvas, as Figma does, and painting highlights through style layers was weighed and
 rejected: paint is the collision section 5 measured, a highlight would cover the analyst's encoding, and a
-path's order and ends have no paint form (door 47).
+path's order and ends have no paint form (`decided-doors.md`, "The canvas marks").
 
 ### 7. One data color, four surfaces
 
@@ -363,8 +363,8 @@ surface role with the copied floating-card shadow, radius, padding and row pitch
 ink roles; the legend line's pitch (above); the host's computed `font-family` and `font-size` on the host
 element (in the app, figma-spec 2.3's body role), over the element's own default, `:host {
 font-family: system-ui, sans-serif; font-size: 12px }`, so a bare embed on a page with no CSS never
-draws in the browser's serif default; only a page rule on the host element overrides it (door 48,
-How the element learns theme and motion, which covers what the element inherits from its host),
+draws in the browser's serif default; only a page rule on the host element overrides it (`decided-doors.md`, "How the element learns theme and motion",
+which covers what the element inherits from its host),
 with tabular figures; each entry is a section 3 drawing or
 a mark drawn as on the canvas, then its words. **Its height is capped at a share of the canvas**;
 whole blocks that do not fit fold behind one "N more" entry, a row in secondary ink that opens the
@@ -401,8 +401,8 @@ background option says so.
 ### 10. Graph motion honors reduced motion
 
 **Graph motion honors reduced motion** (WCAG 2.3.3): camera moves cut, layouts show settled
-positions, collapse jumps, edge flow stops. The element's `reducedMotion` property is recommended in
-door 48 and specified in `element-contract.md` 15; the app's preference only sets it. Flow animation
+positions, collapse jumps, edge flow stops. The element's `reducedMotion` property is decided
+(`decided-doors.md`, "How the element learns theme and motion") and specified in `element-contract.md` 15; the app's preference only sets it. Flow animation
 has a visible pause (WCAG 2.2.2; the control is `interaction-patterns.md`'s). The size above which
 positions jump anyway is `state-matrix.md`'s. Chrome keeps figma-spec 2.8's small transitions.
 
@@ -494,7 +494,7 @@ decides (the grays, the default palettes, the size scale, the opening mode) are 
 - `design/ui/figma/canvas-selection/README.md`; `tokens/README.md`
   `dark-theme/README.md`; `left-sidebar/README.md`
 - `conceptual-model.md` 1.3, 5.1, 6; `files-and-recipes.md` 1; `options-and-encodings.md` 2, 3, 5, 6; `state-matrix.md`
-  4.1, 7; `scale-levels.md` 1, 2, 4; `information-architecture.md` 8.1; `interaction-patterns.md` 3.1; `interaction-pattern-entries.md` 9.4; `figma-crosswalk.md` 4.2, 4.3; `one-way-doors.md` 47, 48, 58, 84 to 86
+  4.1, 7; `scale-levels.md` 1, 2, 4; `information-architecture.md` 8.1; `interaction-patterns.md` 3.1; `interaction-pattern-entries.md` 9.4; `figma-crosswalk.md` 4.2, 4.3; `one-way-doors.md` 58, 84 to 86; `decided-doors.md`
 - graphty-element `Graph.ts`, `config/` (`GraphStyle.ts`, `NodeStyle.ts`, `RichTextStyle.ts`,
   `palettes/`), `catalog/palettes.ts`, `catalog/label-style.ts`, `session/styles/channels.ts`, `legend.ts`,
   `test/catalog/default-palette-quality.test.ts`

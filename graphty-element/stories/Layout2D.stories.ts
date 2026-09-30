@@ -621,12 +621,11 @@ export const Bfs: Story = {
 
         // A breadth-first layout draws one COLUMN per level from the starting node, so the nodes
         // stand in bands rather than anywhere flat and distinct would satisfy. The bands run
-        // along x, not y: `bfsLayout` hands its layers to `multipartiteLayout`, whose default
-        // alignment -- "vertical", meaning each layer is drawn as a vertical line -- puts the
-        // layer index on x and spreads the layer's members along y. Bipartite and Multipartite
-        // below read the same axis for the same reason. Five bands because this data is five
-        // levels deep from node 0: {0}, {1,2,3,5,19}, {14,4,6,11,17,7,8}, {9,12,16,10,13,18},
-        // {15}.
+        // along x, not y: `bfsLayout` lays its layers out as `multipartiteLayout` does, and the
+        // default alignment -- "vertical", meaning each layer is drawn as a vertical line -- puts
+        // the layer index on x and spreads the layer's members along y. Bipartite and
+        // Multipartite below read the same axis for the same reason. Five bands because this data
+        // is five levels deep from node 0.
         await assertNodeBands(scene, 0, 5);
         await assertDistinctPicture(scene, "Layout/2D");
     },

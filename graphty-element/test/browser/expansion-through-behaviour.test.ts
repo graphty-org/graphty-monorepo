@@ -10,7 +10,8 @@
  * expansion on was to reach past the element and write the field by hand, which is what every
  * test in `node-behavior.test.ts` does.
  *
- * This file asks for it through the public door instead.
+ * This file asks for it through the public door instead, and checks that what the double-click
+ * fetched is added as one `data.expand` step.
  */
 
 import { ActionManager } from "@babylonjs/core";
@@ -18,6 +19,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";
 import { Graph } from "../../src/Graph";
+import { dispatcherOf } from "../../src/session/GraphSession";
 
 /**
  * Run a node's double-click action, whichever shape Babylon is holding it in.
@@ -85,6 +87,37 @@ describe("expansion switched on through the element's own behaviour setting", ()
         doubleClick(graph, "a");
 
         assert.strictEqual(fetchEdges.mock.calls.length, 1);
+    });
+
+    test("an expansion is one step, and redo does not ask the consumer again", async () => {
+        const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
+        const fetchNodes = vi.fn().mockReturnValue([{ id: "b" }]);
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges });
+        await graph.addNodes([{ id: "a" }]);
+        const session = graph.getSession();
+        const seen: string[] = [];
+        dispatcherOf(session).events.dispatched = (command) => {
+            seen.push(command.op);
+        };
+        const steps = session.history.steps.length;
+
+        doubleClick(graph, "a");
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.steps, steps + 1, "one step");
+        });
+
+        assert.deepEqual(seen, ["data.expand"]);
+        assert.isDefined(graph.getDataManager().getNode("b"));
+        assert.strictEqual(graph.getEdgeCount(), 1);
+
+        await session.undo();
+        assert.isUndefined(graph.getDataManager().getNode("b"));
+        assert.strictEqual(graph.getEdgeCount(), 0);
+
+        await session.redo();
+        assert.isDefined(graph.getDataManager().getNode("b"));
+        assert.strictEqual(fetchEdges.mock.calls.length, 1, "the fetched records were kept");
+        assert.strictEqual(fetchNodes.mock.calls.length, 1);
     });
 
     test("naming one pacing setting does not switch expansion back off", () => {

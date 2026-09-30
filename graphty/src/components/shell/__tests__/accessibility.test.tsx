@@ -2,6 +2,8 @@ import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { describe, expect, it } from "vitest";
 
+import { CAT_SOCIAL_NETWORK } from "../../../data/sampleGraphs";
+import { createFakeSession } from "../../../test/fakeSession";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
 
@@ -46,6 +48,36 @@ async function renderShell() {
 }
 
 /**
+ * Stands a session on the mounted host, holding the cat sample, and the element members the
+ * shell calls. The shell loads through the session; the stand-in's load arrives at once.
+ * @param element - the mounted `graphty-element`.
+ */
+function standSession(element: Element): void {
+    const { session } = createFakeSession({
+        records: () => ({
+            nodes: CAT_SOCIAL_NETWORK.nodes.map((node) => ({ ...node })),
+            edges: CAT_SOCIAL_NETWORK.edges.map((edge, index) => ({ ...edge, id: String(index) })),
+        }),
+    });
+    const members: Record<string, unknown> = {
+        session,
+        setXRConfig: () => undefined,
+        selectNode: () => true,
+        deselectNode: () => undefined,
+        zoomToFit: () => undefined,
+    };
+
+    for (const [name, value] of Object.entries(members)) {
+        Object.defineProperty(element, name, { configurable: true, value });
+    }
+
+    // Standing the session is the upgrade the shell waits for.
+    if (customElements.get("graphty-element") === undefined) {
+        customElements.define("graphty-element", class extends HTMLElement {});
+    }
+}
+
+/**
  * Renders the shell and loads the cat sample, answering the element's load at once and
  * reporting it complete, so the panels that wait for data are enabled.
  */
@@ -54,10 +86,7 @@ async function renderLoadedShell(): Promise<void> {
     const element = container.querySelector("graphty-element");
 
     expect(element).not.toBeNull();
-    Object.defineProperty(element, "addDataFromSource", {
-        configurable: true,
-        value: () => Promise.resolve({ loadId: 1 }),
-    });
+    standSession(element as Element);
 
     await userEvent.click(container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement);
     await act(async () => {

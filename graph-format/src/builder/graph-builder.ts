@@ -772,7 +772,8 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
-     * Live edges u -> v (undirected: either orientation), from the incidence lists.
+     * Live edges u -> v (undirected: either orientation), from the incidence lists of whichever
+     * endpoint has fewer (O(min degree)).
      * @param u - source index; E_INDEX_RANGE when out of range
      * @param v - target index; E_INDEX_RANGE when out of range
      * @returns a fresh ascending array of live edge indices
@@ -781,21 +782,7 @@ export class GraphBuilder implements GraphBuilderContract {
         this.check();
         this.checkNodeIndex(u);
         this.checkNodeIndex(v);
-        const { staging } = this;
-        const found: number[] = [];
-        for (let e = staging.firstOut.get(u); e !== INVALID_INDEX; e = staging.nextOut.get(e)) {
-            if (staging.edgeAlive.get(e) && staging.dst.get(e) === v) {
-                found.push(e);
-            }
-        }
-        if (!this.directedValue && u !== v) {
-            for (let e = staging.firstIn.get(u); e !== INVALID_INDEX; e = staging.nextIn.get(e)) {
-                if (staging.edgeAlive.get(e) && staging.src.get(e) === v) {
-                    found.push(e);
-                }
-            }
-        }
-        return Uint32Array.from(found).sort();
+        return this.staging.edgesBetween(u, v, this.directedValue);
     }
 
     // ---------------------------------------------------------------- attributes

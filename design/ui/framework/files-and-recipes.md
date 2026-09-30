@@ -58,9 +58,10 @@ some care about groups, others about flows. They are listed wherever a recipe is
 (`information-architecture.md` 3, "Recipes available").
 
 **Which overview is in force.** A project may name its own overview, embedded in the file with its
-id, version and source, and it wins (door 33, Choosing the overview recipe). A project that names
+id, version and source, and it wins (`decided-doors.md`, "The overview recipe's three levels"). A project that names
 none opens under the reader's **default overview**, a reader preference the consumer sets on the
-element (the graphty app sets it from Preferences). That covers every such project, new or already
+element (the graphty app sets it from Preferences) through an option whose name is door 33,
+Choosing the overview recipe. That covers every such project, new or already
 saved, and writes nothing to the project, so two readers with different defaults still open the
 same file. The commands are **Use as default overview** and **Reset to default**
 (`output-homes.md` 3.1).

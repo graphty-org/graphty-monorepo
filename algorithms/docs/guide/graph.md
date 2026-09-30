@@ -1,170 +1,135 @@
 # Graph Data Structure
 
-The `Graph` class is the core data structure for all algorithms in this library. It provides a flexible, type-safe way to represent both directed and undirected graphs.
+Every algorithm in `@graphty/algorithms` runs over a `GraphSnapshot` from
+[`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format): a frozen, read-only graph stored as typed
+arrays in compressed sparse row (CSR) form. You build one with a `GraphBuilder`, freeze it, and hand the snapshot to any
+algorithm of this package.
 
-## Creating a Graph
+## Building a Graph
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
 
-// Directed graph (default)
-const directed = new Graph();
+// `directed` is required
+const builder = new GraphBuilder({ directed: false });
 
-// Undirected graph
-const undirected = new Graph({ directed: false });
+// Add nodes explicitly, or let addEdge add them on first mention
+builder.addNode("a");
+builder.addEdge("a", "b");
+builder.addEdge("b", "c", 5); // an optional weight
 
-// With generic type for node IDs
-const typed = new Graph<string>();
+const graph = builder.freeze();
+console.log(graph.nodeCount, graph.edgeCount, graph.directed); // 3 2 false
 ```
 
-## Adding Nodes
+A snapshot never changes. To change the graph, keep using the builder (or start one from a snapshot with
+`GraphBuilder.from(snapshot)`) and freeze again.
+
+## Node Ids and Node Indices
+
+Algorithms work on node indices, `0` to `nodeCount - 1`, which follow the order in which ids first appeared. The
+snapshot's `ids` map converts between the two:
+
+<!-- doc-check -->
 
 ```typescript
-const graph = new Graph<string>();
+import { GraphBuilder } from "@graphty/graph-format";
 
-// Add individual nodes
-graph.addNode("a");
-graph.addNode("b");
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("x", "y");
+builder.addEdge("y", "z");
+const graph = builder.freeze();
 
-// Add node with data
-graph.addNode("c", { label: "Node C", weight: 10 });
+console.log(graph.ids.requireIndex("y")); // 1
+console.log(graph.ids.idOf(2)); // z
+console.log(graph.ids.indexOf("missing")); // 4294967295: INVALID_INDEX, the "not found" index
+console.log(graph.ids.toArray()); // ["x", "y", "z"]
 
-// Check if node exists
-graph.hasNode("a"); // true
-graph.hasNode("x"); // false
+// Turn a per-node result into a Map keyed by id
+const labels = new Float64Array([0.5, 0.25, 0.25]);
+console.log(graph.ids.toMap(labels).get("x")); // 0.5
 ```
 
-## Adding Edges
+`requireIndex` throws for an unknown id; `indexOf` returns `INVALID_INDEX` instead.
+
+## Neighbours, Degrees and Weights
+
+<!-- doc-check -->
 
 ```typescript
-// Add edge (auto-creates nodes if they don't exist)
-graph.addEdge("a", "b");
+import { GraphBuilder } from "@graphty/graph-format";
 
-// Add edge with weight
-graph.addEdge("a", "c", { weight: 5 });
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 2);
+builder.addEdge("a", "c", 3);
+builder.addEdge("c", "a", 1);
+const graph = builder.freeze();
+const a = graph.ids.requireIndex("a");
 
-// Add edge with custom data
-graph.addEdge("b", "c", {
-  weight: 3,
-  label: "connection",
+// The out-neighbours of a node are a slice of colIdx
+const [start, end] = graph.outArcs(a);
+console.log(Array.from(graph.colIdx.subarray(start, end), (i) => graph.ids.idOf(i))); // ["b", "c"]
+console.log(Array.from(graph.weights?.subarray(start, end) ?? [])); // [2, 3]
+
+// In-neighbours come from the reverse view
+const reverse = graph.reverse();
+console.log(reverse.rowPtr[a + 1] - reverse.rowPtr[a]); // 1: only "c" points at "a"
+
+console.log(graph.outDegree()); // [2, 0, 1]
+console.log(graph.inDegree()); // [1, 1, 1]
+console.log(graph.hasArc(a, graph.ids.requireIndex("b"))); // true
+```
+
+An undirected snapshot stores each edge as two arcs, one in each direction, so `outArcs` lists every neighbour.
+
+## Loading Edges in Bulk
+
+When the edges are already in arrays, `fromEdgeArrays` builds the snapshot in one call:
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+
+const graph = fromEdgeArrays({
+    directed: false,
+    nodeCount: 3, // or `ids`, one id per node index
+    src: Uint32Array.of(0, 1, 2),
+    dst: Uint32Array.of(1, 2, 0),
 });
-
-// Check if edge exists
-graph.hasEdge("a", "b"); // true
+console.log(graph.nodeCount, graph.edgeCount); // 3 3
 ```
 
-## Accessing Graph Data
+Files in GEXF, GraphML, GML, DOT, Pajek, CSV and JSON load into a snapshot through
+[`@graphty/graph-io`](https://www.npmjs.com/package/@graphty/graph-io).
 
-### Nodes
+## Derived Graphs
+
+<!-- doc-check -->
 
 ```typescript
-// Get all nodes
-const nodes = graph.nodes(); // ["a", "b", "c"]
+import { GraphBuilder } from "@graphty/graph-format";
 
-// Get node count
-graph.nodeCount; // 3
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+builder.addEdge("b", "a");
+builder.addEdge("b", "c");
+const directed = builder.freeze();
 
-// Get node data
-graph.getNodeData("c"); // { label: "Node C", weight: 10 }
+// The undirected copy merges a-b and b-a into one edge
+const undirected = directed.toUndirected().snapshot;
+console.log(undirected.directed, undirected.edgeCount); // false 2
 ```
 
-### Edges
+## Coming From algorithms 2.x
 
-```typescript
-// Get all edges
-const edges = graph.edges();
-// [{ source: "a", target: "b" }, { source: "a", target: "c" }, ...]
-
-// Get edge count
-graph.edgeCount; // number
-
-// Get edge data
-graph.getEdgeData("a", "b"); // { weight: 5 }
-
-// Get edge weight (convenience method)
-graph.getWeight("a", "b"); // 5 (defaults to 1 if not set)
-```
-
-### Neighbors
-
-```typescript
-// Get successors (outgoing neighbors)
-graph.successors("a"); // ["b", "c"]
-
-// Get predecessors (incoming neighbors)
-graph.predecessors("b"); // ["a"]
-
-// Get all neighbors (for undirected or both directions)
-graph.neighbors("a"); // ["b", "c"]
-```
-
-## Modifying the Graph
-
-```typescript
-// Remove an edge
-graph.removeEdge("a", "b");
-
-// Remove a node (also removes connected edges)
-graph.removeNode("c");
-
-// Clear all nodes and edges
-graph.clear();
-```
-
-## Graph Properties
-
-```typescript
-// Check if directed
-graph.isDirected; // true or false
-
-// Get statistics
-console.log(`Nodes: ${graph.nodeCount}`);
-console.log(`Edges: ${graph.edgeCount}`);
-console.log(`Density: ${graph.density}`);
-```
-
-## Iteration
-
-```typescript
-// Iterate over nodes
-for (const node of graph.nodes()) {
-  console.log(node);
-}
-
-// Iterate over edges
-for (const { source, target, data } of graph.edges()) {
-  console.log(`${source} -> ${target}`, data);
-}
-
-// Iterate over neighbors
-for (const neighbor of graph.successors("a")) {
-  console.log(`a -> ${neighbor}`);
-}
-```
-
-## Type Safety
-
-The Graph class is generic, allowing you to specify the type of node IDs:
-
-```typescript
-// String node IDs (common)
-const stringGraph = new Graph<string>();
-stringGraph.addNode("node1");
-
-// Number node IDs
-const numberGraph = new Graph<number>();
-numberGraph.addNode(1);
-
-// Custom object IDs (must be usable as Map keys)
-interface CustomId {
-  id: string;
-  type: string;
-}
-const customGraph = new Graph<CustomId>();
-```
+The id-keyed `Graph` class of algorithms 2.x is gone. Its `addNode(id)` and `addEdge(source, target, weight)` calls map
+one to one onto `GraphBuilder`'s, and `freeze()` takes the place of passing the graph itself. The
+[migration guide](./migrating-to-3.md) lists the replacement for every 2.x function.
 
 ## Next Steps
 
 - [Traversal Algorithms](./traversal.md) - BFS, DFS, and more
 - [Shortest Path](./shortest-path.md) - Dijkstra, Bellman-Ford
-- [API Reference](../api/generated/core/graph/classes/Graph.md) - Complete Graph API

@@ -27,7 +27,7 @@ export const UNCLOSED_QUOTE_CODE = "E_CSV_UNCLOSED_QUOTE";
 export const BAD_QUOTE_CODE = "E_CSV_QUOTE";
 
 /** The delimiters tried, in priority order, when none is given. */
-const DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t", ";", "|", " "]);
+export const DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t", ";", "|", " "]);
 
 /** Rows the delimiter sniff looks at. */
 const PREVIEW_ROWS = 10;
@@ -67,6 +67,11 @@ export interface RecordSyntax {
      * sniff. A later line starting with one of them is an ordinary record. Default: none.
      */
     readonly comments?: readonly string[] | undefined;
+    /**
+     * Whether the delimiter sniff skips a candidate under which a closing quote is followed by
+     * other text (see sniffDelimiter). False by default: that text then aborts the read.
+     */
+    readonly skipQuoteErrors?: boolean | undefined;
 }
 
 /**
@@ -117,9 +122,17 @@ export function sniffNewline(text: string): "\n" | "\r" {
  * @param delimiter - the delimiter
  * @param quote - the quote character
  * @param maxRows - the most rows to return
- * @returns the rows as cell arrays (blank lines skipped)
+ * @param strictQuotes - return null when a closing quote is followed by text other than the
+ * delimiter or a line break (the import would abort under this delimiter)
+ * @returns the rows as cell arrays (blank lines skipped), or null (see strictQuotes)
  */
-function splitRecords(text: string, delimiter: string, quote: string, maxRows: number): string[][] {
+function splitRecords(
+    text: string,
+    delimiter: string,
+    quote: string,
+    maxRows: number,
+    strictQuotes = false,
+): string[][] | null {
     const rows: string[][] = [];
     const delimiterCode = delimiter.charCodeAt(0);
     const quoteCode = quote.charCodeAt(0);
@@ -143,6 +156,9 @@ function splitRecords(text: string, delimiter: string, quote: string, maxRows: n
                 segment = i + 1;
                 state = QUOTED;
                 continue;
+            }
+            if (strictQuotes && c !== delimiterCode && c !== LF && c !== CR) {
+                return null;
             }
             state = AFTER_QUOTED;
             segment = i;
@@ -227,6 +243,10 @@ function stripLeadingComments(text: string, comments: readonly string[]): string
  * kept for callers that sniffed it)
  * @param candidates - the delimiters to try, in priority order
  * @param quote - the quote character
+ * @param skipQuoteErrors - also never choose a candidate under which a closing quote is followed
+ * by other text. Only for inputs whose field counts say nothing (an adjacency table's rows vary in
+ * width): elsewhere a stray character after a quote would make a worse candidate win silently
+ * instead of aborting the read
  * @returns the delimiter, or null
  */
 export function sniffDelimiter(
@@ -234,6 +254,7 @@ export function sniffDelimiter(
     newline: "\n" | "\r" = "\n",
     candidates: readonly string[] = DELIMITER_CANDIDATES,
     quote = '"',
+    skipQuoteErrors = false,
 ): string | null {
     let best: string | null = null;
     let bestDelta = Infinity;
@@ -243,7 +264,12 @@ export function sniffDelimiter(
         if (delimiter === quote || delimiter === newline) {
             continue;
         }
-        let rows = splitRecords(text, delimiter, quote, PREVIEW_ROWS).filter((row) => !isBlankRow(row));
+        const split = splitRecords(text, delimiter, quote, PREVIEW_ROWS, skipQuoteErrors);
+        if (split === null) {
+            // a quoted cell this delimiter does not close: it is not the file's delimiter
+            continue;
+        }
+        let rows = split.filter((row) => !isBlankRow(row));
         if (rows.length > 1 && !terminated) {
             // the preview is a prefix of the file: its last row may be cut short
             rows = rows.slice(0, -1);
@@ -454,7 +480,9 @@ export class RecordReader implements AsyncIterable<number> {
         // the sniff is a heuristic over the first rows: a single chunk holding a huge quoted cell
         // is capped so the candidate scans stay bounded
         const body = stripLeadingComments(text.slice(0, PREVIEW_CHARS), this.syntax.comments ?? []);
-        this.delimiterText = sniffDelimiter(body, sniffNewline(body), candidates, this.syntax.quote) ?? candidates[0];
+        this.delimiterText =
+            sniffDelimiter(body, sniffNewline(body), candidates, this.syntax.quote, this.syntax.skipQuoteErrors) ??
+            candidates[0];
     }
 }
 
@@ -736,6 +764,8 @@ export interface CsvReaderOptions extends ReadOptions {
     readonly delimiter?: string | null | undefined;
     /** The characters opening a leading comment line (RecordSyntax.comments); none by default. */
     readonly comments?: readonly string[] | undefined;
+    /** RecordSyntax.skipQuoteErrors; false by default. */
+    readonly skipQuoteErrors?: boolean | undefined;
 }
 
 /**
@@ -759,7 +789,12 @@ export class CsvRecordReader implements AsyncIterable<string[]> {
         this.inner = new RecordReader(
             input,
             report,
-            { delimiter: options.delimiter ?? null, quote: '"', comments: options.comments },
+            {
+                delimiter: options.delimiter ?? null,
+                quote: '"',
+                comments: options.comments,
+                skipQuoteErrors: options.skipQuoteErrors,
+            },
             { signal: options.signal, onProgress: options.onProgress, encoding: options.encoding },
         );
     }

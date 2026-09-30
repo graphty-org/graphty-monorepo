@@ -5,11 +5,22 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { newestMasterCapture } from "../trusted/lib/github.mjs";
 import { createApp } from "../trusted/lib/serve.mjs";
-import { copyFixture, FIXTURE, fakeGh, git, isolateGit, job, makeRepo, onePr, pushCommit } from "./helpers.mjs";
+import {
+    copyFixture,
+    FIXTURE,
+    FIXTURE_CONFIG,
+    fakeGh,
+    git,
+    isolateGit,
+    job,
+    makeRepo,
+    onePr,
+    pushCommit,
+    withMoved,
+} from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
-const PROJECTS = JSON.parse(readFileSync(new URL("../projects.json", import.meta.url), "utf8"));
 const TOKEN = "t".repeat(43);
 
 let server;
@@ -28,7 +39,7 @@ async function start(options = {}) {
     server = createServer((req, res) => box.app(req, res));
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
-    box.app = createApp({ repo, tmp, projects: PROJECTS, token: TOKEN, origin, ...options, gh: options.gh(r) });
+    box.app = createApp({ repo, tmp, config: FIXTURE_CONFIG, token: TOKEN, origin, ...options, gh: options.gh(r) });
     const api = async (method, path, body, headers = {}) => {
         const res = await fetch(`${origin}${path}`, {
             method,
@@ -43,6 +54,32 @@ async function start(options = {}) {
         };
     };
     return { ...r, repo, origin, api, tmp };
+}
+
+/**
+ * Waits for the running Finish to end, as the page does.
+ * @param {object} s the started app
+ * @returns {Promise<object | null>} the ended job
+ */
+async function endedJob(s) {
+    for (;;) {
+        const { job } = (await s.api("GET", "/api/finish-status")).body;
+        if (!job?.running) {
+            return job;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+}
+
+/**
+ * Starts a Finish and waits for it to end.
+ * @param {object} s the started app
+ * @param {string} id the target
+ * @returns {Promise<{ begun: object, job: object | null }>} the start's response and the ended job
+ */
+async function finishJob(s, id) {
+    const begun = await s.api("POST", "/api/finish", { id });
+    return { begun, job: await endedJob(s) };
 }
 
 describe("serve: pull requests", () => {
@@ -172,7 +209,12 @@ describe("serve: master", () => {
     });
 
     it("refuses Accept for a project that is not seeded from master", async () => {
-        const s = await start({ gh: master, masterRun: 2000 });
+        const p = FIXTURE_CONFIG.projects;
+        const config = {
+            ...FIXTURE_CONFIG,
+            projects: { ...p, "graphty-element": { ...p["graphty-element"], seedFromDefaultBranch: false } },
+        };
+        const s = await start({ gh: master, masterRun: 2000, config });
         await s.api("GET", "/api/prs");
         const decide = (project, file) =>
             s.api("POST", "/api/decide", { id: "master", project, file, decision: "accept" });
@@ -265,6 +307,26 @@ describe("serve: access", () => {
     });
 });
 
+describe("serve: renamed stories", () => {
+    it("counts a moved item as needing a decision, serves its capture as its baseline, and accepts it", async () => {
+        const s = await start({ gh: withMoved });
+        const prs = await s.api("GET", "/api/prs");
+        const cm = prs.body.targets[0].projects.find((p) => p.project === "compact-mantine");
+        expect(cm.counts.moved).toBe(1);
+        expect(cm.reviewable).toBe(6);
+        const capture = readFileSync(join(FIXTURE, "compact-mantine/slider--sizes.png"));
+        const base = await s.api("GET", "/api/img/123/compact-mantine/baseline/slider--sizes.png");
+        expect(base.status).toBe(200);
+        expect(base.body.equals(capture)).toBe(true);
+        const decide = { id: "123", project: "compact-mantine", file: "slider--sizes.png", decision: "accept" };
+        expect((await s.api("POST", "/api/decide", decide)).status).toBe(200);
+        const item = (await s.api("GET", "/api/pr/123/compact-mantine")).body.items.find(
+            (i) => i.file === "slider--sizes.png",
+        );
+        expect(item).toMatchObject({ status: "moved", from: "old-slider--sizes" });
+    });
+});
+
 describe("serve: decisions and Finish", () => {
     it("keeps decisions in memory and refuses Accept on an unstable item", async () => {
         const s = await start({ gh: onePr() });
@@ -310,15 +372,57 @@ describe("serve: decisions and Finish", () => {
             decision: "reject",
             reason: "thumb moved",
         });
-        const { status, body } = await s.api("POST", "/api/finish", { id: "123" });
-        expect(status).toBe(200);
+        const { begun, job } = await finishJob(s, "123");
+        expect(begun.status).toBe(202);
+        expect(job.error).toBeNull();
+        const body = job.result;
         expect(body.rejects).toBe(1);
         expect(git(s.remote, "rev-parse", "feature")).toBe(body.commit);
         expect(git(s.remote, "rev-parse", "feature~1")).toBe(s.head);
         const rejected = { "slider--sizes.png": { decision: "reject", reason: "thumb moved", posted: true } };
         expect((await s.api("GET", "/api/pr/123/compact-mantine")).body.decisions).toEqual(rejected);
         // A second Finish has nothing new to post.
-        expect((await s.api("POST", "/api/finish", { id: "123" })).body.error).toBe("nothing decided");
+        expect((await finishJob(s, "123")).job.error).toBe("nothing decided");
+    });
+
+    it("runs Finish in the background, reports its step, and refuses a second one and new decisions", async () => {
+        let release;
+        const gate = new Promise((resolve) => (release = resolve));
+        let reached;
+        const atStatus = new Promise((resolve) => (reached = resolve));
+        const s = await start({
+            gh: (r) => {
+                const gh = onePr()(r);
+                return async (args, input) => {
+                    if (args[1]?.includes("/statuses/")) {
+                        reached();
+                        await gate;
+                    }
+                    return gh(args, input);
+                };
+            },
+        });
+        await s.api("GET", "/api/prs");
+        const decide = (file) =>
+            s.api("POST", "/api/decide", { id: "123", project: "compact-mantine", file, decision: "accept" });
+        await decide("badge--default.light.png");
+        expect((await s.api("GET", "/api/finish-status")).body.job).toBeNull();
+        const begun = await s.api("POST", "/api/finish", { id: "123" });
+        expect(begun.status).toBe(202);
+        expect(begun.body.job).toMatchObject({ id: 1, target: "123", pr: 123, running: true });
+        await atStatus;
+        expect((await s.api("GET", "/api/finish-status")).body.job).toMatchObject({
+            running: true,
+            step: "posting the status",
+        });
+        const again = await s.api("POST", "/api/finish", { id: "123" });
+        expect(again).toMatchObject({ status: 409, body: { error: "a Finish is already running" } });
+        expect((await decide("button--primary.dark.png")).status).toBe(409);
+        release();
+        const job = await endedJob(s);
+        expect(job).toMatchObject({ id: 1, running: false, step: null, error: null });
+        expect(job.result.commit).toBe(git(s.remote, "rev-parse", "feature"));
+        expect((await decide("button--primary.dark.png")).status).toBe(200);
     });
 
     it("reports the signing key the server's environment gives git", async () => {
@@ -365,9 +469,8 @@ describe("serve: decisions and Finish", () => {
             file: "badge--default.light.png",
             decision: "accept",
         });
-        const { status, body } = await s.api("POST", "/api/finish", { id: "123" });
-        expect(status).toBe(409);
-        expect(body.error).toContain("failed to write commit object");
+        const { job } = await finishJob(s, "123");
+        expect(job.error).toContain("failed to write commit object");
         expect(git(s.remote, "rev-parse", "feature")).toBe(s.head);
         expect((await s.api("GET", "/api/pr/123/compact-mantine")).body.decisions).toHaveProperty(
             "badge--default.light.png",
@@ -463,7 +566,7 @@ describe("serve: review extras", () => {
         await decide(s, "badge--default.light.png", "accept");
         await decide(s, "slider--sizes.png", "reject", "thumb moved");
         expect(posted).toEqual([]);
-        const { body } = await s.api("POST", "/api/finish", { id: "123" });
+        const body = (await finishJob(s, "123")).job.result;
         const statuses = posted.filter((p) => p.path.includes("/statuses/"));
         expect(statuses).toEqual([
             {
@@ -564,17 +667,33 @@ describe("newestMasterCapture", () => {
         const r = makeRepo();
         const gh = fakeGh({
             masterRuns: [
-                { id: 3000, head: r.master },
-                { id: 2000, head: r.master },
+                { id: 3000, head: "3".repeat(40) },
+                { id: 2000, head: "2".repeat(40) },
                 { id: 1000, head: r.master },
             ],
             artifacts: { 3000: [], 2000: ["visual-compact-mantine-1"], 1000: ["visual-compact-mantine-1"] },
             results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, runId: 2000 } },
         });
         const tmp = join(r.dir, "reference");
-        const dir = await newestMasterCapture(gh, "compact-mantine", tmp);
+        const dir = await newestMasterCapture(gh, "compact-mantine", tmp, FIXTURE_CONFIG);
         expect(dir).toBe(join(tmp, "2000-1", "compact-mantine"));
         expect(JSON.parse(readFileSync(join(dir, "results.json"), "utf8")).runId).toBe(2000);
+    });
+
+    it("skips a master commit with no run", async () => {
+        const r = makeRepo();
+        const gh = fakeGh({
+            masterRuns: [
+                { id: null, head: "4".repeat(40) },
+                { id: 2000, head: r.master },
+            ],
+            artifacts: { 2000: ["visual-compact-mantine-1"] },
+            results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, runId: 2000 } },
+        });
+        const tmp = join(r.dir, "reference");
+        expect(await newestMasterCapture(gh, "compact-mantine", tmp, FIXTURE_CONFIG)).toBe(
+            join(tmp, "2000-1", "compact-mantine"),
+        );
     });
 
     it("finds nothing when no master run has a complete capture", async () => {
@@ -584,6 +703,6 @@ describe("newestMasterCapture", () => {
             artifacts: { 2000: ["visual-compact-mantine-1"] },
             results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, complete: false } },
         });
-        expect(await newestMasterCapture(gh, "compact-mantine", join(r.dir, "reference"))).toBeNull();
+        expect(await newestMasterCapture(gh, "compact-mantine", join(r.dir, "reference"), FIXTURE_CONFIG)).toBeNull();
     });
 });

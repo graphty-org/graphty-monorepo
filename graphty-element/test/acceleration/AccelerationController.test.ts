@@ -6,6 +6,7 @@ import {
     ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_MEASUREMENT,
+    ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY,
     type AccelerationPrecision,
     type AccelerationStatus,
     CPU_PRECISION,
@@ -498,6 +499,39 @@ describe("AccelerationController: the acceleration.minNodes threshold", () => {
     });
 });
 
+describe("AccelerationController: the source-edge floor of a sampled search", () => {
+    const searcher = (): GraphAccelerator =>
+        fakeAccelerator({ members: { forceAtlas2: (): string => "gpu", betweennessCentrality: (): string => "gpu" } });
+    const nodeFloor = ACCELERATION_MIN_NODES_BY_CAPABILITY.betweennessCentrality ?? NaN;
+    const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY.betweennessCentrality ?? NaN;
+
+    it("takes the CPU path below it even past the node floor, and says why", async () => {
+        const controller = new AccelerationController({ registry: registryWith(searcher()) });
+        await controller.start();
+        const work = { capability: "betweennessCentrality", nodeCount: nodeFloor * 10 };
+
+        const below = controller.plan({ ...work, sourceEdges: sourceFloor - 1 });
+        assert.isFalse(below.accelerated);
+        assert.include(below.accelerated ? "" : below.reason, "source-edges");
+        assert.isTrue(controller.plan({ ...work, sourceEdges: sourceFloor }).accelerated);
+        // A work description with no source count is judged on the node floor alone.
+        assert.isTrue(controller.plan(work).accelerated);
+        controller.dispose();
+    });
+
+    it("does not apply under required or with a threshold the consumer set", async () => {
+        const required = new AccelerationController({ policy: "required", registry: registryWith(searcher()) });
+        await required.ready();
+        assert.isTrue(required.plan({ capability: "betweennessCentrality", nodeCount: 1, sourceEdges: 1 }).accelerated);
+        required.dispose();
+
+        const set = new AccelerationController({ registry: registryWith(searcher()), minNodes: 0 });
+        await set.start();
+        assert.isTrue(set.plan({ capability: "betweennessCentrality", nodeCount: 1, sourceEdges: 1 }).accelerated);
+        set.dispose();
+    });
+});
+
 describe("AccelerationController: the built-in floor of a traversal", () => {
     /** An accelerator that walks, so the floor and not the feature test is what decides. */
     const walker = (): GraphAccelerator =>
@@ -647,6 +681,22 @@ describe("AccelerationController: acceleration=required", () => {
             .catch((error: unknown) => error);
         assert.instanceOf(refusal, Error);
         assert.match(refusal.message, /acceleration is required/);
+        controller.dispose();
+    });
+
+    it("names the missing member, not a missing accelerator, when one is attached", async () => {
+        const controller = new AccelerationController({
+            policy: "required",
+            registry: registryWith(fakeAccelerator()),
+        });
+        await controller.ready();
+
+        const refusal = await controller
+            .run({ capability: "pageRank", nodeCount: 10_000 }, () => "gpu")
+            .catch((error: unknown) => error);
+        assert.instanceOf(refusal, Error);
+        assert.include(refusal.message, 'does not implement "pageRank"');
+        assert.notInclude(refusal.message, "no accelerator is attached");
         controller.dispose();
     });
 

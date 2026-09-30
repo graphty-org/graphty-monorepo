@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="190" font-family="sans-serif" font-size="12">
+<rect width="100%" height="100%" fill="white"/>
+<line x1="119.99999999999999" y1="40" x2="200" y2="40" stroke="#9ab" />
+<line x1="200" y1="40" x2="280" y2="40" stroke="#9ab" />
+<line x1="280" y1="40" x2="360" y2="40" stroke="#9ab" />
+<line x1="360" y1="40" x2="440" y2="80" stroke="#9ab" />
+<line x1="440" y1="80" x2="360" y2="120" stroke="#9ab" />
+<line x1="360" y1="120" x2="280" y2="120" stroke="#9ab" />
+<line x1="280" y1="120" x2="200" y2="120" stroke="#9ab" />
+<line x1="200" y1="120" x2="119.99999999999999" y2="120" stroke="#9ab" />
+<line x1="119.99999999999999" y1="120" x2="40" y2="80" stroke="#9ab" />
+<line x1="40" y1="80" x2="119.99999999999999" y2="40" stroke="#9ab" />
+<line x1="119.99999999999999" y1="120" x2="119.99999999999999" y2="40" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="119.99999999999999" cy="120" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="119.99999999999999" cy="40" r="9" fill="#27c" /><text x="119.99999999999999" y="44" fill="white" text-anchor="middle">0</text>
+<line x1="200" y1="120" x2="200" y2="40" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="200" cy="120" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="200" cy="40" r="9" fill="#27c" /><text x="200" y="44" fill="white" text-anchor="middle">1</text>
+<line x1="280" y1="120" x2="280" y2="40" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="280" cy="120" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="280" cy="40" r="9" fill="#27c" /><text x="280" y="44" fill="white" text-anchor="middle">2</text>
+<line x1="360" y1="120" x2="360" y2="40" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="360" cy="120" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="360" cy="40" r="9" fill="#27c" /><text x="360" y="44" fill="white" text-anchor="middle">3</text>
+<circle cx="440" cy="80" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="440" cy="80" r="9" fill="#27c" /><text x="440" y="84" fill="white" text-anchor="middle">4</text>
+<line x1="360" y1="40" x2="360" y2="120" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="360" cy="40" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="360" cy="120" r="9" fill="#27c" /><text x="360" y="124" fill="white" text-anchor="middle">5</text>
+<line x1="280" y1="40" x2="280" y2="120" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="280" cy="40" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="280" cy="120" r="9" fill="#27c" /><text x="280" y="124" fill="white" text-anchor="middle">6</text>
+<line x1="200" y1="40" x2="200" y2="120" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="200" cy="40" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="200" cy="120" r="9" fill="#27c" /><text x="200" y="124" fill="white" text-anchor="middle">7</text>
+<line x1="119.99999999999999" y1="40" x2="119.99999999999999" y2="120" stroke="#d33" stroke-dasharray="4 3" />
+<circle cx="119.99999999999999" cy="40" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="119.99999999999999" cy="120" r="9" fill="#27c" /><text x="119.99999999999999" y="124" fill="white" text-anchor="middle">8</text>
+<circle cx="40" cy="80" r="14" fill="none" stroke="#888" stroke-width="2" />
+<circle cx="40" cy="80" r="9" fill="#27c" /><text x="40" y="84" fill="white" text-anchor="middle">9</text>
+<text x="40" y="178">cycle, 10 nodes, seed 42, start 9: grey ring = master, blue dot = branch, red dash = move (max 0.400 units)</text>
+</svg>

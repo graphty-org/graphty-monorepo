@@ -93,7 +93,7 @@ filter step; layout settings; note; saved view; the Look; recipe; the rest of th
   6.9); many rows (`interaction-pattern-entries.md` 6.8).
 - **Element.** `session.sets` (`element-contract.md` 9); what is owed, the "Selection" area of
   `element-needs.md` and object selection in slice 5 (`implementation-mapping.md` 9).
-- **Doors.** 39, Selection as element state, and the cap; 27, Identifier lists as rule sets; 89,
+- **Doors.** 39, Selection of one object as a whole; 27, Identifier lists as rule sets; 89,
   The form of element-minted ids.
 
 ## Sources
@@ -105,6 +105,6 @@ filter step; layout settings; note; saved view; the Look; recipe; the rest of th
   method as the team's reviews described it, not re-read for this document
 - Open decisions cited (`one-way-doors.md`): 5, Project parts and graph parts; 20, A measurement
   level per attribute; 26, Whether a finished run paints; 27, Identifier lists as rule sets; 31,
-  Overrides, Base style and the stack order; 39, Selection as element state, and the cap; 58, The
+  Overrides, Base style and the stack order; 39, Selection of one object as a whole; 58, The
   legend and not-drawn notice; 84, A category's color fixed at first paint; 85, What a Look is; 89,
   The form of element-minted ids

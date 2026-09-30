@@ -13,7 +13,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Three nodes, so a count is a count rather than a coincidence. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }];
@@ -39,7 +39,7 @@ describe("a node whose mesh has been disposed", () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.setLayout("circular");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

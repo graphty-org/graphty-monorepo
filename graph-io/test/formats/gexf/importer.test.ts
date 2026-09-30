@@ -22,7 +22,6 @@ import {
     MISSING_NODES_CODE,
     NO_GRAPH_CODE,
     NOT_GEXF_CODE,
-    SPELL_OPEN_CODE,
     TIMED_STATIC_CODE,
     UNKNOWN_ATTRIBUTE_CODE,
     UNKNOWN_PARENT_CODE,
@@ -112,6 +111,7 @@ describe("gexfImporter: identity", () => {
         expect(gexfImporter.sniff?.(enc.encode('<x xmlns="http://www.gexf.net/1.2draft"'))).toBe(0.8);
         expect(gexfImporter.sniff?.(readCorpusBytes("gexf", "lesmiserables.gexf").subarray(0, 200))).toBe(1);
         expect(gexfImporter.sniff?.(new Uint8Array([0xff, 0xfe, 0x00]))).toBe(0);
+        expect(gexfImporter.sniff?.(enc.encode('{ "nodes": [{ "id": "a", "label": "<gexf >" }] }'))).toBe(0);
     });
 });
 
@@ -502,9 +502,11 @@ describe("gexfImporter: a 1.2 document", () => {
     it("reads integer times, open bounds, pipe lists, a mutual default and dynamic values", async () => {
         const { snapshot, report } = await load(OPEN_1_2);
         expect(report.errorCount).toBe(0);
-        expect(codes(report)).toEqual([VIZ_DYNAMIC_CODE, SPELL_OPEN_CODE]);
+        expect(codes(report)).toEqual([VIZ_DYNAMIC_CODE]);
         expect(snapshot.directed).toBe(true);
         expect(snapshot.meta).toMatchObject({ timeFormat: "integer", mode: "dynamic", sourceVersion: "1.2" });
+        // the header text as written, so a reader can tell a written default from the schema's
+        expect(snapshot.meta.extra).toEqual({ gexf: { defaultedgetype: "mutual" } });
         expect(snapshot.ids.toArray()).toEqual([1, 2]);
         expect(snapshot.edgeCount).toBe(3);
         expect(values(snapshot.edges.byRole("mutual"))).toEqual([true, undefined, undefined]);
@@ -521,6 +523,13 @@ describe("gexfImporter: a 1.2 document", () => {
         expect(snapshot.nodes.get("open")?.meta).toMatchObject({ dtype: "u8", role: "open" });
         expect(values(snapshot.edges.get("open"))).toEqual([undefined, undefined, 2]);
         expect(values(snapshot.nodes.get("spells"))[1]).toEqual([[1, 2]]);
+        // the spell's startopen is kept beside it, one bit set per open bound
+        expect(values(snapshot.nodes.get("spells.open"))).toEqual([undefined, [1]]);
+        expect(snapshot.nodes.get("spells.open")?.meta).toMatchObject({
+            dtype: "list",
+            itemDtype: "u8",
+            role: "spellsOpen",
+        });
         const level = snapshot.extensions.get("temporal:node:level");
         expect(values(level?.get("value") ?? null)).toEqual([3, 4]);
         expect(values(level?.get("open") ?? null)).toEqual([2, undefined]);
@@ -557,6 +566,16 @@ describe("gexfImporter: headers and defaults", () => {
         expect(values(snapshot.edges.byRole("pair"))).toEqual([1, 0, undefined, 4, 3]);
         expect(values(snapshot.edges.byRole("mutual"))).toEqual([undefined, undefined, undefined, true, undefined]);
         expect(values(snapshot.edges.byRole("id"))).toEqual(["u1", undefined, "d1", "m1", undefined]);
+    });
+
+    it("reads defaultedgetype and an edge type whatever their case", async () => {
+        const doc = `<gexf version="1.2"><graph defaultedgetype="Directed"><nodes><node id="a"/><node id="b"/><node id="c"/></nodes><edges><edge source="a" target="b"/><edge source="b" target="c" type=" UNDIRECTED "/><edge source="c" target="a" type="Directed"/></edges></graph></gexf>`;
+        const { snapshot, report } = await load(doc);
+        expect(report.errorCount).toBe(0);
+        expect(report.warningCount).toBe(0);
+        expect(snapshot.directed).toBe(true);
+        expect(values(snapshot.edges.byRole("directed"))).toEqual([true, false, false, true]);
+        expect(snapshot.meta.extra.gexf).toEqual({ defaultedgetype: "Directed" });
     });
 
     it("coerces ids per the option", async () => {

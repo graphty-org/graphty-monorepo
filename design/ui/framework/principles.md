@@ -610,7 +610,7 @@ These are fixed constraints, never traded away, so they are not ranked:
 - Highlights stack as style layers of the highlight kind, which write the highlight mark, never a
   data channel (`canvas-drawing.md` 5).
 - One reserved mark means "selected": a neutral two-tone mark that never changes a fill
-  (`canvas-drawing.md` 2; door 47, The canvas marks).
+  (`canvas-drawing.md` 2; `decided-doors.md`, "The canvas marks").
 - **Color follows the category, never its size rank**: a category keeps its color when a filter or
   a re-run reorders the groups by size (`options-and-encodings.md` 5; door 84, A category's color fixed at first paint).
 - Imported data is never altered silently: nothing is coerced, merged or overwritten without

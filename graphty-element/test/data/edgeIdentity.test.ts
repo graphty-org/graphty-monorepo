@@ -27,8 +27,8 @@ import {
     stableEdgeMember,
 } from "../../src/data/edgeIdentity";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../../src/data/ingest";
 import { createGraphSession } from "../../src/session";
+import { ingestDeclaredDirection, ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One edge record: endpoints, weight, and a file id when the file carries one. */
 interface Rec {
@@ -244,12 +244,14 @@ describe("repeated-edge survivorship", () => {
 });
 
 describe("the identity columns", () => {
-    it("are carried by a standalone session's store once edges are added through it", () => {
+    it("are carried by a standalone session's store once edges are added through it", async () => {
         const session = createGraphSession();
-        const store = session.data.store as GraphStore;
-        ingestNode(store, "a", {});
-        ingestEdge(store, "a", "b", 1);
-        ingestEdge(store, "b", "c", 1);
+        // Through the session's doors: its store is written only by the graph primitives.
+        await session.data.addNodes([{ id: "a" }]);
+        await session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
 
         const snapshot = session.snapshot();
         for (const name of [IDENTITY_COLUMNS.edgeHash, IDENTITY_COLUMNS.edgeOrdinal, IDENTITY_COLUMNS.edgeAmong]) {

@@ -14,9 +14,11 @@ import { breadthFirstSearch } from "../src/algorithms/bfs.js";
 import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
 import { degree } from "../src/algorithms/degree.js";
+import { labelPropagation } from "../src/algorithms/label-propagation.js";
 import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
 import { sssp } from "../src/algorithms/sssp.js";
+import { triangleCount } from "../src/algorithms/triangles.js";
 import * as constants from "../src/constants.js";
 import { GpuContext } from "../src/context.js";
 import * as acquire from "../src/device/acquire.js";
@@ -79,6 +81,9 @@ const VALUE_EXPORTS = [
     "edgeBetweennessCentrality",
     // all-pairs shortest paths (design 3.3 line 813, 8.7)
     "allPairsShortestPath",
+    // P11: structure and community (design 3.3 lines 806-807, 8.5, 8.6)
+    "triangleCount",
+    "labelPropagation",
     // the device self-check (the capability record a caller reads before committing work to a device)
     "verifyDevice",
 ];
@@ -143,6 +148,12 @@ const NEVER_EXPORTED = [
     // the all-pairs tuning entry and its ceiling arithmetic, @internal seams the tests reach by file
     "allPairsWithTuning",
     "allPairsCeiling",
+    // the P11 seams and internals the tests reach by file
+    "triangleCountWithSearch",
+    "buildSimpleSymmetric",
+    "prepareCooToCsr",
+    "prepareGroupByKeyRow",
+    "planGroupRows",
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {
@@ -187,6 +198,8 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.betweennessCentrality).toBe(betweennessCentrality);
         expect(api.edgeBetweennessCentrality).toBe(edgeBetweennessCentrality);
         expect(api.allPairsShortestPath).toBe(allPairsShortestPath);
+        expect(api.triangleCount).toBe(triangleCount);
+        expect(api.labelPropagation).toBe(labelPropagation);
         expect(api.calibrateLayout).toBe(calibrateLayout);
         expect(api.verifyDevice).toBe(verifyDevice);
         expect(typeof api.WebGpuGraphError).toBe("function");

@@ -753,6 +753,8 @@ describe("scripts/bench-append-session.js (P8-T14 Step 3; contract 6.4)", () => 
         "bfs",
         "betweenness",
         "apsp",
+        "triangles",
+        "label-propagation",
     ] as const;
     /** A hardware session of the dev-box class with one row per group: the one the script accepts. */
     const complete = (): BenchSession[] =>
@@ -826,7 +828,7 @@ describe("scripts/bench-append-session.js (P8-T14 Step 3; contract 6.4)", () => 
         expect(r.results).toBeNull();
     });
 
-    it("refusal 3: a session missing any one of the ten groups, named; the T4 run of 2026-09-23 lacks two", () => {
+    it("refusal 3: a session missing any one of the thirteen groups, named; the T4 run of 2026-09-23 lacks two", () => {
         const last = lastOf(complete());
         for (const group of REQUIRED_GROUPS) {
             const r = append(variant({ results: last.results.filter((row) => row.group !== group) }), null);

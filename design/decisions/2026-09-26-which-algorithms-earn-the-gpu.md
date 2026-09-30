@@ -274,6 +274,83 @@ The scripts, both sweeps' raw rows and the logs are in
 `test/browser/` of the package and not committed) and `bc-shared.ts` (the generator and the CPU
 reference, copied from `cpu-bench.ts` unchanged).
 
+### Measured: triangle counting and label propagation (2026-09-27)
+
+Issue #422 built both on the device, so their rows no longer rest on the model. The crossovers
+below are MEASURED, not modelled: both arms ran on the same graph in the same process, in headless
+Chromium 143 on the RTX 4070 SUPER (the NVIDIA adapter, not SwiftShader -- the run required it) and
+in Node on Dawn, with the CPU and device passes interleaved (the order reversed every round, so
+background load lands on both) and the MEDIAN of 11 rounds up to 10k nodes, 7 at 20k-50k and 5 at
+100k-1M. The graphs are this record's: seeded unique-pair undirected graphs of n nodes and 10 n
+edges, weights 1-100. The device time is the whole call with the edge list already resident
+("resident", the definition of the table above), which still includes the device build of the
+simple symmetric graph and the result readback; "cold" releases the snapshot first, so it adds the
+upload. Load average (1, 5, 15 minutes) on 32 hardware threads: Chromium 4.3 / 6.8 / 8.9 before
+and 4.4 / 5.1 / 7.5 after the run tabled here, and 6.4 / 7.5 / 9.2 to 4.7 / 7.0 / 9.0 for a first
+Chromium run whose speedups are given in brackets; Node 7.3 / 11.1 / 10.7 to 7.5 / 7.8 / 9.3.
+
+The CPU baselines are the ones this record used. Triangles: the CSR sorted-intersection reference
+of `cpu-measurements.md` (the package has no CPU triangle count), verbatim. Label propagation: the
+package has no indexed port, so two baselines are timed. "port" is a typed-array CSR label
+propagation with exactly the device's rules (weighted mode of the neighbours' labels, lowest label
+on a tie, synchronous, down-only on even passes and up-only on odd ones, stop after two still
+passes); its labels were IDENTICAL to the device's at every size, so both arms do the same work.
+"model" is this record's estimate of a port, six indexed PageRank-100 calls, measured and scaled
+to the passes the device ran. Both algorithms converge in a data-dependent number of passes (the
+device checks every 8), so the pass count is printed; a size that ran to the 100-pass cap costs
+three times one that converged in 27.
+
+Chromium, the run tabled (ms, medians):
+
+| nodes | triangles cpu | triangles gpu resident / cold | speedup resident [first run] | lpa passes cpu / gpu | lpa port | lpa model | lpa gpu resident | speedup vs port [first run] | speedup vs model |
+| ----: | ------------: | ----------------------------: | ---------------------------: | -------------------: | -------: | --------: | ---------------: | --------------------------: | ---------------: |
+|  1.0k |           1.0 |                     5.9 / 5.9 |                0.17x [0.16x] |              20 / 24 |      2.1 |       4.6 |             11.5 |               0.18x [0.17x] |            0.40x |
+|  2.0k |           1.8 |                     5.6 / 5.7 |                0.32x [0.33x] |              29 / 32 |      4.9 |       7.9 |             14.7 |               0.33x [0.37x] |            0.54x |
+|  3.0k |           2.7 |                     5.5 / 5.7 |                0.49x [0.47x] |              27 / 32 |      6.6 |      12.5 |             13.2 |               0.50x [0.50x] |            0.95x |
+|  4.0k |           3.6 |                     5.8 / 6.0 |                        0.62x |              35 / 40 |     11.6 |      21.1 |             15.7 |                       0.74x |            1.35x |
+|  5.0k |           4.6 |                     5.8 / 6.0 |                0.79x [0.74x] |            100 / 100 |     42.0 |      69.6 |             35.4 |               1.19x [1.15x] |            1.97x |
+|  7.0k |           6.4 |                     6.0 / 6.3 |                1.07x [1.02x] |              27 / 32 |     16.5 |      44.0 |             14.8 |               1.11x [1.19x] |            2.97x |
+|   10k |           9.2 |                     6.2 / 6.5 |                1.48x [1.42x] |            100 / 100 |     90.1 |     141.0 |             35.2 |               2.56x [2.55x] |            4.01x |
+|   20k |          18.6 |                    7.3 / 11.0 |                2.55x [2.12x] |            100 / 100 |    188.9 |     300.0 |             37.9 |               4.98x [5.09x] |            7.92x |
+|   50k |          50.2 |                   14.2 / 23.5 |                3.54x [3.82x] |            100 / 100 |    494.7 |   1,069.8 |             85.3 |               5.80x [5.71x] |           12.54x |
+|  100k |         100.5 |                   22.5 / 51.9 |                4.47x [4.83x] |            100 / 100 |  1,016.4 |   1,539.0 |            192.4 |               5.28x [4.08x] |            8.00x |
+|    1M |       1,653.7 |                 409.6 / 535.6 |                        4.04x |            100 / 100 | 20,721.8 |  56,646.6 |          2,829.1 |                       7.32x |           20.02x |
+
+Node on Dawn, the same card, speedups at 1k / 1.5k / 2k / 3k / 5k / 10k / 20k / 50k / 100k / 1M:
+triangles resident 0.49x / 0.74x / 0.89x / 1.35x / 1.62x / 2.42x / 3.07x / 4.05x / 3.02x / 3.84x;
+label propagation against the port 0.59x / 1.16x / 1.27x / 1.79x / 4.15x / 4.54x / 6.55x / 7.99x /
+4.44x / 7.54x. A Node call has a floor of about 2.2 ms for triangles and 4.5 ms for a converging
+label propagation, against about 5.5 ms and 11.5-15 ms in Chromium, which is the readback round
+trip this record charges at 2 ms.
+
+What the measurement says, in Chromium on the reference card:
+
+- **Triangle counting earns, by half the modelled margin.** Crossover 7k nodes (0.79x at 5k,
+  1.02-1.07x at 7k; 7k-10k cold), against 6.6k modelled on the CPU minima. 4.5-4.8x at 100k and
+  4.0x at 1M, against 9.7x and 23x modelled; the 3x point lies between 20k (2.1-2.6x) and 50k
+  (3.5-3.8x). The two halves of the gap are about equal: the device call at 100k is 22.5 ms
+  where the model predicted 14.7 ms, and the CPU reference ran in 100.5 ms where the record's
+  minimum was 142 ms (a quieter box). The record gated triangles on a merge step at or under
+  1.9 ns; the measured 100k row sits between the model's assumed rate (9.7x) and its pessimistic
+  bracket (2.3x) and above the 3x line, so the class stands. In Node the crossover is between 2k
+  and 3k.
+- **Label propagation earns, by a quarter of the modelled margin.** Against the measured port the
+  crossover is between 4k (0.74x at 35 passes) and 5k (1.15-1.19x at 100 passes), against 2.5k
+  modelled; 2.6x at 10k, 4.1-5.3x at 100k and 7.3x at 1M, against 4.0x / 20x / 73x modelled; the
+  3x point lies between 10k and 20k. Against this record's own estimate of a port (6 x
+  PageRank-100) the crossover is between 3k and 4k and the speedups 4.0x / 8.0x / 20x. The gap to
+  the model has two roughly equal halves: the measured port at 100k (1,016 ms) is 1.9x faster
+  than the record's estimate of one (6 x 321 ms = 1,929 ms), and the device's 100-pass call
+  (192 ms) is 2.0x slower than the model's 96 ms at a 0.30 ns/arc group-by, though inside its
+  297 ms at the 1.3 ns/arc bracket. In Node the crossover is
+  between 1k and 1.5k.
+
+Both are routed nowhere yet: graphty-element has no triangle-count algorithm, and its label
+propagation calls `@graphty/algorithms`' seeded randomised implementation with no accelerator, so
+there is no element floor to set. When the element routes either, these crossovers -- 7,000 nodes
+for triangles, 5,000 for label propagation -- are the floors, and label propagation also needs
+the element to accept the device's deterministic rule in place of the seeded one.
+
 ### How the table was computed
 
 Every GPU figure is a sum of five terms, each measured on this repository's own benchmarks or
@@ -434,9 +511,9 @@ the table above, each figure is given from the loaded medians of the first CPU r
 | closeness, sampled                        | ~100                                                                                                                                                              | ~5.8k                                                                          | ~300                | 11k                | ~1k                                      | 16k                    | unbuilt at scale; needs a `sources` option; sample by default                                                                            |
 | closeness, exact, every source            | ~100-250, and NOT above ~30k                                                                                                                                      | ~1.0k-2.8k, and NOT above ~30k                                                 | ~320-400            | 4.6k-5.0k          | --                                       | --                     | on the frontier branch                                                                                                                   |
 | all-pairs shortest paths                  | every n <= 5,792 at the 128 MiB default binding (23,170 with a 2 GiB binding)                                                                                     | unchanged                                                                      | same                | same               | ~130                                     | unchanged              | unbuilt; refuse above the bound                                                                                                          |
-| triangle count, clustering coefficient    | 3.0k                                                                                                                                                              | 6.6k                                                                           | 4.8k                | 15k                | 6.0k                                     | 21k                    | unbuilt; earns if the merge step is <= 1.9 ns (2.7 ns on the medians)                                                                    |
+| triangle count, clustering coefficient    | 3.0k                                                                                                                                                              | 6.6k                                                                           | 4.8k                | 15k                | 6.0k                                     | 21k                    | built; MEASURED crossover 7k, 3x point 20k-50k (2026-09-27, load 4.3-6.4)                                                                |
 | minimum spanning tree                     | 6.0k (4.6k with 4 rounds per submit)                                                                                                                              | 11k (7.2k with 4 rounds per submit)                                            | 11k                 | 21k                | 19k (11k batched)                        | 38k (22k batched)      | unbuilt; buildable on master today                                                                                                       |
-| label propagation                         | 2.3k at 8 passes per readback (12k at 1)                                                                                                                          | 2.5k at 8 passes per readback (13k at 1)                                       | 4.0k                | 4.2k               | 6.9k-10k                                 | 7.6k-12k               | unbuilt; needs the cadence constant                                                                                                      |
+| label propagation                         | 2.3k at 8 passes per readback (12k at 1)                                                                                                                          | 2.5k at 8 passes per readback (13k at 1)                                       | 4.0k                | 4.2k               | 6.9k-10k                                 | 7.6k-12k               | built; MEASURED crossover 4k-5k, 3x point 10k-20k (2026-09-27, load 4.3-6.4)                                                             |
 | Bellman-Ford, negative weights            | 2.1k                                                                                                                                                              | 3.3k                                                                           | 3.8k                | 6.3k               | 5.0k                                     | 8.3k                   | unbuilt; needs a round cap                                                                                                               |
 | BFS, single source                        | 151k (316k against the low-load CPU row), and only when levels <= arcs / 14,000 (0.2 ms per level against 14 ns per CPU arc: 1,430 levels at 20M arcs, 140 at 2M) | 191k (316k against the low-load CPU row, which is unchanged), same levels rule | 400k                | 501k               | ~900k                                    | ~955k                  | on the frontier branch                                                                                                                   |
 | SSSP, near-far                            | 69k (182k low-load)                                                                                                                                               | 79k (182k low-load, unchanged)                                                 | 190k                | 229k               | 275k                                     | 347k                   | on the frontier branch                                                                                                                   |

@@ -22,7 +22,8 @@
  *
  * Why this is a committed script and not the scratch file of docs/decisions/G3.md and G4.md appendix A: those
  * appendices sent every later builder to a gitignored tmp/ directory to copy a procedure by hand, and the group list
- * inside it went stale twice (seven groups at G4, eight after attraction-scale, nine with bfs, ten with betweenness, eleven with apsp). The list lives here
+ * inside it went stale twice (seven groups at G4, eight after attraction-scale, nine with bfs, ten with betweenness, eleven with apsp,
+ * thirteen with triangles and label-propagation). The list lives here
  * once, and test/benchmarks.test.ts holds the script to it: every group is required, each missing one is named.
  */
 
@@ -41,6 +42,8 @@ const REQUIRED_GROUPS = [
     "bfs",
     "betweenness",
     "apsp",
+    "triangles",
+    "label-propagation",
 ];
 
 /**

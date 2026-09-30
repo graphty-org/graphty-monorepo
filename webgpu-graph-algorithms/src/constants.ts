@@ -281,3 +281,34 @@ export const APSP_TILE = 32;
  * command buffer.
  */
 export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
+/**
+ * Label propagation (design 8.6): passes recorded per submit, with ONE readback of the per-pass changed counts at the
+ * end of the submit. A readback costs about 2 ms in Chromium whatever it carries, so at one readback per pass a
+ * 10,000-node call spends more on synchronisation than the CPU spends on the whole algorithm
+ * (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md: 101 passes x 2 ms, 0.79x); eight passes per
+ * submit is the floor that decision sets. Even, so every submit holds as many descending as ascending passes of the
+ * alternating direction rule.
+ */
+export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
+/**
+ * Boruvka's minimum spanning tree (design 8.5): rounds recorded per submit, with one readback of the counters block
+ * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
+ * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
+ * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
+ * Declared ahead of the minimum-spanning-tree driver, which reads it when it lands.
+ */
+export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
+/** The per-row group-by-key (design 8.6): a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
+export const GROUP_ROW_THREAD_MAX = 32;
+/** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */
+export const GROUP_ROW_THREAD_LIMIT = 128;
+/**
+ * The most parallel arcs the simple symmetric graph build merges into one weighted arc. The merge sums each run of
+ * parallel arcs in one invocation, and llvmpipe stops every loop of an invocation after 65,535 steps in total and
+ * then quietly returns a short sum; a weighted build whose pair repeats more often is refused on every adapter.
+ */
+export const PARALLEL_MERGE_LIMIT = 65_000;
+/** The per-row group-by-key (design 8.6): the global open-addressing region of a workgroup-tier row holds this many slots per arc. */
+export const GROUP_HASH_LOAD_FACTOR = 2;
+/** Triangle counting (design 8.5): intersect two oriented rows by merge, but binary-search each element of the shorter row into the longer when their lengths differ by more than this factor. */
+export const TRIANGLE_BINARY_SEARCH_RATIO = 32;

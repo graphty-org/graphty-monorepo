@@ -71,6 +71,13 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "bc-forward-edge": 7,
     "apsp-init": 5,
     "apsp-fw": 1,
+    "coo-emit": 7,
+    "run-flags": 3,
+    "coo-scatter": 7,
+    "orient-flags": 4,
+    "tri-intersect": 4,
+    "group-by-key-row": 8,
+    "lpa-step": 4,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

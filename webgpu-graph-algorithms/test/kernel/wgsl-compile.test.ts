@@ -93,6 +93,13 @@ describe("OVERRIDE_MATRIX (pure)", () => {
         expect(counts.get("closeness-reduce")).toBe(1);
         expect(counts.get("apsp-init")).toBe(5);
         expect(counts.get("apsp-fw")).toBe(4);
+        expect(counts.get("coo-emit")).toBe(5);
+        expect(counts.get("run-flags")).toBe(1);
+        expect(counts.get("coo-scatter")).toBe(5);
+        expect(counts.get("orient-flags")).toBe(1);
+        expect(counts.get("tri-intersect")).toBe(4);
+        expect(counts.get("group-by-key-row")).toBe(7);
+        expect(counts.get("lpa-step")).toBe(1);
     });
 
     it("every case names a registry entry, uses only its declared overrides plus the standard pair (graph kernels only), carries snippets iff the entry has slots, matches the twin axis, and is unique", () => {

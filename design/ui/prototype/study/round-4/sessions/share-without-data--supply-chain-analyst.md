@@ -11,10 +11,10 @@ manufacturer's planning team or the consultant we hired for the dual-sourcing st
 outside the company. Neither is allowed to see our supplier list. They have their own list."
 
 Screens seen, as a participant sees them (design notes hidden):
-- Export dialog, every state, full length: `shots/r4-dana-swod-export-dialog.png`
-- The dialog with only the setup file chosen: `shots/r4-dana-swod-export-recipe.png`
-- What the partner sees when they open it, full length: `shots/r4-dana-swod-binding-step.png`
-- Data panel of a project: `shots/r4-dana-swod-data-panel.png`
+- Export dialog, every state, full length: `shots/record/r4-dana-swod-export-dialog.png`
+- The dialog with only the setup file chosen: `shots/record/r4-dana-swod-export-recipe.png`
+- What the partner sees when they open it, full length: `shots/record/r4-dana-swod-binding-step.png`
+- Data panel of a project: `shots/record/r4-dana-swod-data-panel.png`
 
 The mocks show someone else's project (a gene network, and a payments network in the data panel).
 She was told to picture her own supplier project in the same places.

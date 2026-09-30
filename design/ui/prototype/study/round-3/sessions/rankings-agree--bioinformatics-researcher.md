@@ -4,7 +4,7 @@ Participant: the computational biologist who builds protein interaction networks
 of candidate targets to the bench (persona file: study/personas/bioinformatics-researcher.md).
 Task as given by the moderator: "Do these two ways of scoring agree on who matters?"
 Screens: the comparison surface (screens/comparison.html), then the Results panel (screens/results-panel.html).
-Renders read: shots/screens__comparison.png, shots/r3-emma-rankings-comparison-full.png (the full page),
+Renders read: shots/screens__comparison.png, shots/record/r3-emma-rankings-comparison-full.png (the full page),
 shots/screens__results-panel--finished.png.
 
 ## Think-aloud

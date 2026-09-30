@@ -11,8 +11,8 @@ Screens seen, in order, as a participant sees them (design notes hidden):
 - `shots/tasks/worth-an-afternoon/02-load-step-blocked.png`
 - `shots/tasks/worth-an-afternoon/03-load-step-policy.png`
 - `shots/tasks/worth-an-afternoon/04-frame-at-rest.png`
-- `shots/r6-alex-afternoon-where-data-goes.png` (the "Where your data goes" link)
-- `shots/r6-alex-afternoon-first-look-full.png` (the first-look walkthrough, sample data)
+- `shots/record/r6-alex-afternoon-where-data-goes.png` (the "Where your data goes" link)
+- `shots/record/r6-alex-afternoon-first-look-full.png` (the first-look walkthrough, sample data)
 
 ## Think-aloud
 

@@ -16,18 +16,18 @@ matching step and result, and the color picker's Libraries tab.
 Renders the participant looked at (all 1440 x 900, study view):
 - `../../../shots/screens__navigation.png`, `../../../shots/screens__data-panel.png`,
   `../../../shots/screens__data-panel-s6.png`
-- `../../../shots/r4-maren-teamcolors-replace-and-recipe--s-style-drop.png`
-- `../../../shots/r4-maren-teamcolors-replace-and-recipe--s-bind-style.png`
-- `../../../shots/r4-maren-teamcolors-replace-and-recipe--s-style-applied.png`
-- `../../../shots/r4-maren-teamcolors-replace-and-recipe--s-recipe-pick.png`
-- `../../../shots/r4-maren-teamcolors-replace-and-recipe--s-recipe-applied.png`
-- `../../../shots/r4-maren-teamcolors-recipe-apply--start.png`,
-  `../../../shots/r4-maren-teamcolors-recipe-apply--binding.png`,
-  `../../../shots/r4-maren-teamcolors-recipe-apply--confirmed.png`,
-  `../../../shots/r4-maren-teamcolors-recipe-apply--applied.png`,
-  `../../../shots/r4-maren-teamcolors-recipe-apply--unbound.png`
-- `../../../shots/r4-maren-teamcolors-styles-list--libraries.png`,
-  `../../../shots/r4-maren-teamcolors-styles-list--result.png`
+- `../../../shots/record/r4-maren-teamcolors-replace-and-recipe--s-style-drop.png`
+- `../../../shots/record/r4-maren-teamcolors-replace-and-recipe--s-bind-style.png`
+- `../../../shots/record/r4-maren-teamcolors-replace-and-recipe--s-style-applied.png`
+- `../../../shots/record/r4-maren-teamcolors-replace-and-recipe--s-recipe-pick.png`
+- `../../../shots/record/r4-maren-teamcolors-replace-and-recipe--s-recipe-applied.png`
+- `../../../shots/record/r4-maren-teamcolors-recipe-apply--start.png`,
+  `../../../shots/record/r4-maren-teamcolors-recipe-apply--binding.png`,
+  `../../../shots/record/r4-maren-teamcolors-recipe-apply--confirmed.png`,
+  `../../../shots/record/r4-maren-teamcolors-recipe-apply--applied.png`,
+  `../../../shots/record/r4-maren-teamcolors-recipe-apply--unbound.png`
+- `../../../shots/record/r4-maren-teamcolors-styles-list--libraries.png`,
+  `../../../shots/record/r4-maren-teamcolors-styles-list--result.png`
 
 ## Think-aloud
 

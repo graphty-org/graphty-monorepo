@@ -7,9 +7,9 @@ Task, as the moderator gave it: "Your lab lead emailed you this file. Use it on 
 
 Screens used, in order: the start screen (first run, then with the recipe waiting for data), then
 the Apply recipe dialog at its matching step (12 genes not matched; the column chosen; nothing
-matched). Renders read: `shots/screens__start-screen.png`, `shots/tom-ucf-start-s4.png`,
-`shots/tom-ucf-binding-some.png`, `shots/tom-ucf-binding-chosen.png`,
-`shots/tom-ucf-binding-none.png`.
+matched). Renders read: `shots/screens__start-screen.png`, `shots/record/tom-ucf-start-s4.png`,
+`shots/record/tom-ucf-binding-some.png`, `shots/record/tom-ucf-binding-chosen.png`,
+`shots/record/tom-ucf-binding-none.png`.
 
 The files in Tom's hands: the attachment from his lab lead (the recipe "Expression overlay") and
 his own spreadsheet of this week's qPCR hits, `qpcr-hits-2026-09.csv`, 96 rows.

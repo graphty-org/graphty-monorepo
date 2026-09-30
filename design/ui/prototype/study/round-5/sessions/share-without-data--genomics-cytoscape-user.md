@@ -10,9 +10,9 @@ Screens used, as she saw them: the project at rest with the Data panel open, the
 name, the Export dialog with Recipe checked, the "what your recipient sees" and "Apply recipe" window, the
 state after an export, and a Data panel from a different project.
 
-Renders: shots/r4-maren-swd-export-ways-in.png, shots/r4-maren-swd-export-ways-in-menu.png,
-shots/r4-maren-swd-export-recipe.png, shots/r4-maren-swd-export-done.png,
-shots/r4-maren-swd-binding-full.png, shots/r4-maren-swd-data-panel.png.
+Renders: shots/record/r4-maren-swd-export-ways-in.png, shots/record/r4-maren-swd-export-ways-in-menu.png,
+shots/record/r4-maren-swd-export-recipe.png, shots/record/r4-maren-swd-export-done.png,
+shots/record/r4-maren-swd-binding-full.png, shots/record/r4-maren-swd-data-panel.png.
 
 ## Think-aloud
 

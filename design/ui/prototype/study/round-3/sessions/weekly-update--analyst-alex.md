@@ -11,8 +11,8 @@ date without losing your styles and notes, and explain why the group count chang
 an old version opened, a project with one entry). The prototype's project is a transfers network
 (accounts and transfers), not Alex's supplier data; he was told to treat it as his own.
 
-Renders the participant saw: `shots/r3-alex-wu-01-s-menu.png` to `shots/r3-alex-wu-12-s-style-applied.png`,
-and `shots/r3-alex-wu-vh-s1.png` to `shots/r3-alex-wu-vh-s3.png`.
+Renders the participant saw: `shots/record/r3-alex-wu-01-s-menu.png` to `shots/record/r3-alex-wu-12-s-style-applied.png`,
+and `shots/record/r3-alex-wu-vh-s1.png` to `shots/record/r3-alex-wu-vh-s3.png`.
 
 **Outcome:** success with difficulty. He got the new file in with styles, sets and notes intact
 in about five clicks. He could say WHAT changed in the groups but not WHY; the answer he gave

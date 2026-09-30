@@ -6,13 +6,13 @@ you trust the ranking and why."
 Screens seen, in order (study view, design notes hidden):
 
 - shots/tasks/quiet-weight-trap/01-weight-role-trap.png -- the load step
-- shots/r6-minji-qwt-a2.png -- the Betweenness run form, unanswered
-- shots/r6-minji-qwt-a3.png -- the "bigger value means" list open
-- shots/r6-minji-qwt-a4.png -- a result read the other way (Distance = value)
-- shots/r6-minji-qwt-a5.png -- the result editor with the answer changed, Out of date
-- shots/r6-minji-qwt-a6.png -- the re-run (Distance = 1 / value), both runs listed
-- shots/r6-minji-qwt-results-panel-html-finished.png -- what a result's detail page looks like
-- shots/r6-minji-qwt-results-panel-html-compare-with.png -- the "Compare with" menu
+- shots/record/r6-minji-qwt-a2.png -- the Betweenness run form, unanswered
+- shots/record/r6-minji-qwt-a3.png -- the "bigger value means" list open
+- shots/record/r6-minji-qwt-a4.png -- a result read the other way (Distance = value)
+- shots/record/r6-minji-qwt-a5.png -- the result editor with the answer changed, Out of date
+- shots/record/r6-minji-qwt-a6.png -- the re-run (Distance = 1 / value), both runs listed
+- shots/record/r6-minji-qwt-results-panel-html-finished.png -- what a result's detail page looks like
+- shots/record/r6-minji-qwt-results-panel-html-compare-with.png -- the "Compare with" menu
 
 ## Think-aloud
 

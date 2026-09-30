@@ -14,10 +14,10 @@ on the seven new accounts' transfers (all screens/weekly-return.html); Data > Ve
 changed list (screens/version-history.html); the PageRank March-against-April comparison, looked at
 for contrast (screens/comparison.html, second section).
 
-**Renders she saw (study view):** shots/r6-emma-rcn-wr-reopened.png,
-shots/r6-emma-rcn-wr-rerun.png, shots/r6-emma-rcn-wr-compare-pick.png,
-shots/r6-emma-rcn-wr-compare-tall.png, shots/r6-emma-rcn-version-history.png,
-shots/r6-emma-rcn-cmp-versions.png.
+**Renders she saw (study view):** shots/record/r6-emma-rcn-wr-reopened.png,
+shots/record/r6-emma-rcn-wr-rerun.png, shots/record/r6-emma-rcn-wr-compare-pick.png,
+shots/record/r6-emma-rcn-wr-compare-tall.png, shots/record/r6-emma-rcn-version-history.png,
+shots/record/r6-emma-rcn-cmp-versions.png.
 
 ---
 

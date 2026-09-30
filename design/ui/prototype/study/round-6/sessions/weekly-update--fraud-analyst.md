@@ -8,9 +8,9 @@ Mode: mandated. Her team lead asked for the update, so she keeps going when anno
 her workarounds instead of quitting at five minutes.
 Pages worked, as the participant sees them (study view, design notes hidden): screens/weekly-return,
 screens/data-panel, screens/version-history, screens/replace-and-recipe, screens/comparison.
-Renders used: shots/r6-sarah-wu-weekly-return.png, shots/r6-sarah-wu-data-panel.png,
-shots/r6-sarah-wu-version-history.png, shots/r6-sarah-wu-replace-and-recipe.png,
-shots/r6-sarah-wu-comparison.png (full-page study renders made for this session, read in
+Renders used: shots/record/r6-sarah-wu-weekly-return.png, shots/record/r6-sarah-wu-data-panel.png,
+shots/record/r6-sarah-wu-version-history.png, shots/record/r6-sarah-wu-replace-and-recipe.png,
+shots/record/r6-sarah-wu-comparison.png (full-page study renders made for this session, read in
 1,300 px slices).
 
 ## Transcript (think-aloud)

@@ -15,8 +15,8 @@ the figure in the Print look). She also looked at the project-name menu that ope
 
 Renders she looked at: shots/tasks/figure-for-reviewer/01-styles-list.png,
 02-colour-by-value.png, 03-export-dialog-figure.png, 04-export-dialog-figure-grey.png,
-shots/screens__styles-list-looks.png, shots/r6-jordan-fig-export-ways-in-menu.png,
-shots/r6-jordan-fig-inspector.png.
+shots/screens__styles-list-looks.png, shots/record/r6-jordan-fig-export-ways-in-menu.png,
+shots/record/r6-jordan-fig-inspector.png.
 
 Outcome: completed, with difficulty. She got a gray-safe SVG out, but she is not sure the figure
 she exported is the one she was looking at on the canvas, and she would still redo the final

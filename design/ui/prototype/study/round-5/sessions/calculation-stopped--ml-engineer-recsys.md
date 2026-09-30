@@ -8,7 +8,7 @@ through. Decide what you can still trust on the screen, and get a result you can
 first, then the light ones.
 
 **Screens used, in order:** the GPU-lost run (`screens/gpu-lost-run.html`, states D1 to D6,
-renders `shots/screens__gpu-lost-run-d1--study.png` to `-d6--study.png` and
+renders `shots/record/screens__gpu-lost-run-d1--study.png` to `-d6--study.png` and
 `shots/screens__gpu-lost-run--dark.png`); the WebGPU-lost states of notices and errors
 (`screens/notices-errors.html`, states 4 and 4b); a glance at the closeness variant
 (`screens/closeness-variant.html`, state B2) and the selection past the cap

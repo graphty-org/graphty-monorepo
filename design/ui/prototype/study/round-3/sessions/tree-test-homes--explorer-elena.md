@@ -9,10 +9,10 @@ keep only one date range, see each node's degree, see neighbors past the drawing
 **What she saw.** The start screen, the bottom table, the filter chip and its steps, and the styles
 list, in the study view (design notes hidden):
 
-- `shots/screens__start-screen--study.png`, `shots/start-screen--s2.png`
-- `shots/screens__table-dock--study.png`, `shots/r3-elena-homes-table-stale.png`,
-  `shots/r3-elena-homes-table-limit.png`
-- `shots/screens__filter-chip--study.png`, `shots/r3-elena-homes-filter-full.png`
+- `shots/record/screens__start-screen--study.png`, `shots/record/start-screen--s2.png`
+- `shots/record/screens__table-dock--study.png`, `shots/record/r3-elena-homes-table-stale.png`,
+  `shots/record/r3-elena-homes-table-limit.png`
+- `shots/record/screens__filter-chip--study.png`, `shots/record/r3-elena-homes-filter-full.png`
 - `shots/screens__styles-list.png`
 
 ## Think-aloud

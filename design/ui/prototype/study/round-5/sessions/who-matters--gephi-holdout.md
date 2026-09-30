@@ -11,20 +11,20 @@ order."
 Screens used (as the participant saw them, design notes hidden):
 - the main window with Les Miserables at rest, old right panel with Statistics
   (shots/screens__frame-at-rest.png)
-- the main window at rest in the new layout (shots/r4-mara-who-nav-new.png), its project menu
-  (shots/r4-mara-who-nav-menu.png), and with Valjean selected, table sorted by betweenness
-  (shots/r4-mara-who-nav-node.png)
+- the main window at rest in the new layout (shots/record/r4-mara-who-nav-new.png), its project menu
+  (shots/record/r4-mara-who-nav-menu.png), and with Valjean selected, table sorted by betweenness
+  (shots/record/r4-mara-who-nav-node.png)
 - the table under the graph with degree and betweenness ranked, Valjean selected
-  (shots/r4-mara-who-td-small.png); the full row list was read from the page
+  (shots/record/r4-mara-who-td-small.png); the full row list was read from the page
 - the Betweenness result on Les Miserables after a filter to degree 2 or more, with its run record
-  open (shots/r4-mara-who-rp-filtered.png)
-- the Algorithms menu (shots/r4-mara-who-rp-catalog.png), the finished Betweenness result, its
+  open (shots/record/r4-mara-who-rp-filtered.png)
+- the Algorithms menu (shots/record/r4-mara-who-rp-catalog.png), the finished Betweenness result, its
   "more in the table" view, the node-selected, Louvain, closeness and options-editor states
-  (shots/r4-mara-who-rp-finished.png, r4-mara-who-rp-in-the-table.png,
+  (shots/record/r4-mara-who-rp-finished.png, r4-mara-who-rp-in-the-table.png,
   r4-mara-who-rp-node-selected.png, r4-mara-who-rp-louvain.png, r4-mara-who-rp-variant.png,
   r4-mara-who-rp-editor.png). All of these are a protein network, not Les Miserables.
-- a three-measure table (shots/r4-mara-who-td-ranked.png) and a selection state
-  (shots/r4-mara-who-td-selected.png), a protein network and a payments network.
+- a three-measure table (shots/record/r4-mara-who-td-ranked.png) and a selection state
+  (shots/record/r4-mara-who-td-selected.png), a protein network and a payments network.
 
 Numbers she checked were compared, out of the session, against NetworkX 3.1
 (`nx.les_miserables_graph()`, unweighted): every value she read on the Les Miserables screens

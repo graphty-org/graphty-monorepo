@@ -333,6 +333,19 @@ kit.js, writes every count and measure a participant reads, always the same way:
 | part of a whole | `data-fx-of="<key of the whole>"` | "56 of 300 proteins" |
 | the data version | automatic; `data-fx-version="named"` when the words beside it already name it | a value from another version than the one on screen says so: "3,000 accounts (March 2026 data)" on an April page. The version is the one the dataset's title names |
 | the set | `data-fx-set`, `data-fx-measure` | ", on: filtered graph" (below) |
+| the set's message key | `data-fx-msg="graphty.<area>.<message>"` (script: `count(key, { msg })`) | required on every count that names its set: the set is a parameter of that message, never app-written text. kit.js fails a count that names its set without one, and in the facilitator view its tooltip shows the key and its parameters (`graphty.inspector.attribute { value: "16", set: "full graph" }`) |
+
+**Which set is current.** A count names its set when the set differs from the current one, and the
+current set is the frame's: the nearest `[data-set]` around the count (a filtered frame on a page of
+several, as `screens/find.html` marks its filtered inspector `data-set="filtered graph"`), else
+`<body data-set>`, else "full graph". So on the filtered frame Thenardier's degree reads "11" and,
+beside it, "16, on: full graph", both from the formatter.
+
+**Degree on a directed graph** is always labelled in, out or total ("total degree", "average total
+degree", "Size: total degree"), in legends, field and data labels, table headers and metric labels;
+a label whose row offers the choice ("Degree distribution" over Total, In, Out) says it already.
+The gate fails a bare "degree" in any frame whose drawing and bound counts are all of directed
+datasets (the transfers, April's transfers, the patents, the alert month).
 
 **When the typed text differs from what the formatter writes, or the key does not exist, the page
 throws**, the element gets an annotation-ink outline, and `shoot.mjs` and `check.mjs` fail and name
@@ -361,7 +374,7 @@ and passes its own count as `expect`, so kit.js reports any disagreement.
 
 **Generated pages.** The counts on these pages were bound in the page itself, and their generators
 do not emit the bindings yet: `screens/styles-list.gen.mjs`, `inspector.gen.mjs`, `table-dock.gen.mjs`,
-`export-dialog.gen.mjs`, `first-look.gen.mjs`, `version-history.gen.mjs`, `notes-panel.gen.mjs`,
+`export-dialog.gen.mjs`, `version-history.gen.mjs`, `notes-panel.gen.mjs`,
 `preferences.gen.mjs`, `results-panel.py`, `run-and-read.py`, `option-form-cost.py`,
 `alert-triage/src/build.py`, `find-and-expand/build.mjs`, `storyboards/weekly-return.gen.mjs` and
 `flows/sets-and-paths.gen.py`. Several of those pages were also edited by hand after they were last
@@ -446,9 +459,10 @@ will see this way: round 2's participants read the design notes as broken produc
   on a page with no element whose id is `study` (there `#study` is a section link), is the
   participant view. It shows a small, faint control in the bottom-right corner of the visible screen
   (a 32 px touch target, pinned there however far a tablet is zoomed or panned), and Esc does the
-  same: both drop `study` from the address and reload, keeping the page's other states. A scripted
-  render (`kit/shoot.mjs --study`) shows no control. Checked at iPad width, 768 by 1024 with touch
-  (`kit/shoot.mjs --touch`, which writes `...--768-touch.png`).
+  same: both drop `study` from the address and reload, keeping the page's other states. A desktop
+  scripted render (`kit/shoot.mjs --study`) shows no control. Checked at iPad width, 768 by 1024
+  with touch: `kit/shoot.mjs --touch` always renders the participant view (it implies `--study`),
+  corner control included, and writes `...--study--768-touch.png`.
 
 **The Esc rule** (every page). In round 6 one Esc both closed the undo page's steps list and reset
 the page, which cost four sessions. So:
@@ -481,7 +495,12 @@ opened with `?task=<id>&study`, and fails when a screen draws or binds another d
 (a drawing names its dataset by its file name; a page that holds one dataset says so with
 `<body data-dataset>`; the start screen, which shows every sample on purpose, carries
 `<body data-any-dataset>`), or types a count the task's dataset, its refs and the scenarios do not
-hold. A page that stacks its states is read at the state its `#hash` names. Run it before a round.
+hold. A page that stacks its states is read at the state its `#hash` names: the section with that
+id, or, where the id is on a state heading (`<div class="x-state-h" id=...>` followed by its frame),
+the heading and everything up to the next heading of its kind. A state on another dataset than its
+page's says so on its own section (`<section id="runs-lesmis" data-dataset="lesmis">` in
+`screens/comparison.html`), and a task reads that state by its `#hash`, never the whole page. Run it
+before a round.
 
 It loads each page in Chromium and fails on: a script error; a page that does not load kit.js; a
 typed number that is not its fixture's; a fixture key that does not exist; an icon button with no
@@ -543,8 +562,15 @@ states it stacks are all on the page at once) and fails it on:
 
 And on **the old frame**: a rail other than main menu, Graph, Data, Results, Notes, Assistant (a
 rail with only the main menu is the start screen's), two right columns, an avatar, an Export
-button in a header row, Styles in the Graph panel, or a Note tool on the toolbar (there is no Note
-tool: a note starts from Add note... or the Notes panel).
+button in a header row, Styles in the Graph panel, a Note tool on the toolbar (there is no Note
+tool: a note starts from Add note... or the Notes panel), or a left panel header with the project
+name and no privacy line under it (every head a panel switches by state, too; `kit/shell.mjs` adds
+it to static frames, and a page that builds its frame in a script writes it).
+
+6. **Degree on a directed graph without in, out or total** (above, "The scope formatter").
+7. **Two columns of one table with one display name**: the header's own name (its group row's name
+   before it, without the profile line), so "degree" on the filtered graph and "degree" on the full
+   graph are "degree (filtered graph)" and "degree (full graph)".
 
 **Before frames.** A frame kept to show what a design replaced carries `data-frame="before"`. The
 gate and the shell skip it, `kit.css` captions it "Before", and the participant view hides it.
@@ -556,9 +582,12 @@ retired string (and the same string inside a Before frame, which passes) and eac
 ones, a required string (the note editor's "Ctrl+Enter": the page as drawn passes, and removing it
 from one state fails that state alone), a count against the page's dataset, a typed count, a bound
 number, a count the formatter did not write, each of the three two-homes rules, an avatar, a rail
-without Results, a Note tool, `--tasks` checking nothing, and the Esc rule (the steps list closes on
-Esc and the page stays in the participant view; with the page's `preventDefault()` and kit.js's
-net both removed, the check fails).
+without Results, a Note tool, a frame with no privacy line, a bare "degree" on the April transfers'
+size legend, a count that names its set without its message key, two columns named alike, `--tasks` checking nothing, and the
+Esc rule (the steps list closes on Esc and the page stays in the participant view; with the page's
+`preventDefault()` and kit.js's net both removed, the check fails). A plant whose text is no longer
+on the page stops the check with "the anchor is stale" (exit 2), so a proof can never pass or fail
+for the wrong reason; the proofs plant on the resting frame's Overview section head.
 
 ## Tasks: `fixtures.tasks`
 
@@ -632,7 +661,7 @@ page never reads a side file: `failureAndRecovery` (NetworkX on the published Le
 weighted betweenness both ways, closeness with and without the correction, the three filter steps;
 `python3 screens/failure-and-recovery-numbers.py`), `comparison` (the March and April ranks;
 `node screens/comparison-numbers.mjs`), `tableDock` (every account's row, unrounded measures;
-`node screens/table-dock-numbers.mjs`), `pastLimitTop200` (the 200 most cited patents a "Keep top rows" step keeps, their citations and drawing, modeled; `node screens/past-drawing-limit-numbers.mjs`, which also writes `screens/img/pdl-top200-{theme}.svg`), `filterChip` (each drawn state of the filter chip mock; `node screens/filter-chip-numbers.mjs`), `onScreen` (counts derived from other fixture values, such as a path's other proteins or a selection's memberships; `node screens/counts-numbers.mjs`, run last). Each script sets its own entry and leaves the rest;
+`node screens/table-dock-numbers.mjs`), `pastLimitTop200` (the 200 most cited patents a "Keep top rows" step keeps, their citations and drawing, modeled; `node screens/past-drawing-limit-numbers.mjs`, which also writes `screens/img/pdl-top200-{theme}.svg`), `filterChip` (each drawn state of the filter chip mock; `node screens/filter-chip-numbers.mjs`), `twoRunsLesmis` (the two Betweenness runs on Les Miserables compared, full graph against the 60 left by the first filter step: overlap, Spearman, the difference list; `node screens/two-runs-lesmis-numbers.mjs`), `onScreen` (counts derived from other fixture values, such as a path's other proteins or a selection's memberships; `node screens/counts-numbers.mjs`, run last). Each script sets its own entry and leaves the rest;
 `gen-canvas.mjs` keeps them when it rewrites the file. Run `gen-canvas.mjs` first, then the scripts.
 `datasets.alertsAugust` names the alert queue's month so a task can point at it; its numbers stay in
 `alerts.json`.
@@ -840,9 +869,10 @@ node kit/shoot.mjs --full storyboards/first-look.html     # the whole scrolling 
 node kit/shoot.mjs --out open-file-hover.png screens/open-file.html
 node kit/shoot.mjs index.html screens/a.html screens/b.html   # several at once
 node kit/shoot.mjs --study screens/find.html              # the study view: design notes hidden, ...--study.png
-node kit/shoot.mjs --touch --study screens/undo.html      # 768 x 1024, touch, as on an iPad: ...--768-touch.png
+node kit/shoot.mjs --touch screens/undo.html             # 768 x 1024, touch, as on an iPad, participant view: shots/screens__undo--study--768-touch.png
+node kit/shoot.mjs --all --touch                          # one such shot for every page check.mjs --all reads
 node kit/shoot.mjs --stale --dry                          # list every PNG older than its page or the kit
-node kit/shoot.mjs --stale                                # and render them again
+node kit/shoot.mjs --stale                                # render them again, and move out of the top of shots/ what no page can render
 ```
 
 It serves the prototype folder from a throwaway loopback server (so the icon sprite loads as it
@@ -858,7 +888,15 @@ Every shot is recorded in `shots/manifest.json` (page with its query and #state,
 view, full page), so `--stale` renders it again exactly. A PNG with no record is traced from its
 standard name, or from the page link wrapped around it on the gallery, a storyboard or a flow;
 `--stale` names the ones it cannot trace. A PNG that only a study session cites is the record of
-what a participant saw, and `--stale` leaves it alone.
+what a participant saw: `--stale` never renders it again, moves it to `shots/record/`, and points the
+session files that cite it there. A PNG at the top of `shots/` that no page state can render and
+nothing in the prototype cites (an old `--out` trial) moves to `shots/retired/`. So after `--stale`
+every PNG at the top of `shots/` is newer than its page:
+`find shots -maxdepth 1 -name 'screens__find*.png' ! -newer screens/find.html` prints nothing once
+`screens/find.html` has been shot again. Nothing re-renders a shot on its own when a page changes, so
+`node kit/check.mjs --all` fails while any shot is stale and names the first few; run
+`node kit/shoot.mjs --stale` after editing pages, before the check. A session that cites a shot copies it into `shots/record/`
+(or its own folder under `shots/`) and cites that copy.
 
 ## What the kit does not have
 

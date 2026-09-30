@@ -117,9 +117,9 @@
 <a href="../screens/export-dialog.html#failed"><rect class="n" x="20" y="880" width="160" height="52" rx="26"/><text class="t" text-anchor="middle"><tspan x="100" y="898">"Could not export ...",</tspan><tspan x="100" y="913">in the dialog; every</tspan><tspan x="100" y="926">choice kept</tspan></text></a>
 <text class="l" x="220" y="898" text-anchor="middle">no</text>
 <polyline class="e" points="380,940 380,970" marker-end="url(#ah)"/><text class="l" x="388" y="959">yes</text>
-<a href="../screens/export-dialog.html#done"><polygon class="n" points="222,970 570,970 548,1016 200,1016"/><text class="t" text-anchor="middle"><tspan x="385" y="990">stress-response-study_current-view.svg</tspan><tspan x="385" y="1006">and stress-response-study_methods.txt</tspan></text></a>
+<a href="../screens/export-dialog.html#done"><polygon class="n" points="222,970 570,970 548,1016 200,1016"/><text class="t" text-anchor="middle"><tspan x="385" y="990">stress-response-study_figure_2026-09.svg and</tspan><tspan x="385" y="1006">stress-response-study_figure_2026-09-methods.txt</tspan></text></a>
 <polyline class="e" points="380,1016 380,1040" marker-end="url(#ah)"/>
-<a href="../screens/export-dialog.html#done"><rect class="n" x="180" y="1040" width="400" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="380" y="1058">The notice names both files; Data, Sent and saved lists</tspan><tspan x="380" y="1073">them; focus back where the dialog was opened</tspan></text></a>
+<a href="../screens/export-dialog.html#done"><rect class="n" x="180" y="1040" width="400" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="380" y="1058">The notice names both files; Sent and saved lists them,</tspan><tspan x="380" y="1073">"From the data loaded 2026-09-22"; focus returns</tspan></text></a>
 <polyline class="e" points="380,1084 380,1110" marker-end="url(#ah)"/><text class="l" x="388" y="1101">opened from the browser's Downloads</text>
 <polygon class="n chk" points="190,1145 210,1110 550,1110 570,1145 550,1180 210,1180"/><text class="t" text-anchor="middle"><tspan x="380" y="1134">The file is the preview: triangles and circles,</tspan><tspan x="380" y="1150">"Print look" in its legend, the caption, the 10 names</tspan></text>
 <polyline class="e" points="380,1180 380,1204" marker-end="url(#ah)"/>
@@ -136,7 +136,7 @@
 <polygon class="n" points="880,564 960,596 880,628 800,596"/><text class="t" text-anchor="middle"><tspan x="880" y="600">Saved?</tspan></text>
 <polyline class="e err" points="800,596 760,596 760,526" marker-end="url(#ah)"/><text class="l" x="752" y="616" text-anchor="end">no: in the dialog</text>
 <polyline class="e" points="880,628 880,660" marker-end="url(#ah)"/><text class="l" x="888" y="648">yes</text>
-<polygon class="n" points="762,660 1130,660 1108,706 740,706"/><text class="t" text-anchor="middle"><tspan x="935" y="680">stress-response-study_edges.csv and</tspan><tspan x="935" y="696">stress-response-study_edges-methods.txt</tspan></text>
+<polygon class="n" points="762,660 1130,660 1108,706 740,706"/><text class="t" text-anchor="middle"><tspan x="935" y="680">stress-response-study_edges_2026-09.csv and</tspan><tspan x="935" y="696">stress-response-study_edges_2026-09-methods.txt</tspan></text>
 <polyline class="e" points="940,706 940,740" marker-end="url(#ah)"/><text class="l" x="948" y="728">opened in R or Excel</text>
 <polygon class="n chk" points="740,782 760,740 1120,740 1140,782 1120,824 760,824"/><text class="t" text-anchor="middle"><tspan x="940" y="766">1,059 rows, as the dialog said; each header names</tspan><tspan x="940" y="782">its scope; the methods file names the filter step,</tspan><tspan x="940" y="798">the load choices and the graphty-element version</tspan></text>
 <polyline class="e" points="940,824 940,850" marker-end="url(#ah)"/>
@@ -234,6 +234,8 @@
 <h2>The walk, step by step</h2>
 <p>Maren's steps through the figure and the table, with what she sees at each one.</p>
 <div class="k-flow">
+  <div class="k-flow-step"><h3><span class="x-num">0</span>Usage data: off</h3><p>The first time graphty opened, before any graph, it asked once: "Your data is yours, but please help us. We will never see the data you analyze. With your yes, graphty records how you use the app, so we can make it easier to use. Only graphty's author and his Claude Code sessions will ever use it." Maren chose Not now, so usage data stays off, graphty does not ask again and nothing about this export is sent. Had she said yes, the export would be recorded only as "an export" and when it happened: never the file, its rows or its name, and every node name, value and label masked. Preferences &gt; Usage data changes the choice. <a href="../screens/data-location.html">Where your data goes</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
   <div class="k-flow-step"><h3><span class="x-num">1</span>Color by log2FC</h3><p>On Attributes, with nothing selected, she picks Style by this, then Color, on log2FC. The column holds negative and positive numbers, so the new layer "log2FC color" diverges at 0 without being asked: red below, blue above, and a legend reading 48 below 0, 36 above. In the layer's midpoint row she types 0.58 into No change within, her lab's 1.5-fold cut-off. The layer, band included, is one undo entry. <a href="../screens/colour-by-value.html#numbers">See the layer</a>.</p></div>
   <div class="k-flow-arrow">&rarr;</div>
   <div class="k-flow-step"><h3><span class="x-num">2</span>Open Export</h3><p>From the menu under the project name she picks Export... (the Data panel's header has the same button, and Ctrl+Shift+E opens it from anywhere). The dialog opens on the filter chip's scope, Filtered graph, with Figure (.svg) and Methods text checked, a white ground, and Look: Screen. <a href="../screens/export-dialog.html#figure">See it</a>.</p></div>
@@ -242,13 +244,13 @@
   <div class="k-flow-arrow">&rarr;</div>
   <div class="k-flow-step"><h3><span class="x-num">4</span>Use Print look</h3><p>The preview is redrawn as the file will be, with the same file in gray beside it. Darker means further from 0 on both sides, so GSK3B, the largest decrease, prints nearly as dark as PSMA2, the largest increase. Triangles point up or down; genes inside the band are circles. The ten strongest genes are named. The check now reads "Increases and decreases stay apart in gray (48 below 0, 36 above)", and the line beside Look says "File is written with: Print look". The canvas keeps its own look. <a href="#print-look">See the figure</a>.</p></div>
   <div class="k-flow-arrow">&rarr;</div>
-  <div class="k-flow-step"><h3><span class="x-num">5</span>Export 2 files</h3><p>stress-response-study_current-view.svg and stress-response-study_methods.txt go to the browser's Downloads. The dialog closes, a notice names both files, the Data panel's Sent and saved lists them, and focus returns to where she opened the dialog. <a href="../screens/export-dialog.html#done">See it</a>.</p></div>
+  <div class="k-flow-step"><h3><span class="x-num">5</span>Export 2 files</h3><p>stress-response-study_figure_2026-09.svg and stress-response-study_figure_2026-09-methods.txt go to the browser's Downloads; the names end in the month of the qPCR data they were made from. The dialog closes, a notice names both files, the Data panel's Sent and saved lists them with the data they were made from ("From the data loaded 2026-09-22"), and focus returns to where she opened the dialog. <a href="../screens/export-dialog.html#done">See it</a>.</p></div>
   <div class="k-flow-arrow">&rarr;</div>
   <div class="k-flow-step"><h3><span class="x-num">6</span>Open the file, read it without color</h3><p>She opens the SVG from Downloads and prints it in gray. It is the preview she approved: the triangles and circles, "Print look" as the legend's first line, the no-change band stated, the caption "Filtered graph: 1,059 of 1,262 interactions", the names as real text. Which genes went up? The ones whose triangles point up.</p></div>
   <div class="k-flow-arrow">&rarr;</div>
   <div class="k-flow-step"><h3><span class="x-num">7</span>Export the table behind it</h3><p>In the table dock's Edges tab the scope line reads Filtered graph, 1,059 of 1,262 rows. Export table... opens the same Export dialog with Table (.csv) chosen: "Rows: 1,059 of 1,262, filtered", the file names, and its methods file, which is always written and cannot be unticked. Had she ticked Table (.csv) in step 2, the same row would have been written with the figure. <a href="../screens/export-dialog.html#table">See it</a>.</p></div>
   <div class="k-flow-arrow">&rarr;</div>
-  <div class="k-flow-step"><h3><span class="x-num">8</span>Open the CSV</h3><p>In R, the CSV has 1,059 rows, as the dialog said, and no comment lines to trip the reader. stress-response-study_edges-methods.txt names the scope and its filter step, the load choices, the weight's meaning and the graphty-element version, ready for the supplement.</p></div>
+  <div class="k-flow-step"><h3><span class="x-num">8</span>Open the CSV</h3><p>In R, the CSV has 1,059 rows, as the dialog said, and no comment lines to trip the reader. stress-response-study_edges_2026-09-methods.txt names the scope and its filter step, the load choices, the weight's meaning and the graphty-element version, ready for the supplement.</p></div>
 </div>
 
 <h3>Errors, cancellation and other graphs</h3>
@@ -260,6 +262,27 @@
   <div class="k-flow-step" data-branch><h3>The save failed</h3><p>"Could not export ...: the browser blocked the download", in the dialog, announced at once, with Export. Every choice is kept. <a href="../screens/export-dialog.html#failed">See it</a>.</p></div>
   <div class="k-flow-step" data-branch><h3>On a graph drawn as density, or too big to draw</h3><p>Not on this project. On a graph drawn partly as density, the dialog and the caption both state how many were drawn one by one; past the drawing limit there is no picture, so each figure row is disabled with its reason and the table row stays. <a href="../screens/export-dialog.html#reduced">Density</a>, <a href="../screens/export-dialog.html#too-big">too big</a>.</p></div>
 </div>
+
+<section id="case-file" data-dataset="transactions">
+<h2>On a case file: ranks, the open filter step, and next month's data</h2>
+<p>The same dialog on a money-laundering case: Sarah, a bank investigator, has March's transfers (transfers-2026-03.csv, <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>) and a filter step, "in Mule ring suspects", holding the <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span> she thinks form a ring. The case system wants the ring as rows, ranked by PageRank, and a month later wants the same file on April's data.</p>
+<div class="k-flow">
+  <div class="k-flow-step"><h3><span class="x-num">1</span>Export with the filter step open</h3><p>With the step open she presses Ctrl+Shift+E. The dialog starts with that step's transfers: Table (.csv) on the Edges tab, the <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> with both ends among its accounts. A line under the scope says why, "A filter step is open, so the export starts with its transfers", and Nodes is one click away. The file would be case-acc-233575_transfers_2026-03.csv. <a href="../screens/export-dialog.html#filter-step">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">2</span>Nodes: the ranked accounts</h3><p>She picks Nodes: "<span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>, filtered". PageRank's rank is written as a whole number, and a separate Tie column says how many other accounts share the value, so both columns stay numeric in Excel and pandas. Accounts with the same value share a rank. A measure computed on a sample would write Rank low and Rank high in place of the two. The preview's last columns:</p>
+<pre style="white-space:pre;overflow:auto;font-size:11px;line-height:16px;margin:6px 0;padding:6px 8px;background:var(--cm-bg-secondary);color:var(--cm-text);border-radius:4px">id,...,"PageRank rank (1 = highest, of 3,000)","PageRank tie (other accounts with the same value)"
+ACC-753261,...,202,1
+ACC-739987,...,235,0
+ACC-350110,...,266,2</pre>
+<p><a href="../screens/export-dialog.html#table">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">3</span>Export 2 files</h3><p>case-acc-233575_ring-pagerank_2026-03.csv and case-acc-233575_ring-pagerank_2026-03-methods.txt: every file name ends in the month of the data it was made from. Sent and saved lists the export with "Made from March 2026 data". <a href="../screens/export-dialog.html#done">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">4</span>A month later: Export again, on April data</h3><p>April's transfers are added as a new version, and the Data panel lists both. Under the March export in Sent and saved, a labeled button reads "Export again, on April data". It opens the dialog with the March file's settings run on April: the same step and columns, a line naming the old file and the new data, and ranks of <span data-fx="datasets.transactionsApril.nodes" data-fx-noun="accounts">3,093 accounts</span>. <a href="../screens/export-dialog.html#again">See it</a>.</p></div>
+  <div class="k-flow-arrow">&rarr;</div>
+  <div class="k-flow-step"><h3><span class="x-num">5</span>A new file; March's is kept</h3><p>case-acc-233575_ring-pagerank_2026-04.csv is written beside its methods file, which says it was made again from the March file's settings on April data. The March file is not touched, and Sent and saved lists the April export as "Made from April 2026 data". <a href="../screens/export-dialog.html#again-dialog">See it</a>.</p></div>
+</div>
+</section>
 
 <h2>The other outputs of the same dialog</h2>
 <p>The same Export dialog, on the same project and scope, writes three more kinds, plus Image (.png) for slides. Where scripting the same export would start is marked, but it goes nowhere yet.</p>
@@ -283,7 +306,7 @@
 <polyline class="e" points="435,200 435,240" marker-end="url(#ah2)"/>
 <polyline class="e" points="725,200 725,240" marker-end="url(#ah2)"/>
 <polygon class="n" points="40,240 270,240 250,290 20,290"/><text class="t" text-anchor="middle"><tspan x="145" y="261">stress-response-study_recipe</tspan><tspan x="145" y="277">.graphty (no data inside)</tspan></text>
-<polygon class="n gap" points="330,240 560,240 540,290 310,290"/><text class="t" text-anchor="middle"><tspan x="435" y="261">stress-response-study_findings</tspan><tspan x="435" y="277">.html, opens offline</tspan></text>
+<polygon class="n gap" points="330,240 560,240 540,290 310,290"/><text class="t" text-anchor="middle"><tspan x="435" y="261">stress-response-study_findings</tspan><tspan x="435" y="277">_2026-09.html, opens offline</tspan></text>
 <polygon class="n" points="620,240 850,240 830,290 600,290"/><text class="t" text-anchor="middle"><tspan x="725" y="269">The project file</tspan></text>
 </svg>
 <div class="k-flow">
@@ -298,9 +321,10 @@
 <table class="facts wide">
 <tr><th>Task</th><td>Export, the task that closes a piece of work, and the tail task of saving a recipe.</td></tr>
 <tr><th>Serves</th><td>The weekly return: Publish. The alert investigation: Determine, Hand over. A recipe travels: Save the recipe.</td></tr>
-<tr><th>Starts from</th><td>Anywhere: the project-name menu, the Data panel's header, Ctrl+Shift+E or Quick actions; the table dock's Export table... for a table; a selection, which sets the scope.</td></tr>
+<tr><th>Starts from</th><td>Anywhere: the project-name menu, the Data panel's header, Ctrl+Shift+E or Quick actions; the table dock's Export table... for a table; a selection, which sets the scope; an open filter step, which starts the dialog on that step's transfers; a saved export's Export again, on April data.</td></tr>
 <tr><th>Scale</th><td>The same route at every size. A figure over the density boundary is written reduced and says so; past the drawing limit its row is disabled with its reason.</td></tr>
 <tr><th>Claim</th><td>"This figure, table or file shows this value on this scope, with its legend and method; in gray, up and down stay apart; and the file is what the preview showed."</td></tr>
+<tr><th>What leaves the computer</th><td>Nothing. The files go to the browser's Downloads. Usage data is off unless the analyst said yes when graphty first asked; even then an export is recorded only as "an export" and its time, never a file's contents or name. <a href="../screens/data-location.html">Where your data goes</a></td></tr>
 <tr><th>Record</th><td>An export changes nothing in the project and has no undo entry; the Look chosen in the dialog applies to the file only. Each file written is listed in Data, Sent and saved. Coloring by log2FC, with its band, is the one step with an undo entry.</td></tr>
 <tr><th>Desk count</th><td>The figure: 1 step to color (Style by this, Color) and 1 field for the band, then 3 steps (Export...; Use Print look; Export 2 files). The table: 1 travel (the Edges tab), 2 steps (Export table...; Export 2 files). Recipe: 2 steps (Export...; check Share the setup, without data) and Export, plus its name.</td></tr>
 <tr><th>First failure</th><td>A figure that goes to print with up and down in the same gray, or with the largest decreases printed palest, or without its legend or scope. Shape for the sign and a check of every pair of bins exist to prevent it.</td></tr>

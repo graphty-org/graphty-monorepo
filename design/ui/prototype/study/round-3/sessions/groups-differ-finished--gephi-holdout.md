@@ -5,7 +5,7 @@
 how good the split is, and whether you could reproduce it."
 **Screens used:** the Results panel in its finished Louvain state, then the same result opened in
 the table under the canvas (the communities tab).
-**Renders looked at:** `shots/r3-mara-gdf-louvain.png`, `shots/r3-mara-gdf-louvain-table.png`.
+**Renders looked at:** `shots/record/r3-mara-gdf-louvain.png`, `shots/record/r3-mara-gdf-louvain-table.png`.
 
 ## Think-aloud
 

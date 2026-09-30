@@ -177,7 +177,7 @@ def evidence_modal(r, edges, accounts, holds, others, sel_word="The selection's 
                       f'<div class="k-fieldrow"><span class="k-legend">Scope</span><div class="k-fields" style="grid-template-columns:1fr"><span class="k-field">{sel_word}: {r["id"]}, {len(edges)} transfers<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>'
                       + prose(f"Other scopes: {others}.") + tbl
                       + data("names", f'{len(accounts)} accounts: {kinds}') + data("holds", holds, "at-wrap") + data("file", f'<span class="k-id">evidence-{aid}.html</span>')
-                      + prose("One self-contained HTML file. It opens in any browser and prints to PDF."))
+                      + prose("One self-contained HTML file: figures embedded, notes and tables as text. It opens offline in any browser and prints to PDF."))
             + exp_sec("Table (.csv)", data("columns", "source, target, time (UTC), amount (USD)") + data("rows", str(len(edges))) + data("file", f'<span class="k-id">{aid}-transfers.csv</span>'))
             + f'</div><div class="k-modal-foot"><span class="k-secondary k-grow">{ic("lock", "k-i k-i-sm")} 2 files go to the download folder. Nothing is uploaded.</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Export 2 files</span></div></div></div>')
 def holds_for(r, note_where):

@@ -5,8 +5,8 @@
 and who matters most in it."
 **Screens, in order:** the frame at rest (Les Miserables loaded), the filter chip and its steps,
 the Results panel after a filter.
-**Renders the participant saw (design notes hidden):** `shots/emma-r3-nop-frame.png`,
-`shots/emma-r3-nop-chip.png`, `shots/emma-r3-nop-rp.png`.
+**Renders the participant saw (design notes hidden):** `shots/record/emma-r3-nop-frame.png`,
+`shots/record/emma-r3-nop-chip.png`, `shots/record/emma-r3-nop-rp.png`.
 
 ## Transcript (think-aloud)
 

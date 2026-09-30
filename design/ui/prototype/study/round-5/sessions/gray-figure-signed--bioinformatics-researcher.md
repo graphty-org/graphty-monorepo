@@ -16,15 +16,15 @@ figure, figure in the Print look, written), screens/table-dock.html (ranked). Th
 flows/export.html rendered blank in the study view, so the flow was followed on the dialog's own
 states instead.
 
-Renders: shots/r4-chen-grayfig2-screens_colour-by-value_html.png,
-shots/r4-chen-grayfig2-screens_colour-by-value_html_numbers.png,
-shots/r4-chen-grayfig2-screens_styles-list_html_looks.png,
-shots/r4-chen-grayfig2-screens_export-dialog_html_ways-in.png,
-shots/r4-chen-grayfig2-screens_export-dialog_html_figure.png,
-shots/r4-chen-grayfig2-screens_export-dialog_html_figure-grey.png,
-shots/r4-chen-grayfig2-screens_export-dialog_html_done.png,
-shots/r4-chen-grayfig2-screens_table-dock_html_ranked.png,
-shots/r4-chen-grayfig2-flows_export_html.png (blank).
+Renders: shots/record/r4-chen-grayfig2-screens_colour-by-value_html.png,
+shots/record/r4-chen-grayfig2-screens_colour-by-value_html_numbers.png,
+shots/record/r4-chen-grayfig2-screens_styles-list_html_looks.png,
+shots/record/r4-chen-grayfig2-screens_export-dialog_html_ways-in.png,
+shots/record/r4-chen-grayfig2-screens_export-dialog_html_figure.png,
+shots/record/r4-chen-grayfig2-screens_export-dialog_html_figure-grey.png,
+shots/record/r4-chen-grayfig2-screens_export-dialog_html_done.png,
+shots/record/r4-chen-grayfig2-screens_table-dock_html_ranked.png,
+shots/record/r4-chen-grayfig2-flows_export_html.png (blank).
 
 ## Transcript (thinking aloud)
 

@@ -15,9 +15,9 @@ table's Previous selection. The filter chip mock was looked at afterwards for co
 is the Les Miserables sample; she was told to read the characters as suppliers.
 
 What she saw, in order:
-`shots/r3-dana-getback-s3.png`, `shots/r3-dana-getback-s2.png`, `shots/r3-dana-getback-list.png`,
-`shots/r3-dana-getback-off.png`, `shots/r3-dana-getback-fix.png`; for comparison afterwards,
-`shots/r3-dana-getback-s3-menu-hist.png` and `shots/screens__filter-chip.png`.
+`shots/record/r3-dana-getback-s3.png`, `shots/record/r3-dana-getback-s2.png`, `shots/record/r3-dana-getback-list.png`,
+`shots/record/r3-dana-getback-off.png`, `shots/record/r3-dana-getback-fix.png`; for comparison afterwards,
+`shots/record/r3-dana-getback-s3-menu-hist.png` and `shots/screens__filter-chip.png`.
 
 ## Think-aloud transcript
 

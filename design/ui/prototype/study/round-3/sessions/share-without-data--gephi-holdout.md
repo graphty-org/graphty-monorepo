@@ -7,8 +7,8 @@ without sending yours."
 **Screen:** the Export dialog mock (`screens/export-dialog.html`), started at the dialog as it opens
 from Export files..., then the state after ticking Recipe.
 **Viewport:** 1440 by 900, study view.
-**Renders she saw:** `shots/r3-mara-share-01-open.png` (the dialog as it opens),
-`shots/r3-mara-share-02-recipe.png` (after ticking Recipe).
+**Renders she saw:** `shots/record/r3-mara-share-01-open.png` (the dialog as it opens),
+`shots/record/r3-mara-share-02-recipe.png` (after ticking Recipe).
 
 ## Transcript (think-aloud)
 

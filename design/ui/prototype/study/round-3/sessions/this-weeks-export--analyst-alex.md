@@ -7,11 +7,11 @@ Screens, in the order he met them: the load step (Add data with April's file), V
 the Results panel, and the comparison page. Renders he looked at, as a participant sees them
 (design notes hidden):
 
-- `../../../shots/r3-alex-weekly-01-load-add-data.png` -- the load step, Add data with transfers-2026-04.csv
-- `../../../shots/r3-alex-weekly-05-version-history.png` -- Version history, April data open
-- `../../../shots/r3-alex-weekly-08-vh-recipe.png` -- Version history, the recipe entry open
-- `../../../shots/r3-alex-weekly-03-results.png` and `../../../shots/screens__results-panel--outofdate.png` -- the Results panel
-- `../../../shots/r3-alex-weekly-04-comparison.png` and `../../../shots/r3-alex-weekly-06-comparison-versions.png` -- the comparison page, two measures and two data versions
+- `../../../shots/record/r3-alex-weekly-01-load-add-data.png` -- the load step, Add data with transfers-2026-04.csv
+- `../../../shots/record/r3-alex-weekly-05-version-history.png` -- Version history, April data open
+- `../../../shots/record/r3-alex-weekly-08-vh-recipe.png` -- Version history, the recipe entry open
+- `../../../shots/record/r3-alex-weekly-03-results.png` and `../../../shots/screens__results-panel--outofdate.png` -- the Results panel
+- `../../../shots/record/r3-alex-weekly-04-comparison.png` and `../../../shots/record/r3-alex-weekly-06-comparison-versions.png` -- the comparison page, two measures and two data versions
 
 Outcome: finished, with difficulty. He got the new month in without losing his styling and found
 the "what changed" numbers, but could not produce the thing he actually hands his manager.

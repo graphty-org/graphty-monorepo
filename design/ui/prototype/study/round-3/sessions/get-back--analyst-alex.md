@@ -14,7 +14,7 @@ click on the canvas.
 
 Screens used: the undo mock, participant view (no annotations), starting on the main window after
 the three steps; the filter chip mock for comparison afterwards. Renders of what he saw:
-`shots/r3-alex-getback-s3.png`, `-s2.png`, `-s1.png`, `-list.png`, `-tick.png`, `-fix.png`,
+`shots/record/r3-alex-getback-s3.png`, `-s2.png`, `-s1.png`, `-list.png`, `-tick.png`, `-fix.png`,
 `-s3-menu-hist.png`, `-filterchip.png`.
 
 ## Think-aloud transcript

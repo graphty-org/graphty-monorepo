@@ -13,7 +13,7 @@ order."
 Screens used, as she saw them:
 
 - the main window with Les Miserables open, at rest, table under the graph sorted by degree
-  (shots/screens__navigation-frame-new-annot.png, with the numbered notes hidden from her);
+  (shots/record/screens__navigation-frame-new-annot.png, with the numbered notes hidden from her);
 - the older at-rest window with the Statistics block and an empty Results heading
   (shots/screens__frame-at-rest.png);
 - Valjean clicked, table sorted by betweenness (shots/screens__navigation-frame-new-node.png);
@@ -24,7 +24,7 @@ Screens used, as she saw them:
 - the main menu's Algorithms list and the Quick actions box (shots/screens__results-panel--catalog.png,
   shots/screens__results-panel--quick-actions.png), both drawn on other datasets;
 - the Betweenness panel and the ranked three-measure table, both drawn on a protein network
-  (shots/screens__inspector-result.png, shots/screens__table-dock-ranked--study.png);
+  (shots/screens__inspector-result.png, shots/record/screens__table-dock-ranked--study.png);
 - "Compare rankings...", which opens a payments network (shots/screens__comparison--study.png).
 
 Where a screen shows a different dataset, the moderator said: "that part of the mock is drawn on

@@ -16,16 +16,16 @@ betweenness options over the time limit and a 500-source sample run in the backg
 (screens/table-dock.html); Find past the drawing limit and Quick actions by question
 (screens/find.html). Viewed at 1440 x 900 in the participant view.
 
-**Renders she saw:** shots/r4-minji-t200-pdl-not-drawn.png, shots/r4-minji-t200-pdl-isolates.png,
-shots/r4-minji-t200-pdl-narrow.png, shots/r4-minji-t200-pdl-keep.png,
-shots/r4-minji-t200-pdl-kept.png, shots/r4-minji-t200-pdl-rule.png,
-shots/r4-minji-t200-pdl-drawn.png, shots/r4-minji-t200-pdl-sample.png,
-shots/r4-minji-t200-pdl-full.png (the page with its below-frame panels),
-shots/r4-minji-t200-rp-quick-actions.png, shots/r4-minji-t200-rp-refused.png,
-shots/r4-minji-t200-rp-finished-sampled.png, shots/r4-minji-t200-rp-in-the-table.png,
-shots/r4-minji-t200-rp-cpu-path.png, shots/r4-minji-t200-ofc-over-budget.png,
-shots/r4-minji-t200-ofc-sample-over-budget.png, shots/r4-minji-t200-td-ranked.png,
-shots/r4-minji-t200-td-large.png, shots/r4-minji-t200-find-s7.png, shots/r4-minji-t200-find-s8.png.
+**Renders she saw:** shots/record/r4-minji-t200-pdl-not-drawn.png, shots/record/r4-minji-t200-pdl-isolates.png,
+shots/record/r4-minji-t200-pdl-narrow.png, shots/record/r4-minji-t200-pdl-keep.png,
+shots/record/r4-minji-t200-pdl-kept.png, shots/record/r4-minji-t200-pdl-rule.png,
+shots/record/r4-minji-t200-pdl-drawn.png, shots/record/r4-minji-t200-pdl-sample.png,
+shots/record/r4-minji-t200-pdl-full.png (the page with its below-frame panels),
+shots/record/r4-minji-t200-rp-quick-actions.png, shots/record/r4-minji-t200-rp-refused.png,
+shots/record/r4-minji-t200-rp-finished-sampled.png, shots/record/r4-minji-t200-rp-in-the-table.png,
+shots/record/r4-minji-t200-rp-cpu-path.png, shots/record/r4-minji-t200-ofc-over-budget.png,
+shots/record/r4-minji-t200-ofc-sample-over-budget.png, shots/record/r4-minji-t200-td-ranked.png,
+shots/record/r4-minji-t200-td-large.png, shots/record/r4-minji-t200-find-s7.png, shots/record/r4-minji-t200-find-s8.png.
 
 **Outcome:** finished, with difficulty. She got a sampled betweenness ranking she was willing to
 defend at the top, and a one-hop neighborhood of the first patent. Two steps she had to guess at,

@@ -10,10 +10,10 @@ or refer it, and keep what you would need to justify that."
 Screens used, in order: Find (just opened, then an id with no match), the Inspector (one node,
 and the 7,495-selected state on the March transfers), the Filter chip and its steps, the Notes
 panel (empty, and a chosen note), and the Export dialog (a table with values not current, and the
-evidence file). Pictures: shots/find--s1--dark.png, shots/study-r2-priya-find-s10.png,
-shots/inspector-one-node--dark.png, shots/inspector-cap--dark.png,
-shots/filter-chip-three--dark.png, shots/notes-panel-s1--dark.png, shots/notes-panel-s3--dark.png,
-shots/study-r2-priya-export-table.png, shots/study-r2-priya-export-evidence.png.
+evidence file). Pictures: shots/record/find--s1--dark.png, shots/record/study-r2-priya-find-s10.png,
+shots/inspector-one-node--dark.png, shots/record/inspector-cap--dark.png,
+shots/record/filter-chip-three--dark.png, shots/record/notes-panel-s1--dark.png, shots/record/notes-panel-s3--dark.png,
+shots/record/study-r2-priya-export-table.png, shots/record/study-r2-priya-export-evidence.png.
 
 ## Before starting
 

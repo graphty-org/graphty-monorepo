@@ -12,12 +12,12 @@ proteins and 1,262 interactions, filtered down to the Ribosome module, which hol
 
 **Screens, in order, as she saw them (study view, 1440 x 900):**
 
-1. The open dialog for `ppi-core-300.graphml` -- `shots/r3-elena-read-numbers-load.png`
-2. The app after loading, full graph -- `shots/r3-elena-read-numbers-frame.png`
-3. The filter steps screen -- `shots/r3-elena-read-numbers-filter.png`
-4. The results panel, betweenness finished -- `shots/r3-elena-read-numbers-results.png`
+1. The open dialog for `ppi-core-300.graphml` -- `shots/record/r3-elena-read-numbers-load.png`
+2. The app after loading, full graph -- `shots/record/r3-elena-read-numbers-frame.png`
+3. The filter steps screen -- `shots/record/r3-elena-read-numbers-filter.png`
+4. The results panel, betweenness finished -- `shots/record/r3-elena-read-numbers-results.png`
 5. The results panel on a filtered graph (the moderator opened it when she asked for "the
-   filtered one") -- `shots/r3-elena-read-numbers-results-filtered.png`
+   filtered one") -- `shots/record/r3-elena-read-numbers-results-filtered.png`
 
 **Outcome:** finished with difficulty, and only by inference. She explained 300 and 1,262
 correctly, and guessed the right answer to "why not 300" (the filter kept only Ribosome, 56)

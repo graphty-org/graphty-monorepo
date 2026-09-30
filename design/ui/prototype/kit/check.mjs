@@ -13,7 +13,8 @@
 // and on the old frame (oldChrome: the shell's rail, one right column, no avatar, no header Export).
 //
 //   node kit/check.mjs screens/frame-at-rest.html "screens/frame-at-rest.html?dataset=ppi"
-//   node kit/check.mjs --all        (every storyboard, flow, screen and study page, the gallery and the kit pages)
+//   node kit/check.mjs --all        (every storyboard, flow, screen and study page, the gallery and the kit pages;
+//                                      also fails when any shot in shots/ is older than its page or the kit)
 //   node kit/check.mjs --all --typed  (also list typed counts the fixtures do not hold; --strict fails on them)
 //   node kit/check.mjs --tasks        (every study task's screens, each opened with ?task=<id>: fails when a
 //                                      screen draws or binds another dataset, or types a count, direction,
@@ -73,6 +74,12 @@ for (const [id, t] of Object.entries(fixtures.tasks ?? {})) {
     for (const r of t.refs ?? []) if (get(r) === undefined) problems.push(`kit/fixtures.json task ${id}: ${r} does not resolve`);
 }
 
+// A plant whose anchor is gone would serve a 404 and read as "does not load kit/kit.js"; say so instead.
+for (const pl of plants) {
+    const t = await readFile(join(proto, pl.pg), "utf8").catch(() => "");
+    if (!t.includes(pl.from)) { console.error(`--plant: ${pl.pg} has no "${pl.from}" (the anchor is stale)`); process.exit(2); }
+}
+
 const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".woff2": "font/woff2", ".md": "text/plain" };
 const server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, "");
@@ -110,6 +117,8 @@ function oldChrome() {
     }
     for (const a of document.querySelectorAll(".k-app")) if (live(a) && a.querySelectorAll(".k-right").length > 1) out.add("two right columns");
     for (const a of document.querySelectorAll(".k-avatar")) if (live(a)) out.add("an avatar in the header");
+    // The privacy line sits under the project name in every frame's left panel (kit/shell.mjs, step 2).
+    for (const h of document.querySelectorAll(".k-app .k-panel-head")) if (live(h) && h.querySelector(".k-project") && !h.querySelector(".k-privacy")) out.add("no privacy line under the project name");
     // An avatar drawn in a page's own class: one capital letter in a round box in a header row.
     for (const el of document.querySelectorAll(".k-header1 *, .k-header2 *, .k-panel-head *, .k-right > div *")) {
         if (!live(el) || el.children.length || !/^[A-Z]$/.test(el.textContent.trim())) continue;
@@ -287,6 +296,62 @@ function graphCounts(root) {
     }
     return counts;
 }
+// A degree label in a frame of a directed graph that does not say in, out or total. Runs in the page.
+function bareDegree({ drawn, directed }) {
+    const res = drawn.map(([re, ds]) => [new RegExp(re), ds]);
+    const out = new Set();
+    for (const app of document.querySelectorAll(".k-app")) {
+        // every state a page stacks or switches to by an anchor, shown or not, is product
+        if (app.closest('[data-frame="before"], [data-shell-keep]')) continue;
+        const ds = new Set();
+        for (const im of app.querySelectorAll("img")) { const path = new URL(im.src).pathname.replace(/^\//, "").replace(/^.*?(kit\/canvas\/|screens\/img\/|img\/)/, "$1"); const hit = res.find(([re]) => re.test(path)); if (hit) ds.add(hit[1]); }
+        for (const el of app.querySelectorAll("[data-fx]")) { const m = el.dataset.fx.match(/^datasets\.([A-Za-z]+)\./); if (m) ds.add(m[1]); }
+        const own = app.closest("[data-dataset]")?.dataset.dataset;
+        if (own) { ds.clear(); ds.add(own); }
+        if (!ds.size || ![...ds].every((d) => directed.includes(d))) continue;
+        for (const el of app.querySelectorAll(".k-lg-title, .k-name, th, .k-legend, .k-metric > .k-secondary")) {
+            const t = el.textContent.replace(/\s+/g, " ").trim();
+            // a label whose row offers the choice ("Degree distribution" over Total, In, Out) says it
+            const row = el.closest(".k-fieldrow");
+            const opts = row ? [...row.querySelectorAll(".k-seg > *, [role=button], button, option")].map((x) => x.textContent.trim().toLowerCase()) : [];
+            if (opts.includes("in") && opts.includes("out")) continue;
+            for (const m of t.matchAll(/\bdegree\b/gi)) {
+                const before = t.slice(0, m.index);
+                if (/\b(in|out|total|weighted|in-|out-)[ -]?$/i.test(before) || /^degree([ -](in|out)\b|\s*\((total|in|out)\b)/i.test(t.slice(m.index))) continue;
+                out.add(t.slice(0, 80));
+            }
+        }
+    }
+    return [...out];
+}
+// Two columns of one table never share a display name (content-design.md 5): "degree" over the
+// filtered graph and "degree" over the full graph are "degree (filtered graph)" and "degree (full
+// graph)". The name is the header's own text, without its profile line. Runs in the page.
+function sameColumnNames() {
+    const out = new Set();
+    const nameOf = (th) => {
+        const own = th.querySelector(".s-label, .s-gname");
+        const c = (own ?? th).cloneNode(true);
+        for (const x of c.querySelectorAll(".k-profile, [class*='profile'], .k-sub, small, svg, button, .k-icon-btn, [class*='hmenu']")) x.remove();
+        return c.textContent.replace(/\s+/g, " ").trim().toLowerCase();
+    };
+    for (const thead of document.querySelectorAll(".k-app thead, [data-kit-frame] thead")) {
+        if (thead.closest('[data-frame="before"], [data-shell-keep]')) continue;
+        // a group row over the columns ("Degree", "Betweenness") is part of each column's name
+        const groups = [];
+        let leaf = null;
+        for (const tr of thead.querySelectorAll("tr")) {
+            if ([...tr.children].some((th) => Number(th.getAttribute("colspan") || 1) > 1)) {
+                let col = 0;
+                for (const th of tr.children) { const n = Number(th.getAttribute("colspan") || 1); for (let k = 0; k < n; k++) groups[col + k] = nameOf(th); col += n; }
+            } else leaf = tr;
+        }
+        if (!leaf) continue;
+        const names = [...leaf.children].map((th, k) => [groups[k], nameOf(th)].filter(Boolean).join(" / ")).filter(Boolean);
+        for (const n of names) if (names.indexOf(n) !== names.lastIndexOf(n)) out.add(n);
+    }
+    return [...out];
+}
 // A drawing names its dataset by its file (kit/canvas/<dataset>-..., screens/img/...).
 const DRAWN = [
     [/^(kit\/canvas\/)?lesmis-|^(screens\/)?img\/(lesmis-|table-dock-lesmis)/, "lesmis"],
@@ -300,6 +365,7 @@ const DRAWN = [
 ];
 // Two months of the same accounts are one story: an April task may show March beside it.
 const SAME = { transactionsApril: ["transactions"] };
+const DEGREE_ARGS = { drawn: DRAWN.map(([re, ds]) => [re.source, ds]), directed: Object.keys(fixtures.datasets).filter((k) => fixtures.datasets[k].directed) };
 const terms = JSON.parse(await readFile(join(here, "terms.json"), "utf8"));
 const seen = new Map(); // "key|set" -> { text, page }
 const rendered = new Map(); // page -> its text as drawn, so numbers a script writes are checked too
@@ -463,6 +529,9 @@ try {
         const scan = async (page, where) => {
             const r = await page.evaluate(termScan, { retired: terms.retired, exempt });
             for (const m of [...r.found, ...r.homes.map((h) => `two homes: ${h}`)]) note(m, where);
+            // Degree on a directed graph is always labelled in, out or total (content-design.md 5).
+            for (const d of await page.evaluate(bareDegree, DEGREE_ARGS)) note(`degree on a directed graph without in, out or total: "${d}"`, where);
+            for (const d of await page.evaluate(sameColumnNames)) note(`two columns share the display name "${d}" (name each by what it counts over)`, where);
         };
         const counts = async (url, where) => {
             const [path, hash = ""] = url.split("#");
@@ -536,7 +605,7 @@ if (typed) {
     // On one line (not a rule's bound above a table's label), and not "node pairs".
     const NOUN = /(\d[\d,]*(?:\.\d+)?)[ \u00a0]+(nodes?|edges?|proteins?|accounts?|transfers?|characters?|patents?|components?|isolates?|interactions?|citations?|communities|neighbou?rs?|hops?)\b(?![ \u00a0]+pairs)/gi;
     // A statistic by its label: "modularity 0.716", "Density: 0.0281", "components 3".
-    const STAT = /(?<!\bas )\b(modularity|density|average degree|mean degree|max(?:imum)? degree|reciprocity|components|isolates|communities|clustering coefficient|diameter)\b[ \t:=]*(?:\n[ \t]*)?(\d[\d,]*(?:\.\d+)?)(?![\d.])/gi;
+    const STAT = /(?<!\bas )\b(modularity|density|average degree|mean degree|max(?:imum)? degree|reciprocity|components|isolates|communities|clustering coefficient|diameter)\b[ \t:=]*(?:\n[ \t]*)?(\d[\d,]*(?:\.\d+)?(?:e-?\d+)?)(?![\d.])/gi; // e-notation: the formatter writes a measure under 0.001 as 6.02e-4
     for (const p of pages) {
         const html = await readFile(join(proto, p.replace(/[?#].*$/, "")), "utf8").catch(() => "");
         const drawn = [...new Set([...html.matchAll(/kit\/canvas\/([a-z0-9-]+)-(?:light|dark|\{theme\})\.svg/g)].map((m) => dsOf(m[1])))].filter((d) => d && sets[d]);
@@ -595,12 +664,21 @@ async function checkTasks(context) {
                 const vis = (el) => el.checkVisibility?.() ?? !!el.offsetParent;
                 // A page that stacks its states (sections) is read at the state the #hash names.
                 const t = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
-                const root = (t && (t.matches('section, [class*="-state"]') ? t : t.closest('section[id], [class*="-state"]'))) || document.body;
+                let root = (t && (t.matches('section, [class*="-state"]') ? t : t.closest('section[id], [class*="-state"]'))) || document.body;
+                // A state heading followed by its frame (<div class="x-state-h" id=...> then <div class="x-frame">):
+                // the state runs to the next heading of the same class.
+                if (root !== document.body && !root.querySelector(".k-app, [data-kit-frame]")) {
+                    const box = document.createElement("div");
+                    root.before(box);
+                    for (let el = root, next; el && (el === root || el.className !== root.className); el = next) { next = el.nextElementSibling; box.append(el); }
+                    root = box;
+                }
                 const imgs = [...root.querySelectorAll("img")].filter((el) => vis(el) && !el.closest(".k-thumbs, .ss-thumbs, .k-start, [data-any-dataset]")).map((el) => new URL(el.src).pathname.replace(/^\//, ""));
                 // the start screen's samples show every dataset on purpose, their counts too
                 const keys = [...root.querySelectorAll("[data-fx]")].filter((el) => vis(el) && !el.closest(".k-thumbs, .ss-thumbs, .k-start, [data-any-dataset]")).map((el) => el.dataset.fx).filter((k) => !k.includes("{ds}")); // {ds} is the task's own dataset
                 for (const el of root.querySelectorAll(".k-thumbs, .ss-thumbs, [data-any-dataset]")) el.style.display = "none";
-                const own = !document.querySelector('[data-fx*="{ds}"]') && document.body.dataset.dataset;
+                // the state's own dataset (a section of a page of several says it), else the page's
+                const own = !document.querySelector('[data-fx*="{ds}"]') && (root.closest("[data-dataset]")?.dataset.dataset ?? document.body.dataset.dataset);
                 const text = root.innerText;
                 const counts = graphCounts(root);
                 const fxProblems = window.kitFx?.problems ?? [];
@@ -647,6 +725,13 @@ async function checkTasks(context) {
     // A gate that checked nothing passed nothing (round 6 ran on "0 problems on 0 pages").
     if (!n) problems.push("--tasks checked 0 task screens: kit/fixtures.json lists no task pages, or none could be read");
     taskScreens = n;
+}
+// --all: no shot in shots/ is older than its page or the kit (kit/README.md, "Screenshots"). A page
+// that changed without being shot again fails here, so a stale PNG never reaches the gallery.
+if (process.argv.includes("--all")) {
+    const { execFileSync } = await import("node:child_process");
+    const stale = execFileSync(process.execPath, [join(here, "shoot.mjs"), "--stale", "--dry"], { cwd: proto, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).split("\n").filter(Boolean);
+    if (stale.length) problems.push(`${stale.length} shot${stale.length === 1 ? " is" : "s are"} older than its page or the kit (node kit/shoot.mjs --stale renders them again): ${stale.slice(0, 5).map((l) => l.split("  <-")[0]).join(", ")}${stale.length > 5 ? ", ..." : ""}`);
 }
 for (const pr of problems) console.log(pr);
 console.log(`${problems.length} problem${problems.length === 1 ? "" : "s"} on ${pages.length} page${pages.length === 1 ? "" : "s"}${tasksMode ? ` and ${taskScreens} task screen${taskScreens === 1 ? "" : "s"}` : ""}; ${seen.size} fixture value${seen.size === 1 ? "" : "s"} bound`);

@@ -14,8 +14,8 @@ Screens seen, in order, as a participant sees them (design notes hidden):
 - `shots/tasks/did-anything-leave/01-frame-at-rest.png` -- the bank transfers sample open
 - `shots/tasks/did-anything-leave/02-start-screen.png` -- the start screen, nothing opened
 - `shots/tasks/did-anything-leave/03-data-location.png` and
-  `shots/r4-priya-leave-data-location-full.png` -- the "Where your data goes" page, top and whole
-- `shots/r4-priya-leave-data-panel.png` and `shots/r4-priya-leave-data-panel-s7.png` -- Data panel,
+  `shots/record/r4-priya-leave-data-location-full.png` -- the "Where your data goes" page, top and whole
+- `shots/record/r4-priya-leave-data-panel.png` and `shots/record/r4-priya-leave-data-panel-s7.png` -- Data panel,
   first load and a month on, with "Sent and saved from this project"
 
 ---

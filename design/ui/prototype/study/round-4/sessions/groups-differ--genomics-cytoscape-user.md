@@ -20,9 +20,9 @@ Renders the participant looked at:
 - `../../../shots/tasks/groups-differ/03-styles-list.png`
 - `../../../shots/tasks/groups-differ/04-inspector-set.png`
 - `../../../shots/tasks/groups-differ/05-table-dock-ranked.png`
-- `../../../shots/r4-maren-groups-inspector-html-group.png` (Community 4, reached with the arrows)
-- `../../../shots/r4-maren-groups-styles-list-html-group-compare.png` (Community 1 compared with the rest)
-- `../../../shots/r4-maren-groups-comparison-html.png` (opened, left)
+- `../../../shots/record/r4-maren-groups-inspector-html-group.png` (Community 4, reached with the arrows)
+- `../../../shots/record/r4-maren-groups-styles-list-html-group-compare.png` (Community 1 compared with the rest)
+- `../../../shots/record/r4-maren-groups-comparison-html.png` (opened, left)
 
 ## Think-aloud
 

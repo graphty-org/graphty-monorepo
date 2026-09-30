@@ -9,10 +9,10 @@ Decide whether you may use this tool on your data, and tell me what you would sa
 
 Screens seen, as a participant sees them (design notes hidden):
 - Start screen: `shots/tasks/data-stays-here/01-start-screen.png`, and at laptop size
-  `shots/dana-r4-dsh-start-laptop.png`
+  `shots/record/dana-r4-dsh-start-laptop.png`
 - A project open (sample data): `shots/tasks/data-stays-here/02-frame-at-rest.png`
-- "Where your data goes" page, full length: `shots/dana-r4-dsh-data-location-full.png`
-- Data panel of a project: `shots/dana-r4-dsh-data-panel2.png`
+- "Where your data goes" page, full length: `shots/record/dana-r4-dsh-data-location-full.png`
+- Data panel of a project: `shots/record/dana-r4-dsh-data-panel2.png`
 
 ---
 

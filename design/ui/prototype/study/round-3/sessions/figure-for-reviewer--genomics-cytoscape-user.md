@@ -2,7 +2,7 @@
 
 Task given by the moderator, and nothing more: "Make the picture show which genes changed most, so a reviewer can read it, even printed in grey."
 
-Screens used: the styles list (`screens/styles-list.html`), then the export dialog (`screens/export-dialog.html`). Renders the participant saw, study view with the design notes hidden: `shots/r3-maren-fig-styles-list.png` and `shots/r3-maren-fig-export-dialog.png`.
+Screens used: the styles list (`screens/styles-list.html`), then the export dialog (`screens/export-dialog.html`). Renders the participant saw, study view with the design notes hidden: `shots/record/r3-maren-fig-styles-list.png` and `shots/record/r3-maren-fig-export-dialog.png`.
 
 Outcome: failure. She reached a fold-change figure with a legend and a methods paragraph, but in the gray version the most down-regulated genes print as the palest dots on the page, lighter than the genes that did not change, and the gene names on the figure are the hubs rather than the genes that changed most. She would not send it to a reviewer. Single Ease Question: 2 of 7.
 

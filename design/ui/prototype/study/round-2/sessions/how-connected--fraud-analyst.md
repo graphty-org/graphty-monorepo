@@ -9,10 +9,10 @@ she decides whether this is demo-ware.
 **Task as given.** "How is this account connected to that one?"
 
 **Screens used.** The inspector page (twelve states) and the Find page (ten states). Renders read:
-`shots/screens__inspector.png`, `shots/r2-flagged-ia--inspector-two.png` (two nodes selected,
-Paths between open), `shots/inspector-path.png` (a found path), `shots/inspector-cap.png` (the
-March transfers file, 7,495 selected), `shots/find--s1a.png` (Find just opened),
-`shots/r2-flagged-ia--find-s10.png` (an account id with no match), `shots/find--s7a.png` (past
+`shots/screens__inspector.png`, `shots/record/r2-flagged-ia--inspector-two.png` (two nodes selected,
+Paths between open), `shots/record/inspector-path.png` (a found path), `shots/record/inspector-cap.png` (the
+March transfers file, 7,495 selected), `shots/record/find--s1a.png` (Find just opened),
+`shots/record/r2-flagged-ia--find-s10.png` (an account id with no match), `shots/record/find--s7a.png` (past
 the drawing limit).
 
 **Note on the mock.** Most inspector states are drawn on a protein network and most Find states

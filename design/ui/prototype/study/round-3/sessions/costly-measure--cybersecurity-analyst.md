@@ -9,19 +9,19 @@ whole citation graph."
 Screens, in the order she met them:
 
 1. `screens/option-form-cost.html#over-budget` -- Betweenness refused, four ways to run it
-   (render: `shots/option-form-cost-over-budget--dark.png`)
+   (render: `shots/record/option-form-cost-over-budget--dark.png`)
 2. `screens/option-form-cost.html#within-budget` -- the sampled estimate running
-   (`shots/option-form-cost-within-budget--dark.png`)
+   (`shots/record/option-form-cost-within-budget--dark.png`)
 3. `screens/option-form-cost.html#sample-over-budget` -- finished on 101 sources, 500 typed in
-   (`shots/option-form-cost-sample-over-budget--dark.png`)
+   (`shots/record/option-form-cost-sample-over-budget--dark.png`)
 4. `screens/results-panel.html#finished-sampled` -- the sampled result with its top nodes and
-   run record (`shots/screens__results-panel-finished-sampled--dark--study.png`)
+   run record (`shots/record/screens__results-panel-finished-sampled--dark--study.png`)
 5. `screens/results-panel.html#in-the-table` -- the results table with "Export table as CSV..."
-   (`shots/screens__results-panel-in-the-table--dark--study.png`; this state is drawn on the
+   (`shots/record/screens__results-panel-in-the-table--dark--study.png`; this state is drawn on the
    protein graph, so she saw the table's shape, not the citation rows)
 6. `screens/past-drawing-limit.html` -- the not-drawn line and the rule builder, reached from
-   "Narrow the graph..." (`shots/past-drawing-limit--not-drawn--dark.png`,
-   `shots/past-drawing-limit--rule--dark.png`)
+   "Narrow the graph..." (`shots/record/past-drawing-limit--not-drawn--dark.png`,
+   `shots/record/past-drawing-limit--rule--dark.png`)
 
 ## Transcript
 

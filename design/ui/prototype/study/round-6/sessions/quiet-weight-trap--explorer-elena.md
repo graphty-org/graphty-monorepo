@@ -14,14 +14,14 @@ The point where the short "first contact" variant would probably have ended is m
 told only that the file is the Les Miserables characters and "who appears with whom".
 
 **Screens seen** (renders, in order):
-- `../../../shots/r6-elena-qwt-01-load.png` -- the open-file window
-- `../../../shots/r6-elena-qwt-02-form.png` -- the graph loaded, Betweenness clicked, its form open
-- `../../../shots/r6-elena-qwt-03-choose.png` -- the "bigger value means" list opened
-- `../../../shots/r6-elena-qwt-04-run-distance-value.png` -- what the other answer produces (shown by the moderator after she ran hers)
-- `../../../shots/r6-elena-qwt-05-out-of-date.png` -- the same run with its answer changed, marked out of date
-- `../../../shots/r6-elena-qwt-06-rerun.png` -- the run with "a closer or stronger link", the one she chose
-- `../../../shots/r6-elena-qwt-07-table-dock.png` -- the table screen, a separate scene of the same sample
-- `../../../shots/r6-elena-qwt-08-catalog-tooltip.png` -- a different sample's measure list, where hovering a name shows a one-line explanation
+- `../../../shots/record/r6-elena-qwt-01-load.png` -- the open-file window
+- `../../../shots/record/r6-elena-qwt-02-form.png` -- the graph loaded, Betweenness clicked, its form open
+- `../../../shots/record/r6-elena-qwt-03-choose.png` -- the "bigger value means" list opened
+- `../../../shots/record/r6-elena-qwt-04-run-distance-value.png` -- what the other answer produces (shown by the moderator after she ran hers)
+- `../../../shots/record/r6-elena-qwt-05-out-of-date.png` -- the same run with its answer changed, marked out of date
+- `../../../shots/record/r6-elena-qwt-06-rerun.png` -- the run with "a closer or stronger link", the one she chose
+- `../../../shots/record/r6-elena-qwt-07-table-dock.png` -- the table screen, a separate scene of the same sample
+- `../../../shots/record/r6-elena-qwt-08-catalog-tooltip.png` -- a different sample's measure list, where hovering a name shows a one-line explanation
 
 ## Think-aloud
 

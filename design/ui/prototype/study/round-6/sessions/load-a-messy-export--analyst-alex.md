@@ -13,17 +13,17 @@ account pair already seen.
 
 Screens seen, in order, as a participant sees them (design notes hidden):
 
-1. `shots/r6-alex-lme-transfers-not-read.png` -- the file as the case system saved it, an .xlsx,
+1. `shots/record/r6-alex-lme-transfers-not-read.png` -- the file as the case system saved it, an .xlsx,
    refused
-2. `shots/r6-alex-lme-transfers-ready.png` -- the same data saved as CSV, the load step with two
+2. `shots/record/r6-alex-lme-transfers-ready.png` -- the same data saved as CSV, the load step with two
    issues
-3. `shots/r6-alex-lme-transfers-amount-policy.png` -- the amount issue's choices opened
-4. `shots/r6-alex-lme-transfers-loaded.png` -- after Load: grey density picture, Statistics, the
+3. `shots/record/r6-alex-lme-transfers-amount-policy.png` -- the amount issue's choices opened
+4. `shots/record/r6-alex-lme-transfers-loaded.png` -- after Load: grey density picture, Statistics, the
    "a higher number means" question open
-5. `shots/r6-alex-lme-frame-transactions.png` -- the same graph at rest, renamed "Transfers, March
+5. `shots/record/r6-alex-lme-frame-transactions.png` -- the same graph at rest, renamed "Transfers, March
    2026"
-6. `shots/r6-alex-lme-data-panel.png` -- the Data panel on the same file
-7. `shots/r6-alex-lme-load-step.png` -- another version of the load step on the same file (shown
+6. `shots/record/r6-alex-lme-data-panel.png` -- the Data panel on the same file
+7. `shots/record/r6-alex-lme-load-step.png` -- another version of the load step on the same file (shown
    for comparison at the end)
 
 ## Think-aloud

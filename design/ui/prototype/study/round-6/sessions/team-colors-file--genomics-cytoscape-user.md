@@ -15,16 +15,16 @@ gene matching step, the fold-change column chosen, the result, and the variant w
 have nothing to read), and the color picker's Libraries tab.
 
 Renders the participant looked at (all 1440 x 900, study view):
-- `../../../shots/r6-maren-teamcolors-dp-s1.png`, `../../../shots/r6-maren-teamcolors-dp-s6.png`
-- `../../../shots/r6-maren-teamcolors-sl-plus-menu.png`, `../../../shots/r6-maren-teamcolors-sl-libraries.png`
-- `../../../shots/r6-maren-teamcolors-rr-s-style-drop.png`
-- `../../../shots/r6-maren-teamcolors-rr-s-bind-style.png`
-- `../../../shots/r6-maren-teamcolors-rr-s-style-applied.png`
-- `../../../shots/r6-maren-teamcolors-rr-s-recipe-pick.png`
-- `../../../shots/r6-maren-teamcolors-rr-s-recipe-applied.png`
-- `../../../shots/r6-maren-teamcolors-ra-start.png`, `../../../shots/r6-maren-teamcolors-ra-binding.png`,
-  `../../../shots/r6-maren-teamcolors-ra-confirmed.png`, `../../../shots/r6-maren-teamcolors-ra-applied.png`,
-  `../../../shots/r6-maren-teamcolors-ra-unbound.png`
+- `../../../shots/record/r6-maren-teamcolors-dp-s1.png`, `../../../shots/record/r6-maren-teamcolors-dp-s6.png`
+- `../../../shots/record/r6-maren-teamcolors-sl-plus-menu.png`, `../../../shots/record/r6-maren-teamcolors-sl-libraries.png`
+- `../../../shots/record/r6-maren-teamcolors-rr-s-style-drop.png`
+- `../../../shots/record/r6-maren-teamcolors-rr-s-bind-style.png`
+- `../../../shots/record/r6-maren-teamcolors-rr-s-style-applied.png`
+- `../../../shots/record/r6-maren-teamcolors-rr-s-recipe-pick.png`
+- `../../../shots/record/r6-maren-teamcolors-rr-s-recipe-applied.png`
+- `../../../shots/record/r6-maren-teamcolors-ra-start.png`, `../../../shots/record/r6-maren-teamcolors-ra-binding.png`,
+  `../../../shots/record/r6-maren-teamcolors-ra-confirmed.png`, `../../../shots/record/r6-maren-teamcolors-ra-applied.png`,
+  `../../../shots/record/r6-maren-teamcolors-ra-unbound.png`
 
 ## Think-aloud
 

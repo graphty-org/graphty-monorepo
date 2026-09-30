@@ -10,15 +10,15 @@ accounts and the most central accounts, and tell me what each answer used."
 Material worked from, as the participant sees it (study view, 1440 x 900, rendered fresh for this
 session):
 
-- the load step on the March transfers file (shots/r4-emma-e2e-ld-clean.png) and a file at rest
-  after Load (shots/r4-emma-e2e-ld-loaded.png)
+- the load step on the March transfers file (shots/record/r4-emma-e2e-ld-clean.png) and a file at rest
+  after Load (shots/record/r4-emma-e2e-ld-loaded.png)
 - the Path tool bar with its scope warning, the found path, and the "what amount means"
-  popover (shots/r4-emma-e2e-sp3.png, -sp4, -sp5), plus the sets-and-paths flow page for what
+  popover (shots/record/r4-emma-e2e-sp3.png, -sp4, -sp5), plus the sets-and-paths flow page for what
   the path form offers
 - the Algorithms menu, a finished Betweenness result, a Louvain result with its run record open
-  (shots/r4-emma-e2e-rp-cat.png, -rp-fin, -rp-lou; screens/results-panel)
-- the node table with ranked result columns (shots/r4-emma-e2e-td-ranked.png, -td-edges) and the
-  run-and-read rank state (shots/r4-emma-e2e-rr-rank.png)
+  (shots/record/r4-emma-e2e-rp-cat.png, -rp-fin, -rp-lou; screens/results-panel)
+- the node table with ranked result columns (shots/record/r4-emma-e2e-td-ranked.png, -td-edges) and the
+  run-and-read rank state (shots/record/r4-emma-e2e-rr-rank.png)
 
 Page HTML was read only to see what a control does when clicked. The centrality screens are drawn
 on a protein network, not the transfers; the only transfers centrality she sees is a PageRank

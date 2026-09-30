@@ -7,8 +7,8 @@ Screen: 14-inch laptop, 1440 x 900.
 
 What she saw, as rendered:
 
-- Export dialog in the Print look: `shots/r3-maren-gray-figure-signed.png`
-- The same dialog before it, on the module-coloured network (Screen look and Print look): `shots/r3-maren-gray-figure.png`, `shots/r3-maren-gray-figure-print.png`
+- Export dialog in the Print look: `shots/record/r3-maren-gray-figure-signed.png`
+- The same dialog before it, on the module-coloured network (Screen look and Print look): `shots/record/r3-maren-gray-figure.png`, `shots/record/r3-maren-gray-figure-print.png`
 - The canvas styling she had set up earlier: `shots/screens__colour-by-value--numbers.png`
 
 ## Transcript (thinking aloud)

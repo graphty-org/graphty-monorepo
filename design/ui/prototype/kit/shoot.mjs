@@ -8,16 +8,19 @@
 //   node kit/shoot.mjs --out my-name.png screens/start.html  (one page, a chosen file name)
 //   node kit/shoot.mjs "screens/frame-at-rest.html?dataset=ppi"   (a query string names the shot: ...-dataset-ppi.png)
 //   node kit/shoot.mjs --study screens/find.html             (as a participant sees it: design notes hidden, ...--study.png)
-//   node kit/shoot.mjs --touch --study screens/undo.html     (an iPad: 768 x 1024, touch, a mobile viewport; ...--768-touch.png)
+//   node kit/shoot.mjs --touch screens/undo.html             (an iPad: 768 x 1024, touch, the participant view with its corner way out; ...--study--768-touch.png)
 //   node kit/shoot.mjs --all --touch --study                 (every page check.mjs --all reads, in one run)
-//   node kit/shoot.mjs --stale [--dry]                       (re-render every PNG older than its page or the kit)
+//   node kit/shoot.mjs --stale [--dry]                       (re-render every PNG older than its page or the kit; move the
+//                                                             ones no page can re-render out of the top of shots/, below)
 //   node kit/shoot.mjs --tasks [task-id ...]                 (every study task's screens, in order, as the participant sees
 //                                                             them: study view, ?task=<id>; shots/tasks/<id>/NN-<page>.png)
 //
 // Every shot is recorded in shots/manifest.json (page, theme, size, study), so --stale can render it
 // again; a PNG with no record is traced from its name, or from the page link around it in the gallery,
 // a storyboard or a flow. A PNG only a study session cites is never re-rendered: it is what a
-// participant saw.
+// participant saw, so --stale moves it to shots/record/ and points the sessions that cite it there.
+// A PNG at the top of shots/ that no page state can render and nothing cites goes to shots/retired/.
+// So every PNG left at the top of shots/ is re-rendered by --stale, and none stays older than its page.
 //
 // Pages are served from a throwaway loopback HTTP server so kit/icons.svg sprite references
 // work exactly as they do at http://dev.ato.ms:9825/. Default viewport 1440 x 900 at scale 1.
@@ -25,7 +28,7 @@
 process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this host without it
 
 import { createServer } from "node:http";
-import { readFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { readFile, mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,7 +51,8 @@ for (let i = 0; i < args.length; i++) {
     else if (a === "--stale") opt.stale = true;
     else if (a === "--dry") opt.dry = true;
     else if (a === "--tasks") opt.tasks = true;
-    else if (a === "--touch") Object.assign(opt, { touch: true, width: 768, height: 1024 });
+    // --touch is the iPad check of the participant view (with its way out in the corner), so it implies --study
+    else if (a === "--touch") Object.assign(opt, { touch: true, study: true, width: 768, height: 1024 });
     else if (a === "--all") opt.all = true;
     else pages.push(a.replace(/^\.?\/?/, ""));
 }
@@ -81,6 +85,7 @@ if (opt.stale && opt.dry) {
     for (const j of jobs) console.log(`${j.name}  <-  ${j.page}${j.o.dark ? " --dark" : ""}${j.o.study ? " --study" : ""}${j.o.full ? " --full" : ""} ${j.o.width}x${j.o.height}${j.why ? `  (${j.why})` : ""}`);
     process.exit(0);
 }
+if (!jobs.length && opt.stale) { console.error("no stale shots"); process.exit(0); }
 if (!jobs.length) {
     console.error("usage: node kit/shoot.mjs [--dark] [--study] [--width N] [--height N] [--full] [--out name.png] page.html ... | --stale [--dry]");
     process.exit(2);
@@ -149,6 +154,7 @@ if (failures.length) process.exitCode = 1;
 
 // --stale: every PNG in shots/ older than the page it shows or the kit it is drawn with.
 async function staleJobs() {
+    const moves = [];
     const kitTime = Math.max(...(await Promise.all(["kit.css", "cm.css", "kit.js", "fixtures.json", "alerts.json"].map((f) => stat(join(here, f)).then((x) => x.mtimeMs)))));
     // Where a PNG without a record came from: the page link wrapped around it on an owner-facing page.
     const linked = new Map();
@@ -193,7 +199,7 @@ async function staleJobs() {
     for (const dir of [".", "storyboards", "flows", "screens", "milestones", "study"]) {
         for (const f of await readdir(join(proto, dir))) {
             if (!/\.(html|md)$/.test(f) || (dir === "study" && f.endsWith(".md"))) continue;
-            for (const m of (await readFile(join(proto, dir, f), "utf8")).matchAll(/shots\/([A-Za-z0-9_./-]+\.png)/g)) referenced.add(m[1]);
+            for (const m of (await readFile(join(proto, dir, f), "utf8")).matchAll(/shots\/([A-Za-z0-9_./#-]+\.png)/g)) referenced.add(m[1]);
         }
     }
     // A PNG a study session cites and no owner-facing page shows is the record of what a participant
@@ -202,17 +208,37 @@ async function staleJobs() {
     for (const round of (await readdir(join(proto, "study"), { withFileTypes: true })).filter((d) => d.isDirectory() && d.name.startsWith("round-"))) {
         const dir = join(proto, "study", round.name, "sessions");
         for (const f of await readdir(dir).catch(() => [])) {
-            for (const m of (await readFile(join(dir, f), "utf8")).matchAll(/shots\/([A-Za-z0-9_./-]+\.png)/g)) if (!referenced.has(m[1])) record.add(m[1]);
+            for (const m of (await readFile(join(dir, f), "utf8")).matchAll(/shots\/([A-Za-z0-9_./#-]+\.png)/g)) if (!referenced.has(m[1])) record.add(m[1]);
         }
     }
     const untraced = [];
     const out = [];
+    // Every text file of the prototype outside shots/ and tmp/, read once: what cites a PNG.
+    let texts = null;
+    const textFiles = async (dir = "") => {
+        const found = [];
+        for (const e of await readdir(join(proto, dir), { withFileTypes: true })) {
+            const rel = dir ? `${dir}/${e.name}` : e.name;
+            if (e.isDirectory()) { if (!["shots", "tmp", "node_modules"].includes(rel)) found.push(...(await textFiles(rel))); }
+            else if (/\.(html|md|mjs|js|json|py)$/.test(e.name) && rel !== "kit/fixtures.json") found.push(rel);
+        }
+        return found;
+    };
+    const citedAnywhere = async (rel) => {
+        texts ??= await Promise.all((await textFiles()).map(async (f) => ({ f, t: await readFile(join(proto, f), "utf8") })));
+        return texts.some(({ t }) => t.includes(`shots/${rel}`) || t.includes(`"${rel}"`));
+    };
     const walk = async (dir) => {
         for (const e of await readdir(join(shotsDir, dir), { withFileTypes: true })) {
             const rel = dir ? `${dir}/${e.name}` : e.name;
-            if (e.isDirectory()) await walk(rel);
+            // shots/tmp/ holds scratch renders (a task's own crops and trials), not gallery shots
+            // shots/record/ and shots/retired/ hold what --stale moved out (below): never rendered again
+            if (e.isDirectory()) { if (!["tmp", "record", "retired"].includes(rel)) await walk(rel); }
             else if (e.name.endsWith(".png")) {
-                if (record.has(rel)) continue;
+                if (record.has(rel)) {
+                    if (!dir) moves.push({ from: rel, to: `record/${rel}` });
+                    continue;
+                }
                 const rec = manifest[rel];
                 let job = rec ? { page: rec.page, o: { ...rec } } : fromName(rel);
                 let why = rec ? "recorded" : job ? "from its name" : null;
@@ -226,6 +252,7 @@ async function staleJobs() {
                 }
                 if (!job) {
                     if (referenced.has(rel)) untraced.push(rel);
+                    else if (!dir && !(await citedAnywhere(rel))) moves.push({ from: rel, to: `retired/${rel}` });
                     continue;
                 }
                 if (!rec && why === "from its name") {
@@ -243,6 +270,22 @@ async function staleJobs() {
         }
     };
     await walk("");
+    if (moves.length) {
+        for (const m of moves) console.error(`${opt.dry ? "would move" : "moved"} shots/${m.from} -> shots/${m.to}`);
+        if (!opt.dry) {
+            await mkdir(join(shotsDir, "record"), { recursive: true });
+            await mkdir(join(shotsDir, "retired"), { recursive: true });
+            for (const m of moves) await rename(join(shotsDir, m.from), join(shotsDir, m.to));
+            // the sessions (and any round file) that cite a record now cite it where it lives
+            const recs = moves.filter((m) => m.to.startsWith("record/"));
+            texts ??= await Promise.all((await textFiles()).map(async (f) => ({ f, t: await readFile(join(proto, f), "utf8") })));
+            for (const { f, t } of texts) {
+                let n = t;
+                for (const m of recs) n = n.split(`shots/${m.from}`).join(`shots/${m.to}`);
+                if (n !== t) await writeFile(join(proto, f), n);
+            }
+        }
+    }
     if (untraced.length) console.error(`not re-rendered, shown on a page but traced to no page state (render them with --out and they are recorded): ${untraced.join(", ")}`);
     return out;
 }

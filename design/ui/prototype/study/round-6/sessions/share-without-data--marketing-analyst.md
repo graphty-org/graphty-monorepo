@@ -6,14 +6,14 @@ setup with a partner, without your data."
 
 Screens used, all rendered as a participant sees them (design notes hidden), at 1440 by 900:
 
-- the project at rest: shots/r6-jordan-swd-export-ways-in.png (screens/export-dialog.html)
-- the project-name menu open: shots/r6-jordan-swd-export-ways-in-menu.png
+- the project at rest: shots/record/r6-jordan-swd-export-ways-in.png (screens/export-dialog.html)
+- the project-name menu open: shots/record/r6-jordan-swd-export-ways-in-menu.png
 - the Export dialog with Recipe checked: shots/tasks/share-without-data/01-export-dialog-recipe.png
-  (same as shots/r6-jordan-swd-export-recipe.png)
-- the project after an export: shots/r6-jordan-swd-export-done.png
-- the Data panel on another project: shots/r6-jordan-swd-data-panel.png (screens/data-panel.html)
+  (same as shots/record/r6-jordan-swd-export-recipe.png)
+- the project after an export: shots/record/r6-jordan-swd-export-done.png
+- the Data panel on another project: shots/record/r6-jordan-swd-data-panel.png (screens/data-panel.html)
 - what the partner meets, shown by the moderator after the task:
-  shots/r6-jordan-swd-recipe-travels.png (storyboards/recipe-travels.html)
+  shots/record/r6-jordan-swd-recipe-travels.png (storyboards/recipe-travels.html)
 
 The mock's project is a lab's protein study (300 proteins, colored by fold change). Jordan was
 asked to pretend it was her creator map.

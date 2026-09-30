@@ -10,12 +10,12 @@ Slack. Clock: curious afternoon (no deadline, tolerates three or four dead ends)
 
 | Step | Page | Picture |
 |---|---|---|
-| 1-3 | Main window, Les Miserables | `shots/r6-elena-restyle-frame-at-rest.png` |
-| 4 | Inspector, a group selected (protein sample) | `shots/r6-elena-restyle-inspector-group.png` |
-| 5 | Inspector, protein sample at rest | `shots/r6-elena-restyle-inspector.png` |
-| 6 | Change a color from the legend (protein sample) | `shots/r6-elena-restyle-colour-by-value-legend.png` |
-| 7 | Categories editor with a value's menu (protein sample) | `shots/r6-elena-restyle-colour-by-value-categories.png` |
-| 8 | Recolor a group on a run's layer (protein sample) | `shots/r6-elena-restyle-colour-by-value-run-colors.png` |
+| 1-3 | Main window, Les Miserables | `shots/record/r6-elena-restyle-frame-at-rest.png` |
+| 4 | Inspector, a group selected (protein sample) | `shots/record/r6-elena-restyle-inspector-group.png` |
+| 5 | Inspector, protein sample at rest | `shots/record/r6-elena-restyle-inspector.png` |
+| 6 | Change a color from the legend (protein sample) | `shots/record/r6-elena-restyle-colour-by-value-legend.png` |
+| 7 | Categories editor with a value's menu (protein sample) | `shots/record/r6-elena-restyle-colour-by-value-categories.png` |
+| 8 | Recolor a group on a run's layer (protein sample) | `shots/record/r6-elena-restyle-colour-by-value-run-colors.png` |
 
 ---
 

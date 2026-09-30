@@ -4,22 +4,77 @@
 The two diagrams are drawn here as inline SVG: each node is placed by its center, each edge is a
 list of points. Numbers come from kit/fixtures.json so the flow agrees with its screen mock.
 """
-import json, os
+import json, os, re
 
 P = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-fx = json.load(open(os.path.join(P, "kit/fixtures.json")))["datasets"]
+FIX = json.load(open(os.path.join(P, "kit/fixtures.json")))
+fx = FIX["datasets"]
+
+
+def val(key):
+    v = FIX
+    for k in key.split("."):
+        v = v[int(k)] if isinstance(v, list) else v[k]
+    return v
+
+
+def fmt(v, digits=None):
+    if digits is not None:
+        return f"{v:,.{digits}f}"
+    return f"{v:,}" if isinstance(v, int) else str(v)
+
+
+def B(key, digits=None, of=None, noun=None):
+    """A number bound to kit/fixtures.json, typed as kit.js's formatter writes it."""
+    text = fmt(val(key), digits)
+    attrs = f' data-fx="{key}"'
+    if digits is not None:
+        attrs += f' data-fx-digits="{digits}"'
+    if of:
+        text += f" of {fmt(val(of), digits)}"
+        attrs += f' data-fx-of="{of}"'
+    if noun:
+        text += " " + (noun.split("|")[0] if val(key) == 1 else noun.split("|")[-1])
+        attrs += f' data-fx-noun="{noun}"'
+    return f"<span{attrs}>{text}</span>"
+
+
+def plain(html):
+    return re.sub(r"<[^>]+>", "", html)
+
+
 cit = fx["citations"]
 cost, samp = cit["betweennessCost"], cit["sampledBetweenness"]
-K, CAP, SEED = samp["k"], cost["budgetSeconds"], samp["seed"]
-CN = f'{cit["nodes"]:,}'
+K = B("datasets.citations.sampledBetweenness.k")
+SEED = B("datasets.citations.sampledBetweenness.seed")
+CAP = B("datasets.citations.betweennessCost.budgetSeconds")
+CN = B("datasets.citations.nodes")
 ppi, tx = fx["ppi"], fx["transactions"]
-PN = ppi["nodes"]
-COMP = ppi["stats"]["components"]
-TP53R = ppi["inspector"]["tp53"]["betweennessRank"]["from"]
-TXN, TXE = f'{tx["nodes"]:,}', f'{tx["edges"]:,}'
-AMAX = f'{tx["setsAndPaths"]["path"]["amountRange"][1]:,.2f}'
+PN = B("datasets.ppi.nodes")
+COMP = B("datasets.ppi.stats.components")
+TP53R = B("datasets.ppi.inspector.tp53.betweennessRank.from")
+TXN, TXE = B("datasets.transactions.nodes"), B("datasets.transactions.edges")
+AMAX = B("datasets.transactions.setsAndPaths.path.amountRange.1", digits=2)
+NOAMT = json.load(open(os.path.join(P, "kit/fixtures.json")))["scenarios"]["runAndReadMoney"]["transfersWithNoAmount"]
+EV = ppi["evidence"]
+# The one fixture with blank weights: the protein evidence file, one row per pair and source.
+EVNA = (f'<span data-fx="datasets.ppi.evidence.naCount" data-fx-of="datasets.ppi.evidence.rows" '
+        f'data-fx-noun="evidence row|evidence rows">{EV["naCount"]:,} of {EV["rows"]:,} evidence rows</span>')
+TXALL = B("datasets.transactions.edges", noun="transfers")
+BLANK_LINE = f"&quot;Weight: confidence, used as similarity. {EVNA} have no confidence. They are left out of weighted paths.&quot;"
+# A transfer export that came with blank amounts (modeled: the generated months have none).
+BA = json.load(open(os.path.join(P, "kit/fixtures.json")))["scenarios"]["blankAmounts"]
+BA_COUNT = (f'<span data-fx="scenarios.blankAmounts.noAmount" data-fx-of="scenarios.blankAmounts.transfers" '
+            f'data-fx-noun="transfers">{BA["noAmount"]:,} of {BA["transfers"]:,} transfers</span>')
+BLANK_TX = (f'&quot;Weight: {BA["column"]}, used as {BA["meaning"]}. {BA_COUNT} have no amount. '
+            f'They are left out of weighted paths.&quot;')
+MARCH_BLANKS = (f"All {TXALL} in March have an amount, so their state line is the first sentence alone"
+                if NOAMT == 0 else
+                f'&quot;{B("scenarios.runAndReadMoney.transfersWithNoAmount", of="datasets.transactions.edges", noun="transfers")} have no amount. They are left out of weighted paths.&quot;')
 L = fx["ppi"]["louvain"]
-LC, LS = L["communities"] - L["singletons"], L["singletons"]
+LC, LS = B("scenarios.onScreen.ppiLouvain.groups"), B("datasets.ppi.louvain.singletons")
+LSEED, LRES = B("datasets.ppi.louvain.seed"), B("datasets.ppi.louvain.resolution")
+LMOD, LMODF = B("datasets.ppi.louvain.modularity"), B("datasets.ppi.louvain.modularityOfFileModules")
 S = "../screens/run-and-read.html"
 OFC = "../screens/option-form-cost.html"
 RP = "../screens/results-panel.html"
@@ -29,24 +84,19 @@ RP = "../screens/results-panel.html"
 # degree, which hold every node that could reach PageRank's top 5 on this graph).
 NEAR = 0.01  # the stated near-tie line: two values less than 1% apart
 TOP = ppi["topByBetweenness"]
-TN = len(TOP)
-gaps = [((a["betweenness"] - b["betweenness"]) / a["betweenness"], i) for i, (a, b) in enumerate(zip(TOP, TOP[1:]))]
-g, gi = min(gaps)
-NEAR_TIES = [i for gap, i in gaps if gap < NEAR]
-CLOSE = f'#{gi + 1} {TOP[gi]["id"]} and #{gi + 2} {TOP[gi + 1]["id"]}, {g * 100:.1f}% apart'
-pool = {r["id"]: r for r in TOP + ppi["topByDegree"]}
-by_pr = [r["id"] for r in sorted(pool.values(), key=lambda r: -r["pagerank"])]
-AGREE = 0
-while AGREE < TN and by_pr[AGREE] == TOP[AGREE]["id"]:
-    AGREE += 1
+HS = FIX["scenarios"]["onScreen"]["ppiHowSure"]  # screens/counts-numbers.mjs
+CR = HS["closestRank"]
+CLOSE = (f'#{CR} {TOP[CR - 1]["id"]} and #{CR + 1} {TOP[CR]["id"]}, '
+         f'{B("scenarios.onScreen.ppiHowSure.closestGapPercent")}% apart')
 SURE = (
-    f"Top {TN} of {PN}: " + (f"{len(NEAR_TIES)} pairs are near-ties (less than {NEAR:.0%} apart)" if NEAR_TIES else f"no two are less than {NEAR:.0%} apart; the closest are {CLOSE}")
-    + (f". Betweenness and PageRank agree on the top {AGREE}, in the same order." if AGREE >= 2 else ". Betweenness and PageRank disagree on the top.")
+    f'Top <span data-fx-param>{HS["shown"]}</span> of {PN}: '
+    + (f"no two are less than {NEAR:.0%} apart; the closest are {CLOSE}" if HS["closestGapPercent"] >= NEAR * 100 else f"the closest are {CLOSE}")
+    + (f'. Betweenness and PageRank agree on the top {B("scenarios.onScreen.ppiHowSure.agreeTop")}, in the same order.' if HS["agreeTop"] >= 2 else ". Betweenness and PageRank disagree on the top.")
 )
 
 
 # ---------- drawing ----------
-def box(shape, cx, cy, w, h, title, sub="", href=None, gap=False):
+def box(shape, cx, cy, w, h, title, sub="", href=None, gap=False, label=None):
     x0, y0, x1, y1 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
     g = " f-gap" if gap else ""
     if shape == "place":
@@ -64,7 +114,7 @@ def box(shape, cx, cy, w, h, title, sub="", href=None, gap=False):
         f'<foreignObject x="{x0 + inset}" y="{y0}" width="{w - 2 * inset}" height="{h}"><div xmlns="http://www.w3.org/1999/xhtml" class="f-t">'
         f'<b>{title}</b>{f"<span class=f-u>{sub}</span>" if sub else ""}</div></foreignObject>'
     )
-    label = title.replace("&quot;", "")
+    label = label or plain(title).replace("&quot;", "")
     if href:
         return f'<a href="{href}" aria-label="{label}">{el}{text}</a>'
     return f"<g>{el}{text}</g>"
@@ -202,7 +252,7 @@ WEIGHT = svg(1100, 760, "The first weighted run and changing the answer: PageRan
     box("check", 620, 430, 440, 64, "State line, read from the run record", "&quot;Weight: amount, used as capacity.&quot; and, when some are blank, how many transfers have no amount", f"{RP}#finished"),
     box("ask", 620, 560, 220, 100, "Right meaning?"),
     box("place", 620, 690, 300, 52, "Read: Top nodes and how sure", "", f"{S}#done"),
-    box("overlay", 200, 560, 290, 70, "Re-run with another meaning...", "the meaning question for amount, on a new run", f"{OFC}#weight-meaning"),
+    box("overlay", 200, 560, 290, 70, "Re-run with another meaning...", "the meaning question for amount, on a new run", f"{OFC}#weight-meaning", label="Re-run with another meaning... the meaning question for amount"),
     box("commit", 200, 690, 320, 64, "Run again with the new answer", "one undo step: &quot;Run 2 finished. Run 1 is kept.&quot;", f"{RP}#outofdate"),
 ], "dg-weight")
 
@@ -217,9 +267,9 @@ GROUPS = svg(1100, 600, "Communities: run Louvain on the proteins, read the coun
     edge([(180, 366), (180, 160), (330, 160)]),
     edge([(670, 510), (820, 510)], "yes", (730, 502)),
     box("overlay", 180, 50, 280, 56, "Catalog or Quick actions: Louvain", f"Dr. Chen, on {PN} proteins", f"{S}#catalog"),
-    box("commit", 560, 50, 300, 56, "Run Louvain", f"{L['weight']} (project answer), seed {L['seed']}; one undo step", f"{RP}#louvain"),
-    box("check", 560, 160, 460, 64, "State line, read from the run record", f"&quot;Weight: {L['weight']}, used as {L['weightRead']}.&quot;; resolution {L['resolution']}; seed {L['seed']}", f"{RP}#louvain"),
-    box("check", 560, 275, 460, 64, f"{LC} communities and {LS} unconnected nodes", f"modularity {L['modularity']}, read in plain words beside it", f"{RP}#louvain"),
+    box("commit", 560, 50, 300, 56, "Run Louvain", f"{L['weight']} (project answer), seed {LSEED}; one undo step", f"{RP}#louvain"),
+    box("check", 560, 160, 460, 64, "State line, read from the run record", f"&quot;Weight: {L['weight']}, used as {L['weightRead']}.&quot;; resolution {LRES}; seed {LSEED}", f"{RP}#louvain"),
+    box("check", 560, 275, 460, 64, f"{LC} communities and {LS} unconnected nodes", f"modularity {LMOD}, read in plain words beside it", f"{RP}#louvain"),
     box("place", 560, 390, 460, 64, "Top groups", "size; hub: the member with the most links inside the group; the file's module most members carry", f"{RP}#louvain-table"),
     box("ask", 560, 510, 220, 100, "Right resolution?"),
     box("overlay", 180, 510, 280, 64, "Parameters: resolution", "a held edit; its band on the Run line", f"{RP}#louvain"),
@@ -278,14 +328,36 @@ def shots():
             href = sid if "/" in sid else f"{S}#{sid}"
             out += (
                 f'<figure class="k-frame"><a href="{href}" class="f-shot-link"><div class="k-frame-shot" style="--k-scale:0.2361">'
-                f'<iframe class="k-frame-live" src="{href}" title="{cap}" loading="lazy" tabindex="-1"></iframe></div></a><figcaption>{cap}</figcaption></figure>'
+                f'<iframe class="k-frame-live" src="{href}" title="{plain(cap)}" loading="lazy" tabindex="-1"></iframe></div></a><figcaption>{cap}</figcaption></figure>'
             )
         out += "</div>"
     return out
 
 
 MISS = '<span class="f-miss">missing</span>'
+
+
+def result(icon, name, line, cap, rerun=True):
+    link = '<a class="k-link">Re-run with another meaning...</a>' if rerun else ""
+    return (f'<figure><div class="f-result" data-kit-frame><div class="f-rhead"><svg class="k-i"><use href="../kit/icons.svg#{icon}"/></svg>'
+            f'<span class="k-strong">{name}</span><span class="k-secondary">Finished</span></div>'
+            f'<div class="f-rline k-fact">{line}{link}</div></div><figcaption>{cap}</figcaption></figure>')
+
+
+MARCH_LINE = (f"Weight: {BA['column']}, used as {BA['meaning']}." if NOAMT == 0 else
+              f"Weight: {BA['column']}, used as {BA['meaning']}. {B('scenarios.runAndReadMoney.transfersWithNoAmount', of='datasets.transactions.edges', noun='transfers')} have no amount. They are left out of weighted paths.")
+STATE_LINES = '<div class="f-results">' + "".join([
+    result("sigma", "PageRank", f"Weight: {BA['column']}, used as {BA['meaning']}. {BA_COUNT} have no amount. They are left out of weighted paths.",
+           "A transfer export with some amounts left empty: PageRank weighted by amount."),
+    result("sigma", "PageRank", "Weight: none for this run.", "The same export, run with &quot;None for this run&quot;.", rerun=False),
+    result("sigma", "PageRank", MARCH_LINE, f"March's {TXALL}: every one has an amount, so the line is the first sentence alone."
+           if NOAMT == 0 else f"March's {TXALL}, weighted by amount."),
+    result("group", "Louvain", f"Weight: {L['weight']}, used as {L['weightRead']}.", f"The {PN} proteins, Louvain weighted by {L['weight']}."),
+]) + "</div>"
 STEPS = [
+    ("usage data", "the first-use prompt, before any project; after that, Preferences", "Share usage data, or Not now",
+     "Asked once, at first use, in the owner's words (above, Usage data). Nothing is chosen for the person: closing the prompt or Not now leaves it off. This flow starts with the choice already made and never asks again mid-task.",
+     "none: a preference, not an edit to the project", "what is sent, and that graph content never is, said before the choice", "App", "--"),
     ("choose", "Results, Catalog; or Quick actions", "a Catalog row; Enter on a Quick actions row",
      "Hover and keyboard focus show the description and, past 10 s, the band word. One click adds the result and runs it, focused in In this project. A result that already exists and is current is opened, not re-run.",
      "&quot;Run Betweenness&quot;", "the band before running", "Element, surfaced by the app",
@@ -313,7 +385,7 @@ STEPS = [
      "Failed, with the element's sentence and code; the run before is kept and marked. A GPU failure names the path Re-run will take. Never finished quietly on the CPU.",
      "&quot;Re-run Betweenness (sampled)&quot;", "the cause; which values show", "Element, surfaced", "the error's class and verb as data; the GPU policy"),
     ("state line", "the result row's second line; the editor's first line", "Re-run with another meaning... (the weight)",
-     "Read from the run record, never composed by the app: the weight (&quot;Weight: amount, used as capacity.&quot;, &quot;Weight: none for this run&quot;), the scope with counts, exact or estimated, edge reading and engine; the variant word in the name. When some edges have no value in the weight column, a second sentence counts them: &quot;{N} of {M} transfers have no amount. They are left out of weighted paths.&quot;",
+     f"Read from the run record, never composed by the app: the weight (&quot;Weight: amount, used as capacity.&quot;, &quot;Weight: none for this run&quot;), the scope with counts, exact or estimated, edge reading and engine; the variant word in the name. When some edges have no value in the weight column, a second sentence counts them, as on a transfer export with empty amounts: {BLANK_TX} {MARCH_BLANKS}. The protein evidence file, loaded one row per source, has blanks, and a run weighted by confidence there reads {BLANK_LINE}",
      "none", "which weight, read which way, over which scope", "Element, surfaced", f"the weight the run read and its meaning, in the run record {MISS}; the count of edges with no value {MISS}"),
     ("read", "the result editor; the Nodes table", "--",
      f"Top nodes first, then how sure, then the distribution (middle, highest and zeros). How sure covers the rows shown and states its line: &quot;{SURE}&quot; The table says the same for the rows it shows. &quot;N more&quot; opens the table sorted by this column. An estimate carries ~ at every value, and its ranks carry their range.",
@@ -354,7 +426,7 @@ GROUP_STEPS = [
      f"&quot;{LC} communities and {LS} unconnected nodes&quot;: a node with no link is not counted as a community of its own.",
      "none", "the headline counts only real groups", "Element, surfaced", f"the unconnected count beside the community count {MISS}"),
     ("modularity", "beside the count", "--",
-     f"modularity {L['modularity']}, then in words: &quot;Far more links fall inside these communities than chance would put there; 0 would mean no more than chance.&quot; The file's own modules score {L['modularityOfFileModules']} on the same scale, named as that.",
+     f"modularity {LMOD}, then in words: &quot;Far more links fall inside these communities than chance would put there; 0 would mean no more than chance.&quot; The file's own modules score {LMODF} on the same scale, named as that.",
      "none", "a number read in words", "Element, surfaced", "the value exists; its reading as a published message is proposed"),
     ("groups", "Top groups; the table's tab for this result", "a group",
      "Size, edges inside and out, the hub, and the file's module most members carry. The hub is the member with the most links inside the group, never an outsider with many links elsewhere.",
@@ -420,17 +492,25 @@ HTML = f"""<!doctype html>
   .k-board {{ grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }}
   .f-lbl-link {{ fill: var(--cm-text-brand); stroke: none; text-decoration: underline; }}
   .f-meanings {{ max-width: 900px; }}
+  .f-results {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(241px, 1fr)); gap: 16px; margin: 8px 0 16px; max-width: 1100px; }}
+  .f-results figure {{ margin: 0; }}
+  .f-results figcaption {{ margin-top: 6px; font-size: 12px; line-height: 17px; color: var(--cm-text-secondary); }}
+  .f-result {{ width: 241px; box-sizing: border-box; padding: 8px 8px 8px 16px; background: var(--cm-bg); border: 1px solid var(--cm-border); border-radius: 4px; font-size: 11px; line-height: 16px; color: var(--cm-text); }}
+  .f-rhead {{ display: flex; align-items: center; gap: 6px; height: 24px; }}
+  .f-rline {{ margin-top: 4px; }}
+  .f-rline .k-link {{ display: block; margin-top: 2px; white-space: nowrap; }}
 </style>
 </head>
 <body>
 <div class="k-doc">
   <p><a href="../index.html">Gallery</a></p>
   <h1>Run a measure and read it</h1>
-  <p class="k-lede">An analyst picks a measure, sees what it will cost before it runs, waits or cancels, and then reads the answer: the top nodes and how sure they are, the whole distribution, and where one node ranks. Shown on two real sizes: <span data-fx="datasets.ppi.nodes">{PN}</span> human proteins, where betweenness finishes at once, and {CN} patents, where the exact run would take hours and the analyst chooses an estimate by name. Two branches follow: the first run that reads a weight column, on {TXN} bank accounts, and communities on the proteins. Making the picture readable is a side branch that starts from rest.</p>
+  <p class="k-lede">An analyst picks a measure, sees what it will cost before it runs, waits or cancels, and then reads the answer: the top nodes and how sure they are, the whole distribution, and where one node ranks. Shown on two real sizes: {PN} human proteins, where betweenness finishes at once, and {CN} patents, where the exact run would take hours and the analyst chooses an estimate by name. Two branches follow: the first run that reads a weight column, on {TXN} bank accounts, and communities on the proteins. Making the picture readable is a side branch that starts from rest.</p>
 
   <dl class="f-facts">
     <dt>Who</dt><dd><a href="../study/personas/bioinformatics-researcher.md">Dr. Chen</a>, a computational biologist ranking bottleneck proteins in {PN} human proteins and grouping them into communities; <a href="../study/personas/expert-emma.md">Emma</a>, a network scientist, on a {CN}-patent citation network too large to draw; <a href="../study/personas/fraud-analyst.md">Sarah</a>, a fraud investigator, weighting March's {TXE} transfers by amount.</dd>
     <dt>Starts</dt><dd>At rest: the graph's inspector, nothing selected.</dd>
+    <dt>Usage data</dt><dd>Already chosen before this flow: the app asked once, at first use, with &quot;Your data is yours, but please help us. We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.&quot; It is off unless the person said yes, and can be changed in Preferences. When it is on, this flow sends only the anonymous events &quot;measure run&quot; and &quot;result read&quot;, with their timings, plus errors and performance. No node name, value, label, result or file content is ever sent: in a session replay every one is masked.</dd>
     <dt>Scale</dt><dd>The same route at every size; only the cost checks' answers change. Under 10 s nothing shows before the run. Past 10 s a band word shows: a rough duration such as &quot;under a minute&quot; or &quot;hours&quot;. Past the cost gate's cap ({CAP} s by default, a default the owner has not settled) the result arrives refused, with its routes.</dd>
     <dt>Claim at the end</dt><dd>&quot;These are the top nodes by betweenness, on this scope, with this weight read this way, with these options, computed exactly (or estimated from {K} sources, seed {SEED}), and this is how close the nearest ranks are.&quot;</dd>
     <dt>Record</dt><dd>One undo step per run (&quot;Run Betweenness&quot;, &quot;Run Betweenness (sampled)&quot;), and the run's record with every resolved option, the scope with its counts, the seed and the engine. Cancel leaves no undo step.</dd>
@@ -446,8 +526,11 @@ HTML = f"""<!doctype html>
   {MAIN}
 
   <h2 id="weighted">Branch: the first weighted run, and changing the answer</h2>
-  <p>Sarah runs PageRank on the March transfers and chooses amount in Weight by. A weight column has no meaning until someone says what a higher number means, and that answer belongs to the project, not to one run: it is asked the first time a run reads the column, and every later run and every Path reads the same answer. The run form's Weight by keeps &quot;None for this run&quot; for a single unweighted run. Every one of the <span data-fx="datasets.transactions.edges">{TXE}</span> March transfers has an amount, so the line counting transfers with no amount does not show here.</p>
+  <p>Sarah runs PageRank on the March transfers and chooses amount in Weight by. A weight column has no meaning until someone says what a higher number means, and that answer belongs to the project, not to one run: it is asked the first time a run reads the column, and every later run and every Path reads the same answer. The run form's Weight by keeps &quot;None for this run&quot; for a single unweighted run. Every result's state line names the weight its run used, read from the run record: &quot;Weight: amount, used as capacity.&quot; or &quot;Weight: none for this run&quot;. When some edges have no value in the weight column, a second sentence counts them. On a transfer export that came with some amounts left empty, the state line of every result weighted by amount reads {BLANK_TX} {MARCH_BLANKS}. The same rule holds outside money: on the protein evidence file, loaded one row per source, a run weighted by confidence reads {BLANK_LINE}</p>
   {WEIGHT}
+  <h3 id="state-lines">The state line, as each result shows it</h3>
+  <p>Read from the run record, never composed by the app: the weight comes first, and a second sentence counts the edges it left out when some have no value.</p>
+  {STATE_LINES}
   <h3>The four answers, and what each does to PageRank</h3>
   <p>The question reads &quot;For amount, a higher number means...&quot;. Each answer shows the column's words first, the technical term second, and one line on what it does to the measure being run. The lines are written per measure; these are PageRank's.</p>
   {meanings()}

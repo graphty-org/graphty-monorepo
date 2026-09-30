@@ -1,0 +1,214 @@
+{
+ "note": "written by screens/structure-b/drawings.mjs from kit/fixtures.json and the protein drawing; not in fixtures.json",
+ "pagerank": {
+  "min": 0.000503,
+  "max": 0.0118,
+  "sizePx": [
+   3,
+   11
+  ],
+  "minId": "GSK3B"
+ },
+ "hubs": {
+  "count": 12,
+  "ids": [
+   "MAPK1",
+   "TP53",
+   "CDK1",
+   "YWHAZ",
+   "AKT1",
+   "MYC",
+   "UBC",
+   "UBB",
+   "HSP90AA1",
+   "EP300",
+   "RPL28",
+   "RPS8"
+  ],
+  "byCommunity": {
+   "1": [
+    "AKT1",
+    "HSP90AA1",
+    "RPL28",
+    "RPS8"
+   ],
+   "2": [
+    "UBC"
+   ],
+   "3": [
+    "MYC"
+   ],
+   "4": [
+    "UBB"
+   ],
+   "5": [
+    "MAPK1"
+   ],
+   "6": [
+    "YWHAZ",
+    "EP300"
+   ],
+   "7": [
+    "CDK1"
+   ],
+   "8": [
+    "TP53"
+   ]
+  },
+  "communitiesTouched": 8
+ },
+ "community8": {
+  "members": 29,
+  "byDegree": [
+   {
+    "id": "TP53",
+    "degree": 32,
+    "pagerank": 0.0114
+   },
+   {
+    "id": "BRCA1",
+    "degree": 13,
+    "pagerank": 0.00489
+   },
+   {
+    "id": "WRN",
+    "degree": 13,
+    "pagerank": 0.00502
+   },
+   {
+    "id": "FANCD2",
+    "degree": 12,
+    "pagerank": 0.0047
+   },
+   {
+    "id": "PCNA",
+    "degree": 12,
+    "pagerank": 0.00465
+   },
+   {
+    "id": "RPA2",
+    "degree": 11,
+    "pagerank": 0.00428
+   },
+   {
+    "id": "ATR",
+    "degree": 10,
+    "pagerank": 0.00395
+   },
+   {
+    "id": "RAD50",
+    "degree": 10,
+    "pagerank": 0.00403
+   },
+   {
+    "id": "XRCC5",
+    "degree": 9,
+    "pagerank": 0.00366
+   },
+   {
+    "id": "ATM",
+    "degree": 8,
+    "pagerank": 0.00322
+   },
+   {
+    "id": "CHEK1",
+    "degree": 8,
+    "pagerank": 0.00332
+   },
+   {
+    "id": "MLH1",
+    "degree": 8,
+    "pagerank": 0.00327
+   },
+   {
+    "id": "MSH2",
+    "degree": 8,
+    "pagerank": 0.00333
+   },
+   {
+    "id": "CHEK2",
+    "degree": 7,
+    "pagerank": 0.00301
+   },
+   {
+    "id": "XRCC1",
+    "degree": 7,
+    "pagerank": 0.00284
+   },
+   {
+    "id": "BLM",
+    "degree": 7,
+    "pagerank": 0.00286
+   },
+   {
+    "id": "53BP1",
+    "degree": 7,
+    "pagerank": 0.00289
+   },
+   {
+    "id": "RPA1",
+    "degree": 7,
+    "pagerank": 0.00294
+   },
+   {
+    "id": "MDM2",
+    "degree": 6,
+    "pagerank": 0.00249
+   },
+   {
+    "id": "NBN",
+    "degree": 6,
+    "pagerank": 0.00261
+   },
+   {
+    "id": "XRCC6",
+    "degree": 6,
+    "pagerank": 0.00253
+   },
+   {
+    "id": "PARP1",
+    "degree": 6,
+    "pagerank": 0.00259
+   },
+   {
+    "id": "H2AX",
+    "degree": 6,
+    "pagerank": 0.00257
+   },
+   {
+    "id": "BRCA2",
+    "degree": 5,
+    "pagerank": 0.00221
+   },
+   {
+    "id": "RAD51",
+    "degree": 5,
+    "pagerank": 0.0022
+   },
+   {
+    "id": "MRE11",
+    "degree": 5,
+    "pagerank": 0.00214
+   },
+   {
+    "id": "PALB2",
+    "degree": 5,
+    "pagerank": 0.00214
+   },
+   {
+    "id": "MDC1",
+    "degree": 5,
+    "pagerank": 0.00218
+   },
+   {
+    "id": "LIG4",
+    "degree": 5,
+    "pagerank": 0.00222
+   }
+  ]
+ },
+ "singletons": [
+  "GSK3B",
+  "NOTCH1"
+ ]
+}

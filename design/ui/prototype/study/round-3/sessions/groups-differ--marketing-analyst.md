@@ -10,13 +10,13 @@ biggest one different?"
 **Screens, in order (study view, 1440 by 900):**
 
 1. The results panel with a finished Louvain run on a 300-protein interaction network, the run
-   record open over the map (`shots/r3-jordan-groups-1.png`).
+   record open over the map (`shots/record/r3-jordan-groups-1.png`).
 2. The same panel after she clicked "Communities table" (the moderator stepped the mock), with the
-   communities table docked under the map (`shots/r3-jordan-groups-2.png`).
-3. The styles list, first as it opens (`shots/r3-jordan-groups-3.png`), then the moderator showed
+   communities table docked under the map (`shots/record/r3-jordan-groups-2.png`).
+3. The styles list, first as it opens (`shots/record/r3-jordan-groups-3.png`), then the moderator showed
    the "comparing a group with the rest" state after she asked how to look at one group
-   (`shots/screens__styles-list-group-compare--study.png`).
-4. The inspector with a set selected (`shots/r3-jordan-groups-4.png`).
+   (`shots/record/screens__styles-list-group-compare--study.png`).
+4. The inspector with a set selected (`shots/record/r3-jordan-groups-4.png`).
 
 **Outcome:** finished with difficulty. Her answer: "Ten groups, but really eight -- two of them are
 one protein on its own. The biggest is Community 1, 62 of them, and it's basically the ribosome

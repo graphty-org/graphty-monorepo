@@ -9,9 +9,9 @@ user since 0.8, checks every number against NetworkX).
 PageRank-against-betweenness view, the March-against-April view, and the small panels under them,
 including the Compare with... picker, the computing state, About Spearman and the run record),
 and the table with its column menu (`screens/table-dock.html#large`).
-**Renders read (study view, design notes hidden):** `shots/r6-mara-agree-rp-compare-with.png`,
-`shots/r6-mara-agree-rp-finished.png`, `shots/r6-mara-agree-comparison.png`,
-`shots/r6-mara-agree-table-large.png`.
+**Renders read (study view, design notes hidden):** `shots/record/r6-mara-agree-rp-compare-with.png`,
+`shots/record/r6-mara-agree-rp-finished.png`, `shots/record/r6-mara-agree-comparison.png`,
+`shots/record/r6-mara-agree-table-large.png`.
 **Earlier result on this task:** 5.5 of 7 on average in the third round; she gave it 5.
 
 **Outcome:** finished, with minor difficulty. Correct answer -- no, they do not agree on who

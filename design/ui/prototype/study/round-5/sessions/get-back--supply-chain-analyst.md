@@ -31,7 +31,7 @@ caught it.
 > selected and now I don't. That must be it. The rows are still here, which is nice, they didn't
 > vanish on me. But I didn't read that line first. First I did what I do in everything.
 
-**Step 1: Ctrl+Z** (shots/r4-dana-getback-b1-undo1.png)
+**Step 1: Ctrl+Z** (shots/record/r4-dana-getback-b1-undo1.png)
 
 > Ctrl+Z. Reflex. ... Whoa. A whole blue cluster just showed up at the bottom. Marius, Gavroche,
 > Enjolras. The count up top went from 27 to "40 of 77 nodes, 2 of 3 steps". My table numbers
@@ -48,7 +48,7 @@ caught it.
 > selection disappearing. This skipped over it. I don't like that. If I was on a call and pressed
 > it twice I'd have made a mess and not known where.
 
-**Step 2 (what she did not do, but checked): a second Ctrl+Z** (shots/r4-dana-getback-b2-undo2.png)
+**Step 2 (what she did not do, but checked): a second Ctrl+Z** (shots/record/r4-dana-getback-b2-undo2.png)
 
 > Moderator asked me what I'd have done if I hadn't read the bar. Honestly -- press it again,
 > "it'll get there eventually". Let me see what that does.
@@ -60,7 +60,7 @@ caught it.
 >
 > "Show in steps." Fine, click.
 
-**The steps list** (shots/r4-dana-getback-b3-show-in-steps.png)
+**The steps list** (shots/record/r4-dana-getback-b3-show-in-steps.png)
 
 > This I like. It's a list. "Filter to degree >= 2 -- took out 17, 60 left." That's a line I can
 > read. Two rows unticked, grey, "off, takes nothing out." So undo didn't delete my filters, it
@@ -74,7 +74,7 @@ caught it.
 
 (Moderator reset to the opening state; Dana redid the path the way she says she really would.)
 
-**Step 3: Ctrl+Z, read the bar, Ctrl+Y** (shots/r4-dana-getback-f1-redo.png)
+**Step 3: Ctrl+Z, read the bar, Ctrl+Y** (shots/record/r4-dana-getback-f1-redo.png)
 
 > Ctrl+Z. Blue cluster appears. Bar: "Undone: Filter out group 8." No -- don't want that.
 > Ctrl+Y. That's redo in Excel. ... It worked. "Redone: Filter out group 8." Back to "27 of 77
@@ -83,7 +83,7 @@ caught it.
 >
 > Still no selection though.
 
-**Step 4: the table line** (shots/r4-dana-getback-f2-redo-prev.png)
+**Step 4: the table line** (shots/record/r4-dana-getback-f2-redo-prev.png)
 
 > Back to the line over the table. "Selected: none, showing the previous selection." And next to
 > it, "Previous selection". That's a button? It looks like text. I'll click it.
@@ -94,7 +94,7 @@ caught it.
 > If I'd read that line first I'd have been done in one click. The fix was sitting right there.
 > The problem is my hand goes to Ctrl+Z before my eyes go to the table.
 
-**Step 5: looking for an Edit menu** (shots/r4-dana-getback-d1-menu.png, d2-history.png)
+**Step 5: looking for an Edit menu** (shots/record/r4-dana-getback-d1-menu.png, d2-history.png)
 
 > Where's Edit? There's no menu bar. The three lines top left -- that's a menu in every phone
 > app, so OK, I'll click it. File, Edit, View ... Edit: "Undo Filter out group 8, Ctrl+Z". So
@@ -107,7 +107,7 @@ caught it.
 > what happened to me. It's a history of filters. I'd call that "filter history".
 
 **The filter chip** (shots/tasks/get-back/02-filter-chip.png) and the flow page
-(shots/r4-dana-getback-flow.png)
+(shots/record/r4-dana-getback-flow.png)
 
 > The chip up top, "27 of 77 characters, 3 steps", opens the same list. Took out 17, took out 20,
 > took out 13, 27 left. That's actually a decent audit trail -- I could screenshot that for a VP:

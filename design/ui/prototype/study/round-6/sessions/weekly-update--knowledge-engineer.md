@@ -17,10 +17,10 @@ its binding step and replay report (screens/replace-and-recipe.html), and the co
 (screens/comparison.html). HTML was read only to see what a control does, and to check which
 screen shows which count.
 
-Renders, all in the participant view: shots/r6-minji-wu-weekly-return.png,
-shots/r6-minji-wu-version-history.png, shots/r6-minji-wu-vh-s1.png to shots/r6-minji-wu-vh-s6.png,
-shots/r6-minji-wu-data-panel.png, shots/r6-minji-wu-dp-s1.png to shots/r6-minji-wu-dp-s8.png,
-shots/r6-minji-wu-replace-and-recipe.png, shots/r6-minji-wu-comparison.png.
+Renders, all in the participant view: shots/record/r6-minji-wu-weekly-return.png,
+shots/record/r6-minji-wu-version-history.png, shots/record/r6-minji-wu-vh-s1.png to shots/record/r6-minji-wu-vh-s6.png,
+shots/record/r6-minji-wu-data-panel.png, shots/record/r6-minji-wu-dp-s1.png to shots/record/r6-minji-wu-dp-s8.png,
+shots/record/r6-minji-wu-replace-and-recipe.png, shots/record/r6-minji-wu-comparison.png.
 
 ## Think-aloud
 

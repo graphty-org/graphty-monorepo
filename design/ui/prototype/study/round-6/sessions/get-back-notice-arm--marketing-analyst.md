@@ -20,12 +20,12 @@ of Valjean and the 17 characters beside him. The target end state is 47 of 77 no
 (degree 5 off, group 8 still out), with the 18 characters selected again.
 
 **Screens seen**, in order:
-- `../../../shots/r6-jordan-getback-notice-01-start.png` -- the starting screen
-- `../../../shots/r6-jordan-getback-notice-02-bring-back.png` -- after Bring it back
-- `../../../shots/r6-jordan-getback-notice-03-undo1.png` -- after the first Cmd+Z
-- `../../../shots/r6-jordan-getback-notice-04-undo2.png` -- after the second Cmd+Z
-- `../../../shots/r6-jordan-getback-notice-05-show-steps.png` -- Show in steps: the filter steps list
-- `../../../shots/r6-jordan-getback-notice-06-tick-group8.png` -- after ticking "Filter out group 8" again
+- `../../../shots/record/r6-jordan-getback-notice-01-start.png` -- the starting screen
+- `../../../shots/record/r6-jordan-getback-notice-02-bring-back.png` -- after Bring it back
+- `../../../shots/record/r6-jordan-getback-notice-03-undo1.png` -- after the first Cmd+Z
+- `../../../shots/record/r6-jordan-getback-notice-04-undo2.png` -- after the second Cmd+Z
+- `../../../shots/record/r6-jordan-getback-notice-05-show-steps.png` -- Show in steps: the filter steps list
+- `../../../shots/record/r6-jordan-getback-notice-06-tick-group8.png` -- after ticking "Filter out group 8" again
 
 ## Think-aloud
 

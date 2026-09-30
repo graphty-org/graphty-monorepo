@@ -8,13 +8,13 @@ What she decided the task meant: yesterday's ranking was betweenness ("who bridg
 
 Screens used, in the order she reached them, all at 1440 by 900 (her laptop), rendered as a participant sees them:
 
-- the Les Miserables result under a filter, with its run record open (shots/r4-jordan-tworuns-results-panel-filtered.png)
-- the table dock on the full cast (shots/r4-jordan-tworuns-table-dock-small.png)
-- the options popover after Cancel, and while a second run is going (shots/r4-jordan-tworuns-results-panel-canceled.png, shots/r4-jordan-tworuns-results-panel-running-result.png; these show a patent network, not Les Miserables)
-- a node selected, with its value in each result (shots/r4-jordan-tworuns-results-panel-node-selected.png)
-- the result in the inspector (shots/r4-jordan-tworuns-inspector-result.png)
-- the comparison surface: two measures, two data versions, and the strip of surrounding states including the "Compare with" picker (shots/r4-jordan-tworuns-comparison.png, shots/r4-jordan-tworuns-comparison-versions.png, shots/r4-jordan-tworuns-comparison-strips.png)
-- the three-measure table (shots/r4-jordan-tworuns-table-dock-ranked.png)
+- the Les Miserables result under a filter, with its run record open (shots/record/r4-jordan-tworuns-results-panel-filtered.png)
+- the table dock on the full cast (shots/record/r4-jordan-tworuns-table-dock-small.png)
+- the options popover after Cancel, and while a second run is going (shots/record/r4-jordan-tworuns-results-panel-canceled.png, shots/record/r4-jordan-tworuns-results-panel-running-result.png; these show a patent network, not Les Miserables)
+- a node selected, with its value in each result (shots/record/r4-jordan-tworuns-results-panel-node-selected.png)
+- the result in the inspector (shots/record/r4-jordan-tworuns-inspector-result.png)
+- the comparison surface: two measures, two data versions, and the strip of surrounding states including the "Compare with" picker (shots/record/r4-jordan-tworuns-comparison.png, shots/record/r4-jordan-tworuns-comparison-versions.png, shots/record/r4-jordan-tworuns-comparison-strips.png)
+- the three-measure table (shots/record/r4-jordan-tworuns-table-dock-ranked.png)
 
 ## Think-aloud
 

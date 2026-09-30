@@ -7,9 +7,9 @@ came out differently this time."
 Pages used: screens/version-history.html (Data > Versions), screens/weekly-return.html (steps 10
 to 13: Compare with..., the comparison surface, the new accounts' transfers, the note),
 screens/comparison.html (the PageRank March-against-April comparison, for contrast). Renders:
-shots/r6-minji-rcn-version-history.png, shots/r6-minji-rcn-weekly-return.png,
-shots/r6-minji-rcn-comparison.png. The flow page flows/compare-versions.html renders as a blank
-white page in the study view (shots/r6-minji-rcn-cv.png), so the session used the screens only.
+shots/record/r6-minji-rcn-version-history.png, shots/record/r6-minji-rcn-weekly-return.png,
+shots/record/r6-minji-rcn-comparison.png. The flow page flows/compare-versions.html renders as a blank
+white page in the study view (shots/record/r6-minji-rcn-cv.png), so the session used the screens only.
 
 ## Think-aloud
 

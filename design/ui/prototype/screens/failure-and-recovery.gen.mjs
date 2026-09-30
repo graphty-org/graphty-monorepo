@@ -155,6 +155,19 @@ const ann = (notes) => notes.map(([x, y, t, w = 240]) => `<div class="k-annot-no
 const EDX = (w) => 1440 - 241 - 8 - w;
 const at = (x, y, html) => `<div class="fr-abs" style="left:${x}px;top:${y}px">${html}</div>`;
 
+// The Les Miserables filtered counts, bound to the fixtures (kit/README.md, "The scope formatter").
+// Only text between tags is touched, so alt and title attributes stay plain; nouns before bare forms.
+const LM_SPAN = new Map([["allThreeSteps", "nodes"], ["allThreeSteps", "edges"], ["largestOff", "nodes"], ["largestOff", "edges"]]
+    .flatMap(([s, k]) => ["nodes", "rows", ""].map((noun) => {
+        const text = `${N[s][k]} of ${fx.lesmis[k]}${noun ? ` ${noun}` : ""}`;
+        return [text, `<span data-fx="scenarios.failureAndRecovery.${s}.${k}" data-fx-of="datasets.lesmis.${k}"${noun ? ` data-fx-noun="${noun}"` : ""}>${text}</span>`];
+    })));
+const LM_RE = new RegExp(`(?<![\\d.])(${[...LM_SPAN.keys()].sort((x, y) => y.length - x.length).join("|")})(?!\\w)`, "g");
+function bindLmCounts(html) {
+    const body = html.indexOf("<body>");
+    return html.slice(0, body) + html.slice(body).replace(/>([^<]+)</g, (m, t) => `>${t.replace(LM_RE, (hit) => LM_SPAN.get(hit))}<`);
+}
+
 // ---------------------------------------------------------------- page
 function page(file, title, lede, states) {
     if (process.env.ONLY && process.env.ONLY !== file) return; // ONLY=gpu-lost-run.html writes that page alone
@@ -187,7 +200,7 @@ ${body}
 </body>
 </html>
 `;
-    writeFileSync(join(here, file), toShell(html)); // the current frame: kit/shell.mjs
+    writeFileSync(join(here, file), toShell(bindLmCounts(html))); // the current frame: kit/shell.mjs
     console.log(join(here, file));
 }
 
@@ -406,7 +419,7 @@ c.push({
 const undoLine = (text) => `<div class="k-toast" role="status" aria-live="polite"${sb("undoline")}>${text}<span class="k-toast-action" role="button" tabindex="0">Show in steps</span></div>`;
 c.push({
     id: "c5u", title: "Undo puts the step back, and one line says so",
-    sub: `He presses Ctrl+Z to be sure the delete can come back. ${LC} is back in the list, the chip reads ${N.allThreeSteps.nodes} of ${N.full.nodes}, 3 steps, and betweenness is current again. One line above the toolbar names what was reversed, with Show in steps. It stays while he stays on this step, even through other clicks.`,
+    sub: `He presses Ctrl+Z to be sure the delete can come back. ${LC} is back in the list, the chip reads ${N.allThreeSteps.nodes} of ${N.full.nodes}, 3 steps, and betweenness is current again. One line above the toolbar names what was reversed, with Show in steps. It stays only until he selects another node or moves to another filter step; opening the list with Show in steps does not clear it.`,
     html: app(resultsPanel(LM, "60 of 77 nodes &middot; 3 steps", btw({ sub: reading("similarity") }), lmCatalog()),
         canvas({ img: lmImg("f123"), alt: "", legend: groupLegend(), toast: undoLine(`Undone: Delete step ${LC}`) }) + lmBtwTable("Filtered graph: 60 of 77 nodes. Sorted by betweenness.", `0 to ${N.allThreeSteps.betweenness[0].value}`, cRows60),
         right(graphRow, stats60)),
@@ -420,6 +433,18 @@ c.push({
         right(graphRow, stats60)) +
         stepsPop(step("Filter out", VJ, 76) + step("Filter to", "Largest component", 61) + step("Filter out", JV, 60, { focus: true })),
     notes: [[680, 60, "Moving to another filter step (or selecting another node) clears the undo line. Redo stays on Edit and its keys, so nothing is lost with the line."]],
+});
+// The other way the line clears: a different node. Mme.Thenardier, second in the table.
+const MT = N.allThreeSteps.betweenness[1];
+const mtRows = cRows60.map((r, i) => (i === 1 ? { ...r, sel: true } : r));
+c.push({
+    id: "c5n", title: "Or he selects another character: the line clears too",
+    sub: `Back at the moment after the undo, he clicks ${MT.label} in the table instead. The inspector shows her, and the line is gone: a new node is a new question, so the line does not follow him to it. Edit still offers Redo Delete step ${LC}.`,
+    html: app(resultsPanel(LM, "60 of 77 nodes &middot; 3 steps", btw({ sub: reading("similarity") }), lmCatalog()),
+        canvas({ img: lmImg("f123"), alt: "", legend: groupLegend() }) + lmBtwTable("Filtered graph: 60 of 77 nodes. Sorted by betweenness.", `0 to ${N.allThreeSteps.betweenness[0].value}`, mtRows),
+        right(`${I("circle-dot")}<span class="k-name k-id">${MT.label}</span><span class="k-secondary">Node</span>`,
+            sec("Attributes", data("group", String(MT.group)) + data("degree", String(MT.degree)) + data("betweenness", MT.value)))),
+    notes: [[680, 60, "Selecting another node clears the undo line, the same as moving to another filter step. Redo stays on Edit and its keys."]],
 });
 c.push({
     id: "c6", title: "Re-run on the graph he meant",
@@ -448,7 +473,7 @@ c.push({
         `<div class="k-backdrop"><div class="k-modal k-modal-wide"${sb("export")}><div class="k-modal-head">Export<span class="k-grow"></span><span class="k-icon-btn">${I("x")}</span></div><div class="k-modal-body"><section class="k-section"><div class="k-section-head"><span class="k-check" aria-checked="true"></span>&nbsp;Table (.csv)</div><div class="k-fieldrow"><span class="k-legend">Tab</span><div class="k-fields" style="grid-template-columns:1fr"><span class="k-seg k-seg-fill"><span>Nodes</span><span aria-pressed="true">Edges</span></span></div></div><div class="k-fieldrow"><span class="k-legend">From</span><div class="k-fields" style="grid-template-columns:1fr"><span class="k-field">2 filter steps, through Filter out ${JV}${I("chevron-down", "k-i-sm k-caret")}</span></div></div><div class="k-fieldrow"><span class="k-legend">Rows</span><div class="k-fields" style="grid-template-columns:1fr"><span class="k-fact k-num">${N.largestOff.edges} of ${N.full.edges} rows, filtered</span></div></div><div class="k-fieldrow"><span class="k-legend">Methods</span><div class="k-fields" style="grid-template-columns:1fr"><span>Always written beside it</span></div></div><div class="k-table-wrap" style="margin:0 16px 8px;border:1px solid var(--cm-border);border-radius:4px"><table class="k-table"><thead><tr><th>source</th><th>target</th><th class="k-n">value</th></tr></thead><tbody>${lmEdges.slice(0, 5).map((e) => `<tr><td class="k-id">${e.s}</td><td class="k-id">${e.t}</td><td class="k-n">${e.w}</td></tr>`).join("")}<tr><td class="k-secondary" colspan="3">and ${lmEdges.length - 5} more</td></tr></tbody></table></div></section><section class="k-section"><div class="k-section-head"><span class="k-check"></span>&nbsp;Findings report (.html)</div></section></div><div class="k-modal-foot"><span class="k-grow"></span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Export</span></div></div></div>`,
     notes: [[900, 60, "The same Export dialog as screens/export-dialog.html, its Table (.csv) row: From defaults to the open filter step when a step is open; otherwise to the selection, then the whole graph. Rows are stated first, the methods file is always written beside it. compact-mantine: Modal, SegmentedControl, Select, Table."]],
 });
-page("filter-step-recovery.html", "The wrong middle step: three ways back", "Three filter steps on Les Miserables. The middle one, Filter to Largest component, did more than intended because of the step before it. The ways back are turning the step off, deleting it, and undo; undo's line clears when he moves to another step, and Export starts from the step he has open.", c);
+page("filter-step-recovery.html", "The wrong middle step: three ways back", "Three filter steps on Les Miserables. The middle one, Filter to Largest component, did more than intended because of the step before it. The ways back are turning the step off, deleting it, and undo; undo's line clears when he selects another node or moves to another step, and Export starts from the step he has open.", c);
 
 // ---------------------------------------------------------------- D: GPU lost, costly run canceled
 // Drawn on the Results rail place (screens/navigation.html): the panel lists every run of a measure,

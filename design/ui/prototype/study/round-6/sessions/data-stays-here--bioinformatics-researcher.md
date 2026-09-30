@@ -11,8 +11,8 @@ Screens seen, in order (study view, 1440 x 900):
 
 - `shots/tasks/data-stays-here/01-start-screen.png`
 - `shots/tasks/data-stays-here/02-frame-at-rest.png`
-- `shots/tasks/data-stays-here/03-data-location.png` and the whole page, `shots/r6-chen-dsh-data-location-full.png`
-- `shots/r6-chen-dsh-data-panel-s7.png` (Data panel scrolled to "Sent and saved from this project")
+- `shots/tasks/data-stays-here/03-data-location.png` and the whole page, `shots/record/r6-chen-dsh-data-location-full.png`
+- `shots/record/r6-chen-dsh-data-panel-s7.png` (Data panel scrolled to "Sent and saved from this project")
 
 ## Think-aloud
 

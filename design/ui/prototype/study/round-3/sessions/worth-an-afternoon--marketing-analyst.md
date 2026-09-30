@@ -9,10 +9,10 @@ afternoon, and tell me anything that looks off."
 
 **Screens, in the order she met them (as a participant sees them, design notes hidden, 1440 by 900):**
 
-1. Start screen, first run -- `shots/r3-jordan-start-screen-task-worth-an-afternoon.png`
-2. Load step with the confidence column read as text -- `shots/r3-jordan-load-step-task-worth-an-afternoon-blocked.png`
-3. Load step after choosing how to read it, repeated-pairs list open -- `shots/r3-jordan-load-step-task-worth-an-afternoon-policy.png`
-4. The loaded graph at rest -- `shots/r3-jordan-frame-at-rest-task-worth-an-afternoon.png`
+1. Start screen, first run -- `shots/record/r3-jordan-start-screen-task-worth-an-afternoon.png`
+2. Load step with the confidence column read as text -- `shots/record/r3-jordan-load-step-task-worth-an-afternoon-blocked.png`
+3. Load step after choosing how to read it, repeated-pairs list open -- `shots/record/r3-jordan-load-step-task-worth-an-afternoon-policy.png`
+4. The loaded graph at rest -- `shots/record/r3-jordan-frame-at-rest-task-worth-an-afternoon.png`
 
 ---
 

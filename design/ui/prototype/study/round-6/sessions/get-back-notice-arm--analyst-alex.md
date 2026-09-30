@@ -18,12 +18,12 @@ of Valjean and the 17 characters beside him. The target end state is 47 of 77 no
 (degree 5 off, group 8 still out), with the 18 characters selected again.
 
 **Screens seen**, in order:
-- `../../../shots/r6-alex-getback-notice-01-start.png` -- the starting screen
-- `../../../shots/r6-alex-getback-notice-02-ctrlz.png` -- after Ctrl+Z
-- `../../../shots/r6-alex-getback-notice-03-ctrly.png` -- after Ctrl+Y
-- `../../../shots/r6-alex-getback-notice-04-undo-history.png` -- main menu, Edit, Undo history
-- `../../../shots/r6-alex-getback-notice-05-steps.png` -- the filter chip's steps list
-- `../../../shots/r6-alex-getback-notice-06-degree5-off.png` -- after unticking degree at least 5
+- `../../../shots/record/r6-alex-getback-notice-01-start.png` -- the starting screen
+- `../../../shots/record/r6-alex-getback-notice-02-ctrlz.png` -- after Ctrl+Z
+- `../../../shots/record/r6-alex-getback-notice-03-ctrly.png` -- after Ctrl+Y
+- `../../../shots/record/r6-alex-getback-notice-04-undo-history.png` -- main menu, Edit, Undo history
+- `../../../shots/record/r6-alex-getback-notice-05-steps.png` -- the filter chip's steps list
+- `../../../shots/record/r6-alex-getback-notice-06-degree5-off.png` -- after unticking degree at least 5
 
 ## Think-aloud
 

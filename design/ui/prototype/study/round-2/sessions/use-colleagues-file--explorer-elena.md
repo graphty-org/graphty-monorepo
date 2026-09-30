@@ -14,7 +14,7 @@ Moderator note, not part of the session: the task is cast for a lab scientist an
 She was told to play along as if she were helping a lab out. Her reading of the biology words is
 therefore a floor, not a fair test of a scientist's; what she shows is how much of this dialog a
 non-specialist can follow from the screen alone. Also, the checked-in render of the start screen's
-recipe state (`shots/start-screen--s4.png`) is out of date: it says "red for down and blue for up"
+recipe state (`shots/record/start-screen--s4.png`) is out of date: it says "red for down and blue for up"
 and its button reads "Add data...", while the current page says "red for up and blue for down" and
 "Open...". The session used a fresh render of the current page.
 

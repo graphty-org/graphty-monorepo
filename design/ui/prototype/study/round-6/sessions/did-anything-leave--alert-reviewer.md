@@ -15,8 +15,8 @@ Assistant questions. There is no full screen of the app after a real data-source
 after-query answer comes only from those pictures.
 
 Renders used: shots/tasks/did-anything-leave/01-frame-at-rest.png, 02-start-screen.png,
-03-data-location.png; shots/r6-nadia-leave-data-location.png (whole page at her viewport);
-shots/r6-nadia-leave-data-panel-s7.png (Sent and saved at her viewport).
+03-data-location.png; shots/record/r6-nadia-leave-data-location.png (whole page at her viewport);
+shots/record/r6-nadia-leave-data-panel-s7.png (Sent and saved at her viewport).
 
 ## Think-aloud
 

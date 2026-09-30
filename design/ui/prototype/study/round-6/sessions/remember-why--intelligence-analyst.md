@@ -11,9 +11,9 @@ He did this task on the previous version of these screens and remembers what wen
 **Screens used, as the participant saw them (design notes hidden):** the take-a-note screen
 ("March transfers", a 14-account set called "Mule ring"), all eight states; the notes panel
 (shown on a second project, "Human protein interactions", because that mock uses that data);
-the sets-and-paths screen, first state. Renders: shots/r6-marcus-remember-take-s1.png to -s8.png,
-shots/r6-marcus-remember-notes-s1.png, -s2, -s3, -s5, -s6, -s7, -s10, -s11.png,
-shots/r6-marcus-remember-sets-s1.png.
+the sets-and-paths screen, first state. Renders: shots/record/r6-marcus-remember-take-s1.png to -s8.png,
+shots/record/r6-marcus-remember-notes-s1.png, -s2, -s3, -s5, -s6, -s7, -s10, -s11.png,
+shots/record/r6-marcus-remember-sets-s1.png.
 
 **Outcome:** done, first try, no wrong turns. **Single Ease Question:** 5 of 7.
 **Would he use it instead of his current tool:** beside it, for the working notes; not as the

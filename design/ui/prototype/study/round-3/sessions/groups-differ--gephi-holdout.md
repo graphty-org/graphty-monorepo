@@ -12,10 +12,10 @@ Louvain result and then its communities table, as if the app had moved on), the 
 a community selected and compared with the rest, then the inspector with one community and then
 one protein selected. The pink state bar on each mock was covered and is not part of the product.
 
-**Shots of what she saw:** `shots/r3-mara-groups-rp-start.png`, `shots/r3-mara-groups-rp-louvain.png`,
-`shots/r3-mara-groups-rp-louvain-table.png`, `shots/r3-mara-groups-styles-compare.png`,
-`shots/r3-mara-groups-styles-columns.png`, `shots/r3-mara-groups-inspector-group.png`,
-`shots/r3-mara-groups-inspector-grouprow.png`.
+**Shots of what she saw:** `shots/record/r3-mara-groups-rp-start.png`, `shots/record/r3-mara-groups-rp-louvain.png`,
+`shots/record/r3-mara-groups-rp-louvain-table.png`, `shots/record/r3-mara-groups-styles-compare.png`,
+`shots/record/r3-mara-groups-styles-columns.png`, `shots/record/r3-mara-groups-inspector-group.png`,
+`shots/record/r3-mara-groups-inspector-grouprow.png`.
 
 **Outcome:** finished, with difficulty. Her answer: ten Louvain communities, eight real ones and
 two single proteins, modularity 0.716. The biggest (Community 1, 62 proteins) is mostly the

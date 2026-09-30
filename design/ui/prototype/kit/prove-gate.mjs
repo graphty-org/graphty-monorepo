@@ -9,18 +9,19 @@ import { spawnSync } from "node:child_process";
 const FAR = "screens/frame-at-rest.html"; // passes the gate as drawn
 const NOTE = "screens/take-a-note.html";
 const UNDO = "screens/undo.html";
+const A = "Overview<"; // the empty-selection inspector's first section head on FAR
 const HINT = "Ctrl+Enter adds the note.";
 const cases = [
     // control: the page as drawn passes
     { name: "control: the resting frame passes", page: FAR, plant: null, pass: true },
     // 1. a retired string
-    { name: "retired string", page: FAR, plant: ["Statistics<", "Statistics<span>Export files...</span><"], expect: 'retired "Export files"' },
-    { name: "retired string inside a Before frame is skipped", page: FAR, plant: ["Statistics<", 'Statistics<span data-frame="before">Export files...</span><'], pass: true },
-    { name: "retired string: 'result' used to mean a value", page: FAR, plant: ["Statistics<", "Statistics<span>Valjean's result</span><"], expect: "retired 'result' used to mean a value" },
-    { name: "retired string: the invented tie rule's 'within 1%'", page: FAR, plant: ["Statistics<", "Statistics<span>ranks within 1% of each other</span><"], expect: 'retired "within 1%"' },
-    { name: "retired string: 'near #8' in a rank cell", page: FAR, plant: ["Statistics<", "Statistics<span>#7, near #8</span><"], expect: "retired 'near #N' in a rank cell" },
-    { name: "retired string: 'not used yet'", page: FAR, plant: ["Statistics<", "Statistics<span>amount, not used yet</span><"], expect: 'retired "not used yet"' },
-    { name: "retired string: 'Change...' on a data source", page: FAR, plant: ["Statistics<", "Statistics<span>Loaded: miserables.json. Change...</span><"], expect: "retired 'Change...' on a data source" },
+    { name: "retired string", page: FAR, plant: [A, "Overview<span>Export files...</span><"], expect: 'retired "Export files"' },
+    { name: "retired string inside a Before frame is skipped", page: FAR, plant: [A, 'Overview<span data-frame="before">Export files...</span><'], pass: true },
+    { name: "retired string: 'result' used to mean a value", page: FAR, plant: [A, "Overview<span>Valjean's result</span><"], expect: "retired 'result' used to mean a value" },
+    { name: "retired string: the invented tie rule's 'within 1%'", page: FAR, plant: [A, "Overview<span>ranks within 1% of each other</span><"], expect: 'retired "within 1%"' },
+    { name: "retired string: 'near #8' in a rank cell", page: FAR, plant: [A, "Overview<span>#7, near #8</span><"], expect: "retired 'near #N' in a rank cell" },
+    { name: "retired string: 'not used yet'", page: FAR, plant: [A, "Overview<span>amount, not used yet</span><"], expect: 'retired "not used yet"' },
+    { name: "retired string: 'Change...' on a data source", page: FAR, plant: [A, "Overview<span>Loaded: miserables.json. Change...</span><"], expect: "retired 'Change...' on a data source" },
     { name: "the note editor's 'Saving as: Marcus. Change...' is not a data source", page: NOTE, plant: null, pass: true },
     // 2. a required string, mapped to a state: the note editor's Ctrl+Enter hint (in states s2, s4, s6)
     { name: "required string: the note editor as drawn passes", page: NOTE, plant: null, pass: true },
@@ -28,26 +29,31 @@ const cases = [
     { name: "required string removed everywhere fails every state", page: NOTE, plant: [HINT, "adds the note.", "*"], expect: [`${NOTE}#s2: missing "Ctrl+Enter"`, `${NOTE}#s4: missing "Ctrl+Enter"`, `${NOTE}#s6: missing "Ctrl+Enter"`] },
     // 3. a count the fixtures do not hold, typed or bound, or one the formatter did not write
     { name: "count that differs from the page's dataset (76 of Les Miserables' 77 nodes)", page: FAR, plant: ['k-section-head">Graphs', 'k-section-head"><div class="k-data"><span class="k-name">nodes</span><span class="k-value">76</span></div>Graphs'], expect: "shows 76 nodes" },
-    { name: "typed count no fixture holds", page: FAR, plant: ["Statistics<", "Statistics<span>9,999,991 proteins</span><"], expect: "9,999,991 proteins" },
+    { name: "typed count no fixture holds", page: FAR, plant: [A, "Overview<span>9,999,991 proteins</span><"], expect: "9,999,991 proteins" },
     { name: "bound number that differs from its fixture", page: "kit/template.html", plant: ['data-fx="datasets.lesmis.rows.11.betweenness">0.570', 'data-fx="datasets.lesmis.rows.11.betweenness">0.58'], expect: "datasets.lesmis.rows.11.betweenness" },
     { name: "count the formatter did not write (the right number, typed)", page: FAR, plant: ['k-section-head">Graphs', 'k-section-head"><span>77 characters</span> Graphs'], expect: 'a count the formatter did not write: "77 characters"' },
     { name: "the same count written by the formatter passes", page: FAR, plant: ['k-section-head">Graphs', 'k-section-head"><span data-fx="datasets.lesmis.nodes" data-fx-noun="characters">77 characters</span> Graphs'], pass: true },
-    { name: "formatter: 'N of M' typed without its noun fails as a typed mismatch", page: FAR, plant: ["Statistics<", 'Statistics<span data-fx="datasets.lesmis.filterSteps.after.step3" data-fx-of="datasets.lesmis.nodes" data-fx-noun="characters">27 of 77</span><'], expect: 'where datasets.lesmis.filterSteps.after.step3 is "27 of 77 characters"' },
+    { name: "formatter: 'N of M' typed without its noun fails as a typed mismatch", page: FAR, plant: [A, 'Overview<span data-fx="datasets.lesmis.filterSteps.after.step3" data-fx-of="datasets.lesmis.nodes" data-fx-noun="characters">27 of 77</span><'], expect: 'where datasets.lesmis.filterSteps.after.step3 is "27 of 77 characters"' },
     { name: "a mismatched number inside a framed screen (a page that shows itself in frames)", page: "screens/navigation.html", plant: ["${b(11)}>0.570<", "${b(11)}>0.57<", "*"], expect: '(in the frame screens/navigation.html?frame=' },
     // 4. one capability in two homes
-    { name: "two homes: a Results section in the empty-selection inspector", page: FAR, plant: ['k-section-head">Statistics', 'k-section-head">Results</div></section><section class="k-section"><div class="k-section-head">Statistics'], expect: "two homes: a Results section" },
-    { name: "two homes: Previous selection", page: FAR, plant: ["Statistics<", "Statistics<span>Previous selection</span><"], expect: "two homes: Previous selection" },
-    { name: "two homes: a second Apply dialog", page: FAR, plant: ["Statistics<", 'Statistics<div class="k-modal"><div class="k-modal-head">Apply style file</div><div class="k-modal-body">Apply on top</div></div><'], expect: "two homes: a second Apply dialog" },
+    { name: "two homes: a Results section in the empty-selection inspector", page: FAR, plant: ['k-section-head">Overview', 'k-section-head">Results</div></section><section class="k-section"><div class="k-section-head">Overview'], expect: "two homes: a Results section" },
+    { name: "two homes: Previous selection", page: FAR, plant: [A, "Overview<span>Previous selection</span><"], expect: "two homes: Previous selection" },
+    { name: "two homes: a second Apply dialog", page: FAR, plant: [A, 'Overview<div class="k-modal"><div class="k-modal-head">Apply style file</div><div class="k-modal-body">Apply on top</div></div><'], expect: "two homes: a second Apply dialog" },
     // the frame
-    { name: "frame: an avatar", page: FAR, plant: ["Statistics<", 'Statistics<span class="k-avatar">M</span><'], expect: "an avatar in the header" },
+    { name: "frame: an avatar", page: FAR, plant: [A, 'Overview<span class="k-avatar">M</span><'], expect: "an avatar in the header" },
     { name: "frame: an avatar letter in a page's own class", page: FAR, plant: ['<div class="k-header1 an-t an-r" data-n="13">', '<div class="k-header1 an-t an-r" data-n="13"><span style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#888">M</span>'], expect: 'an avatar letter "M"' },
     { name: "frame: a rail without Results", page: FAR, plant: [">Results</div>", "></div>"], expect: "a rail of Graph, Data, Notes" },
     { name: "frame: a Note tool on the toolbar", page: FAR, plant: ['<div class="k-toolbar an-t an-r" data-n="12" role="toolbar">', '<div class="k-toolbar an-t an-r" data-n="12" role="toolbar"><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#sticky-note"/></svg></span>'], expect: "a Note tool on the toolbar" },
+    // the frame's privacy line, degree on a directed graph, and a set named as app text
+    { name: "frame: no privacy line under the project name", page: "kit/template.html", plant: ['<a class="k-privacy">Nothing has been sent from this project</a>', ""], expect: "no privacy line under the project name" },
+    { name: "degree on a directed graph without in, out or total (the April transfers' size legend)", page: "screens/data-panel.html", plant: ['Size: total degree <span class="k-secondary">total degree, 1 to', 'Size: degree <span class="k-secondary">degree, 1 to'], expect: 'degree on a directed graph without in, out or total: "Size: degree degree, 1 to' },
+    { name: "a count that names its set without its message key", page: "kit/index.html", plant: [' data-fx-msg="graphty.inspector.reading">0.296', ">0.296"], expect: "names its set; pass the set on its message key" },
+    { name: "two columns of one table with one display name (degree on the filtered and the full graph)", page: "screens/find.html", plants: [["screens/find.html", "degree (filtered graph)</th>", "degree</th>"], ["screens/find.html", "degree (full graph)</th>", "degree</th>"]], expect: 'two columns share the display name "degree"' },
     // a gate that checks nothing fails
     { name: "--tasks that checks 0 task screens fails", args: ["--tasks", "--task=no-such-task"], expect: "--tasks checked 0 task screens" },
     // the Esc rule: the undo page's steps list closes on Esc and the page stays in the participant view
     { name: "Esc rule: the undo page as drawn passes", page: UNDO, plant: null, pass: true },
-    { name: "Esc rule: an Esc that closes the steps list without marking the key (kit.js's net off too) fails", page: UNDO, plants: [[UNDO, "{ e.preventDefault(); S.pop = false;", "{ S.pop = false;"], ["kit/kit.js", "if (!e.defaultPrevented && !used) leaveStudy();", "if (!e.defaultPrevented) leaveStudy();"]], expect: 'Esc rule: one Esc after opening "' },
+    { name: "Esc rule: an Esc that closes the steps list without marking the key (kit.js's net off too) fails", page: UNDO, plants: [[UNDO, "{ e.preventDefault(); S.pop = false;", "{ S.pop = false;"], ["kit/kit.js", "!e.defaultPrevented && !used && leaveStudy()", "!e.defaultPrevented && leaveStudy()"]], expect: 'Esc rule: one Esc after opening "' },
     { name: "Esc rule: a handler that uses Esc with nothing open fails (the view can never be left)", page: UNDO, plant: ["else if (S.sel) { e.preventDefault(); run(\"clear\"); }", "else { e.preventDefault(); run(\"clear\"); }"], expect: "never leaves the participant view" },
     { name: "Esc: open the steps list, press Esc, the list closes and the page is still in the participant view; Esc with nothing open leaves", browser: escProof },
 ];

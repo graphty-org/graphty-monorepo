@@ -19,7 +19,7 @@ was never at risk.
 
 ## Transcript
 
-**1. Where I start.** (shots/r6-dana-restorearm-s3.png)
+**1. Where I start.** (shots/record/r6-dana-restorearm-s3.png)
 
 > OK. The table still has Valjean, Fantine, Thenardier at the top, but the highlight is gone off
 > the picture. There's a black box in the middle: "Selection cleared (18 nodes)", and a button,
@@ -30,7 +30,7 @@ was never at risk.
 >
 > I'm not clicking a button in a pop-up, I'm doing what I do in Excel. Ctrl+Z.
 
-**2. First Ctrl+Z.** (shots/r6-dana-restorearm-restore.png)
+**2. First Ctrl+Z.** (shots/record/r6-dana-restorearm-restore.png)
 
 > Huh. The circles came back round the characters, the right side says "18 nodes" and the black
 > box says "Selection restored (18 nodes)". The table says "Selected: 18 of 27 nodes".
@@ -39,7 +39,7 @@ was never at risk.
 > hadn't done anything to the thing I cared about. Then I read the box. Fine -- I did want those
 > 18 back, and I'd have been annoyed if I'd lost them. It's one press. Again.
 
-**3. Second Ctrl+Z.** (shots/r6-dana-restorearm-s2.png)
+**3. Second Ctrl+Z.** (shots/record/r6-dana-restorearm-s2.png)
 
 > Now 40 of 77, "2 of 3 steps". A whole blue clump just appeared at the bottom -- Marius,
 > Gavroche, Enjolras. The box says "Undone: Filter out group 8".
@@ -57,7 +57,7 @@ was never at risk.
 > not where I want to be. Undo is going to keep peeling things off the top, and the bad one is
 > in the middle. I need to see the list.
 
-**5. Opening the filter.** (shots/r6-dana-restorearm-restore-pop.png)
+**5. Opening the filter.** (shots/record/r6-dana-restorearm-restore-pop.png)
 
 > That "27 of 77 nodes, 3 steps" thing at the top left has a little funnel and an arrow, it's
 > the filter. Click.
@@ -75,7 +75,7 @@ was never at risk.
 >
 > Can I take out just that one? There's a tick box. Untick it and see.
 
-**6. Untick "degree >= 5".** (shots/r6-dana-restorearm-fix.png)
+**6. Untick "degree >= 5".** (shots/record/r6-dana-restorearm-fix.png)
 
 > 47 of 77, "2 of 3 steps". The row is still there, greyed, "off, takes nothing out". Good, I
 > can put it back if I'm wrong, I don't have to rebuild it. Group 8 is still ticked, 13 out, 47

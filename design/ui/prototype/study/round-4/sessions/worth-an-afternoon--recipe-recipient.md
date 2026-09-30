@@ -12,11 +12,11 @@ core interaction set, have a look when you can." No screenshot this time.
 
 **Screens seen (study view, 1440 by 900):**
 
-- Start screen: `shots/r4-tom-worth-01-start.png`
-- Open dialog, the confidence column: `shots/r4-tom-worth-02-load-blocked.png`
-- Open dialog, repeated pairs: `shots/r4-tom-worth-03-load-policy.png`
-- The loaded graph: `shots/r4-tom-worth-04-frame.png`
-- "Where your data goes" (he followed the link): `shots/r4-tom-worth-05-data-location.png`
+- Start screen: `shots/record/r4-tom-worth-01-start.png`
+- Open dialog, the confidence column: `shots/record/r4-tom-worth-02-load-blocked.png`
+- Open dialog, repeated pairs: `shots/record/r4-tom-worth-03-load-policy.png`
+- The loaded graph: `shots/record/r4-tom-worth-04-frame.png`
+- "Where your data goes" (he followed the link): `shots/record/r4-tom-worth-05-data-location.png`
 - The first-look storyboard (`storyboards/first-look.html`), skimmed at the end when the
   moderator pointed him to it.
 

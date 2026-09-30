@@ -14,10 +14,10 @@ version-history report).
 What the participant saw:
 
 - `shots/screens__results-panel.png` -- the first state, PageRank running on patent citations
-- `shots/r3-chris-quiet-weight-rp-filtered.png` -- Les Miserables, Betweenness finished, with the
+- `shots/record/r3-chris-quiet-weight-rp-filtered.png` -- Les Miserables, Betweenness finished, with the
   run record open
 - `shots/screens__results-panel--outofdate.png` -- the protein project's out-of-date review
-- `shots/r3-chris-quiet-weight-load-loaded.png` and `shots/r3-chris-quiet-weight-load-report.png`
+- `shots/record/r3-chris-quiet-weight-load-loaded.png` and `shots/record/r3-chris-quiet-weight-load-report.png`
   -- the load step for the protein file
 
 ## Think-aloud transcript

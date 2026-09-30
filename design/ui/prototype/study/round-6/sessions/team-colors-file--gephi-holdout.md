@@ -8,19 +8,19 @@ the file with those colors and sizes. Make this project look like the team's."
 
 Screens seen, as a participant sees them (design notes hidden), rendered at 1440 x 900:
 
-- The style stack with a layer open: `shots/r6-mara-teamcolors-styles-list.png`
-- The stack's add button, Libraries tab: `shots/r6-mara-teamcolors-styles-list--libraries.png`
-- The main menu, File open: `shots/r6-mara-teamcolors-replace-and-recipe.png`
-- The Data panel, no recipe applied yet: `shots/r6-mara-teamcolors-data-panel.png`; a month
-  later: `shots/r6-mara-teamcolors-data-panel-s6.png`
-- Apply recipe picker (from the menu): `shots/r6-mara-teamcolors-rr-s-recipe-pick.png`
-- The team's file dropped on the canvas: `shots/r6-mara-teamcolors-rr-s-style-drop.png`
-- Its binding step: `shots/r6-mara-teamcolors-rr-s-bind-style.png`
-- The team's styles in use: `shots/r6-mara-teamcolors-rr-s-style-applied.png`
+- The style stack with a layer open: `shots/record/r6-mara-teamcolors-styles-list.png`
+- The stack's add button, Libraries tab: `shots/record/r6-mara-teamcolors-styles-list--libraries.png`
+- The main menu, File open: `shots/record/r6-mara-teamcolors-replace-and-recipe.png`
+- The Data panel, no recipe applied yet: `shots/record/r6-mara-teamcolors-data-panel.png`; a month
+  later: `shots/record/r6-mara-teamcolors-data-panel-s6.png`
+- Apply recipe picker (from the menu): `shots/record/r6-mara-teamcolors-rr-s-recipe-pick.png`
+- The team's file dropped on the canvas: `shots/record/r6-mara-teamcolors-rr-s-style-drop.png`
+- Its binding step: `shots/record/r6-mara-teamcolors-rr-s-bind-style.png`
+- The team's styles in use: `shots/record/r6-mara-teamcolors-rr-s-style-applied.png`
 - A second recipe's binding and result, for comparison:
-  `shots/r6-mara-teamcolors-recipe-apply--binding.png`,
-  `shots/r6-mara-teamcolors-recipe-apply--applied.png`,
-  `shots/r6-mara-teamcolors-recipe-apply--undone.png`
+  `shots/record/r6-mara-teamcolors-recipe-apply--binding.png`,
+  `shots/record/r6-mara-teamcolors-recipe-apply--applied.png`,
+  `shots/record/r6-mara-teamcolors-recipe-apply--undone.png`
 
 ## Think-aloud
 

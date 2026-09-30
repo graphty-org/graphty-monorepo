@@ -5,10 +5,10 @@ you kept these accounts."
 
 **Screens seen, in order:** the Notes panel (empty, then with notes, a chosen note, the row menu,
 notes marked out of date, view-only), then the right-hand column for a set of proteins and for a
-7,495-item selection of March 2026 transfers. Renders: `shots/r3-rw-ia-notes-s3.png`,
-`shots/r3-rw-ia-notes-s4.png`, `shots/r3-rw-ia-notes-s7.png`, `shots/r3-rw-ia-notes-s9.png`,
-`shots/screens__notes-panel.png`, `shots/r3-rw-ia-inspector-set.png`,
-`shots/r3-rw-ia-inspector-cap.png`.
+7,495-item selection of March 2026 transfers. Renders: `shots/record/r3-rw-ia-notes-s3.png`,
+`shots/record/r3-rw-ia-notes-s4.png`, `shots/record/r3-rw-ia-notes-s7.png`, `shots/record/r3-rw-ia-notes-s9.png`,
+`shots/screens__notes-panel.png`, `shots/record/r3-rw-ia-inspector-set.png`,
+`shots/record/r3-rw-ia-inspector-cap.png`.
 
 **Outcome:** partial. He found where a note would go and what a finished note looks like, but
 never saw the moment of writing one, and nothing on these screens let him record a source or a

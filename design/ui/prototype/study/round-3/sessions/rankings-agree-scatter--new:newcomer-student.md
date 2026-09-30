@@ -6,8 +6,8 @@
 payment transfers, then the states around it), then the bottom dock table ("Three measures
 ranked": the protein network with degree, betweenness and PageRank ranked side by side). All renders
 were the participant view, with design notes hidden:
-`shots/r3-newcomer-rankings-comparison-full.png`, `shots/r3-newcomer-rankings-table-dock-full.png`
-and `shots/r3-newcomer-rankings-table-ranked.png`.
+`shots/record/r3-newcomer-rankings-comparison-full.png`, `shots/record/r3-newcomer-rankings-table-dock-full.png`
+and `shots/record/r3-newcomer-rankings-table-ranked.png`.
 
 **About the participant.** There is still no persona file for this participant, so the same
 character as rounds two and three's other sessions was used: built from the project's first-time

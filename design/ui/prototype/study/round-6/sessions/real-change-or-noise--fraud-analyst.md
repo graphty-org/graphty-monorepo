@@ -15,10 +15,10 @@ past the first few minutes.
 picker; the comparison surface, March against April, with Community 33 selected; the follow-up
 on the 7 new accounts and their transfers; the Data panel's Versions list with What changed open;
 the PageRank comparison between the same two months, for how a saved comparison ends.
-Renders: shots/r6-sarah-rcn-compare-pick.png, shots/r6-sarah-rcn-compare.png,
-shots/r6-sarah-rcn-compare-tall.png (the same state, taller, down to the lost groups),
-shots/r6-sarah-rcn-followup.png, shots/screens__version-history-study.png,
-shots/screens__comparison-versions--study.png.
+Renders: shots/record/r6-sarah-rcn-compare-pick.png, shots/record/r6-sarah-rcn-compare.png,
+shots/record/r6-sarah-rcn-compare-tall.png (the same state, taller, down to the lost groups),
+shots/record/r6-sarah-rcn-followup.png, shots/record/screens__version-history-study.png,
+shots/record/screens__comparison-versions--study.png.
 
 ---
 

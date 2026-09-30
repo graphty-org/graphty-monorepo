@@ -7,10 +7,10 @@ route between two accounts and the most central accounts, and tell me what each 
 and paths screen (path tool, found path, the found path's editor), the Run and read screen, the
 weight question on a betweenness run, the Results panel, and the table dock.
 
-Renders: `shots/r6-priya-we2e-frame-at-rest.png`, `shots/r6-priya-we2e-sets-and-paths-s3.png`,
-`shots/r6-priya-we2e-sets-and-paths-s4.png`, `shots/r6-priya-we2e-sets-and-paths-s5.png`,
-`shots/r6-priya-we2e-run-and-read.png`, `shots/r6-priya-we2e-weight-role-trap.png`,
-`shots/r6-priya-we2e-results-panel.png`, `shots/r6-priya-we2e-table-dock.png`.
+Renders: `shots/record/r6-priya-we2e-frame-at-rest.png`, `shots/record/r6-priya-we2e-sets-and-paths-s3.png`,
+`shots/record/r6-priya-we2e-sets-and-paths-s4.png`, `shots/record/r6-priya-we2e-sets-and-paths-s5.png`,
+`shots/record/r6-priya-we2e-run-and-read.png`, `shots/record/r6-priya-we2e-weight-role-trap.png`,
+`shots/record/r6-priya-we2e-results-panel.png`, `shots/record/r6-priya-we2e-table-dock.png`.
 
 ---
 

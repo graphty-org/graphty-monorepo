@@ -6,8 +6,8 @@ original ids, and say how sure you are of the order."
 Dataset: the human protein interaction network (300 proteins). Screens seen, in order, in the
 participant view: the Results panel with betweenness finished, the same panel with its table open
 at the bottom, the table dock ranked by several measures, and the Export dialog (Table and the
-project-name menu). Renders: shots/tasks/top-50-to-excel/01-03, shots/r4-chen-top50-export-table.png,
-shots/r4-chen-top50-export-ways-in-menu.png.
+project-name menu). Renders: shots/tasks/top-50-to-excel/01-03, shots/record/r4-chen-top50-export-table.png,
+shots/record/r4-chen-top50-export-ways-in-menu.png.
 
 ## Think-aloud
 

@@ -12,8 +12,8 @@ Is this OK to use? Later, mid-session: did anything just leave your machine?"
 **Screens used.** Start screen (first run), the "Where your data goes" page it links to, the main
 window at rest with the March transfers file open, and the same window with the Assistant
 switched on. Renders: `shots/screens__start-screen.png`,
-`shots/study-r2-data-stays-where.png`, `shots/study-r2-data-stays-frame-transfers.png`,
-`shots/screens__frame-at-rest-s8.png`.
+`shots/record/study-r2-data-stays-where.png`, `shots/record/study-r2-data-stays-frame-transfers.png`,
+`shots/record/screens__frame-at-rest-s8.png`.
 
 **Note on the mock.** The "Where your data goes" page still shows pink "owner decision open"
 boxes where the answers about hosting, usage statistics, self-hosting and the contact address

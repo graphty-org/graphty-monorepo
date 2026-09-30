@@ -86,6 +86,7 @@
     </tbody>
   </table>
   <p>The goal is steps 1 and 3 on and step 2 off: <b><span data-fx="datasets.lesmis.filterSteps.after.step2Off">47</span> of <span data-fx="datasets.lesmis.nodes">77</span>, 2 of 3 steps</b>, and the <span data-fx="datasets.lesmis.filterSteps.byStep.2.selection.length">18</span> characters selected again. The clickable screen is <a href="../screens/undo.html#s3">Undo and ways back</a>; it opens in exactly this state.</p>
+  <p><b>Usage data: off.</b> When graphty first opened, it asked whether it may collect how the app is used, and this analyst did not say yes, so nothing about this walk is sent. Had they said yes, each undo would be sent as an anonymous "undo" event with its timing, and the replay of the screen would mask every node name, value, label and file content, so which step or which characters were involved would never leave the computer. The choice can be changed at any time in Preferences &gt; Usage data; <a href="../screens/data-location.html">Where your data goes</a> lists what it holds and who reads it.</p>
 
   <h2>The model, in four rules</h2>
   <ol>
@@ -186,6 +187,7 @@
   <div class="f-sketches">
     <figure class="f-sketch">
       <div class="f-head"><span class="k-step">1</span><span class="f-chip">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 3 steps</span></div>
+      <div class="f-stat">Usage data off<span>, as answered at first use</span></div>
       <figcaption><b>The start.</b> The left panel is open; the chip is under the project name. The analyst sees the numbers are off and does not yet know which step is wrong.
         <p>Thinks: "Something I did made this wrong. Undo."</p>
         <p><a href="../screens/undo.html#s3">Screen: the start</a></p></figcaption>

@@ -16,9 +16,9 @@ real one: in her bank, IT's answer decides whether the tool may touch customer d
 with the March transfers open, the Data panel of a payments project (at first load, then a month
 on), and the "Where your data goes" page, including its pictures of what the app shows after a
 data-source query.
-Renders: shots/r4-sarah-dal-start-view.png, shots/r4-sarah-dal-frame-at-rest.png,
-shots/r4-sarah-dal-data-panel.png, shots/r4-sarah-dal-data-panel-s7.png,
-shots/r4-sarah-dal-data-location.png (crop: tmp/sarah-dal/loc-bottom.png).
+Renders: shots/record/r4-sarah-dal-start-view.png, shots/record/r4-sarah-dal-frame-at-rest.png,
+shots/record/r4-sarah-dal-data-panel.png, shots/record/r4-sarah-dal-data-panel-s7.png,
+shots/record/r4-sarah-dal-data-location.png (crop: tmp/sarah-dal/loc-bottom.png).
 
 ---
 

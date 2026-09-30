@@ -12,13 +12,13 @@ asked, and says where she would have quit on her own.
 Screens seen, in order (study view, design notes hidden where a render was made for this session):
 
 1. screens/inspector.html, state 8, "Two nodes: TP53 and SMAD3, Paths between..." --
-   shots/r3-dana-howconn-inspector-two.png
-2. screens/inspector.html, state 11, a found path -- shots/r3-dana-howconn-inspector-path.png
+   shots/record/r3-dana-howconn-inspector-two.png
+2. screens/inspector.html, state 11, a found path -- shots/record/r3-dana-howconn-inspector-path.png
 3. screens/sets-and-paths.html, the March transfers states: path tool (3), found path (4), what
    amount means (5), no path (6) -- shots/sets-and-paths-s3.png, sets-and-paths-s4.png,
    r3-sarah-howamt-snp-s5.png, sets-and-paths-s6.png
 4. screens/table-dock.html, "Getting rows out" and "The Edges tab" --
-   shots/r3-sarah-howamt-tabledock-out.png, shots/r3-sarah-howamt-tabledock-edges.png
+   shots/record/r3-sarah-howamt-tabledock-out.png, shots/record/r3-sarah-howamt-tabledock-edges.png
 
 ## Transcript (think-aloud)
 

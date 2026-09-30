@@ -15,11 +15,11 @@ built yet. He made no decision and kept nothing.
 
 **Single Ease Question:** 2 of 7.
 
-Renders he looked at (fresh this session): `shots/r2-flagged-ia--find-s1.png`,
-`shots/r2-flagged-ia--find-s10.png`, `shots/r2-flagged-ia--find.png`,
-`shots/r2-flagged-ia--inspector-cap.png`, `shots/r2-flagged-ia--inspector-edge.png`,
-`shots/r2-flagged-ia--filter-chip.png`, `shots/r2-flagged-ia--notes-panel.png`,
-`shots/r2-flagged-ia--notes-s3.png`, `shots/r2-flagged-ia--export-dialog.png`.
+Renders he looked at (fresh this session): `shots/record/r2-flagged-ia--find-s1.png`,
+`shots/record/r2-flagged-ia--find-s10.png`, `shots/record/r2-flagged-ia--find.png`,
+`shots/record/r2-flagged-ia--inspector-cap.png`, `shots/record/r2-flagged-ia--inspector-edge.png`,
+`shots/record/r2-flagged-ia--filter-chip.png`, `shots/record/r2-flagged-ia--notes-panel.png`,
+`shots/record/r2-flagged-ia--notes-s3.png`, `shots/record/r2-flagged-ia--export-dialog.png`.
 
 ---
 

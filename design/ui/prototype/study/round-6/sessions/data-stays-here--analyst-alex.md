@@ -8,12 +8,12 @@ use this tool on your data, and tell me what you would say to IT."
 
 Screens seen, as a participant sees them (design notes hidden), rendered at 1440 x 900:
 
-- Start screen: `shots/r6-alex-dsh-start-screen-view.png`
-- Where your data goes: `shots/r6-alex-dsh-data-location-view.png` and the whole page,
-  `shots/r6-alex-dsh-data-location.png`
-- A project open, at rest: `shots/r6-alex-dsh-frame-at-rest-view.png`
-- Data panel: `shots/r6-alex-dsh-data-panel-view.png`, and taller so the bottom section shows,
-  `shots/r6-alex-dsh-data-panel-tall.png`
+- Start screen: `shots/record/r6-alex-dsh-start-screen-view.png`
+- Where your data goes: `shots/record/r6-alex-dsh-data-location-view.png` and the whole page,
+  `shots/record/r6-alex-dsh-data-location.png`
+- A project open, at rest: `shots/record/r6-alex-dsh-frame-at-rest-view.png`
+- Data panel: `shots/record/r6-alex-dsh-data-panel-view.png`, and taller so the bottom section shows,
+  `shots/record/r6-alex-dsh-data-panel-tall.png`
 
 ## Think-aloud
 

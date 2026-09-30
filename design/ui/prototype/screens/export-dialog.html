@@ -68,7 +68,8 @@
 .x-hidden .x-hrow { display: flex; width: 100%; gap: 8px; align-items: center; min-height: 24px; padding: 0 6px; margin: 0 -6px; border-radius: 4px; color: var(--cm-text); text-decoration: none; }
 .x-hidden .x-hrow:hover { background: var(--cm-bg-secondary); }
 .x-hnote { flex-basis: 100%; color: var(--cm-text-secondary); }
-.x-look-what { color: var(--cm-text); flex: none; margin-top: -4px; }
+.x-look-what { color: var(--cm-text-secondary); flex: none; margin: -4px 0 0; padding: 0; list-style: none; display: grid; gap: 1px; }
+.x-look-what .x-on { color: var(--cm-text); font-weight: 550; }
 .x-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; flex: none; padding-left: 24px; }
 .x-step { display: inline-flex; align-items: center; gap: 3px; }
 .x-sw { width: 12px; height: 12px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--cm-border); }
@@ -131,7 +132,7 @@ body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey {
   <h1>Export dialog</h1>
   <p>Everything that leaves graphty is written by one Export dialog. There are three ways to open it: Export... in the project-name menu, the Export... button in the Data panel's header, and Export table... in the table, which opens it with Table already chosen. Ctrl+Shift+E opens it from anywhere. The dialog lists what can be written, each row named with its file type -- Figure (.svg), Image (.png), Table (.csv), Findings report (.html) -- and previews the checked row exactly as it will be written. A figure is previewed at its print size on a white ground, with its legend, the footer that says how the numbers were computed, and the text at 8 pt; in the Print look the preview shows the file beside the same file printed in gray. Every file that carries data is written with a methods file beside it, and every file name and saved row names the data it was made from.</p>
   <p>Shown on Maren's stress-response study (<span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>, colored by log2 fold change and sized by degree), on a bank's mule-ring case, and on a lab's shared setup. The route with its branches is <a href="../flows/export.html">the export flow</a>.</p>
-  <nav><a href="#ways-in">1. Three ways in</a><a href="#ways-in-menu">1b. The project-name menu</a><a href="#figure">2. A figure</a><a href="#figure-grey">3. The figure in the Print look</a><a href="#table">4. A table</a><a href="#filter-step">4b. With a filter step open</a><a href="#recipe">5. The setup, without data</a><a href="#evidence">6. The evidence file</a><a href="#done">7. Written</a><a href="#again">7b. Export again, on April data</a><a href="#first-release">8. The first release</a></nav>
+  <nav><a href="#ways-in">1. Three ways in</a><a href="#ways-in-menu">1b. The project-name menu</a><a href="#figure">2. A figure</a><a href="#figure-grey">3. The figure in the Print look</a><a href="#table">4. A table</a><a href="#filter-step">4b. With a filter step open</a><a href="#sampled">4c. A sampled measure</a><a href="#recipe">5. The setup, without data</a><a href="#evidence">6. The evidence file</a><a href="#done">7. Written</a><a href="#again">7b. Export again, on April data</a><a href="#first-release">8. The first release</a></nav>
   <div class="x-ctl">
     <label><input type="checkbox" id="ann-toggle"> Show annotations (framework section and compact-mantine component for each numbered element; key at the bottom)</label>
     <label>Theme <select id="theme"><option value="">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
@@ -143,17 +144,19 @@ body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey {
 <div class="x-state-h" id="ways-in-menu"><h2>1b. The project-name menu</h2><p>The same project with the menu under the project's name open. Export... here, the Data panel's Export... and Ctrl+Shift+E all open the dialog with the current view's figure chosen.</p></div>
 <div class="x-frame" data-kit-frame data-state="ways-in-menu"></div>
 
-<div class="x-state-h" id="figure"><h2>2. A figure, with its legend and methods text</h2><p>Opened from the menu. Figure (.svg) is checked and selected, and its settings open under it: which view, the width (174 mm, a two-column journal figure), a white background, and the labels, here the top 10 by the layer's own value, the size of the change. Two of the ten would overlap, so they are hidden, and the dialog says so with the list one click away. The preview is the file at print size: the legend beside the drawing, and under it the footer that says degree is exact and not normalized and that no weight was used. Look, for this file only, reads Screen, with one line saying what it does; under the preview the dialog says values near 0 would print as the same gray, with Use Print look beside it. Click Print to switch the preview and the file together.</p></div>
+<div class="x-state-h" id="figure"><h2>2. A figure, with its legend and methods text</h2><p>Opened from the menu. Figure (.svg) is checked and selected, and its settings open under it: which view, the width (174 mm, a two-column journal figure), a white background, and the labels, here the top 10 by the layer's own value, the size of the change. Two of the ten would overlap, so they are hidden, and the dialog says so with the list one click away. The preview is the file at print size: the legend beside the drawing, and under it the footer that says degree is exact and not normalized and that no weight was used. Look, for this file only, reads Screen; under it each look has one line saying what it changes and what it leaves alone, the chosen one in bold; under the preview the dialog says values near 0 would print as the same gray, with Use Print look beside it. Click Print to switch the preview and the file together.</p></div>
 <div class="x-frame" data-kit-frame data-state="figure"></div>
 
-<div class="x-state-h" id="figure-grey"><h2>3. The same figure in the Print look</h2><p>After Use Print look. The preview now shows two things side by side: the file as it will be written, and the same file as a gray printer will print it. In Print, shape carries the sign (a triangle up for every value above 0, down for every value below) and darkness carries the size of the change in four gray steps, the same steps on both sides, so the largest decreases print as dark as the largest increases. Nothing is grouped as "no change": the counts are the Screen legend's, 148 below 0 and 152 above. The line under Look says what Print does to categories, none of which print alike, and the check prints the value each gray step stands for. The hidden-label list is open: MRE11 and RPL17. Each row selects its node, and the inspector's Show label anyway puts that label in the figure.</p></div>
+<div class="x-state-h" id="figure-grey"><h2>3. The same figure in the Print look</h2><p>After Use Print look. The preview now shows two things side by side: the file as it will be written, and the same file as a gray printer will print it. In Print, shape carries the sign (a triangle up for every value above 0, down for every value below) and darkness carries the size of the change in four gray steps, the same steps on both sides, so the largest decreases print as dark as the largest increases. Nothing is grouped as "no change": the counts are the Screen legend's, 148 below 0 and 152 above. The Print line under Look is now the bold one: sign as a triangle, gray steps, darker outlines, and the hues, sizes, labels and layout left as they are. The check prints the value each gray step stands for. The hidden-label list is open: MRE11 and RPL17. Each row selects its node, and the inspector's Show label anyway puts that label in the figure.</p></div>
 <div class="x-frame" data-kit-frame data-state="figure-grey"></div>
 
-<div class="x-state-h" id="table"><h2>4. A table, from the table's Export table...</h2><p>Sarah needs the mule ring's accounts as rows for the case system. In the table dock, filtered to the ring, she clicks Export table.... The same dialog opens with Table (.csv) checked and selected. It states the rows first, "<span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>, filtered", names the filter step, and previews the file's first lines with the file's own ids. PageRank's rank is written as a whole number, with a separate Tie column that says how many other accounts share the value, so the column stays numeric in Excel and pandas. A sampled measure writes Rank low and Rank high in place of the two. The file name carries the data's month, 2026-03. The methods file beside it is always written, whichever way the dialog was opened.</p></div>
+<div class="x-state-h" id="table"><h2>4. A table, from the table's Export table...</h2><p>Sarah needs the mule ring's accounts as rows for the case system. In the table dock, filtered to the ring, she clicks Export table.... The same dialog opens with Table (.csv) checked and selected. It states the rows first, "<span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>, filtered", names the filter step, and previews the file's first lines with the file's own ids. PageRank's rank is written as a whole number, with a separate Tie column that says how many other accounts share the value, so the column stays numeric in Excel and pandas. A sampled measure writes Rank low and Rank high in place of the two (state 4c). The file name carries the data's month, 2026-03. The methods file beside it is always written, whichever way the dialog was opened.</p></div>
 <div class="x-frame" data-kit-frame data-state="table"></div>
 
 <div class="x-state-h" id="filter-step"><h2>4b. Export with a filter step open</h2><p>Sarah has the filter step "in Mule ring suspects" open and presses Ctrl+Shift+E. The dialog starts with that step's transfers: Table (.csv) on the Edges tab, the <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> with both ends among the step's <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>. A line under the scope says why, and Nodes is one click away.</p></div>
 <div class="x-frame" data-kit-frame data-state="filter-step"></div>
+<div class="x-state-h" id="sampled"><h2>4c. A sampled measure: Rank low and Rank high</h2><p>On 124,318 patents, exact betweenness would take hours, so it was estimated from 101 sources. Its values are estimates with an error bound, so the file has no single rank: Rank low and Rank high are two whole-number columns in place of Rank and Tie. The methods file beside it names the sample size, the seed and the error bound.</p></div>
+<div class="x-frame" data-kit-frame data-state="sampled"></div>
 
 <div class="x-state-h" id="recipe"><h2>5. Share the setup, without data</h2><p>Maren Holt shares the lab's expression overlay with a partner lab. She checks Recipe. Every row that would carry her data turns off and is disabled, with one line saying why. The first thing the preview says is that no data is inside; then what travels (each run with its settings, the layout as its method and seed, the full text of a note that travels), what the recipient supplies, and what is not included.</p></div>
 <div class="x-frame" data-kit-frame data-state="recipe"></div>
@@ -180,7 +183,7 @@ body:has(#ann-toggle:checked) .x-annkey, body:has(#annotated:target) .x-annkey {
 <tr><td><span class="k-step">6</span></td><td>The outputs, each a checkbox row named with its file type: Figure (.svg), Image (.png), Table (.csv), Findings report (.html), Graph file, Recipe, Project file. Several can be written at once. No row for a format that does not exist yet</td><td>interface-templates.md 20; framework-changes.md, "Export: the dialog's rows are checkboxes, not a segmented choice" and "Authorship on notes and recipes, and the other decisions now in force" (HTML report; SVG now, PDF later)</td><td>ControlSection of ToggleRows (Checkbox)</td></tr>
 <tr><td><span class="k-step">7</span></td><td>The selected figure's settings under its row: which view, width in mm, background (White by default; also Canvas, Transparent), legend placement</td><td>framework-changes.md, "Export dialog: a figure is written on a white ground with its legend beside the drawing"; canvas-drawing.md 13</td><td>FieldRows with StyleSelect</td></tr>
 <tr><td><span class="k-step">8</span></td><td>Labels: "Top N by this layer's value" or "Above a threshold"; when overlap hides some, "N labels hidden to avoid overlap: show list", the list in place with each value. A row selects its node; the inspector's Show label anyway writes to the "Labels shown anyway" layer</td><td>framework-changes.md, "Export: labels by the layer's value, and the hidden ones named"; canvas-drawing.md 9 (labels culled by collision)</td><td>StyleSelect with NumberInput; Button (subtle) opening a DataRow list</td></tr>
-<tr><td><span class="k-step">9</span></td><td>Look, labeled "for this file only": Screen, Print, High contrast. It drives the preview and the written file together, never the canvas. The line beside it names the look the file is written with, and the line under it says what the look does, counting the categories that cannot be told apart in gray</td><td>canvas-drawing.md 4a (Looks); glossary.md (Look); framework-changes.md, "Export: one Look drives the preview and the file (replaces View as)"</td><td>SegmentedControl with a visible label; Text</td></tr>
+<tr><td><span class="k-step">9</span></td><td>Look, labeled "for this file only": Screen, Print, High contrast. It drives the preview and the written file together, never the canvas. The line beside it names the look the file is written with, and one line per look under it says what that look changes and what it leaves alone</td><td>canvas-drawing.md 4a (Looks); glossary.md (Look); framework-changes.md, "Export: one Look drives the preview and the file (replaces View as)"</td><td>SegmentedControl with a visible label; Text</td></tr>
 <tr><td><span class="k-step">10</span></td><td>The preview is the file, at print size in the Screen look: white ground, legend beside the drawing, all text 8 pt at the figure's physical width. The preview's size line says so</td><td>canvas-drawing.md 13; task-flows.md 9 (trust check: legend and scope drawn in); framework-changes.md, "Export: figure text is 8 pt at print size"</td><td>none: graphty-element's figure preview (proposed)</td></tr>
 <tr><td><span class="k-step">11</span></td><td>The legend's footer: how the size was computed (exact, not normalized, on which graph), the weight answer in its element wording, and the look</td><td>framework-changes.md, "Content design: every number names what it counts and its scope" and "Export: the legend's footer carries normalization and the weight answer"</td><td>part of the element's figure</td></tr>
 <tr><td><span class="k-step">12</span></td><td>In the Print look, the file as written beside the same file printed in gray, both at the same scale, so the gray check can be seen, not only read</td><td>framework-changes.md, "Canvas drawing: the Print look carries sign with shape" and "Export: the Print look previews the file and its gray print side by side"</td><td>two element previews in a Group</td></tr>
@@ -214,7 +217,7 @@ function app(s) {
     <div class="k-rail-btn" aria-label="Main menu"><span class="k-rail-pill">${I("menu")}</span></div><div class="k-rail-sep"></div>
     ${rb("network", "Graph", !s.panel?.startsWith("data"))}${rb("database", "Data", !!s.panel?.startsWith("data"))}${rb("flask-conical", "Results")}${rb("sticky-note", "Notes")}
     <div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>`;
-  const head = `<div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div>
+  const head = `<div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div><a class="k-privacy">Nothing has been sent from this project</a>
     <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>`;
   const panel = s.panel === "data-april" ? aprilPanel(s) : s.panel === "data" ? dataPanel(s) : `<aside class="k-panel" aria-label="Graph">${head}
     <div class="k-scroll">
@@ -257,7 +260,7 @@ function app(s) {
 }
 function dataPanel(s) {
   return `<aside class="k-panel" aria-label="Data">
-    <div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div>
+    <div class="k-panel-head"><div class="k-title-line"><span class="k-project x-trigger"${s.focusProject ? " data-focus" : ""}>${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}${s.menu ? A(1) : ""}</div><a class="k-privacy">Nothing has been sent from this project</a>
       <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>
     <div class="x-dhead">Data<span class="k-grow"></span><span class="k-btn k-btn-secondary x-trigger">Export...</span>${s.ways ? A(2) : ""}</div>
     <div class="k-scroll">
@@ -278,7 +281,7 @@ function dataPanel(s) {
 // the Data panel of the case after April's data came in: two versions, and saved exports that each name the data they were made from
 function aprilPanel(s) {
   return `<aside class="k-panel" aria-label="Data">
-    <div class="k-panel-head"><div class="k-title-line"><span class="k-project">${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}</div>
+    <div class="k-panel-head"><div class="k-title-line"><span class="k-project">${s.project}</span>${I("chevron-down", "k-i-sm k-secondary")}</div><a class="k-privacy">Nothing has been sent from this project</a>
       <span class="k-chip k-chip-btn" role="button">${s.chip}${I("chevron-down", "k-i-sm k-caret")}</span></div>
     <div class="x-dhead">Data<span class="k-grow"></span><span class="k-btn k-btn-secondary">Export...</span></div>
     <div class="k-scroll">
@@ -305,6 +308,10 @@ const ppiApp = { project: "Stress response study", chip: "Full graph", graph: "I
   canvas: "ppi-foldchange-degree", alt: "300 proteins colored by log2 fold change, sized by degree", legend: fcLegend,
   styles: [[`<span class="k-ramp" style="width:16px;background:linear-gradient(90deg,#b2182b,#f7f7f7,#2166ac)"></span>`, "Fold change color"], [`<svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg>`, "Size: degree"]],
   results: [["Degree", "exact, full graph"]] };
+const citApp = { project: "Patent citations", chip: "Full graph", graph: "Patent citations", count: '<span data-fx="datasets.citations.nodes" data-fx-noun="nodes">124,318 nodes</span>', n: "124,318", e: "1,480,221",
+  sets: [], views: ["All patents"], canvas: "citations-sample", alt: "124,318 patents, too many to draw at once",
+  legend: `<div class="k-notdrawn" style="border:0;margin:0;padding:0"><span data-fx="datasets.citations.nodes" data-fx-noun="nodes">124,318 nodes</span> not drawn. <a>Narrow the graph...</a></div>`,
+  styles: [], results: [["Betweenness (sampled)", "101 sources, full graph"]] };
 const txApp = { project: "Mule ring, case ACC-233575", chip: 'Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span>', graph: "Transfers, March 2026", count: '<span data-fx="datasets.transactions.nodes" data-fx-noun="nodes">3,000 nodes</span>', n: "3,000", e: "9,113",
   sets: [["Mule ring suspects", 14]], views: ["Ring overview", "Cash-out route"],
   canvas: "transactions-flagged", alt: "3,000 accounts as density, 14 flagged accounts drawn over it",
@@ -379,14 +386,15 @@ function dialog(d) {
 const PT = 96 / 72; // CSS px per pt: at 100% the preview is the print size on a 96 dpi screen
 const paper = (key, scale) => `<div class="x-paper">${SVG[key].replace("<svg ", `<svg style="width:${Math.round(FIG.widthPt * PT * scale)}px" `)}</div>`;
 const files = (names) => `<div class="x-files"><div class="x-h5">Files${A(14)}</div>${names.map((f) => `<div>${I("file")}<span class="k-id">${f}</span></div>`).join("")}</div>`;
-const LOOKS = {
-  screen: "Screen: the colors as on the canvas, a red-to-blue ramp with no categories.",
-  print: () => `Print: sign as a triangle, size of the change as ${FIG.steps.length} gray steps a side. No two of its ${FIG.steps.length * 2} categories print as the same gray.`,
-};
+const LOOKS = () => [
+  ["screen", "Screen: the canvas's own colors, red below 0 to blue above. Changes nothing, so values near 0 print as the same gray."],
+  ["print", `Print: sign as a triangle, the size of the change in ${FIG.steps.length} gray steps a side, darker outlines. Leaves the hues, sizes, labels and layout as they are.`],
+  ["contrast", "High contrast: every color and line clears 3:1 on the white ground. Leaves shapes and layout alone, so it does not separate values near 0 in gray."],
+];
 const lookRow = (look) => `<div class="x-look"><span class="k-secondary">Look, for this file only</span>
   <span class="k-seg" role="radiogroup" aria-label="Look">${[["screen", "Screen"], ["print", "Print"], ["contrast", "High contrast"]].map(([k, t]) => `<button type="button" role="radio" aria-checked="${look === k}"${k === "contrast" ? "" : ` data-look="${k}"`}>${t}</button>`).join("")}</span>${A(9)}
   <span>File is written with: <b>${look === "print" ? "Print" : "Screen"} look</b></span></div>
-  <div class="x-look-what">${look === "print" ? LOOKS.print() : LOOKS.screen}</div>`;
+  <ul class="x-look-what">${LOOKS().map(([k, t]) => `<li${k === look ? ' class="x-on"' : ""}>${t}</li>`).join("")}</ul>`;
 const figMethods = (look) => {
   const L = FIG.labels;
   return `<div><div class="x-h5">stress-response-study_figure-methods.txt</div><pre class="x-pre">Figure: stress-response-study_figure.svg, 174 mm wide, text 8 pt, white ground.
@@ -421,10 +429,10 @@ const RK = (month) => new Map(FIX.scenarios.exportDialog[month].map((r) => [r.id
 const rankHead = (of) => `"PageRank rank (1 = highest, of ${of})","PageRank tie (other accounts with the same value)"`;
 function tablePreview() {
   const acc = [...FIX.datasets.transactions.flaggedAccounts].sort((a, b) => b.riskScore - a.riskScore || a.id.localeCompare(b.id)), rk = RK("march");
-  const csv = [`id,kind,country,riskScore,"degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)",${rankHead("3,000")}`, ...acc.slice(0, 6).map((a) => `${a.id},${a.kind},${a.country},${a.riskScore},${a.degree},${a.pagerank},${rk.get(a.id).rank},${rk.get(a.id).tiedWith}`)].join("\n");
+  const csv = [`id,kind,country,riskScore,"total degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)",${rankHead("3,000")}`, ...acc.slice(0, 6).map((a) => `${a.id},${a.kind},${a.country},${a.riskScore},${a.degree},${a.pagerank},${rk.get(a.id).rank},${rk.get(a.id).tiedWith}`)].join("\n");
   return `<div class="x-p-title">Table, as it will be written${A(16)}</div>
     <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
-      <div><div class="x-h5">case-acc-233575_nodes_2026-03.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+      <div><div class="x-h5">case-acc-233575_nodes_2026-03.csv, first lines</div><pre class="x-pre">${csv}\n...</pre>
         <p class="k-secondary" style="margin:6px 0 0">The first column is the file's own id, written as it came in. The CSV holds only the header and the rows. The last two columns are "PageRank rank (1 = highest, of 3,000)" and "PageRank tie (other accounts with the same value)". Rank is a whole number in every row, so Excel and pandas read the column as numbers; accounts with the same value share a rank, and the Tie column says how many others share it.${A(22)}</p></div>
       <div><div class="x-h5">Beside it: case-acc-233575_nodes_2026-03-methods.txt</div><pre class="x-pre">Rows: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="accounts">14 of 3,000 accounts</span> (Nodes), filtered by 1 step:
 in Mule ring suspects, a frozen set of <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>.
@@ -434,9 +442,9 @@ directed. Load: nodes from from_account and to_account;
 amount read as currency (USD); timestamp kept as text.
 riskScore: from accounts-2026-03.csv, not computed by graphty.
 Weight: none; no measure here reads a weight.
-degree: exact, full graph, not normalized.
+total degree (in plus out): exact, full graph, not normalized.
 pagerank: exact (power iteration, damping 0.85), full graph,
-unweighted, normalized to sum to 1.
+unweighted, normalized to sum to 1. Seed: none; nothing here is sampled.
 PageRank rank: 1 = highest, of <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>; equal values (as written,
 6 decimals) share the lowest rank of their block. PageRank tie: how
 many other accounts share that value; 0 = none.
@@ -457,7 +465,7 @@ function transfersPreview() {
   const csv = ["from_account,to_account,amount (USD)", ...E.ringTransferRows.map((r) => `${r.from_account},${r.to_account},${r.amount}`)].join("\n");
   return `<div class="x-p-title">Table, as it will be written${A(23)}</div>
     <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
-      <div><div class="x-h5">case-acc-233575_transfers_2026-03.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+      <div><div class="x-h5">case-acc-233575_transfers_2026-03.csv, first lines</div><pre class="x-pre">${csv}\n...</pre>
         <p class="k-secondary" style="margin:6px 0 0">Each row is one transfer with both ends inside the step. The ids are the file's own.</p></div>
       <div><div class="x-h5">Beside it: case-acc-233575_transfers_2026-03-methods.txt</div><pre class="x-pre">Rows: <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> (Edges): those with both ends in
 filter step 1, in Mule ring suspects, a frozen set of <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>.
@@ -477,10 +485,10 @@ const transfersDetail = () => `<div class="x-detail" role="group" aria-label="Ta
 
 function againPreview() {
   const rows = FIX.scenarios.exportDialog.april;
-  const csv = [`id,"degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)",${rankHead("3,093")}`, ...rows.slice(0, 6).map((r) => `${r.id},${r.degree},${r.pagerank},${r.rank},${r.tiedWith}`)].join("\n");
+  const csv = [`id,"total degree (full graph)","pagerank (exact, unweighted, normalized to sum 1, full graph)",${rankHead("3,093")}`, ...rows.slice(0, 6).map((r) => `${r.id},${r.degree},${r.pagerank},${r.rank},${r.tiedWith}`)].join("\n");
   return `<div class="x-p-title">Table, as it will be written${A(24)}</div>
     <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
-      <div><div class="x-h5">case-acc-233575_ring-pagerank_2026-04.csv, first lines</div><pre class="x-pre" style="white-space:pre;overflow:auto">${csv}\n...</pre>
+      <div><div class="x-h5">case-acc-233575_ring-pagerank_2026-04.csv, first lines</div><pre class="x-pre">${csv}\n...</pre>
         <p class="k-secondary" style="margin:6px 0 0">A new file, named for April. The last two columns are "PageRank rank (1 = highest, of 3,093)" and "PageRank tie (other accounts with the same value)", as in the March file, with April's values. The March file is not touched.</p></div>
       <div><div class="x-h5">Beside it: case-acc-233575_ring-pagerank_2026-04-methods.txt</div><pre class="x-pre">Made again from the settings of
 case-acc-233575_ring-pagerank_2026-03.csv, on April data.
@@ -501,6 +509,39 @@ const againDetail = () => `<div class="x-detail" role="group" aria-label="Table 
   <span class="k-secondary">Data</span><span>transfers-2026-04.csv (April 2026)</span>
   <span class="k-secondary">Order</span><span>PageRank rank, highest first</span>
   <span class="k-secondary">Columns</span><span class="k-num">5, as in the March file</span></div>`;
+
+// ---- a sampled measure: Rank low and Rank high in place of Rank and Tie
+// ponytail: the error bound is modeled, as in screens/results-panel.py (SB_EPS); read it from the fixture once the element reports one.
+const SB_EPS = 0.00035;
+function sampledPreview() {
+  const C = FIX.datasets.citations, B = C.sampledBetweenness, v = B.top.map((t) => t.betweenness), r9 = (x) => Math.round(x * 1e9);
+  const lo = (x) => 1 + v.filter((w) => r9(w - SB_EPS) > r9(x + SB_EPS)).length, hi = (x) => v.filter((w) => r9(w + SB_EPS) >= r9(x - SB_EPS)).length;
+  const csv = [`id,category,grantYear,"betweenness (sampled estimate, ${B.k} sources, seed ${B.seed})","Betweenness rank low (1 = highest, of ${C.nodes.toLocaleString("en-US")})","Betweenness rank high"`,
+    ...B.top.slice(0, 6).map((t) => `${t.id},${t.category.includes(" ") ? `"${t.category}"` : t.category},${t.grantYear},${t.betweenness},${lo(t.betweenness)},${hi(t.betweenness)}`)].join("\n");
+  return `<div class="x-p-title">Table, as it will be written${A(22)}</div>
+    <div class="x-lower" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <div><div class="x-h5">patent-citations_nodes_1999-2001.csv, first lines</div><pre class="x-pre">${csv}\n...</pre>
+        <p class="k-secondary" style="margin:6px 0 0">Betweenness here is an estimate, so it has no single rank. In place of Rank and Tie the file has two whole-number columns, Rank low and Rank high: every rank the value could hold under the run's error bound. 5964536 reads 3 and 7.</p></div>
+      <div><div class="x-h5">Beside it: patent-citations_nodes_1999-2001-methods.txt</div><pre class="x-pre">Rows: all <span data-fx="datasets.citations.nodes" data-fx-noun="patents">124,318 patents</span> (Nodes), not filtered.
+Order: betweenness, highest first.
+Data: ${FIX.datasets.citations.file}, <span data-fx="datasets.citations.nodes" data-fx-noun="patents">124,318 patents</span>,
+<span data-fx="datasets.citations.edges" data-fx-noun="citations">1,480,221 citations</span>, read as undirected.
+Weight: none; no numeric edge column.
+betweenness: SAMPLED. Brandes from <span data-fx="datasets.citations.sampledBetweenness.k">101</span> random sources, seed <span data-fx="datasets.citations.sampledBetweenness.seed">7</span>,
+scaled up by n / <span data-fx="datasets.citations.sampledBetweenness.k">101</span>; divided by (n-1)(n-2)/2, n = <span data-fx="datasets.citations.nodes">124,318</span>.
+Error bound: each value within +/- ${SB_EPS} of the exact
+value in 95 runs out of 100.
+Rank low, Rank high: the best and worst rank the value could
+hold under that bound; 1 = highest. Equal when the rank is firm.
+graphty-element 2.6.2</pre></div></div>
+    ${files(["patent-citations_nodes_1999-2001.csv", "patent-citations_nodes_1999-2001-methods.txt"])}`;
+}
+const sampledDetail = () => `<div class="x-detail" role="group" aria-label="Table settings">
+  <span class="k-secondary">Tab</span><span class="k-seg k-seg-fill"><span aria-pressed="true">Nodes</span><span>Edges</span></span>
+  <span class="k-secondary">Rows</span><span class="k-fact k-num"><span data-fx="datasets.citations.nodes" data-fx-noun="rows">124,318 rows</span>, not filtered</span>
+  <span class="k-secondary">Order</span><span>betweenness, highest first</span>
+  <span class="k-secondary">Columns</span><span class="k-num">6, hidden ones included</span>
+  <span class="k-secondary">Methods</span><span>Always written beside it</span></div>`;
 
 // ---- the recipe
 const recipePreview = () => `<div class="x-p-title">What the recipe holds</div>
@@ -544,7 +585,7 @@ function evidencePreview() {
       <li><b>Methods</b><span>transfers-2026-03.csv: <span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>, <span data-fx="datasets.transactions.edges" data-fx-noun="transfers">9,113 transfers</span>, directed. PageRank, exact, on the full graph</span></li>
     </ol>
     <div class="x-sheet"><h3>Page 1. Boundary</h3><p>Filter step: in Mule ring suspects (a frozen set of <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>), from transfers-2026-03.csv (March 2026 data), written 2026-09-28 by Sarah Okafor.</p>
-      <table><thead><tr><th>account</th><th>kind</th><th>country</th><th class="n">riskScore<small>from the file</small></th><th class="n">degree</th><th class="n">PageRank<small>full graph</small></th></tr></thead><tbody>
+      <table><thead><tr><th>account</th><th>kind</th><th>country</th><th class="n">riskScore<small>from the file</small></th><th class="n">total degree</th><th class="n">PageRank<small>full graph</small></th></tr></thead><tbody>
       ${acc.map((a) => `<tr><td class="k-id">${a.id}</td><td>${a.kind}</td><td>${a.country}</td><td class="n">${a.riskScore}</td><td class="n">${a.degree}</td><td class="n">${a.pagerank.toFixed(6)}</td></tr>`).join("")}
       </tbody></table></div>
   </div>
@@ -560,9 +601,12 @@ const S = {
   "ways-in": { app: { ...ppiApp, panel: "data", ways: true, dock: { scope: 'Full graph: <span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span>. Sorted by |log2FoldChange|.', head: ["id", "log2FoldChange"], rows: [["CHEK1", "3.15"], ["WRN", "2.61"], ["SNRNP70", "2.58"], ["RPS6", "-2.52"], ["MAPK10", "-2.42"]] } } },
   figure: { app: { ...ppiApp, focusProject: true }, dlg: figDlg("screen") },
   "figure-grey": { app: { ...ppiApp, focusProject: true }, dlg: figDlg("print", { labelsOpen: true }) },
-  table: { app: { ...txApp, focusTable: true, dock: { scope: 'Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>. Sorted by riskScore.', head: ["id", "kind", "riskScore", "degree"], rows: [] } },
+  table: { app: { ...txApp, focusTable: true, dock: { scope: 'Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-of="datasets.transactions.nodes" data-fx-noun="rows">14 of 3,000 rows</span>. Sorted by riskScore.', head: ["id", "kind", "riskScore", "total degree"], rows: [] } },
     dlg: { scope: sel('Filtered: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="nodes">14 nodes</span>', "x-scope-f"), scopeNote: "1 step: in Mule ring suspects",
       rows: { table: { on: true, sel: true, sum: "Nodes" } }, detail: tableDetail, preview: tablePreview, files: [1, 2] } },
+  sampled: { app: { ...citApp, focusTable: true, dock: { scope: 'Full graph: <span data-fx="datasets.citations.nodes" data-fx-noun="rows">124,318 rows</span>. Sorted by betweenness.', head: ["id", "category", "betweenness"], rows: [] } },
+    dlg: { scope: sel('Full graph: <span data-fx="datasets.citations.nodes" data-fx-noun="nodes">124,318 nodes</span>', "x-scope-f"), scopeNote: "The filter chip's scope, until you change it here",
+      rows: { table: { on: true, sel: true, sum: "Nodes" } }, detail: sampledDetail, preview: sampledPreview, files: [1, 2] } },
   "filter-step": { app: { ...txApp, chip: 'Filter step 1 open: in Mule ring suspects' },
     dlg: { scope: sel('Filter step 1: <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>', "x-scope-f"), scopeNote: "The open step, until you change it here",
       stateLine: `<div class="x-state">${I("funnel")}<span class="k-fact">A filter step is open, so the export starts with its transfers: the <span data-fx="scenarios.exportDialog.ringTransfers" data-fx-noun="transfers">28 transfers</span> between its <span data-fx="datasets.transactions.flaggedAccounts.length" data-fx-noun="accounts">14 accounts</span>. Tab Nodes writes the accounts instead.</span>${A(23)}</div>`,

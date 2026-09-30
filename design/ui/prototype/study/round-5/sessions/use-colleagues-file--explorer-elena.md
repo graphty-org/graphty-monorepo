@@ -20,11 +20,11 @@ project after one Undo. The "Replace data and apply a recipe" page was glanced a
 about bank transfers.
 
 Renders the participant looked at (participant view, design notes hidden):
-- `../../../shots/r4-elena-colleague-recipe-travels.png` (the email frame only)
-- `../../../shots/r4-elena-colleague-start-screen.png` (the "Recipe waiting for your table" state)
-- `../../../shots/r4-elena-colleague-recipe-apply.png`
-- `../../../shots/r4-elena-colleague-binding-step.png`
-- `../../../shots/r4-elena-colleague-replace-and-recipe.png` (scrolled, left)
+- `../../../shots/record/r4-elena-colleague-recipe-travels.png` (the email frame only)
+- `../../../shots/record/r4-elena-colleague-start-screen.png` (the "Recipe waiting for your table" state)
+- `../../../shots/record/r4-elena-colleague-recipe-apply.png`
+- `../../../shots/record/r4-elena-colleague-binding-step.png`
+- `../../../shots/record/r4-elena-colleague-replace-and-recipe.png` (scrolled, left)
 
 ## Think-aloud
 

@@ -4,7 +4,7 @@ Task as given by the moderator: "Share your setup with a partner, without your d
 
 Screens seen: the Export dialog with Recipe checked (shots/tasks/share-without-data/01-export-dialog-recipe.png),
 the Export dialog's ways in (shots/screens__export-dialog.png), the recipe as the partner meets it
-when applying it (shots/r4-chen-swd-binding-full.png) and the Data panel (shots/r4-chen-swd-data-panel-full.png).
+when applying it (shots/record/r4-chen-swd-binding-full.png) and the Data panel (shots/record/r4-chen-swd-data-panel-full.png).
 
 ## Think-aloud
 

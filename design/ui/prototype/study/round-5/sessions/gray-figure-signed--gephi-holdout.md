@@ -10,10 +10,10 @@ Screens used: the open "Stress response study" project with the 300-protein netw
 list's Look menu; the Export dialog with Figure (.svg) checked in the Screen look and in the Print
 look, and its table preview; the table dock (as drawn on other datasets); the export flow page.
 
-Renders she looked at: shots/r4-mara-graysig-choose.png, shots/r4-mara-graysig-numbers.png,
-shots/r4-mara-graysig-looks.png, shots/r4-mara-graysig-fig.png, shots/r4-mara-graysig-figgrey.png,
-shots/r4-mara-graysig-dock.png, shots/r4-mara-graysig-ranked.png,
-shots/r4-mara-graysig-exptable.png, shots/r4-mara-graysig-flow.png (the flow page, first screen,
+Renders she looked at: shots/record/r4-mara-graysig-choose.png, shots/record/r4-mara-graysig-numbers.png,
+shots/record/r4-mara-graysig-looks.png, shots/record/r4-mara-graysig-fig.png, shots/record/r4-mara-graysig-figgrey.png,
+shots/record/r4-mara-graysig-dock.png, shots/record/r4-mara-graysig-ranked.png,
+shots/record/r4-mara-graysig-exptable.png, shots/record/r4-mara-graysig-flow.png (the flow page, first screen,
 plus its text).
 
 Moderator's task, as given: "Make a black-and-white figure of the fold changes for a journal that

@@ -13,19 +13,19 @@ order."
 Screens she saw, in order (study view: design notes hidden):
 
 1. The project just opened, nothing run yet, one colour per group, all dots the same size
-   (shots/r6-elena-who-rest.png, from screens/frame-at-rest.html?dataset=lesmis).
+   (shots/record/r6-elena-who-rest.png, from screens/frame-at-rest.html?dataset=lesmis).
 2. The same project a little later, with Size: degree in the style stack and the table open under
-   the picture, sorted by degree (shots/r6-elena-who-nav-new.png, screens/navigation.html?frame=new).
-3. Valjean clicked (shots/r6-elena-who-nav-new-node.png).
-4. Results on the left rail: the list of runs (shots/r6-elena-who-nav-new-results.png).
-5. The Betweenness run opened (shots/r6-elena-who-nav-new-run.png).
+   the picture, sorted by degree (shots/record/r6-elena-who-nav-new.png, screens/navigation.html?frame=new).
+3. Valjean clicked (shots/record/r6-elena-who-nav-new-node.png).
+4. Results on the left rail: the list of runs (shots/record/r6-elena-who-nav-new-results.png).
+5. The Betweenness run opened (shots/record/r6-elena-who-nav-new-run.png).
 6. The table with rank columns and the sentence about where the two rankings agree
-   (shots/r6-elena-who-table-small.png, screens/table-dock.html, "Small graph" state).
-7. A Betweenness result on a filtered version of the graph (shots/r6-elena-who-rp-filtered.png).
+   (shots/record/r6-elena-who-table-small.png, screens/table-dock.html, "Small graph" state).
+7. A Betweenness result on a filtered version of the graph (shots/record/r6-elena-who-rp-filtered.png).
 8. The Closeness entry in the Results catalog, with its hover text, on Les Miserables
-   (shots/r6-elena-who-closeness.png).
+   (shots/record/r6-elena-who-closeness.png).
 9. For comparison, the same kind of result panel on another dataset, where it says two ranks are
-   tied (shots/r6-elena-who-rp-variant.png; the moderator said "pretend it is Les Miserables").
+   tied (shots/record/r6-elena-who-rp-variant.png; the moderator said "pretend it is Les Miserables").
 
 ## Think-aloud
 

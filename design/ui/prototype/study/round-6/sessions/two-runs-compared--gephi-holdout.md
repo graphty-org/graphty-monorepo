@@ -20,15 +20,15 @@ versions section, and the row of smaller states, including "two runs of one meas
 "getting here"); the bottom dock table (screens/table-dock.html: the ranked table and the column
 header states). Viewed at 1440 x 900, participant view.
 
-**Renders she saw:** shots/screens__navigation-frame-new-results--study.png,
-shots/screens__navigation-frame-new-run--study.png, shots/screens__results-panel-filtered--study.png,
-shots/screens__results-panel-running--study.png, shots/screens__results-panel--compare-with.png,
-shots/screens__results-panel-in-the-table--study.png, shots/screens__comparison--study.png,
-shots/r6-mara-tworuns-comparison-full.png (the whole comparison page, including the row of
-smaller states), shots/screens__table-dock-ranked--study.png,
-shots/screens__table-dock-header--study.png, and full-page participant renders of the other three
-pages (shots/r6-mara-tworuns-navigation-full.png, shots/r6-mara-tworuns-results-panel-full.png,
-shots/r6-mara-tworuns-table-dock-full.png). She had a Jupyter notebook open beside the mocks, as
+**Renders she saw:** shots/record/screens__navigation-frame-new-results--study.png,
+shots/record/screens__navigation-frame-new-run--study.png, shots/record/screens__results-panel-filtered--study.png,
+shots/record/screens__results-panel-running--study.png, shots/screens__results-panel--compare-with.png,
+shots/record/screens__results-panel-in-the-table--study.png, shots/screens__comparison--study.png,
+shots/record/r6-mara-tworuns-comparison-full.png (the whole comparison page, including the row of
+smaller states), shots/record/screens__table-dock-ranked--study.png,
+shots/record/screens__table-dock-header--study.png, and full-page participant renders of the other three
+pages (shots/record/r6-mara-tworuns-navigation-full.png, shots/record/r6-mara-tworuns-results-panel-full.png,
+shots/record/r6-mara-tworuns-table-dock-full.png). She had a Jupyter notebook open beside the mocks, as
 she always does when a tool shows her a number, with NetworkX's Les Miserables graph loaded.
 
 ---

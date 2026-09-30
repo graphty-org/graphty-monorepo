@@ -14,8 +14,8 @@ core interaction set, have a look when you can." No screenshot.
 **Screens seen (study view, 1440 by 900):**
 
 - Start screen: `shots/tasks/worth-an-afternoon/01-start-screen.png`
-- "Where your data goes", which he opened from the start screen: `shots/r6-tom-worth-data-location.png`
-- Start screen while he dragged the file over it: `shots/r6-tom-worth-start-drop.png`
+- "Where your data goes", which he opened from the start screen: `shots/record/r6-tom-worth-data-location.png`
+- Start screen while he dragged the file over it: `shots/record/r6-tom-worth-start-drop.png`
 - Open dialog, the confidence column: `shots/tasks/worth-an-afternoon/02-load-step-blocked.png`
 - Open dialog, repeated pairs: `shots/tasks/worth-an-afternoon/03-load-step-policy.png`
 - The loaded graph: `shots/tasks/worth-an-afternoon/04-frame-at-rest.png`

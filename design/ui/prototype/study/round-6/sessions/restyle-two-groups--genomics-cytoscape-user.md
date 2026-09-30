@@ -3,10 +3,10 @@
 Participant: Maren, cancer genomics postdoc; uses Cytoscape two or three times a month for STRING networks. Her PI is red-green colour-blind.
 Task as given: "Two of the groups are drawn in colors you cannot tell apart. Fix that so a colleague can read the picture."
 Screens seen (as a participant sees them, design notes hidden, 1440 x 900):
-- `shots/r6-maren-restyle-frame-at-rest.png` (the network at rest, ppi dataset)
-- `shots/r6-maren-restyle-colour-by-value-full.png` (all states: choose, numbers, size, categories, path, refused, change a color from the legend, recolor a run's group)
-- `shots/r6-maren-restyle-styles-list-full.png`, `-libraries.png`, `-looks.png`
-- `shots/r6-maren-restyle-inspector-full.png`
+- `shots/record/r6-maren-restyle-frame-at-rest.png` (the network at rest, ppi dataset)
+- `shots/record/r6-maren-restyle-colour-by-value-full.png` (all states: choose, numbers, size, categories, path, refused, change a color from the legend, recolor a run's group)
+- `shots/record/r6-maren-restyle-styles-list-full.png`, `-libraries.png`, `-looks.png`
+- `shots/record/r6-maren-restyle-inspector-full.png`
 
 ---
 

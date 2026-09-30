@@ -5,8 +5,8 @@ network. Write the file, then read which genes went up from the file alone."
 
 **Screens used:** the export dialog (starting in the "signed layer" state, where the current view is
 colored by log2 fold change), then the color-by-value panel.
-Renders: `shots/chen-r3-signed-figure-signed.png` (the dialog as she saw it, Print look chosen),
-`shots/chen-r3-signed-print-in-gray.png` (the moderator's grayscale print of that preview, handed to
+Renders: `shots/record/chen-r3-signed-figure-signed.png` (the dialog as she saw it, Print look chosen),
+`shots/record/chen-r3-signed-print-in-gray.png` (the moderator's grayscale print of that preview, handed to
 her to stand in for the journal's black-and-white proof), `shots/screens__colour-by-value--numbers.png`.
 
 **Outcome:** writing the file -- done, with one detour. Reading which genes went up from the file

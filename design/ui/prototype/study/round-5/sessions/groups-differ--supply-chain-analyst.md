@@ -14,11 +14,11 @@ community; the comparison screen (opened by mistake from "Compare with...").
 
 Renders the participant looked at:
 - `../../../shots/screens__results-panel--catalog.png`
-- `../../../shots/screens__results-panel--louvain.png`
+- `../../../shots/record/screens__results-panel--louvain.png`
 - `../../../shots/screens__results-panel--louvain-table.png`
 - `../../../shots/screens__inspector-group.png`
 - `../../../shots/screens__styles-list-group-compare.png`
-- `../../../shots/screens__inspector-group-row.png`
+- `../../../shots/record/screens__inspector-group-row.png`
 - `../../../shots/screens__comparison.png`
 - `../../../shots/screens__table-dock.png` (glanced at the export button, left)
 

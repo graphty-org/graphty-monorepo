@@ -20,8 +20,8 @@ Screens seen, all in the participant view (design notes hidden):
   for how the notes list, its menu, find, stale citations and the read-only view behave);
 - the sets-and-paths screen, one state (the same March transfers project with three kept sets).
 
-Renders: shots/r6-sarah-remember-tan-s1.png to -s8.png (take a note),
-shots/r6-sarah-remember-np-s1.png to -s11.png (notes panel), shots/r6-sarah-remember-sp.png
+Renders: shots/record/r6-sarah-remember-tan-s1.png to -s8.png (take a note),
+shots/record/r6-sarah-remember-np-s1.png to -s11.png (notes panel), shots/record/r6-sarah-remember-sp.png
 (sets and paths).
 
 Outcome: success. She wrote the note in the place offered and found it again next week from the

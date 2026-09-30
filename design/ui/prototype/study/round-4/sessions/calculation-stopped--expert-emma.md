@@ -9,15 +9,15 @@ Decide what you can still trust on the screen, and get a result you can use."
 
 Screens seen, in order, as a participant sees them (design notes hidden):
 
-- `shots/screens__gpu-lost-run--study.png` -- the patent citation graph (124,318 patents,
+- `shots/record/screens__gpu-lost-run--study.png` -- the patent citation graph (124,318 patents,
   1,480,221 citations, nothing drawn): PageRank re-running at damping 0.5; the run failing; a
   Betweenness request refused; a sampled run started, canceled and set up again
 - `shots/storyboards__failure-and-recovery.png`, branch D only -- the same story as a sequence of
   crops (read with the "expected reaction" lines ignored)
-- `shots/screens__notices-errors--study.png`, states 4, 4b and 6 -- the failure notice on a
+- `shots/record/screens__notices-errors--study.png`, states 4, 4b and 6 -- the failure notice on a
   3,000-account transfer graph, the same screen ten seconds later, and the "Canvas not available"
   card
-- `shots/screens__closeness-variant--study.png` and `shots/screens__selection-over-cap--study.png`
+- `shots/record/screens__closeness-variant--study.png` and `shots/record/screens__selection-over-cap--study.png`
   -- glanced at, not part of this task
 
 ---

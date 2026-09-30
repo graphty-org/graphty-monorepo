@@ -10,16 +10,16 @@ through. Decide what you can still trust on the screen, and get a result you can
 
 Screens seen, in order, as a participant sees them (design notes and expected reactions hidden):
 
-- `shots/screens__gpu-lost-run-d1--study.png` -- PageRank re-running on WebGPU, damping 0.5
-- `shots/screens__gpu-lost-run-d2--study.png` -- PageRank failed, editor open, Details expanded
-- `shots/screens__gpu-lost-run-d3--study.png` -- Betweenness refused, routes listed
-- `shots/screens__gpu-lost-run-d4--study.png` -- sampled betweenness running
-- `shots/screens__gpu-lost-run-d5--study.png` -- sampled run canceled, row Not run
-- `shots/screens__gpu-lost-run-d6--study.png` -- sampled editor, sample size 500, seed 7
-- `shots/screens__notices-errors--device-lost.png`, `shots/notices-errors--device-lost-later.png`
+- `shots/record/screens__gpu-lost-run-d1--study.png` -- PageRank re-running on WebGPU, damping 0.5
+- `shots/record/screens__gpu-lost-run-d2--study.png` -- PageRank failed, editor open, Details expanded
+- `shots/record/screens__gpu-lost-run-d3--study.png` -- Betweenness refused, routes listed
+- `shots/record/screens__gpu-lost-run-d4--study.png` -- sampled betweenness running
+- `shots/record/screens__gpu-lost-run-d5--study.png` -- sampled run canceled, row Not run
+- `shots/record/screens__gpu-lost-run-d6--study.png` -- sampled editor, sample size 500, seed 7
+- `shots/record/screens__notices-errors--device-lost.png`, `shots/record/notices-errors--device-lost-later.png`
   -- the same kind of failure on another project (fraud transfers)
-- `shots/screens__notices-errors--cpu.png` -- a finished CPU result, for comparison
-- `shots/screens__closeness-variant--study.png`, `shots/screens__selection-over-cap--study.png`
+- `shots/record/screens__notices-errors--cpu.png` -- a finished CPU result, for comparison
+- `shots/record/screens__closeness-variant--study.png`, `shots/record/screens__selection-over-cap--study.png`
   -- skimmed at the end, not needed for the task
 
 ---

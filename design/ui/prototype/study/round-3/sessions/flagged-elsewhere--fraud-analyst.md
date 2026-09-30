@@ -8,8 +8,8 @@ Find it."
 
 Screens used: the Find mock (screens/find.html), in the states "Just opened", "An id not in this
 project" and "Found in a recent project", as rendered in
-../../../shots/r3-sarah-flagged-find-s1.png, ../../../shots/r3-sarah-flagged-find-s10.png and
-../../../shots/r3-sarah-flagged-find-s11.png. Annotations were off. Clicks were simulated from
+../../../shots/record/r3-sarah-flagged-find-s1.png, ../../../shots/record/r3-sarah-flagged-find-s10.png and
+../../../shots/record/r3-sarah-flagged-find-s11.png. Annotations were off. Clicks were simulated from
 what the mock's markup does; where a control is drawn but leads nowhere, that is noted.
 
 ## Transcript

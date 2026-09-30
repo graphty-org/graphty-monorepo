@@ -4,12 +4,12 @@ Task as given by the moderator: "Share your setup with a partner, without your d
 
 Screens seen, as the participant sees them (design notes hidden), at 1440 x 900:
 
-- The project at rest with the Data panel open: `shots/r6-maren-share-export.png`
-- The project-name menu: `shots/r6-maren-share-ways-in-menu.png`
-- The Export dialog as it first opens (figure chosen): `shots/r6-maren-share-figure.png`
+- The project at rest with the Data panel open: `shots/record/r6-maren-share-export.png`
+- The project-name menu: `shots/record/r6-maren-share-ways-in-menu.png`
+- The Export dialog as it first opens (figure chosen): `shots/record/r6-maren-share-figure.png`
 - The Export dialog with Recipe checked: `shots/tasks/share-without-data/01-export-dialog-recipe.png`
-- After an export (the "Sent and saved" list): `shots/r6-maren-share-done.png`
-- The storyboard of the recipe reaching a colleague: `shots/r6-maren-share-recipe-travels.png`
+- After an export (the "Sent and saved" list): `shots/record/r6-maren-share-done.png`
+- The storyboard of the recipe reaching a colleague: `shots/record/r6-maren-share-recipe-travels.png`
 
 ## Think-aloud
 

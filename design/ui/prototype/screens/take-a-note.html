@@ -8,8 +8,8 @@
 <link rel="stylesheet" href="../kit/cm.css">
 <link rel="stylesheet" href="../kit/kit.css"><script src="../kit/kit.js" defer></script>
 <style>
-  /* States: one full app per state; the address fragment (#s1 to #s9) picks one, #s1 by default.
-     #s1a to #s9a show the same state with the design notes on. No script. */
+  /* States: one full app per state; the address fragment (#s1 to #s12) picks one, #s1 by default.
+     #s1a to #s12a show the same state with the design notes on. No script. */
   body { overflow: hidden; }
   .st { display: none; position: relative; width: 100vw; height: 100vh; }
   .st:target, .st:has(:target) { display: block; }
@@ -31,7 +31,10 @@
   body:has(#s6:target, #s6a:target) .sw a[href="#s6"],
   body:has(#s7:target, #s7a:target) .sw a[href="#s7"],
   body:has(#s8:target, #s8a:target) .sw a[href="#s8"],
-  body:has(#s9:target, #s9a:target) .sw a[href="#s9"] { background: var(--k-annot); color: #fff; font-weight: 600; }
+  body:has(#s9:target, #s9a:target) .sw a[href="#s9"],
+  body:has(#s10:target, #s10a:target) .sw a[href="#s10"],
+  body:has(#s11:target, #s11a:target) .sw a[href="#s11"],
+  body:has(#s12:target, #s12a:target) .sw a[href="#s12"] { background: var(--k-annot); color: #fff; font-weight: 600; }
 
   .an { display: none; }
   body:has(#annot:checked) .an, .st:has(.aon:target) .an { display: block; }
@@ -75,6 +78,7 @@
   .qp-opt[aria-selected="true"] { background: var(--cm-bg-selected); }
   .x-name { width: 400px; }
   .x-name-help { padding: 4px 16px 0; font-size: 11px; line-height: 16px; }
+  .rp-prev { margin: 4px 16px 8px; padding: 8px 12px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--cm-border); display: flex; flex-direction: column; gap: 4px; line-height: 16px; }
   .qp-foot { padding: 4px 8px 2px; border-top: 1px solid var(--cm-border); margin-top: 4px; }
 
   /* Note marker on the canvas: a callout in note ink (the canvas ink), never a data color */
@@ -87,7 +91,7 @@
 <body>
 
 <nav class="sw" aria-label="States of this mock">
-  <a href="#s1">1 Add note</a><a href="#s2">2 Writing</a><a href="#s3">3 Added</a><a href="#s4">4 Member note</a><a href="#s5">5 Next session</a><a href="#s6">6 Graph note</a><a href="#s7">7 Result note</a><a href="#s8">8 After new data</a><a href="#s9">9 Your name</a>
+  <a href="#s1">1 Add note</a><a href="#s2">2 Writing</a><a href="#s3">3 Added</a><a href="#s4">4 Member note</a><a href="#s5">5 Next session</a><a href="#s6">6 Graph note</a><a href="#s7">7 Result note</a><a href="#s8">8 After new data</a><a href="#s9">9 Your name</a><a href="#s10">10 Two authors</a><a href="#s11">11 Citation</a><a href="#s12">12 Report</a>
   <label><input type="checkbox" id="annot">Design notes</label>
 </nav>
 
@@ -210,7 +214,7 @@
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-text">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
           <div class="nt-hint k-tertiary">Enter, new line. Ctrl+Enter adds the note.</div>
-          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span><span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#x"/></svg></span></div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span><span class="k-grow"></span><span class="k-icon-btn k-secondary"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#x"/></svg></span></div>
           <div class="nt-line"><span class="k-caption">Quotes</span><span class="nt-link" data-focus>Quote a value...</span></div>
           <div class="nt-foot"><span class="k-secondary k-grow">Saving as: Marcus. <span class="nt-link">Change...</span></span><span class="k-btn">Add</span></div>
         </div>
@@ -310,7 +314,7 @@
         <div class="ne-body">
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
-          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
           <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
           
         </div>
@@ -537,7 +541,7 @@
         <div class="ne-body">
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
-          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
           <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
           
         </div>
@@ -864,7 +868,7 @@
         <div class="ne-body">
           <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
           <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
-          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div><div class="nt-sub"><span class="k-warn-glyph">!</span><span class="nt-state">Earlier data</span><span class="nt-verb">Add current value</span></div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div><div class="nt-sub"><span class="k-warn-glyph">!</span><span class="nt-state">Earlier data</span><span class="nt-verb">Add current value</span></div>
           <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div><div class="nt-sub"><span class="k-warn-glyph">!</span><span class="nt-now">now <span class="k-num">0.000428</span></span><span class="k-secondary">in April's data</span></div>
           
         </div>
@@ -1014,6 +1018,426 @@
   <div class="k-annot-note" style="left:330px;top:70px;z-index:80"><b>Change... in "Saving as: Marcus"</b> opens the same dialog as Preferences, Your name on notes and recipes (screens/preferences.html). Marcus is adding his surname. The draft stays open behind it with its text.</div>
   <div class="k-annot-note" style="left:1010px;top:70px;z-index:80"><b>Forward only.</b> Save changes the name on this note and every later one. The ring note Marcus added earlier keeps "Marcus"; a note saved before any name was set stays blank. Nothing offers to put a name on earlier notes. Owner decision (owner-feedback.md): the author is recorded as given, blank if none is set.</div>
   <div class="k-annot-note" style="left:1010px;top:640px;z-index:80">compact-mantine <b>Modal</b> with a <b>FieldRow</b> + <b>TextInput</b> and <b>ModalFooter</b>, as in Preferences.</div>
+</div>
+</section>
+
+
+<!-- ============================ 10 Two authors ============================ -->
+<section class="st" id="s10"><i class="aon" id="s10a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">March transfers</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#list-filter"/></svg></span></div>
+    <div class="k-scroll">
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Marcus, Sep 28 2026, 10:44</span></div>
+        <div class="nt-body nt-clamp">Highest riskScore in the ring. Request the KYC file before the SAR goes out.</div>
+        <div class="nt-meta k-id"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>About ACC-233575</div>
+        
+        
+        
+      </div>
+      <div class="nt-row" aria-selected="true">
+        <div class="nt-by"><span class="k-secondary k-grow">Marcus, Sep 28 2026, 10:42</span></div>
+        <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>About Mule ring, 14 accounts</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg>Cites PageRank (full graph, directed, damping 0.85, unweighted)</div>
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Ana Ruiz, Sep 20 2026, 16:05</span></div>
+        <div class="nt-body nt-clamp">Busiest merchant (degree 907). Payroll processor; leave it out of ring reviews.</div>
+        <div class="nt-meta k-id"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>About ACC-393859</div>
+        
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Ana Ruiz, Sep 20 2026, 16:05</span></div>
+        <div class="nt-body nt-clamp">Damping 0.85, the team default, so scores compare with last month's case.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg>About PageRank</div>
+        
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Ana Ruiz, Sep 19 2026, 09:40</span></div>
+        <div class="nt-body nt-clamp">First pass, before the riskScore cut. Kept for the audit trail.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>About Suspects, first pass</div>
+        
+        
+        <div style="display:flex;gap:8px;margin-top:2px"><span class="nt-state">Detached</span><span class="k-secondary">The set this note pointed to was changed.</span></div><div><span class="nt-verb">Bring back Suspects, first pass (as kept Sep 19)</span></div>
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Ana Ruiz, Sep 19 2026, 09:40</span></div>
+        <div class="nt-body nt-clamp">March export from the card platform. Transfers under $10 are cut upstream.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg>About the graph Transfers</div>
+        
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts as density; the 14 accounts of Mule ring selected by the note's row, the note open beside them">
+        <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts as density; the 14 accounts of Mule ring selected by the note's row, the note open beside them">
+        <span class="nm" style="position:absolute;left:calc(50.7% + 118px);top:calc(40.8% - 60px)"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span>
+      </div>
+      <div class="k-popover ne" style="left:612px;top:150px">
+        <span class="ne-tail" style="top:239px"></span>
+        <div class="k-popover-head">Note<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ne-body">
+          <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
+          <div class="nt-by"><span class="k-secondary">Marcus, Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
+          
+        </div>
+        
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged accounts <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>other accounts, as density<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow tr2"><span class="k-name">Mule ring</span><span class="k-secondary">Frozen set</span></span>
+      <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#users"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">accounts</span><span class="k-big">14</span></div><div class="k-metric"><span class="k-secondary">countries</span><span class="k-big">7</span></div></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">88 to 98</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Members <span class="k-count k-num">14</span></div></section>
+      <section class="k-section"><div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Flagged accounts</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-chit" style="background:#D55E00"></span>D55E00</span></div></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-row" aria-selected="true">
+          <div class="nt-by"><span class="k-secondary k-grow">Marcus, Sep 28 2026, 10:42</span></div>
+          <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        </div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="an">
+  <span class="k-annot-box" style="left:58px;top:124px;width:240px;height:500px"></span>
+  <div class="k-annot-note" style="left:330px;top:44px"><b>Two people's notes, told apart by name.</b> Ana Ruiz wrote the September 19 and 20 notes on this project; Marcus wrote the two from September 28. Each row's first line is the author and the full date and time, recorded from the project's author setting (Preferences, "Your name on notes and recipes"; state 9). The name shows because the project holds notes by two people; with one author the line is the date and time alone (state 5). No avatar: the app has no accounts. <i>framework-changes.md, "Notes panel: what a note's row shows"</i>.</div>
+  <div class="k-annot-note" style="left:330px;top:300px"><b>The same name in the note editor and the inspector's Notes row,</b> so a note reads the same wherever it is opened. A note written with no name set shows the date alone, also beside named notes: nothing is invented. <b>Tree</b> row with a multi-line body.</div>
+</div>
+</section>
+
+<!-- ============================ 11 Open a citation ============================ -->
+<section class="st" id="s11"><i class="aon" id="s11a"></i>
+<div class="k-app">
+  <div class="k-sr" role="status">PageRank, Details. Esc returns to the note.</div>
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">March transfers</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#list-filter"/></svg></span></div>
+    <div class="k-scroll">
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:44</span></div>
+        <div class="nt-body nt-clamp">Highest riskScore in the ring. Request the KYC file before the SAR goes out.</div>
+        <div class="nt-meta k-id"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>About ACC-233575</div>
+        
+        
+        
+      </div>
+      <div class="nt-row" aria-selected="true">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:42</span></div>
+        <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>About Mule ring, 14 accounts</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg>Cites PageRank (full graph, directed, damping 0.85, unweighted)</div>
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 20 2026, 16:05</span></div>
+        <div class="nt-body nt-clamp">Busiest merchant (degree 907). Payroll processor; leave it out of ring reviews.</div>
+        <div class="nt-meta k-id"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>About ACC-393859</div>
+        
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 20 2026, 16:05</span></div>
+        <div class="nt-body nt-clamp">Damping 0.85, the team default, so scores compare with last month's case.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg>About PageRank</div>
+        
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 19 2026, 09:40</span></div>
+        <div class="nt-body nt-clamp">First pass, before the riskScore cut. Kept for the audit trail.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>About Suspects, first pass</div>
+        
+        
+        <div style="display:flex;gap:8px;margin-top:2px"><span class="nt-state">Detached</span><span class="k-secondary">The set this note pointed to was changed.</span></div><div><span class="nt-verb">Bring back Suspects, first pass (as kept Sep 19)</span></div>
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 19 2026, 09:40</span></div>
+        <div class="nt-body nt-clamp">March export from the card platform. Transfers under $10 are cut upstream.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg>About the graph Transfers</div>
+        
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts as density; the 14 accounts of Mule ring selected by the note's row, the note open beside them and the cited run's Details open at the left">
+        <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts as density; the 14 accounts of Mule ring selected by the note's row, the note open beside them and the cited run's Details open at the left">
+        <span class="nm" style="position:absolute;left:calc(50.7% + 118px);top:calc(40.8% - 60px)"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span>
+      </div>
+      <div class="k-popover ne" style="left:612px;top:150px">
+        <span class="ne-tail" style="top:239px"></span>
+        <div class="k-popover-head">Note<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ne-body">
+          <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
+          <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" data-hover aria-expanded="true" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
+          
+        </div>
+        
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged accounts <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>other accounts, as density<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow tr2"><span class="k-name">Mule ring</span><span class="k-secondary">Frozen set</span></span>
+      <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#users"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">accounts</span><span class="k-big">14</span></div><div class="k-metric"><span class="k-secondary">countries</span><span class="k-big">7</span></div></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">88 to 98</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Members <span class="k-count k-num">14</span></div></section>
+      <section class="k-section"><div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Flagged accounts</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-chit" style="background:#D55E00"></span>D55E00</span></div></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-row" aria-selected="true">
+          <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:42</span></div>
+          <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        </div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="k-popover" style="left:306px;top:96px;width:268px" role="dialog" aria-label="PageRank, Details">
+  <div class="k-popover-head">PageRank<span class="k-grow"></span><span class="k-icon-btn" title="More"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn" title="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-popover-body">
+    <div class="k-prose" style="padding:0 16px 8px">on: full graph, 3,000 accounts<br><span class="k-secondary">Directed, damping 0.85. Unweighted. CPU.</span></div>
+    <div class="k-section-head" style="padding-left:16px">Details</div>
+    <div class="k-data"><span class="k-name">Method</span><span class="k-value">PageRank</span></div>
+    <div class="k-data"><span class="k-name">Seed</span><span class="k-value k-secondary">Does not apply</span></div>
+    <div class="k-data"><span class="k-name">Damping</span><span class="k-value">0.85</span></div>
+    <div class="k-data"><span class="k-name">Normalization</span><span class="k-value">Scores sum to 1</span></div>
+    <div class="k-data"><span class="k-name">Weight conversion</span><span class="k-value">None: unweighted</span></div>
+    <div class="k-data"><span class="k-name">Direction</span><span class="k-value">Directed</span></div>
+    <div class="k-data"><span class="k-name">Engine</span><span class="k-value">CPU</span></div>
+    <div class="k-section-head" style="padding-left:16px">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn" title="Add note"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+    <div class="nt-row">
+      <div class="nt-by"><span class="k-secondary">Sep 20 2026, 16:05</span></div>
+      <div class="nt-read" style="margin-top:2px">Damping 0.85, the team default, so scores compare with last month's case.</div>
+    </div>
+  </div>
+</div>
+<div class="k-tooltip" style="left:960px;top:412px">Open PageRank in Details</div><span class="k-cursor" style="left:1040px;top:342px"></span>
+<div class="an">
+  <span class="k-annot-box" style="left:970px;top:311px;width:204px;height:58px"></span>
+  <div class="k-annot-note" style="left:600px;top:470px"><b>A citation opens the cited run's Details.</b> A click on the Cites chip (or Enter on it) opens that run's record, as its tooltip says: the run's scope and settings, then Method, Seed, Damping, Normalization and Weight conversion in that order, then what this method adds. The note stays open, the selection does not change, and Esc in Details returns focus to the chip. interaction-patterns.md 2, note [c]; screens/notes-panel.html. <b>PopoutPanel</b>.</div>
+  <div class="k-annot-note" style="left:930px;top:560px"><b>The run is the one the note cites,</b> not the latest PageRank: after new data (state 8) the chip still opens the March run, marked Earlier data. <b>Needs graphty-element:</b> the run record, with its settings, for every stored run.</div>
+</div>
+</section>
+
+<!-- ============================ 12 Into the report ============================ -->
+<section class="st" id="s12"><i class="aon" id="s12a"></i>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Notes">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">March transfers</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
+      <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph</span>
+    </div>
+    <div class="k-search"><span class="k-field" data-placeholder><svg class="k-i k-i-sm"><use href="../kit/icons.svg#search"/></svg>Find in notes</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#list-filter"/></svg></span></div>
+    <div class="k-scroll">
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:44</span></div>
+        <div class="nt-body nt-clamp">Highest riskScore in the ring. Request the KYC file before the SAR goes out.</div>
+        <div class="nt-meta k-id"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>About ACC-233575</div>
+        
+        
+        
+      </div>
+      <div class="nt-row" aria-selected="true">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:42</span></div>
+        <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>About Mule ring, 14 accounts</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg>Cites PageRank (full graph, directed, damping 0.85, unweighted)</div>
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 20 2026, 16:05</span></div>
+        <div class="nt-body nt-clamp">Busiest merchant (degree 907). Payroll processor; leave it out of ring reviews.</div>
+        <div class="nt-meta k-id"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>About ACC-393859</div>
+        
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 20 2026, 16:05</span></div>
+        <div class="nt-body nt-clamp">Damping 0.85, the team default, so scores compare with last month's case.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg>About PageRank</div>
+        
+        
+        
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 19 2026, 09:40</span></div>
+        <div class="nt-body nt-clamp">First pass, before the riskScore cut. Kept for the audit trail.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg>About Suspects, first pass</div>
+        
+        
+        <div style="display:flex;gap:8px;margin-top:2px"><span class="nt-state">Detached</span><span class="k-secondary">The set this note pointed to was changed.</span></div><div><span class="nt-verb">Bring back Suspects, first pass (as kept Sep 19)</span></div>
+      </div>
+      <div class="nt-row">
+        <div class="nt-by"><span class="k-secondary k-grow">Sep 19 2026, 09:40</span></div>
+        <div class="nt-body nt-clamp">March export from the card platform. Transfers under $10 are cut upstream.</div>
+        <div class="nt-meta"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#network"/></svg>About the graph Transfers</div>
+        
+        
+        
+      </div>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage">
+        <img class="k-light-only" src="../kit/canvas/transactions-flagged-light.svg" alt="3,000 accounts as density; the 14 accounts of Mule ring selected by the note's row, the note open beside them, and the Export dialog over the app">
+        <img class="k-dark-only" src="../kit/canvas/transactions-flagged-dark.svg" alt="3,000 accounts as density; the 14 accounts of Mule ring selected by the note's row, the note open beside them, and the Export dialog over the app">
+        <span class="nm" style="position:absolute;left:calc(50.7% + 118px);top:calc(40.8% - 60px)"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#sticky-note"/></svg>1</span>
+      </div>
+      <div class="k-popover ne" style="left:612px;top:150px">
+        <span class="ne-tail" style="top:239px"></span>
+        <div class="k-popover-head">Note<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+        <div class="ne-body">
+          <div class="nt-about"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#group"/></svg><span>About Mule ring, 14 accounts</span></div>
+          <div class="nt-by"><span class="k-secondary">Sep 28 2026, 10:42</span></div><div class="nt-read">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" title="Open PageRank in Details"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#flask-conical"/></svg><span><span class="k-strong">PageRank</span><br><span class="k-secondary">full graph, directed, damping 0.85, unweighted</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill k-id">ACC-753261 PageRank 0.000551</span></div>
+          
+        </div>
+        
+      </div>
+      <div class="k-legend-card">
+        <div class="k-lg-title">Flagged accounts <span class="k-secondary">flagged</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>true<span class="k-value">14</span></div>
+        <div class="k-lg-row"><span class="k-chit" style="background:#808080"></span>other accounts, as density<span class="k-value">2,986</span></div>
+      </div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar">
+        <span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+        <span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
+        <span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
+        <span class="k-toolbar-sep"></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      </div></div>
+      <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    
+    <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#group"/></svg><span class="k-grow tr2"><span class="k-name">Mule ring</span><span class="k-secondary">Frozen set</span></span>
+      <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#users"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="k-metrics"><div class="k-metric"><span class="k-secondary">accounts</span><span class="k-big">14</span></div><div class="k-metric"><span class="k-secondary">countries</span><span class="k-big">7</span></div></div>
+        <div class="k-data"><span class="k-name">riskScore</span><span class="k-value">88 to 98</span></div>
+      </section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Members <span class="k-count k-num">14</span></div></section>
+      <section class="k-section"><div class="k-section-head">Appearance</div>
+        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Flagged accounts</span></span>
+          <div class="k-fields"><span class="k-field k-span"><span class="k-chit" style="background:#D55E00"></span>D55E00</span></div></div>
+      </section>
+      <section class="k-section"><div class="k-section-head">Notes <span class="k-count k-num">1</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+        <div class="nt-row" aria-selected="true">
+          <div class="nt-by"><span class="k-secondary k-grow">Sep 28 2026, 10:42</span></div>
+          <div class="nt-body nt-clamp">Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+        </div>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<div class="k-backdrop" style="position:absolute"><div class="k-modal" role="dialog" aria-label="Export">
+  <div class="k-modal-head">Export<span class="k-grow"></span><span role="button" class="k-icon-btn" aria-label="Close" title="Close"><svg class="k-i"><use href="../kit/icons.svg#x"/></svg></span></div>
+  <div class="k-modal-body">
+    <div class="k-data"><span class="k-name">Figures</span><span class="k-value"><span class="k-check" aria-checked="false" aria-label="Figure (.svg)"></span> Figure (.svg) <span class="k-check" aria-checked="false" aria-label="Image (.png)"></span> Image (.png)</span></div>
+    <div class="k-data"><span class="k-name">Rows</span><span class="k-value"><span class="k-check" aria-checked="false" aria-label="Table (.csv)"></span> Table (.csv)</span></div>
+    <div class="k-data"><span class="k-name">Report</span><span class="k-value k-strong"><span class="k-check" aria-checked="true" aria-label="Findings report (.html)"></span> Findings report (.html)</span></div>
+    <div class="k-prose" style="padding:4px 16px 0">One self-contained HTML file: figures embedded, notes and tables as real text. It opens offline in any browser and prints to PDF.</div>
+    <div class="k-section-head">Report settings</div>
+    <div class="k-data"><span class="k-name">Scope</span><span class="k-value">Full graph</span></div>
+    <div class="k-data"><span class="k-name">Notes</span><span class="k-value">As text, with their citations and quotes</span></div>
+    <div class="k-section-head">Preview: the ring note in the report</div>
+    <div class="rp-prev">
+      <div class="k-secondary">About Mule ring, 14 accounts. Sep 28 2026, 10:42</div>
+      <div>Referred for a SAR. 14 personal accounts in 7 countries, riskScore 88 to 98. ACC-753261 ranks highest in the ring by PageRank: likely the collector.</div>
+      <div class="k-secondary">Cites PageRank (full graph, directed, damping 0.85, unweighted). Quotes ACC-753261 PageRank 0.000551.</div>
+    </div>
+    <div class="k-fieldrow"><span class="k-legend">File name</span><div class="k-fields"><span class="k-field k-span">march-transfers-findings.html</span></div></div>
+  </div>
+  <div class="k-modal-foot"><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn">Export</span></div>
+</div></div>
+<div class="an">
+  <div class="k-annot-note" style="left:330px;top:70px;z-index:80;max-width:300px"><b>Decided by the owner (owner-feedback.md, 2026-09-28): the findings report is one self-contained HTML file.</b> Figures embedded, notes and tables as real text; it opens offline in any browser and prints to PDF. Not an open choice. A native PDF may come later as a second format of the same report.</div>
+  <div class="k-annot-note" style="left:480px;top:716px;z-index:80;max-width:480px"><b>How notes leave the project.</b> Export... in the project-name menu (or Ctrl+Shift+E), Findings report checked. Each note goes in as text, with its About line, date and time, citation and quotes. No author name here: every note in this project is by one person; with two authors (state 10) each note carries its author.</div>
+  <div class="k-annot-note" style="left:1060px;top:120px;z-index:80;max-width:300px">The one Export dialog, cut down to what a note writer needs: screens/export-dialog.html has it whole, and its state 6 is the report as the case's evidence file. <b>Needs graphty-element:</b> the findings report writer, and its preview. compact-mantine <b>Modal</b>, <b>Checkbox</b> rows.</div>
 </div>
 </section>
 

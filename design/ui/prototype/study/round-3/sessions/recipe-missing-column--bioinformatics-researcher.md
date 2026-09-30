@@ -12,8 +12,8 @@ states with the main menu, the Apply recipe dialog and its binding step, and the
 then the "Apply a recipe: what matched" mock (a protein network with a qPCR table: everything
 matched, 12 genes did not match, the column chosen, nothing matched, the confidence question).
 Both seen as the study view renders them (design notes hidden):
-- shots/screens__replace-and-recipe--study.png
-- shots/screens__binding-step--study.png
+- shots/record/screens__replace-and-recipe--study.png
+- shots/record/screens__binding-step--study.png
 
 Her own data for this session, as she described it at the start: a DE table from limma with
 columns `symbol`, `logFC`, `AveExpr`, `t`, `P.Value`, `adj.P.Val`. The colleague's recipe wants

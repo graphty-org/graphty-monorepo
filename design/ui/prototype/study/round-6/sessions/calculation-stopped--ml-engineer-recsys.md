@@ -9,8 +9,8 @@
   Results panel (failed, failed and opened, finished sampled, the table, the CPU path), the notices
   page (the device-lost notice and the moment after it clears), and the run editor with its cost
   line (sample size past the time limit).
-- Renders: shots/r6-chris-stop-gpu-lost-run.png, shots/r6-chris-stop-results-panel.png,
-  shots/r6-chris-stop-notices-errors.png, shots/r6-chris-stop-option-form-cost.png, plus the
+- Renders: shots/record/r6-chris-stop-gpu-lost-run.png, shots/record/r6-chris-stop-results-panel.png,
+  shots/record/r6-chris-stop-notices-errors.png, shots/record/r6-chris-stop-option-form-cost.png, plus the
   per-state participant shots of those pages in shots/.
 
 ## Think-aloud

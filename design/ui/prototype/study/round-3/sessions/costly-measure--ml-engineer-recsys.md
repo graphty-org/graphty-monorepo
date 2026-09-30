@@ -8,7 +8,7 @@
 **Screens used, in order:** the measure options with cost (`screens/option-form-cost.html`,
 states 3, 4 and 5), the Results panel (`screens/results-panel.html`, the finished sampled
 state), and the graph past its drawing limit (`screens/past-drawing-limit.html`).
-Render of the finished result as Chris saw it: `shots/r3-chris-costly-finished-sampled.png`.
+Render of the finished result as Chris saw it: `shots/record/r3-chris-costly-finished-sampled.png`.
 
 ## Transcript (think-aloud)
 

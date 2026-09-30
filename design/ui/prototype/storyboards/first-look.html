@@ -22,13 +22,13 @@
      1440 x 900 screen; --s: scale; --w, --h: the pane's size on this page. */
   .panes { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
   .pcol { display: flex; flex-direction: column; gap: 12px; }
-  .pane { position: relative; overflow: hidden; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); }
+  .pane { position: relative; overflow: clip; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); border-radius: 8px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); }
   .pane iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(var(--s)) translate(calc(var(--x) * -1px), calc(var(--y) * -1px)); pointer-events: none; }
   .pane .k-annot-box { left: calc((var(--bx) - var(--x)) * var(--s) * 1px); top: calc((var(--by) - var(--y)) * var(--s) * 1px); width: calc(var(--bw) * var(--s) * 1px); height: calc(var(--bh) * var(--s) * 1px); box-shadow: 0 0 0 1px #fff8; }
   .pane-note { font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); margin: 4px 0 0; }
 
   /* The whole screen, small, with the panes' regions marked */
-  .thumb { position: relative; width: 180px; height: 113px; overflow: hidden; border-radius: 4px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); margin-bottom: 8px; }
+  .thumb { position: relative; width: 180px; height: 113px; overflow: clip; border-radius: 4px; box-shadow: 0 0 0 1px var(--cm-border); background: var(--k-canvas); margin-bottom: 8px; }
   .thumb iframe { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; transform: scale(0.125); pointer-events: none; }
   .thumb i { position: absolute; left: calc(var(--rx) * 0.125px); top: calc(var(--ry) * 0.125px); width: calc(var(--rw) * 0.125px); height: calc(var(--rh) * 0.125px); outline: 2px solid var(--k-annot); outline-offset: 0; }
 
@@ -66,22 +66,23 @@
     <figure class="k-frame">
       <div>
         <div class="panes">
-          <div class="pane" style="--x:260;--y:80;--s:1;--w:640;--h:470">
-            <iframe src="../screens/first-look.html#s1" title="Start screen, first run" loading="eager"></iframe>
-            <span class="k-annot-box" style="--bx:276;--by:114;--bw:596;--bh:26"></span>
-            <span class="k-annot-box" style="--bx:282;--by:480;--bw:430;--bh:24"></span>
+          <div class="pane" style="--x:290;--y:24;--s:1;--w:640;--h:596">
+            <iframe src="../screens/first-look.html#s1" title="Start screen, first run, with the usage data question" loading="eager"></iframe>
+            <span class="k-annot-box" style="--bx:303;--by:66;--bw:560;--bh:26"></span>
+            <span class="k-annot-box" style="--bx:303;--by:104;--bw:572;--bh:164"></span>
+            <span class="k-annot-box" style="--bx:303;--by:552;--bw:560;--bh:36"></span>
           </div>
         </div>
       </div>
       <figcaption>
-        <div class="thumb"><iframe src="../screens/first-look.html#s1" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:260;--ry:80;--rw:640;--rh:470"></i></div>
-        <h2><span class="k-step">1</span>Before anything loads, the start screen says where her files go</h2>
+        <div class="thumb"><iframe src="../screens/first-look.html#s1" title="Thumbnail of this step" aria-hidden="true" tabindex="-1" loading="eager"></iframe><i style="--rx:290;--ry:24;--rw:640;--rh:596"></i></div>
+        <h2><span class="k-step">1</span>Before anything loads, the start screen says where her files go, and asks about usage data</h2>
         <dl>
           <dt>Where</dt><dd>The start screen, first visit, so there is no Recent projects section and the samples lead.</dd>
-          <dt>Does</dt><dd>Reads the line under the title, then rests the pointer on the Les Miserables sample (keyboard focus stays on the first card, Karate club; she is using the trackpad).</dd>
-          <dt>Happens</dt><dd>Nothing yet. The line says files stay on this computer; Connect to data source... says what does leave: only a query, to a source she names.</dd>
+          <dt>Does</dt><dd>Reads the line under the title, then the question under it, "Your data is yours, but please help us": graphty will never see the data she analyzes; it would like to collect how she uses the app, to make it better; only graphty's author and his Claude Code sessions ever use that record. She leaves it unanswered for now and rests the pointer on the Les Miserables sample (keyboard focus stays on the page title; she is using the trackpad).</dd>
+          <dt>Happens</dt><dd>Nothing yet, and nothing is collected: usage data is off until she says yes, the two answers weigh the same, and leaving the question unanswered keeps it off. It asks once, on this first start, and the answer can be changed any time in Preferences. The line says files stay on this computer; Connect to data source... says what does leave: only a query, to a source she names.</dd>
         </dl>
-        <span class="intended">"OK, it's not uploading anything. Let me see one of these first."</span>
+        <span class="intended">"OK, it's not uploading anything, and it asks before it watches. Let me see one of these first."</span>
         <a class="open" href="../screens/first-look.html#s1">Open this screen full size</a>
       </figcaption>
     </figure>

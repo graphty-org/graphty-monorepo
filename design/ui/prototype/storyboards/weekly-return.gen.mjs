@@ -99,7 +99,7 @@ function graphPanel({ april = false, ring = false, keptPath = false, styles = "b
     const rows = [];
     if (styles === "path") rows.push(layer(dashChip, "Shortest path", "run"));
     if (styles !== "base") rows.push(layer(rampChip, "PageRank color"));
-    rows.push(layer(sizeChip, "Size: degree"));
+    rows.push(layer(sizeChip, "Size: total degree"));
     rows.push(layer(stackChip, "Community color"));
     return `<aside class="k-panel" aria-label="Graph">${head(chip)}<div class="k-scroll">
       <section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn">${i("search")}</span><span class="k-icon-btn">${i("plus")}</span></div>
@@ -153,7 +153,7 @@ function toolbar(pathTool = false, bar = "") {
 }
 // Legends run top-first, in the Styles list's order (Figma lists top-first), in every frame.
 const sizeKey = (marks, note) =>
-    `<div class="k-lg-title">Size: degree <span class="k-secondary">degree</span></div><div class="k-size-marks">${marks.map((m) => { const r = Math.min(12, 1.8 + Math.sqrt(m) * 0.35) * 2; return `<div><b style="width:${f2(r)}px;height:${f2(r)}px"></b>${num(m)}</div>`; }).join("")}</div>${note ? `<div class="k-lg-row k-secondary">${note}</div>` : ""}`;
+    `<div class="k-lg-title">Size: total degree <span class="k-secondary">total degree</span></div><div class="k-size-marks">${marks.map((m) => { const r = Math.min(12, 1.8 + Math.sqrt(m) * 0.35) * 2; return `<div><b style="width:${f2(r)}px;height:${f2(r)}px"></b>${num(m)}</div>`; }).join("")}</div>${note ? `<div class="k-lg-row k-secondary">${note}</div>` : ""}`;
 function commLegend(which) {
     const lg = A.legends[which];
     const max = which === "march" ? M.stats.maxDegree : A.stats.maxDegree;
@@ -213,7 +213,7 @@ const RESTORED = `Selection restored (${FL.length} nodes)`;
 const restoredInspector = `<aside class="k-right" aria-label="Inspector">${headerRows()}
   <div class="k-typerow">${i("circle-dot")}<span class="k-name">${FL.length} selected</span><span class="k-secondary">Nodes</span></div>
   <div class="k-scroll wr-dw"><section class="k-section"><div class="k-section-head">Statistics</div>
-    <div class="k-data"><span class="k-name">degree</span><span class="k-value">${flDeg[0]} to ${flDeg[1]}</span></div></section>
+    <div class="k-data"><span class="k-name">total degree</span><span class="k-value">${flDeg[0]} to ${flDeg[1]}</span></div></section>
   <section class="k-section"><div class="k-section-head">Attributes</div>
     <div class="k-data"><span class="k-name">kind</span><span class="k-value">${flKinds.length === 1 ? flKinds[0] : `${flKinds.length} differ`}</span></div>
     <div class="k-data"><span class="k-name">flagged</span><span class="k-value">true</span></div>
@@ -224,7 +224,7 @@ const restoredInspector = `<aside class="k-right" aria-label="Inspector">${heade
 S.reopened = {
     title: "Monday: the project reopened exactly as left, her selection restored",
     say: `Filter chip, style layers and layout as saved, and the selection she closed on: the ${FL.length} flagged accounts carry the selection ring, the inspector describes them, and the state line at the foot of the canvas says "${RESTORED}".`,
-    html: app([rail("graph"), graphPanel({}), canvas({ drawing: "transactions-march-communities-sel", alt: `March transfers colored by Louvain community, sized by degree; the ${FL.length} flagged accounts selected`, legend: commLegend("march"), overlay: toast(RESTORED, "Clear") }), restoredInspector]),
+    html: app([rail("graph"), graphPanel({}), canvas({ drawing: "transactions-march-communities-sel", alt: `March transfers colored by Louvain community, sized by total degree; the ${FL.length} flagged accounts selected`, legend: commLegend("march"), overlay: toast(RESTORED, "Clear") }), restoredInspector]),
     notes: [
         [[57, 0, 241, 65], "The filter chip reads Full graph, as saved: the first trust check on reopening, what every number is computed on.", "task-flows.md 2.2, trust check; interface-templates.md 7", "Pill (filter chip, missing: interface-specification.md 7.3)"],
         [[57, 235, 241, 115], "Style layers exactly as last month, top first. The restored selection is not a layer and adds no row here.", "state-matrix.md 3, reopened; interface-templates.md 9", "Tree"],
@@ -236,7 +236,7 @@ S.reopened = {
 S["reopened-rest"] = {
     title: "Monday: Esc, and the inspector rests on the graph",
     say: "Esc clears the restored selection (Ctrl+Z brings it back); the inspector rests on the graph, and its Last import row names March's two files.",
-    html: app([rail("graph"), graphPanel({}), canvas({ drawing: "transactions-march-communities", alt: "March transfers colored by Louvain community, sized by degree", legend: commLegend("march") }), graphInspector({})]),
+    html: app([rail("graph"), graphPanel({}), canvas({ drawing: "transactions-march-communities", alt: "March transfers colored by Louvain community, sized by total degree", legend: commLegend("march") }), graphInspector({})]),
     notes: [
         [[57, 0, 241, 65], "The filter chip reads Full graph, as saved: the first trust check on reopening, what every number is computed on.", "task-flows.md 2.2, trust check; interface-templates.md 7", "Pill (filter chip, missing: interface-specification.md 7.3)"],
         [[57, 70, 241, 80], "The current graph keeps Figma's current-page treatment (tinted, weight 550) whatever is selected; it is not a selection.", "interface-templates.md 2; figma study, left-sidebar current page", "PageList, PageRow"],
@@ -347,7 +347,7 @@ const loadDialog =`<div class="k-backdrop"><div class="k-modal wr-modal-load">
           <tr><td>same pair as March</td><td class="k-n">${num(D.transfersBoth)}</td><td class="k-n"></td></tr>
           <tr><td>rows dropped</td><td class="k-n">0</td><td class="k-n">0</td></tr></tbody></table>
         <div class="k-section-head">What replays</div>
-        <div class="k-data"><span class="k-name">Degree; Louvain with its 5 seeded re-runs</span><span class="k-value">seconds</span></div>
+        <div class="k-data"><span class="k-name">Total degree; Louvain with its 5 seeded re-runs</span><span class="k-value">seconds</span></div>
         <div class="k-data"><span class="k-name">${BASELINE}</span><span class="k-value">a few minutes: waits</span></div>
         <div class="k-data"><span class="k-name">2 style layers, the layout, 1 set, 1 note</span><span class="k-value">carried over</span></div>
       </div>
@@ -383,7 +383,7 @@ const reportPanel = `<aside class="k-right" aria-label="Version history">${heade
         <div class="k-caption wr-cap">Sets and notes</div>
         <div class="k-prose">Watchlist: ${W.inCurrentData} of ${W.members} members in April; <span class="k-id">${W.notInCurrentData.join(", ")}</span> are not in this data. 1 note carried over by id.</div>
         <div class="k-caption wr-cap">Style layers and positions</div>
-        <div class="k-prose">Community color: the ${matched} matched groups keep their March name and color by overlap; the new groups take the next names. Size: degree: domain refit to April, 0 to ${num(A.stats.maxDegree)}, was 1 to ${num(M.stats.maxDegree)}. Positions kept; ${D.accountsAdded} new accounts placed beside their counterparties; the ${Z.count} with no transfers keep their March places.</div>
+        <div class="k-prose">Community color: the ${matched} matched groups keep their March name and color by overlap; the new groups take the next names. Size: total degree: domain refit to April, 0 to ${num(A.stats.maxDegree)}, was 1 to ${num(M.stats.maxDegree)}. Positions kept; ${D.accountsAdded} new accounts placed beside their counterparties; the ${Z.count} with no transfers keep their March places.</div>
       </section></div></aside>`;
 S.replay = {
     title: "Monday: the replay report, what did not replay",
@@ -393,7 +393,7 @@ S.replay = {
         resultsPanel({
             pinned: true,
             rows: [
-                rrow("chart-column", "Degree", cur, "Replayed"),
+                rrow("chart-column", "Total degree", cur, "Replayed"),
                 rrow("group", "Louvain communities", cur, `Replayed; ${aprilCommunities} groups, was ${marchCommunities} ${silentBadge}`),
                 rrow("sigma", BASELINE, `<span class="k-warn-glyph">!</span><span class="k-btn k-btn-secondary">Re-run</span>`, "Out of date; a few minutes. Re-run keeps Run 1.", " data-hover"),
             ],
@@ -417,7 +417,7 @@ S.rerun = {
         rail("results"),
         resultsPanel({
             rows: [
-                rrow("chart-column", "Degree", cur),
+                rrow("chart-column", "Total degree", cur),
                 rrow("group", "Louvain communities", cur),
                 rrow("sigma", BASELINE, `<span class="k-btn k-btn-ghost">Cancel</span>`, "Running; a few minutes", ' aria-selected="true"'),
             ],
@@ -448,7 +448,7 @@ S["compare-pick"] = {
     html: app([
         rail("results"),
         resultsPanel({
-            rows: [rrow("chart-column", "Degree", cur), rrow("group", "Louvain communities", `<span class="k-icon-btn" data-hover>${i("git-compare-arrows")}</span>`, `${aprilCommunities} groups`, ' aria-selected="true"'), rrow("sigma", BASELINE, cur)],
+            rows: [rrow("chart-column", "Total degree", cur), rrow("group", "Louvain communities", `<span class="k-icon-btn" data-hover>${i("git-compare-arrows")}</span>`, `${aprilCommunities} groups`, ' aria-selected="true"'), rrow("sigma", BASELINE, cur)],
             extra: pickPopover,
         }),
         canvas({ drawing: "transactions-april-communities", alt: "April transfers colored by community", legend: commLegend("april") }),
@@ -469,7 +469,7 @@ const cmpDock = `<section class="k-dock wr-cmpdock" aria-label="Differences"><di
 const side = (drawing, label, count, alt) =>
     `<div class="k-canvas"><div class="wr-cmp-head"><b>${label}</b><span class="k-secondary">${count}</span></div><div class="k-stage">${img(drawing, alt)}</div></div>`;
 const cmpMain = `<main class="k-main"><div class="wr-cmp">${side("transactions-compare-march-sel", "A: March data", `${ringC.name}: ${ringC.marchSize} selected, ${A.compareSelection.inViewMarch} in view. 300%, one camera`, `March, the ${ringC.marchSize} accounts of ${ringC.name} selected`)}<div class="wr-cmp-handle"></div>${side("transactions-compare-april-sel", "B: April data", `${ringC.name}: ${ringC.aprilSize} selected, ${A.compareSelection.inViewApril} in view`, `April, the ${ringC.aprilSize} accounts of ${ringC.name} selected, new accounts marked`)}
-  <div class="k-legend-card" style="left:12px;bottom:12px"><div class="k-lg-title">Only on one side</div><div class="k-lg-row"><span class="wr-semi wr-semi-l"></span>only in March<span class="k-value">${num(D.accountsRemoved)}</span></div><div class="k-lg-row"><span class="wr-semi wr-semi-r"></span>only in April<span class="k-value">${num(D.accountsAdded)}</span></div><div class="k-lg-row k-secondary">in both: unmarked</div><div class="k-lg-row k-secondary">2 more: Size: degree, Community color (one domain on both sides)</div></div></div>${cmpDock}</main>`;
+  <div class="k-legend-card" style="left:12px;bottom:12px"><div class="k-lg-title">Only on one side</div><div class="k-lg-row"><span class="wr-semi wr-semi-l"></span>only in March<span class="k-value">${num(D.accountsRemoved)}</span></div><div class="k-lg-row"><span class="wr-semi wr-semi-r"></span>only in April<span class="k-value">${num(D.accountsAdded)}</span></div><div class="k-lg-row k-secondary">in both: unmarked</div><div class="k-lg-row k-secondary">2 more: Size: total degree, Community color (one domain on both sides)</div></div></div>${cmpDock}</main>`;
 const cmpRight = `<aside class="k-right" aria-label="Comparison">${headerRows({ one: `<span class="k-btn k-btn-secondary">Save comparison</span><span class="k-btn">Done</span>`, two: `<span class="k-tabs"><span class="k-tab" aria-selected="true">Comparison</span></span><span class="k-grow"></span>` })}
   <div class="k-typerow">${i("git-compare-arrows")}<span class="k-name k-ellipsis">Louvain communities, March and April</span></div>
   <div class="k-scroll wr-dw"><section class="k-section"><div class="k-section-head">${ringC.name}</div>
@@ -502,7 +502,7 @@ const cmpRightLost = cmpRight.replace(lostSec, "").replace(`<div class="k-scroll
 S.compare = {
     title: "Wednesday: the comparison surface, March against April",
     say: `${ringC.name} is selected in the difference list, so its ${ringC.marchSize} March accounts and ${ringC.aprilSize} April accounts carry the selection ring on each side, and accounts only in April carry the right half-ring. The agreement rows say what they are computed on.`,
-    html: app([rail("results"), resultsPanel({ rows: [rrow("chart-column", "Degree", cur), rrow("group", "Louvain communities", `<span class="k-secondary">comparing</span>`, "", ' aria-selected="true"'), rrow("sigma", BASELINE, cur)] }), cmpMain, cmpRight]),
+    html: app([rail("results"), resultsPanel({ rows: [rrow("chart-column", "Total degree", cur), rrow("group", "Louvain communities", `<span class="k-secondary">comparing</span>`, "", ' aria-selected="true"'), rrow("sigma", BASELINE, cur)] }), cmpMain, cmpRight]),
     notes: [
         [[1199, 90, 241, 450], "The selected group comes first. The group counts reconcile in one sentence, each count with its own noun, and the lost groups are listed with where their accounts went. Agreement is said as what it means, beside the same without the silent accounts and what two runs on one month's data give. The selected group is four counts, each under its noun (stayed, left, joined, silent), and how well it holds in each month's re-runs; the silent accounts are counted apart wherever a group count changes. Numbers, never a verdict: the tool runs no test that would earn one.", "task-flows.md 8.2, the three checks; graph-conventions.md 4", "DataRow, ProseBlock"],
         [[298, 540, 901, 360], `The difference list: ${ringC.name} is ninth by change, selected; selecting a row selects its accounts on both sides, matched by id. 'holds in April's re-runs' is a proposed column.`, "interaction-pattern-entries.md 4.9; framework-changes.md, the difference list", "DataTable"],
@@ -519,7 +519,7 @@ const flowRows = NF.rows
     .join("");
 const followDock = `<section class="k-dock wr-cmpdock" aria-label="Table"><div class="k-dock-tabs"><span class="k-tab">Nodes</span><span class="k-tab" aria-selected="true">Edges</span><span class="k-grow"></span><span class="k-icon-btn">${i("download")}</span></div>
   <div class="k-scope">Selected: ${NF.accounts.length} nodes. ${NF.transfers} edges with an end in it. Sorted by amount.</div>
-  <div class="k-table-wrap"><table class="k-table wr-tight"><thead><tr><th>from_account</th><th>kind</th><th>to_account</th><th>kind</th><th class="k-n">amount <span class="k-profile">sum ${usd(nfTotal)}</span></th></tr></thead><tbody>${flowRows}</tbody></table></div></section>`;
+  <div class="k-table-wrap"><table class="k-table wr-tight"><thead><tr><th>from_account</th><th>from kind</th><th>to_account</th><th>to kind</th><th class="k-n">amount <span class="k-profile">sum ${usd(nfTotal)}</span></th></tr></thead><tbody>${flowRows}</tbody></table></div></section>`;
 const severalInspector = `<aside class="k-right" aria-label="Inspector">${headerRows()}
   <div class="k-typerow">${i("circle-dot")}<span class="k-name">${NF.accounts.length} selected</span><span class="k-secondary">Nodes</span></div>
   <div class="k-scroll wr-dw"><section class="k-section"><div class="k-section-head">Statistics</div>
@@ -556,7 +556,7 @@ S.note = {
           <section class="k-section"><div class="k-section-head">Members</div><div class="k-data"><span class="k-name">accounts</span><span class="k-value">${ringC.aprilSize}; ${ringC.newAccounts} new in April</span></div></section>
           <section class="k-section"><div class="k-section-head">Appearance<span class="k-grow"></span><span class="k-icon-btn">${i("plus")}</span></div>
             <div class="k-row wr-routed">${stackChip}<span class="k-grow">Community color</span><span class="k-secondary">paints ${ringC.aprilSize}</span></div>
-            <div class="k-row wr-routed">${sizeChip}<span class="k-grow">Size: degree</span><span class="k-secondary">paints ${ringC.aprilSize}</span></div></section>
+            <div class="k-row wr-routed">${sizeChip}<span class="k-grow">Size: total degree</span><span class="k-secondary">paints ${ringC.aprilSize}</span></div></section>
           <section class="k-section"><div class="k-section-head">Notes <span class="k-count">1</span></div>
             <div class="wr-note-edit" data-focus>${noteText}<span class="wr-caret"></span></div>
             <div class="wr-cites"><span class="k-badge">${i("git-compare-arrows", "k-i-sm")} Comparison: Louvain, March and April</span></div>
@@ -583,7 +583,7 @@ const editor = `<div class="k-popover wr-editor" style="left:306px;top:233px"><d
     <div class="k-data"><span class="k-name">damping</span><span class="k-value">0.85</span></div>
     <div class="k-section-head">Appearance</div>
     <div class="k-row">${i("eye")}<span class="k-grow">PageRank sizes</span><span class="k-secondary">run</span></div>
-    <div class="k-prose k-secondary">Size set by Size: degree. <span class="wr-link">Apply anyway</span></div>
+    <div class="k-prose k-secondary">Size set by Size: total degree. <span class="wr-link">Apply anyway</span></div>
     <div class="k-row wr-verbs"><span class="k-btn k-btn-ghost" data-hover>Color by</span><span class="k-btn k-btn-ghost">Size by</span><span class="k-btn k-btn-ghost">Label with</span></div>
     <div class="k-section-head">Top nodes</div>
     ${PR.top.slice(0, 3).map((r) => `<div class="k-data"><span class="k-name"><span class="k-id">${r.id}</span> <span class="k-secondary">${r.kind}</span></span><span class="k-value">${r.pagerank.toFixed(4)}</span></div>`).join("")}
@@ -605,7 +605,7 @@ S.pagerank = {
     say: `The graph is filtered to the ring's community and two steps upstream (${UP.accounts} accounts) and laid out again. PageRank runs on the full graph; Color by opens the encoding popover, where the log scale is the default and she fits the domain to the filter.`,
     html: app([
         rail("results"),
-        resultsPanel({ chip: FILTERED, rows: [rrow("chart-column", "Degree", cur), rrow("group", "Louvain communities", cur), rrow("sigma", BASELINE, cur), rrow("chart-column", "PageRank", cur, "", ' aria-selected="true"')], extra: editor + encoding }),
+        resultsPanel({ chip: FILTERED, rows: [rrow("chart-column", "Total degree", cur), rrow("group", "Louvain communities", cur), rrow("sigma", BASELINE, cur), rrow("chart-column", "PageRank", cur, "", ' aria-selected="true"')], extra: editor + encoding }),
         canvas({ drawing: "transactions-april-upstream-pagerank", alt: `The ring's community and two steps upstream, ${UP.accounts} accounts, colored by PageRank`, legend: prLegend() }),
         graphInspector({ april: true, layout: "; run on the filter" }),
     ]),
@@ -636,7 +636,7 @@ S.path = {
         foundInspector,
     ]),
     notes: [
-        [[57, 275, 241, 160], "The Styles list, top first: the Shortest path run's automatic layer (marked run), PageRank color, Size: degree, Community color. The found path itself has no row: it stays in the run's item tab until kept.", "interface-templates.md 9; interaction-patterns.md 3.2", "Tree"],
+        [[57, 275, 241, 160], "The Styles list, top first: the Shortest path run's automatic layer (marked run), PageRank color, Size: total degree, Community color. The found path itself has no row: it stays in the run's item tab until kept.", "interface-templates.md 9; interaction-patterns.md 3.2", "Tree"],
         [[1199, 88, 241, 60], "The offered state: 'Found path', its hops, and Keep path in the first slot, because it is gone at the next run unless kept.", "interface-specification.md 4.0, 4.2, the offered path", "type row (missing: 7.3)"],
         [[1199, 445, 241, 130], "Appearance on an offered path: the one control Keep path, then the layers that paint its members.", "interface-specification.md 3.1, offered", "Button, ActionRow"],
         [[440, 370, 200, 140], "The highlight writes only its own mark on the path's accounts and transfers. Every other account keeps PageRank's color.", "canvas-drawing.md 5, 6; CLAUDE.md, Algorithm Styles", "canvas (graphty-element)"],
@@ -669,10 +669,10 @@ S["path-kept"] = {
 const legendExport = `<div class="wr-prev-legend">
   <div class="wr-pl-t">${dashChip} Shortest path, highlight 1</div><div class="wr-pl-s">${P.from} to ${P.to}, ${P.hops} hops; start and end marked</div>
   <div class="wr-pl-t">PageRank color, log scale</div><div class="wr-pl-ramp"></div><div class="wr-pl-s wr-pl-ends"><span>${sig(upDom[0])}</span><span>${sig(upDom[1])}</span></div><div class="wr-pl-s">fitted to these ${UP.accounts} accounts; PageRank on the full graph</div>
-  <div class="wr-pl-t">Size: degree</div><div class="k-size-marks wr-pl-marks">${[1, 10, 40].map((m) => { const r = Math.min(12, 1.8 + Math.sqrt(m) * 0.35) * 2; return `<div><b style="width:${f2(r)}px;height:${f2(r)}px"></b>${m}</div>`; }).join("")}</div><div class="wr-pl-s">domain 0 to ${num(A.stats.maxDegree)}, full graph</div>
+  <div class="wr-pl-t">Size: total degree</div><div class="k-size-marks wr-pl-marks">${[1, 10, 40].map((m) => { const r = Math.min(12, 1.8 + Math.sqrt(m) * 0.35) * 2; return `<div><b style="width:${f2(r)}px;height:${f2(r)}px"></b>${m}</div>`; }).join("")}</div><div class="wr-pl-s">domain 0 to ${num(A.stats.maxDegree)}, full graph</div>
 </div>`;
 const caption = `Transfers, April data (${F.accounts.file}, ${F.transfers.file}). ${SCOPE}: ${UP.accounts} of ${num(A.nodes)} accounts, ${UP.transfers} transfers.`;
-const methods = `Transfers, April data: ${F.accounts.file} (${num(A.nodes)} accounts) and ${F.transfers.file} (${num(A.edges)} transfers), directed. Scope: ${SET} (${ringC.name} of Louvain communities on April data, ${ringC.aprilSize} accounts) and two steps upstream along transfers: ${UP.accounts} accounts, ${UP.transfers} transfers. Layout: ForceAtlas2, run on that scope. PageRank on the full graph, directed, unweighted, damping 0.85, 100 iterations; colored on a log scale fitted to the scope, ${prRange}. Sized by degree on the full graph, 0 to ${num(A.stats.maxDegree)}. Shortest path ${PATHNAME}, directed, unweighted, on the scope: ${P.hops} hops, the only shortest path. Louvain: weighted by amount, direction ignored, seed 11, with 5 seeded re-runs (seeds 12 to 16). Not on the figure: Community color, painted over everywhere. graphty-element 2.0.`;
+const methods = `Transfers, April data: ${F.accounts.file} (${num(A.nodes)} accounts) and ${F.transfers.file} (${num(A.edges)} transfers), directed. Scope: ${SET} (${ringC.name} of Louvain communities on April data, ${ringC.aprilSize} accounts) and two steps upstream along transfers: ${UP.accounts} accounts, ${UP.transfers} transfers. Layout: ForceAtlas2, run on that scope. PageRank on the full graph, directed, unweighted, damping 0.85, 100 iterations; colored on a log scale fitted to the scope, ${prRange}. Sized by total degree on the full graph, 0 to ${num(A.stats.maxDegree)}. Shortest path ${PATHNAME}, directed, unweighted, on the scope: ${P.hops} hops, the only shortest path. Louvain: weighted by amount, direction ignored, seed 11, with 5 seeded re-runs (seeds 12 to 16). Not on the figure: Community color, painted over everywhere. graphty-element 2.0.`;
 const exportDialog = `<div class="k-backdrop"><div class="k-modal wr-modal-export">
   <div class="k-modal-head">Export<span class="k-grow"></span><span class="k-icon-btn">${i("x")}</span></div>
   <div class="k-modal-body"><div class="wr-export">
@@ -886,7 +886,7 @@ const frames = [
         pic: shot("reopened", [[57, 0, 241, 360], [1199, 90, 241, 300], [590, 775, 300, 60]], { extras: [crop(S["reopened-rest"].html, [1199, 215, 241, 265], "d")] }),
         where: "Monday 08:53. The project, as she closed it.",
         does: `She reads before she acts. Then Esc, to see the graph itself (close-up d).`,
-        sees: `Full graph on the filter chip; Size: degree and Community color, in last month's order; the Watchlist of ${W.members} accounts; the ${FL.length} flagged accounts still selected, the inspector on them, and the state line "${RESTORED}". After Esc, the inspector rests on the graph and its Last import row names March's two files and the date.`,
+        sees: `Full graph on the filter chip; Size: total degree and Community color, in last month's order; the Watchlist of ${W.members} accounts; the ${FL.length} flagged accounts still selected, the inspector on them, and the state line "${RESTORED}". After Esc, the inspector rests on the graph and its Last import row names March's two files and the date.`,
         trust: "Is this last week's state?",
         said: "There's my ring, still selected. That's where I stopped. Which export is this, though -- before or after they fixed the dates?",
         answered: "The state line says the selection is the one she closed on; after Esc, the Last import row names both files and the day they were read, and the history icon opens every version.",
@@ -923,7 +923,7 @@ const frames = [
         pic: shot("load", [[240, 255, 480, 245], [720, 255, 480, 375]], { cur: [1162, 668] }),
         where: "Monday 08:56. The load step for the April files.",
         does: "The load step opens on both files. She checks the counts and presses Load: the third step.",
-        sees: `Both files matched by column name, so no binding step. ${num(D.accountsKept)} accounts found by id, ${num(D.accountsAdded)} new, ${num(D.accountsRemoved)} March accounts gone, and one issue: ${Z.count} accounts with no transfers in April, all of them March accounts. Transfers down from ${num(M.edges)} to ${num(A.edges)}. Degree and Louvain replay in seconds; the randomized baseline would take a few minutes, so it will wait.`,
+        sees: `Both files matched by column name, so no binding step. ${num(D.accountsKept)} accounts found by id, ${num(D.accountsAdded)} new, ${num(D.accountsRemoved)} March accounts gone, and one issue: ${Z.count} accounts with no transfers in April, all of them March accounts. Transfers down from ${num(M.edges)} to ${num(A.edges)}. Total degree and Louvain replay in seconds; the randomized baseline would take a few minutes, so it will wait.`,
         trust: "Did every rule, run and layer replay, and what did not?",
         said: `Twenty-six accounts with no transfers? Gone quiet, or did the export drop them? I want to see those before I trust the rest.`,
         answered: "The issue row says all 26 were in March and none is new, and Show rows opens them before anything is committed.",

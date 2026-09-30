@@ -6,9 +6,9 @@ ring's group looks different now. Tell me whether the accounts really changed, o
 came out differently this time."
 Pages looked at, as a participant sees them (design notes hidden): the weekly return screens, the
 comparison screen, the version history screen, and the compare-versions route page.
-Renders: shots/r6-dana-rcn-weekly-return.png, shots/r6-dana-rcn-wr-compare-pick.png,
-shots/r6-dana-rcn-wr-compare.png, shots/r6-dana-rcn-comparison.png,
-shots/r6-dana-rcn-version-history.png, shots/r6-dana-rcn-compare-versions.png.
+Renders: shots/record/r6-dana-rcn-weekly-return.png, shots/record/r6-dana-rcn-wr-compare-pick.png,
+shots/record/r6-dana-rcn-wr-compare.png, shots/record/r6-dana-rcn-comparison.png,
+shots/record/r6-dana-rcn-version-history.png, shots/record/r6-dana-rcn-compare-versions.png.
 
 ## Think-aloud
 

@@ -14,13 +14,13 @@ in three filter steps: keep characters with at least 2 connections, keep charact
 middle step off and the other two on.
 
 **Screens, in order:** the undo screen in its participant view, starting after the wrong step
-(`shots/r3-elena-fixmiddle-undo-s3.png`); the same screen after one press of Cmd+Z
-(`shots/r3-elena-fixmiddle-undo-s2.png`); the steps list opened from the undo line
-(`shots/r3-elena-fixmiddle-undo-list.png`); the list after she unticked the middle step and ticked
-the last one back (`shots/r3-elena-fixmiddle-undo-off.png`). At the end the moderator showed the
+(`shots/record/r3-elena-fixmiddle-undo-s3.png`); the same screen after one press of Cmd+Z
+(`shots/record/r3-elena-fixmiddle-undo-s2.png`); the steps list opened from the undo line
+(`shots/record/r3-elena-fixmiddle-undo-list.png`); the list after she unticked the middle step and ticked
+the last one back (`shots/record/r3-elena-fixmiddle-undo-off.png`). At the end the moderator showed the
 filter chip screen's version of the same list, with the middle step off
-(`shots/r3-elena-fixmiddle-chip-off.png`) and with its editor open
-(`shots/r3-elena-fixmiddle-chip-edit.png`). The pink dashed outlines around some buttons were
+(`shots/record/r3-elena-fixmiddle-chip-off.png`) and with its editor open
+(`shots/record/r3-elena-fixmiddle-chip-edit.png`). The pink dashed outlines around some buttons were
 explained as "not built yet".
 
 **Outcome:** finished with difficulty, about four minutes. She ended at 47 of 77 nodes, middle

@@ -11,9 +11,9 @@ Screens seen, in order (existing study renders, 1440 x 900): the find-and-expand
 states -- find the seed, inspect the hit, click an account with no neighbours in one direction, a
 hit the filter leaves out, grow the step one hop, the grown step, the next seed
 (shots/screens__find-and-expand--t-find.png, --t-inspect, --t-click, --t-outside, --t-grow,
---t-grown, --t-next). The inspector with a large selection (shots/screens__inspector-cap.png).
+--t-grown, --t-next). The inspector with a large selection (shots/record/screens__inspector-cap.png).
 Then the sets-and-paths screen: the Path tool, the found path, what amount means, no directed
-path (shots/screens__sets-and-paths-s3--study.png to -s6--study.png). She also looked at the
+path (shots/record/screens__sets-and-paths-s3--study.png to -s6--study.png). She also looked at the
 inspector's "two selected", "Path to..." and "found path" states, which are drawn on a protein
 dataset (shots/screens__inspector-two.png, -path-to.png, -path.png). HTML read only to see what
 the search box, the Ties line and the inspector's menus would do when clicked.

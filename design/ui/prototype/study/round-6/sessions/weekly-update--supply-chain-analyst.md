@@ -6,9 +6,9 @@ and explain why the number of groups changed." The same task and wording as the 
 where she rated it 4.33 of 7.
 
 Screens worked through, as the participant saw them (study view, full page, rendered for this
-session): shots/r6-dana-wu-weekly-return.png, shots/r6-dana-wu-data-panel.png,
-shots/r6-dana-wu-version-history.png, shots/r6-dana-wu-replace-and-recipe.png,
-shots/r6-dana-wu-comparison.png.
+session): shots/record/r6-dana-wu-weekly-return.png, shots/record/r6-dana-wu-data-panel.png,
+shots/record/r6-dana-wu-version-history.png, shots/record/r6-dana-wu-replace-and-recipe.png,
+shots/record/r6-dana-wu-comparison.png.
 
 Outcome: success. The update went through first time, and she gave an explanation she could
 defend: most of the jump from 35 to 65 groups is 26 accounts that had no transfers in April and

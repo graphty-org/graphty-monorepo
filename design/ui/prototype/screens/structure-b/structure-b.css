@@ -1,0 +1,71 @@
+/* The structure B wireframes' own pieces, drawn only with kit tokens (kit/README.md). */
+.b-hidden-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: 0; }
+
+/* Groups and styles rows: grip, twisty, swatch, name, kind, then count, note badge and Paint */
+.b-row { gap: 4px; }
+.b-row .grip, .b-row .b-tw { display: inline-grid; place-items: center; width: 12px; flex: none; color: var(--cm-icon-secondary); }
+.b-row .b-sw { display: inline-grid; place-items: center; width: 18px; flex: none; }
+.b-row .b-name { min-width: 0; }
+.b-row .k-trail { gap: 8px; }
+.b-row .b-count { min-width: 16px; text-align: end; }
+.b-row .b-note { display: inline-grid; color: var(--cm-icon-secondary); }
+.k-item.b-row[data-level="2"] { padding-inline-start: 16px; }
+.b-empty { width: 12px; height: 12px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); background: repeating-linear-gradient(135deg, transparent 0 3px, var(--cm-border) 3px 4px); }
+.b-prec { display: flex; align-items: center; gap: 6px; padding: 0 8px 4px 16px; color: var(--cm-text-secondary); }
+
+/* A row that loses a property on every member: the line under it and Move above */
+.k-item.b-cov { flex-wrap: wrap; height: auto; min-height: 32px; padding-block: 6px; row-gap: 2px; }
+.k-item.b-cov::before { inset: 2px 0; }
+.b-covline { flex-basis: 100%; padding-inline-start: 50px; line-height: 16px; white-space: normal; order: 9; }
+.b-move { order: 10; padding-inline-start: 50px; }
+.b-movebtn { height: 20px; padding: 0 6px; }
+
+/* Drag: the source row, the insertion line and the ghost under the pointer */
+.k-item[data-dragsrc] { outline: 1px dashed var(--cm-border-strong); outline-offset: -1px; }
+.k-item[data-dragsrc] .b-sw { opacity: 0.4; }
+.b-dropline { position: relative; height: 0; list-style: none; }
+.b-dropline::before { content: ""; position: absolute; left: 4px; right: 0; top: -1px; height: 2px; background: var(--cm-border-selected); }
+.b-dropline::after { content: ""; position: absolute; left: 0; top: -4px; width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--cm-border-selected); background: var(--cm-bg); }
+.b-ghost { position: fixed; z-index: 40; display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 12px 0 8px; border-radius: 5px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); opacity: 0.92; }
+.b-ghost .grip { display: inline-grid; color: var(--cm-icon-secondary); }
+
+/* Inspector pieces */
+.b-rowhead { padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--cm-border); display: grid; gap: 8px; }
+.b-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.b-pad { padding: 4px 8px 4px 16px; }
+.b-sub { padding: 4px 16px 0; color: var(--cm-text-secondary); }
+.b-covered { color: var(--cm-text-secondary); }
+.b-notecard { margin: 4px 8px 8px 16px; padding: 8px; border-radius: 5px; background: var(--cm-bg-secondary); }
+
+/* Algorithms panel */
+.b-run { align-items: flex-start; padding-block: 6px; }
+.b-run > .k-i { margin-top: 1px; flex: none; }
+.b-run[aria-selected="true"] { background: var(--cm-bg-selected); }
+.b-run-t { display: grid; min-width: 0; }
+.b-run-sub { color: var(--cm-text-secondary); }
+.b-cat { padding-inline-start: 36px; min-height: 28px; }
+.b-cat[aria-disabled="true"] { color: var(--cm-text-secondary); }
+.b-fam { font-weight: 550; min-height: 28px; }
+
+/* Canvas pieces */
+.b-lg-gap { margin-top: 6px; }
+.b-lg-gap + .k-lg-row .k-sizechip, .k-lg-row .k-sizechip { flex: none; }
+.b-notemark { position: absolute; z-index: 5; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 12px 12px 12px 2px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200), 0 0 0 1px var(--k-mark-out); color: var(--cm-text); }
+.b-filterpop { width: 280px; z-index: 30; }
+
+/* "Algorithms" is wider than the 56 px rail at 11 px: a cost of the name, drawn tightened here */
+.b-rail-long { letter-spacing: -0.4px; white-space: nowrap; }
+.b-hubline { min-height: 24px; }
+
+/* Pieces of today's frame (screens/frame-at-rest.html) that B keeps unchanged, drawn the same way */
+.b-file { max-width: 128px; color: var(--cm-text); }
+.b-top { padding-top: 8px; }
+.b-bgsw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: none; background: linear-gradient(135deg, #F5F5F5 0 50%, #1E1E1E 50% 100%); box-shadow: inset 0 0 0 1px var(--cm-border-translucent); }
+.b-stline { padding: 2px 8px 6px 16px; font-size: 11px; line-height: 16px; }
+.b-ii { width: 12px; height: 12px; stroke-width: 2; color: var(--cm-icon-secondary); vertical-align: -2px; }
+.b-spark { display: inline-flex; align-items: flex-end; gap: 1px; width: 88px; height: 18px; }
+.b-spark i { flex: 1; background: var(--cm-icon-secondary); border-radius: 1px 1px 0 0; min-height: 1px; }
+.b-spark i.z { background: var(--cm-border); }
+.b-strip { flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border-top: 1px solid var(--cm-border); background: var(--cm-bg); font-size: 11px; line-height: 16px; }
+.b-strip .k-i { color: var(--cm-icon-secondary); }
+.k-legend-card { max-width: 212px; } /* as wide as today's legend, so it clears the wider toolbar */

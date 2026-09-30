@@ -14,8 +14,8 @@ app first reads it as text rather than as numbers.
 blocked as text, then the repeated-pairs choice), and the main window after loading, with the
 protein data.
 
-Renders looked at: `shots/screens__start-screen.png`, `shots/r2-alex-afternoon-load-blocked.png`,
-`shots/r2-alex-afternoon-load-policy.png`, `shots/r2-alex-afternoon-frame.png`.
+Renders looked at: `shots/screens__start-screen.png`, `shots/record/r2-alex-afternoon-load-blocked.png`,
+`shots/record/r2-alex-afternoon-load-policy.png`, `shots/record/r2-alex-afternoon-frame.png`.
 
 ## Transcript (think-aloud)
 

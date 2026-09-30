@@ -12,12 +12,12 @@ opened, a name typed, an account id typed with no match, the same id after "Sear
 projects"); the inspector (one node at rest, its Neighbors menu, one link, a large selection on the
 March transfers); the filter chip and its steps (three steps, editing a step); the notes panel
 (empty, a note open, searching notes); the export dialog (the evidence file, and the message after
-an export). Renders: shots/find--s1.png, shots/find--s2.png, shots/r3-marcus-find-s10.png,
-shots/r3-marcus-find-s11.png, shots/r3-marcus-inspector-one-node.png,
-shots/r3-marcus-inspector-grow.png, shots/r3-marcus-inspector-edge.png,
-shots/r3-marcus-inspector-cap.png, shots/r3-marcus-filter-three.png,
-shots/r3-marcus-filter-edit.png, shots/r3-marcus-notes-s1.png, shots/r3-marcus-notes-s3.png,
-shots/r3-marcus-notes-s5.png, shots/r3-marcus-export-evidence.png, shots/r3-marcus-export-done.png.
+an export). Renders: shots/record/find--s1.png, shots/record/find--s2.png, shots/record/r3-marcus-find-s10.png,
+shots/record/r3-marcus-find-s11.png, shots/record/r3-marcus-inspector-one-node.png,
+shots/record/r3-marcus-inspector-grow.png, shots/record/r3-marcus-inspector-edge.png,
+shots/record/r3-marcus-inspector-cap.png, shots/record/r3-marcus-filter-three.png,
+shots/record/r3-marcus-filter-edit.png, shots/record/r3-marcus-notes-s1.png, shots/record/r3-marcus-notes-s3.png,
+shots/record/r3-marcus-notes-s5.png, shots/record/r3-marcus-export-evidence.png, shots/record/r3-marcus-export-done.png.
 
 ## Think-aloud transcript
 

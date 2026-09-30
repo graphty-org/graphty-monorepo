@@ -7,10 +7,10 @@ Screens seen, as a participant sees them (design notes hidden): the Notes panel 
 notes (screens/notes-panel.html, states 1, 3, 4 and 11), the Note editor while writing and after
 adding (screens/take-a-note.html, states 1 to 3), the main menu's Preferences submenu and the
 "Your name on notes and recipes" dialog (screens/preferences.html, states 1 and 2), and the
-navigation page. Renders: shots/screens__notes-panel.png, shots/screens__notes-panel-s3--study.png,
-shots/screens__notes-panel-s4--study.png, shots/screens__notes-panel-s11--study.png,
-shots/screens__take-a-note.png, shots/screens__take-a-note-s2--study.png,
-shots/screens__take-a-note-s3--study.png, shots/screens__preferences.png,
+navigation page. Renders: shots/screens__notes-panel.png, shots/record/screens__notes-panel-s3--study.png,
+shots/record/screens__notes-panel-s4--study.png, shots/record/screens__notes-panel-s11--study.png,
+shots/screens__take-a-note.png, shots/record/screens__take-a-note-s2--study.png,
+shots/record/screens__take-a-note-s3--study.png, shots/screens__preferences.png,
 shots/tmp/nadia-names/prefs-name.png.
 
 ## Think-aloud

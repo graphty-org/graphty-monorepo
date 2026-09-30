@@ -15,7 +15,7 @@ rows at a time. Single Ease Question: 5 of 7.
 
 ## Transcript
 
-**Project open (shots/r2-flagged-nadia--open-z.png)**
+**Project open (shots/record/r2-flagged-nadia--open-z.png)**
 
 "OK. Grey honeycomb blob with orange diamonds. I don't know what the blob is. The orange ones are
 alerts, the little box says 'alert is true, 50'. Fine. I'm ignoring the picture.
@@ -28,7 +28,7 @@ box?"
 She looks across the top. "Hamburger, 'August alerts', 'Full graph'... there's a magnifying glass
 next to 'Graphs'. That one." Clicks it, pastes.
 
-**Find (shots/r2-flagged-nadia--seed-find.png)**
+**Find (shots/record/r2-flagged-nadia--seed-find.png)**
 
 "One hit, ACC-365386, 'personal, US; in Alerts'. Good, and it circled it in the blob. Right side
 filled in: personal, US, risk score 92, alert true, and the scenario -- 'Structuring: 3 or more
@@ -44,7 +44,7 @@ me for a second."
 "'8 neighbors, In 3, Out 5.' So three accounts paid him and he paid five. That I can use.
 'Neighbors' -- you mean counterparties."
 
-**The neighbours button (shots/r2-flagged-nadia--seed-menu.png, seed-selected.png)**
+**The neighbours button (shots/record/r2-flagged-nadia--seed-menu.png, seed-selected.png)**
 
 "How do I see the eight? There's a row of little icons under the name. A thing with dots and a
 little arrow, a funnel, a pin. No words on any of them. The funnel is filter, I know that from
@@ -70,7 +70,7 @@ Then 'Select neighbors, 1 hop' and 'Filter to neighbors, 1 hop'. What's the diff
 select, apparently, and it didn't narrow anything. So filter must be 'show me only these'. I'll
 take filter."
 
-**One hop, filtered (shots/r2-flagged-nadia--seed-hop1.png)**
+**One hop, filtered (shots/record/r2-flagged-nadia--seed-hop1.png)**
 
 "There we go. Nine dots, lines between them. Five orange diamonds -- five alerted accounts in one
 guy's circle. That's not normal. The chip up top says 'Filtered: 9 of 3,000 nodes', so the other
@@ -107,7 +107,7 @@ writing the SAR, I'm deciding if Sarah has to, and she has to.
 Took me -- seven, eight minutes, including the scare and the wrong button. Next time it'd be
 maybe four. That's inside my ten."
 
-**Writing it down (shots/r2-flagged-nadia--seed-refer.png, tuition-clear.png, next-delete.png)**
+**Writing it down (shots/record/r2-flagged-nadia--seed-refer.png, tuition-clear.png, next-delete.png)**
 
 "Now I need it in the alert file. One picture, a few lines. Is there a note thing? There's
 'Notes' on the far left, and 'Export files...' top right. The export dialog from the last alert

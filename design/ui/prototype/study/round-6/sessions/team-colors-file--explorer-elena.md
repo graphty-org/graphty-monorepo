@@ -13,15 +13,15 @@ file the screens use.
 
 Screens seen, as a participant sees them (design notes hidden), rendered at 1440 x 900:
 
-- An open project with the Style stack: `shots/r6-elena-tcf-styles-list.png`
-- The Style stack's Look menu: `shots/r6-elena-tcf-styles-list--looks.png`
-- The Style stack's + menu: `shots/r6-elena-tcf-styles-list--plus-menu.png`
-- A layer's color popover, Libraries tab: `shots/r6-elena-tcf-styles-list--libraries.png`
+- An open project with the Style stack: `shots/record/r6-elena-tcf-styles-list.png`
+- The Style stack's Look menu: `shots/record/r6-elena-tcf-styles-list--looks.png`
+- The Style stack's + menu: `shots/record/r6-elena-tcf-styles-list--plus-menu.png`
+- A layer's color popover, Libraries tab: `shots/record/r6-elena-tcf-styles-list--libraries.png`
 - Update, recipe picker, fraud-team-colors choice, binding and result (one tall page):
-  `shots/r6-elena-tcf-replace-and-recipe-full.png`
-- The Data panel: `shots/r6-elena-tcf-data-panel.png`
+  `shots/record/r6-elena-tcf-replace-and-recipe-full.png`
+- The Data panel: `shots/record/r6-elena-tcf-data-panel.png`
 - Opening the file from the email instead (recipe waiting for data, binding, applied, undone):
-  `shots/r6-elena-tcf-recipe-apply--start.png`, `--binding.png`, `--confirmed.png`,
+  `shots/record/r6-elena-tcf-recipe-apply--start.png`, `--binding.png`, `--confirmed.png`,
   `--applied.png`, `--unbound.png`, `--undone.png`
 
 ## Think-aloud

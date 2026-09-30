@@ -46,6 +46,20 @@ body { background: var(--cm-bg-secondary); }
 .ss-help { position: absolute; right: 16px; bottom: 16px; }
 .ss-tip { position: absolute; z-index: 50; max-width: 260px; }
 
+/* The first-use question about usage data (the same card as screens/first-look.html) */
+.ss-ask { margin: 0 0 12px; padding: 12px 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); display: grid; gap: 4px; max-width: 560px; }
+.ss-ask p { margin: 0; line-height: 20px; }
+.ss-ask-h { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 22px; font-weight: 550; }
+.ss-ask-foot { display: flex; gap: 8px; margin-top: 8px; }
+
+/* A project open: the whole app frame inside the 1440 by 900 window */
+.ss-win.ss-app { display: block; }
+.ss-win.ss-app > .k-app { width: 100%; height: 100%; }
+/* The left panel minimized to its header, floating at the canvas's top left */
+.ss-mini { position: absolute; left: 8px; top: 8px; z-index: 20; width: 240px; box-sizing: border-box; padding: 8px 8px 4px 16px; border-radius: 8px; background: var(--cm-bg); box-shadow: 0 0 0 1px var(--cm-border), 0 2px 8px rgb(0 0 0 / .12); }
+.ss-mini .k-title-line { display: flex; align-items: center; gap: 4px; }
+.ss-mini .k-project { font-weight: 550; }
+
 /* The recipe waiting for data (a ProseBlock heading the list) */
 .ss-recipe { padding: 8px 16px 16px; margin: 0 0 8px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border); }
 .ss-recipe .ss-h { margin: 0; }
@@ -81,16 +95,16 @@ body:has(.ss-state:target) .ss-win { box-shadow: none; }
 </style>
 </head>
 <body data-any-dataset>
-<div class="ss-top"><b>Start screen</b><span class="k-secondary">What graphty shows before any project is open. Ten states, each 1440 by 900 except the narrow window.</span>
+<div class="ss-top"><b>Start screen</b><span class="k-secondary">What graphty shows before any project is open, and the line it shows about data once one is. Thirteen states, each 1440 by 900 except the narrow window.</span>
 <span class="k-grow"></span><label><input type="checkbox" id="ss-annot"> Show annotations</label>
 <a href="binding-step.html">The binding step</a><a href="recipe-apply.html">The recipe, applied</a><a href="../index.html">Gallery</a></div>
 
-<div class="ss-intro"><p>Recent projects first, then the samples by name and picture, then Open... and Connect to data source.... A file dropped anywhere on the window opens as Open... would. One line under the title answers the question people ask before they give a tool their data: where does the file go? Turn on annotations to see the design rule and the compact-mantine component behind each part.</p></div>
+<div class="ss-intro"><p>Recent projects first, then the samples by name and picture, then Open... and Connect to data source.... A file dropped anywhere on the window opens as Open... would. One line under the title answers the question people ask before they give a tool their data: where does the file go? On the very first start, one question follows it: may graphty collect how the app is used? Nothing is collected until the answer is yes. Once a project is open, the line under its name says what has left this project so far (states 11 to 13). Turn on annotations to see the design rule and the compact-mantine component behind each part.</p></div>
 
 <!-- ============================================================ 1. First run -->
 <section class="ss-state" id="s1">
-<h2>1. First run: nothing opened yet</h2>
-<p>No recent projects, so that section is absent and the samples lead. Nothing here is first-run-only: a returning person whose recents were cleared sees exactly this screen. App text on this screen: 34 words (title 3, the line about files 15 and its link 4, the line about projects 6, "Samples" 1, Open... 1, Connect to data source... 4), 50 with the sample names and sizes.</p>
+<h2>1. First run: nothing opened yet, and the question about usage data</h2>
+<p>No recent projects, so that section is absent and the samples lead. The one first-run-only part is the question about usage data, which the owner decided graphty asks at first use: usage data is off until the person says yes. The two answers weigh the same and neither is chosen; ignoring the card and opening a sample leaves it off, and the card does not come back once answered. Apart from that card, a returning person whose recents were cleared sees exactly this screen. App text on this screen: 34 words (title 3, the line about files 15 and its link 4, the line about projects 6, "Samples" 1, Open... 1, Connect to data source... 4) plus the card's 69, which is the one part past the empty screen's 50-word budget: every sentence in it is a commitment the owner asked to keep.</p>
 <div class="ss-win" data-kit-frame>
   <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" data-annot><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div></nav>
   <div class="ss-body">
@@ -98,6 +112,11 @@ body:has(.ss-state:target) .ss-win { box-shadow: none; }
     <h1>Open a graph</h1>
     <div class="ss-lines"><p class="ss-privacy" data-annot><svg class="k-i k-i-sm"><use href="../kit/icons.svg#lock"/></svg>Files stay on this computer. graphty reads them in this browser and uploads nothing. <a class="k-link" href="where-your-data-goes.html">Where your data goes</a></p>
     <p class="ss-privacy"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#database"/></svg>Projects are kept in this browser.</p></div>
+
+    <section class="ss-ask" role="group" aria-labelledby="ss-ask-h" data-annot><div class="ss-ask-h" id="ss-ask-h">Your data is yours, but please help us</div>
+    <p>graphty will never see the data you analyze. We would like to collect how you use the app, so we can make it better. That record is only ever used by graphty's author and his Claude Code sessions.</p>
+    <p class="k-secondary">Nothing is collected unless you say yes. You can change this any time in Preferences.</p>
+    <div class="ss-ask-foot"><span class="k-btn k-btn-secondary">Yes, share how I use graphty</span><span class="k-btn k-btn-secondary">No thanks</span></div></section>
 
     <div class="ss-h">Samples</div>
     <div class="ss-thumbs" data-annot>
@@ -117,10 +136,11 @@ body:has(.ss-state:target) .ss-win { box-shadow: none; }
 
   <div class="k-annot-note ss-an" style="left:68px;top:8px;width:240px">Main menu in the rail's top slot, at the same place it has with a project open; the rest of the rail is empty because no project means no places. <i>interface-templates.md 1</i>. compact-mantine <b>Menu</b> (dark) on the rail's <b>RailButton</b>.</div>
   <div class="k-annot-note ss-an" style="left:1180px;top:60px;width:240px">Where the file goes and where projects are kept, before any load. People learned that projects live in this browser only from an error, and IT reviewers had nothing to forward, so the lock line links to the forwardable "Where your data goes" page and a second line says where projects are kept. Proposed in <i>framework-changes.md</i>. Mantine <b>Text</b>, secondary ink, lock and database icons; <b>Anchor</b> for the link.</div>
-  <div class="k-annot-note ss-an" style="left:68px;top:170px;width:240px">First run: no recents, so the section is absent (not "No recent projects"). <i>interface-templates.md 19</i>; <i>content-design.md 4</i>, Empty surface; <i>principles.md 5</i>, no first-run-only interface. No avatar or account slot anywhere: graphty has no accounts, and a name there reads as signed in. Once a project is open, "Nothing has been sent from this project" sits under its name in the left panel header.</div>
-  <div class="k-annot-note ss-an" style="left:1180px;top:200px;width:240px">Samples: the element's registered samples in its order, each by name (at most 3 words), its size and a picture of its saved look. The description is under (i), which opens on hover, on keyboard focus of the tile and on tap. Drawn as a thumbnail grid, a departure from the template's rows, proposed in <i>framework-changes.md</i>; built from a thumbnail tile compact-mantine does not have yet (<i>figma-spec.md 11.11</i>). (i) is <b>InfoCircle</b>.</div>
-  <div class="k-annot-note ss-an" style="left:68px;top:440px;width:240px">Open..., an <b>ActionRow</b>. A file dropped anywhere on the window counts as Open...; there is no drop box. <i>interface-templates.md 19</i>; <i>interaction-pattern-entries.md 4.5</i>. The formats read are the file picker's accept filter, supplied by the element.</div>
-  <div class="k-annot-note ss-an" style="left:1180px;top:470px;width:240px">Connect to data source..., an <b>ActionRow</b>. Its (i) says what does leave: "Sends only your query, to the source you name." <i>principles.md</i>, the conflict ledger; proposed in <i>framework-changes.md</i>.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:170px;width:240px">First run: no recents, so the section is absent (not "No recent projects"). <i>interface-templates.md 19</i>; <i>content-design.md 4</i>, Empty surface; <i>principles.md 5</i>, no first-run-only interface. No avatar or account slot anywhere: graphty has no accounts, and a name there reads as signed in. Once a project is open, "Nothing has been sent from this project" sits under its name in the left panel header (states 11 to 13).</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:250px;width:240px">The first-use question about usage data, the owner's decision of September 29, 2026 (<i>owner-feedback.md</i>): off until the person says yes; the owner's text, tightened, every commitment kept (the data is theirs, graphty never sees it, how the app is used would help improve it, only the author and his Claude Code sessions use it). Two answers of equal weight, neither chosen; it never covers the samples or Open..., so it can be ignored, and ignoring it leaves usage data off. The answer is kept in Preferences. The same card as the first-look storyboard. Mantine <b>Paper</b> with two <b>Button</b>s, variant default.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:450px;width:240px">Samples: the element's registered samples in its order, each by name (at most 3 words), its size and a picture of its saved look. The description is under (i), which opens on hover, on keyboard focus of the tile and on tap. Drawn as a thumbnail grid, a departure from the template's rows, proposed in <i>framework-changes.md</i>; built from a thumbnail tile compact-mantine does not have yet (<i>figma-spec.md 11.11</i>). (i) is <b>InfoCircle</b>.</div>
+  <div class="k-annot-note ss-an" style="left:68px;top:560px;width:240px">Open..., an <b>ActionRow</b>. A file dropped anywhere on the window counts as Open...; there is no drop box. <i>interface-templates.md 19</i>; <i>interaction-pattern-entries.md 4.5</i>. The formats read are the file picker's accept filter, supplied by the element.</div>
+  <div class="k-annot-note ss-an" style="left:1180px;top:640px;width:240px">Connect to data source..., an <b>ActionRow</b>. Its (i) says what does leave: "Sends only your query, to the source you name." <i>principles.md</i>, the conflict ledger; proposed in <i>framework-changes.md</i>.</div>
   <div class="k-annot-note ss-an" style="left:1180px;top:780px;width:220px">Help, bottom right, as on the canvas. <i>interface-templates.md 13</i>. <b>HelpButton</b>.</div>
 </div>
 </section>
@@ -482,6 +502,114 @@ body:has(.ss-state:target) .ss-win { box-shadow: none; }
 </div>
 </section>
 
+<!-- ============================================================ 11. A project open: the privacy line -->
+<section class="ss-state" id="s11">
+<h2>11. A sample opened: what has been sent, under the project name</h2>
+<p>Choosing the Les Miserables sample opens it as a project, and the start screen gives way to the app. Under the project name, in the left panel header, one line says what has left this project so far: "Nothing has been sent from this project". It is a link to Data &gt; Sent and saved, the list of everything the project has sent and written. There is no avatar anywhere: graphty has no accounts.</p>
+<div class="ss-win ss-app" data-kit-frame>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy" href="data-panel.html#s7" data-annot>Nothing has been sent from this project</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graphs</div>
+        <ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num"><span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span></li></ul></section>
+      <section class="k-section" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="New set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Views</div></section>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt="Les Miserables, 77 characters, colored by group and sized by degree"><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt="Les Miserables, 77 characters, colored by group and sized by degree"></div>
+      <div class="k-legend-card"><div class="k-lg-title">Group color <span class="k-secondary">group</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value">14</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>8<span class="k-value">13</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value">11</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>1<span class="k-value">10</span></div><div class="k-lg-row k-secondary">6 more</div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar" aria-label="Tools"><span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span><span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span><span class="k-toolbar-sep"></span><span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll"><section class="k-section"><div class="k-section-head">Overview</div>
+      <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big" data-fx="datasets.lesmis.nodes">77</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big" data-fx="datasets.lesmis.edges">254</span></div></div>
+    </section></div>
+  </aside>
+</div>
+  <div class="k-annot-note ss-an" style="left:310px;top:60px;width:240px">The privacy line, under the project name in the left panel header, on every panel the rail opens (<i>kit/shell.mjs</i> puts it on every frame). Body ink, underlined, a link: it opens Data &gt; Sent and saved, the one record of what this project has sent and written. No avatar and no account slot anywhere: graphty has no accounts. Proposed in <i>framework-changes.md</i>, header. Mantine <b>Anchor</b>, size xs.</div>
+</div>
+</section>
+
+<!-- ============================================================ 12. After the Assistant -->
+<section class="ss-state" id="s12">
+<h2>12. After two questions to the Assistant</h2>
+<p>An Assistant provider is set and the Assistant has been asked two questions about this graph. The line under the project name now counts what left and says that nothing else did: "Sent to the Assistant: 2 questions. Nothing else." It still opens Data &gt; Sent and saved, where each question is listed with its time and address and what exactly was sent.</p>
+<div class="ss-win ss-app" data-kit-frame>
+<div class="k-app">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sparkles"/></svg></span>Assistant</div></nav>
+  <aside class="k-panel" aria-label="Graph">
+    <div class="k-panel-head">
+      <div class="k-title-line"><span class="k-project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <a class="k-privacy" href="data-panel.html#s7" data-annot>Sent to the Assistant: 2 questions. Nothing else.</a>
+      <span class="k-chip k-chip-btn" role="button" aria-expanded="false"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg>Full graph<svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+    </div>
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Graphs</div>
+        <ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num"><span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span></li></ul></section>
+      <section class="k-section" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="New set"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div></section>
+      <section class="k-section" data-collapsed><div class="k-section-head">Views</div></section>
+    </div>
+  </aside>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt="Les Miserables, 77 characters, colored by group and sized by degree"><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt="Les Miserables, 77 characters, colored by group and sized by degree"></div>
+      <div class="k-legend-card"><div class="k-lg-title">Group color <span class="k-secondary">group</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value">14</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>8<span class="k-value">13</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value">11</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>1<span class="k-value">10</span></div><div class="k-lg-row k-secondary">6 more</div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar" aria-label="Tools"><span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span><span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span><span class="k-toolbar-sep"></span><span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll"><section class="k-section"><div class="k-section-head">Overview</div>
+      <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big" data-fx="datasets.lesmis.nodes">77</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big" data-fx="datasets.lesmis.edges">254</span></div></div>
+    </section></div>
+  </aside>
+</div>
+  <div class="k-annot-note ss-an" style="left:310px;top:60px;width:240px">After the Assistant is used the same line counts what left and says nothing else did: "Sent to the Assistant: 2 questions. Nothing else." The count is of questions sent, from the operation log the element keeps; the link still opens Data &gt; Sent and saved, where each question has its time, its address and See what was sent. A data-source query reads "Sent to {host}: 1 query. Nothing else." Proposed in <i>framework-changes.md</i>, header.</div>
+</div>
+</section>
+
+<!-- ============================================================ 13. Panel minimized -->
+<section class="ss-state" id="s13">
+<h2>13. The left panel minimized: the line stays in view</h2>
+<p>With the left panel minimized to give the canvas the width, its header stays as a small card at the canvas's top left: the project name, the same line about what was sent, and the button that brings the panel back.</p>
+<div class="ss-win ss-app" data-kit-frame>
+<div class="k-app" data-left="closed">
+  <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" role="button" aria-label="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" role="button" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn" role="button" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sparkles"/></svg></span>Assistant</div></nav>
+  <main class="k-main">
+    <div class="k-canvas">
+      <div class="k-stage"><img class="k-light-only" src="../kit/canvas/lesmis-groups-rest-light.svg" alt="Les Miserables, 77 characters, colored by group and sized by degree"><img class="k-dark-only" src="../kit/canvas/lesmis-groups-rest-dark.svg" alt="Les Miserables, 77 characters, colored by group and sized by degree"></div>
+      <div class="ss-mini" data-annot><div class="k-title-line"><span class="k-project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg><span class="k-grow"></span><span class="k-icon-btn" role="button" aria-label="Show the Graph panel"><svg class="k-i"><use href="../kit/icons.svg#panel-left"/></svg></span></div><a class="k-privacy" href="data-panel.html#s7">Sent to the Assistant: 2 questions. Nothing else.</a></div>
+      <div class="k-legend-card"><div class="k-lg-title">Group color <span class="k-secondary">group</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>2<span class="k-value">14</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>8<span class="k-value">13</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>4<span class="k-value">11</span></div><div class="k-lg-row"><span class="k-chit" style="background:#0072B2"></span>1<span class="k-value">10</span></div><div class="k-lg-row k-secondary">6 more</div></div>
+      <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar" aria-label="Tools"><span class="k-tool" role="button" aria-pressed="true" aria-label="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret" role="button" aria-label="More tools" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span><span class="k-tool" role="button" aria-pressed="false" aria-label="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span><span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" role="button" aria-pressed="false" aria-label="Quick actions"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span><span class="k-toolbar-sep"></span><span class="k-tool" role="button" aria-pressed="false" aria-label="View mode (2D / 3D)"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#square"/></svg></span><span class="k-tool-caret" role="button" aria-label="View mode options" aria-haspopup="menu"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div></div>
+      <span class="k-help" role="button" aria-label="Help and shortcuts"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
+    </div>
+  </main>
+  <aside class="k-right" aria-label="Inspector">
+    <div class="k-header1"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
+    <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll"><section class="k-section"><div class="k-section-head">Overview</div>
+      <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big" data-fx="datasets.lesmis.nodes">77</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big" data-fx="datasets.lesmis.edges">254</span></div></div>
+    </section></div>
+  </aside>
+</div>
+  <div class="k-annot-note ss-an" style="left:320px;top:120px;width:240px">Minimized, the left panel shrinks to its header, floating at the canvas's top left as Figma's minimized panel does: the project name, the privacy line, and the button that brings the panel back. So the line stays in view while the canvas takes the width. Proposed; compact-mantine <b>Paper</b>, <b>Anchor</b>, <b>ActionIcon</b>.</div>
+</div>
+</section>
+
 <div class="ss-key" data-kit-note>
 <h2 style="font-size:15px">What each part is built from</h2>
 <table>
@@ -497,6 +625,8 @@ body:has(.ss-state:target) .ss-win { box-shadow: none; }
 <tr><td>Connect to data source...</td><td>principles.md, conflict ledger; information-architecture.md 4.1</td><td>ActionRow; InfoCircle</td></tr>
 <tr><td>Errors on the screen</td><td>message-catalog.md, graphty.open.failed; Remove from recents proposed</td><td>Text, danger; Button (secondary)</td></tr>
 <tr><td>Recipe waiting for data</td><td>interface-templates.md 19 and 13; state-matrix.md 3; task-flows.md 8; information-architecture.md 6, Recipe row</td><td>ProseBlock; ActionRow (sender's network, your table); Button (Add your table..., primary); Button disabled but focusable (Apply); Button variant subtle</td></tr>
+<tr><td>Usage data question (first run)</td><td>owner-feedback.md, 2026-09-29 telemetry decision; shown once, off until yes</td><td>Paper; Button, variant default (two, equal weight)</td></tr>
+<tr><td>The line under the project name</td><td>framework-changes.md, header: "Nothing has been sent from this project", after the Assistant "Sent to the Assistant: 2 questions. Nothing else."; links to Data &gt; Sent and saved; stays in the minimized header</td><td>Anchor, size xs; Paper and ActionIcon for the minimized header</td></tr>
 <tr><td>Help</td><td>interface-templates.md 13</td><td>HelpButton</td></tr>
 </tbody>
 </table>

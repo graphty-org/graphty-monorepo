@@ -13,12 +13,12 @@ keep degree >= 2, keep degree >= 5, drop group 8.
 - `shots/tasks/fix-wrong-middle-step/01-undo.png`: the app with three steps on and a "Selection
   cleared" notice
 - `shots/tasks/fix-wrong-middle-step/02-filter-chip.png`: the filter chip opened, three steps
-- `shots/r6-alex-fixmid-chip-off.png`: the middle step unticked
-- `shots/r6-alex-fixmid-chip-edit.png`: the middle step open for editing
-- `shots/r6-alex-fixmid-undo-off.png` and `shots/r6-alex-fixmid-undo-list.png`: Edit menu, Undo
+- `shots/record/r6-alex-fixmid-chip-off.png`: the middle step unticked
+- `shots/record/r6-alex-fixmid-chip-edit.png`: the middle step open for editing
+- `shots/record/r6-alex-fixmid-undo-off.png` and `shots/record/r6-alex-fixmid-undo-list.png`: Edit menu, Undo
   history, after the fix and after two plain undos
-- `shots/r6-alex-fixmid-steps-undo.png`: the filter steps and undo page
-- `shots/r6-alex-fixmid-recovery-full.png`: the "three ways back" page, a different three-step
+- `shots/record/r6-alex-fixmid-steps-undo.png`: the filter steps and undo page
+- `shots/record/r6-alex-fixmid-recovery-full.png`: the "three ways back" page, a different three-step
   example
 
 **Outcome:** success. He turned the middle step off, checked that the third was still on, and then

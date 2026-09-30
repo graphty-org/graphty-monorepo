@@ -12,15 +12,15 @@ participant view.
 
 Renders he looked at, in order:
 
-- shots/screens__filter-chip-task-fix-wrong-middle-step--study.png (step list open, three steps)
+- shots/record/screens__filter-chip-task-fix-wrong-middle-step--study.png (step list open, three steps)
 - tmp/r6-marcus-fixmid/m1-rowmenu.png (right-click on the middle step)
 - tmp/r6-marcus-fixmid/fc-off.png (middle step unticked)
 - tmp/r6-marcus-fixmid/fc-edit.png, m2-edited.png, m3-back.png (the middle step's editor, the
   number changed from 5 to 3, back to the list)
-- shots/screens__filter-steps-and-undo-task-fix-wrong-middle-step--study.png and
+- shots/record/screens__filter-steps-and-undo-task-fix-wrong-middle-step--study.png and
   tmp/r6-marcus-fixmid/fsu-0.png, fsu-1.png (the Edit menu, Undo history, two undos)
 - tmp/r6-marcus-fixmid/undo-hist.png, undo-s2.png, undo-list.png, undo-fix.png (the undo screen)
-- shots/screens__filter-step-recovery-task-fix-wrong-middle-step--study.png and
+- shots/record/screens__filter-step-recovery-task-fix-wrong-middle-step--study.png and
   tmp/r6-marcus-fixmid/fsr-0.png, fsr-1.png (the recovery page)
 
 ## Think-aloud

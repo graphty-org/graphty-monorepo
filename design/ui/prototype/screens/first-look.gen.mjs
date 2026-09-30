@@ -39,7 +39,7 @@ function panelHead({ notSaved, file }) {
 
 function graphPanel(o) {
     return `<aside class="k-panel" aria-label="Graph">${panelHead(o)}<div class="k-scroll">
-<section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span>${icoBtn("search")}${icoBtn("plus")}</div><ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num">77 nodes</span></li></ul></section>
+<section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span>${icoBtn("search")}${icoBtn("plus")}</div><ul class="k-list"><li class="k-item" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Co-appearances</span><span class="k-trail k-num"><span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span></span></li></ul></section>
 <section class="k-section" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span>${icoBtn("plus")}</div></section>
 <section class="k-section"><div class="k-section-head">Styles<span class="k-grow"></span>${icoBtn("plus")}</div><ul class="k-list">
 <li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span><span class="k-kind">sample</span></li>
@@ -93,7 +93,7 @@ function inspectorNode({ betweenness = false, note = "" } = {}) {
 <section class="k-section" data-annot><div class="k-section-head">Attributes</div>${btw}
 <div class="k-data"><span class="k-name">degree</span><span class="k-value k-num">36${rank("#1 of 77")}</span></div>
 <div class="k-data"><span class="k-name">group</span><span class="k-value"><span class="k-chit" style="background:${GC[2]};vertical-align:-2px"></span> 2</span></div></section>
-<section class="k-section"><div class="k-section-head">Connections</div><div class="k-row"><span class="k-grow">36 neighbors</span></div><div class="k-row"><span class="k-grow">36 edges</span></div></section>
+<section class="k-section"><div class="k-section-head">Connections</div><div class="k-row"><span class="k-grow"><span data-fx="datasets.lesmis.valjeanNeighbors" data-fx-noun="neighbors">36 neighbors</span></span></div><div class="k-row"><span class="k-grow"><span data-fx="datasets.lesmis.rows.11.degree" data-fx-noun="edges">36 edges</span></span></div></section>
 <section class="k-section"><div class="k-section-head">Appearance</div>
 <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:${GC[2]}"></span>group</span></span></div></div>
 <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span><div class="k-fields"><span class="k-field k-span"><span class="k-pill">${I("circle-dot", "k-i-sm")}degree</span></span></div></div></section>${notes}${exportSection}</div></aside>`;
@@ -108,17 +108,22 @@ const s1 = state("s1", "1. Start screen, first run: no recent projects; the poin
 <nav class="k-rail" aria-label="Main"><div class="k-rail-btn" aria-label="Main menu"><span class="k-rail-pill">${I("menu")}</span></div></nav>
 <div class="ss-col"><h1>Open a graph</h1>
 <p class="ss-privacy" data-annot>${I("lock", "k-i-sm")}Files stay on this computer. graphty reads them in this browser and uploads nothing.</p>
+<section class="ss-ask" role="group" aria-labelledby="ss-ask-h" data-annot><div class="ss-ask-h" id="ss-ask-h">Your data is yours, but please help us</div>
+<p>graphty will never see the data you analyze. We would like to collect how you use the app, so we can make it better. That record is only ever used by graphty's author and his Claude Code sessions.</p>
+<p class="k-secondary">Nothing is collected unless you say yes. You can change this any time in Preferences.</p>
+<div class="ss-ask-foot"><span class="k-btn k-btn-secondary">Yes, share how I use graphty</span><span class="k-btn k-btn-secondary">No thanks</span></div></section>
 <div class="ss-h">Samples</div>
-<div class="ss-thumbs" data-annot>${thumb("karate-plain", "Karate club", "34 members")}${thumb("lesmis-groups-rest", "Les Miserables", "77 characters", true)}${thumb("ppi-modules", "Protein interactions", "300 proteins")}${thumb("transactions-density", "Bank transfers", "3,000 accounts")}</div>
+<div class="ss-thumbs" data-annot>${thumb("karate-plain", "Karate club", '<span data-fx="datasets.karate.nodes" data-fx-noun="members">34 members</span>')}${thumb("lesmis-groups-rest", "Les Miserables", '<span data-fx="datasets.lesmis.nodes" data-fx-noun="characters">77 characters</span>', true)}${thumb("ppi-modules", "Protein interactions", '<span data-fx="datasets.ppi.nodes" data-fx-noun="proteins">300 proteins</span>')}${thumb("transactions-density", "Bank transfers", '<span data-fx="datasets.transactions.nodes" data-fx-noun="accounts">3,000 accounts</span>')}</div>
 <div class="ss-drop">${I("folder-open")}<span class="k-grow">Open... <span class="k-secondary">or drop a file here</span></span><span class="k-kbd">Ctrl+O</span></div>
 <div class="k-row ss-row" style="margin-top:4px" data-annot>${I("plug")}<span class="k-grow">Connect to data source... <span class="k-secondary">sends only the query, to the named source</span></span></div>
 <p class="ss-formats">Reads CSV, JSON, GraphML, GEXF, GML, DOT, Pajek and Neo4j exports.</p></div>
 <span class="k-icon-btn ss-help">${I("circle-help")}</span>
-<span class="k-cursor" style="left:545px;top:250px"></span>
+<span class="k-cursor" style="left:545px;top:390px"></span>
 ${ann(1180, 60, 240, `The privacy line, before anything loads. The framework has no such line; proposed in framework-changes.md as a hypothesis to test. Mantine <b>Text</b>, secondary ink, lock icon. It stays true while no Assistant provider is set (the Assistant is off until one is).`)}
-${ann(1180, 205, 240, `Samples, by name, size and a picture of the saved look. <i>interface-templates.md 19</i>; <i>information-architecture.md 3</i>. <b>ActionRow</b> with a thumbnail; (i) is <b>InfoCircle</b>. Hover draws the outline; it moves no focus.`)}
-${ann(1180, 420, 240, `Connect to data source... says what does leave: the query. Proposed in framework-changes.md. <b>ActionRow</b>.`)}
-${ann(20, 330, 250, heard(`the samples list, one Tab stop, on its first card (Karate club). The pointer is on Les Miserables, but hovering moves no focus.`, `on load, "Open a graph. Files stay on this computer. graphty reads them in this browser and uploads nothing." The line is the title's accessible description.`))}
+${ann(1180, 150, 240, `The first-use question about usage data. It shows once, on the first start, and usage data stays off until the reader says yes: the two answers weigh the same, neither is chosen, and closing the app without answering leaves it off. It never covers the samples or Open, so a reader can ignore it and start. Graph content is never collected, answer or not. The answer is kept in Preferences. Mantine <b>Paper</b> with two <b>Button</b>s, variant default.`)}
+${ann(1180, 345, 240, `Samples, by name, size and a picture of the saved look. <i>interface-templates.md 19</i>; <i>information-architecture.md 3</i>. <b>ActionRow</b> with a thumbnail; (i) is <b>InfoCircle</b>. Hover draws the outline; it moves no focus.`)}
+${ann(1180, 560, 240, `Connect to data source... says what does leave: the query. Proposed in framework-changes.md. <b>ActionRow</b>.`)}
+${ann(20, 330, 250, heard(`the page title; the next Tab reaches the usage question's first answer, then the samples list (one Tab stop, on Karate club). The pointer is on Les Miserables, but hovering moves no focus.`, `on load, "Open a graph. Files stay on this computer. graphty reads them in this browser and uploads nothing." The line is the title's accessible description. Then "Your data is yours, but please help us, group", with the question's text, and "Yes, share how I use graphty, button".`))}
 </div>`);
 
 // ---------- 2a. The sample open as an unkept copy; a file dragged over ----------
@@ -127,7 +132,7 @@ ${ann(300, 60, 250, `Not saved: the sample opened as your own copy, as Figma ope
 ${ann(820, 110, 250, `The drop target names no file: a browser does not reveal a dragged file's name until the drop. ${fr("a drop lands content where it falls; here a choice step follows, because one file can mean several things on a loaded graph (interaction-pattern-entries.md 4.5).")} Mantine <b>Dropzone</b> (not yet in compact-mantine).`)}
 ${ann(820, 500, 250, `The dragged file's picture and name are drawn by the operating system, not by graphty.`)}
 ${ann(310, 560, 230, `Colors and sizes come from the sample's own style layers, Size: degree and Group color, listed under Styles and in the legend. ${fr("the canvas carries no chrome but the toolbar and Help; here one legend (figma-crosswalk.md 4.1, 'The canvas carries no chrome').")} Legend drawn by graphty-element.`)}
-${ann(960, 640, 230, heard(`the canvas, where the sample opened. A drag moves no focus.`, `on open, "Les Miserables sample opened as a copy: 77 nodes, 254 edges. Not saved." During the drag, nothing: a drag is pointer-only, and File, Open... and paste are the keyboard routes.`))}`);
+${ann(960, 640, 230, heard(`the canvas, where the sample opened. A drag moves no focus.`, `on open, "Les Miserables sample opened as a copy: <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span>, <span data-fx="datasets.lesmis.edges" data-fx-noun="edges">254 edges</span>. Not saved." During the drag, nothing: a drag is pointer-only, and File, Open... and paste are the keyboard routes.`))}`);
 
 function inspectorGraphSample() {
     // The sample before her file arrives: the same graph and statistics, with no import row.
@@ -170,7 +175,7 @@ ${roleMenu}</div><div>
 <div class="k-section-head" style="padding-left:16px">Edges, first 5 of 254, as written in the file</div>
 <div style="padding:0 16px"><table class="k-table"><thead><tr><th>source</th><th>target</th><th>value <span class="k-profile">read as number</span></th></tr></thead><tbody>${edges5.map(([a, b, v]) => `<tr><td class="k-id">${a}</td><td class="k-id">${b}</td><td class="fl-text">"${v}"</td></tr>`).join("")}</tbody></table></div>
 <div class="k-metrics"><div class="k-metric"><span class="k-secondary">nodes</span><span class="k-big">77</span></div><div class="k-metric"><span class="k-secondary">edges</span><span class="k-big">254</span></div></div>
-</div></div></div><div class="k-modal-foot"><span class="k-secondary k-grow">Replaces the 77 nodes and 254 edges of Co-appearances. Its colors and sizes stay.</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn"${menuOpen ? "" : " data-focus"}>Replace data</span></div></div></div>`;
+</div></div></div><div class="k-modal-foot"><span class="k-secondary k-grow">Replaces the <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span> and <span data-fx="datasets.lesmis.edges" data-fx-noun="edges">254 edges</span> of Co-appearances. Its colors and sizes stay.</span><span class="k-btn k-btn-secondary">Cancel</span><span class="k-btn"${menuOpen ? "" : " data-focus"}>Replace data</span></div></div></div>`;
 }
 const loadAnn = (menuOpen) => menuOpen
     ? `${ann(1172, 70, 256, `The weight's meaning, asked on the value row in the column's words, the technical term under each: a closer or stronger link (similarity), a longer or costlier step (distance), more can pass through (capacity), Don't use value. Nothing is preselected and it never blocks: unanswered, no measure uses value, and Statistics keeps asking afterwards. This follows screens/load-step.html; the load-and-characterize flow asks only after the load instead, and the study compares the two. compact-mantine <b>StyleSelect</b> in a <b>FieldRow</b>.`)}
@@ -184,9 +189,9 @@ const s3b = state("s3b", "3b. The load step: she opens 'For value, a higher numb
 // ---------- 4. Loaded ----------
 const s4 = state("s4", "4. Her file is loaded: the Statistics under the General overview, nothing selected", `${app(graphPanel({ notSaved: true, file: true }), canvas({}), inspectorGraph())}
 ${ann(310, 70, 250, `The file chip names the file the data came from, from the load on; Not saved stays, because swapping in data from a file she still has does not keep the copy. File chip proposed in framework-changes.md; Mantine <b>Pill</b>. ${fr("the left header names the file and its location; here save state and the filter chip (figma-crosswalk.md 4.1).")}`)}
-${ann(930, 130, 256, `Nothing selected: Statistics under the General overview, filled at load. Density counts the 254 co-appearances over every pair of the 77 characters (<i>graph-conventions.md</i>, Density; <i>principles.md</i> 1). <b>DataRow</b>, <b>ChartRow</b>, <b>ActionRow</b>. The Overview row's action, Change overview..., shows on hover only, so it is not read as a second Replace (proposed).`)}
+${ann(930, 130, 256, `Nothing selected: Statistics under the General overview, filled at load. Density counts the 254 co-appearances over every pair of the <span data-fx="datasets.lesmis.nodes" data-fx-noun="characters">77 characters</span> (<i>graph-conventions.md</i>, Density; <i>principles.md</i> 1). <b>DataRow</b>, <b>ChartRow</b>, <b>ActionRow</b>. The Overview row's action, Change overview..., shows on hover only, so it is not read as a second Replace (proposed).`)}
 ${ann(930, 520, 256, `The weight's role is not set, so it reads "weight: unknown" with its control inline, and paths will ignore it (<i>principles.md</i> 1, <i>glossary.md</i> 11). <b>FieldRow</b> with <b>StyleSelect</b>.`)}
-${ann(310, 640, 240, heard(`the canvas, where the drop landed, when the dialog closes.`, `"Replaced data with miserables.json: 77 nodes, 254 edges. Not saved."`))}`);
+${ann(310, 640, 240, heard(`the canvas, where the drop landed, when the dialog closes.`, `"Replaced data with miserables.json: <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span>, <span data-fx="datasets.lesmis.edges" data-fx-noun="edges">254 edges</span>. Not saved."`))}`);
 
 // ---------- 5. Valjean selected ----------
 const s5 = state("s5", "5. Elena clicks the biggest dot: Valjean, degree 36", `${app(graphPanel({ notSaved: true, file: true }), canvas({ drawing: "lesmis-groups-valjean", inStage: `<span class="k-cursor" style="left:58.4%;top:49.6%"></span>` }), inspectorNode())}
@@ -203,7 +208,7 @@ const qa = `<div class="k-quick" data-annot><div class="k-quick-input">${I("sear
 ${lm.stats.components > 1 ? `<div class="fl-req k-secondary">${lm.stats.components} components: runs as harmonic closeness, which stays defined when not everyone can be reached.</div>` : ""}
 <div class="k-result">${I("circle-dot")}<span class="k-grow"><b>Degree</b> <span class="k-secondary">-- who has the most direct ties</span></span><span class="k-secondary">already shown as size</span></div></div></div>`;
 const s6a = state("s6a", "6a. Quick actions, opened from the toolbar's lightning button: 'who matters most'", `${app(graphPanel({ notSaved: true, file: true }), canvas({ drawing: "lesmis-groups-valjean", over: qa, pressed: ["select", "quick"] }), inspectorNode())}
-${ann(310, 70, 250, `Quick actions searched by her question, not an algorithm name. No row shows a cost word: on 77 nodes each finishes in under a second, and a band word appears only for a run of 10 seconds or more (<i>state-matrix.md</i> 4.10). <i>interface-templates.md 15</i>. compact-mantine <b>QuickActions</b>, <b>ResultRow</b>. ${fr("the Actions menu has tabs; here one list (figma-crosswalk.md 4.1).")}`)}
+${ann(310, 70, 250, `Quick actions searched by her question, not an algorithm name. No row shows a cost word: on <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span> each finishes in under a second, and a band word appears only for a run of 10 seconds or more (<i>state-matrix.md</i> 4.10). <i>interface-templates.md 15</i>. compact-mantine <b>QuickActions</b>, <b>ResultRow</b>. ${fr("the Actions menu has tabs; here one list (figma-crosswalk.md 4.1).")}`)}
 ${ann(310, 330, 250, `Notes under a row show before the run: Betweenness will run unweighted and why; Closeness runs as harmonic. <i>options-and-encodings.md</i> 9.3; <i>graph-conventions.md</i>, Unknown role. "Already shown as size" is proposed in framework-changes.md.`)}
 ${ann(1196, 740, 238, `The lightning button is drawn pressed while its palette is open, as Figma's Actions button is. compact-mantine <b>ToolButton</b>.`)}
 ${ann(1196, 560, 238, heard(`in the input the whole time; the arrows move the highlight.`, `while typing, "4 measures. Betweenness, who sits between the groups. value's meaning is not set, so it runs unweighted." After Enter, "Betweenness (unweighted) finished."`))}`);
@@ -215,12 +220,12 @@ const bins = Array(11).fill(0);
 for (const r of lm.rows) bins[Math.min(10, Math.floor((r.betweenness / V.betweenness) * 10.999))]++;
 const hist = bins.map((c, i) => `<i${i === 10 ? " data-on" : ""} style="height:${c ? Math.max(8, Math.round(100 * Math.sqrt(c / Math.max(...bins)))) : 0}%"></i>`).join("");
 const editor = `<div class="k-popover fl-editor" data-annot><div class="k-popover-head">Betweenness <span class="k-secondary">&nbsp;(unweighted)</span><span class="k-grow"></span>${icoBtn("play", 'title="Run"')}${icoBtn("ellipsis")}${icoBtn("x")}</div><div class="k-popover-body">
-<div class="fl-state-line">on: full graph, ${lm.nodes} nodes${lm.stats.components > 1 ? `, ${lm.stats.components} components` : ""}. Exact.</div>
+<div class="fl-state-line">on: full graph, <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">${lm.nodes} nodes</span>${lm.stats.components > 1 ? `, ${lm.stats.components} components` : ""}. Exact.</div>
 <div class="fl-state-line" data-annot>Unweighted: value's meaning is not set, so paths ignore it. <a class="fl-link">Set what value means...</a></div>
 <div class="fl-state-line">Size set by Size: degree. <a class="fl-link">Size by betweenness instead</a></div>
 <div class="k-section-head" style="padding-left:16px">Readings</div>
 <div class="k-hist" style="height:72px">${hist}</div><div class="fl-axis k-secondary k-num"><span>0</span><span>${(V.betweenness / 2).toFixed(2)}</span><span>${V.betweenness}</span></div>
-<div class="k-prose" style="padding:4px 16px">${zeros} of ${lm.nodes} characters score 0. Valjean alone scores ${V.betweenness}; next is ${top[1].label} at ${top[1].betweenness}.</div>
+<div class="k-prose" style="padding:4px 16px"><span data-fx="scenarios.onScreen.lesmisBetweenness.zerosFull" data-fx-of="datasets.lesmis.nodes" data-fx-noun="characters">${zeros} of ${lm.nodes} characters</span> score 0. Valjean alone scores ${V.betweenness}; next is ${top[1].label} at ${top[1].betweenness}.</div>
 <div class="k-section-head" style="padding-left:16px">Top nodes</div>
 ${top.slice(0, 5).map((t, i) => `<div class="k-row fl-top"${i === 0 ? ' aria-selected="true"' : ""}${i === 1 ? " data-hover" : ""}><span class="k-num fl-n">${i + 1}</span><span class="k-grow k-id">${t.label}</span><span class="k-num">${t.betweenness}</span></div>`).join("")}
 <div class="k-row k-secondary">72 more</div></div></div>`;
@@ -296,6 +301,10 @@ body:has(#fl-annot:checked) [data-annot] { outline: 2px dashed var(--k-annot); o
 .ss-thumb[data-hover] { box-shadow: inset 0 0 0 1px var(--cm-border), 0 0 0 2px var(--cm-border-selected); }
 .ss-i { color: var(--cm-icon-secondary, var(--cm-text-secondary)); }
 .ss-drop { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; border-radius: 5px; border: 1px dashed var(--cm-border-strong, var(--cm-border)); }
+.ss-ask { margin: 0 0 12px; padding: 12px 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border); display: grid; gap: 4px; max-width: 560px; }
+.ss-ask p { margin: 0; }
+.ss-ask-h { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 22px; font-weight: 550; }
+.ss-ask-foot { display: flex; gap: 8px; margin-top: 8px; }
 .ss-formats { margin: 8px 0 0; color: var(--cm-text-secondary); }
 .ss-help { position: absolute; right: 16px; bottom: 16px; }
 

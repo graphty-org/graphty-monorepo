@@ -8,8 +8,8 @@ worth your afternoon, and tell me anything that looks off."
 
 Screens, in order: the start screen, the load step (the file opens with its
 weight column read as text), then the main frame once the file is loaded.
-Renders read: shots/screens__start-screen.png, shots/s2-jordan-blocked.png,
-shots/s2-jordan-policy.png, shots/s2-jordan-far-ppi.png.
+Renders read: shots/screens__start-screen.png, shots/record/s2-jordan-blocked.png,
+shots/record/s2-jordan-policy.png, shots/record/s2-jordan-far-ppi.png.
 
 Planted problem: the colleague's file has a "confidence" column that the tool
 reads as text because 150 of its values are "NA".

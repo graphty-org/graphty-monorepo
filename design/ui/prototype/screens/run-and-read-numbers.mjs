@@ -4,7 +4,7 @@
 // the same accounts ranked by links in (count), so the page can show that the two rankings differ.
 // Same method as screens/inspector-numbers.mjs: re-runs kit/gen-canvas.mjs with one inserted block,
 // writing the kit's canvas and fixtures to a throwaway folder. Output: kit/fixtures.json
-// scenarios.runAndReadMoney.
+// scenarios.runAndReadMoney, with the count of March transfers that have no amount.
 // Run from design/ui/prototype/: node screens/run-and-read-numbers.mjs
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -25,6 +25,7 @@ const block = String.raw`
         });
         return o;
     });
+    globalThis.__noAmount = amount.filter((a) => !Number.isFinite(a)).length;
 `;
 
 let src = readFileSync(join(kit, "gen-canvas.mjs"), "utf8");
@@ -65,6 +66,7 @@ if (m && Math.round(m.inAmount) !== all.find((o) => o.id === m.id).moneyIn) thro
     generatedBy: "screens/run-and-read-numbers.mjs -- regenerate instead of editing by hand",
     note: "March transfers: money in (sum of amount on transfers in, whole dollars; weighted in-degree, proposed to graphty-element) against links in (count of transfers in). Ranks over all 3,000 accounts.",
     accounts: all.length,
+    transfersWithNoAmount: globalThis.__noAmount,
     topMoneyIn,
     topLinksIn,
     topFiveInBoth: inBoth,

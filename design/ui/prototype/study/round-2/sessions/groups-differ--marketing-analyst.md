@@ -11,9 +11,9 @@ and the communities table frame), the Styles list and the Inspector. The mock's 
 between frames (patent citations in the first, a 300-protein interaction network after that); the
 moderator told Jordan to treat the protein network as "the network" for the task.
 
-Renders looked at: `shots/screens__results-panel.png`, `shots/jordan-gd-not-run.png`,
-`shots/jordan-gd-louvain.png`, `shots/jordan-gd-louvain-table.png`, `shots/screens__styles-list.png`,
-`shots/screens__inspector.png`, `shots/inspector-set.png`.
+Renders looked at: `shots/screens__results-panel.png`, `shots/record/jordan-gd-not-run.png`,
+`shots/record/jordan-gd-louvain.png`, `shots/record/jordan-gd-louvain-table.png`, `shots/screens__styles-list.png`,
+`shots/screens__inspector.png`, `shots/record/inspector-set.png`.
 
 ## Transcript (think-aloud)
 

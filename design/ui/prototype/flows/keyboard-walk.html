@@ -302,8 +302,37 @@
   </div>
   <p class="k-secondary">With playback running, one extra first press pauses it, and the window it lands on is kept as one undo step. With no tool armed, the tool step is skipped. The walk's start and place survive every press; the next Shift+Arrow goes on from Gavroche. The Nodes table's Esc works the same way, one step per press (the first keeps only the focused row, the second clears). Ctrl+Z (Cmd+Z on a Mac) brings a cleared selection back while nothing else has changed since.</p>
 
+  <h2>Before the first key: the usage-data question</h2>
+  <p>The first time graphty opens on a computer, before the start screen, it asks one question: may it collect usage data. Usage data is off until the person says yes. A keyboard or screen-reader user meets this dialog before any graph, so it has to be answerable with the same keys as everything else, and saying no has to be as easy as saying yes.</p>
+  <div class="f-parts">
+    <div class="f-part">
+      <div class="f-sheet" role="img" aria-label="The usage-data question, asked once at first use, with focus on Not now">
+        <div class="f-sheet-head"><b>Usage data</b></div>
+        <div style="padding:8px 10px;display:grid;gap:6px">
+          <span>Your data is yours, but please help us.</span>
+          <span>We will never see the data you analyze. With your yes, graphty records how you use the app, so we can make it easier to use. Only graphty's author and his Claude Code sessions will ever use it.</span>
+          <span class="k-secondary">Never a node name, a value, a label or anything from your files. Change it any time in Preferences &gt; Usage data.</span>
+        </div>
+        <div class="f-qa-foot" style="justify-content:flex-end"><span class="k-btn k-btn-secondary" data-focus-ring>Not now</span><span class="k-btn">Share usage data</span></div>
+      </div>
+      <span class="k-secondary"><b>Asked once, at first use.</b> Focus lands on Not now, so an Enter pressed out of habit leaves usage data off; Tab reaches Share usage data. Esc is the same as Not now. The dialog is not asked again, and the drawing's welcome never mentions it. A compact-mantine <span class="k-mono">Modal</span> with two <span class="k-mono">Button</span>s; the question and the Preferences switch are the graphty app's, because usage data is about the app, not the graph.</span>
+    </div>
+    <div class="f-part">
+      <table class="f-keys" style="max-width:400px">
+        <thead><tr><th>Key</th><th>In the usage-data question</th></tr></thead>
+        <tbody>
+          <tr><td>(arriving)</td><td class="f-say">"Usage data, dialog. Your data is yours, but please help us. We will never see the data you analyze. ... Not now, button."</td></tr>
+          <tr><td>Enter, Space</td><td>on Not now: usage data stays off, the start screen opens: <span class="f-say">"Usage data off. Start screen."</span></td></tr>
+          <tr><td>Tab, Shift+Tab</td><td>between Not now and Share usage data; focus never leaves the dialog</td></tr>
+          <tr><td>Enter on Share usage data</td><td>usage data on: <span class="f-say">"Usage data on. Preferences, Usage data, turns it off. Start screen."</span></td></tr>
+          <tr><td>Esc</td><td>the same as Not now</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <h2>A happy-path trace on Les Miserables</h2>
-  <p>A keyboard user is asked: using only the keyboard, find Javert, walk to his most connected neighbor and back, and select two of his neighbors. The project is open on Les Miserables for the first time, all <span data-fx="datasets.lesmis.nodes">77</span> characters drawn, colored by group and sized by degree. Focus starts on the toolbar with nothing selected. The figure is what a sighted colleague sees after step 8: Valjean carries the selection ring, keyboard focus sits on Gavroche, and Javert, the walk's start, is unmarked because nothing marks a start on the drawing; the pill names it.</p>
+  <p>A keyboard user is asked: using only the keyboard, find Javert, walk to his most connected neighbor and back, and select two of his neighbors. The project is open on Les Miserables for the first time, all <span data-fx="datasets.lesmis.nodes">77</span> characters drawn, colored by group and sized by degree. Focus starts on the toolbar with nothing selected. Usage data is off: at first use the person answered the usage-data question with Not now (step 0), and nothing on the drawing asks again. The figure is what a sighted colleague sees after step 8: Valjean carries the selection ring, keyboard focus sits on Gavroche, and Javert, the walk's start, is unmarked because nothing marks a start on the drawing; the pill names it.</p>
   <div class="f-fig">
     <div class="f-draw">
       <svg viewBox="590 330 360 240" role="img" aria-label="Les Miserables, colored by group and sized by degree, enlarged around Javert: Valjean carries the two-tone selection ring, Gavroche the three-band keyboard focus mark after a gap">
@@ -331,6 +360,7 @@
   <table class="f-walktable">
     <thead><tr><th>#</th><th>Key</th><th>Focus</th><th>Selected</th><th>Says</th></tr></thead>
     <tbody>
+      <tr><td>0</td><td>Enter, at first use</td><td>the usage-data question, on Not now</td><td>nothing</td><td class="f-say">"Usage data off. Start screen." (asked once per computer, before any graph; usage data stays off unless the person chooses Share usage data)</td></tr>
       <tr><td>1</td><td>Ctrl+K, types javert</td><td>Quick actions, first row</td><td>nothing</td><td class="f-say">"Go to Javert, node, exact name. Enter goes there."</td></tr>
       <tr><td>2</td><td>Enter</td><td>Javert, walking, the start</td><td>nothing</td><td class="f-say">"Graph drawing, application. Les Miserables, 77 nodes, 254 edges. Nothing selected. Walking the drawing. Javert, start of the walk, not selected. Degree 17, rank 4 of 77, group 4. Shift+Arrow: walk. Enter: select. Question mark: keys." (the long form, once per project)</td></tr>
       <tr><td>3</td><td>Shift+Down</td><td>Valjean</td><td>nothing</td><td class="f-say">"Valjean, neighbor 1 of 17 of Javert, by co-appearances, highest first. Co-appearances 17, degree 36, rank 1 of 77, group 2. Shift+Enter goes back, Esc ends the walk, Tab leaves the drawing, O changes the order, question mark lists the keys."</td></tr>
@@ -348,7 +378,7 @@
       <tr><td>15</td><td>Esc</td><td>drawing, not walking</td><td>Valjean, Gavroche</td><td class="f-say">"Walk ended at Javert. 2 selected on canvas."</td></tr>
     </tbody>
   </table>
-  <p class="k-secondary">Fifteen keys, and no clean-up: in the third study, going to the node selected it, so every participant ended with three selected and spent four extra keys taking the first one back out. Step 13 is the other fix: the start is still Javert after the visit to the table, where before it had moved to the first selected node. The first step of a walk names the back key, the ways out, O and the key sheet. The order is said only on the first step after each Shift+Down and after O; every step speaks the same values in the same order as the pill -- the edge's co-appearances, then degree, rank and group -- each with its word, never a bare number.</p>
+  <p class="k-secondary">Fifteen keys after the usage-data question, and no clean-up: in the third study, going to the node selected it, so every participant ended with three selected and spent four extra keys taking the first one back out. Step 13 is the other fix: the start is still Javert after the visit to the table, where before it had moved to the first selected node. The first step of a walk names the back key, the ways out, O and the key sheet. The order is said only on the first step after each Shift+Down and after O; every step speaks the same values in the same order as the pill -- the edge's co-appearances, then degree, rank and group -- each with its word, never a bare number.</p>
 
   <h2>What the next round checks</h2>
   <p>Intended: a participant reaches a named node from the keyboard, can always say where they are and how to get back, and ends a "select two" task with exactly two. The study asks, after steps 4, 9 and 13, "Where are you, and how would you get back to where you started?" It must also be able to prove these wrong:</p>

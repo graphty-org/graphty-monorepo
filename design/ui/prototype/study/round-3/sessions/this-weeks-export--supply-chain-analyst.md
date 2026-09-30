@@ -6,10 +6,10 @@ panel, the version history, the comparison of one result on two data versions.
 Data on screen: the card and transfer sample (March, then April; about 3,000 accounts and 9,000
 transfers) -- not her supplier data. She was told to read "accounts" as "suppliers" and "transfers"
 as "what we buy from whom", and "March / April" as "last week / this week".
-Renders she saw: shots/r3-dana-weekly-load-step-add-data.png (rendered for this session from the
+Renders she saw: shots/record/r3-dana-weekly-load-step-add-data.png (rendered for this session from the
 current page), shots/screens__results-panel--outofdate.png, shots/screens__results-panel--finished.png,
 shots/screens__version-history.png, shots/version-history--s2.png,
-shots/r3-dana-weekly-comparison-versions.png, shots/screens__comparison-versions.png.
+shots/record/r3-dana-weekly-comparison-versions.png, shots/screens__comparison-versions.png.
 
 Moderator's task, read once: "This week's export arrived. Do what you did last week, and show your
 manager what changed."

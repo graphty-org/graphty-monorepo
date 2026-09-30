@@ -2,7 +2,7 @@
 
 **Participant:** Expert Emma, network scientist and consultant (persona: study/personas/expert-emma.md).
 **Task, as the moderator gave it:** "Send your lab your setup so they can use it on their own data, without sending yours."
-**Mock:** the Export dialog (screens/export-dialog.html). Renders read: shots/r3-emma-share-start.png (the dialog as it opens) and shots/r3-emma-share-recipe.png (after ticking Recipe).
+**Mock:** the Export dialog (screens/export-dialog.html). Renders read: shots/record/r3-emma-share-start.png (the dialog as it opens) and shots/record/r3-emma-share-recipe.png (after ticking Recipe).
 **Outcome:** success. **Ease (1-7):** 6.
 
 ## Transcript

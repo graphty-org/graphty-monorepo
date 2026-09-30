@@ -203,7 +203,7 @@ arrow walks rows; every one is selected.
 - Quick actions accepting an exact gene name and selecting it.
 - The table as a keyboard grid that follows the selection.
 
-Screenshots: shots/r3-chen-keyboard-skip-link.png, r3-chen-keyboard-canvas-focused.png,
+Screenshots: shots/record/r3-chen-keyboard-skip-link.png, r3-chen-keyboard-canvas-focused.png,
 r3-chen-keyboard-key-sheet.png, r3-chen-keyboard-first-neighbor.png,
 r3-chen-keyboard-quick-actions.png, r3-chen-keyboard-quick-tp53.png,
 r3-chen-keyboard-select-neighbors.png.

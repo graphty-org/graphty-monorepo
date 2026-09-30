@@ -6,13 +6,13 @@ spreadsheet file. Bring it in, and tell me whether what you are looking at is wh
 Participant: Min-ji (persona: study/personas/knowledge-engineer.md). Viewport 1440 by 900. Screens
 seen, in order, as the participant sees them (design notes hidden):
 
-1. shots/r6-minji-lme-transfers-not-read.png -- the export as an Excel workbook, refused
-2. shots/r6-minji-lme-transfers-ready.png -- the same export saved as CSV, two issues
-3. shots/r6-minji-lme-transfers-amount-policy.png -- the amount issue's list opened
-4. shots/r6-minji-lme-transfers-loaded.png -- right after Load, the weight question open
+1. shots/record/r6-minji-lme-transfers-not-read.png -- the export as an Excel workbook, refused
+2. shots/record/r6-minji-lme-transfers-ready.png -- the same export saved as CSV, two issues
+3. shots/record/r6-minji-lme-transfers-amount-policy.png -- the amount issue's list opened
+4. shots/record/r6-minji-lme-transfers-loaded.png -- right after Load, the weight question open
 5. shots/screens__frame-at-rest-dataset-transactions.png -- the same project at rest, later
 6. shots/screens__data-panel.png -- the Data panel for the same file
-7. shots/screens__load-step.html#too-large.png -- another file's open dialog, which the moderator
+7. shots/record/screens__load-step.html#too-large.png -- another file's open dialog, which the moderator
    showed after the task because I asked what happens when a file is big
 
 Context she brings: this is not her kind of data. It is a flat edge list of transfers, not RDF, so

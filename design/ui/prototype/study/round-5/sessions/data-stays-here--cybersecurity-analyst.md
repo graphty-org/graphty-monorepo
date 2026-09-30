@@ -6,10 +6,10 @@ Decide whether you may use this tool on your data, and tell me what you would sa
 **Screens seen, in order, as the participant sees them (design notes hidden), dark theme, about
 half a 1440p monitor (1280 wide):**
 
-1. The start screen -- `shots/r4c-priya-ds-start.png`
-2. An open project at rest -- `shots/r4c-priya-ds-frame-at-rest.png`
-3. "Where your data goes", the whole page -- `shots/r4c-priya-ds-data-location-full.png`
-4. Data > Sent and saved, in an open project -- `shots/r4c-priya-ds-data-panel.png`
+1. The start screen -- `shots/record/r4c-priya-ds-start.png`
+2. An open project at rest -- `shots/record/r4c-priya-ds-frame-at-rest.png`
+3. "Where your data goes", the whole page -- `shots/record/r4c-priya-ds-data-location-full.png`
+4. Data > Sent and saved, in an open project -- `shots/record/r4c-priya-ds-data-panel.png`
 
 ---
 

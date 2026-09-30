@@ -3,7 +3,7 @@
 **Participant:** Expert Emma, network scientist and consultant (notebook user: networkx, igraph; Gephi for figures).
 **Task as given by the moderator:** "Do these two ways of scoring agree on who matters?"
 **Pages used:** the comparison screen (first frame: PageRank against betweenness on the April payments data; second frame: PageRank on March against April), then the results panel to see where a comparison starts.
-**Render seen:** `shots/r3-emma-rankings-comparison-full.png` (study view, design notes hidden), `shots/screens__results-panel--finished.png`.
+**Render seen:** `shots/record/r3-emma-rankings-comparison-full.png` (study view, design notes hidden), `shots/screens__results-panel--finished.png`.
 
 ## Think-aloud
 

@@ -9,11 +9,11 @@ middle step (keep characters with at least 5 connections) is the mistake; the fi
 connections) and the last (leave out group 8, the students) are work to keep. Jordan was not told
 which was which.
 
-**Renders of what she saw:** `shots/r3-jordan-getback-s3.png` (start),
-`shots/r3-jordan-getback-s2.png` (after one Cmd+Z), `shots/r3-jordan-getback-list.png` (the steps
-list opened from the undo line), `shots/r3-jordan-getback-off.png` (end state),
-`shots/r3-jordan-getback-s3-hist.png` (the main menu, looked at afterwards),
-`shots/r3-jordan-getback-chip.png` (the filter chip screen).
+**Renders of what she saw:** `shots/record/r3-jordan-getback-s3.png` (start),
+`shots/record/r3-jordan-getback-s2.png` (after one Cmd+Z), `shots/record/r3-jordan-getback-list.png` (the steps
+list opened from the undo line), `shots/record/r3-jordan-getback-off.png` (end state),
+`shots/record/r3-jordan-getback-s3-hist.png` (the main menu, looked at afterwards),
+`shots/record/r3-jordan-getback-chip.png` (the filter chip screen).
 
 ## Think-aloud
 

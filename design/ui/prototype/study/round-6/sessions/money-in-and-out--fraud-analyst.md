@@ -16,15 +16,15 @@ shows no totals, but it shows no measure of any kind, so the task ran.
 
 Screens she saw, as a participant sees them (design notes hidden):
 
-- the main frame at rest on the March transfers: `../../../shots/r6-sarah-mio-far.png`
-- run a measure and read it: `../../../shots/r6-sarah-mio-rr-money.png` (typing "money"),
-  `../../../shots/r6-sarah-mio-rr-money-read.png` (Money in, run and read),
-  `../../../shots/r6-sarah-mio-rr-catalog.png`, `../../../shots/r6-sarah-mio-rr-done.png`
-- the results in the side panel: `../../../shots/r6-sarah-mio-rp-finished.png`,
-  `../../../shots/r6-sarah-mio-rp-in-the-table.png` (both on the protein example)
-- the bottom table, every state: `../../../shots/r6-sarah-mio-tdF-header.png` (the whole page)
-- the inspector: `../../../shots/r6-sarah-mio-in-flagged.png` (one flagged account),
-  `../../../shots/r6-sarah-mio-in-one-node.png`
+- the main frame at rest on the March transfers: `../../../shots/record/r6-sarah-mio-far.png`
+- run a measure and read it: `../../../shots/record/r6-sarah-mio-rr-money.png` (typing "money"),
+  `../../../shots/record/r6-sarah-mio-rr-money-read.png` (Money in, run and read),
+  `../../../shots/record/r6-sarah-mio-rr-catalog.png`, `../../../shots/record/r6-sarah-mio-rr-done.png`
+- the results in the side panel: `../../../shots/record/r6-sarah-mio-rp-finished.png`,
+  `../../../shots/record/r6-sarah-mio-rp-in-the-table.png` (both on the protein example)
+- the bottom table, every state: `../../../shots/record/r6-sarah-mio-tdF-header.png` (the whole page)
+- the inspector: `../../../shots/record/r6-sarah-mio-in-flagged.png` (one flagged account),
+  `../../../shots/record/r6-sarah-mio-in-one-node.png`
 
 ## Transcript
 

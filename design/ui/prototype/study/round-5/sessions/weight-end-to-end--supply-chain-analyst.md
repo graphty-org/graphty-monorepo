@@ -16,21 +16,21 @@ Betweenness run; the weight question asked at a run (on the protein network); th
 table.
 
 Renders the participant looked at:
-- `../../../shots/r4-dana-wete-load-step.png`
-- `../../../shots/r4-dana-wete-sets-and-paths-s3.png`
-- `../../../shots/r4-dana-wete-sets-and-paths-s4.png`
-- `../../../shots/r4-dana-wete-sets-and-paths-s5.png`
-- `../../../shots/r4-dana-wete-sets-and-paths-s6.png`
-- `../../../shots/r4-dana-wete-table-dock-edges.png`
-- `../../../shots/r4-dana-wete-binding-step-weight.png` (the list of four answers)
-- `../../../shots/r4-dana-wete-option-form-cost-weight-refused.png`
-- `../../../shots/r4-dana-wete-option-form-cost-weight-meaning.png`
-- `../../../shots/r4-dana-wete-run-and-read-quick.png`
-- `../../../shots/r4-dana-wete-run-and-read-catalog.png`
-- `../../../shots/r4-dana-wete-run-and-read-done.png`
-- `../../../shots/r4-dana-wete-results-panel-finished.png`
-- `../../../shots/r4-dana-wete-results-panel-in-the-table.png`
-- `../../../shots/r4-dana-wete-table-dock-ranked.png`
+- `../../../shots/record/r4-dana-wete-load-step.png`
+- `../../../shots/record/r4-dana-wete-sets-and-paths-s3.png`
+- `../../../shots/record/r4-dana-wete-sets-and-paths-s4.png`
+- `../../../shots/record/r4-dana-wete-sets-and-paths-s5.png`
+- `../../../shots/record/r4-dana-wete-sets-and-paths-s6.png`
+- `../../../shots/record/r4-dana-wete-table-dock-edges.png`
+- `../../../shots/record/r4-dana-wete-binding-step-weight.png` (the list of four answers)
+- `../../../shots/record/r4-dana-wete-option-form-cost-weight-refused.png`
+- `../../../shots/record/r4-dana-wete-option-form-cost-weight-meaning.png`
+- `../../../shots/record/r4-dana-wete-run-and-read-quick.png`
+- `../../../shots/record/r4-dana-wete-run-and-read-catalog.png`
+- `../../../shots/record/r4-dana-wete-run-and-read-done.png`
+- `../../../shots/record/r4-dana-wete-results-panel-finished.png`
+- `../../../shots/record/r4-dana-wete-results-panel-in-the-table.png`
+- `../../../shots/record/r4-dana-wete-table-dock-ranked.png`
 
 ## Think-aloud
 

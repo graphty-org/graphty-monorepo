@@ -5,9 +5,9 @@ Task given by the moderator, and nothing more: "A reviewer wants the fold-change
 Screens used, in order: the styles list (`screens/styles-list.html`, including its "Choosing a Look" and "Labels on the top 12 by degree" frames), the colour-by-value screen (`screens/colour-by-value.html`, the fold-change scale), and the export dialog (`screens/export-dialog.html`, the fold-change figure in the Print look). Renders the participant saw, study view with the design notes hidden:
 
 - `shots/tasks/print-ready-grey/01-styles-list.png`, `02-colour-by-value.png`, `03-export-dialog-figure-grey.png`
-- `shots/r3-maren-grey-sl-looks.png`, `shots/r3-maren-grey-sl-top-n.png`
-- `shots/r3-maren-grey-cbv-numbers.png`
-- `shots/r3-maren-grey-ex-figure-signed.png`, `shots/r3-maren-grey-ex-figure-print.png`
+- `shots/record/r3-maren-grey-sl-looks.png`, `shots/record/r3-maren-grey-sl-top-n.png`
+- `shots/record/r3-maren-grey-cbv-numbers.png`
+- `shots/record/r3-maren-grey-ex-figure-signed.png`, `shots/record/r3-maren-grey-ex-figure-print.png`
 
 Outcome: success with difficulty. She got to an export preview of the fold-change network in the Print look, with a legend that says where zero sits and a methods paragraph. She did not get what the reviewer asked for in three places: she never saw the figure in grey (the "Print" preview is still red and blue), she could not tell whether Print is also colour-blind safe because the app offers "Print" and "Colorblind safe" as two different choices, and the labels are the top 12 hubs by degree with 2 of them hidden by overlap, not the top 10 changed genes. The file is a PNG with a transparent background. Single Ease Question: 3 of 7.
 

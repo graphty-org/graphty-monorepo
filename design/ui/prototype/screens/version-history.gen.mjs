@@ -110,7 +110,7 @@ const legend = (month, naming = month) => {
         <div class="k-lg-note">${NAMING[naming]}</div>
         ${lg.rows.map((r) => `<div class="k-lg-row"><span class="k-chit" style="background:${r.color}"></span>${r.name}<span class="k-value">${fmt(r.count)}</span></div>`).join("")}
         <div class="k-lg-row"><span class="k-chit" style="background:#BDBDBD"></span>Other, ${lg.other.communities} communities<span class="k-value">${fmt(lg.other.count)}</span></div><div class="k-lg-sub">${lg.other.holds}</div>
-        <div class="k-lg-title" style="margin-top:4px">Size: degree <span class="k-secondary">degree, 1 to ${max}</span></div>
+        <div class="k-lg-title" style="margin-top:4px">Size: total degree <span class="k-secondary">total degree, 1 to ${max}</span></div>
       </div>`;
 };
 const canvas = ({ month = "april", toast = "", naming = month, mode = false }) => {

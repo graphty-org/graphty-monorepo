@@ -11,25 +11,25 @@ bar. This time she starts on the find, inspect and expand screens, which no part
 **Screens seen, in order, as the participant sees them (design notes hidden), dark theme, 1440 by
 900:**
 
-1. Find and expand, state 1, "Find the seed" -- `shots/screens__find-and-expand--t-find--dark.png`
+1. Find and expand, state 1, "Find the seed" -- `shots/record/screens__find-and-expand--t-find--dark.png`
    (and the task's own light render, `shots/tasks/how-connected/01-find-and-expand-t-find.png`)
-2. Find and expand, state 2, "Inspect the hit" -- `shots/screens__find-and-expand--t-inspect--dark.png`
+2. Find and expand, state 2, "Inspect the hit" -- `shots/record/screens__find-and-expand--t-inspect--dark.png`
 3. Find and expand, state 3, the Neighbors menu with hop counts --
-   `shots/screens__find-and-expand--t-size--dark.png`
+   `shots/record/screens__find-and-expand--t-size--dark.png`
 4. Find and expand, states 4 to 9 (a filtered neighbourhood, a hit the filter leaves out, growing
-   one hop, the triage list, keeping the step) -- `shots/screens__find-and-expand--t-click--dark.png`,
+   one hop, the triage list, keeping the step) -- `shots/record/screens__find-and-expand--t-click--dark.png`,
    `--t-outside--dark.png`, `--t-grow--dark.png`, `--t-grown--dark.png`, `--t-triage--dark.png`,
    `--t-keep--dark.png`
 5. The task's second page: the inspector with a huge selection --
    `shots/tasks/how-connected/02-inspector-cap.png`
-6. Find, with its help tooltip (Les Miserables) -- `shots/r6-priya-howconn-find-s1.png`
+6. Find, with its help tooltip (Les Miserables) -- `shots/record/r6-priya-howconn-find-s1.png`
 7. Inspector, two nodes selected, and one node with Path to... (proteins) --
-   `shots/r6-priya-howconn-inspector-two.png`, `shots/r6-priya-howconn-inspector-path-to.png`
+   `shots/record/r6-priya-howconn-inspector-two.png`, `shots/record/r6-priya-howconn-inspector-path-to.png`
 8. Sets and paths, landing state (two sets focused) -- `shots/tasks/how-connected/03-sets-and-paths.png`
-9. Sets and paths, the path bar with From outside the filter -- `shots/r6-priya-howconn-sets-and-paths-s3.png`
-10. Sets and paths, the reverse direction: no directed path -- `shots/r6-priya-howconn-sets-and-paths-s6.png`
-11. Sets and paths, the found path with its edges -- `shots/r6-priya-howconn-sets-and-paths-s4.png`
-12. Sets and paths, what amount means in this run -- `shots/r6-priya-howconn-sets-and-paths-s5.png`
+9. Sets and paths, the path bar with From outside the filter -- `shots/record/r6-priya-howconn-sets-and-paths-s3.png`
+10. Sets and paths, the reverse direction: no directed path -- `shots/record/r6-priya-howconn-sets-and-paths-s6.png`
+11. Sets and paths, the found path with its edges -- `shots/record/r6-priya-howconn-sets-and-paths-s4.png`
+12. Sets and paths, what amount means in this run -- `shots/record/r6-priya-howconn-sets-and-paths-s5.png`
 
 ---
 

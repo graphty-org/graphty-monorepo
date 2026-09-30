@@ -8,8 +8,8 @@ neighbour, tell me that neighbour's score, and select two of its neighbours."
 
 Screens: `screens/keyboard-walk.html` (played with real key presses, no mouse, from the page's
 initial state), then the inspector and the Nodes table on the same page. Renders of the moments
-that matter: `shots/keyboard-walk--s1.png` (canvas focused), `shots/keyboard-walk--s2.png`
-(walking), `shots/keyboard-walk--s9.png` (two selected). The live page now shows a larger focus
+that matter: `shots/record/keyboard-walk--s1.png` (canvas focused), `shots/record/keyboard-walk--s2.png`
+(walking), `shots/record/keyboard-walk--s9.png` (two selected). The live page now shows a larger focus
 pill with a "Neighbors by Weight / Degree / Name" switch that those older renders do not have; the
 notes below describe the live page.
 

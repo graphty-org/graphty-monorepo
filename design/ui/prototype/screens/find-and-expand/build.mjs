@@ -97,7 +97,7 @@ const flagLegend = (n) => `<div class="k-lg-title">Flagged accounts <span class=
         <div class="k-lg-row">${chit(FLAG)}true<span class="k-value k-num">${fmt(n)}</span></div>`;
 
 // ---------- dock ----------
-const txCols = `<th>id</th><th>kind <span class="k-profile">3 values</span></th><th>country</th><th class="k-n">riskScore <span class="k-profile">0 to 98, sorted</span></th><th>flagged</th><th class="k-n">degree</th>`;
+const txCols = `<th>id</th><th>kind <span class="k-profile">3 values</span></th><th>country</th><th class="k-n">riskScore <span class="k-profile">0 to 98, sorted</span></th><th>flagged</th><th class="k-n">total degree</th>`;
 const txRow = (r, attrs = "") =>
     `<tr ${attrs}><td class="k-id">${r.id}</td><td>${r.kind}</td><td>${r.country}</td><td class="k-n">${r.riskScore}</td><td>${r.flagged ? `${chit(FLAG)}true` : `${chit("#808080")}false`}</td><td class="k-n">${fmt(r.degree)}</td></tr>`;
 const ctCols = `<th>id</th><th class="k-n">grantYear</th><th>category <span class="k-profile">6 values</span></th><th class="k-n">citationsReceived <span class="k-profile">sorted</span></th>`;
@@ -881,6 +881,7 @@ ${facts([
     ["Task", "Find and explore, the fourth of the seven top tasks."],
     ["Serves", "The alert investigation: Find the seed; Expand. Also The first look (Sample) and The weekly return (Follow up)."],
     ["Start", "Rest: the inspector describes the graph and nothing is selected; or a finding from the ranked list below."],
+    ["Usage data", "Off. At first use graphty asked whether it may collect how the app is used, to improve it, and promised never to see the data analyzed; Sarah did not say yes, so usage data stays off and this flow sends nothing. Had she said yes, it would record which commands she used and never an account id, a count, a value or a file name. She can change her answer in Preferences &gt; Usage data."],
     ["Re-entry", "The filter step, or rest."],
 ])}
 ${d6}

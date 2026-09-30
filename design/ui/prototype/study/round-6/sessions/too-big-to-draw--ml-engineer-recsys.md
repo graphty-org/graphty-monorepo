@@ -7,7 +7,7 @@ the too-big-to-draw state and its filter steps (screens/past-drawing-limit.html)
 over the cap (screens/selection-over-cap.html).
 Renders: shots/tasks/too-big-to-draw/01-past-drawing-limit.png, 02-find-s7.png, 03-table-dock-limit.png;
 shots/r6-chris-t200-past-drawing-limit-*.png; shots/r6-chris-t200-selection-over-cap-e1..e5.png;
-shots/r6-chris-tbd-pdl-full.png (every state of the too-big-to-draw page, one image).
+shots/record/r6-chris-tbd-pdl-full.png (every state of the too-big-to-draw page, one image).
 
 ## Think-aloud
 

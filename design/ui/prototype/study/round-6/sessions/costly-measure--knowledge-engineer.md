@@ -12,14 +12,14 @@ the over-the-limit, running and sample-past-the-limit states), the results panel
 (`screens/results-panel.html`: the runs list, the refused "Not run" state, the finished sampled
 state with its run record), and the graph past the drawing limit
 (`screens/past-drawing-limit.html`, the not-drawn state).
-Renders looked at: `shots/screens__option-form-cost-over-budget--study.png`,
-`shots/screens__option-form-cost-within-budget--study.png`,
-`shots/screens__option-form-cost-sample-over-budget--study.png`,
-`shots/screens__results-panel-running--study.png`,
-`shots/screens__results-panel-refused--study.png`,
-`shots/screens__results-panel--not-run.png`,
-`shots/screens__results-panel-finished-sampled--study.png`,
-`shots/screens__past-drawing-limit-not-drawn--study.png`.
+Renders looked at: `shots/record/screens__option-form-cost-over-budget--study.png`,
+`shots/record/screens__option-form-cost-within-budget--study.png`,
+`shots/record/screens__option-form-cost-sample-over-budget--study.png`,
+`shots/record/screens__results-panel-running--study.png`,
+`shots/record/screens__results-panel-refused--study.png`,
+`shots/record/screens__results-panel--not-run.png`,
+`shots/record/screens__results-panel-finished-sampled--study.png`,
+`shots/record/screens__past-drawing-limit-not-drawn--study.png`.
 
 Outcome: success with difficulty. She got a ranked, error-bounded answer quickly and liked how
 the refused exact run is presented. She still cannot say whether the ranking is directed or

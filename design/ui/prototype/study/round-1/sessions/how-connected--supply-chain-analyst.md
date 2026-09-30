@@ -5,8 +5,8 @@ network scientist). Moderator task, given with nothing else: "How is this accoun
 that one?"
 
 Screens used: the inspector mock (screens/inspector.html, renders shots/screens__inspector.png,
-shots/inspector-path.png, shots/inspector-cap.png) and the Find mock (screens/find.html, renders
-shots/screens__find.png, shots/find--s8a.png, shots/find--s9a.png).
+shots/record/inspector-path.png, shots/record/inspector-cap.png) and the Find mock (screens/find.html, renders
+shots/screens__find.png, shots/record/find--s8a.png, shots/record/find--s9a.png).
 
 Outcome: failure. She could not start a "how are these two connected" question herself. When
 shown the finished path in the inspector she could read it, mostly, but did not trust or

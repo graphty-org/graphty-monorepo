@@ -8,13 +8,13 @@ Screens seen, in order (renders in `shots/`):
 
 1. `shots/tasks/figure-for-reviewer/01-styles-list.png` -- the project as it opens, colored by betweenness
 2. `shots/tasks/figure-for-reviewer/02-colour-by-value.png` -- a new style, choosing what to color by
-3. `shots/r4-maren-grayfig-cbv-numbers.png` -- colored by log2FoldChange
-4. `shots/r4-emma-grayfig-screens_export-dialog_html_ways-in-menu.png` -- the menu under the project name
+3. `shots/record/r4-maren-grayfig-cbv-numbers.png` -- colored by log2FoldChange
+4. `shots/record/r4-emma-grayfig-screens_export-dialog_html_ways-in-menu.png` -- the menu under the project name
 5. `shots/tasks/figure-for-reviewer/03-export-dialog-figure.png` -- the Export dialog, Screen look
 6. `shots/tasks/figure-for-reviewer/04-export-dialog-figure-grey.png` -- after Use Print look
 7. `tmp/maren-grayfig/grey-left.png`, `tmp/maren-grayfig/grey-right.png` -- the two previews, zoomed in to read them
-8. `shots/r4-maren-grayfig-done.png` -- after Export
-9. `shots/r4-maren-grayfig-styles-looks.png` -- the Look menu in the style stack, found afterwards
+8. `shots/record/r4-maren-grayfig-done.png` -- after Export
+9. `shots/record/r4-maren-grayfig-styles-looks.png` -- the Look menu in the style stack, found afterwards
 
 ## Think-aloud
 

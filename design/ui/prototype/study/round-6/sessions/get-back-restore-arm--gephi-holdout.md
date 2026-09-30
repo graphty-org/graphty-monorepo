@@ -20,11 +20,11 @@ of Valjean and the 17 characters beside him. The target end state is 47 of 77 no
 (degree 5 off, group 8 still out), with the 18 characters selected again.
 
 **Screens seen**, in order (the mock draws the key as Ctrl; on her Mac it reads Cmd):
-- `../../../shots/r6-mara-getback-restore-s3.png` -- the starting screen
-- `../../../shots/r6-mara-getback-restore-restore.png` -- after Cmd+Z
-- `../../../shots/r6-mara-getback-restore-restore-menu-hist.png` -- main menu, Edit, Undo history
-- `../../../shots/r6-mara-getback-restore-restore-pop.png` -- the filter chip's steps list
-- `../../../shots/r6-mara-getback-restore-fix.png` -- after unticking degree at least 5
+- `../../../shots/record/r6-mara-getback-restore-s3.png` -- the starting screen
+- `../../../shots/record/r6-mara-getback-restore-restore.png` -- after Cmd+Z
+- `../../../shots/record/r6-mara-getback-restore-restore-menu-hist.png` -- main menu, Edit, Undo history
+- `../../../shots/record/r6-mara-getback-restore-restore-pop.png` -- the filter chip's steps list
+- `../../../shots/record/r6-mara-getback-restore-fix.png` -- after unticking degree at least 5
 
 ## Think-aloud
 

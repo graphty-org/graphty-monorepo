@@ -6,9 +6,9 @@ setup with a partner, without your data."
 
 Screens used: screens/export-dialog.html (the project at rest, the project-name menu, the dialog
 with Recipe checked), screens/data-panel.html, screens/binding-step.html (what the partner meets
-when they open the file). Renders: shots/r4-jordan-swd-export.png,
-shots/r4-jordan-swd-export-recipe.png, shots/r4-jordan-swd-data-panel.png,
-shots/r4-jordan-swd-binding.png. The mock's project is a lab's protein study, not a mention
+when they open the file). Renders: shots/record/r4-jordan-swd-export.png,
+shots/record/r4-jordan-swd-export-recipe.png, shots/record/r4-jordan-swd-data-panel.png,
+shots/record/r4-jordan-swd-binding.png. The mock's project is a lab's protein study, not a mention
 network; Jordan was asked to pretend it was her influencer map.
 
 ## Setting it up in my head

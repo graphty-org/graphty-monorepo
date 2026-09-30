@@ -8,7 +8,7 @@ opened from it), the table dock (ranked state, and the "Getting rows out" page w
 dialog), and the Export dialog page (Table chosen, the ways in, and the finished export). Dataset:
 the 300-protein interaction network from ppi-core-300.graphml, except the Export dialog page's
 Table state, which shows a 3,000-account transfers project.
-Renders she looked at: shots/r6-ke-top50-results-finished.png, r6-ke-top50-results-in-the-table.png,
+Renders she looked at: shots/record/r6-ke-top50-results-finished.png, r6-ke-top50-results-in-the-table.png,
 r6-ke-top50-table-ranked.png, r6-ke-top50-table-out.png, r6-ke-top50-table-large.png,
 r6-ke-top50-export-table.png, r6-ke-top50-export-ways-in.png, r6-ke-top50-export-done.png.
 

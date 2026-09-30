@@ -27,16 +27,16 @@ project after one Undo. The "Replace data and apply a recipe" page was opened an
 bank-transfers picture with a File menu open.
 
 Renders the participant looked at (participant view, design notes hidden):
-- `../../../shots/r6-elena-colleague-recipe-travels.png` (the email and the older card)
-- `../../../shots/r6-elena-colleague-start-screen--s4.png` (the "Recipe waiting for your table" card)
-- `../../../shots/r6-elena-colleague-recipe-apply--start.png` (the older card, samples below)
-- `../../../shots/r6-elena-colleague-binding-step.png` (the whole binding step page)
-- `../../../shots/r6-elena-colleague-recipe-apply--binding.png`
-- `../../../shots/r6-elena-colleague-recipe-apply--confirmed.png`
-- `../../../shots/r6-elena-colleague-recipe-apply--unbound.png`
-- `../../../shots/r6-elena-colleague-recipe-apply--applied.png`
-- `../../../shots/r6-elena-colleague-recipe-apply--undone.png`
-- `../../../shots/r6-elena-colleague-replace-and-recipe.png` (top only, left)
+- `../../../shots/record/r6-elena-colleague-recipe-travels.png` (the email and the older card)
+- `../../../shots/record/r6-elena-colleague-start-screen--s4.png` (the "Recipe waiting for your table" card)
+- `../../../shots/record/r6-elena-colleague-recipe-apply--start.png` (the older card, samples below)
+- `../../../shots/record/r6-elena-colleague-binding-step.png` (the whole binding step page)
+- `../../../shots/record/r6-elena-colleague-recipe-apply--binding.png`
+- `../../../shots/record/r6-elena-colleague-recipe-apply--confirmed.png`
+- `../../../shots/record/r6-elena-colleague-recipe-apply--unbound.png`
+- `../../../shots/record/r6-elena-colleague-recipe-apply--applied.png`
+- `../../../shots/record/r6-elena-colleague-recipe-apply--undone.png`
+- `../../../shots/record/r6-elena-colleague-replace-and-recipe.png` (top only, left)
 
 ## Think-aloud
 

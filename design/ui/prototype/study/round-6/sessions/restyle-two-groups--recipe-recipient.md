@@ -8,12 +8,12 @@ sends; he does not build them. Laptop at 1440 by 900.
 
 Screens he saw, in the order he went through them (participant view, design notes hidden):
 
-- `shots/r6-tom-restyle-frame-at-rest.png` -- the Les Miserables file at rest, legend "Group color"
-- `shots/r6-tom-restyle-colour-by-value.png` -- frame 7, "Change a color from the legend" (the
+- `shots/record/r6-tom-restyle-frame-at-rest.png` -- the Les Miserables file at rest, legend "Group color"
+- `shots/record/r6-tom-restyle-colour-by-value.png` -- frame 7, "Change a color from the legend" (the
   picker opened from a legend swatch), and frame 4 (the layer editor with its row menu)
-- `shots/r6-tom-restyle-styles-list.png` -- frame 17, the Look menu; frame 9, the picker's
+- `shots/record/r6-tom-restyle-styles-list.png` -- frame 17, the Look menu; frame 9, the picker's
   Libraries tab
-- `shots/r6-tom-restyle-inspector.png` -- frame 14, a group clicked in the legend
+- `shots/record/r6-tom-restyle-inspector.png` -- frame 14, a group clicked in the legend
 
 ## Transcript (thinking aloud)
 

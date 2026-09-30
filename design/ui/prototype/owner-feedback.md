@@ -63,3 +63,42 @@ The owner clicked "Participant view" on screens/undo.html and could not get the 
 - What is collected when opted in: Sentry Session Replay with every node name, attribute value, label and file content masked; anonymous task events (file loaded, first graph drawn, measure run, result read, style added, export, undo) with timings; errors and performance; a feedback widget. No file contents ever leave the computer.
 - Update the data-handling page ("Where your data goes" / "Sent and saved") and the first-run flow to match, and add the opt-in to the storyboards and task flows. This closes the telemetry question the data page left open.
 - The owner's reason: Sentry on graphty.app will be the real user study, so the first shipped pass must be mostly right, with no trust-busting flaws on first use.
+
+## 2026-09-29 -- the owner asks whether the money fix is overfitting (owner's question; the direction below is Claude's, reversible)
+
+The owner asked, about round 6's "money in against money out went from 2.00 to 5.00, now that the screens name money": which screen names money, and are we overfitting to a specific use case?
+
+Yes, in three ways, and the direction is:
+1. The task said "money in against money out" and the fix put "money" on the screen; part of the gain is participants matching task words to screen words. Task wording must never reuse the words a fix puts on screen.
+2. Only the currency branch was tested; the generic "Total <column> in" label never met a participant, nor did currency detection.
+3. Currency detection is a one-domain special case the ontology does not have (columns have no unit concept).
+Direction: name weighted measures from the data in every domain -- "Total <column> in", "Total <column> out", "Links in (count)" -- with the column's unit only if the data declares one; drop the currency special case. Every label or wording change is tested on at least two domains (the transfers data plus a non-money dataset such as protein interaction confidence or citation counts) with task wording that does not reuse the screen's words. Audit every fix from rounds 4-6 for the same two patterns (task words matching screen words; a fix that only serves one domain) and list them in the decision log.
+
+## 2026-09-30 -- spelling (owner)
+
+Use American spelling everywhere in the gallery, mocks, study material and proposed framework text: color, gray, behavior, center, analyze. Fix British spellings (colour, grey, behaviour) wherever a page is touched.
+
+## 2026-09-30 -- the owner chooses refined structure B for round 7 (owner decisions)
+
+Decided by the owner:
+- Round 7 tests REFINED STRUCTURE B (study/structure-comparison/structure-b.md, refined as below). Not A, not the "two lists on the left" hybrid.
+- A run PAINTS as soon as it finishes. "Measures don't paint on their own" is rejected as a fatal flaw: this is graph visualization software, and not visualizing results defeats the purpose. Several runs may fight over color; the eye icon on each row shows and hides, and the results stay available to compare.
+- One tree of rows on the left, each row something that can paint the graph: a group, a path, or a measure (a "PageRank" row whose right-hand inspector offers the styling for PageRank's values). Rows carry a type icon, in the spirit of Tableau's typed fields.
+- The tree holds rows, not nodes: nesting means "came from this run", not membership. Parent/child can be locked (a run's children reorder only within it; a path cannot be dropped under a community).
+- Every run is a row marked by its kind; its paintable outputs are its children; its non-paintable outputs (a graph-level reading like modularity, a pair list) are on the run's Data tab.
+- Hundreds of communities are fine when they are what the researcher studies: collapsed by default, sortable, searchable, "show members in table".
+- The right inspector has a Style tab and a Data tab (summary, membership, provenance); the table dock lists many rows. Define the line between them so they do not duplicate.
+- Filters belong with the data (they change what is computed and laid out); hiding is the eye (drawing only).
+- A built-in "Everything" base layer draws the default style; hiding it shows only what other layers show (hidden nodes still take part in the layout -- say so; filter to leave them out).
+- Selection is a built-in layer with its own styling, pinned at the top.
+- A node's inspector answers "why this look": "color from Community 3, size from PageRank".
+- Organize the tree: folders for grouping rows, "hide" and "show hidden" for the list (separate from the eye, which is paint on the canvas).
+- Suggested by Claude and welcome: "solo" (Alt-click an eye shows only that row), note counts on rows.
+
+Questions the owner asks the design team to consider (decide them as a studio, with reasons; the owner reviews):
+1. Should notes also show up in the tree?
+2. Figma puts tools that modify things in the bottom toolbar. Running an algorithm effectively creates new data (adds rows to the tree). Should algorithms be in the nav rail (more visibility, space for configuration) or the toolbar (fits the paradigm, no jumping between the algorithms place and the tree)?
+3. What is the complete design of the toolbar: what belongs on it and what does not? Where do cameras, views, 2D/3D/VR/XR fit? Do enough users draw paths for a top-level Path tool?
+4. Is "Data" in the nav rail really "Sources"? Consider borrowing Tableau's paradigm (its data source page, typed fields, dimensions and measures).
+
+The owner wants a clickable, layout-complete skeleton of refined B to review BEFORE any focus group or flow study.

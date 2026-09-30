@@ -11,9 +11,9 @@ Screens used, in the order she reached them, all at 1440 by 900 (her laptop):
 - the style stack with a betweenness color open (shots/tasks/groups-differ/03-styles-list.png)
 - the DNA repair set in the inspector (shots/tasks/groups-differ/04-inspector-set.png)
 - the node table sorted by PageRank (shots/tasks/groups-differ/05-table-dock-ranked.png)
-- the Community 4 inspector and a row chosen from it (shots/r6-jordan-gd-inspector-group.png, shots/r6-jordan-gd-inspector-group-row.png)
-- the "Compared with the rest" section on Community 1 (shots/r6-jordan-gd-styles-list-group-compare.png)
-- the "Community 1 and the rest" table tab, drawn on a payments network (shots/r6-jordan-gd-comparison-group-vs-rest.png)
+- the Community 4 inspector and a row chosen from it (shots/record/r6-jordan-gd-inspector-group.png, shots/record/r6-jordan-gd-inspector-group-row.png)
+- the "Compared with the rest" section on Community 1 (shots/record/r6-jordan-gd-styles-list-group-compare.png)
+- the "Community 1 and the rest" table tab, drawn on a payments network (shots/record/r6-jordan-gd-comparison-group-vs-rest.png)
 
 ## Think-aloud
 

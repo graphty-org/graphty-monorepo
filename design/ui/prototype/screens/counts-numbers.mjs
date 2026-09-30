@@ -51,6 +51,10 @@ const routes = T.setsAndPaths.path.routes;
 const pathAccounts = new Set(routes.flatMap((r) => r.accounts)).size;
 const pathTransfers = new Set(routes.flatMap((r) => r.transfers.map((t) => `${t.source}>${t.target}@${t.timestamp}`))).size;
 
+// March transfers: distinct account pairs, for "9,113 transfers (9,113 distinct pairs)". gen-canvas drops
+// repeated pairs, so the full month and any subset of it (the window step keeps 2,065) repeat none.
+if (T.stats.parallelEdges !== 0) throw new Error("March transfers repeat a pair: count the window's pairs from the edge list");
+const W = fx.scenarios.filterChipWindow.state;
 fx.scenarios.onScreen = {
     generatedBy: "screens/counts-numbers.mjs -- regenerate instead of editing by hand",
     note: "counts the screens show that are derived from other fixture values; each is computed here from kit/fixtures.json, kit/alerts.json or a drawing",
@@ -73,6 +77,7 @@ fx.scenarios.onScreen = {
     // of which is inside its second hop (alerts.json august.seed.hop2.bandTransfers)
     augustSeed: { id: al.seed.id, neighbors: seedHop1.length, bandNeighbors: new Set(al.seed.hop2.bandTransfers.flatMap((t) => (t.source === al.seed.id ? [t.target] : t.target === al.seed.id ? [t.source] : []))).size, kinds: kinds(al.seed.hop1.nodes) },
     augustTuition: { id: al.tuitionCase.id, accounts: al.tuitionCase.hop1.nodes.length, counterparties: tuition.length, kinds: kinds(al.tuitionCase.hop1.nodes) },
+    marchPairs: { full: T.edges - T.stats.parallelEdges, window: W.edges },
     marchPath: { routes: routes.length, accounts: pathAccounts, transfers: pathTransfers },
     // the dated trace (scenarios.alertTriage.trace): the seed's neighbors on its first hop
     augustTrace: { seedNeighbors: fx.scenarios.alertTriage.trace.hops[0].nodes - 1 },
@@ -80,6 +85,22 @@ fx.scenarios.onScreen = {
     augustNext: { id: al.nextCase.id, neighbors: al.nextCase.hops[0].nodes - 1 },
     // the ring set's file names its members and their counterparties
     augustRing: { members: al.ringSet.members.length, counterparties: al.ringSet.counterparties.count, accountsNamed: al.ringSet.members.length + al.ringSet.counterparties.count },
+    // the proteins' Louvain run (datasets.ppi.louvain): real groups, the unconnected proteins not counted as one
+    ppiLouvain: { groups: P.louvain.communities - P.louvain.singletons },
+    // How sure, on the proteins' Top 10 by betweenness (flows/run-and-read.html): the closest
+    // neighbouring pair, relative to the higher value, and how many of the top PageRank puts in the
+    // same order (the top lists by betweenness and degree hold every node that could reach it)
+    ppiHowSure: howSure(),
 };
+function howSure() {
+    const top = P.topByBetweenness;
+    const gaps = top.slice(1).map((b, i) => [(top[i].betweenness - b.betweenness) / top[i].betweenness, i]);
+    const [g, i] = gaps.reduce((m, x) => (x[0] < m[0] ? x : m));
+    const pool = new Map([...top, ...P.topByDegree].map((r) => [r.id, r]));
+    const byPr = [...pool.values()].sort((a, b) => b.pagerank - a.pagerank).map((r) => r.id);
+    let agree = 0;
+    while (agree < top.length && byPr[agree] === top[agree].id) agree++;
+    return { shown: top.length, closestRank: i + 1, closestGapPercent: Math.round(g * 1000) / 10, agreeTop: agree };
+}
 writeFileSync(FIX, JSON.stringify(fx, null, 1));
 console.log(JSON.stringify(fx.scenarios.onScreen, null, 1));

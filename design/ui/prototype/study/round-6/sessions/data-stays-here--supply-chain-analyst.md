@@ -11,10 +11,10 @@ Decide whether you may use this tool on your data, and tell me what you would sa
 Screens seen, as a participant sees them (design notes hidden):
 - Start screen: `shots/tasks/data-stays-here/01-start-screen.png`
 - A project open (sample data): `shots/tasks/data-stays-here/02-frame-at-rest.png`
-- "Where your data goes" page, full length: `shots/r6-dana-dsh-data-location-full.png` (the same
-  page reached from the Help menu: `shots/r6-dana-dsh-where-your-data-goes.png`)
+- "Where your data goes" page, full length: `shots/record/r6-dana-dsh-data-location-full.png` (the same
+  page reached from the Help menu: `shots/record/r6-dana-dsh-where-your-data-goes.png`)
 - Data panel of a project, and its "Sent and saved from this project" section:
-  `shots/r6-dana-dsh-data-panel.png`, `shots/r6-dana-dsh-data-panel-sent.png`, read with
+  `shots/record/r6-dana-dsh-data-panel.png`, `shots/record/r6-dana-dsh-data-panel-sent.png`, read with
   `screens/data-panel.html` for the part below the fold
 
 ---

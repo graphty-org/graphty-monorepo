@@ -4,7 +4,7 @@ Participant: Jordan (study/personas/marketing-analyst.md), a growth-marketing an
 
 Task as given: "On the protein network, what groups are there, and how is the biggest one different from the rest?"
 
-Screens used, in the order she reached them: the main menu with Algorithms open (shots/screens__results-panel--catalog.png), the finished Louvain result (shots/screens__results-panel--louvain.png), the communities table (shots/screens__results-panel--louvain-table.png), the group inspector for one community (shots/screens__inspector-group.png, shots/screens__inspector-group-row.png), the "Compared with the rest" section (shots/screens__styles-list-group-compare.png, shots/screens__styles-list-group-columns.png), and a glance at the comparison surface (shots/screens__comparison.png). All at 1440 by 900, which is her laptop screen.
+Screens used, in the order she reached them: the main menu with Algorithms open (shots/screens__results-panel--catalog.png), the finished Louvain result (shots/record/screens__results-panel--louvain.png), the communities table (shots/screens__results-panel--louvain-table.png), the group inspector for one community (shots/screens__inspector-group.png, shots/record/screens__inspector-group-row.png), the "Compared with the rest" section (shots/screens__styles-list-group-compare.png, shots/screens__styles-list-group-columns.png), and a glance at the comparison surface (shots/screens__comparison.png). All at 1440 by 900, which is her laptop screen.
 
 ## Think-aloud
 

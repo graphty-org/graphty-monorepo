@@ -576,7 +576,8 @@ const louvain = (nb0, seed) => {
             drawGraph({ theme, pos, edges, color: (i) => colorOfGroup(group[i]), size, labels: budget, marks: m, keep, title }),
         );
     }
-    // A committed Find hit brought into view (screens/find.html): zoomed about Thenardier, whose
+    // A committed Find hit brought into view (screens/find.html): the walk's focus on Thenardier,
+    // nothing selected (Enter on a drawn hit selects nothing), zoomed about him, whose
     // label the 100% drawing culls. Marks, node sizes and labels keep their screen size, so the
     // zoom spreads the cluster and the labels it frees are drawn (the collision cull still runs).
     const th = id("Thenardier");
@@ -584,7 +585,7 @@ const louvain = (nb0, seed) => {
     const posZ = pos.map(([x, y]) => [pos[th][0] + (x - pos[th][0]) * findZoom, pos[th][1] + (y - pos[th][1]) * findZoom]);
     const keep3 = new Set(s3);
     emit("lesmis-step3-find-zoom", (theme) =>
-        drawGraph({ theme, pos: posZ, edges, color: (i) => colorOfGroup(group[i]), size, labels: s3, marks: { selected: th }, keep: keep3, title: "Les Miserables after three filter steps, zoomed to 200% about Thenardier, selected" }),
+        drawGraph({ theme, pos: posZ, edges, color: (i) => colorOfGroup(group[i]), size, labels: s3, marks: { focus: th }, keep: keep3, title: "Les Miserables after three filter steps, zoomed to 200% about Thenardier, keyboard-focused and not selected" }),
     );
     const rows = names.map((name, i) => ({ id: String(i), label: name, group: group[i], degree: deg[i], betweenness: sig3(bc[i]) }));
     // Per step: live degree read on the filtered graph beside the full-graph degree
@@ -3509,6 +3510,91 @@ const tasks = {};
         facts: tasks["this-weeks-export"].facts,
         refs: ["datasets.transactionsApril.agreement", "datasets.transactionsApril.louvain"],
     });
+    // Round 7's new tasks: the first-use moments no session has met yet (first launch and the
+    // usage-data question, a file that cannot be read, an empty
+    // project, nothing matching, a failed autosave, turning the Assistant on, no WebGPU), the two
+    // top tasks never tested (make the layout readable, combine two sets), the degree step read on
+    // what the steps above it kept, and a hunt that starts from a rule.
+    add("first-launch", {
+        question: "This is your first time with this app. Get a network on screen to try it out, and tell me what, if anything, the app will know about you or your data.",
+        dataset: "lesmis",
+        file: L.file,
+        facts: { usageData: "off until the person says yes at first use; graph content always masked", sample: L.title, nodes: L.nodes },
+        refs: ["datasets.lesmis.frame"],
+    });
+    add("file-will-not-read", {
+        question: "Your collaborator re-exported the protein network and says the new file is the same as the old one, but it will not come in. Find out what is wrong with it, and tell me what you would send back to her.",
+        dataset: "ppi",
+        file: P.file,
+        facts: { nodes: P.nodes, edges: P.edges, changed: "nothing: the open project stays as it was" },
+        refs: ["datasets.ppi.frame"],
+    });
+    add("empty-project-start", {
+        question: "You clicked the wrong thing and ended up in an empty project. Get this month's transfers into it, and check that they came in the way you expect.",
+        dataset: "transactions",
+        file: T.file,
+        facts: { nodes: T.nodes, edges: T.edges },
+        refs: ["datasets.transactions.columns", "datasets.transactions.firstRows", "datasets.transactions.frame"],
+    });
+    add("nothing-matches", {
+        question: "After a few changes, the table at the bottom shows nobody, and looking up Cosette finds nothing. Find out why, and get back to seeing her.",
+        dataset: "lesmis",
+        file: L.file,
+        facts: { steps: L.filterSteps.steps, after: L.filterSteps.after },
+        refs: ["datasets.lesmis.filterSteps"],
+    });
+    add("save-failed", {
+        question: "You have spent the morning on this project. Before you leave for lunch, make sure you could pick it up this afternoon exactly where you stopped, even if this browser tab closes.",
+        dataset: "lesmis",
+        file: L.file,
+        facts: { nodes: L.nodes, cause: "browser storage full" },
+        refs: ["datasets.lesmis.frame"],
+    });
+    add("turn-on-assistant", {
+        question: "You would like to ask questions about these transfers in plain words instead of looking through menus. Your team has a key for an AI service. Set that up, and tell me what, if anything, now leaves your computer, and when.",
+        dataset: "transactions",
+        file: T.file,
+        facts: { nodes: T.nodes, edges: T.edges, assistant: "off until a provider is set; sends node names and statistics only when asked" },
+        refs: ["datasets.transactions.frame"],
+    });
+    add("no-webgpu", {
+        question: "You are on a locked-down work laptop. Find who holds the protein network together, and tell me whether anything about this computer changes how far you can trust the answer, or how long it takes.",
+        dataset: "ppi",
+        file: P.file,
+        facts: { measure: "betweenness", engine: "CPU: this browser offers no WebGPU", top: P.topByBetweenness.slice(0, 3).map((r) => ({ id: r.id, betweenness: r.betweenness })) },
+        refs: ["datasets.ppi.topByBetweenness", "datasets.ppi.frame"],
+    });
+    add("untangle-layout", {
+        question: "Your PI says the protein network looks like a hairball. Make the picture readable enough to show at lab meeting, without losing track of where TP53 and its partners sit.",
+        dataset: "ppi",
+        file: P.file,
+        facts: { nodes: P.nodes, edges: P.edges, components: P.stats.components, start: "TP53" },
+        refs: ["datasets.ppi.frame", "datasets.ppi.tp53Slice"],
+    });
+    const SP = T.setsAndPaths;
+    add("combine-two-sets", {
+        question: `Your manager wants the accounts that sent money to the merchant ${SP.merchant.id} and also carry a risk score of 70 or more, put aside so you can pick them up next week. How many are there?`,
+        dataset: "transactions",
+        file: T.file,
+        facts: { merchant: SP.merchant.id, payers: SP.payers.count, highRisk: SP.highRisk.count, answer: SP.intersection.count, union: SP.union.count },
+        refs: ["datasets.transactions.setsAndPaths.intersection", "datasets.transactions.setsAndPaths.payers", "datasets.transactions.setsAndPaths.highRisk"],
+    });
+    add("what-is-left", {
+        question: "Take out the characters who have only one co-appearance partner. Then, among the characters still in, show only those with at least five partners who are also still in. How many are there?",
+        dataset: "lesmis",
+        file: L.file,
+        facts: { steps: L.filterSteps.steps.slice(0, 2), answer: L.filterSteps.after.step2, onWholeGraph: L.rows.filter((r) => r.degree >= 5).length, afterFirstStep: L.filterSteps.after.step1 },
+        refs: ["datasets.lesmis.filterSteps"],
+    });
+    if (datasets.alertsAugust) {
+        add("hunt-from-a-rule", {
+            question: "Start from the structuring rule, not from any one alert: find the August accounts that match it, and decide which ones to look at first.",
+            dataset: "alertsAugust",
+            file: datasets.alertsAugust.file,
+            facts: { rule: datasets.alertsAugust.seedFacts.alertRule, numbers: "kit/alerts.json, august" },
+            refs: ["datasets.alertsAugust"],
+        });
+    }
     // The screens each task shows, first to last. kit/check.mjs --tasks opens each with ?task=<id>
     // and fails when one draws or names another dataset: the screen after Load is always the file
     // just loaded, and no task borrows another project's screen.
@@ -3531,9 +3617,9 @@ const tasks = {};
         "print-ready-grey": ["screens/styles-list.html", "screens/colour-by-value.html", "screens/export-dialog.html#figure-grey", "screens/export-dialog.html#first-release"],
         "get-back": ["screens/undo.html", "screens/filter-chip.html"],
         "fix-wrong-middle-step": ["screens/undo.html", "screens/filter-chip.html"],
-        "rankings-agree": ["screens/comparison.html", "screens/table-dock.html#large"],
-        "rankings-agree-scatter": ["screens/comparison.html", "screens/table-dock.html#large"],
-        "this-weeks-export": ["screens/version-history.html", "screens/load-step.html#add-data", "screens/comparison.html", "screens/export-dialog.html#table"],
+        "rankings-agree": ["screens/comparison.html#metrics", "screens/comparison.html#versions", "screens/comparison.html#strips", "screens/table-dock.html#large"],
+        "rankings-agree-scatter": ["screens/comparison.html#metrics", "screens/comparison.html#versions", "screens/comparison.html#strips", "screens/table-dock.html#large"],
+        "this-weeks-export": ["screens/version-history.html", "screens/load-step.html#add-data", "screens/comparison.html#metrics", "screens/comparison.html#versions", "screens/comparison.html#strips", "screens/export-dialog.html#table"],
         "weekly-refresh-replace": ["screens/weekly-return.html", "screens/version-history.html", "screens/table-dock.html#large"],
         "use-colleagues-file": ["screens/start-screen.html", "screens/recipe-apply.html#start", "screens/recipe-apply.html#applied"],
         "share-without-data": ["screens/export-dialog.html#recipe"],
@@ -3546,19 +3632,31 @@ const tasks = {};
         "top-50-to-excel": ["screens/results-panel.html#finished", "screens/results-panel.html#in-the-table", "screens/table-dock.html#ranked"],
         "weight-at-first-run": ["screens/option-form-cost.html#weight-refused", "screens/option-form-cost.html#weight-meaning", "screens/results-panel.html#finished"],
         // Rounds 4 and 5, as the sessions used them.
-        "calculation-stopped": ["screens/gpu-lost-run.html", "screens/results-panel.html#failed", "screens/results-panel.html#failed-run", "screens/results-panel.html#refused", "screens/results-panel.html#finished-sampled", "screens/notices-errors.html"],
+        "calculation-stopped": ["screens/gpu-lost-run.html", "screens/results-panel.html#failed", "screens/results-panel.html#failed-run", "screens/results-panel.html#refused", "screens/results-panel.html#finished-sampled", "screens/notices-errors.html#device-lost", "screens/notices-errors.html#device-lost-later"],
         "dated-trace": ["screens/alert-triage.html#case-open", "screens/alert-triage.html#case-hop2", "screens/alert-triage.html#case-trace", "screens/alert-triage.html#case-trace-menu"],
         "gray-figure-signed": ["screens/colour-by-value.html", "screens/styles-list.html", "screens/export-dialog.html#figure-grey", "screens/table-dock.html#ranked"],
-        "money-in-and-out": ["screens/frame-at-rest.html", "screens/run-and-read.html#catalog", "screens/run-and-read.html#money", "screens/run-and-read.html#money-read", "screens/table-dock.html#large", "screens/export-dialog.html#table"],
-        "notes-with-names": ["screens/notes-panel.html", "screens/take-a-note.html", "screens/preferences.html"],
+        "money-in-and-out": ["screens/frame-at-rest.html", "screens/run-and-read.html#catalog-transfers", "screens/run-and-read.html#money", "screens/run-and-read.html#money-read", "screens/table-dock.html#large", "screens/export-dialog.html#table"],
+        "notes-with-names": ["screens/take-a-note.html#s10", "screens/take-a-note.html", "screens/preferences.html#your-name"],
         "restyle-two-groups": ["screens/frame-at-rest.html", "screens/inspector.html#one-node", "screens/colour-by-value.html", "screens/styles-list.html"],
         "team-colors-file": ["screens/data-panel.html", "screens/replace-and-recipe.html#s-recipe-pick", "screens/replace-and-recipe.html#s-bind-recipe", "screens/replace-and-recipe.html#s-recipe-applied"],
         "top-200-past-limit": ["screens/past-drawing-limit.html", "screens/option-form-cost.html#sample-over-budget", "screens/results-panel.html#finished-sampled", "screens/past-drawing-limit.html#keep", "screens/past-drawing-limit.html#kept", "screens/find.html#s7"],
-        "two-runs-compared": ["screens/navigation.html", "screens/results-panel.html#compare-with", "screens/comparison.html", "screens/table-dock.html#ranked"],
-        "weekly-update": ["screens/weekly-return.html", "screens/data-panel.html", "screens/version-history.html", "screens/comparison.html"],
-        "weight-end-to-end": ["screens/frame-at-rest.html", "screens/sets-and-paths.html", "screens/run-and-read.html#money", "screens/results-panel.html#finished"],
-        "load-a-messy-export": ["screens/load-transfers.html", "screens/load-step.html#report", "screens/frame-at-rest.html", "screens/data-panel.html"],
-        "real-change-or-noise": ["screens/weekly-return.html#compare-pick", "screens/weekly-return.html#compare", "screens/weekly-return.html#followup", "screens/comparison.html", "screens/version-history.html"],
+        "two-runs-compared": ["screens/navigation.html", "screens/results-panel.html#compare-with-lesmis", "screens/comparison.html#runs-lesmis", "screens/table-dock.html#small"],
+        "weekly-update": ["screens/weekly-return.html", "screens/data-panel.html", "screens/version-history.html", "screens/comparison.html#metrics", "screens/comparison.html#versions", "screens/comparison.html#strips"],
+        "weight-end-to-end": ["screens/frame-at-rest.html", "screens/sets-and-paths.html", "screens/run-and-read.html#money", "screens/run-and-read.html#money-read"],
+        "load-a-messy-export": ["screens/load-transfers.html", "screens/load-step.html#report-transfers", "screens/frame-at-rest.html", "screens/data-panel.html"],
+        "real-change-or-noise": ["screens/weekly-return.html#compare-pick", "screens/weekly-return.html#compare", "screens/weekly-return.html#followup", "screens/comparison.html#metrics", "screens/comparison.html#versions", "screens/comparison.html#strips", "screens/version-history.html"],
+        // Round 7's new tasks.
+        "first-launch": ["screens/start-screen.html#s1", "screens/data-location.html", "screens/start-screen.html#s11", "screens/frame-at-rest.html"],
+        "file-will-not-read": ["screens/notices-errors.html#failed-load", "screens/notices-errors.html#failed-load-details"],
+        "empty-project-start": ["screens/frame-at-rest.html#s3", "screens/load-step.html#clean", "screens/frame-at-rest.html"],
+        "nothing-matches": ["screens/table-dock.html#empty", "screens/find.html#s3", "screens/filter-chip.html"],
+        "save-failed": ["screens/frame-at-rest.html#s6", "screens/notices-errors.html#save-failed", "screens/notices-errors.html#renderer-lost"],
+        "turn-on-assistant": ["screens/frame-at-rest.html", "screens/preferences.html#provider-invalid", "screens/preferences.html#provider-set", "screens/frame-at-rest.html#s8", "screens/data-panel.html#sent"],
+        "no-webgpu": ["screens/run-and-read.html#catalog", "screens/results-panel.html#cpu-path", "screens/notices-errors.html#cpu"],
+        "untangle-layout": ["screens/frame-at-rest.html", "screens/run-and-read.html#layout"],
+        "combine-two-sets": ["screens/sets-and-paths.html#s1", "screens/sets-and-paths.html#s2"],
+        "what-is-left": ["screens/filter-chip.html", "screens/results-panel.html#filtered", "screens/table-dock.html#stale"],
+        "hunt-from-a-rule": ["screens/alert-triage.html#rule", "screens/alert-triage.html#rule-find", "screens/alert-triage.html#case-ring"],
     };
     for (const [id, pages] of Object.entries(PAGES)) if (tasks[id]) tasks[id].pages = pages;
     const get = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), { datasets });

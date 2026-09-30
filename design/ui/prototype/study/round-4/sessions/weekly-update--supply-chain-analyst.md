@@ -5,10 +5,10 @@ Task as given by the moderator: "Last month's transfers project needs this month
 and explain why the number of groups changed."
 
 Screens worked through, as the participant saw them (study view, full page):
-shots/r4-dana-wupd-screens_weekly-return.png, shots/r4-dana-wupd-screens_data-panel.png,
-shots/r4-dana-wupd-screens_version-history.png, shots/r4-dana-wupd-screens_replace-and-recipe.png,
-shots/r4-dana-wupd-flows_replace-and-recipe.png, shots/r4-dana-wupd-screens_comparison.png,
-shots/r4-dana-wupd-storyboards_weekly-return.png.
+shots/record/r4-dana-wupd-screens_weekly-return.png, shots/record/r4-dana-wupd-screens_data-panel.png,
+shots/record/r4-dana-wupd-screens_version-history.png, shots/record/r4-dana-wupd-screens_replace-and-recipe.png,
+shots/record/r4-dana-wupd-flows_replace-and-recipe.png, shots/record/r4-dana-wupd-screens_comparison.png,
+shots/record/r4-dana-wupd-storyboards_weekly-return.png.
 
 Outcome: success with difficulty. The update itself went through first time. The explanation she
 gave was partly right (26 of the new groups are single accounts with no transfers) and partly

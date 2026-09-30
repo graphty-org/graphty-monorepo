@@ -159,11 +159,11 @@
       <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Filtered: <span data-fx="datasets.lesmis.filterSteps.after.step3">27</span> of <span data-fx="datasets.lesmis.nodes">77</span> nodes &middot; 3 steps</span></span>
     </div>
     <div class="k-panel-head" data-on="10 11 13 14">
-      <div class="k-title-line"><span class="k-project">Transfers, April 2026</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <div class="k-title-line"><span class="k-project">Transfers, April 2026</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
       <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Full graph</span></span>
     </div>
     <div class="k-panel-head" data-on="7">
-      <div class="k-title-line"><span class="k-project">Patent citations</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <div class="k-title-line"><span class="k-project">Patent citations</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
       <span class="k-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num">Full graph</span></span>
     </div>
 
@@ -277,7 +277,8 @@
       </div>
     </div>
 
-    <div class="f-keys" data-on="1 2 3 4 5 6 7 10 11 13 14"><span><span class="k-kbd">Enter</span>Select</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
+    <div class="f-keys" data-on="1 5"><span><span class="k-kbd">Enter</span>Go to</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
+    <div class="f-keys" data-on="2 3 4 6 7 10 11 13 14"><span><span class="k-kbd">Enter</span>Select</span><span><span class="k-kbd">Esc</span>Close</span><span><span class="k-kbd">F6</span>Next region</span></div>
 
     <!-- Find closed: the lists (states 8, 9 and 12) -->
     <div class="k-scroll" data-on="8 9 12 15">
@@ -303,8 +304,8 @@
         <img class="k-dark-only" src="../kit/canvas/lesmis-step3-dark.svg" alt="Les Miserables, 28 of 77 characters drawn after three filter steps, colored by group and sized by degree">
       </div>
       <div class="k-stage" data-on="2">
-        <img class="k-light-only" src="../kit/canvas/lesmis-step3-find-zoom-light.svg" alt="The filtered graph zoomed to 200% about Thenardier, who is selected and labeled">
-        <img class="k-dark-only" src="../kit/canvas/lesmis-step3-find-zoom-dark.svg" alt="The filtered graph zoomed to 200% about Thenardier, who is selected and labeled">
+        <img class="k-light-only" src="../kit/canvas/lesmis-step3-find-zoom-light.svg" alt="The filtered graph zoomed to 200% about Thenardier, who carries the keyboard focus mark and is not selected">
+        <img class="k-dark-only" src="../kit/canvas/lesmis-step3-find-zoom-dark.svg" alt="The filtered graph zoomed to 200% about Thenardier, who carries the keyboard focus mark and is not selected">
       </div>
       <div class="k-legend-card">
         <div class="k-lg-title">Group color <span class="k-secondary">group</span></div>
@@ -361,8 +362,9 @@
           <span class="k-kbd">F6</span><span>Next region</span>
           <span class="k-kbd">?</span><span>These keys</span>
           <h4>In Find</h4>
-          <span class="k-kbd">Enter</span><span>Select the hit</span>
-          <span class="k-kbd">Esc</span><span>Close; the selection stays</span>
+          <span class="k-kbd">Enter</span><span>Go to the hit: the walk's focus moves to it and nothing is selected. A hit that is not drawn is selected at once</span>
+          <span class="k-kbd">Enter</span><span>Again: select it</span>
+          <span class="k-kbd">Esc</span><span>Close; the walk's place and the selection stay</span>
         </div>
         <div class="ks-foot">Ctrl+F opens Find wherever the focus is inside graphty: the drawing, the table or a panel. Outside it, the browser's own find.</div>
       </div>
@@ -442,12 +444,11 @@
       <div class="k-table-wrap">
         <table class="k-table">
           <colgroup><col class="c-label"><col><col><col></colgroup>
-          <thead><tr><th>label</th><th>group</th><th class="k-n">degree <span class="k-profile">filtered graph</span></th><th class="k-n">degree <span class="k-profile">full graph</span></th></tr></thead>
+          <thead><tr><th>label</th><th>group</th><th class="k-n">degree (filtered graph)</th><th class="k-n">degree (full graph)</th></tr></thead>
           <tbody>
             <tr><td class="k-id">Valjean</td><td><span class="k-chit" style="background:#E69F00"></span>2</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.0.degree">17</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.0.fullDegree">36</td></tr>
             <tr><td class="k-id">Fantine</td><td><span class="k-chit" style="background:#D55E00"></span>3</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.1.degree">12</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.1.fullDegree">15</td></tr>
-            <tr data-on="2" aria-selected="true"><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.degree">11</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.fullDegree">16</td></tr>
-            <tr data-on="1 3 4 5 6 8 9 12 15"><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.degree">11</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.fullDegree">16</td></tr>
+            <tr><td class="k-id">Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.degree">11</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.2.fullDegree">16</td></tr>
             <tr><td class="k-id">Javert</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.3.degree">10</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.3.fullDegree">17</td></tr>
             <tr><td class="k-id">Mme.Thenardier</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.4.degree">9</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.4.fullDegree">11</td></tr>
             <tr><td class="k-id">Gueulemer</td><td><span class="k-chit" style="background:#009E73"></span>4</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.5.degree">9</td><td class="k-n" data-fx="datasets.lesmis.filterSteps.byStep.2.top.5.fullDegree">10</td></tr>
@@ -518,32 +519,14 @@
     
     <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num"><span data-on="2">200%</span><span data-on="1 3 4 5 6 7 8 9 10 11 12 13 14 15">100%</span><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
 
-    <!-- 2: Thenardier, inside the filter -->
-    <div class="k-typerow" data-on="2"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">Thenardier</span><span class="k-grow"></span><span class="split"><span class="k-icon-btn" title="Select neighbors"><svg class="k-i"><use href="../kit/icons.svg#split"/></svg></span><span class="k-icon-btn" title="Neighbor options"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></span><span class="k-icon-btn" title="Filter to"><svg class="k-i"><use href="../kit/icons.svg#funnel"/></svg></span><span class="k-icon-btn" title="Pin"><svg class="k-i"><use href="../kit/icons.svg#pin"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-    <div class="k-scroll" data-on="2">
-      <section class="k-section">
-        <div class="k-section-head">Appearance</div>
-        <div class="k-fieldrow"><span class="k-legend">Color <span class="k-tertiary">-- Group color</span></span>
-          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><span class="k-chit" style="background:#009E73"></span>group</span></span></div></div>
-        <div class="k-fieldrow"><span class="k-legend">Size <span class="k-tertiary">-- Size: degree</span></span>
-          <div class="k-fields"><span class="k-field k-span"><span class="k-pill"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#circle-dot"/></svg>degree</span></span></div></div>
-      </section>
-      <section class="k-section">
-        <div class="k-section-head">Attributes</div>
-        <div class="k-data"><span class="k-name">group</span><span class="k-value">4</span></div>
-        <div class="k-data"><span class="k-name">degree</span><span class="k-value k-num">11<span class="k-full">16 in the full graph</span></span></div>
-      </section>
-      <section class="k-section" data-empty><div class="k-section-head">Memberships</div><div class="k-row k-secondary">In no sets</div></section>
-    </div>
-
     <!-- 3: Marius, outside the filter: an out-of-scope selection -->
     <div class="k-typerow" data-on="3"><svg class="k-i"><use href="../kit/icons.svg#circle-dot"/></svg><span class="k-name k-id">Marius</span><span class="k-grow"></span><span class="k-btn k-btn-secondary" title="Opens the rule editor of &quot;Filter out group 8&quot;">Edit step...</span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
     <div class="i-state" data-on="3"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span>Filtered out by "Filter out group 8". Not drawn and not in any count.</span></div>
-    <div class="k-scroll" data-on="3">
+    <div class="k-scroll" data-on="3" data-set="filtered graph">
       <section class="k-section">
         <div class="k-section-head">Attributes</div>
         <div class="k-data"><span class="k-name">group</span><span class="k-value"><span class="k-chit" style="background:#56B4E9"></span> 8</span></div>
-        <div class="k-data"><span class="k-name">degree</span><span class="k-value k-num"><span class="k-secondary">--</span><span class="k-full">19 in the full graph</span></span></div>
+        <div class="k-data"><span class="k-name">degree</span><span class="k-value k-num"><span class="k-secondary">--</span><span class="k-full"><span data-fx="datasets.lesmis.rows.55.degree" data-fx-set="full graph" data-fx-msg="graphty.inspector.attribute">19, on: full graph</span></span></span></div>
       </section>
       <section class="k-section" data-empty><div class="k-section-head">Memberships</div><div class="k-row k-secondary">In no sets</div></section>
     </div>
@@ -578,9 +561,9 @@
       </section>
     </div>
 
-    <!-- 1, 4, 5, 6, 8, 9, 12: nothing selected: the graph -->
-    <div class="k-typerow" data-on="1 4 5 6 8 9 12 15"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
-    <div class="k-scroll" data-on="1 4 5 6 8 9 12 15">
+    <!-- 1, 2, 4, 5, 6, 8, 9, 12, 15: nothing selected: the graph (in 2 the walk is on Thenardier, who is not selected) -->
+    <div class="k-typerow" data-on="1 2 4 5 6 8 9 12 15"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name">Co-appearances</span><span class="k-secondary">Graph</span></div>
+    <div class="k-scroll" data-on="1 2 4 5 6 8 9 12 15">
       <section class="k-section">
         <div class="k-section-head">Statistics <span class="k-count">&nbsp;Filtered graph</span></div>
         <div class="k-metrics">
@@ -622,8 +605,8 @@
 <div class="an k-annot-note" data-on="2" style="left:320px;top:100px"><b>1 Result header, as Figma's.</b> The count and what it counted: "in all <span data-fx="datasets.lesmis.nodes" data-fx-noun="nodes">77 nodes</span>" says Find looks past the filter -- information-architecture 7, Scope. Previous and Next are the Next finding and Previous finding commands -- interaction-patterns 3.1. <b>Text</b>, two <b>ActionIcon</b>s. No scope select: this project holds one graph (proposed).</div>
 <span class="an k-annot-box" data-on="2" style="left:57px;top:152px;width:241px;height:132px"></span>
 <div class="an k-annot-note" data-on="2" style="left:320px;top:250px"><b>2 Hits by kind, ranked.</b> Exact, then prefix (Thenardier), then substring (Mme.Thenardier) -- information-architecture 7. <b>ResultRow</b>. Second line: the group, then what the size layer reads (proposed). <b>Blocked:</b> ranking and every hit but an exact id wait on graphty-element (interface-specification 7.4, the search row); today only an exact id is found.</div>
-<div class="an k-annot-note" data-on="2" style="left:960px;top:150px;max-width:220px"><b>3 The committed hit is brought into view.</b> At 100% Thenardier's label was culled in the densest cluster, so the camera zooms to 200% about him and the freed labels draw -- interaction-patterns 3.1, the camera. The zoom control reads 200%.</div>
-<div class="an k-annot-note" data-on="2" style="left:960px;top:420px;max-width:220px"><b>4 Numbers name their graph.</b> Degree is a live reading on the filtered graph (11); the full-graph value sits beside it (16) -- conceptual-model 3; principles, "Live readings follow the chip". The table shows both columns.</div>
+<div class="an k-annot-note" data-on="2" style="left:960px;top:150px;max-width:220px"><b>3 Enter goes to the hit and selects nothing.</b> The keyboard walk's focus moves to Thenardier (the three-band focus mark, no selection ring), as "Go to" does in Quick actions. The inspector stays on the graph and no table row is selected. Enter again selects him (the key hint now says Select); Esc closes Find, and Shift+Arrow on the drawing walks on from him. A hit that is not drawn (state 3, state 7) is selected at once, since the walk cannot reach it.</div>
+<div class="an k-annot-note" data-on="2" style="left:960px;top:470px;max-width:220px"><b>4 The hit is brought into view.</b> At 100% Thenardier's label was culled in the densest cluster, so the camera zooms to 200% about him and the freed labels draw -- interaction-patterns 3.1, the camera. The zoom control reads 200%. The table shows his degree on the filtered graph (11) beside the full graph's (16).</div>
 
 <!-- State 3 -->
 <span class="an k-annot-box" data-on="3" style="left:57px;top:152px;width:241px;height:744px"></span>
@@ -681,7 +664,7 @@
 
 <!-- State 7 -->
 <span class="an k-annot-box" data-on="7" style="left:57px;top:64px;width:241px;height:88px"></span>
-<div class="an k-annot-note" data-on="7" style="left:320px;top:150px"><b>1 Past the drawing limit, Find leads</b> and opens the table -- information-architecture 7, "Findability by graph size"; state-matrix 4.2. A pasted list of ids is one query; an exact id is the one hit that ships today. Committing selects the patent; it is announced as not drawn -- interaction-patterns 3.1.</div>
+<div class="an k-annot-note" data-on="7" style="left:320px;top:150px"><b>1 Past the drawing limit, Find leads</b> and opens the table -- information-architecture 7, "Findability by graph size"; state-matrix 4.2. A pasted list of ids is one query; an exact id is the one hit that ships today. Enter selects the patent at once, because a node that is not drawn cannot take the walk's focus; it is announced as not drawn -- interaction-patterns 3.1.</div>
 <div class="an k-annot-note" data-on="7" style="left:320px;top:330px"><b>2 No layer paints, so the second line names the first category attribute</b> (proposed rule).</div>
 <div class="an k-annot-note" data-on="7" style="left:930px;top:150px;max-width:250px"><b>3 Counted, not drawn.</b> The inspector says so in one line; Path and Note are off because they act on drawn nodes.</div>
 

@@ -7,7 +7,7 @@ Screens, in the order she met them: screens/navigation (the app at rest and its 
 menu), screens/styles-list (the style stack and its Look menu), screens/colour-by-value (a
 signed column as colour), screens/export-dialog (figure, figure in the Print look), and
 flows/export (the whole route, read at the end).
-Renders she looked at: shots/r4-emma-reviewer-nav-new.png, r4-emma-reviewer-nav-new-menu.png,
+Renders she looked at: shots/record/r4-emma-reviewer-nav-new.png, r4-emma-reviewer-nav-new-menu.png,
 r4-emma-reviewer-styles.png, r4-emma-reviewer-styles-looks.png, r4-emma-reviewer-cbv-numbers.png,
 r4-emma-reviewer-export-figure.png, r4-emma-reviewer-export-figure-grey.png, flows__export.png.
 

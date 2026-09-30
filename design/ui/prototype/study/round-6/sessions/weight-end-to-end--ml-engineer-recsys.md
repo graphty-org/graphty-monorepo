@@ -5,7 +5,7 @@
 accounts and the most central accounts, and tell me what each answer used."
 **Screens:** frame-at-rest, sets-and-paths, run-and-read, weight-role-trap, results-panel,
 table-dock, at 1440 x 900, as a participant sees them (design notes hidden).
-**Renders looked at:** shots/r6-chris-we2e-frame-at-rest.png, r6-chris-we2e-sets-and-paths.png and
+**Renders looked at:** shots/record/r6-chris-we2e-frame-at-rest.png, r6-chris-we2e-sets-and-paths.png and
 its -s3, -s4, -s5 steps, r6-chris-we2e-wrt-a2 to -a6.png (weight-role-trap), r6-chris-we2e-rr-money.png,
 r6-chris-we2e-rr-money-read.png, r6-chris-we2e-rp-finished.png, r6-chris-we2e-table-dock.png.
 

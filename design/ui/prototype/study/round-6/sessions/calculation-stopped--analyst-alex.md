@@ -10,23 +10,23 @@ Decide what you can still trust on the screen, and get a result you can use."
 Screens seen, in order, as a participant sees them (design notes hidden). All were rendered fresh
 for this session:
 
-- `shots/screens__gpu-lost-run-d1--study.png` to `-d6--study.png` -- the patent citation graph: a
+- `shots/record/screens__gpu-lost-run-d1--study.png` to `-d6--study.png` -- the patent citation graph: a
   PageRank re-run in progress, the run failing, the Results list after the failure, a betweenness
   run refused, a sampled run in progress, the sampled run canceled, the sampled run's settings
-- `shots/screens__results-panel-failed--study.png`, `screens__results-panel-failed-run--study.png`
+- `shots/record/screens__results-panel-failed--study.png`, `screens__results-panel-failed-run--study.png`
   -- the same kind of failure drawn in the Results panel, list and opened
-- `shots/screens__results-panel-refused--study.png`,
+- `shots/record/screens__results-panel-refused--study.png`,
   `screens__results-panel-finished-sampled--study.png` -- a refused exact betweenness, and a
   finished sampled one with its run record open
-- `shots/screens__results-panel-cpu-path--study.png` -- a finished run on a small graph with no
+- `shots/record/screens__results-panel-cpu-path--study.png` -- a finished run on a small graph with no
   WebGPU (glanced at)
-- `shots/screens__notices-errors-device-lost--study.png`,
+- `shots/record/screens__notices-errors-device-lost--study.png`,
   `screens__notices-errors-device-lost-later--study.png` -- a failure notice on another graph, and
   the same screen after the notice has gone
-- `shots/screens__option-form-cost-over-budget--study.png`,
+- `shots/record/screens__option-form-cost-over-budget--study.png`,
   `screens__option-form-cost-sample-over-budget--study.png` -- the cost choices shown as a pop-up
   over the canvas
-- `shots/r6-alex-stopped-storyboard.png` -- the storyboard page, which renders as a blank white
+- `shots/record/r6-alex-stopped-storyboard.png` -- the storyboard page, which renders as a blank white
   page in the participant view
 
 ---

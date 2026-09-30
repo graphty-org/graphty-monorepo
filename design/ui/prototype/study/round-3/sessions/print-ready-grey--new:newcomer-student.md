@@ -18,7 +18,7 @@ step. She knows "fold change", "up-regulated", "down-regulated" and "log2" from 
 know "diverging", "sequential" or "domain". She is on a 13-inch laptop, patient for about ten
 minutes, and blames herself first. She did this same task on an earlier version of these screens.
 
-Renders she looked at: `shots/r3-leah-grey-styles-list-html-result.png`,
+Renders she looked at: `shots/record/r3-leah-grey-styles-list-html-result.png`,
 `-colour-by-value-html-choose.png`, `-colour-by-value-html-numbers.png`,
 `-styles-list-html-top-n.png`, `-styles-list-html-looks.png`, `-export-dialog-html-figure.png`,
 `-export-dialog-html-figure-print.png`, `-export-dialog-html-figure-signed.png`.

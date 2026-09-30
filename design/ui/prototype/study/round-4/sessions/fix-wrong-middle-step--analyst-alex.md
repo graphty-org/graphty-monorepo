@@ -12,14 +12,14 @@ recovery walkthrough on a different set of three steps (filter out Valjean, larg
 filter out Javert).
 
 Renders the participant looked at (all in the participant view):
-- `../../../shots/r4-alex-fixmid-filter-chip.png`, `../../../shots/r4-alex-fixmid-fc-three.png`
-- `../../../shots/r4-alex-fixmid-fc-edit.png` (the step editor)
-- `../../../shots/r4-alex-fixmid-fc-editing.png`, `../../../shots/r4-alex-fixmid-fc-edited.png`
+- `../../../shots/record/r4-alex-fixmid-filter-chip.png`, `../../../shots/record/r4-alex-fixmid-fc-three.png`
+- `../../../shots/record/r4-alex-fixmid-fc-edit.png` (the step editor)
+- `../../../shots/record/r4-alex-fixmid-fc-editing.png`, `../../../shots/record/r4-alex-fixmid-fc-edited.png`
   (the middle step changed from 5 to 3, driven on the live mock)
-- `../../../shots/r4-alex-fixmid-undo-s3.png`, `-undo-s2.png`, `-undo-list.png`, `-undo-s1.png`,
+- `../../../shots/record/r4-alex-fixmid-undo-s3.png`, `-undo-s2.png`, `-undo-list.png`, `-undo-s1.png`,
   `-undo-off.png`, `-undo-fix.png`
-- `../../../shots/r4-alex-fixmid-recovery.png` (the whole recovery page, seven frames)
-- `../../../shots/r4-alex-fixmid-fc-after-removal.png`
+- `../../../shots/record/r4-alex-fixmid-recovery.png` (the whole recovery page, seven frames)
+- `../../../shots/record/r4-alex-fixmid-fc-after-removal.png`
 
 ## Think-aloud
 

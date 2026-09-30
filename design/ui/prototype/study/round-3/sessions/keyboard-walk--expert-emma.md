@@ -21,7 +21,7 @@ the product, ignore it. Next Tab -- 'Skip to the graph drawing. F6 moves between
 That is the first thing I would want, and it names F6, which is the key I would have guessed
 anyway. Enter."
 
-**Canvas focused.** (shots/r3-emma-keyboard-canvas-focused.png)
+**Canvas focused.** (shots/record/r3-emma-keyboard-canvas-focused.png)
 
 "Blue border round the drawing, so it has focus. And a little card sitting over the bottom:
 'Start: TP53, the walk starts here, nothing selected. Degree 32, rank 2 of 300. Neighbors by
@@ -44,7 +44,7 @@ selects. Esc ends the walk, Tab to the table. 'graphty-element's default keys. R
 "That is actually a decent sheet. Short, grouped, and it says what order means. I can learn this
 in one read. Read-only is fine; I do not rebind keys in a tool I use twice a month. Esc."
 
-**Shift+Down: the first step.** (shots/r3-emma-keyboard-first-step.png)
+**Shift+Down: the first step.** (shots/record/r3-emma-keyboard-first-step.png)
 
 "Shift+Down. It went to PALB2. 'PALB2, 1 of 32 from TP53. Weight 0.98. Degree 5, rank 247 of
 300.' Degree 5 -- that is obviously not the best-connected one. Ah, the order is 'Weight', it is
@@ -54,7 +54,7 @@ most. But it is not what I asked for."
 
 "I do not want to press Shift+Right thirty-one times. The card says O. O."
 
-**O: neighbours by degree.** (shots/r3-emma-keyboard-by-degree.png)
+**O: neighbours by degree.** (shots/record/r3-emma-keyboard-by-degree.png)
 
 "'Neighbors by degree, highest first. UBC, neighbor 1 of 32 of TP53, weight 0.80, degree 21,
 rank 7 of 300.' The Degree segment is now the highlighted one. Ring moved to UBC on the left.
@@ -75,7 +75,7 @@ nothing has been run, and the tool is right not to make one up."
 filtered view that is the first thing I would want written out: degree in the whole graph, or in
 what I am looking at. Those differ a lot for UBC, as I am about to find out."
 
-**Enter: checking it in the inspector.** (shots/r3-emma-keyboard-inspector-visit.png)
+**Enter: checking it in the inspector.** (shots/record/r3-emma-keyboard-inspector-visit.png)
 
 "Enter, to see if the inspector agrees. Right panel: 'UBC, not selected, Node.' Attributes:
 module Unassigned, degree 21, '#7 of 300'. Same number. Good, consistent. It did not select it,
@@ -86,7 +86,7 @@ edge I came in on. For a hub node I would want strength next to degree. Esc."
 
 "Esc put me back on UBC in the walk, '1 of 32'. It did not throw away where I was. Good."
 
-**Shift+Down into UBC's neighbours.** (shots/r3-emma-keyboard-back-at-hub.png)
+**Shift+Down into UBC's neighbours.** (shots/record/r3-emma-keyboard-back-at-hub.png)
 
 "Shift+Down. ... The ring jumped back to the middle. 'TP53, 1 of 3 from UBC, in filtered graph.'
 Of course -- sorted by degree, UBC's best-connected neighbour is TP53, where I just came from."
@@ -108,7 +108,7 @@ except that the ring is visibly on the big node in the centre again."
 
 "Space again. 'TP53 removed. Nothing selected on canvas.' Fine, toggle works. Shift+Right."
 
-**Picking two real neighbours.** (shots/r3-emma-keyboard-two-selected.png)
+**Picking two real neighbours.** (shots/record/r3-emma-keyboard-two-selected.png)
 
 "'NDUFS7, 2 of 3, weight 0.73, degree 9.' Space. 'NDUFS7 added. 1 selected.' Shift+Right.
 'RPL14, 3 of 3, weight 0.79, degree 7.' Space. '2 selected on canvas.' Right panel says 2

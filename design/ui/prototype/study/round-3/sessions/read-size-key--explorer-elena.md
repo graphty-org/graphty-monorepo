@@ -4,7 +4,7 @@
 `study/personas/explorer-elena.md`).
 **Task as given by the moderator:** "You added sizing to the drawing. Say what a bigger dot means."
 **Screens:** the main window at rest with size added (`screens/frame-at-rest.html#s9`, render
-`shots/screens__frame-at-rest-s9.png`), then the styles list on the protein study
+`shots/record/screens__frame-at-rest-s9.png`), then the styles list on the protein study
 (`screens/styles-list.html`, render `shots/screens__styles-list-meanings.png`).
 **Outcome:** success, quickly, on the first screen. A wording mismatch on the second screen shook
 her confidence a little.

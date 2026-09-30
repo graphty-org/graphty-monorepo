@@ -10,7 +10,7 @@ Screens, in the order she met them: the filter chip with its steps panel
 (`screens/filter-chip.html`, the "Three steps" state it opens in, then "One step off"), the
 frame at rest with nothing filtered (`screens/frame-at-rest.html`), and the Results panel with
 a filter on (`screens/results-panel.html`, "Results after a filter", rendered to
-`shots/r2-ke-rp-filtered.png`).
+`shots/record/r2-ke-rp-filtered.png`).
 
 Outcome: success. SEQ 6 of 7.
 

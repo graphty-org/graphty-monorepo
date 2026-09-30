@@ -9,7 +9,7 @@ Decide what you can still trust on the screen, and get a result you can use."
 
 Screens seen, as a participant sees them (design notes hidden), in the order she met them:
 
-- screens/gpu-lost-run.html, states d1 to d6 (shots/r6-chen-stop-gpu-d1.png ... -d6.png)
+- screens/gpu-lost-run.html, states d1 to d6 (shots/record/r6-chen-stop-gpu-d1.png ... -d6.png)
 - screens/results-panel.html, states failed, failed-run, refused, finished-sampled, cpu-path,
   in-the-table (shots/r6-chen-stop-results-panel-*.png)
 - screens/notices-errors.html, states device-lost and device-lost-later

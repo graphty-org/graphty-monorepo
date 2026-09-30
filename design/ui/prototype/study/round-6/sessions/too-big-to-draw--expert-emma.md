@@ -12,17 +12,17 @@ Screens she saw, in the study view (design notes hidden), in this order:
 
 | Step | Screen | Render |
 |---|---|---|
-| 1 | Opened, nothing drawn | [shot](../../../shots/r6-emma-tbd-not-drawn.png) |
-| 2 | Isolates count clicked | [shot](../../../shots/r6-emma-tbd-isolates.png) |
-| 3 | "Narrow the graph..." list | [shot](../../../shots/r6-emma-tbd-narrow.png) |
-| 4 | Keep top rows, 200 typed | [shot](../../../shots/r6-emma-tbd-keep.png) |
-| 5 | The 200 kept and drawn | [shot](../../../shots/r6-emma-tbd-kept.png) |
-| 6 | Undo, then a new rule | [shot](../../../shots/r6-emma-tbd-rule.png) |
-| 7 | Rule applied, 612 drawn | [shot](../../../shots/r6-emma-tbd-drawn.png) |
-| 8 | Top 3 and their neighbors, two steps | [shot](../../../shots/r6-emma-tbd-sample.png) |
-| 9 | Find, three patent numbers pasted | [shot](../../../shots/r6-emma-tbd-find-s7.png) |
-| 10 | The table with the rule kept as a set | [shot](../../../shots/r6-emma-tbd-table-dock-limit.png) |
-| 11 | The large-selection screen | [shot](../../../shots/r6-emma-tbd-selection-over-cap.png) |
+| 1 | Opened, nothing drawn | [shot](../../../shots/record/r6-emma-tbd-not-drawn.png) |
+| 2 | Isolates count clicked | [shot](../../../shots/record/r6-emma-tbd-isolates.png) |
+| 3 | "Narrow the graph..." list | [shot](../../../shots/record/r6-emma-tbd-narrow.png) |
+| 4 | Keep top rows, 200 typed | [shot](../../../shots/record/r6-emma-tbd-keep.png) |
+| 5 | The 200 kept and drawn | [shot](../../../shots/record/r6-emma-tbd-kept.png) |
+| 6 | Undo, then a new rule | [shot](../../../shots/record/r6-emma-tbd-rule.png) |
+| 7 | Rule applied, 612 drawn | [shot](../../../shots/record/r6-emma-tbd-drawn.png) |
+| 8 | Top 3 and their neighbors, two steps | [shot](../../../shots/record/r6-emma-tbd-sample.png) |
+| 9 | Find, three patent numbers pasted | [shot](../../../shots/record/r6-emma-tbd-find-s7.png) |
+| 10 | The table with the rule kept as a set | [shot](../../../shots/record/r6-emma-tbd-table-dock-limit.png) |
+| 11 | The large-selection screen | [shot](../../../shots/record/r6-emma-tbd-selection-over-cap.png) |
 
 Outcome: success, with difficulty. She came away with four things worth a look. She again lost
 time on why the most-cited patent has 779 citations in the table and at most 236 in the chart.

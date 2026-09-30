@@ -17,12 +17,12 @@ citations); Find (screens/find.html: a node found past the drawing limit); the s
 drawing cap (screens/selection-over-cap.html, on transfers). Viewed at 1440 x 900 in the study
 view (design notes hidden).
 
-**Renders he saw:** shots/r6-chris-t200-past-drawing-limit-not-drawn.png, -narrow.png, -keep.png,
--kept.png, -rule.png, -drawn.png, -sample.png; shots/r6-chris-t200-results-panel-quick-actions.png,
+**Renders he saw:** shots/record/r6-chris-t200-past-drawing-limit-not-drawn.png, -narrow.png, -keep.png,
+-kept.png, -rule.png, -drawn.png, -sample.png; shots/record/r6-chris-t200-results-panel-quick-actions.png,
 -catalog.png, -refused.png, -finished-sampled.png, -in-the-table.png;
-shots/r6-chris-t200-option-form-cost-over-budget.png, -within-budget.png, -sample-over-budget.png;
-shots/r6-chris-t200-table-dock-ranked.png, -limit.png; shots/r6-chris-t200-find-s7.png, -s14.png;
-shots/r6-chris-t200-selection-over-cap-e1.png, -e2.png, -e3.png.
+shots/record/r6-chris-t200-option-form-cost-over-budget.png, -within-budget.png, -sample-over-budget.png;
+shots/record/r6-chris-t200-table-dock-ranked.png, -limit.png; shots/record/r6-chris-t200-find-s7.png, -s14.png;
+shots/record/r6-chris-t200-selection-over-cap-e1.png, -e2.png, -e3.png.
 
 **What no screen shows:** betweenness run on the citation graph and then open in the table
 sorted by it, and Keep top rows with a betweenness column chosen. Both steps were inferred from

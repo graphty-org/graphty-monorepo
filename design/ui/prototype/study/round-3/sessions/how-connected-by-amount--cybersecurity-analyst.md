@@ -9,22 +9,22 @@ they are connected, weighted by amount, and get the transfers with amounts and d
 Screens, in the order she met them (all rendered dark, study view, 1440 by 900):
 
 1. `screens/inspector.html#two` -- two nodes selected, Paths between... open
-   (`shots/r3-priya-howconn-inspector-two.png`; drawn on the protein graph, TP53 and SMAD3)
+   (`shots/record/r3-priya-howconn-inspector-two.png`; drawn on the protein graph, TP53 and SMAD3)
 2. `screens/inspector.html#path-to`, `#path`, `#kept-path` -- the one-node Path to... bar, a found
-   path and the kept path (`shots/r3-priya-howconn-inspector-path-to.png`, `-path.png`,
+   path and the kept path (`shots/record/r3-priya-howconn-inspector-path-to.png`, `-path.png`,
    `-kept-path.png`; also proteins)
 3. `screens/sets-and-paths.html#s3` -- the path bar on March transfers, From outside the filter
-   (`shots/r3-priya-howconn-sap-s3.png`)
+   (`shots/record/r3-priya-howconn-sap-s3.png`)
 4. `screens/sets-and-paths.html#s6` -- "No directed path; one exists ignoring direction"
-   (`shots/r3-priya-howconn-sap-s6.png`)
+   (`shots/record/r3-priya-howconn-sap-s6.png`)
 5. `screens/sets-and-paths.html#s4` -- the found path, unweighted, with the Edges tab in path
-   order (`shots/r3-priya-howconn-sap-s4.png`)
+   order (`shots/record/r3-priya-howconn-sap-s4.png`)
 6. `screens/sets-and-paths.html#s5` -- "amount: what it means"
-   (`shots/r3-priya-howconn-sap-s5.png`)
+   (`shots/record/r3-priya-howconn-sap-s5.png`)
 7. `screens/table-dock.html#out` -- the two equal paths as edge rows with timestamp, hop and
-   amount, and the Export table as CSV dialog (`shots/r3-priya-howconn-td-out.png`)
+   amount, and the Export table as CSV dialog (`shots/record/r3-priya-howconn-td-out.png`)
 8. `screens/table-dock.html#selected` -- the table header with "Export table as CSV..."
-   (`shots/r3-priya-howconn-td-selected.png`)
+   (`shots/record/r3-priya-howconn-td-selected.png`)
 
 ## Transcript
 

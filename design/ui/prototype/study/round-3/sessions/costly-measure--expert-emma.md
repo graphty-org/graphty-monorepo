@@ -12,7 +12,7 @@ patent-citation states), the Results panel's refused and finished-sampled states
 
 **Renders she saw:** shots/option-form-cost-over-budget.png, shots/option-form-cost-within-budget.png,
 shots/option-form-cost-sample-over-budget.png, shots/screens__results-panel--refused.png,
-shots/r3-emma-costly-rp-sampled.png, shots/r3-emma-costly-past-limit.png.
+shots/record/r3-emma-costly-rp-sampled.png, shots/record/r3-emma-costly-past-limit.png.
 
 ---
 

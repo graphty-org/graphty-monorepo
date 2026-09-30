@@ -28,8 +28,8 @@ driven by keyboard only; the steps list its line opens (the filter chip's own li
 `screens/filter-chip.html` and `screens/filter-steps-and-undo.html`).
 
 Renders looked at by the moderator (Morgan had the screen curtain on):
-- `../../../shots/screens__undo-notice.png` (the start: "Selection cleared (18 nodes)", Bring it back, 27 of 77, 3 steps)
-- `../../../shots/round-6-fc-undo-restore.png` and `../../../shots/screens__undo-restore.png` (after the first Ctrl+Z)
+- `../../../shots/record/screens__undo-notice.png` (the start: "Selection cleared (18 nodes)", Bring it back, 27 of 77, 3 steps)
+- `../../../shots/record/round-6-fc-undo-restore.png` and `../../../shots/screens__undo-restore.png` (after the first Ctrl+Z)
 - `../../../shots/screens__undo-list.png` (the steps list opened from the line after one Undo)
 - `../../../shots/flows__undo-and-ways-back.png`
 

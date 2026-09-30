@@ -10,8 +10,8 @@ new tool about five minutes, reads labels and error text word for word, skims ev
 **Screens used, as the participant saw them (design notes hidden):** the take-a-note screen (the
 "March transfers" project with a 14-account set called "Mule ring"), the notes panel (shown on a
 second project, "Human protein interactions", because the panel mock uses that data), and the
-take-a-note flow page. Renders: shots/r4-marcus-remember-take-s1.png to -s8.png,
-shots/r4-marcus-remember-notes-s1.png to -s10.png.
+take-a-note flow page. Renders: shots/record/r4-marcus-remember-take-s1.png to -s8.png,
+shots/record/r4-marcus-remember-notes-s1.png to -s10.png.
 
 **Outcome:** done, with one wrong turn and one half-posted note. **Single Ease Question:** 4 of 7.
 **Would he use it instead of his current tool:** no, not instead; maybe beside it.

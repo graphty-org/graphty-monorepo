@@ -13,15 +13,15 @@ can read it, even printed in grey."
    (`shots/tasks/figure-for-reviewer/01-styles-list.png`).
 2. A new style layer, the colour picker open on "From the data"
    (`shots/tasks/figure-for-reviewer/02-colour-by-value.png`), then the layer after she picked
-   log2FoldChange (`shots/r3-jordan-fig-screens_colour-by-value_html_numbers.png`).
+   log2FoldChange (`shots/record/r3-jordan-fig-screens_colour-by-value_html_numbers.png`).
 3. Back in the styles list: the fold change size layer, covered by degree size
-   (`shots/r3-jordan-fig-styles-covered.png`); the hub labels layer
-   (`shots/r3-jordan-fig-styles-top-n.png`); the Look menu (`shots/r3-jordan-fig-styles-looks.png`).
+   (`shots/record/r3-jordan-fig-styles-covered.png`); the hub labels layer
+   (`shots/record/r3-jordan-fig-styles-top-n.png`); the Look menu (`shots/record/r3-jordan-fig-styles-looks.png`).
 4. The export dialog, Screen look with the grey warning
    (`shots/tasks/figure-for-reviewer/03-export-dialog-figure.png`, `04-...-figure-grey.png`), after
-   "Use Print look" (`shots/r3-jordan-fig-screens_export-dialog_html_figure-print.png`), and the
+   "Use Print look" (`shots/record/r3-jordan-fig-screens_export-dialog_html_figure-print.png`), and the
    same dialog with her fold change layer in the Print look
-   (`shots/r3-jordan-fig-screens_export-dialog_html_figure-signed.png`).
+   (`shots/record/r3-jordan-fig-screens_export-dialog_html_figure-signed.png`).
 
 **Outcome:** finished with difficulty. She got a figure with the key built in and a grey check,
 which she liked a lot. But in the grey version the genes that went DOWN the most came out the

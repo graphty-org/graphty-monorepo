@@ -21,15 +21,15 @@ neighbors sample (past-drawing-limit, keep, kept, sample); the table with a set 
 (screens/find.html, state 7); Bring in its links (find, state 14); select all past the cap
 (screens/selection-over-cap.html, E1 and E2).
 
-**Renders she saw:** shots/r6-priya-top200-pdl-not-drawn.png, shots/r6-priya-top200-pdl-narrow.png,
-shots/r6-priya-top200-rp-quick-actions.png, shots/r6-priya-top200-rp-catalog.png,
-shots/r6-priya-top200-ofc-over-budget.png, shots/r6-priya-top200-ofc-sample-over-budget.png,
-shots/r6-priya-top200-rp-refused.png, shots/r6-priya-top200-rp-running.png,
-shots/r6-priya-top200-rp-finished-sampled.png, shots/r6-priya-top200-rp-in-the-table.png,
-shots/r6-priya-top200-pdl-keep.png, shots/r6-priya-top200-pdl-kept.png,
-shots/r6-priya-top200-pdl-sample.png, shots/r6-priya-top200-td-limit.png,
-shots/r6-priya-top200-find-s7.png, shots/r6-priya-top200-find-s14.png,
-shots/r6-priya-top200-soc-e1.png, shots/r6-priya-top200-soc-e2.png.
+**Renders she saw:** shots/record/r6-priya-top200-pdl-not-drawn.png, shots/record/r6-priya-top200-pdl-narrow.png,
+shots/record/r6-priya-top200-rp-quick-actions.png, shots/record/r6-priya-top200-rp-catalog.png,
+shots/record/r6-priya-top200-ofc-over-budget.png, shots/record/r6-priya-top200-ofc-sample-over-budget.png,
+shots/record/r6-priya-top200-rp-refused.png, shots/record/r6-priya-top200-rp-running.png,
+shots/record/r6-priya-top200-rp-finished-sampled.png, shots/record/r6-priya-top200-rp-in-the-table.png,
+shots/record/r6-priya-top200-pdl-keep.png, shots/record/r6-priya-top200-pdl-kept.png,
+shots/record/r6-priya-top200-pdl-sample.png, shots/record/r6-priya-top200-td-limit.png,
+shots/record/r6-priya-top200-find-s7.png, shots/record/r6-priya-top200-find-s14.png,
+shots/record/r6-priya-top200-soc-e1.png, shots/record/r6-priya-top200-soc-e2.png.
 
 ---
 

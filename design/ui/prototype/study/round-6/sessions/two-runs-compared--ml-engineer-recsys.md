@@ -11,21 +11,21 @@ gave it 4 of 7; across all participants it averaged 3.83.
 
 | What | Render |
 |---|---|
-| Navigation, every frame (Les Miserables: at rest, main menu, Results list, Betweenness opened, Data) | `shots/chris-r6-tworuns-navigation.png` |
-| Results panel, every state | `shots/chris-r6-tworuns-results-panel.png` |
-| Results panel: a second run going, Run 1 kept | `shots/chris-r6-tworuns-rp-running.png` |
-| Results panel: the running run opened, options popover | `shots/chris-r6-tworuns-rp-running-result.png` |
-| Results panel: a finished Betweenness | `shots/chris-r6-tworuns-rp-finished.png` |
-| Results panel: "Compare with..." menu | `shots/chris-r6-tworuns-rp-compare-with.png` |
-| Results panel: Louvain with its run record open | `shots/chris-r6-tworuns-rp-louvain.png` |
-| Results panel: Les Miserables, Betweenness on a filtered graph, run record open | `shots/chris-r6-tworuns-rp-filtered.png` |
-| Results panel: out of date review | `shots/chris-r6-tworuns-rp-outofdate.png` |
-| Results panel: a node selected | `shots/chris-r6-tworuns-rp-node-selected.png` |
-| Comparison, every state (including "PageRank at damping 0.85 and 0.5") | `shots/chris-r6-tworuns-comparison.png` |
-| Table dock, every state | `shots/chris-r6-tworuns-table-dock.png` |
-| Table dock: three measures ranked | `shots/chris-r6-tworuns-td-ranked.png` |
-| Table dock: Les Miserables, a betweenness column out of date | `shots/chris-r6-tworuns-td-stale.png` |
-| Table dock: Export | `shots/chris-r6-tworuns-td-out.png` |
+| Navigation, every frame (Les Miserables: at rest, main menu, Results list, Betweenness opened, Data) | `shots/record/chris-r6-tworuns-navigation.png` |
+| Results panel, every state | `shots/record/chris-r6-tworuns-results-panel.png` |
+| Results panel: a second run going, Run 1 kept | `shots/record/chris-r6-tworuns-rp-running.png` |
+| Results panel: the running run opened, options popover | `shots/record/chris-r6-tworuns-rp-running-result.png` |
+| Results panel: a finished Betweenness | `shots/record/chris-r6-tworuns-rp-finished.png` |
+| Results panel: "Compare with..." menu | `shots/record/chris-r6-tworuns-rp-compare-with.png` |
+| Results panel: Louvain with its run record open | `shots/record/chris-r6-tworuns-rp-louvain.png` |
+| Results panel: Les Miserables, Betweenness on a filtered graph, run record open | `shots/record/chris-r6-tworuns-rp-filtered.png` |
+| Results panel: out of date review | `shots/record/chris-r6-tworuns-rp-outofdate.png` |
+| Results panel: a node selected | `shots/record/chris-r6-tworuns-rp-node-selected.png` |
+| Comparison, every state (including "PageRank at damping 0.85 and 0.5") | `shots/record/chris-r6-tworuns-comparison.png` |
+| Table dock, every state | `shots/record/chris-r6-tworuns-table-dock.png` |
+| Table dock: three measures ranked | `shots/record/chris-r6-tworuns-td-ranked.png` |
+| Table dock: Les Miserables, a betweenness column out of date | `shots/record/chris-r6-tworuns-td-stale.png` |
+| Table dock: Export | `shots/record/chris-r6-tworuns-td-out.png` |
 
 Moderator's note on the setup: the navigation page renders this round (last round it came up blank
 without a frame). Les Miserables is drawn in the navigation frames, in one results state (a filtered

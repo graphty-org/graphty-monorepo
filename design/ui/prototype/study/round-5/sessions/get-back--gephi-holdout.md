@@ -17,9 +17,9 @@ chip's steps list.
 Renders she looked at:
 - `../../../shots/tasks/get-back/01-undo.png` (the starting screen)
 - `../../../shots/screens__undo-s2--study.png` (after Cmd+Z: 40 of 77 nodes, "Undone: Filter out group 8")
-- `../../../shots/r4-mara-getback-editmenu.png` (main menu, Edit, Undo history, at that point)
+- `../../../shots/record/r4-mara-getback-editmenu.png` (main menu, Edit, Undo history, at that point)
 - `../../../shots/tasks/get-back/01-undo.png` again (after Redo: back to 27 of 77; same drawing)
-- `../../../shots/r4-mara-getback-s0.png` (after Previous selection: 18 nodes selected, inspector shows them)
+- `../../../shots/record/r4-mara-getback-s0.png` (after Previous selection: 18 nodes selected, inspector shows them)
 - `../../../shots/tasks/get-back/02-filter-chip.png` (the steps list, opened from the chip)
 
 ## Think-aloud

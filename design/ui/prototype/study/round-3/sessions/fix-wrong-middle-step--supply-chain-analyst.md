@@ -6,11 +6,11 @@ losing the third."
 **Screens used:** the undo and ways-back mock in its participant view (screens/undo.html#study),
 then the filter chip mock (screens/filter-chip.html). What she saw is recorded in these renders:
 
-- shots/r3-dana-fixmid-undo-start.png -- where she started
-- shots/r3-dana-fixmid-undo-pop.png -- the filter steps list opened from the chip
-- shots/r3-dana-fixmid-undo-off.png -- after she unticked the second step
-- shots/r3-dana-fixmid-chip-three.png -- the same list in the filter chip mock, with notes under a step
-- shots/r3-dana-fixmid-chip-edit.png -- the step editor she reached from a row's menu
+- shots/record/r3-dana-fixmid-undo-start.png -- where she started
+- shots/record/r3-dana-fixmid-undo-pop.png -- the filter steps list opened from the chip
+- shots/record/r3-dana-fixmid-undo-off.png -- after she unticked the second step
+- shots/record/r3-dana-fixmid-chip-three.png -- the same list in the filter chip mock, with notes under a step
+- shots/record/r3-dana-fixmid-chip-edit.png -- the step editor she reached from a row's menu
 
 **Outcome:** done, with hesitation. She turned the second step off; the third stayed on. She went
 looking for a way to change the step instead of switching it off, found it on the second screen,

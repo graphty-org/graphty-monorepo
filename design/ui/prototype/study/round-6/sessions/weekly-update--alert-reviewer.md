@@ -6,7 +6,7 @@ it, and explain why the number of groups changed."
 Screens used: weekly-return (steps 1-13), data-panel (Update with new data, Versions),
 version-history (What changed), replace-and-recipe (the replay report), comparison (March
 against April). Renders at 1536 x 740, the size of her browser window at 125 percent scaling:
-shots/r6-nadia-wu-weekly-return.png, -data-panel.png, -version-history.png,
+shots/record/r6-nadia-wu-weekly-return.png, -data-panel.png, -version-history.png,
 -replace-and-recipe.png, -comparison.png.
 
 ## Think-aloud

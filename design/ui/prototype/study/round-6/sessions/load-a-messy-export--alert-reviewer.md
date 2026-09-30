@@ -7,13 +7,13 @@ Participant: Nadia (persona: study/personas/alert-reviewer.md). Viewport 1536 by
 docked laptop at 125 percent scaling. Screens seen, in order, as the participant sees them (design
 notes hidden):
 
-1. shots/r6-nadia-lme-transfers-not-read.png -- the export as an Excel workbook, refused
-2. shots/r6-nadia-lme-transfers-ready.png -- the same export as CSV, two issues
-3. shots/r6-nadia-lme-transfers-amount-policy.png -- the amount issue's list opened
-4. shots/r6-nadia-lme-transfers-loaded.png and r6-nadia-lme-transfers-loaded-1440.png -- after Load
-5. shots/r6-nadia-lme-frame-at-rest.png -- the same project at rest, later
-6. shots/r6-nadia-lme-data-panel.png -- the Data panel
-7. shots/r6-nadia-lme-load-step.png -- the older version of the open dialog (for comparison only;
+1. shots/record/r6-nadia-lme-transfers-not-read.png -- the export as an Excel workbook, refused
+2. shots/record/r6-nadia-lme-transfers-ready.png -- the same export as CSV, two issues
+3. shots/record/r6-nadia-lme-transfers-amount-policy.png -- the amount issue's list opened
+4. shots/record/r6-nadia-lme-transfers-loaded.png and r6-nadia-lme-transfers-loaded-1440.png -- after Load
+5. shots/record/r6-nadia-lme-frame-at-rest.png -- the same project at rest, later
+6. shots/record/r6-nadia-lme-data-panel.png -- the Data panel
+7. shots/record/r6-nadia-lme-load-step.png -- the older version of the open dialog (for comparison only;
    the moderator asked her to look at it after the task)
 
 ## Think-aloud

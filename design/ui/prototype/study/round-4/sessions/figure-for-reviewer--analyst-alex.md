@@ -10,8 +10,8 @@ screens/styles-list (the Look menu, frame 17), screens/colour-by-value (numbers 
 screens/export-dialog (frames 1 to 7), flows/export. Viewed at 1440 x 900.
 **Outcome:** success, with difficulty. **Single Ease Question:** 5 of 7.
 
-Shots cited: `shots/r4-alex-grayfig-navigation.png` (the frame at rest),
-`shots/r4-alex-grayfig-print-gray-zoom.png` (the "Printed in gray" preview, enlarged 2x),
+Shots cited: `shots/record/r4-alex-grayfig-navigation.png` (the frame at rest),
+`shots/record/r4-alex-grayfig-print-gray-zoom.png` (the "Printed in gray" preview, enlarged 2x),
 `shots/screens__styles-list-looks.png` (the Look menu).
 
 ## Transcript (think-aloud)

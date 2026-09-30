@@ -161,7 +161,7 @@ const rail = `<nav class="k-rail" aria-label="Main">
 <div class="k-rail-btn k-asst-off" role="button" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>`;
 
 const left = (chip, open) => `<aside class="k-panel" aria-label="Graph"><div class="k-panel-head">
-<div class="k-title-line"><span class="k-project">Patent citations</span>${I("chevron-down", "k-i-sm k-secondary")}</div>
+<div class="k-title-line"><span class="k-project">Patent citations</span>${I("chevron-down", "k-i-sm k-secondary")}</div><a class="k-privacy">Nothing has been sent from this project</a>
 <span class="k-chip" role="button"${open ? ' aria-expanded="true"' : ""}>${I("funnel", "k-i-sm")}<span class="k-num">${chip}</span></span></div>
 <div class="k-scroll" tabindex="0"><section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn">${I("search")}</span><span class="k-icon-btn">${I("plus")}</span></div>
 <ul class="k-list" role="listbox" aria-label="Graphs"><li class="k-item" role="option" aria-selected="true">${I("network")}<span class="k-grow k-ellipsis">Citations</span><span class="k-trail k-num">${nk("datasets.citations.nodes")} nodes</span></li></ul></section>
@@ -310,6 +310,18 @@ const keepEditor = (at) => editor({
 <div class="p-cap">Row ${nf(T2, "n")} has ${SORT} ${T2.cutoff}; ${T2.tiedAtCutoff - T2.keptAtCutoff} more patent also has ${T2.cutoff} and is left out.</div>`,
   verdict: willDraw(T2),
 });
+// The same editor with the table sorted by a sampled run's column: the kept set is named exactly (the
+// column, the run and its seed), and the cut line says how many rows the run cannot tell from row N
+// (scenarios.pastLimitTop200.sampledCut, modeled in screens/past-drawing-limit-numbers.mjs).
+const SC = T2.sampledCut;
+const SCOL = SC.column;
+const keepSampledEditor = editor({
+  title: "Keep top rows", keep: false, label: `Keep these ${nf(T2, "n")} rows`,
+  body: `<div class="p-topn">Keep the first<span class="k-field k-num">${nf(T2, "n")}</span>rows</div>
+<div class="p-cap">In the table's order</div><div class="p-op" style="grid-template-columns:1fr 104px">${field(SCOL)}${field("Highest first")}</div>
+<div class="p-cap">Row ${nf(T2, "n")} has betweenness ~<span data-fx="${SC.__fx}.valueAtCut">${SC.valueAtCut}</span>. ${nf(SC, "within")} rows are within the error bound of row ${nf(T2, "n")} (&plusmn; <span data-fx="${SC.__fx}.errorBound">${SC.errorBound}</span>, rows ${SC.firstWithin} to ${nf(SC, "lastWithin")}): another run could keep a different ${nf(T2, "n")}.</div>`,
+  verdict: `<span class="k-strong">Keeps: the first ${nf(T2, "n")} rows by ${SC.column}, ${SC.run}, seed ${SC.seed}</span><span class="k-secondary">not the ${nf(T2, "n")} highest betweenness</span>`,
+});
 // Add their neighbors: a second step on what the step above keeps (here the top 3).
 const addNbrEditor = editor({
   title: "Add their neighbors", keep: false, label: "Add neighbors", scope: TOP,
@@ -413,6 +425,9 @@ const states = [
       [`Where the cut falls: row ${nf(T2, "n")}'s value, and how many rows with the same value it leaves out, so "the top ${nf(T2, "n")}" is never silently arbitrary at the boundary.`, `Framework: content-design.md, numbers (a count says what it counts); proposed in the same framework-changes.md entry. Built with: compact-mantine Text.`],
       [`The count line, before the commit: ${nk("scenarios.pastLimitTop200.nodes")} nodes and the ${nk("scenarios.pastLimitTop200.edges")} citations between them, and that they will draw. The commit names what it keeps; it is one ordinary, undoable Filter to step.`, `Framework: state-matrix.md 4.4 (a count names any capacity limit the result would cross); framework-changes.md, "the rule editor's count line". Built with: compact-mantine Text; Button.`],
     ],
+    insets: [
+      ["Sorted by a sampled run", `The same editor with the table sorted by an estimate: Betweenness (sampled), 101 sources. The kept set is named exactly -- the column, the run and its seed -- and the cut line states how many rows sit within the run's error bound of row ${nf(T2, "n")}, the bound the run record gives. Here that is nearly every row, so the step is honest that these ${nf(T2, "n")} are this run's order, not a firm top ${nf(T2, "n")}.`, keepSampledEditor],
+    ],
   },
   {
     id: "kept", title: "2c. The 200 most cited patents, kept and drawn",
@@ -423,7 +438,7 @@ const states = [
     right: right(true, layoutRow("Engine: WebGPU"), stats(T2, { edgesOf: true, sample: `Describes the ${nk("scenarios.pastLimitTop200.nodes")} most cited patents, not a random sample. Density reads high: highly cited patents cite each other.`, dd: T2.degreeDistribution, zeroMeans: "Cited by none of the other patents the step keeps." })),
     marks: box(66, 32, 232, 28) + mark(40, 36, 1) + mark(1190, 272, 2) + mark(420, 606, 3) + mark(330, 20, 4),
     notes: [
-      [`The chip reads Filtered, as for any step; the step's name in the list is "${KEEP}".`, `Framework: message-catalog.md filter.chip; interface-templates.md 7. Built with: compact-mantine Pill.`],
+      [`The chip reads Filtered, as for any step; the step's name in the list is "${KEEP}".`, `Framework: message-catalog.md graphty.filter.chip; interface-templates.md 7. Built with: compact-mantine Pill.`],
       [`What the step keeps, stated once at the top of Statistics, and the reading it inflates marked: density ${T2.density} here against ${C.stats.density.toFixed(7)} for the full graph.`, `Framework: state-matrix.md 4.2 (the caution travels with the step); framework-changes.md, "the table lists every row, and the offered steps are ...". Built with: compact-mantine ProseBlock, DataRow with a Badge.`],
       [`The list is the table: the ${nk("scenarios.pastLimitTop200.nodes")} rows in the order they were kept, the scope line naming how many of the ${nk("datasets.citations.nodes")}. Exporting the table writes exactly these rows.`, `Framework: interface-templates.md 16; output-homes.md (Export table). Built with: compact-mantine DataTable.`],
       [`Drawn because the kept rows fit the limit, gray at first paint, with arrows; the ten most cited are labeled where they fit.`, `Framework: scale-levels.md 2; canvas-drawing.md 1. Drawing: screens/img/pdl-top200, from screens/past-drawing-limit-numbers.mjs.`],
@@ -480,7 +495,7 @@ const states = [
     right: right(true, layoutRow("Engine: WebGPU"), stats(SA, { edgesOf: true, sample: `Describes the ${nf(SA, "n")} most cited patents and all their neighbors, not a random sample. It favors hubs, so density and clustering read high.`, dd: SA.degreeDistribution, ddKind: "total" })),
     marks: box(66, 32, 232, 28) + mark(40, 36, 1) + mark(1190, 272, 2) + mark(330, 20, 3),
     notes: [
-      [`Two ordinary filter steps, "${TOP}" and "Add their neighbors", so the chip reads "Filtered:" and counts 2 steps. Either can be turned off or undone alone, and each step's name says what it did.`, `Framework: state-matrix.md 4.2 ("Each is an ordinary, undoable Filter to step"); message-catalog.md filter.chip; framework-changes.md, "the table lists every row, and the offered steps are ..." (it withdraws "a sampled step names itself on the chip"). Built with: compact-mantine Pill.`],
+      [`Two ordinary filter steps, "${TOP}" and "Add their neighbors", so the chip reads "Filtered:" and counts 2 steps. Either can be turned off or undone alone, and each step's name says what it did.`, `Framework: state-matrix.md 4.2 ("Each is an ordinary, undoable Filter to step"); message-catalog.md graphty.filter.chip; framework-changes.md, "the table lists every row, and the offered steps are ..." (it withdraws "a sampled step names itself on the chip"). Built with: compact-mantine Pill.`],
       [`One line at the top of Statistics says what the step keeps and that it is not a random sample, and density, which it inflates, carries its own mark: ${SA.density.toFixed(5)} here against ${C.stats.density.toFixed(7)} for the full graph.`, `Framework: state-matrix.md 4.2 (the caution travels with the step); principles.md 1, "Scope is marked once". Built with: compact-mantine ProseBlock, DataRow with a Badge.`],
       [`The ${nf(SA, "n")} hubs and their neighbors, gray at first paint, with arrows; labels follow the budget. Most neighbors cite a hub; a few are cited by it.`, `Framework: scale-levels.md 2; canvas-drawing.md 1. Drawing: kit/canvas/citations-sample.`],
     ],

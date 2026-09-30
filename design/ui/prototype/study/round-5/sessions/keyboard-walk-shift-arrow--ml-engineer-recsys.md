@@ -16,7 +16,7 @@ Renders of what he saw, in order (`../../../shots/r4-chris-kwsa/`):
 `b01-find-javert-enter.png`, `b03-cmdf-javert.png`, `10-tp53.png`, `11-at-tp53.png`,
 `12-plain-right.png`, `13-shift-down.png`, `14-shift-right1.png`, `15-enter1.png`, `17-enter2.png`,
 `18-alt-enter.png`, `20-esc-end.png`, `21-keysheet.png`. Also glanced at
-`../../../shots/find--s1.png` and `../../../shots/storyboards__keyboard-only.png`.
+`../../../shots/record/find--s1.png` and `../../../shots/storyboards__keyboard-only.png`.
 
 ## Think-aloud
 

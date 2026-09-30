@@ -18,7 +18,7 @@ page `flows/undo-and-ways-back.html` was read afterwards by the moderator to che
 is meant to do.
 
 Renders looked at (for the moderator and a sighted reader; Morgan had the screen curtain on):
-- `../../../shots/screens__undo--study.png` (the start)
+- `../../../shots/record/screens__undo--study.png` (the start)
 - `../../../shots/screens__undo-s2.png` (after one Undo)
 - `../../../shots/screens__undo-s1.png` (after two Undos)
 - `../../../shots/screens__undo-list.png` (the steps list opened from the undo line)

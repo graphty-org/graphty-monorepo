@@ -10,9 +10,9 @@ August. Follow where it went next and tell me whether the order of the transfers
 Pages looked at, as a participant sees them (design notes hidden): the alert triage storyboard,
 the alert triage screens on the August transfers, the sets-and-paths flow, the sets-and-paths
 screen, the inspector screen and the table dock screen. Renders:
-shots/storyboards__alert-triage.png, shots/r4b-marcus-dated-alert-triage.png (every alert triage
+shots/storyboards__alert-triage.png, shots/record/r4b-marcus-dated-alert-triage.png (every alert triage
 state, one under the other), shots/flows__sets-and-paths.png, shots/screens__inspector-path.png,
-shots/r4b-marcus-dated-table.png.
+shots/record/r4b-marcus-dated-table.png.
 
 ## Think-aloud transcript
 

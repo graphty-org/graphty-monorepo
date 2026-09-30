@@ -26,7 +26,7 @@ key is meant to do.
 
 Renders looked at by the moderator (Morgan had the screen curtain on):
 - `../../../shots/screens__undo-notice-arm.png` (the start: "Selection cleared (18 nodes)" with Bring it back)
-- `../../../shots/round-6-fc-undo-notice.png`, `../../../shots/round-6-fc-undo-restore.png`
+- `../../../shots/record/round-6-fc-undo-notice.png`, `../../../shots/record/round-6-fc-undo-restore.png`
 - `../../../shots/screens__undo-s2.png` (after one Undo: 40 of 77, 2 of 3 steps)
 - `../../../shots/screens__undo-list.png` (the steps list opened from the line)
 - `../../../shots/screens__undo-fix.png` (the intended end state)

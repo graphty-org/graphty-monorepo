@@ -11,9 +11,9 @@ form with cost (screens/option-form-cost.html, the weight refusal and the weight
 the Results panel (screens/results-panel.html: finished, a finished Louvain with its run record,
 out of date).
 
-**Renders she saw:** shots/screens__binding-step.png, shots/screens__binding-step--study.png,
+**Renders she saw:** shots/screens__binding-step.png, shots/record/screens__binding-step--study.png,
 shots/option-form-cost-weight-refused.png, shots/option-form-cost-weight-meaning.png,
-shots/screens__results-panel--finished.png, shots/screens__results-panel-louvain--study.png,
+shots/screens__results-panel--finished.png, shots/record/screens__results-panel-louvain--study.png,
 shots/screens__results-panel--outofdate.png.
 
 **A note on the data.** None of the three mocks shows an accounts network or an amount column.

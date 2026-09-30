@@ -42,6 +42,10 @@
   <p>This runs on the sample protein network, not on Morgan's own work. Morgan studies referral networks (which clinics refer patients to which hospitals), and that data may not leave the agency. Morgan has no opinion about proteins; the task is the one they would bring to a clinic: who is this node's strongest partner, whom does that partner connect to, and how do I get back to where I started (goals 1 and 3 in <a href="../study/personas/screen-reader-analyst.md">Morgan's persona</a>).</p>
   <p>The network (300 human proteins, 1,262 interactions; <span class="k-id">ppi-core-300.graphml</span>) is filtered to TP53 and its 32 neighbors: 33 proteins and 59 interactions, colored by module and sized by degree. Each interaction carries a confidence score from 0.40 to 0.99, the graph's declared edge weight, which the walk orders by unless the order is switched. Degree and rank are over all 300 proteins.</p>
 
+  <h2 id="usage-data">Usage data: already chosen, and off</h2>
+  <p>The story starts in a project that is already open, so graphty's usage-data question is behind Morgan. The first time graphty opened on the agency laptop, before any graph, it asked once whether it may collect how the app is used. The question is a dialog answered with the same keys as everything else: NVDA reads it on arrival, focus starts on Not now, Tab reaches Share usage data, and Enter on Not now (or Esc) says "Usage data off. Start screen." Morgan pressed Enter on Not now, so usage data is off, and nothing about this walk is sent. Usage data is off unless the person says yes.</p>
+  <p>Had Morgan said yes, graphty would send anonymous task events with their timings, errors and performance, and a replay of the screen with every node name, attribute value, label and file content masked; no file contents ever leave the computer. The choice can be changed at any time in Preferences &gt; Usage data, which is reached by keyboard like any other setting. The dialog and its keys are drawn in <a href="../flows/keyboard-walk.html">the keyboard walk flow</a>; <a href="../screens/data-location.html">Where your data goes</a> lists what would be collected.</p>
+
   <h2>The keys</h2>
   <table>
     <thead><tr><th>Key</th><th>On the canvas</th><th>Status</th></tr></thead>
@@ -89,6 +93,7 @@
         <dt>Announced</dt><dd class="sb-said">Graph drawing, application. Protein interactions, 33 of 300 nodes shown. TP53 selected on canvas. The walk starts at TP53. Shift+Arrow: walk. Enter: select. Question mark: keys.</dd>
         <dt>Expects</dt><dd class="k-secondary">"Application, so browse mode is off. Which keys does it want from me?"</dd>
         <dt>Happens</dt><dd>Nothing moves. Focus arriving never starts the walk, so a Tab straight through leaves the canvas again.</dd>
+        <dt>Usage data</dt><dd>Off. Morgan answered the usage-data question with Not now the first time graphty opened on this laptop (<a href="#usage-data">above</a>); the drawing never asks again, so the arrival announcement says nothing about it.</dd>
       </dl>
       <div class="sb-mock"><a href="../screens/keyboard-walk.html#f1">Screen: Canvas focused, TP53 selected, no walk</a></div>
     </figcaption>

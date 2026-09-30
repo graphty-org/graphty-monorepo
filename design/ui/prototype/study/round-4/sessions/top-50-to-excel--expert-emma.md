@@ -15,9 +15,9 @@ opening view and the Table choice).
 
 **Renders she saw:** shots/tasks/top-50-to-excel/01-results-panel-finished.png,
 shots/tasks/top-50-to-excel/02-results-panel-in-the-table.png,
-shots/tasks/top-50-to-excel/03-table-dock-ranked.png, shots/r4-emma-top50-table-dock-full.png (the
-CSV export dialog, lower part of the page), shots/r4-emma-top50-export.png,
-shots/r4-emma-top50-export-table.png.
+shots/tasks/top-50-to-excel/03-table-dock-ranked.png, shots/record/r4-emma-top50-table-dock-full.png (the
+CSV export dialog, lower part of the page), shots/record/r4-emma-top50-export.png,
+shots/record/r4-emma-top50-export-table.png.
 
 ---
 

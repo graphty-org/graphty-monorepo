@@ -6,8 +6,8 @@ Task as given by the moderator: "Community detection has finished. Say what grou
 the split is, and whether you could reproduce it."
 
 Screens used: the Results panel mock (the finished Louvain state, then the same result opened in the
-table) and the bottom table dock mock. Renders: shots/r2-bio-gd-louvain.png,
-shots/r2-bio-gd-louvain-table.png, shots/r2-bio-gd-tabledock.png.
+table) and the bottom table dock mock. Renders: shots/record/r2-bio-gd-louvain.png,
+shots/record/r2-bio-gd-louvain-table.png, shots/record/r2-bio-gd-tabledock.png.
 
 Outcome: completed. SEQ 5 of 7.
 

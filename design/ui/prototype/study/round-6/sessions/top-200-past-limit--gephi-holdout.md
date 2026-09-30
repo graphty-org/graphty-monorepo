@@ -24,7 +24,7 @@ told what those controls would do and asked to say whether she would have found 
 
 ## Think-aloud
 
-**1. The file opens past the limit.** (shots/screens__past-drawing-limit-not-drawn--study.png)
+**1. The file opens past the limit.** (shots/record/screens__past-drawing-limit-not-drawn--study.png)
 
 "124,318 nodes not drawn. More than this browser draws at once, 50,000. Fine -- Gephi would
 have tried and I'd be staring at a beach ball for four minutes, so honestly, thank you for not
@@ -43,8 +43,8 @@ before I taught with it. I'll leave it; it isn't my task.
 My task is betweenness. There's no betweenness column. 'Keep top rows...' up there is by
 citationsReceived. That's in-degree-ish, not in-between. Not what I want."
 
-**2. Where do I run a statistic?** (shots/screens__results-panel-catalog--study.png,
-shots/screens__find-s8--study.png)
+**2. Where do I run a statistic?** (shots/record/screens__results-panel-catalog--study.png,
+shots/record/screens__find-s8--study.png)
 
 "In Gephi, Statistics is a panel on the right with Run buttons. Here the right side says
 Statistics, but it's the overview numbers, no Run. There's 'Results' in the left strip. The
@@ -53,7 +53,7 @@ item. Also the lightning bolt, Quick actions -- I'd type 'betweenness' there; th
 the left apparently hands a verb over to it too. Three ways in. Fine. I picked the menu because
 that's where Gephi people look."
 
-**3. Betweenness on 124k nodes.** (shots/screens__option-form-cost-over-budget--study.png)
+**3. Betweenness on 124k nodes.** (shots/record/screens__option-form-cost-over-budget--study.png)
 
 "'Takes hours. The time limit is 30 seconds.' Whose time limit? I didn't set 30 seconds. In
 Gephi I would start exact betweenness at five o'clock and look at it in the morning. Hours is
@@ -67,7 +67,7 @@ tells me what each costs before I press anything. Gephi tells me nothing and the
 I'd take 500 sources, not 101. I'm about to cut at rank 200, and with 101 sources the scores
 around rank 200 are going to be noise. Let me check it lets me."
 
-(shots/screens__option-form-cost-sample-over-budget--study.png)
+(shots/record/screens__option-form-cost-sample-over-budget--study.png)
 
 "Sample size 500, of 124,318. 'Past the 30-second time limit. Run starts it in the
 background.' Seed 7, with a reroll button. Good -- a seed I can write in a methods section.
@@ -78,7 +78,7 @@ score can be well off.' That's the honest sentence. I'd have written it myself f
 Though it still says 101 after I typed 500 -- it's the reading of the last run, I suppose. I
 have to guess that."
 
-**4. The finished run and its record.** (shots/screens__results-panel-finished-sampled--study.png)
+**4. The finished run and its record.** (shots/record/screens__results-panel-finished-sampled--study.png)
 
 "Betweenness (sampled), 101 sources. I'm reading the one that exists. 'On: full graph, 124,318
 nodes.' Good, it says what it ran on. That's the thing Gephi never does -- my filter-at-ten-percent
@@ -110,8 +110,8 @@ the bound -- credit for that -- but it doesn't tell me how many of the 200 are s
 'the top N are stable at this sample size' in plain words. I'd rerun with 500, and a second
 seed, and compare. There is a 'Compare with...' under Runs of this measure. I'd use it."
 
-**5. From the result to the 200.** (shots/screens__results-panel-in-the-table--study.png,
-shots/screens__past-drawing-limit-keep--study.png)
+**5. From the result to the 200.** (shots/record/screens__results-panel-in-the-table--study.png,
+shots/record/screens__past-drawing-limit-keep--study.png)
 
 "'124,313 more in the table.' The protein example shows that opens the table sorted by the
 measure, with the value column saying 'exact, full graph' under its name. For mine it would
@@ -134,7 +134,7 @@ right run. And the tie line matters more here: with estimates, the cut isn't a t
 So: 'Keep these 200 rows.' The chip says '200 of 124K nodes, 1 step'. Undo in a toast. Undo!
 I'd press Ctrl+Z right away just to see it works. That's worth something to me."
 
-(shots/screens__past-drawing-limit-kept--study.png)
+(shots/record/screens__past-drawing-limit-kept--study.png)
 
 "It draws. ForceAtlas2 by name, engine WebGPU, with a play button. I'd want scaling, gravity,
 LinLog behind that -- not shown here, I'm not getting into it. The statistics describe the
@@ -143,9 +143,9 @@ high.' Good that it says so. For my run it would say 'the 200 with the highest b
 hope. If statistics after the filter silently described the 200 I'd be furious; this one
 announces it. That's exactly what I wanted from Gephi for ten years."
 
-**6. Who surrounds the first one.** (shots/screens__find-s7--study.png,
-shots/screens__past-drawing-limit-sample--study.png,
-shots/screens__selection-over-cap-e1--study.png)
+**6. Who surrounds the first one.** (shots/record/screens__find-s7--study.png,
+shots/record/screens__past-drawing-limit-sample--study.png,
+shots/record/screens__selection-over-cap-e1--study.png)
 
 "First one is 5879702. I'd type it in the search box at the left -- the find page shows a pasted
 id selecting the patent even when nothing is drawn, and the right panel shows it: attributes,

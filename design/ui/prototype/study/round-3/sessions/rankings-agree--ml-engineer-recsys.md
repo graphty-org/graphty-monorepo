@@ -9,7 +9,7 @@ Task as given by the moderator: "Do these two ways of scoring agree on who matte
 Screens: the comparison surface (two measures, then the same measure on two data versions), then
 the Results panel to see how I would have got there.
 
-Render used for the full page: shots/r3-chris-rankings-comparison-full.png (study view).
+Render used for the full page: shots/record/r3-chris-rankings-comparison-full.png (study view).
 
 ---
 

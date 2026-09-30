@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """Writes screens/results-panel.html (edit this, then run it from anywhere).
+The page was edited by hand after this script last ran, and state 13b (compare-with-lesmis) was added
+there by hand: port those edits before running it. So were the weight in the state line's
+slot ('Unweighted', 'Weight: confidence, as similarity'), a compare icon on every run row, and Weighted
+degree (in), (out) and (total) with one-line meanings in the catalog and Quick actions.
 
 The Results rail place: every run of a measure, with its settings and date, newest first. A run is
 named by the options that differ plus its date, never by how long it took. Opening a run shows its

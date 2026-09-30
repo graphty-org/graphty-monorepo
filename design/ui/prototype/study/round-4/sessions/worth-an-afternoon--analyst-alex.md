@@ -16,7 +16,7 @@ Screens seen, in order, as a participant sees them (design notes hidden):
 - `shots/tasks/worth-an-afternoon/02-load-step-blocked.png` -- the load step, confidence read as text
 - `shots/tasks/worth-an-afternoon/03-load-step-policy.png` -- the load step, repeated pairs
 - `shots/tasks/worth-an-afternoon/04-frame-at-rest.png` -- the file loaded, nothing run
-- `storyboards/first-look.html` and its frames (`shots/screens__first-look--s4.png`,
+- `storyboards/first-look.html` and its frames (`shots/record/screens__first-look--s4.png`,
   `--s6a.png`, `--s6b.png`) -- someone else's walkthrough of a first visit, which the moderator
   also handed over
 

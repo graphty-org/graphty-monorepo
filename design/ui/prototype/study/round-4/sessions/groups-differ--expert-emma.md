@@ -14,8 +14,8 @@ rest (screens/styles-list.html frames 23, 24 and 26), and a look at the comparis
 (screens/comparison.html).
 
 **Renders she saw:** shots/screens__results-panel.png, shots/screens__styles-list-catalog.png,
-shots/screens__results-panel--louvain.png, shots/screens__results-panel--louvain-table.png,
-shots/screens__inspector-group.png, shots/screens__inspector-group-row.png,
+shots/record/screens__results-panel--louvain.png, shots/screens__results-panel--louvain-table.png,
+shots/screens__inspector-group.png, shots/record/screens__inspector-group-row.png,
 shots/screens__styles-list-group-compare.png, shots/screens__styles-list-group-columns.png,
 shots/screens__styles-list-meanings.png, shots/screens__comparison.png.
 

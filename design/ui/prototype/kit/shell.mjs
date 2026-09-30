@@ -124,9 +124,11 @@ function frame(app) {
     if (nav) h = h.slice(0, nav[0]) + rail(h, nav, !!rp) + h.slice(nav[1]);
 
     // 2. the privacy line under the project name in the left panel's header: every frame has it
+    // (a panel that switches its head by state has several heads: each gets it; last first, so the
+    // offsets of the earlier ones hold)
     let gp = elements(h, `<aside class="k-panel\\b[^"]*"[^>]*>`)[0];
-    const ph = gp && elements(h, `<div class="k-panel-head\\b[^"]*"[^>]*>`, gp[0], gp[1])[0];
-    if (ph && !/class="k-privacy\b/.test(h.slice(ph[0], ph[1]))) {
+    for (const ph of gp ? elements(h, `<div class="k-panel-head\\b[^"]*"[^>]*>`, gp[0], gp[1]).reverse() : []) {
+        if (/class="k-privacy\b/.test(h.slice(ph[0], ph[1]))) continue;
         const tl = elements(h, `<div class="k-title-line\\b[^"]*"[^>]*>`, ph[0], ph[1])[0];
         if (tl) h = h.slice(0, tl[1]) + PRIVACY + h.slice(tl[1]);
     }

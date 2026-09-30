@@ -7,7 +7,7 @@ data goes. Is this OK to use? Later, mid-session: did anything just leave your m
 Screens used: the start screen (render: shots/screens__start-screen.png), the "Where your data goes"
 page it links to (shots/screens__data-location-full.png), and the main window with a graph open
 (shots/screens__frame-at-rest.png, the file popover in shots/screens__frame-at-rest-s5.png, the
-Assistant-on state in shots/screens__frame-at-rest-s8.png, and the protein sample in
+Assistant-on state in shots/record/screens__frame-at-rest-s8.png, and the protein sample in
 shots/screens__frame-at-rest-dataset-ppi.png).
 
 ## Part 1 -- before loading anything

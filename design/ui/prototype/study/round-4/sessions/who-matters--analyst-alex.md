@@ -14,15 +14,15 @@ the moderator had that state for), the same result with its table open, the Les 
 with degree and betweenness ranked side by side, a character (Valjean) selected in the inspector.
 
 Renders the participant looked at (all in the study view):
-- `../../../shots/r4-alexwho-frame.png` -- project at rest
-- `../../../shots/r4-alexwho-rp-catalog.png`, `../../../shots/r4-alexwho-rp-quick.png` -- finding betweenness
-- `../../../shots/r4-alexwho-rp-finished.png`, `../../../shots/r4-alexwho-rp-table.png`,
-  `../../../shots/r4-alexwho-rp-variant.png`, `../../../shots/r4-alexwho-rp-sampled.png` -- a result in the inspector
-- `../../../shots/r4-alexwho-insp-result.png` -- the result's own inspector page
-- `../../../shots/r4-alexwho-table-small.png` -- Les Miserables, degree and betweenness ranked
-- `../../../shots/r4-alexwho-nav-new-graph.png`, `../../../shots/r4-alexwho-nav-new-node.png`,
-  `../../../shots/r4-alexwho-nav-new-menu.png` -- the same project with sets, views and a selection
-- `../../../shots/r4-alexwho-table-ranked.png` -- three measures ranked (protein sample, for the pattern)
+- `../../../shots/record/r4-alexwho-frame.png` -- project at rest
+- `../../../shots/record/r4-alexwho-rp-catalog.png`, `../../../shots/record/r4-alexwho-rp-quick.png` -- finding betweenness
+- `../../../shots/record/r4-alexwho-rp-finished.png`, `../../../shots/record/r4-alexwho-rp-table.png`,
+  `../../../shots/record/r4-alexwho-rp-variant.png`, `../../../shots/record/r4-alexwho-rp-sampled.png` -- a result in the inspector
+- `../../../shots/record/r4-alexwho-insp-result.png` -- the result's own inspector page
+- `../../../shots/record/r4-alexwho-table-small.png` -- Les Miserables, degree and betweenness ranked
+- `../../../shots/record/r4-alexwho-nav-new-graph.png`, `../../../shots/record/r4-alexwho-nav-new-node.png`,
+  `../../../shots/record/r4-alexwho-nav-new-menu.png` -- the same project with sets, views and a selection
+- `../../../shots/record/r4-alexwho-table-ranked.png` -- three measures ranked (protein sample, for the pattern)
 
 ## Think-aloud
 

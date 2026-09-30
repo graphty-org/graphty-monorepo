@@ -344,7 +344,7 @@ const txCols = (o = {}) => [
     { name: "country", profile: `${countrySegs.length} values`, dist: stripHtml(countrySegs) },
     { name: "community", glyph: COMM_GLYPH, profile: `${commSizes.length} values`, dist: stripHtml(commSegs, { encoded: true }), n: o.nComm },
     { name: "degree (total, full graph)", num: true, glyph: SIZECHIP, profile: range("degree"), dist: distHtml(hDeg, { blocked: WHY_BINS_DEG, label: "degree" }), scale: sizeScale, hover: o.menuDeg,
-      group: { span: 2, name: "Degree", method: "" } },
+      group: { span: 2, name: "Total degree", method: "" } },
     rankCol(X.nodes),
     { name: "pagerank", num: true, sort: "descending", profile: range("pagerank", 6), dist: distHtml(hPR, { label: "pagerank" }), n: o.nPR,
       group: { span: 2, name: "PageRank", method: "damping 0.85, unweighted, full graph", n: o.nPRGroup } },
@@ -357,7 +357,7 @@ const txRow = (r, o = {}) => ({
     n: o.n || "",
     cells: [cell(r.id), cell(r.kind), cell(r.country), cell(commName(r.community)), cell(r.degree), cell(rankText(r.degRank)), cell(r.pagerank.toFixed(6)), cell(rankText(r.prRank)), cell(r.riskScore)],
 });
-const txStyles = (n) => layer(SIZECHIP, "Size: degree") + layer(COMM_GLYPH, "Community color", "Louvain", n) + BASE;
+const txStyles = (n) => layer(SIZECHIP, "Size: total degree") + layer(COMM_GLYPH, "Community color", "Louvain", n) + BASE;
 const lg = F.transactionsApril.legends.march;
 const txLegend = `<div class="k-legend-card"><div class="k-lg-title">Community color <span class="k-secondary">community</span></div>
 ${lg.rows.slice(0, 3).map((r) => `<div class="k-lg-row">${chit(r.color)}${r.name.replace("Community ", "")}<span class="k-value k-num">${r.count}</span></div>`).join("")}
@@ -393,7 +393,7 @@ const thumbTop = Math.round(((best.start - 1) / (X.nodes - WIN)) * (trackH - 24)
 const menuItem = (label, o = {}) => `<div class="k-menu-item" role="menuitem"${o.hover ? " data-hover" : ""}${o.desc ? " data-described" : ""}><span class="k-check-col">${o.check ? "&#10003;" : ""}</span>${o.desc ? `<span class="k-grow">${label}<span class="k-menu-desc">${o.desc}</span></span>` : label}${o.sub ? `<span class="k-sub">${I("chevron-right", "k-i k-i-sm")}</span>` : ""}</div>`;
 const SEP = `<div class="k-menu-sep"></div>`;
 const newColumnMenu = `<div class="k-menu s-colmenu" role="menu" aria-label="degree column">
-${menuItem("Sort descending")}${menuItem("Sort ascending")}${SEP}${menuItem("Filter to...")}${menuItem("Compare columns...")}${SEP}${menuItem("Color by degree")}${menuItem("Size: degree", { check: 1 })}${SEP}
+${menuItem("Sort descending")}${menuItem("Sort ascending")}${SEP}${menuItem("Filter to...")}${menuItem("Compare columns...")}${SEP}${menuItem("Color by total degree")}${menuItem("Size: total degree", { check: 1 })}${SEP}
 ${menuItem("New column", { sub: 1, hover: 1 })}${menuItem("Join...")}</div>
 <div class="k-menu s-submenu" role="menu" aria-label="New column" data-n="2" data-nb="right">
 ${menuItem("Money in", { desc: "Sum of amount on transfers in, USD", hover: 1 })}${menuItem("Money out", { desc: "Sum of amount on transfers out, USD" })}${menuItem("Money in minus out", { desc: "Money in less money out, USD" })}${SEP}
@@ -412,7 +412,7 @@ ${dock({
     })}${newColumnMenu}</main>
 ${txInspector()}</div>`,
     notes: [
-        ["Every account is drawn: 3,000 is far under the drawing limit, so the canvas never falls back to a density picture here. Community color and Size: degree are real layers in the Styles list, and the legend lists them; the selection is the ring, never a fill.", "Framework: scale-levels.md 2, Node drawing; canvas-drawing.md 2 and 3; conceptual-model.md, all paint from a layer. Built with: graphty-element (drawing and legend)."],
+        ["Every account is drawn: 3,000 is far under the drawing limit, so the canvas never falls back to a density picture here. Community color and Size: total degree are real layers in the Styles list, and the legend lists them; the selection is the ring, never a fill.", "Framework: scale-levels.md 2, Node drawing; canvas-drawing.md 2 and 3; conceptual-model.md, all paint from a layer. Built with: graphty-element (drawing and legend)."],
         ["New column, from any column's menu. When the edge weight column is a currency (amount, USD), weighted degree is offered as Money in, Money out and Money in minus out, each saying what it sums; with any other weight it reads Total <column> in and Total <column> out (\"Total confidence in\"). A plain link count is Links in (count) and Links out (count), so a ranking by how many transfers never passes for a ranking by money. The chosen column lands at the right of the table, sorted, with its group header naming the weight and scope (the Selected scope below shows three of them). The menu opens upward because the header sits low in the dock.", "Framework: interface-templates.md 16 (a result column); content-design.md 5 (a measure names its unit); the weighted degree wording is proposed in framework-changes.md. Built with: compact-mantine Menu with a submenu and described items (proposed); graphty-element weighted degree."],
         ["The scope line adds the selected count, because in 3,000 rows most selected rows are off screen.", "Framework: message-catalog.md graphty.table.scope (the count is proposed in framework-changes.md). Built with: compact-mantine ProseBlock."],
         ["Virtualized: only the rows in view and a few more are built; the scroll thumb is sized and placed for all 3,000. pagerank is a result's field, so its header histogram ships (heavy-tailed, so on a log scale), and the sort uses the result's own ranking.", "Framework: scale-levels.md 3, Table; interface-templates.md 16. Built with: DataTable, virtualized (DataTable.tsx 21 and 378)."],

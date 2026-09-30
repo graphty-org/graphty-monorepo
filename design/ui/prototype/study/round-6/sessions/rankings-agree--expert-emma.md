@@ -3,7 +3,7 @@
 **Participant:** Expert Emma, network scientist and consultant (notebook user: networkx, igraph; Gephi for figures).
 **Task as given by the moderator:** "Do these two ways of scoring agree on who matters?"
 **Pages used:** the comparison screen (PageRank against betweenness on the April payments data, with its popovers: About Spearman, the run records, Export; the Results place with Compare with...), then the table dock.
-**Renders seen:** `shots/tasks/rankings-agree/01-comparison.png`, `shots/emma-r6-rankings-comparison-full.png` (study view, whole page), `shots/tasks/rankings-agree/02-table-dock-large.png`.
+**Renders seen:** `shots/tasks/rankings-agree/01-comparison.png`, `shots/record/emma-r6-rankings-comparison-full.png` (study view, whole page), `shots/tasks/rankings-agree/02-table-dock-large.png`.
 **Last run:** round 3, ease 6 of 7 for this participant.
 
 ## Think-aloud

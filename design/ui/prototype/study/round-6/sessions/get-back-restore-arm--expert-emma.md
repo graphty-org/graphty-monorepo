@@ -19,15 +19,15 @@ of Valjean and the 17 characters beside him. The target end state is 47 of 77 no
 (degree 5 off, group 8 still out), with the 18 characters selected again.
 
 **Screens seen**, in order:
-- `../../../shots/r6-emma-getback-restore-01-start.png` -- the starting screen
-- `../../../shots/r6-emma-getback-restore-02-ctrlz1.png` -- after the first Ctrl+Z
-- `../../../shots/r6-emma-getback-restore-03-ctrlz2.png` -- after the second Ctrl+Z
-- `../../../shots/r6-emma-getback-restore-09-redo.png` -- after Ctrl+Shift+Z
-- `../../../shots/r6-emma-getback-restore-10-steps-after-restore.png` -- the filter chip's steps list
-- `../../../shots/r6-emma-getback-restore-11-degree5-off.png` -- after unticking degree at least 5
-- `../../../shots/r6-emma-getback-restore-12-closed.png` -- after Esc (the mock left the participant view)
-- `../../../shots/r6-emma-getback-restore-05-editmenu.png` -- main menu, Edit, on the second attempt
-- `../../../shots/r6-emma-getback-restore-06-history.png` -- Edit, Undo history
+- `../../../shots/record/r6-emma-getback-restore-01-start.png` -- the starting screen
+- `../../../shots/record/r6-emma-getback-restore-02-ctrlz1.png` -- after the first Ctrl+Z
+- `../../../shots/record/r6-emma-getback-restore-03-ctrlz2.png` -- after the second Ctrl+Z
+- `../../../shots/record/r6-emma-getback-restore-09-redo.png` -- after Ctrl+Shift+Z
+- `../../../shots/record/r6-emma-getback-restore-10-steps-after-restore.png` -- the filter chip's steps list
+- `../../../shots/record/r6-emma-getback-restore-11-degree5-off.png` -- after unticking degree at least 5
+- `../../../shots/record/r6-emma-getback-restore-12-closed.png` -- after Esc (the mock left the participant view)
+- `../../../shots/record/r6-emma-getback-restore-05-editmenu.png` -- main menu, Edit, on the second attempt
+- `../../../shots/record/r6-emma-getback-restore-06-history.png` -- Edit, Undo history
 
 ## Think-aloud
 

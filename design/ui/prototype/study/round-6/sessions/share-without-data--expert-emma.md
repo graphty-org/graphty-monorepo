@@ -2,7 +2,7 @@
 
 **Participant:** Expert Emma, network scientist and consultant (persona: study/personas/expert-emma.md).
 **Task, as the moderator gave it:** "Share your setup with a partner, without your data."
-**Mocks:** the Export dialog with Recipe checked (screens/export-dialog.html#recipe; render shots/tasks/share-without-data/01-export-dialog-recipe.png), the Data panel (screens/data-panel.html; renders shots/screens__data-panel.png and shots/screens__data-panel-s7.png), and the recipe's journey to the person who opens it (storyboards/recipe-travels.html; render shots/storyboards__recipe-travels--study.png).
+**Mocks:** the Export dialog with Recipe checked (screens/export-dialog.html#recipe; render shots/tasks/share-without-data/01-export-dialog-recipe.png), the Data panel (screens/data-panel.html; renders shots/screens__data-panel.png and shots/screens__data-panel-s7.png), and the recipe's journey to the person who opens it (storyboards/recipe-travels.html; render shots/record/storyboards__recipe-travels--study.png).
 **Outcome:** success, with difficulty. **Ease (1-7):** 5.
 
 ## Transcript

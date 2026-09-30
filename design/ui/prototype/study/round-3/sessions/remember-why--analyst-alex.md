@@ -10,9 +10,9 @@ Screens used: the Notes panel mock (`screens/notes-panel.html`, states 1 to 9) a
 mock (`screens/inspector.html`: a set, several nodes selected). Renders the participant saw, in the
 study view with design notes hidden:
 
-- `shots/r3-alex-remember-np-s1.png` (Notes panel, empty), `-s2` (hover), `-s3` (a note opened),
+- `shots/record/r3-alex-remember-np-s1.png` (Notes panel, empty), `-s2` (hover), `-s3` (a note opened),
   `-s4` (a note's menu), `-s7` (out of date), `-s8`, `-s9`
-- `shots/r3-alex-remember-ins-set.png` (a set selected), `shots/r3-alex-remember-ins-several.png`
+- `shots/record/r3-alex-remember-ins-set.png` (a set selected), `shots/record/r3-alex-remember-ins-several.png`
   (three nodes selected)
 
 Outcome: success with difficulty. Alex found where a note goes and what a finished note looks like,

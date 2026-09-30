@@ -9,14 +9,14 @@ Decide what you can still trust on the screen, and get a result you can use."
 
 Screens seen, in order, as a participant sees them (design notes hidden):
 
-- `shots/r4-alex-stopped-gpu-lost-run.png` -- the patent citation graph, six states: a PageRank
+- `shots/record/r4-alex-stopped-gpu-lost-run.png` -- the patent citation graph, six states: a PageRank
   re-run in progress; the run failing at 62%; a betweenness run refused as too slow; a sampled
   betweenness run in progress; the sampled run canceled; the sampled run's settings
-- `shots/r4-alex-stopped-notices-errors.png` -- other failure notices (undo, a file that would not
+- `shots/record/r4-alex-stopped-notices-errors.png` -- other failure notices (undo, a file that would not
   open, a failed PageRank on another graph, save failed, canvas lost, no WebGL)
-- `shots/r4-alex-stopped-selection-over-cap.png`, `shots/r4-alex-stopped-closeness-variant.png` --
+- `shots/record/r4-alex-stopped-selection-over-cap.png`, `shots/record/r4-alex-stopped-closeness-variant.png` --
   glanced at, not part of his path
-- `shots/r4-alex-stopped-failure-and-recovery.png` -- the storyboard page; in the participant view
+- `shots/record/r4-alex-stopped-failure-and-recovery.png` -- the storyboard page; in the participant view
   it renders as a blank white page, so he saw nothing there
 
 ---

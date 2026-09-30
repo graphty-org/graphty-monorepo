@@ -4,7 +4,7 @@ Participant: Maren, a cancer genomics postdoc who builds her network figures in 
 
 Task, as the moderator gave it: "What groups are there in this network, and what makes the biggest one different?"
 
-Screens used: the Results panel (starting at the finished Betweenness state, then the Louvain result and the communities table), the Styles list, and the Inspector. Renders of the two Louvain states were taken for this session: `shots/r2-gcu-louvain.png` and `shots/r2-gcu-louvain-table.png`.
+Screens used: the Results panel (starting at the finished Betweenness state, then the Louvain result and the communities table), the Styles list, and the Inspector. Renders of the two Louvain states were taken for this session: `shots/record/r2-gcu-louvain.png` and `shots/record/r2-gcu-louvain-table.png`.
 
 ## Transcript (thinking aloud)
 

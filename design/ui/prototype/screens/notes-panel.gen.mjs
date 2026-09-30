@@ -90,9 +90,11 @@ const row = (n, { hover, sel, focus, menu, mark, citeMark, hit, dim, readOnly, s
     const hl = (s) => (hit ? s.replace(new RegExp(`(${hit})`, "gi"), "<mark>$1</mark>") : s);
     const trail = readOnly ? "" : `<span class="nt-trail"><span class="k-icon-btn"${menu ? ' aria-pressed="true"' : ""} title="Note menu">${I("ellipsis")}</span></span>`;
     // A mark with an explanation puts its verb on its own line after it: "Bring back ..." is long
+    // m[3], when given, is a line after the verb saying what the verb keeps
+    const after = (m) => (m[3] ? `<div class="nt-explain">${m[3]}</div>` : "");
     const markLine = (m) => m[2]
-        ? `<div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">${m[0]}</span></div><div class="nt-explain">${m[2]}</div><div class="nt-explain nt-verb">${m[1]}</div>`
-        : `<div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">${m[0]}</span>${m[1] ? `<span class="nt-verb">${m[1]}</span>` : ""}</div>`;
+        ? `<div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">${m[0]}</span></div><div class="nt-explain">${m[2]}</div><div class="nt-explain nt-verb">${m[1]}</div>${after(m)}`
+        : `<div class="nt-mark"><span class="k-warn-glyph">!</span><span class="nt-state">${m[0]}</span>${m[1] ? `<span class="nt-verb">${m[1]}</span>` : ""}</div>${after(m)}`;
     return `<div class="nt-row" role="treeitem"${hover ? " data-hover" : ""}${sel ? ' aria-selected="true"' : ""}${focus ? " data-focus" : ""}${dim ? " data-dim" : ""}>
         <div class="nt-about">${lead}<span class="nt-about-t${n.id ? " k-id" : ""}">${hl(n.about)}</span>${trail}</div>
         ${when(n, solo)}
@@ -113,13 +115,13 @@ const rail = `<nav class="k-rail" aria-label="Main">
     <div class="k-rail-btn k-asst-off" role="button" aria-pressed="false" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div>
   </nav>`;
 
-const notesPanel = ({ rows = "", find = "", chip = "Full graph", viewOnly = false }) => `<aside class="k-panel" aria-label="Notes">
+const notesPanel = ({ rows = "", find = "", chip = "Full graph", viewOnly = false, project = "Human protein interactions" }) => `<aside class="k-panel" aria-label="Notes">
     <div class="k-panel-head">
-      <div class="k-title-line"><span class="k-project">Human protein interactions</span>${viewOnly ? '<span class="vo">View only</span>' : ""}${I("chevron-down", "k-i-sm k-secondary")}</div>
+      <div class="k-title-line"><span class="k-project">${project}</span>${viewOnly ? '<span class="vo">View only</span>' : ""}${I("chevron-down", "k-i-sm k-secondary")}</div>
       <a class="k-privacy">Nothing has been sent from this project</a>
       <span class="k-chip k-chip-btn" role="button" aria-expanded="false">${I("funnel", "k-i-sm")}${chip}${I("chevron-down", "k-i-sm k-caret")}</span>
     </div>
-    ${find === null ? `<div class="nt-empty"><div>No notes yet.</div><div>A note can be about a selection, a set, a result or the whole graph.</div><div><span class="k-btn k-btn-secondary">${I("sticky-note", "k-i-sm")}Add note...</span></div><div class="k-secondary">Notes are saved in the project and travel in project files and findings reports.</div></div>` : `<div class="k-search"><span class="k-field"${find ? " data-focus" : " data-placeholder"}>${I("search", "k-i-sm")}${find ? `<span>${find}</span><span class="nt-caret"></span><span class="k-grow"></span>${I("x", "k-i-sm k-secondary")}` : "Find in notes"}</span></div>`}
+    ${find === null ? `<div class="nt-empty"><div>No notes yet.</div><div>Add a note about the selection.</div><div><span class="k-btn k-btn-secondary">${I("sticky-note", "k-i-sm")}Add a note...</span></div><div class="k-secondary">Notes are saved in the project and travel in project files and findings reports.</div></div>` : `<div class="k-search"><span class="k-field"${find ? " data-focus" : " data-placeholder"}>${I("search", "k-i-sm")}${find ? `<span>${find}</span><span class="nt-caret"></span><span class="k-grow"></span>${I("x", "k-i-sm k-secondary")}` : "Find in notes"}</span></div>`}
     <div class="k-scroll" role="tree" aria-label="Notes, newest first">
       ${rows}
     </div>
@@ -167,7 +169,7 @@ const rightHead = `<div class="k-header1"><span class="k-grow"></span><span clas
 
 // The inspector's Notes section: always there, header and "+" (none while View only); rows under it
 const inspNote = (n, sel, solo) => `<div class="nt-irow"${sel ? ' aria-selected="true"' : ""}><div class="nt-body">${n.text}</div>${when(n, solo)}</div>`;
-const notesSection = (rows, viewOnly) => `<section class="k-section"${rows.length ? "" : " data-empty"}><div class="k-section-head">Notes${rows.length ? ` <span class="k-count k-num">${rows.length}</span>` : ""}<span class="k-grow"></span>${viewOnly ? "" : `<span class="k-icon-btn" title="Add note...">${I("plus")}</span>`}</div>
+const notesSection = (rows, viewOnly) => `<section class="k-section"${rows.length ? "" : " data-empty"}><div class="k-section-head">Notes${rows.length ? ` <span class="k-count k-num">${rows.length}</span>` : ""}<span class="k-grow"></span>${viewOnly ? "" : `<span class="k-icon-btn" title="Add a note...">${I("plus")}</span>`}</div>
         ${rows.join("\n        ")}
       </section>`;
 // The graph's Style stack (as screens/frame-at-rest.html), top layer first; the stack the drawing shows
@@ -199,7 +201,7 @@ const graphInspector = ({ notes = [], viewOnly = false, filtered = false, stack 
         <div class="sr"><span class="n">Nodes</span><span class="v">${filtered ? S.nodes : P.nodes}</span></div>
         <div class="sr"><span class="n">Edges</span><span class="v">${fmt(filtered ? S.edges : P.edges)}</span><span class="sub">undirected; <span class="k-id">confidence</span>: each run that uses it asks what it means</span></div>
         ${filtered ? "" : `<div class="sr"><span class="n">Density</span>${I("info", "ii")}<span class="v">${P.stats.density}</span></div>
-        <div class="sr"><span class="n">Connected components</span>${I("info", "ii")}<span class="v">${P.stats.components} (${P.stats.isolated} isolates)</span></div>`}
+        <div class="sr"><span class="n">Connected components</span>${I("info", "ii")}<span class="v">${P.stats.components} (<span data-fx="datasets.ppi.stats.isolated" data-fx-noun="isolates">${P.stats.isolated} isolates</span>)</span></div>`}
         <div class="k-row"><span class="k-grow">Attributes</span><span class="rt">${P.attributes.filter((a) => !a.name.includes("(edge)")).length}</span></div>
       </section>
       ${stackSection(stack, viewOnly)}
@@ -214,7 +216,7 @@ const setInspector = ({ notes }) => `<aside class="k-right" aria-label="Inspecto
       <span class="k-icon-btn">${I("users")}</span><span class="k-icon-btn">${I("funnel")}</span><span class="k-icon-btn">${I("plus")}</span><span class="k-icon-btn">${I("ellipsis")}</span></div>
     <div class="k-scroll">
       <section class="k-section">
-        <div class="k-row"><span class="k-secondary" style="width:88px">Created from</span><span class="k-grow">Neighbors of <span class="k-id">TP53</span></span></div>
+        <div class="k-row"><span class="k-secondary" style="width:88px">Created from</span><span class="k-grow">Neighbors of <span class="k-id">TP53</span>, by Freeze on Sep 28</span></div>
       </section>
       <section class="k-section"><div class="k-section-head">Statistics</div>
         <div class="k-metrics"><div class="k-metric"><span class="k-secondary">proteins</span><span class="k-big">${S.nodes}</span></div><div class="k-metric"><span class="k-secondary">interactions</span><span class="k-big">${S.edges}</span></div></div>
@@ -234,7 +236,7 @@ const editor = `<div class="k-popover ne" style="left:618px;top:118px">
           <div class="ne-about">${I("group", "k-i-sm")}<span>About TP53 neighborhood, 33 proteins</span></div>
           <div class="k-secondary">Adam Powers, Sep 28 2026, 10:14</div>
           <div class="nt-read">${N.set.text}</div>
-          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite">${I("flask-conical", "k-i-sm")}<span><span class="k-strong">Betweenness</span><br><span class="k-secondary">${RUN_SETTINGS}</span></span></span></div>
+          <div class="nt-line"><span class="k-caption">Cites</span><span class="k-pill nt-cite" data-hover title="Open Betweenness in Details">${I("flask-conical", "k-i-sm")}<span><span class="k-strong">Betweenness</span><br><span class="k-secondary">${RUN_SETTINGS}</span></span></span></div>
           <div class="nt-line"><span class="k-caption">Quotes</span><span class="k-pill"><span class="k-id">TP53</span>&nbsp;betweenness ${tp53Bt}</span></div>
         </div>
       </div>`;
@@ -271,13 +273,13 @@ state("s1", "1 Empty", `${notesPanel({ find: null })}
   ${canvas({ drawing: "ppi-plain", alt: "300 human proteins and 1,262 interactions, first render, nothing styled", legend: "" })}
   ${graphInspector({ stack: "plain" })}`, "",
 `  <span class="k-annot-box" style="left:58px;top:90px;width:240px;height:806px"></span>
-  <div class="k-annot-note" style="left:312px;top:60px;max-width:320px"><b>Empty panel:</b> three sentences, one button, no Find. "No notes yet." says the panel is not loading or broken; "A note can be about a selection, a set, a result or the whole graph." says what a note can be attached to, without implying that something is selected; <b>Add note...</b> opens the Note editor beside the selection, or, with nothing selected, asks first what the note is about (state 10). It is the one command the empty-surface rule allows; there is no Note tool in the toolbar. The third sentence says where notes live and that they leave with the project and its findings reports. Find appears with the first note. Text on the empty surface departs from content-design.md 4 (Empty surface); proposed in framework-changes.md, "Notes panel: the empty panel says what a note is for". <b>Text</b> and a secondary <b>Button</b> in the panel body.</div>
+  <div class="k-annot-note" style="left:312px;top:60px;max-width:320px"><b>Empty panel:</b> three sentences, one button, no Find. "No notes yet." says the panel is not loading or broken; "Add a note about the selection." says what the button does and what a note is attached to; <b>Add a note...</b> opens the Note editor beside the selection, or, with nothing selected, asks first what the note is about (state 10). It is the one command the empty-surface rule allows; there is no Note tool in the toolbar. The third sentence says where notes live and that they leave with the project and its findings reports. Find appears with the first note. Text on the empty surface departs from content-design.md 4 (Empty surface); proposed in framework-changes.md, "Notes panel: the empty panel says what a note is for". <b>Text</b> and a secondary <b>Button</b> in the panel body.</div>
   <div class="k-annot-note" style="left:312px;top:392px;max-width:320px"><b>Where notes are made</b> (output-homes.md 3.7, Add note): this button, an object's overflow, the graph's type-row menu, Selection in the main menu, and the "+" of a Notes section. All of them open the same Note editor (framework-changes.md, "Take a note: a note is written in the Note editor").</div>
   <div class="k-annot-note" style="left:312px;top:520px;max-width:320px"><b>Why the sentences.</b> In the user study, all three readers given "You want to remember why TP53 matters for next week's meeting. Record that in graphty." read the blank panel as loading or broken and did not know where the first note goes, or whether notes are saved or exported. The next round measures first click and time on this panel again.</div>
   <span class="k-annot-box" style="left:1199px;top:534px;width:241px;height:34px"></span>
   <div class="k-annot-note" style="left:930px;top:560px;max-width:260px"><b>Notes, empty:</b> its header and "+", nothing under it, after the Style stack. state-matrix.md 4.9. The specification hides it until a note exists (interface-specification.md 3); that conflict is resolved in framework-changes.md ("The inspector's Notes section is always there"). <b>ControlSection</b>.<br>${NEEDS}</div>
   <div class="k-annot-note" style="left:930px;top:100px;max-width:260px"><b>Nothing selected:</b> the graph's own inspector, copied from the main frame at rest. interface-specification.md 4.1, Nothing.</div>
-  <div class="k-annot-note" style="left:900px;top:770px;max-width:250px"><b>No Note tool.</b> The toolbar holds Select and Path only; a note starts from Add note... interface-templates.md 14. <b>ToolButton</b> in <b>ToolGroup</b>.</div>`);
+  <div class="k-annot-note" style="left:900px;top:770px;max-width:250px"><b>No Note tool.</b> The toolbar holds Select and Path only; a note starts from Add a note... interface-templates.md 14. <b>ToolButton</b> in <b>ToolGroup</b>.</div>`);
 
 // 2. With notes, first row hovered: the linked hover on the canvas
 state("s2", "2 Hover", `${notesPanel({ rows: allRows({ set: { hover: true } }) })}
@@ -295,11 +297,11 @@ state("s2", "2 Hover", `${notesPanel({ rows: allRows({ set: { hover: true } }) }
 // 3. Row chosen: targets selected, brought into view, the note opens beside them
 state("s3", "3 Chosen", `${notesPanel({ rows: allRows({ set: { sel: true } }) })}
   ${canvas({ alt: "300 proteins colored by betweenness; the 33 proteins of TP53 neighborhood selected, each with the member ring; the note open to the right", stage: member33 + bothMarkers(true), over: editor })}
-  ${setInspector({ notes: [inspNote(N.set, true)] })}`, "",
+  ${setInspector({ notes: [inspNote(N.set, true)] })}`, `<div class="k-tooltip" style="left:1000px;top:304px">Open Betweenness in Details</div><span class="k-cursor" style="left:1090px;top:284px"></span>`,
 `  <div class="k-annot-note" style="left:312px;top:40px;max-width:290px"><b>A click on the row</b> selects the note's targets and brings them into view: the set is the selection, the inspector shows it, and its Notes section shows this note, highlighted. output-homes.md 4 ("selecting a note selects its targets"). Selecting is not an undo step.</div>
-  <div class="k-annot-note" style="left:312px;top:176px;max-width:290px"><b>The note opens beside its targets</b> in the Note editor, clear of them, with the full text, its citation and its quoted value. The citation chip names the run and, under it, its settings; a click on it opens that run's details. interaction-patterns.md 2, note [c]. <b>PopoutPanel</b>.</div>
+  <div class="k-annot-note" style="left:312px;top:176px;max-width:290px"><b>The note opens beside its targets</b> in the Note editor, clear of them, with the full text, its citation and its quoted value. The citation chip names the run and, under it, its settings; a click on it opens that run in Details, as its tooltip says; Esc there returns focus to the chip. interaction-patterns.md 2, note [c]. <b>PopoutPanel</b>.</div>
   <div class="k-annot-note" style="left:312px;top:600px;max-width:290px"><b>The 33 proteins carry the member ring,</b> the precedence rule's form when no hull is drawn: a hull around members spread over half the canvas would cross most of the graph. canvas-drawing.md 6, Precedence.<br>${NEEDS}</div>
-  <div class="k-annot-note" style="left:930px;top:640px;max-width:250px"><b>Set inspector:</b> Created from, Statistics, Members (five by degree, then the rest), Notes. interface-specification.md 4.1, Set.</div>
+  <div class="k-annot-note" style="left:930px;top:640px;max-width:250px"><b>Set inspector:</b> Created from, Statistics, Members (five by degree, then the rest), Notes. The set is a <b>frozen set</b>: its members were kept from the rule set Neighbors of TP53 by the verb <b>Freeze</b>, and Created from says so. On screen the kind is never "fixed" (the API kind <span class="k-mono">fixed</span> is unchanged). interface-specification.md 4.1, Set.</div>
   <div class="k-annot-note" style="left:930px;top:380px;max-width:250px"><b>Other rows go elsewhere:</b> a run's note opens that run's editor at its Notes row; a style layer's, the layer's editor; the graph's, nothing selected. output-homes.md 4.</div>`);
 
 // 4. Row menu
@@ -326,15 +328,15 @@ state("s6", "6 No hits", `${notesPanel({ find: "MDM2", rows: "" })}
 
 // 7. After Betweenness was re-run, and a set was deleted
 const staleRows = [
-    row(N.set, { citeMark: ["Earlier run", "Add current value"] }),
-    row(N.result, { mark: ["Earlier run", "Add current value"] }),
+    row(N.set, { citeMark: ["Earlier run", "Add current value", "", "Keeps the earlier run and its value."] }),
+    row(N.result, { mark: ["Earlier run", "Add current value", "", "Keeps the earlier run and its value."] }),
     row(N.node), row(N.layer), row(N.graph),
     row(N.gone, { mark: ["Detached", `Bring back DNA repair (${dnaCount} proteins, as kept Sep 24)`, "The set this note pointed to was changed."] }),
 ].join("\n      ");
 state("s7", "7 Out of date", `${notesPanel({ rows: staleRows })}
   ${canvas({ alt: altAll, stage: bothMarkers(false) })}
   ${graphInspector({ notes: [graphNote] })}`, "",
-`  <div class="k-annot-note" style="left:312px;top:40px;max-width:330px"><b>Betweenness was re-run</b> with confidence as the weight, so the run both notes relied on is no longer current. Both citations still read "unweighted", so the reader sees at once that the current run (weighted by confidence) is not the one relied on. The first note's Cites line carries the mark; the second note is about that same run, so the mark sits under its folded About line. The mark is the glossary's "Earlier run" (glossary.md 10); its one verb is Add current value, which adds the current run's citation beside the earlier one and keeps the earlier run and the value it quoted, as one undo step, "Edit note". It never rewrites what the note relied on (framework-changes.md, "Renamed strings on published keys"). (The canvas still shows the unweighted drawing; the kit has no weighted one.)<br>${NEEDS}</div>
+`  <div class="k-annot-note" style="left:312px;top:40px;max-width:330px"><b>Betweenness was re-run</b> with confidence as the weight, so the run both notes relied on is no longer current. Both citations still read "unweighted", so the reader sees at once that the current run (weighted by confidence) is not the one relied on. The first note's Cites line carries the mark; the second note is about that same run, so the mark sits under its folded About line. The mark is the glossary's "Earlier run" (glossary.md 10); its one verb is Add current value, which adds the current run's citation beside the earlier one and keeps the earlier run and the value it quoted, as one undo step, "Edit note". The line under the verb, "Keeps the earlier run and its value.", says so on the row, so no reader holds back for fear of losing what the note relied on. It never rewrites what the note relied on (framework-changes.md, "Renamed strings on published keys"). (The canvas still shows the unweighted drawing; the kit has no weighted one.)<br>${NEEDS}</div>
   <div class="k-annot-note" style="left:700px;top:40px;max-width:300px"><b>The quoted value</b> (TP53 betweenness ${tp53Bt}) is not on the row; the Note editor marks it "now {value}" when the live value differs (screens/take-a-note.html, state 8). The row's text stays as written: a note is evidence and is never rewritten.</div>
   <span class="k-annot-box" style="left:58px;top:710px;width:240px;height:172px"></span>
   <div class="k-annot-note" style="left:312px;top:410px;max-width:330px"><b>A deleted target keeps its note.</b> The set "DNA repair" was deleted; its note is marked "Detached", the line under it says what happened, "The set this note pointed to was changed.", and the verb says exactly what it brings back: "Bring back DNA repair (${dnaCount} proteins, as kept Sep 24)", the members as they were when the note was written. The note still says what it was about. conceptual-model.md 6; glossary.md 10; framework-changes.md, "Notes panel: Detached says what happened, and every time gives its full date". When a row has several marks it shows the most urgent one; a mark sits under the line it qualifies.<br>${NEEDS}</div>`);
@@ -364,7 +366,8 @@ const aboutEditor = `<div class="k-popover ne" style="left:617px;top:56px">
         <div class="k-popover-head">New note<span class="k-grow"></span><span class="k-icon-btn">${I("x")}</span></div>
         <div class="ne-body">
           <div class="nt-line"><span class="k-caption">About:</span><span class="k-field k-grow" data-focus>${I("network", "k-i-sm")}the graph Human protein interactions<span class="k-grow"></span>${I("chevron-down", "k-i-sm k-caret")}</span></div>
-          <div class="k-field ne-text" data-placeholder>Write a note</div>
+          <div class="k-field ne-text" data-placeholder style="height:160px">Write a note</div>
+          <div class="k-tertiary">Enter starts a new line. Ctrl+Enter posts the note.</div>
         </div>
       </div>
       <div class="k-menu" style="left:625px;top:150px;width:272px" role="listbox" aria-label="About">
@@ -379,8 +382,8 @@ const aboutEditor = `<div class="k-popover ne" style="left:617px;top:56px">
 state("s10", "10 About first", `${notesPanel({ find: null })}
   ${canvas({ drawing: "ppi-plain", alt: "300 human proteins and 1,262 interactions, nothing selected; a new note asks what it is about", legend: "", over: aboutEditor })}
   ${graphInspector({ stack: "plain" })}`, "",
-`  <div class="k-annot-note" style="left:312px;top:60px;max-width:330px"><b>Add note... with nothing selected</b> opens the Note editor at the canvas's top right with focus on <b>About:</b> and its list open, before a word is typed: the whole graph, each kept set with its member count, and <b>Select something first</b>, which closes the editor and leaves the canvas to pick from. Arrow keys and Enter choose; Tab moves on to the text with the graph kept. A note meant for a set therefore cannot land on the whole graph unseen. <b>Popover</b> with a <b>Select</b> (its dropdown grouped: the graph, Kept sets, the escape).<br>${NEEDS}</div>
-  <div class="k-annot-note" style="left:312px;top:300px;max-width:330px"><b>The next Add note... keeps the same subject.</b> After a note about TP53 neighborhood is added, the next Add note... with nothing selected opens with About: already reading TP53 neighborhood, focus still on it, so a run of notes about one set costs one choice. A selection always wins over the remembered subject. Proposed in framework-changes.md, "Notes: Add a note with nothing selected asks what the note is about".</div>
+`  <div class="k-annot-note" style="left:312px;top:60px;max-width:330px"><b>Add a note... with nothing selected</b> opens the Note editor at the canvas's top right with focus on <b>About:</b> and its list open, before a word is typed: the whole graph, each kept set with its member count, and <b>Select something first</b>, which closes the editor and leaves the canvas to pick from. Arrow keys and Enter choose; Tab moves on to the text with the graph kept. In the text, Enter starts a new line and Ctrl+Enter (Cmd+Enter on a Mac) posts the note, as the line under the box says, so a paragraph break never posts a half-written note. A note meant for a set therefore cannot land on the whole graph unseen. <b>Popover</b> with a <b>Select</b> (its dropdown grouped: the graph, Kept sets, the escape).<br>${NEEDS}</div>
+  <div class="k-annot-note" style="left:312px;top:300px;max-width:330px"><b>The next Add a note... keeps the same subject</b> (state 12): after a note about a kept set is added, the next Add a note... with nothing selected opens with About: already reading that set. Here no note has been written yet, so the list opens on The graph.</div>
   <div class="k-annot-note" style="left:312px;top:470px;max-width:330px"><b>Why.</b> In the third study the empty panel's button, read with nothing selected, wrote a note about the whole graph for 1 of 2 first-click participants, and another pinned his reason to one member when he meant the kept set. "Kept sets" uses the same word as the rest of the app: a set is kept, and a frozen set is one kind of kept set.</div>`);
 
 // 11. A project whose notes all have one author: no name on any row
@@ -391,6 +394,46 @@ state("s11", "11 One author", `${notesPanel({ rows: soloRows })}
 `  <span class="k-annot-box" style="left:58px;top:112px;width:240px;height:560px"></span>
   <div class="k-annot-note" style="left:312px;top:60px;max-width:330px"><b>One author: no names.</b> The same notes in a project where every note was written under the same author setting. Each row's second line is the date and time alone, "Sep 28 2026, 10:14", and so is the inspector's. The name appears on every row as soon as a note by a second author arrives, for example when a colleague's project file is merged or a shared project is edited under another author setting. A note written with no author setting counts as a blank author, so a project with only blank authors shows no names either.</div>
   <div class="k-annot-note" style="left:312px;top:330px;max-width:330px"><b>Where the name is always seen:</b> the Note editor says "Saving as: {author}. Change..." while a note is written (screens/take-a-note.html), so the writer can check the setting without every row repeating one name. Owner decision, 2026-09-28 (owner-feedback.md): each note records its author and time from the project's author setting as given, and the author is shown only when a project holds more than one.</div>`);
+
+// 12. The next Add a note... with nothing selected keeps the subject of the note just added
+const sameEditor = `<div class="k-popover ne" style="left:617px;top:56px">
+        <div class="k-popover-head">New note<span class="k-grow"></span><span class="k-icon-btn">${I("x")}</span></div>
+        <div class="ne-body">
+          <div class="nt-line"><span class="k-caption">About:</span><span class="k-field k-grow" data-focus>${I("group", "k-i-sm")}TP53 neighborhood, 33 proteins<span class="k-grow"></span>${I("chevron-down", "k-i-sm k-caret")}</span></div>
+          <div class="k-field ne-text" data-placeholder style="height:160px">Write a note</div>
+          <div class="k-tertiary">Enter starts a new line. Ctrl+Enter posts the note.</div>
+        </div>
+      </div>`;
+state("s12", "12 Same subject", `${notesPanel({ rows: row(N.set, { solo: true }) })}
+  ${canvas({ drawing: "ppi-plain", alt: "300 human proteins and 1,262 interactions, nothing selected; a second new note opens about TP53 neighborhood", legend: "", over: sameEditor })}
+  ${graphInspector({ stack: "plain" })}`, "",
+`  <div class="k-annot-note" style="left:312px;top:220px;max-width:330px"><b>The next Add a note... keeps the same subject.</b> The note about TP53 neighborhood was just added (it is the panel's one row). With nothing selected, the next Add a note... opens with About: already reading <b>TP53 neighborhood, 33 proteins</b>, list closed and focus still on it: Tab goes to the text, and Down opens the same list as state 10 to choose again. A run of notes about one set costs one choice. A selection always wins over the remembered subject, and a subject that was deleted since is not remembered. Proposed in framework-changes.md, "Notes: Add a note with nothing selected asks what the note is about".<br>${NEEDS}</div>`);
+
+// 13. The same Detached note in the transfers investigation: the decided wording on its own data
+const TX = JSON.parse(readFileSync(join(here, "../kit/fixtures.json"), "utf8")).datasets.transactions;
+const ringN = TX.flaggedAccounts.length;
+const txRows = [
+    row({ glyph: "group", about: `About Mule ring, ${ringN} accounts`, at: "Sep 24 2026, 11:47",
+        text: `Referred for a SAR. ${ringN} personal accounts, riskScore 88 to 98.` },
+    { hover: true, solo: true, mark: ["Detached", `Bring back Mule ring (${ringN} accounts, as kept Sep 24)`, "The set this note pointed to was changed."] }),
+    row({ glyph: "network", about: `About the graph ${TX.graphName}`, at: "Sep 24 2026, 09:12",
+        text: `Source: ${TX.file}.` }, { solo: true }),
+].join("\n      ");
+const txInspector = `<aside class="k-right" aria-label="Inspector">
+    ${rightHead}
+    <div class="k-scroll">
+      <section class="k-section"><div class="k-section-head">Statistics</div>
+        <div class="sr"><span class="n">Nodes</span><span class="v">${fmt(TX.nodes)}</span></div>
+        <div class="sr"><span class="n">Edges</span><span class="v">${fmt(TX.edges)}</span><span class="sub">directed</span></div>
+      </section>
+      ${stackSection("plain")}
+      ${notesSection([`<div class="nt-irow"><div class="nt-body">Source: ${TX.file}.</div><div class="nt-when k-num">Sep 24 2026, 09:12</div></div>`])}
+    </div>
+  </aside>`;
+state("s13", "13 Bring back", `${notesPanel({ rows: txRows, project: TX.frame.project })}
+  ${canvas({ drawing: "transactions-density", alt: `${fmt(TX.nodes)} accounts shown as density, nothing selected`, legend: "" })}
+  ${txInspector}`, "",
+`  <div class="k-annot-note" style="left:312px;top:330px;max-width:330px"><b>The same Detached note in a transfers investigation.</b> The kept set Mule ring was deleted; its note reads "Bring back Mule ring (${ringN} accounts, as kept Sep 24)": the set's name, its member count in the data's own word for a node, and the day its members were kept. It brings back those ${ringN} accounts, not the set's latest state, as one undo entry. The other states show the pattern on the protein project (state 7: "Bring back DNA repair (${dnaCount} proteins, as kept Sep 24)"). Every note here is by one author, so the rows show the date and time alone.<br>${NEEDS}</div>`);
 
 // ---------- the page ----------
 const sw = states.map((s) => `<a href="#${s.id}">${s.label}</a>`).join("");
@@ -414,7 +457,7 @@ const html = `<!doctype html>
   .sv > .k-app { position: absolute; inset: 0; }
 
   /* The state switcher and the owner-notes toggle: annotation ink, not product UI */
-  .sw { position: fixed; z-index: 200; top: 8px; left: 748px; transform: translateX(-50%); display: flex; align-items: center; gap: 1px;
+  .sw { position: fixed; z-index: 200; top: 8px; left: 826px; transform: translateX(-50%); display: flex; align-items: center; gap: 1px;
         padding: 3px; border-radius: 14px; background: var(--k-annot-bg); box-shadow: 0 0 0 1px var(--k-annot); font-size: 11px; white-space: nowrap; }
   .sw a { padding: 2px 6px; border-radius: 11px; color: var(--cm-text); text-decoration: none; }
   .sw label { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; color: var(--k-annot-ink); font-weight: 600; }

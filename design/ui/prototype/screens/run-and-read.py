@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Writes screens/run-and-read.html (edit this, then run it from anywhere).
+State 5a (catalog-transfers) was added to the page by hand: port it before running this script.
 
 Every number comes from kit/fixtures.json: ppi (300 proteins), citations (124,318 patents,
 betweennessCost and sampledBetweenness), transactions (the March transfers; money in against

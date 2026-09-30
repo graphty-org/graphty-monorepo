@@ -19,15 +19,15 @@ table (screens/table-dock.html, small graph and ranked states); the comparison s
 (screens/comparison.html, both sections and the run record); the run-and-read catalog
 (screens/run-and-read.html). Viewed at 1440 x 900.
 
-**Renders she saw:** shots/screens__navigation.png, shots/screens__navigation-frame-today-results.png,
+**Renders she saw:** shots/screens__navigation.png, shots/record/screens__navigation-frame-today-results.png,
 a render of the "New: at rest" frame made for this session (not kept in shots/),
 shots/screens__results-panel--filtered.png, shots/screens__results-panel--running-result.png,
 shots/screens__results-panel--finished.png, shots/screens__results-panel--variant.png,
 shots/screens__results-panel--outofdate.png, shots/screens__inspector-result.png,
-shots/screens__table-dock.png, shots/screens__table-dock-ranked--study.png,
+shots/screens__table-dock.png, shots/record/screens__table-dock-ranked--study.png,
 shots/screens__comparison--study.png, shots/screens__comparison-versions.png,
-shots/screens__comparison-open-rec-m-pr.png, shots/run-and-read--rank.png,
-shots/screens__run-and-read-task-quiet-weight-trap--study.png. No mock shows two runs of the same
+shots/record/screens__comparison-open-rec-m-pr.png, shots/record/run-and-read--rank.png,
+shots/record/screens__run-and-read-task-quiet-weight-trap--study.png. No mock shows two runs of the same
 measure compared; for that step she was told what the page says Compare with... offers, and she
 guessed the rest from the two comparisons that are drawn.
 

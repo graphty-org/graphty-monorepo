@@ -7,12 +7,12 @@ ids, and say how sure you are of the order."
 loaded from `ppi-core-300.graphml`. Betweenness has already been run.
 
 **Screens seen (study view, 1440 x 900):**
-`shots/r6-mara-top50-rp-finished.png` (Results panel, the betweenness run),
-`shots/r6-mara-top50-rp-in-the-table.png` (after "295 more in the table"),
-`shots/r6-mara-top50-td-ranked.png` (the table with three measures ranked),
-`shots/r6-mara-top50-td-full.png` (the whole table page, including the Export dialog opened from
-Export table...), `shots/screens__inspector-result--study.png` (the run's record in the right
-panel), and `shots/r6-mara-top50-ex-ways-in-menu.png` and `shots/r6-mara-top50-ex-table.png`
+`shots/record/r6-mara-top50-rp-finished.png` (Results panel, the betweenness run),
+`shots/record/r6-mara-top50-rp-in-the-table.png` (after "295 more in the table"),
+`shots/record/r6-mara-top50-td-ranked.png` (the table with three measures ranked),
+`shots/record/r6-mara-top50-td-full.png` (the whole table page, including the Export dialog opened from
+Export table...), `shots/record/screens__inspector-result--study.png` (the run's record in the right
+panel), and `shots/record/r6-mara-top50-ex-ways-in-menu.png` and `shots/record/r6-mara-top50-ex-table.png`
 (the Export dialog page itself).
 
 ## Think-aloud

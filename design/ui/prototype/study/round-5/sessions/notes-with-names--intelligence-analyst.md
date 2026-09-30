@@ -9,10 +9,10 @@ will read your notes beside her own. Make sure she can tell which ones are yours
 
 Pages looked at, as a participant sees them (design notes hidden): the Preferences screen, the
 Notes panel screen, the Take a note screen and the Export dialog screen. Renders:
-shots/r4-marcus-names-prefs-full.png (every Preferences state, one under the other),
-shots/r4-marcus-names-notes-s1.png to -s10.png (the Notes panel states),
-shots/r4-marcus-names-take-s1.png to -s8.png (the Take a note states),
-shots/r4-marcus-names-export-full.png (every Export dialog state).
+shots/record/r4-marcus-names-prefs-full.png (every Preferences state, one under the other),
+shots/record/r4-marcus-names-notes-s1.png to -s10.png (the Notes panel states),
+shots/record/r4-marcus-names-take-s1.png to -s8.png (the Take a note states),
+shots/record/r4-marcus-names-export-full.png (every Export dialog state).
 
 ## Think-aloud transcript
 

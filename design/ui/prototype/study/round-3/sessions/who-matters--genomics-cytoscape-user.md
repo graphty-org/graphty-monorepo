@@ -6,11 +6,11 @@ Task as given by the moderator, and nothing more: "Your manager wants the people
 
 Screens seen, in order (participant view, design notes hidden, 1440 x 900 laptop):
 
-- Results panel, a finished betweenness run on the protein network: `../../../shots/r3-maren-who-rp-finished.png`
-- The same result scrolled to the end of its editor: `../../../shots/r3-maren-who-rp-finished-unpainted.png`
-- The full ranking in the table: `../../../shots/r3-maren-who-rp-in-the-table.png`
-- The node inspector, TP53 selected: `../../../shots/r3-maren-who-inspector.png`
-- The main window at rest, same network: `../../../shots/r3-maren-who-frame-ppi.png`
+- Results panel, a finished betweenness run on the protein network: `../../../shots/record/r3-maren-who-rp-finished.png`
+- The same result scrolled to the end of its editor: `../../../shots/record/r3-maren-who-rp-finished-unpainted.png`
+- The full ranking in the table: `../../../shots/record/r3-maren-who-rp-in-the-table.png`
+- The node inspector, TP53 selected: `../../../shots/record/r3-maren-who-inspector.png`
+- The main window at rest, same network: `../../../shots/record/r3-maren-who-frame-ppi.png`
 
 ## Transcript (think-aloud)
 

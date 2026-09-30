@@ -10,11 +10,11 @@ data may go. Decide whether you may use this tool on your data, and tell me what
 to IT."
 
 Screens, in the order he met them, all in the participant view at 1536 by 864: the start screen
-(shots/r6-marcus-dsh-start-screen.png), the "Where your data goes" page read top to bottom
-(shots/r6-marcus-dsh-data-location.png), an open project at rest on the protein sample
-(shots/r6-marcus-dsh-frame-at-rest.png), and the Data panel of an open project, first at the top
-and then scrolled to "Sent and saved from this project" (shots/r6-marcus-dsh-data-panel.png,
-shots/r6-marcus-dsh-data-panel-s7.png).
+(shots/record/r6-marcus-dsh-start-screen.png), the "Where your data goes" page read top to bottom
+(shots/record/r6-marcus-dsh-data-location.png), an open project at rest on the protein sample
+(shots/record/r6-marcus-dsh-frame-at-rest.png), and the Data panel of an open project, first at the top
+and then scrolled to "Sent and saved from this project" (shots/record/r6-marcus-dsh-data-panel.png,
+shots/record/r6-marcus-dsh-data-panel-s7.png).
 
 ## Step 1 -- the start screen
 

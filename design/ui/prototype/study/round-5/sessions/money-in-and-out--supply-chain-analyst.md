@@ -12,14 +12,14 @@ take in far more money than they send out, with the amounts, by end of day."
 Screens seen, in order, as the participant sees them (design notes hidden):
 
 - the March transfers project at rest: shots/screens__frame-at-rest-dataset-transactions.png
-- the measure list (Results "+") and its typed version: shots/run-and-read--catalog.png,
-  shots/run-and-read--quick.png (drawn on the protein sample; the list is the same for any graph)
+- the measure list (Results "+") and its typed version: shots/record/run-and-read--catalog.png,
+  shots/record/run-and-read--quick.png (drawn on the protein sample; the list is the same for any graph)
 - a finished measure, to see what a result looks like: shots/screens__results-panel--finished.png
-- the table under the canvas on the transfers, Nodes tab: shots/r4-dana-money-table-dock-large.png
-- the column menu: shots/r4-dana-money-table-dock-header.png
-- the Edges tab and its CSV: shots/r4-dana-money-table-dock-edges.png,
-  shots/r4-dana-money-table-dock-out.png
-- the Export dialog with a table checked: shots/r4-dana-money-export-table.png
+- the table under the canvas on the transfers, Nodes tab: shots/record/r4-dana-money-table-dock-large.png
+- the column menu: shots/record/r4-dana-money-table-dock-header.png
+- the Edges tab and its CSV: shots/record/r4-dana-money-table-dock-edges.png,
+  shots/record/r4-dana-money-table-dock-out.png
+- the Export dialog with a table checked: shots/record/r4-dana-money-export-table.png
 
 ## The project at rest
 

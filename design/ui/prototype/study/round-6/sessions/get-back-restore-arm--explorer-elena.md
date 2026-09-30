@@ -20,12 +20,12 @@ of Valjean and the 17 characters around him. The target end state is 47 of 77 no
 (degree 5 off, group 8 still out), with the 18 characters selected again.
 
 **Screens seen**, in order (study view, no design notes):
-- `../../../shots/r6-elena-getback-restore-01-start.png` -- the starting screen
-- `../../../shots/r6-elena-getback-restore-02-ctrlz1.png` -- after Ctrl+Z once
-- `../../../shots/r6-elena-getback-restore-03-ctrlz2.png` -- after Ctrl+Z a second time
-- `../../../shots/r6-elena-getback-restore-04-show-in-steps.png` -- after "Show in steps" on the bar
-- `../../../shots/r6-elena-getback-restore-05-tick-g8.png` -- after ticking "Filter out group 8" again
-- `../../../shots/r6-elena-getback-restore-06-hover-degree5.png` -- hovering the degree 5 row, not clicking
+- `../../../shots/record/r6-elena-getback-restore-01-start.png` -- the starting screen
+- `../../../shots/record/r6-elena-getback-restore-02-ctrlz1.png` -- after Ctrl+Z once
+- `../../../shots/record/r6-elena-getback-restore-03-ctrlz2.png` -- after Ctrl+Z a second time
+- `../../../shots/record/r6-elena-getback-restore-04-show-in-steps.png` -- after "Show in steps" on the bar
+- `../../../shots/record/r6-elena-getback-restore-05-tick-g8.png` -- after ticking "Filter out group 8" again
+- `../../../shots/record/r6-elena-getback-restore-06-hover-degree5.png` -- hovering the degree 5 row, not clicking
 
 ## Think-aloud
 

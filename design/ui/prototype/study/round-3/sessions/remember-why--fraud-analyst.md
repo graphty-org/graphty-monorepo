@@ -8,8 +8,8 @@
 - **Screens:** the Notes panel (empty, with notes, a note opened, notes out of date) and the
   inspector (one account, three accounts selected, a kept set). Renders read in the study view,
   design notes hidden:
-  `shots/r3-sarah-remember-notes-s1.png`, `-s3.png`, `-s7.png`,
-  `shots/r3-sarah-remember-inspector-one-node.png`, `-several.png`, `-set.png`.
+  `shots/record/r3-sarah-remember-notes-s1.png`, `-s3.png`, `-s7.png`,
+  `shots/record/r3-sarah-remember-inspector-one-node.png`, `-several.png`, `-set.png`.
 - **Data on screen:** the kit's human protein interaction graph (300 proteins). There is no
   account data on these two screens, so she has to imagine her accounts onto the dots. That
   colours everything she says; see "Moderator notes" at the end.
@@ -199,5 +199,5 @@ confirms from the prototype that Delete is immediate, undoable with Ctrl+Z, no c
 - The writing step (typing the note) is not on either screen given; she described what she
   would type. Her note text is a useful fixture: device ID shared, open dates, amount and time
   window, benign explanation ruled out, next action.
-- The older render of the out-of-date state (`shots/notes-panel-s7.png`) still reads "Use
+- The older render of the out-of-date state (`shots/record/notes-panel-s7.png`) still reads "Use
   current"; the page now says "Add current value". This session used a fresh render.

@@ -11,7 +11,7 @@ recipe dialog: the recipe preview, the matching step with 12 genes unmatched, an
 after he chose a column. The "nothing matched" state was shown afterwards as a probe. What he saw:
 
 - `shots/screens__start-screen.png` -- the start screen, nothing opened yet
-- `shots/r3-tom-recipe-start-s4.png` -- the recipe waiting for data
+- `shots/record/r3-tom-recipe-start-s4.png` -- the recipe waiting for data
 - `screens/binding-step.html`, frames "Everything matched", "12 genes did not match", "The
   column chosen", "Nothing matched" (rendered in the study view, design notes hidden)
 
@@ -202,9 +202,9 @@ I'd do it once, and then ask her whether I did it right."
   that page: the "Open a graph" title, both data lines, and every line of the recipe card except
   its heading and buttons. The kit's note-hiding pass hides every `h1`/`p` outside a `.k-app`,
   and the start-screen windows are `.ss-win`, not `.k-app`. This session used the normal render
-  (`shots/r3-tom-recipe-start-s4.png`) with the notes out of frame instead. Any session run from
+  (`shots/record/r3-tom-recipe-start-s4.png`) with the notes out of frame instead. Any session run from
   the study render of this page saw an empty recipe card.
-- `shots/start-screen--s4.png` is older than the page and disagrees with it: it says "red for
+- `shots/record/start-screen--s4.png` is older than the page and disagrees with it: it says "red for
   down and blue for up" (the page and the recipe preview say red for up), "Add data..." instead
   of "Open...", and shows an author line. It should be rendered again or removed so the gallery
   does not show the reversed colors.

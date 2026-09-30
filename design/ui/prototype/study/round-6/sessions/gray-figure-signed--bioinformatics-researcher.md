@@ -17,16 +17,16 @@ figure, figure in the Print look, written), screens/table-dock.html (ranked, col
 screens/inspector.html (one node).
 
 Renders (all study view, taken for this session):
-shots/r6-chen-grayfig-colour-by-value.png,
-shots/r6-chen-grayfig-colour-by-value-numbers.png,
-shots/r6-chen-grayfig-styles-list-looks.png,
-shots/r6-chen-grayfig-export-dialog-ways-in.png,
-shots/r6-chen-grayfig-export-dialog-figure.png,
-shots/r6-chen-grayfig-export-dialog-figure-grey.png,
-shots/r6-chen-grayfig-export-dialog-done.png,
-shots/r6-chen-grayfig-table-dock-ranked.png,
-shots/r6-chen-grayfig-table-dock-header.png,
-shots/r6-chen-grayfig-inspector-one-node.png.
+shots/record/r6-chen-grayfig-colour-by-value.png,
+shots/record/r6-chen-grayfig-colour-by-value-numbers.png,
+shots/record/r6-chen-grayfig-styles-list-looks.png,
+shots/record/r6-chen-grayfig-export-dialog-ways-in.png,
+shots/record/r6-chen-grayfig-export-dialog-figure.png,
+shots/record/r6-chen-grayfig-export-dialog-figure-grey.png,
+shots/record/r6-chen-grayfig-export-dialog-done.png,
+shots/record/r6-chen-grayfig-table-dock-ranked.png,
+shots/record/r6-chen-grayfig-table-dock-header.png,
+shots/record/r6-chen-grayfig-inspector-one-node.png.
 
 ## Transcript (thinking aloud)
 

@@ -5,13 +5,13 @@ so a colleague can read the picture."
 
 Screens seen, in the order she looked at them (participant view, design notes hidden):
 
-- `screens/frame-at-rest.html` -- shots/r6-chen-restyle-frame-at-rest.png
-- `screens/inspector.html` -- shots/r6-chen-restyle-inspector.png
-- `screens/colour-by-value.html` (states 4, 7 and 8) -- shots/r6-chen-restyle-colour-by-value.png,
-  shots/r6-chen-restyle-cbv-categories.png, shots/r6-chen-restyle-cbv-legend.png,
-  shots/r6-chen-restyle-cbv-run-colors.png
-- `screens/styles-list.html` (default, Looks menu, Libraries tab) -- shots/r6-chen-restyle-styles-list.png,
-  shots/r6-chen-restyle-sl-looks.png, shots/r6-chen-restyle-sl-libraries.png
+- `screens/frame-at-rest.html` -- shots/record/r6-chen-restyle-frame-at-rest.png
+- `screens/inspector.html` -- shots/record/r6-chen-restyle-inspector.png
+- `screens/colour-by-value.html` (states 4, 7 and 8) -- shots/record/r6-chen-restyle-colour-by-value.png,
+  shots/record/r6-chen-restyle-cbv-categories.png, shots/record/r6-chen-restyle-cbv-legend.png,
+  shots/record/r6-chen-restyle-cbv-run-colors.png
+- `screens/styles-list.html` (default, Looks menu, Libraries tab) -- shots/record/r6-chen-restyle-styles-list.png,
+  shots/record/r6-chen-restyle-sl-looks.png, shots/record/r6-chen-restyle-sl-libraries.png
 
 ## Think-aloud
 

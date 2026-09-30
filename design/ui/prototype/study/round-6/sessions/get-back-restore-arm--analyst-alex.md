@@ -19,12 +19,12 @@ of Valjean and the 17 characters beside him. The target end state is 47 of 77 no
 (degree 5 off, group 8 still out), with the 18 characters selected again.
 
 **Screens seen**, in order:
-- `../../../shots/r6-alex-getback-restore-01-start.png` -- the starting screen
-- `../../../shots/r6-alex-getback-restore-02-ctrlz-restored.png` -- after the first Ctrl+Z
-- `../../../shots/r6-alex-getback-restore-03-ctrlz-group8.png` -- after the second Ctrl+Z
-- `../../../shots/r6-alex-getback-restore-04-ctrlz-degree5.png` -- after the third Ctrl+Z
-- `../../../shots/r6-alex-getback-restore-05-show-in-steps.png` -- after clicking "Show in steps"
-- `../../../shots/r6-alex-getback-restore-06-group8-on.png` -- after ticking group 8 back on
+- `../../../shots/record/r6-alex-getback-restore-01-start.png` -- the starting screen
+- `../../../shots/record/r6-alex-getback-restore-02-ctrlz-restored.png` -- after the first Ctrl+Z
+- `../../../shots/record/r6-alex-getback-restore-03-ctrlz-group8.png` -- after the second Ctrl+Z
+- `../../../shots/record/r6-alex-getback-restore-04-ctrlz-degree5.png` -- after the third Ctrl+Z
+- `../../../shots/record/r6-alex-getback-restore-05-show-in-steps.png` -- after clicking "Show in steps"
+- `../../../shots/record/r6-alex-getback-restore-06-group8-on.png` -- after ticking group 8 back on
 
 ## Think-aloud
 

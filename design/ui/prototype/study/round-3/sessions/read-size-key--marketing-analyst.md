@@ -7,9 +7,9 @@ list with a size layer open in its editor (a 300-protein network).
 
 **Renders the participant saw:**
 
-- `shots/r3-jordan-read-size-key-s9.png` -- main window, size added, nothing selected
-- `shots/r3-jordan-read-size-key-editor.png` -- style list, the "Degree size" layer open
-- `shots/r3-jordan-read-size-key-styles-list.png` -- style list, first view
+- `shots/record/r3-jordan-read-size-key-s9.png` -- main window, size added, nothing selected
+- `shots/record/r3-jordan-read-size-key-editor.png` -- style list, the "Degree size" layer open
+- `shots/record/r3-jordan-read-size-key-styles-list.png` -- style list, first view
 
 **Outcome:** success, with one open doubt about what "connections" counts. **Ease (1-7):** 6.
 

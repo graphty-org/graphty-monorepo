@@ -11,7 +11,7 @@ Style stack on the right); the same network with the Style stack's module rows o
 "Module as color" editor (one color per value) on the color-by-value page, with a value's menu open; the
 color picker from the "add a layer for the selection" state; the Look menu (Screen, Print, High
 contrast).
-Renders: shots/r4-chen-restyle-frame-at-rest.png, r4-chen-restyle-inspector.png,
+Renders: shots/record/r4-chen-restyle-frame-at-rest.png, r4-chen-restyle-inspector.png,
 r4-chen-restyle-categories.png, r4-chen-restyle-styles-add-to-selection.png,
 r4-chen-restyle-styles-looks.png, r4-chen-restyle-styles-list.png, r4-chen-restyle-colour-by-value.png.
 

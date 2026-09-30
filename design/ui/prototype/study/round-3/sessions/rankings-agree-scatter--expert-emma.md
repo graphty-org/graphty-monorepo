@@ -3,7 +3,7 @@
 **Participant:** Expert Emma, network scientist and consultant (notebook user: networkx, igraph; Gephi for figures).
 **Task as given by the moderator:** "Do betweenness and PageRank agree about who matters here?"
 **Pages used:** the comparison screen (first frame: PageRank against betweenness on the April payments data, with the table dock on its Scatter view; the Differences tile switched to Higher on A lower on the page), then the bottom dock table screen (three measures ranked on the protein network; the CSV export).
-**Renders seen (study view, design notes hidden):** `shots/r3-emma-scatter-comparison-full.png`, `shots/r3-emma-scatter-table-ranked.png`, `shots/r3-emma-scatter-table-out.png`.
+**Renders seen (study view, design notes hidden):** `shots/record/r3-emma-scatter-comparison-full.png`, `shots/record/r3-emma-scatter-table-ranked.png`, `shots/record/r3-emma-scatter-table-out.png`.
 
 ## Think-aloud
 

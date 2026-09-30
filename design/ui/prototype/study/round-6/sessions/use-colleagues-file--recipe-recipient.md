@@ -74,7 +74,7 @@ files added. Whether Tom would know to select two files in one file window, or w
 wonder what happened, is not drawn. He selected both only because he had just read that both were
 expected.)
 
-**3. The Apply dialog, before his choices.** (shots/screens__recipe-apply-binding--study.png)
+**3. The Apply dialog, before his choices.** (shots/record/screens__recipe-apply-binding--study.png)
 
 "Apply recipe Expression overlay. Data files: ppi-core-300, 300 proteins; qpcr-hits-2026-09.csv,
 96 rows. Ninety-six. That's my sheet, I have 96 rows. Good.
@@ -119,7 +119,7 @@ card's line.)
 
 "Apply was grey until I'd done both. The bottom line said so: 'Apply waits for two choices.' OK."
 
-**4. The Apply dialog, ready.** (shots/screens__recipe-apply-confirmed--study.png)
+**4. The Apply dialog, ready.** (shots/record/screens__recipe-apply-confirmed--study.png)
 
 "'36 up, 48 down.' Thirty-six up, forty-eight down. That's about what I remember from the plate.
 Good -- a number I can check against my own sheet.

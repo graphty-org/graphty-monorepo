@@ -15,14 +15,14 @@ not the transfers; she used the finished Money in run on the run-and-read page f
 
 Screens seen, in order, as the participant sees them (design notes hidden):
 
-- the March transfers project at rest: shots/r6-dana-money-frame-at-rest.png
-- the typed measure box with "money" in it: shots/r6-dana-money-run-and-read-money.png
-- the finished Money in run, with the table open: shots/r6-dana-money-run-and-read-money-read.png
-- the column menu, New column opened: shots/r6-dana-money-table-dock-large.png
+- the March transfers project at rest: shots/record/r6-dana-money-frame-at-rest.png
+- the typed measure box with "money" in it: shots/record/r6-dana-money-run-and-read-money.png
+- the finished Money in run, with the table open: shots/record/r6-dana-money-run-and-read-money-read.png
+- the column menu, New column opened: shots/record/r6-dana-money-table-dock-large.png
 - the three money columns beside the counts (drawn on the 14 flagged accounts):
-  shots/r6-dana-money-table-dock-selected.png
-- the Edges tab and its CSV: shots/r6-dana-money-table-dock-edges.png
-- one account in the inspector, with its Totals: shots/r6-dana-money-inspector-flagged.png
+  shots/record/r6-dana-money-table-dock-selected.png
+- the Edges tab and its CSV: shots/record/r6-dana-money-table-dock-edges.png
+- one account in the inspector, with its Totals: shots/record/r6-dana-money-inspector-flagged.png
 
 ## The project at rest
 

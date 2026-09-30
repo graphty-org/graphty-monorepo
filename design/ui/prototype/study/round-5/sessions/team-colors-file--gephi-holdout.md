@@ -15,13 +15,13 @@ recipe-apply screens, and the styles list (the stack in the right panel, the col
 Libraries tab). All at 1440 x 900.
 
 Renders the participant looked at:
-- `../../../shots/r4-mara-teamcolors-nav-new.png`, `../../../shots/r4-mara-teamcolors-nav-new-menu.png`,
-  `../../../shots/r4-mara-teamcolors-nav-new-data.png`
-- `../../../shots/r4-mara-teamcolors-data-panel.png`, `../../../shots/r4-mara-teamcolors-data-panel-s6.png`
-- `../../../shots/r4-mara-teamcolors-replace-and-recipe-full.png` (menu, Apply recipe, dropped file,
+- `../../../shots/record/r4-mara-teamcolors-nav-new.png`, `../../../shots/record/r4-mara-teamcolors-nav-new-menu.png`,
+  `../../../shots/record/r4-mara-teamcolors-nav-new-data.png`
+- `../../../shots/record/r4-mara-teamcolors-data-panel.png`, `../../../shots/record/r4-mara-teamcolors-data-panel-s6.png`
+- `../../../shots/record/r4-mara-teamcolors-replace-and-recipe-full.png` (menu, Apply recipe, dropped file,
   binding, applied)
-- `../../../shots/r4-mara-teamcolors-recipe-apply-full.png`
-- `../../../shots/r4-mara-teamcolors-styles-list-full.png`, `../../../shots/r4-mara-teamcolors-styles-libraries.png`
+- `../../../shots/record/r4-mara-teamcolors-recipe-apply-full.png`
+- `../../../shots/record/r4-mara-teamcolors-styles-list-full.png`, `../../../shots/record/r4-mara-teamcolors-styles-libraries.png`
 
 ## Think-aloud
 

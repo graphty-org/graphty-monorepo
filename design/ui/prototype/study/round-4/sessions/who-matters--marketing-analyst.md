@@ -16,12 +16,12 @@ Miserables with degree and betweenness ranked side by side, and the CSV export).
 
 Renders the participant looked at (all in the study view, design notes hidden):
 - `../../../shots/screens__frame-at-rest.png`
-- `../../../shots/r4-jordan-who-nav-new.png`, `../../../shots/r4-jordan-who-nav-node.png`
-- `../../../shots/r4-jordan-who-rp-catalog.png`, `../../../shots/r4-jordan-who-rp-quick.png`
-- `../../../shots/r4-jordan-who-rp-finished.png`, `../../../shots/r4-jordan-who-rp-table.png`,
-  `../../../shots/r4-jordan-who-rp-variant.png`
-- `../../../shots/r4-jordan-who-rp-filtered.png`
-- `../../../shots/r4-jordan-who-td-small.png`, `../../../shots/r4-jordan-who-td-out.png`
+- `../../../shots/record/r4-jordan-who-nav-new.png`, `../../../shots/record/r4-jordan-who-nav-node.png`
+- `../../../shots/record/r4-jordan-who-rp-catalog.png`, `../../../shots/record/r4-jordan-who-rp-quick.png`
+- `../../../shots/record/r4-jordan-who-rp-finished.png`, `../../../shots/record/r4-jordan-who-rp-table.png`,
+  `../../../shots/record/r4-jordan-who-rp-variant.png`
+- `../../../shots/record/r4-jordan-who-rp-filtered.png`
+- `../../../shots/record/r4-jordan-who-td-small.png`, `../../../shots/record/r4-jordan-who-td-out.png`
 
 Several Results-panel states are drawn on other datasets (300 human proteins, 124,318 patents)
 rather than on Les Miserables. The moderator told her to read them as "the same panel, different

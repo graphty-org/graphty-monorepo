@@ -12,13 +12,13 @@ characters. A moment before, a click on empty canvas had cleared a selection of 
 around Valjean. The participant was not told any of this.
 
 **Screens seen** (renders the participant looked at, in order):
-- `../../../shots/screens__undo--study.png` -- the starting screen
-- `../../../shots/r4-alex-getback-02-ctrlz.png` -- after pressing Ctrl+Z once (same state as
+- `../../../shots/record/screens__undo--study.png` -- the starting screen
+- `../../../shots/record/r4-alex-getback-02-ctrlz.png` -- after pressing Ctrl+Z once (same state as
   `../../../shots/screens__undo-s2--study.png`)
-- `../../../shots/r4-alex-getback-03-ctrly.png` -- after Ctrl+Y
-- `../../../shots/r4-alex-getback-04-prevsel.png` -- after clicking "Previous selection" in the table
-- `../../../shots/r4-alex-getback-05-chip.png` -- the filter chip opened to double-check
-- `../../../shots/r4-alex-getback-01-edit-menu.png` -- the Edit menu, opened afterwards when asked
+- `../../../shots/record/r4-alex-getback-03-ctrly.png` -- after Ctrl+Y
+- `../../../shots/record/r4-alex-getback-04-prevsel.png` -- after clicking "Previous selection" in the table
+- `../../../shots/record/r4-alex-getback-05-chip.png` -- the filter chip opened to double-check
+- `../../../shots/record/r4-alex-getback-01-edit-menu.png` -- the Edit menu, opened afterwards when asked
   where he would have looked for undo
 
 ## Think-aloud

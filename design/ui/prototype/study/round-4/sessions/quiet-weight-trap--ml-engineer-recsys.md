@@ -14,12 +14,12 @@ the re-run; the Run a measure menu, the main menu's Algorithms list and the insp
 the protein sample); the recipe binding step (glanced at, left).
 
 Renders the participant looked at:
-- `../../../shots/screens__weight-role-trap-a1--study.png` through `a5--study.png`
+- `../../../shots/record/screens__weight-role-trap-a1--study.png` through `a5--study.png`
 - the last state of `../../../screens/weight-role-trap.html` (after the re-run), read on the page
-- `../../../shots/screens__run-and-read-task-quiet-weight-trap--study.png`
-- `../../../shots/screens__results-panel-task-quiet-weight-trap--study.png`
-- `../../../shots/screens__inspector-task-quiet-weight-trap--study.png`
-- `../../../shots/screens__binding-step--study.png` (glanced at, left)
+- `../../../shots/record/screens__run-and-read-task-quiet-weight-trap--study.png`
+- `../../../shots/record/screens__results-panel-task-quiet-weight-trap--study.png`
+- `../../../shots/record/screens__inspector-task-quiet-weight-trap--study.png`
+- `../../../shots/record/screens__binding-step--study.png` (glanced at, left)
 
 ## Think-aloud
 

@@ -17,10 +17,10 @@ run-and-read flow page, and the comparison page (payments data).
 
 Renders the participant looked at:
 - `../../../shots/screens__navigation.png`, `../../../shots/screens__navigation-frame-new-node.png`,
-  `../../../shots/screens__navigation-frame-today-results.png`
+  `../../../shots/record/screens__navigation-frame-today-results.png`
 - `../../../tmp/two-runs-elena/nav-new.png`, `../../../tmp/two-runs-elena/nav-menu.png`
   (navigation page, "New: at rest" and "New: project menu" frames)
-- `../../../shots/screens__table-dock--study.png` (small graph state and the "Not current" state;
+- `../../../shots/record/screens__table-dock--study.png` (small graph state and the "Not current" state;
   crops in `../../../tmp/two-runs-elena/td1.png`, `td-stale.png`)
 - `../../../shots/screens__results-panel.png`, `screens__results-panel--finished.png`,
   `screens__results-panel--variant.png`, `screens__results-panel--running-result.png`,

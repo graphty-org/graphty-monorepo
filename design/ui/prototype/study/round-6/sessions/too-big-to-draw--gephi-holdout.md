@@ -12,7 +12,7 @@ drawn, top 3 plus their neighbors); "Find" with three patent numbers searched on
 graph; the table dock at the drawing limit with a set column; "Selection over the cap" (a
 different data set, bank transfers), its first two states.
 
-Renders: shots/r6-mara-t2d-pdl.png, r6-mara-t2d-pdl-{isolates,narrow,keep,kept,rule,drawn,sample}.png,
+Renders: shots/record/r6-mara-t2d-pdl.png, r6-mara-t2d-pdl-{isolates,narrow,keep,kept,rule,drawn,sample}.png,
 r6-mara-t2d-find-s7.png, r6-mara-t2d-td-limit.png, r6-mara-t2d-soc.png, r6-mara-t2d-soc-e2.png.
 
 ---

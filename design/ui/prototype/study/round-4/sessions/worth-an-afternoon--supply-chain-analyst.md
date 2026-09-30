@@ -14,12 +14,12 @@ job; the moderator gave no further context.
 **Screens seen (study view, 1440 by 900):**
 
 - Start screen: `shots/tasks/worth-an-afternoon/01-start-screen.png`
-- "Where your data goes" page, reached from the start screen link: `shots/r4-dana-wa-data-location.png`
+- "Where your data goes" page, reached from the start screen link: `shots/record/r4-dana-wa-data-location.png`
 - Open dialog, confidence column read as text: `shots/tasks/worth-an-afternoon/02-load-step-blocked.png`
 - Open dialog, repeated pairs: `shots/tasks/worth-an-afternoon/03-load-step-policy.png`
 - The loaded graph: `shots/tasks/worth-an-afternoon/04-frame-at-rest.png`
 - For "what would I do next", the first-look screens: quick actions and a betweenness result on
-  the Les Miserables sample: `shots/r4-dana-wa-fl-s6a.png`, `shots/r4-dana-wa-fl-s6b.png`
+  the Les Miserables sample: `shots/record/r4-dana-wa-fl-s6a.png`, `shots/record/r4-dana-wa-fl-s6b.png`
 
 **Outcome:** she got the file loaded and understood what she was loading, and answered the task:
 "not for me, and I'd tell my colleague why in two lines." Ease was good; the value question was a

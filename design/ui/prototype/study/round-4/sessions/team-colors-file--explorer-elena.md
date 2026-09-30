@@ -12,16 +12,16 @@ team's."
 
 **Screens seen, in order** (all in the study view):
 - The project at rest, and the main menu with File open --
-  `../../../shots/r4-elena-teamcolors-rr-s-menu.png` (from `screens/replace-and-recipe.html`)
-- The attachment dropped on the canvas -- `../../../shots/r4-elena-teamcolors-rr-s-style-drop.png`
-- The step after "Apply style file on top..." -- `../../../shots/r4-elena-teamcolors-rr-s-bind-style.png`
-- The project after Apply -- `../../../shots/r4-elena-teamcolors-rr-s-style-applied.png`
+  `../../../shots/record/r4-elena-teamcolors-rr-s-menu.png` (from `screens/replace-and-recipe.html`)
+- The attachment dropped on the canvas -- `../../../shots/record/r4-elena-teamcolors-rr-s-style-drop.png`
+- The step after "Apply style file on top..." -- `../../../shots/record/r4-elena-teamcolors-rr-s-bind-style.png`
+- The project after Apply -- `../../../shots/record/r4-elena-teamcolors-rr-s-style-applied.png`
 - Shown by the moderator afterwards: the Data button's panel
-  (`../../../shots/r4-elena-teamcolors-data-panel.png`, and the navigation mock's Data frame
-  `../../../shots/r4-elena-teamcolors-nav-new-data.png`), the Apply recipe picker
-  (`../../../shots/r4-elena-teamcolors-rr-s-recipe-pick.png`), and the color picker's Libraries tab
-  (`../../../shots/r4-elena-teamcolors-sl-libraries.png`)
-- Glanced at: the navigation mock's resting frame (`../../../shots/r4-elena-teamcolors-nav-new.png`)
+  (`../../../shots/record/r4-elena-teamcolors-data-panel.png`, and the navigation mock's Data frame
+  `../../../shots/record/r4-elena-teamcolors-nav-new-data.png`), the Apply recipe picker
+  (`../../../shots/record/r4-elena-teamcolors-rr-s-recipe-pick.png`), and the color picker's Libraries tab
+  (`../../../shots/record/r4-elena-teamcolors-sl-libraries.png`)
+- Glanced at: the navigation mock's resting frame (`../../../shots/record/r4-elena-teamcolors-nav-new.png`)
 
 ## The project, before anything
 

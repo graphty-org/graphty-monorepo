@@ -8,9 +8,9 @@ Task as given by the moderator: "Run PageRank on a network whose edges have a co
 you have never thought about."
 
 Screens used: the measure-options mock (starting at its first state) and the Results panel mock.
-Renders read: `shots/screens__option-form-cost.png`, `shots/option-form-cost-weight-refused--notes.png`,
+Renders read: `shots/screens__option-form-cost.png`, `shots/record/option-form-cost-weight-refused--notes.png`,
 `shots/option-form-cost-weight-meaning.png`, `shots/option-form-cost-within-budget.png`,
-`shots/screens__results-panel--not-run.png`, `shots/screens__results-panel--running.png`,
+`shots/record/screens__results-panel--not-run.png`, `shots/screens__results-panel--running.png`,
 `shots/screens__results-panel--finished.png`.
 
 ## Transcript

@@ -8,18 +8,18 @@ the two rankings and how each was made."
 
 | What | Render |
 |---|---|
-| Les Miserables at rest, new rail | `shots/r4-chris-tworuns-nav-new.png` |
-| Les Miserables, Data panel | `shots/r4-chris-tworuns-nav-new-data.png` |
-| Les Miserables, today's rail with Results | `shots/r4-chris-tworuns-nav-today-results.png` |
-| Navigation page opened directly in the participant view (blank) | `shots/r4-chris-tworuns-navigation.png` |
-| Results in the inspector, 21 states | `shots/r4-chris-tworuns-results-panel.png` |
-| Run a measure and read it | `shots/r4-chris-tworuns-run-and-read.png` |
-| Comparison surface | `shots/r4-chris-tworuns-comparison.png` |
-| Table dock | `shots/r4-chris-tworuns-table-dock.png` |
-| Inspector, 19 states | `shots/r4-chris-tworuns-inspector.png` |
+| Les Miserables at rest, new rail | `shots/record/r4-chris-tworuns-nav-new.png` |
+| Les Miserables, Data panel | `shots/record/r4-chris-tworuns-nav-new-data.png` |
+| Les Miserables, today's rail with Results | `shots/record/r4-chris-tworuns-nav-today-results.png` |
+| Navigation page opened directly in the participant view (blank) | `shots/record/r4-chris-tworuns-navigation.png` |
+| Results in the inspector, 21 states | `shots/record/r4-chris-tworuns-results-panel.png` |
+| Run a measure and read it | `shots/record/r4-chris-tworuns-run-and-read.png` |
+| Comparison surface | `shots/record/r4-chris-tworuns-comparison.png` |
+| Table dock | `shots/record/r4-chris-tworuns-table-dock.png` |
+| Inspector, 19 states | `shots/record/r4-chris-tworuns-inspector.png` |
 
 Moderator's note on the setup: the navigation page opened in the participant view renders as a
-blank white page (`shots/r4-chris-tworuns-navigation.png`). Its full-size frames (`?frame=new`,
+blank white page (`shots/record/r4-chris-tworuns-navigation.png`). Its full-size frames (`?frame=new`,
 `?frame=new-data`, `?frame=today-results`) do render, and the session used those. Most of the
 results, run and comparison states are drawn on the protein, patent and payments datasets, not on
 Les Miserables. Chris was told to read them as "the same controls, other data".

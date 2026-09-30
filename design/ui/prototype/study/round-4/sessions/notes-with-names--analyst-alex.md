@@ -11,15 +11,15 @@ notes beside her own. Make sure she can tell which ones are yours."
 not told where the name setting lives.
 
 **Screens seen** (renders the participant looked at, in order):
-- `../../../shots/r4-alex-names-tan-s3.png` -- a note just added: the Note popout and the Notes
+- `../../../shots/record/r4-alex-names-tan-s3.png` -- a note just added: the Note popout and the Notes
   row in the inspector (one-author project, date only)
-- `../../../shots/r4-alex-names-tan-s5.png` -- the Notes panel, next session, one author
-- `../../../shots/r4-alex-names-tan-s2.png` -- writing a new note
-- `../../../shots/r4-alex-names-preferences.png` -- the main menu open on Preferences, with
+- `../../../shots/record/r4-alex-names-tan-s5.png` -- the Notes panel, next session, one author
+- `../../../shots/record/r4-alex-names-tan-s2.png` -- writing a new note
+- `../../../shots/record/r4-alex-names-preferences.png` -- the main menu open on Preferences, with
   "Your name on notes and recipes..." and, further down the page, its small dialog
-- `../../../shots/r4-alex-names-notes-s2.png` and `../../../shots/r4-alex-names-notes-s3.png` --
+- `../../../shots/record/r4-alex-names-notes-s2.png` and `../../../shots/record/r4-alex-names-notes-s3.png` --
   the Notes panel of a project with notes by two people (Adam Powers, Lin Chen)
-- `../../../shots/screens__export-dialog-evidence--study.png` -- the Export dialog, findings
+- `../../../shots/record/screens__export-dialog-evidence--study.png` -- the Export dialog, findings
   report, looked at when he asked "what does she actually get"
 
 ## Think-aloud

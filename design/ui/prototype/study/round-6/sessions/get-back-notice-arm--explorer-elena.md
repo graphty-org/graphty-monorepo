@@ -23,14 +23,14 @@ selection. She was shown the selected screen for a few seconds before the task, 
 looking at", and told only that she had been "narrowing it down" a moment ago.
 
 **Screens seen** (renders, in order, all in the participant view):
-- `../../../shots/r6-elena-getback-notice-01-start.png` -- the starting screen, selection just cleared
-- `../../../shots/r6-elena-getback-notice-02-bring-back.png` -- after clicking "Bring it back"
-- `../../../shots/r6-elena-getback-notice-03-undo1.png` -- after Ctrl+Z once
-- `../../../shots/r6-elena-getback-notice-04-undo2.png` -- after Ctrl+Z a second time
-- `../../../shots/r6-elena-getback-notice-05-steps.png` -- after clicking "Show in steps" on the message
-- `../../../shots/r6-elena-getback-notice-06-tick-g8.png` -- after ticking "Filter out group 8" back on
+- `../../../shots/record/r6-elena-getback-notice-01-start.png` -- the starting screen, selection just cleared
+- `../../../shots/record/r6-elena-getback-notice-02-bring-back.png` -- after clicking "Bring it back"
+- `../../../shots/record/r6-elena-getback-notice-03-undo1.png` -- after Ctrl+Z once
+- `../../../shots/record/r6-elena-getback-notice-04-undo2.png` -- after Ctrl+Z a second time
+- `../../../shots/record/r6-elena-getback-notice-05-steps.png` -- after clicking "Show in steps" on the message
+- `../../../shots/record/r6-elena-getback-notice-06-tick-g8.png` -- after ticking "Filter out group 8" back on
 
-For comparison only, not seen by her: `../../../shots/r6-elena-getback-notice-x-ctrlz-first.png`
+For comparison only, not seen by her: `../../../shots/record/r6-elena-getback-notice-x-ctrlz-first.png`
 is what Ctrl+Z pressed first, before "Bring it back", would have done: the filter step comes off,
 the message changes to "Undone: Filter out group 8", and "Bring it back" is gone with the
 selection.

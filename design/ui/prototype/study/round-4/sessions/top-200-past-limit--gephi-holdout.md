@@ -16,15 +16,15 @@ refused and finished sampled with its run record, and a finished run opened in t
 (screens/table-dock.html); Find with a patent selected (screens/find.html, state 7). All at
 1440 x 900 in the participant view.
 
-**Renders she saw:** shots/r4-mara-top200-pdl-not-drawn.png, shots/r4-mara-top200-pdl-narrow.png,
-shots/r4-mara-top200-pdl-keep.png, shots/r4-mara-top200-pdl-rule.png,
-shots/r4-mara-top200-pdl-rule-insets.png, shots/r4-mara-top200-pdl-kept.png,
-shots/r4-mara-top200-pdl-sample.png, shots/r4-mara-top200-rp-catalog.png,
-shots/r4-mara-top200-ofc-over-budget.png, shots/r4-mara-top200-ofc-within-budget.png,
-shots/r4-mara-top200-ofc-sample-over-budget.png, shots/r4-mara-top200-rp-refused.png,
-shots/r4-mara-top200-rp-finished-sampled.png, shots/r4-mara-top200-rp-in-the-table.png,
-shots/r4-mara-top200-td-limit.png, shots/r4-mara-top200-td-ranked.png,
-shots/r4-mara-top200-find-s7.png.
+**Renders she saw:** shots/record/r4-mara-top200-pdl-not-drawn.png, shots/record/r4-mara-top200-pdl-narrow.png,
+shots/record/r4-mara-top200-pdl-keep.png, shots/record/r4-mara-top200-pdl-rule.png,
+shots/record/r4-mara-top200-pdl-rule-insets.png, shots/record/r4-mara-top200-pdl-kept.png,
+shots/record/r4-mara-top200-pdl-sample.png, shots/record/r4-mara-top200-rp-catalog.png,
+shots/record/r4-mara-top200-ofc-over-budget.png, shots/record/r4-mara-top200-ofc-within-budget.png,
+shots/record/r4-mara-top200-ofc-sample-over-budget.png, shots/record/r4-mara-top200-rp-refused.png,
+shots/record/r4-mara-top200-rp-finished-sampled.png, shots/record/r4-mara-top200-rp-in-the-table.png,
+shots/record/r4-mara-top200-td-limit.png, shots/record/r4-mara-top200-td-ranked.png,
+shots/record/r4-mara-top200-find-s7.png.
 
 ---
 

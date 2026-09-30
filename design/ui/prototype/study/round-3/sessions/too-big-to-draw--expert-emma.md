@@ -14,14 +14,14 @@ from the file patent-citations-sample.csv.
 
 | Step | Screen | Render |
 |---|---|---|
-| 1 | Opened, nothing drawn | [shot](../../../shots/study-r3-emma-too-big--pdl-not-drawn.png) |
-| 2 | Isolates count clicked | [shot](../../../shots/study-r3-emma-too-big--pdl-isolates.png) |
-| 3 | "Narrow the graph..." list | [shot](../../../shots/study-r3-emma-too-big--pdl-narrow.png) |
-| 4 | New rule editor | [shot](../../../shots/study-r3-emma-too-big--pdl-rule.png) |
-| 5 | Rule applied, 612 drawn | [shot](../../../shots/study-r3-emma-too-big--pdl-drawn.png) |
-| 6 | Suggested step instead: top 3 with neighbors | [shot](../../../shots/study-r3-emma-too-big--pdl-sample.png) |
-| 7 | Find, three patent numbers pasted | [shot](../../../shots/study-r3-emma-too-big--find-s7.png) |
-| 8 | Filter steps list with several steps | [shot](../../../shots/study-r3-emma-too-big--filter-chip.png) |
+| 1 | Opened, nothing drawn | [shot](../../../shots/record/study-r3-emma-too-big--pdl-not-drawn.png) |
+| 2 | Isolates count clicked | [shot](../../../shots/record/study-r3-emma-too-big--pdl-isolates.png) |
+| 3 | "Narrow the graph..." list | [shot](../../../shots/record/study-r3-emma-too-big--pdl-narrow.png) |
+| 4 | New rule editor | [shot](../../../shots/record/study-r3-emma-too-big--pdl-rule.png) |
+| 5 | Rule applied, 612 drawn | [shot](../../../shots/record/study-r3-emma-too-big--pdl-drawn.png) |
+| 6 | Suggested step instead: top 3 with neighbors | [shot](../../../shots/record/study-r3-emma-too-big--pdl-sample.png) |
+| 7 | Find, three patent numbers pasted | [shot](../../../shots/record/study-r3-emma-too-big--find-s7.png) |
+| 8 | Filter steps list with several steps | [shot](../../../shots/record/study-r3-emma-too-big--filter-chip.png) |
 
 Outcome: **success, with difficulty.** She found three things worth a closer look. On the way, she
 nearly decided that the statistics panel was wrong.

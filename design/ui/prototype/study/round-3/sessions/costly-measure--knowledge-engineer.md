@@ -11,7 +11,7 @@ states 3, 4 and 5), the results panel (`screens/results-panel.html#finished-samp
 graph past the drawing limit (`screens/past-drawing-limit.html`).
 Renders looked at: `shots/option-form-cost-over-budget.png`,
 `shots/option-form-cost-within-budget.png`, `shots/option-form-cost-sample-over-budget.png`,
-`shots/r3-ke-costly-finished-sampled.png`, `shots/r3-ke-costly-pdl.png`.
+`shots/record/r3-ke-costly-finished-sampled.png`, `shots/record/r3-ke-costly-pdl.png`.
 
 Outcome: success with difficulty. She got a ranked answer and could say how sure it was, then
 found the run's own record contradicting the options it was run with, and stopped trusting the

@@ -3,7 +3,7 @@
 **Participant:** Dr. Min-ji Kim (fictional composite), knowledge graph engineer and ontologist at a financial-services company; GraphDB workbench, SPARQL in notebooks, Protege; distrusts any viewer that invents data on import.
 **Task as given by the moderator:** "This week's export arrived. Do what you did last week, and show your manager what changed."
 **Screens used, in order:** the load step (its Add data state, then the rest of its frames for context), Version history (the list, the recipe entry, March data open), the results panel (the out-of-date state), the comparison (two data versions). All at 1440 x 900 in the study view, design notes hidden. The prototype is static: no button responds, so where I say "I click" I mean what the page says the control would do.
-**Renders:** `shots/r3-ke-weekly-load-add.png`, `shots/r3-ke-weekly-vh-s1.png`, `shots/r3-ke-weekly-vh-s5.png`, `shots/r3-ke-weekly-vh-s2.png`, `shots/r3-ke-weekly-results-outofdate.png`, `shots/r3-ke-weekly-comparison.png`, `shots/r3-ke-weekly-comparison-full.png`.
+**Renders:** `shots/record/r3-ke-weekly-load-add.png`, `shots/record/r3-ke-weekly-vh-s1.png`, `shots/record/r3-ke-weekly-vh-s5.png`, `shots/record/r3-ke-weekly-vh-s2.png`, `shots/record/r3-ke-weekly-results-outofdate.png`, `shots/record/r3-ke-weekly-comparison.png`, `shots/record/r3-ke-weekly-comparison-full.png`.
 **Dataset on screen:** a card-and-transfer network, "Payments network review": March, 3,000 accounts and 9,113 transfers (transfers-2026-03.csv); April, 3,093 accounts and 8,370 transfers (transfers-2026-04.csv). The out-of-date results state switches to a 300-protein interaction network.
 
 ## Transcript (thinking aloud)

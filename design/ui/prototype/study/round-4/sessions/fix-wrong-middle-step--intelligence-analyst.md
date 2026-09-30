@@ -10,13 +10,13 @@ Notebook and Excel every day). Screens shown: the filter chip and its step list
 
 Renders he looked at, in order:
 
-- shots/r4-marcus-fixmid-filter-step-recovery.png (the recovery page, participant view, all states)
-- shots/r4-marcus-fixmid-chip-after.png (the step list open, three steps, middle one wrong)
-- shots/r4-marcus-fixmid-chip-menu.png (the "..." menu on the middle step)
-- shots/r4-marcus-fixmid-chip-off.png (middle step unticked)
-- shots/r4-marcus-fixmid-chip-deleted.png (middle step deleted)
-- shots/r4-marcus-fixmid-chip-edit-lcc.png (the middle step's editor)
-- shots/r4-marcus-fixmid-undo.png, shots/screens__undo-s2.png, shots/screens__undo-s1.png (undo)
+- shots/record/r4-marcus-fixmid-filter-step-recovery.png (the recovery page, participant view, all states)
+- shots/record/r4-marcus-fixmid-chip-after.png (the step list open, three steps, middle one wrong)
+- shots/record/r4-marcus-fixmid-chip-menu.png (the "..." menu on the middle step)
+- shots/record/r4-marcus-fixmid-chip-off.png (middle step unticked)
+- shots/record/r4-marcus-fixmid-chip-deleted.png (middle step deleted)
+- shots/record/r4-marcus-fixmid-chip-edit-lcc.png (the middle step's editor)
+- shots/record/r4-marcus-fixmid-undo.png, shots/screens__undo-s2.png, shots/screens__undo-s1.png (undo)
 
 ## Think-aloud
 
@@ -61,7 +61,7 @@ undo is how I lose the third step."
 "There's a checkbox at the front of every line. That's an Excel autofilter to me. Untick
 the middle one."
 
-**4. Unticking the middle step** (shots/r4-marcus-fixmid-chip-off.png). "Box now says
+**4. Unticking the middle step** (shots/record/r4-marcus-fixmid-chip-off.png). "Box now says
 '75 of 77, 2 of 3 steps'. Middle line's greyed, says 'off, takes nothing out' -- the little
 'Turn on step' tooltip is sitting right on top of those words, I had to squint. Javert line
 now says took out 1, 75 left. So the Javert step's still there and still working. Valjean's
@@ -75,17 +75,17 @@ Honestly, that's done. Task's done. Middle one fixed, third one kept."
 "And the box says '75 of 77' -- lost the word 'characters'. Other screen said 'nodes'. Pick
 one. On my data it had better say 'people' or 'entities'."
 
-**5. Checking the menu anyway** (shots/r4-marcus-fixmid-chip-menu.png). "There's a '...' on
+**5. Checking the menu anyway** (shots/record/r4-marcus-fixmid-chip-menu.png). "There's a '...' on
 the line when I hover. Edit step, Turn off step, Move up, Move down, Create rule set from
 step, Delete step. I don't know what a rule set is and I'm not clicking it. Delete step --
 fine, it's plain."
 
-"If I delete it (shots/r4-marcus-fixmid-chip-deleted.png) the list goes to two lines and the
+"If I delete it (shots/record/r4-marcus-fixmid-chip-deleted.png) the list goes to two lines and the
 box says '2 steps'. Same picture. I'd rather untick than delete, honestly. If the ADA asks
 'did you ever try it the other way', the unticked line is my note that I did. Delete throws
 that away."
 
-**6. The editor** (shots/r4-marcus-fixmid-chip-edit-lcc.png). "Double-click the line. 'Step 2:
+**6. The editor** (shots/record/r4-marcus-fixmid-chip-edit-lcc.png). "Double-click the line. 'Step 2:
 Filter to Largest component. Scope: After step 1: 76 characters. Result: took out 15, 61
 left.' That Scope line is the best thing on this screen. It tells me the step read 76 people,
 not 77, because Valjean was already gone. That's the order thing, spelled out. But there's

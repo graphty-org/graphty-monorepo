@@ -24,7 +24,7 @@ used them in.
 
 ## Think-aloud
 
-**Opening screen** (shots/r6-dana-getback-notice-01-open.png)
+**Opening screen** (shots/record/r6-dana-getback-notice-01-open.png)
 
 > Same Les Miserables thing as last time. Characters as suppliers, groups as regions, fine.
 >
@@ -39,7 +39,7 @@ used them in.
 > Last time Ctrl+Z skipped my selection and did a filter. I remember that. But the problem this
 > time *is* the numbers, so a filter being undone is maybe exactly what I want. Ctrl+Z.
 
-**Step 1: Ctrl+Z** (shots/r6-dana-getback-notice-02-undo1.png)
+**Step 1: Ctrl+Z** (shots/record/r6-dana-getback-notice-02-undo1.png)
 
 > A big blue cluster just came back at the bottom. Marius, Gavroche, Enjolras. 40 of 77, "2 of 3
 > steps". Bar says "Undone: Filter out group 8."
@@ -51,7 +51,7 @@ used them in.
 > out group 8" and "Show in steps". The selection button is gone. I didn't agree to that. I pressed
 > undo, I didn't press "forget my selection".
 
-**Step 2: Ctrl+Y** (shots/r6-dana-getback-notice-03-redo.png)
+**Step 2: Ctrl+Y** (shots/record/r6-dana-getback-notice-03-redo.png)
 
 > Ctrl+Y, redo, like Excel. "Redone: Filter out group 8." 27 of 77 again, Valjean 17 again. Good,
 > filter's back where it was.
@@ -69,7 +69,7 @@ used them in.
 > old selection sorted. If it were my supplier list I'd have picked those by hand over twenty
 > minutes. I'd be rebuilding it from memory.
 
-**Step 3: the menu** (shots/r6-dana-getback-notice-07-hist.png)
+**Step 3: the menu** (shots/record/r6-dana-getback-notice-07-hist.png)
 
 > Three lines top left, Edit. "Undo Filter out group 8, Ctrl+Z." Undo history: three filters.
 > Nothing about the selection. Same as last time -- this is a filter history, not a history of
@@ -77,7 +77,7 @@ used them in.
 >
 > So the selection is gone. I'll note that and fix the numbers, which is what I was asked.
 
-**Step 4: the filter button** (shots/r6-dana-getback-notice-04-chip.png)
+**Step 4: the filter button** (shots/record/r6-dana-getback-notice-04-chip.png)
 
 > Click "27 of 77 nodes, 3 steps". List of steps. This part I like, still.
 >
@@ -91,7 +91,7 @@ used them in.
 > "Degree" -- connections, I assume. "Neighbours" in the grey line helps. I'd still rather it just
 > said connections.
 
-**Step 5: untick the five** (shots/r6-dana-getback-notice-05-off.png)
+**Step 5: untick the five** (shots/record/r6-dana-getback-notice-05-off.png)
 
 > Untick. Row goes grey, "off, takes nothing out", and it's still in the list if I change my mind.
 > Top says "47 of 77 nodes, 2 of 3 steps". Valjean 27 now. A few grey dots floating off on their
@@ -103,7 +103,7 @@ used them in.
 >
 > Done, as far as I can get. Numbers are right. My 18 are gone.
 
-**Moderator reset: the same page, read the bar first** (shots/r6-dana-getback-notice-08-bringback.png,
+**Moderator reset: the same page, read the bar first** (shots/record/r6-dana-getback-notice-08-bringback.png,
 r6-dana-getback-notice-09-fixed.png)
 
 > "Bring it back" first. ... There, 18 rows highlighted, rings on the dots, right side says "18

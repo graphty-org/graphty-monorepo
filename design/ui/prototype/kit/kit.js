@@ -51,8 +51,8 @@
         }
         return String(v);
     };
-    // The set rule: a count, range or statistic names its set only when that set is not the page's
-    // current set (<body data-set>, default "full graph"), or when the same measure appears on the
+    // The set rule: a count, range or statistic names its set only when that set is not the current
+    // set (the nearest [data-set], else <body data-set>, default "full graph"), or when the same measure appears on the
     // page over a different set. data-fx-set names the element's set; data-fx-measure groups
     // elements that show the same measure (default: the key's last part).
     const fmtSet = (text, set) => `${text}, on: ${set}`;
@@ -91,10 +91,14 @@
         // The data version, when the value is another version's than the one on screen.
         const ver = (d) => fx.fixtures.datasets[d]?.version || /, ([A-Z][a-z]+ \d{4})$/.exec(fx.fixtures.datasets[d]?.title || "")?.[1] || "";
         if (o.version !== "named" && kds && fx.ds && kds !== fx.ds && ver(kds) && ver(fx.ds) && ver(kds) !== ver(fx.ds)) text += ` (${ver(kds)} data)`;
-        const set = o.set || fx.current;
+        // the current set is the frame's (an element inside [data-set], a filtered frame on a page of
+        // several), else the page's
+        const cur = o.el?.closest?.("[data-set]")?.dataset.set || fx.current;
+        const set = o.set || cur;
         const g = o.measureGroup || m;
-        if (set !== fx.current || (fx.setsOf.get(g)?.size ?? 1) > 1) text = fmtSet(text, set);
-        return { text, num, set, key: k };
+        const named = set !== cur || (fx.setsOf.get(g)?.size ?? 1) > 1;
+        if (named) text = fmtSet(text, set);
+        return { text, num, set, named, key: k };
     };
     const optsOf = (el) => ({
         el,
@@ -106,6 +110,17 @@
         measureGroup: el.dataset.fxMeasure,
         version: el.dataset.fxVersion,
     });
+    // The set is a parameter of the count's message, never app-written text: a count that names its
+    // set carries its message key (data-fx-msg="graphty.<area>.<message>"), and the facilitator view
+    // shows the key and its parameters on hover.
+    const MSG = /^graphty\.[a-z][A-Za-z]*\.[a-z][A-Za-z]*$/;
+    const msgOf = (el, r) => {
+        const key = el.dataset.fxMsg;
+        if (!key) return problem(`kit: ${location.pathname.split("/").slice(-2).join("/")}: "${r.text}" names its set; pass the set on its message key (data-fx-msg="graphty.<area>.<message>")`, el);
+        if (!MSG.test(key)) return problem(`kit: data-fx-msg "${key}" is not a message key (graphty.<area>.<message>)`, el);
+        el.dataset.msgParams = JSON.stringify({ value: r.num, set: r.set });
+        if (!document.documentElement.hasAttribute("data-study") && !el.dataset.tip) el.dataset.tip = `${key} { value: "${r.num}", set: "${r.set}" }`;
+    };
     const bindEl = (el) => {
         if (el.hasAttribute("data-kit-fx")) return;
         el.setAttribute("data-kit-fx", "");
@@ -115,6 +130,7 @@
                 const typed = el.textContent;
                 if (fx.verify && typed.trim() && !same(typed, r.text)) problem(`kit: ${location.pathname.split("/").slice(-2).join("/")} types "${typed.trim()}" where ${el.dataset.fx} is "${r.text}"`, el);
                 if (el.textContent !== r.text) el.textContent = r.text;
+                if (r.named) msgOf(el, r);
                 bound.push({ key: r.key, set: r.set, text: r.num });
             }
         }
@@ -187,7 +203,8 @@
                 const v = value(key.trim().replace(/\{ds\}/g, ds));
                 if (typeof v === "number" && Math.abs(v - o.expect) > 1e-9 * Math.max(1, Math.abs(v))) problem(`kit: ${location.pathname.split("/").slice(-2).join("/")} computes ${o.expect} where ${key} is ${v}`);
             }
-            const attrs = Object.entries({ digits: o.digits, noun: o.noun, of: o.of, unit: o.unit, set: o.set, version: o.version }).filter(([, v]) => v != null).map(([k, v]) => ` data-fx-${k}="${esc(v)}"`).join("");
+            if (r.named && !(o.msg && MSG.test(o.msg))) problem(`kit: ${location.pathname.split("/").slice(-2).join("/")}: "${r.text}" names its set; pass the set on its message key (count(key, { msg: "graphty.<area>.<message>" }))`);
+            const attrs = Object.entries({ digits: o.digits, noun: o.noun, of: o.of, unit: o.unit, set: o.set, version: o.version, msg: o.msg }).filter(([, v]) => v != null).map(([k, v]) => ` data-fx-${k}="${esc(v)}"`).join("");
             bound.push({ key: r.key, set: r.set, text: r.num });
             return `<span data-fx="${esc(r.key)}"${attrs} data-kit-fx>${esc(r.text)}</span>`;
         };

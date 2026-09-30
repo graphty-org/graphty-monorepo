@@ -9,8 +9,8 @@ it without losing the third."
 
 **Screens she saw, in order:** the undo screen as the task opens it (shots/tasks/fix-wrong-middle-step/01-undo.png),
 then the filter chip with its steps open (02-filter-chip.png), the steps list with one step off
-(shots/r6-elena-fixmid-chip-off.png), the step editor (shots/r6-elena-fixmid-chip-edit.png), and
-the steps list with a row menu open and after an Undo (shots/r6-elena-fixmid-steps-full.png, a render
+(shots/record/r6-elena-fixmid-chip-off.png), the step editor (shots/record/r6-elena-fixmid-chip-edit.png), and
+the steps list with a row menu open and after an Undo (shots/record/r6-elena-fixmid-steps-full.png, a render
 of screens/filter-steps-and-undo.html). The "three ways back" page (screens/filter-step-recovery.html)
 uses a different set of steps (Valjean, largest component, Javert), so it was not shown to her for
 this task.

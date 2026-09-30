@@ -8,9 +8,9 @@ wrong. Get back to the result you had with only the right steps on."
 
 **Pages used.** The undo screen in its participant view (screens/undo.html, study view, starting in
 the three-steps state), then a look at the filter chip screen (screens/filter-chip.html) for
-comparison. Renders the participant saw: shots/r3-sarah-undomid-s3.png (start),
-shots/r3-sarah-undomid-s3-pop.png (steps list open), shots/r3-sarah-undomid-off.png (end state),
-shots/r3-sarah-undomid-s2.png (what Ctrl+Z would have done), shots/screens__filter-chip-three--study.png.
+comparison. Renders the participant saw: shots/record/r3-sarah-undomid-s3.png (start),
+shots/record/r3-sarah-undomid-s3-pop.png (steps list open), shots/record/r3-sarah-undomid-off.png (end state),
+shots/record/r3-sarah-undomid-s2.png (what Ctrl+Z would have done), shots/record/screens__filter-chip-three--study.png.
 
 **Outcome.** Success in two clicks, about a minute including the grumbling. End state: 47 of 77,
 "2 of 3 steps", the wrong step unticked and still listed. SEQ 6.

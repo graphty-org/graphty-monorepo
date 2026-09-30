@@ -3,7 +3,7 @@
 Participant: Maren, the lab's de facto bioinformatician, played from `study/personas/genomics-cytoscape-user.md`.
 Screen: the Export dialog mock, `screens/export-dialog.html`, at 1440 by 900 (laptop).
 Task as given: "Send your lab your setup so they can use it on their own data, without sending yours."
-What she saw: the dialog as it opens (`shots/r3-maren-share-open.png`), then the dialog after ticking Recipe (`shots/r3-maren-share-recipe.png`).
+What she saw: the dialog as it opens (`shots/record/r3-maren-share-open.png`), then the dialog after ticking Recipe (`shots/record/r3-maren-share-recipe.png`).
 
 Outcome: success, with difficulty. She wrote the file in about two minutes, but she was not confident her lab could actually use it at the other end.
 

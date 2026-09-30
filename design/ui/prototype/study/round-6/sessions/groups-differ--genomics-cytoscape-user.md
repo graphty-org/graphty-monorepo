@@ -5,7 +5,7 @@ Dataset: Human protein interactions, 300 proteins, 1,262 interactions.
 Task as read by the moderator: "On the protein network, what groups are there, and how is the biggest one different from the rest?"
 Screens seen, in order, as the participant sees them (design notes hidden): the Results panel with a finished Louvain run and its run record open; the same run with the communities table open; the style list; the inspector on a saved set; the node table ranked by three measures; the comparison view.
 
-Renders: shots/tasks/groups-differ/01-results-panel-louvain.png, 02-results-panel-louvain-table.png, 03-styles-list.png, 04-inspector-set.png, 05-table-dock-ranked.png; shots/groups-maren-r6-comparison.png.
+Renders: shots/tasks/groups-differ/01-results-panel-louvain.png, 02-results-panel-louvain-table.png, 03-styles-list.png, 04-inspector-set.png, 05-table-dock-ranked.png; shots/record/groups-maren-r6-comparison.png.
 
 ## Think-aloud
 

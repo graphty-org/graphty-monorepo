@@ -6,7 +6,7 @@ Task as given: "Your team always draws its networks the same way, and a colleagu
 
 Out of her domain: the mocks show a payments network with a mule ring, and the mailed file is called fraud-team-colors. She was asked to treat it as her team's file.
 
-Screens used, in the order she reached them, all at 1440 by 900 (her laptop): the Data panel (shots/r4-jordan-teamfile-data-panel.png), the main menu with File open (the first frame of shots/r4-jordan-teamfile-replace-and-recipe.png), the Apply recipe picker (same page, frame 7), the file dropped on the canvas and its choice (frame 10), the one-layer binding step (frame 11), the result (frame 12), the style stack and the color picker's Libraries tab (shots/r4-jordan-teamfile-styles-list.png, frames 1 and 9), the recipe Export dialog (shots/r4-jordan-teamfile-recipe-apply.png, frame 1), and the navigation comparison page (shots/r4-jordan-teamfile-navigation.png).
+Screens used, in the order she reached them, all at 1440 by 900 (her laptop): the Data panel (shots/record/r4-jordan-teamfile-data-panel.png), the main menu with File open (the first frame of shots/record/r4-jordan-teamfile-replace-and-recipe.png), the Apply recipe picker (same page, frame 7), the file dropped on the canvas and its choice (frame 10), the one-layer binding step (frame 11), the result (frame 12), the style stack and the color picker's Libraries tab (shots/record/r4-jordan-teamfile-styles-list.png, frames 1 and 9), the recipe Export dialog (shots/record/r4-jordan-teamfile-recipe-apply.png, frame 1), and the navigation comparison page (shots/record/r4-jordan-teamfile-navigation.png).
 
 ## Think-aloud
 

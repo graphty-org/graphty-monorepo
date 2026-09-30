@@ -10,27 +10,27 @@ the few characters who matter most to how the story hangs together, and tell me 
 of their order."
 
 **Screens seen (participant view, design notes hidden):**
-- the project at rest, Les Miserables -- `../../../shots/screens__frame-at-rest--study.png`
+- the project at rest, Les Miserables -- `../../../shots/record/screens__frame-at-rest--study.png`
 - the rebuilt layout: at rest, Valjean selected, the Results list, one run opened --
-  `../../../shots/screens__navigation-frame-new--study.png`,
-  `../../../shots/screens__navigation-frame-new-node--study.png`,
-  `../../../shots/screens__navigation-frame-new-results--study.png`,
-  `../../../shots/screens__navigation-frame-new-run--study.png`
+  `../../../shots/record/screens__navigation-frame-new--study.png`,
+  `../../../shots/record/screens__navigation-frame-new-node--study.png`,
+  `../../../shots/record/screens__navigation-frame-new-results--study.png`,
+  `../../../shots/record/screens__navigation-frame-new-run--study.png`
 - the main menu's Algorithms list and the Results panel's "Run a measure..." list (protein network) --
-  `../../../shots/screens__results-panel-catalog--study.png`,
-  `../../../shots/screens__run-and-read-catalog--study.png`
+  `../../../shots/record/screens__results-panel-catalog--study.png`,
+  `../../../shots/record/screens__run-and-read-catalog--study.png`
 - a finished Betweenness result, its table view, a Closeness (Wasserman-Faust) result, and a run
   read with one protein selected (protein network) --
-  `../../../shots/screens__results-panel-finished--study.png`,
-  `../../../shots/screens__results-panel-in-the-table--study.png`,
-  `../../../shots/screens__results-panel-variant--study.png`,
-  `../../../shots/screens__run-and-read-rank--study.png`
+  `../../../shots/record/screens__results-panel-finished--study.png`,
+  `../../../shots/record/screens__results-panel-in-the-table--study.png`,
+  `../../../shots/record/screens__results-panel-variant--study.png`,
+  `../../../shots/record/screens__run-and-read-rank--study.png`
 - the bottom table with degree and betweenness ranked side by side, and its column header and
-  histogram popover (the novel) -- `../../../shots/screens__table-dock-small--study.png`,
-  `../../../shots/screens__table-dock-header--study.png`
+  histogram popover (the novel) -- `../../../shots/record/screens__table-dock-small--study.png`,
+  `../../../shots/record/screens__table-dock-header--study.png`
 - the novel with Valjean filtered out, Closeness before and after it runs --
-  `../../../shots/screens__closeness-variant-b1--study.png`,
-  `../../../shots/screens__closeness-variant-b2--study.png`
+  `../../../shots/record/screens__closeness-variant-b1--study.png`,
+  `../../../shots/record/screens__closeness-variant-b2--study.png`
 
 ## Think-aloud
 

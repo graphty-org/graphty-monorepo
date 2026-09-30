@@ -22,11 +22,11 @@ Renders the participant looked at:
 - `../../../shots/screens__find-and-expand--t-outside.png`
 - `../../../shots/tasks/how-connected/02-inspector-cap.png`
 - `../../../shots/tasks/how-connected/03-sets-and-paths.png`
-- `../../../shots/screens__sets-and-paths-s3--study.png`
-- `../../../shots/screens__sets-and-paths-s4--study.png`
-- `../../../shots/screens__sets-and-paths-s5--study.png`
-- `../../../shots/screens__sets-and-paths-s6--study.png`
-- `../../../shots/screens__find-s8--study.png` (Quick actions, looked at when hunting for a path command)
+- `../../../shots/record/screens__sets-and-paths-s3--study.png`
+- `../../../shots/record/screens__sets-and-paths-s4--study.png`
+- `../../../shots/record/screens__sets-and-paths-s5--study.png`
+- `../../../shots/record/screens__sets-and-paths-s6--study.png`
+- `../../../shots/record/screens__find-s8--study.png` (Quick actions, looked at when hunting for a path command)
 
 ## Think-aloud
 

@@ -17,14 +17,14 @@ The task ran.
 Screens he saw, as a participant sees them (design notes hidden), rendered with the March
 transfers where the page offers them:
 
-- the main frame at rest: `../../../shots/r6-marcus-money-frame-at-rest.png`
-- Run a measure... opened (the page draws the protein project here, not the transfers): `../../../shots/r6-marcus-money-catalog.png`
-- Quick actions with "money" typed: `../../../shots/r6-marcus-money-quick-money.png`
-- the Money in result opened, with the table: `../../../shots/r6-marcus-money-read.png`
-- the table's column menu, New column: `../../../shots/r6-marcus-money-table-new-column.png`
-- the table with the three money columns, on the 14 flagged accounts: `../../../shots/r6-marcus-money-table-three-columns.png`
-- getting rows out, Export table...: `../../../shots/r6-marcus-money-table-out.png`
-- one account in the inspector: `../../../shots/r6-marcus-money-inspector.png`
+- the main frame at rest: `../../../shots/record/r6-marcus-money-frame-at-rest.png`
+- Run a measure... opened (the page draws the protein project here, not the transfers): `../../../shots/record/r6-marcus-money-catalog.png`
+- Quick actions with "money" typed: `../../../shots/record/r6-marcus-money-quick-money.png`
+- the Money in result opened, with the table: `../../../shots/record/r6-marcus-money-read.png`
+- the table's column menu, New column: `../../../shots/record/r6-marcus-money-table-new-column.png`
+- the table with the three money columns, on the 14 flagged accounts: `../../../shots/record/r6-marcus-money-table-three-columns.png`
+- getting rows out, Export table...: `../../../shots/record/r6-marcus-money-table-out.png`
+- one account in the inspector: `../../../shots/record/r6-marcus-money-inspector.png`
 
 ## Transcript
 

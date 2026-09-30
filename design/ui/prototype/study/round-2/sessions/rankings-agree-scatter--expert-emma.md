@@ -4,8 +4,8 @@
 
 **Screens used:** the comparison screen (PageRank against betweenness on the April payments
 transfers, 3,093 accounts), then the bottom dock table (the ranked protein table and the CSV
-export dialog). Renders: `shots/emma-r2-rankings-comparison-full.png`,
-`shots/emma-r2-rankings-tabledock-full.png`.
+export dialog). Renders: `shots/record/emma-r2-rankings-comparison-full.png`,
+`shots/record/emma-r2-rankings-tabledock-full.png`.
 
 **Outcome:** answered the question, with her own caveat added. SEQ 5 of 7.
 

@@ -18,17 +18,17 @@ screens/option-form-cost.html, over budget and sample over budget); a run in pro
 (screens/table-dock.html, ranked and limit); Find with a list of patent ids
 (screens/find.html, state 7). Participant view, 1440 x 900.
 
-**Renders she saw:** shots/r4-priya-top200-past-drawing-limit-not-drawn.png,
-shots/r4-priya-top200-past-drawing-limit-narrow.png, shots/r4-priya-top200-past-drawing-limit-rule.png,
-shots/r4-priya-top200-results-panel-catalog.png, shots/r4-priya-top200-results-panel-refused.png,
-shots/r4-priya-top200-option-form-cost-over-budget.png,
-shots/r4-priya-top200-option-form-cost-sample-over-budget.png,
-shots/r4-priya-top200-results-panel-running.png,
-shots/r4-priya-top200-results-panel-finished-sampled.png,
-shots/r4-priya-top200-results-panel-in-the-table.png, shots/r4-priya-top200-table-dock-ranked.png,
-shots/r4-priya-top200-table-dock-limit.png, shots/r4-priya-top200-past-drawing-limit-keep.png,
-shots/r4-priya-top200-past-drawing-limit-kept.png, shots/r4-priya-top200-past-drawing-limit-sample.png,
-shots/r4-priya-top200-find-s7.png.
+**Renders she saw:** shots/record/r4-priya-top200-past-drawing-limit-not-drawn.png,
+shots/record/r4-priya-top200-past-drawing-limit-narrow.png, shots/record/r4-priya-top200-past-drawing-limit-rule.png,
+shots/record/r4-priya-top200-results-panel-catalog.png, shots/record/r4-priya-top200-results-panel-refused.png,
+shots/record/r4-priya-top200-option-form-cost-over-budget.png,
+shots/record/r4-priya-top200-option-form-cost-sample-over-budget.png,
+shots/record/r4-priya-top200-results-panel-running.png,
+shots/record/r4-priya-top200-results-panel-finished-sampled.png,
+shots/record/r4-priya-top200-results-panel-in-the-table.png, shots/record/r4-priya-top200-table-dock-ranked.png,
+shots/record/r4-priya-top200-table-dock-limit.png, shots/record/r4-priya-top200-past-drawing-limit-keep.png,
+shots/record/r4-priya-top200-past-drawing-limit-kept.png, shots/record/r4-priya-top200-past-drawing-limit-sample.png,
+shots/record/r4-priya-top200-find-s7.png.
 
 ---
 

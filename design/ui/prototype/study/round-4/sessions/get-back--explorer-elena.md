@@ -18,12 +18,12 @@ canvas has just cleared that selection. She was not told any of this; she was sh
 selected screen for a few seconds before the task, as "what you were looking at".
 
 **Screens seen** (renders, in order):
-- `../../../shots/r4-elena-getback-01-start.png` -- the starting screen, selection just lost
-- `../../../shots/r4-elena-getback-02-undo1.png` -- after Ctrl+Z once
-- `../../../shots/r4-elena-getback-03-undo2.png` -- after Ctrl+Z a second time
-- `../../../shots/r4-elena-getback-04-prev.png` -- after clicking "Previous selection" above the table
-- `../../../shots/r4-elena-getback-05-chip.png` -- the filter button at the top left, opened
-- `../../../shots/r4-elena-getback-07-tick2.png` -- after ticking both unticked boxes
+- `../../../shots/record/r4-elena-getback-01-start.png` -- the starting screen, selection just lost
+- `../../../shots/record/r4-elena-getback-02-undo1.png` -- after Ctrl+Z once
+- `../../../shots/record/r4-elena-getback-03-undo2.png` -- after Ctrl+Z a second time
+- `../../../shots/record/r4-elena-getback-04-prev.png` -- after clicking "Previous selection" above the table
+- `../../../shots/record/r4-elena-getback-05-chip.png` -- the filter button at the top left, opened
+- `../../../shots/record/r4-elena-getback-07-tick2.png` -- after ticking both unticked boxes
 
 ## Think-aloud
 

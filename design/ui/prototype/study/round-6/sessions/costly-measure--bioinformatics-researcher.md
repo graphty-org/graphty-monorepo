@@ -8,16 +8,16 @@ question is one she asks weekly: betweenness on a big network.
 
 Screens seen (study view, 1440 x 900), in the order she met them:
 
-- shots/r6-chen-cm-results-panel-quick-actions.png (Quick actions, "centrality" typed)
-- shots/r6-chen-cm-option-form-cost-over-budget.png (Betweenness chosen: the cost popover)
-- shots/r6-chen-cm-results-panel-refused.png (Betweenness, exact: "Not run")
-- shots/r6-chen-cm-option-form-cost-within-budget.png (the sampled run, running)
-- shots/r6-chen-cm-results-panel-running.png (the Runs list while something runs)
-- shots/r6-chen-cm-results-panel-finished-sampled.png (the finished sampled run, Details open)
-- shots/r6-chen-cm-option-form-cost-sample-over-budget.png (asking for 500 sources)
-- shots/r6-chen-cm-results-panel-not-run.png (a run brought back "Not run yet")
-- shots/r6-chen-cm-past-drawing-limit.png and -not-drawn.png (the graph too big to draw)
-- For comparison: shots/r6-chen-cm-results-panel-in-the-table.png (exact betweenness on the 300-protein network)
+- shots/record/r6-chen-cm-results-panel-quick-actions.png (Quick actions, "centrality" typed)
+- shots/record/r6-chen-cm-option-form-cost-over-budget.png (Betweenness chosen: the cost popover)
+- shots/record/r6-chen-cm-results-panel-refused.png (Betweenness, exact: "Not run")
+- shots/record/r6-chen-cm-option-form-cost-within-budget.png (the sampled run, running)
+- shots/record/r6-chen-cm-results-panel-running.png (the Runs list while something runs)
+- shots/record/r6-chen-cm-results-panel-finished-sampled.png (the finished sampled run, Details open)
+- shots/record/r6-chen-cm-option-form-cost-sample-over-budget.png (asking for 500 sources)
+- shots/record/r6-chen-cm-results-panel-not-run.png (a run brought back "Not run yet")
+- shots/record/r6-chen-cm-past-drawing-limit.png and -not-drawn.png (the graph too big to draw)
+- For comparison: shots/record/r6-chen-cm-results-panel-in-the-table.png (exact betweenness on the 300-protein network)
 
 ## Think-aloud
 

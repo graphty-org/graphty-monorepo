@@ -9,9 +9,9 @@ data; your table does not have one of the columns it needs."
 Screens, in the order he met them:
 
 - `screens/replace-and-recipe.html` (the File menu, the recipe picker, the step that asks about
-  two missing attributes, the result). Render: `shots/r3-tom-missingcol-rr-full.png`.
+  two missing attributes, the result). Render: `shots/record/r3-tom-missingcol-rr-full.png`.
 - `screens/binding-step.html` (the Apply recipe dialog on the lab's protein network, before and
-  after his qPCR table is added). Render: `shots/r3-tom-missingcol-bs-full.png`.
+  after his qPCR table is added). Render: `shots/record/r3-tom-missingcol-bs-full.png`.
 
 Both renders are the study view (design notes hidden). He looked at the pictures; where he
 clicked something, the moderator showed him the state that control leads to.

@@ -56,11 +56,13 @@
 <p>Every shape with a screen links to the state it shows (<a href="../screens/replace-and-recipe.html">the 12 states of the update and recipe screens</a>, light and dark, with annotations). Counts are the kit's March and April transfer data. The screens still show the earlier command label and the earlier replay report; the three new pieces this flow adds (the version row's What changed, the large-change mark and the export's comparison column) are drawn inline below.</p>
 
 <div class="needs">
-<p><b>Not buildable yet.</b> graphty-element does not have these today, and the app must not stand in for any of them: a load preview before anything changes; data versions and Data &gt; Versions; the count split between two versions (what is in both, new, and not in the newer one) and the large-change flag on it; applying a recipe with its report of what matched; replacing the whole style stack; one undo entry for an update or a recipe; the replay queue, its combined cost and its report; results marked out of date; comparing a partition across two data versions; and the table export's comparison column. The app only shows what graphty-element publishes: it never counts nodes, splits counts or decides that a change is large.</p>
+<p><b>Not buildable yet.</b> graphty-element does not have these today, and the app must not stand in for any of them: a load preview before anything changes; data versions and Data &gt; Versions; the count split between two versions (what is in both, new, and not in the newer one) and the large-change flag on it; applying a recipe with its report of what matched; recognizing a recipe file whichever way it comes in; replacing only the whole-graph style layers that paint the same property, with a count of what each paints; one undo entry for an update or a recipe; the replay queue, its combined cost and its report; results marked out of date; comparing a partition across two data versions; and the table export's comparison column. The app only shows what graphty-element publishes: it never counts nodes, splits counts or decides that a change is large.</p>
 </div>
 
+<p><b>Usage data: off.</b> The first time graphty opened on Sarah's computer, it asked once: "Your data is yours, but please help us. We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions." She did not say yes, so nothing about this update, the recipes or the comparison is sent. Had she said yes, each step would be sent only as its kind and timing ("data updated", "recipe applied", "undo"), with every account id, value, label, file name and file content masked. She can change the choice at any time in Preferences &gt; Usage data; <a href="../screens/data-location.html">Where your data goes</a> lists what it holds and who reads it.</p>
+
 <h2>The route: two directions, two endings</h2>
-<p>Update with new data keeps the analysis and swaps the data; Apply recipe keeps the data and brings the analysis. Each opens a binding step only when something did not match. They share that pattern, not their endings: only an update replays results and adds a data version with its What changed summary.</p>
+<p>Update with new data keeps the analysis and swaps the data; Apply a recipe keeps the data and brings the analysis. Each opens a binding step only when something did not match. They share that pattern, not their endings: only an update replays results and adds a data version with its What changed summary.</p>
 <p>Update with new data... is one command in two places: the Data panel's header, where the data lives, and the project-name menu, where a weekly user looks first on a reopened project. Both carry the same description under the label: "Replaces nodes and edges. Keeps styles, sets, notes and runs." When the new files have the same columns as the data loaded now, the load step's main button is Replace March data and Enter chooses it; Add to March data is the second button.</p>
 <div class="keyrow">
 <span><svg width="34" height="16"><rect x="1" y="1" width="32" height="14" rx="2" fill="none" stroke="currentColor"/></svg>a place in the app</span>
@@ -70,13 +72,13 @@
 <span><svg width="34" height="16"><polygon points="6,1 33,1 28,15 1,15" fill="currentColor" fill-opacity=".15" stroke="currentColor"/></svg>a committed change: one undo entry</span>
 <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="var(--k-annot)" stroke-dasharray="2 3"/></svg>error, cancellation, the other button or a way back</span>
 </div>
-<svg class="flowsvg" viewBox="0 0 1120 1050" role="group" aria-labelledby="f8-t"><title id="f8-t">Update with new data and Apply recipe: four entries; the data route through the load step with Replace as the main button when the columns match, its binding step, one undo entry, the replay, April's version row with What changed, and re-running what is out of date; the recipe route through its picker or preview, its binding step, one undo entry and the added objects marked</title>
+<svg class="flowsvg" viewBox="0 0 1120 1050" role="group" aria-labelledby="f8-t"><title id="f8-t">Update with new data and Apply a recipe: four entries (the start screen; Update with new data; a drop, File &gt; Open... or Add a source; Main menu &gt; Recipes &gt; Apply a recipe...); the data route through the load step with Replace as the main button when the columns match, its binding step, one undo entry, the replay, April's version row with What changed, and re-running what is out of date; the recipe route through its picker or preview, its binding step, one undo entry and the added objects marked</title>
 <defs><marker id="ah-f8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
 <!-- entries -->
 <a href="../screens/start-screen.html#s4"><rect class="n" x="16" y="16" width="184" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="36.5">Start screen: Open...,</tspan><tspan x="108" y="51.5">a recipe</tspan></text></a>
 <a href="../screens/replace-and-recipe.html#s-menu"><rect class="n" x="240" y="16" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="360" y="36.5">Data panel or project-name menu:</tspan><tspan x="360" y="51.5">Update with new data...</tspan></text></a>
-<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="510" y="18" width="200" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="610" y="36.5">Drop choice step:</tspan><tspan x="610" y="51.5">a data or recipe file</tspan></text></a>
-<a href="../screens/replace-and-recipe.html#s-recipe-pick"><rect class="n" x="830" y="16" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="950" y="36.5">Main menu: Recipes:</tspan><tspan x="950" y="51.5">Apply recipe...</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="500" y="12" width="230" height="56" rx="22"/><text class="t" text-anchor="middle"><tspan x="615" y="30">A drop, File &gt; Open... or</tspan><tspan x="615" y="45">Add a source: graphty-element</tspan><tspan x="615" y="60">tells data from a recipe</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-pick"><rect class="n" x="830" y="16" width="240" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="950" y="36.5">Main menu: Recipes:</tspan><tspan x="950" y="51.5">Apply a recipe...</tspan></text></a>
 <!-- row B -->
 <a href="../screens/start-screen.html#s4"><rect class="n" x="16" y="104" width="184" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="108" y="122.5">Canvas: recipe pending,</tspan><tspan x="108" y="137.5">waits for your table</tspan></text></a>
 <rect class="n" x="240" y="104" width="240" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="360" y="130">File picker: both April files</tspan></text>
@@ -109,11 +111,11 @@
 <polyline class="e" points="200,126 240,126" marker-end="url(#ah-f8)"/>
 <polyline class="e" points="360,64 360,104" marker-end="url(#ah-f8)"/>
 <polyline class="e" points="360,148 360,188" marker-end="url(#ah-f8)"/>
-<polyline class="e" points="530,62 530,200 480,200" marker-end="url(#ah-f8)"/>
+<polyline class="e" points="530,68 530,200 480,200" marker-end="url(#ah-f8)"/>
 <text class="l" x="536" y="170" text-anchor="start">Update with</text>
 <text class="l" x="536" y="183" text-anchor="start">new data...</text>
-<polyline class="e" points="660,62 660,104" marker-end="url(#ah-f8)"/>
-<text class="l" x="666" y="88" text-anchor="start">Apply recipe...</text>
+<polyline class="e" points="660,68 660,104" marker-end="url(#ah-f8)"/>
+<text class="l" x="666" y="90" text-anchor="start">a recipe</text>
 <polyline class="e" points="950,64 950,104" marker-end="url(#ah-f8)"/>
 <!-- edges: data route -->
 <polyline class="e" points="360,236 360,262" marker-end="url(#ah-f8)"/>
@@ -213,21 +215,21 @@
   </figure>
 </div>
 
-<h3>Apply recipe, step by step</h3>
+<h3>Apply a recipe, step by step</h3>
 <div class="frags">
   <figure style="margin:0">
   <div class="frag" data-kit-frame>
     <div class="k-section-head">Mule ring triage</div>
-    <div class="k-prose" style="padding-top:0"><span class="k-secondary">Recipe, version 1. Saved by Dana Reyes on Mar 28 2026.</span></div>
+    <div class="k-prose" style="padding-top:0"><span class="k-secondary">Recipe, version 1. Saved by Dana Reyes, Mar 28 2026, 10:14.</span></div>
     <div class="k-prose">Carries 3 sets, 2 runs, 3 layers and a note. Needs 4 attributes from your data; 2 are not in it by name.</div>
     <div class="acts"><span class="k-btn">Continue to binding</span><span class="k-btn k-btn-ghost">Cancel</span></div>
   </div>
-  <figcaption class="frag-cap">The head of the recipe's page in the picker, and of a dropped recipe's preview. Who saved it and when come from the author setting of the project it was saved in; a recipe saved with no author set reads "Saved on Mar 28 2026."</figcaption>
+  <figcaption class="frag-cap">The head of the recipe's page in the picker, and of a dropped recipe's preview. Who saved it and when: the name is the author setting of the project it was saved in, exactly as that person typed it, and the time is when it was saved. With no author set the name is blank and the line reads "Saved Mar 28 2026, 10:14." The name shows only when the project holds more than one author: Sarah's project has her own notes, so a recipe from Dana makes two, and the name is shown. In a project where every note and recipe came from one person, the line gives only the time.</figcaption>
   </figure>
   <figure style="margin:0">
   <div class="frag" data-kit-frame>
     <div class="k-section-head">fraud-team-colors</div>
-    <div class="k-prose" style="padding-top:0"><span class="k-secondary">Recipe of styles, version 1. Saved by Dana Reyes on Feb 12 2026.</span></div>
+    <div class="k-prose" style="padding-top:0"><span class="k-secondary">Recipe of styles, version 1. Saved by Dana Reyes, Feb 12 2026, 16:02.</span></div>
     <div class="k-prose">Carries 4 style layers and no data. Chargeback heat reads chargeback_rate, which this graph lacks.</div>
     <div class="acts"><span class="k-btn k-btn-secondary">Use these styles...</span><span class="k-btn k-btn-secondary">Add these styles on top...</span></div>
   </div>
@@ -235,7 +237,7 @@
   </figure>
 </div>
 <div class="cards3">
-  <div class="k-flow-step"><h3><span class="k-step">7</span> Apply recipe...</h3><p>The picker shows who saved Mule ring triage and when ("Saved by Dana Reyes on Mar 28 2026"), what it carries (3 sets, 2 runs with their bands, 3 layers, a note) and the 4 attributes it needs from her data; 2 are not in her graph by name. So the button reads Continue to binding. With all 4 found it would read Apply, and each found column would still be listed with what it feeds; there is no blanket "found by name" line. <a href="../screens/replace-and-recipe.html#s-recipe-pick">Screen 7</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">7</span> Apply a recipe...</h3><p>From Main menu &gt; Recipes &gt; Apply a recipe..., or by opening the file with File &gt; Open..., adding it with Data &gt; Sources &gt; Add a source, or dropping it: graphty-element recognizes it as a recipe, and each way opens this one dialog. It shows who saved Mule ring triage and when ("Saved by Dana Reyes, Mar 28 2026, 10:14"), what it carries (3 sets, 2 runs with their bands, 3 layers, a note) and the 4 attributes it needs from her data; 2 are not in her graph by name. So the button reads Continue to binding. With all 4 found it would read Apply, and each found column would still be listed with what it feeds; there is no blanket "found by name" line. <a href="../screens/replace-and-recipe.html#s-recipe-pick">Screen 7</a></p></div>
   <div class="k-flow-step"><h3><span class="k-step">8</span> Matched and unmatched</h3><p>riskScore is bound to risk_score by hand; counterparty_bank has nothing that fits and stays Leave unbound, so its layer will be kept and off. The recipe's Watchlist: 7 of 9 accounts found; ACC-705989 and ACC-243731 are not in this data. <a href="../screens/replace-and-recipe.html#s-bind-recipe">Screen 8</a></p></div>
   <div class="k-flow-step"><h3><span class="k-step">9</span> Applied</h3><p>One undo entry added 3 sets and 3 layers, each marked new with "recipe" as its kind. No data changed, nothing replayed and no data version was added. The notice says what arrived and carries Undo; the unbound layer offers Bind.... <a href="../screens/replace-and-recipe.html#s-recipe-applied">Screen 9</a></p></div>
 </div>
@@ -272,49 +274,54 @@
 <text class="l" x="368" y="408" text-anchor="start">Apply</text>
 </svg>
 <div class="cards3">
-  <div class="k-flow-step"><h3>Apply waits, and says why</h3><p>Before Tom adds anything, the card reads "Recipe waiting for your table" and, under the name, "Saved by Maren Holt on Sep 26 2026", so he knows whose recipe it is before he adds his data. Add your table... is the main button and takes focus. Apply is disabled but still focusable, so a screen reader reads it with its reason, which is printed beside it, not hidden in a tooltip: "Waiting for your table". Nothing on the page says everything was found: the network's own fold-change column does not count. <a href="../screens/start-screen.html#s4">Start screen, recipe pending</a></p></div>
+  <div class="k-flow-step"><h3>Apply waits, and says why</h3><p>Before Tom adds anything, the card reads "Recipe waiting for your table" and, under the name, "Saved by Maren Holt, Sep 26 2026, 16:40" (his project now holds two authors, his and hers, so her name is shown), so he knows whose recipe it is before he adds his data. Add your table... is the main button and takes focus. Apply is disabled but still focusable, so a screen reader reads it with its reason, which is printed beside it, not hidden in a tooltip: "Waiting for your table". Nothing on the page says everything was found: the network's own fold-change column does not count. <a href="../screens/start-screen.html#s4">Start screen, recipe pending</a></p></div>
   <div class="k-flow-step"><h3>Only his columns</h3><p>He adds qpcr-hits-2026-09.csv (symbol, log2FC, padj); 84 of his 96 genes are in the network. The fold-change row offers the table's columns only: log2FC, 84 matched values, -2.41 to 2.98. The network's log2FoldChange, 300 values, is never listed for a need he supplies. Apply commits one undo entry. <a href="../storyboards/recipe-travels.html">Recipe travels storyboard</a></p></div>
   <div class="k-flow-step" data-branch><h3>The column is missing</h3><p>A table without log2FC stops the route: "Your table has no log2FC column. Ask the sender which column they meant." Apply stays disabled and no column is proposed in its place, because only Maren knows which of his columns she meant. Close recipe leaves nothing open.</p></div>
 </div>
 
 <h2 id="styles-recipe">A recipe of styles</h2>
-<p>A team's colors arrive as a recipe that holds only style layers. It comes in by a drop, by Main menu &gt; Recipes &gt; Apply recipe..., or by the Style stack's + &gt; From a recipe or file..., and every route opens the same Apply dialog with two choices, neither preselected: Use these styles... (the recipe's layers take the place of each of hers that writes the same property; layers from an algorithm always stay) and Add these styles on top.... A layer whose attribute is not in this graph gets one row in the binding step.</p>
-<svg class="flowsvg" viewBox="0 0 1120 560" role="group" aria-labelledby="f81-t"><title id="f81-t">Apply a recipe of styles: a drop, Apply recipe or the Style stack's +, the file picker, a binding step when a layer did not match, one committed change, the added layers marked</title>
+<p>A team's colors arrive as a recipe that holds only style layers. It comes in by a drop, by File &gt; Open..., by Data &gt; Sources &gt; Add a source, or by Main menu &gt; Recipes &gt; Apply a recipe...; graphty-element recognizes the file as a recipe whichever way it came, and every route opens the same Apply dialog with two choices, neither preselected:</p>
+<ul>
+<li><b>Use these styles...</b> replaces only her layers that paint the same property on the whole graph. A layer scoped to a set, such as her Mule ring highlight, is kept, because it is a finding, not a color scheme. The dialog lists by name each layer it will replace with how many nodes it paints, and names the ones it keeps. The rule belongs to graphty-element's StyleManager, not to the app.</li>
+<li><b>Add these styles on top...</b> replaces nothing.</li>
+</ul>
+<p>Either choice acts at once: there is no preview step. The notice reads "Replaced 3 layers, kept 2." with Undo, and Ctrl+Z is the ordinary undo of that one step. A layer whose attribute is not in this graph gets one row in a binding step before it acts.</p>
+<svg class="flowsvg" viewBox="0 0 1120 600" role="group" aria-labelledby="f81-t"><title id="f81-t">Apply a recipe of styles: a drop, File &gt; Open... or Add a source, or Main menu &gt; Recipes &gt; Apply a recipe... and the file picker; the one Apply dialog, where Use these styles names the 3 whole-graph layers it replaces with their match counts and the 2 set-scoped layers it keeps; a binding step only when a layer did not match; one committed change that acts at once; the notice Replaced 3 layers, kept 2, with Undo</title>
 <defs><marker id="ah-f81" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker></defs>
-<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="60" y="18" width="260" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="190" y="36.5">Drop choice step:</tspan><tspan x="190" y="51.5">a recipe of styles</tspan></text></a>
-<rect class="n" x="430" y="16" width="260" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="560" y="36.5">Main menu: Recipes:</tspan><tspan x="560" y="51.5">Apply recipe...</tspan></text>
-<rect class="n" x="780" y="16" width="300" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="930" y="36.5">Style stack +: From a</tspan><tspan x="930" y="51.5">recipe or file...</tspan></text>
-<rect class="n" x="430" y="104" width="260" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="560" y="130">File picker: a recipe</tspan></text>
-<a href="../screens/replace-and-recipe.html#s-bind-style"><polygon class="n" points="560,210 720,260 560,310 400,260"/><text class="t" text-anchor="middle"><tspan x="560" y="256.5">Every layer's attributes</tspan><tspan x="560" y="271.5">matched by name?</tspan></text></a>
-<a href="../screens/replace-and-recipe.html#s-bind-style"><rect class="n" x="430" y="380" width="260" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="560" y="400.5">Binding step: one row per</tspan><tspan x="560" y="415.5">unmatched layer</tspan></text></a>
-<a href="../screens/replace-and-recipe.html#s-style-applied"><polygon class="n com" points="814,380 1060,380 1046,424 800,424"/><text class="t" text-anchor="middle"><tspan x="930" y="406">Styles applied: one undo entry</tspan></text></a>
-<a href="../screens/replace-and-recipe.html#s-style-applied"><polygon class="n chk" points="776,470 1084,470 1100,499 1084,528 776,528 760,499"/><text class="t" text-anchor="middle"><tspan x="930" y="495.5">Added layers marked in the Style stack;</tspan><tspan x="930" y="510.5">unbound layers listed, switched off</tspan></text></a>
-<rect class="n br" x="60" y="477" width="260" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="190" y="495.5">Styles as before the recipe;</tspan><tspan x="190" y="510.5">nothing kept from it</tspan></text>
-<rect class="n br" x="430" y="477" width="260" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="560" y="495.5">Cancel, Esc or close in either</tspan><tspan x="560" y="510.5">dialog: nothing applied</tspan></text>
+<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="40" y="16" width="320" height="56" rx="3"/><text class="t" text-anchor="middle"><tspan x="200" y="36">A drop, File &gt; Open..., or</tspan><tspan x="200" y="51">Data &gt; Sources &gt; Add a source:</tspan><tspan x="200" y="66">graphty-element recognizes a recipe</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-recipe-pick"><rect class="n" x="420" y="16" width="280" height="48" rx="3"/><text class="t" text-anchor="middle"><tspan x="560" y="36.5">Main menu &gt; Recipes &gt;</tspan><tspan x="560" y="51.5">Apply a recipe...</tspan></text></a>
+<rect class="n" x="420" y="104" width="280" height="44" rx="22"/><text class="t" text-anchor="middle"><tspan x="560" y="130">File picker: a recipe</tspan></text>
+<a href="../screens/replace-and-recipe.html#s-style-drop"><rect class="n" x="360" y="190" width="400" height="80" rx="24"/><text class="t" text-anchor="middle"><tspan x="560" y="210">The Apply dialog, neither choice preselected.</tspan><tspan x="560" y="225">Use these styles... names the 3 whole-graph</tspan><tspan x="560" y="240">layers it replaces, 3,093 nodes each, and the 2</tspan><tspan x="560" y="255">set layers it keeps. Add on top replaces none.</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-bind-style"><polygon class="n" points="560,300 720,345 560,390 400,345"/><text class="t" text-anchor="middle"><tspan x="560" y="341.5">Every layer's attributes</tspan><tspan x="560" y="356.5">matched by name?</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-bind-style"><rect class="n" x="430" y="430" width="260" height="48" rx="24"/><text class="t" text-anchor="middle"><tspan x="560" y="450.5">Binding step: one row per</tspan><tspan x="560" y="465.5">unmatched layer</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-style-applied"><polygon class="n com" points="814,430 1060,430 1046,474 800,474"/><text class="t" text-anchor="middle"><tspan x="930" y="456">Acts at once: one undo entry</tspan></text></a>
+<a href="../screens/replace-and-recipe.html#s-style-applied"><polygon class="n chk" points="776,515 1084,515 1100,544 1084,573 776,573 760,544"/><text class="t" text-anchor="middle"><tspan x="930" y="530">Notice: "Replaced 3 layers, kept 2." Undo</tspan><tspan x="930" y="545">Style stack: new layers marked; an</tspan><tspan x="930" y="560">unbound layer listed, switched off</tspan></text></a>
+<rect class="n br" x="40" y="430" width="280" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="180" y="448.5">Cancel, Esc or close in either</tspan><tspan x="180" y="463.5">dialog: nothing applied</tspan></text>
+<rect class="n br" x="40" y="522" width="280" height="44" rx="3"/><text class="t" text-anchor="middle"><tspan x="180" y="540.5">Styles as before the recipe;</tspan><tspan x="180" y="555.5">nothing kept from it</tspan></text>
 <polyline class="e" points="560,64 560,104" marker-end="url(#ah-f81)"/>
-<polyline class="e" points="930,64 930,126 690,126" marker-end="url(#ah-f81)"/>
-<polyline class="e" points="560,148 560,210" marker-end="url(#ah-f81)"/>
-<text class="l" x="568" y="184" text-anchor="start">the same two choices</text>
-<polyline class="e" points="190,62 190,260 400,260" marker-end="url(#ah-f81)"/>
-<text class="l" x="198" y="110" text-anchor="start">Use these styles, or</text>
-<text class="l" x="198" y="123" text-anchor="start">Add these styles on top</text>
-<text class="l" x="198" y="136" text-anchor="start">(neither preselected)</text>
-<polyline class="e" points="720,260 930,260 930,380" marker-end="url(#ah-f81)"/>
-<text class="l" x="728" y="252" text-anchor="start">yes</text>
-<polyline class="e" points="560,310 560,380" marker-end="url(#ah-f81)"/>
-<text class="l" x="568" y="350" text-anchor="start">no</text>
-<polyline class="e" points="690,404 803,404" marker-end="url(#ah-f81)"/>
-<text class="l" x="712" y="396" text-anchor="start">Apply</text>
-<polyline class="e err" points="430,404 150,404 150,62" marker-end="url(#ah-f81)"/>
-<text class="l le" x="160" y="396" text-anchor="start">Back, after a drop</text>
-<polyline class="e" points="930,424 930,470" marker-end="url(#ah-f81)"/>
-<polyline class="e err" points="776,528 776,545 190,545 190,521" marker-end="url(#ah-f81)"/>
-<text class="l le" x="560" y="541" text-anchor="middle">wrong choice: one Undo</text>
+<polyline class="e" points="560,148 560,190" marker-end="url(#ah-f81)"/>
+<polyline class="e" points="200,72 200,230 360,230" marker-end="url(#ah-f81)"/>
+<text class="l" x="208" y="100" text-anchor="start">the same dialog</text>
+<polyline class="e" points="560,270 560,300" marker-end="url(#ah-f81)"/>
+<text class="l" x="568" y="290" text-anchor="start">either choice</text>
+<polyline class="e" points="720,345 930,345 930,430" marker-end="url(#ah-f81)"/>
+<text class="l" x="728" y="337" text-anchor="start">yes: the choice commits</text>
+<polyline class="e" points="560,390 560,430" marker-end="url(#ah-f81)"/>
+<text class="l" x="568" y="414" text-anchor="start">no</text>
+<polyline class="e" points="690,454 803,454" marker-end="url(#ah-f81)"/>
+<text class="l" x="712" y="446" text-anchor="start">Apply</text>
+<polyline class="e" points="930,474 930,515" marker-end="url(#ah-f81)"/>
+<polyline class="e err" points="360,255 180,255 180,430" marker-end="url(#ah-f81)"/>
+<text class="l le" x="188" y="300" text-anchor="start">Cancel or Esc</text>
+<polyline class="e err" points="430,466 380,466 380,270" marker-end="url(#ah-f81)"/>
+<text class="l le" x="340" y="420" text-anchor="start">Back</text>
+<polyline class="e err" points="760,544 320,544" marker-end="url(#ah-f81)"/>
+<text class="l le" x="540" y="536" text-anchor="middle">Undo on the notice, or Ctrl+Z</text>
 </svg>
 <div class="cards3">
-  <div class="k-flow-step"><h3><span class="k-step">10</span> The drop</h3><p>fraud-team-colors, "Saved by Dana Reyes on Feb 12 2026": "Use these styles..." names the 3 of her layers that go (Risk ramp, Risk color, Mule ring) and the 5 that stay; "Add these styles on top..." adds 4 layers above her 8. Neither is preselected. Chargeback heat is named as unmatched before she chooses, and each row keeps its ellipsis because the binding step follows. <a href="../screens/replace-and-recipe.html#s-style-drop">Screen 10</a></p></div>
-  <div class="k-flow-step"><h3><span class="k-step">11</span> One layer to bind</h3><p>Three layers matched by name. Chargeback heat reads chargeback_rate, which this graph lacks; no attribute fits, so she leaves it unbound. The row says what that does: kept, switched off, marked, with Bind... on its row. <a href="../screens/replace-and-recipe.html#s-bind-style">Screen 11</a></p></div>
-  <div class="k-flow-step"><h3><span class="k-step">12</span> The team's styles in use</h3><p>Four layers are new and marked, and the 3 named in the dialog are gone; Chargeback heat is listed, switched off, with the missing-attribute mark and a tooltip naming chargeback_rate. The notice carries Undo. <a href="../screens/replace-and-recipe.html#s-style-applied">Screen 12</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">10</span> The drop</h3><p>fraud-team-colors, "Saved by Dana Reyes, Feb 12 2026, 16:02". Use these styles... lists the 3 of her layers it will replace, each painting node color on the whole graph: Risk ramp, Risk color and Community color, <span data-fx="datasets.transactionsApril.nodes" data-fx-noun="nodes">3,093 nodes</span> each. It names the 2 it keeps, because they paint only a set: Mule ring (<span data-fx="datasets.transactionsApril.ringOverDensity.ring" data-fx-noun="nodes">14 nodes</span>) and Watchlist ring (<span data-fx="datasets.transactionsApril.watchlist.inCurrentData" data-fx-noun="nodes">7 nodes</span>). Add these styles on top... adds 4 layers above her 8. Neither is preselected. Chargeback heat is named as unmatched before she chooses, and each row keeps its ellipsis because the binding step follows. <a href="../screens/replace-and-recipe.html#s-style-drop">Screen 10</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">11</span> One layer to bind</h3><p>Three layers matched by name. Chargeback heat reads chargeback_rate, which this graph lacks; no attribute fits, so she leaves it unbound. The row says what that does: kept, switched off, marked, with Bind... on its row. Had every layer matched, her choice in the dialog would have acted at once. <a href="../screens/replace-and-recipe.html#s-bind-style">Screen 11</a></p></div>
+  <div class="k-flow-step"><h3><span class="k-step">12</span> The team's styles in use</h3><p>Apply acts at once, with no preview. The notice reads "Replaced 3 layers, kept 2." with Undo, and Ctrl+Z is the ordinary undo of the same one step. The new layers are marked; the 3 named in the dialog are gone; Mule ring and Watchlist ring are where they were; Chargeback heat is listed, switched off, with the missing-attribute mark and a tooltip naming chargeback_rate. <a href="../screens/replace-and-recipe.html#s-style-applied">Screen 12</a></p></div>
 </div>
 
 <h2 id="compare">Compare with the last version, then hand it on</h2>
@@ -391,11 +398,11 @@
 
 <h2>What these flows claim</h2>
 <table class="facts wide">
-<tr><th>Tasks</th><td>Reuse an analysis on new data (Update with new data); start from a recipe, including one that holds only styles (Apply recipe), including one a colleague sent with its own network; compare with the previous data version.</td></tr>
+<tr><th>Tasks</th><td>Reuse an analysis on new data (Update with new data); start from a recipe, including one that holds only styles (Apply a recipe), including one a colleague sent with its own network; compare with the previous data version.</td></tr>
 <tr><th>Serves</th><td>The weekly return: update with the new files, read what changed, show the manager. A recipe travels: apply it to your own table.</td></tr>
 <tr><th>Starts from</th><td>The graph at rest, with nothing selected; a file dropped on the canvas; or a recipe opened from the start screen.</td></tr>
 <tr><th>Size of graph</th><td>The same route at every size. The command names a result that will wait; the load step counts what replays and gives the waiting result's band.</td></tr>
-<tr><th>How Figma does it</th><td>Apply recipe is Figma's Swap library: 2 steps, matched by name, instances updated in place, a notice with Undo, and no report page. graphty adds one choice per unmatched attribute, after Figma's Missing Fonts dialog. A recipe of styles is Figma's enabling a library: 1 step, adds styles and replaces none; graphty's Apply dialog adds Use these styles, which replaces her layers that write the same property. Update with new data has no Figma counterpart: Figma never swaps content under kept styling. The comparison is Figma's branch review: two states side by side.</td></tr>
+<tr><th>How Figma does it</th><td>Apply a recipe is Figma's Swap library: 2 steps, matched by name, instances updated in place, a notice with Undo, and no report page. graphty adds one choice per unmatched attribute, after Figma's Missing Fonts dialog. A recipe of styles is Figma's enabling a library: 1 step, adds styles and replaces none; graphty's Apply dialog adds Use these styles, which replaces her layers that paint the same property on the whole graph and keeps the ones scoped to a set. Update with new data has no Figma counterpart: Figma never swaps content under kept styling. The comparison is Figma's branch review: two states side by side.</td></tr>
 <tr><th>Where it differs from Figma, and why</th><td><ul style="margin:0;padding-inline-start:18px">
 <li>Each data version keeps its What changed and replay report in Data &gt; Versions (Figma's version history holds no reports), so which results replayed on which data, and how the counts moved, can be checked later.</li>
 <li>An out-of-date result stays pinned at the top of Results with a count on the rail button (Figma's toolbar carries no counts), because a result computed on last month's data must stay visible until it is re-run.</li>
@@ -405,12 +412,13 @@
 <tr><th>What she can say after</th><td>"March's analysis on April's data: these 4 replayed, this one did not." "27 components, was 1: 26 accounts had no transfers in April; they are in the file, just quiet." "The groups did change: the months agree less than two runs on the same month do." "7 of the recipe's 9 Watchlist accounts are here; these 2 are not." "The colors are my log2FC, not the network's."</td></tr>
 <tr><th>What is kept</th><td>One undo entry per update or recipe; the recipe's name on everything it added; the binding choices; the data version with its What changed and replay report in Data &gt; Versions; a saved comparison; the export's methods file naming both versions.</td></tr>
 <tr><th>Steps</th><td>Update with new data, every column matched: 3 (Update with new data...; the files; Replace March data). With 2 columns to bind: 6 (Update with new data...; the files; Continue to binding; 2 choices; Apply).<br>
-Apply recipe, everything matched: 3 (Apply recipe...; the recipe; Apply). With something to bind: 4 plus one choice per attribute; here 5, since counterparty_bank stays at Leave unbound.<br>
-A dropped recipe: 3 (the drop; Apply recipe...; Apply). A received recipe that needs your table: 4 (Add your table...; the file; the fold-change choice; Apply). A recipe opened first from the start screen: 4 (Open...; the recipe; the data file; Load), plus the binding step once.<br>
-A recipe of styles: 2 by a drop (the drop; Use these styles or Add these styles on top) and 3 from Recipes or the Style stack's + (the command; the recipe; the choice), plus one choice per unmatched layer and Apply.<br>
+Apply a recipe, everything matched: 3 (Apply a recipe...; the recipe; Apply). With something to bind: 4 plus one choice per attribute; here 5, since counterparty_bank stays at Leave unbound.<br>
+A dropped recipe, or one opened with File &gt; Open... or Add a source: 3 (the drop or the command; the recipe's preview; Apply). A received recipe that needs your table: 4 (Add your table...; the file; the fold-change choice; Apply). A recipe opened first from the start screen: 4 (Open...; the recipe; the data file; Load), plus the binding step once.<br>
+A recipe of styles: 2 by a drop (the drop; Use these styles or Add these styles on top) and 3 from File &gt; Open..., Add a source or Main menu &gt; Recipes &gt; Apply a recipe... (the command; the recipe; the choice), plus one choice per unmatched layer and Apply. The choice acts at once; there is no preview step.<br>
 Compare: 2 (Compare with another run...; March data), plus Save comparison. The export with the comparison column: 3 (Export...; Table; Export), the column already ticked.</td></tr>
 <tr><th>First failure</th><td>A recipe coloring the recipient's genes by the sender's column: a confident, wrong figure. A need the recipient supplies lists only the recipient's columns, and Apply waits, with its reason printed, until the table is added. Next: a jump read with an invented reason ("39 accounts closed") and passed to a manager. The version row states only count splits, uses "not in April", and marks the jump so it is not missed.</td></tr>
 <tr><th>Keyboard</th><td>Every command is in Quick actions. The pickers, the load step and the binding steps are dialogs: Tab through the rows, then the footer; Enter commits the main button (Replace March data when the columns match); Esc is Cancel everywhere, including the binding step. The back arrow is the first Tab stop in a binding step's header. The version row's What changed lines are one list, read in order; a large-change mark is read as part of its line. No step needs a pointer: a drop's route is the same commands from the Data panel or Recipes.</td></tr>
+<tr><th>What leaves the computer</th><td>Nothing. Usage data is off unless she said yes when graphty first asked; had she, it would hold which steps she took and how long they took, with every account id, value, label, file name and file content masked. <a href="../screens/data-location.html">Where your data goes</a></td></tr>
 <tr><th>Where she goes next</th><td>A note citing the saved comparison; the <a href="export.html">export flow</a> for the figure.</td></tr>
 </table>
 
@@ -437,7 +445,7 @@ Compare: 2 (Compare with another run...; March data), plus Save comparison. The 
 <table class="steps wide">
 <thead><tr><th>Step</th><th>Where</th><th>What she does</th><th>Undo</th><th>What she can check</th><th>Screen</th></tr></thead>
 <tbody>
-<tr><td>choose</td><td>Data panel; project-name menu; Recipes; a drop; the start screen</td><td>Update with new data...; Apply recipe...; a dropped file's choice; Open...</td><td>none</td><td>the result that will wait, under the command</td><td><a href="../screens/replace-and-recipe.html#s-menu">1</a></td></tr>
+<tr><td>choose</td><td>Data panel; project-name menu; Recipes; File menu; Data &gt; Sources; a drop; the start screen</td><td>Update with new data...; Apply a recipe...; a dropped file's choice; File &gt; Open...; Add a source</td><td>none</td><td>the result that will wait, under the command</td><td><a href="../screens/replace-and-recipe.html#s-menu">1</a></td></tr>
 <tr><td>load</td><td>load step</td><td>Replace March data (main when the columns match), Add to March data, or Continue to binding</td><td>part of the entry below</td><td>the preview; counts beside March; what Add would leave; what replays and what waits</td><td><a href="../screens/replace-and-recipe.html#s-load">2</a></td></tr>
 <tr><td>pick</td><td>recipe picker or preview</td><td>a recipe; Continue to binding, or Apply; Add your table... when it waits for one</td><td>none</td><td>what it carries and needs; runs with their bands</td><td><a href="../screens/replace-and-recipe.html#s-recipe-pick">7</a></td></tr>
 <tr><td>bind</td><td>binding step</td><td>one choice per unmatched column, need or layer</td><td>none</td><td>matched and unmatched; accounts not found, named</td><td><a href="../screens/replace-and-recipe.html#s-bind-replace">3</a>, <a href="../screens/replace-and-recipe.html#s-bind-recipe">8</a>, <a href="../screens/replace-and-recipe.html#s-bind-style">11</a></td></tr>
@@ -457,9 +465,11 @@ Compare: 2 (Compare with another run...; March data), plus Save comparison. The 
 <li><b>"Not in April", never "closed";</b> the export says "no longer present", never "dropped", which already means rows lost at import.</li>
 <li><b>The Table export gains a "Compared with {date}" column</b> whenever an earlier data version exists, with the values new, in both and no longer present.</li>
 <li><b>A recipe marks the needs the recipient supplies.</b> For those, Add your table... is the main button, Apply waits with "Waiting for your table" printed beside it, the picker never lists a column from the recipe's own network, a missing column says to ask the sender, and no column is proposed in its place.</li>
-<li><b>An update and Apply recipe end in different places.</b> The framework joins them at one commit and one report; a recipe changes no data, so only an update replays, reports and adds a version.</li>
+<li><b>An update and Apply a recipe end in different places.</b> The framework joins them at one commit and one report; a recipe changes no data, so only an update replays, reports and adds a version.</li>
 <li><b>Esc in a binding step is Cancel,</b> not "back to the picker"; going back is the header's arrow. This follows Figma's stepped dialogs.</li>
-<li><b>A recipe of styles opens the same Apply dialog as any recipe,</b> with Use these styles and Add these styles on top, neither preselected; there is no separate style-file command.</li>
+<li><b>A recipe of styles opens the same Apply dialog as any recipe,</b> with Use these styles and Add these styles on top, neither preselected; there is no separate style-file command. File &gt; Open..., Add a source and a drop each open it, because graphty-element recognizes the file as a recipe.</li>
+<li><b>Use these styles replaces only whole-graph layers that paint the same property</b> and keeps layers scoped to a set; the dialog names each layer it replaces with how many nodes it paints. The rule is graphty-element's StyleManager's. It acts at once, and the notice "Replaced 3 layers, kept 2." carries Undo.</li>
+<li><b>A recipe says who saved it and when,</b> to the minute; the name is the author setting as given, blank if none is set, and shown only when the project holds more than one author.</li>
 <li><b>A dropped recipe opens its preview</b> before the match check, where Apply sits.</li>
 <li><b>The update command names what will wait,</b> the load step counts what replays, a slow result waits for Re-run naming the version it was computed on, Cancel stops only the replay, and a binding row says what it switches off.</li>
 <li><b>Undo order after a replay:</b> the Re-run is taken back before the update.</li>

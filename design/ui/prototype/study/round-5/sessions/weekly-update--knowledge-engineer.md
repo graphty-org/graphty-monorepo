@@ -17,10 +17,10 @@ comparison), Data > Versions with What changed and a past version open
 the replace-and-recipe flow chart, and the PageRank comparison page. HTML was read only to see
 what a control would do.
 
-Renders: shots/r4-minji-wu2-storyboards_weekly-return.png, shots/r4-minji-wu2-screens_weekly-return.png,
-shots/r4-minji-wu2-screens_version-history.png, shots/r4-minji-wu2-vh-s2.png,
-shots/r4-minji-wu2-screens_replace-and-recipe.png, shots/r4-minji-wu2-flows_replace-and-recipe.png,
-shots/r4-minji-wu2-screens_data-panel.png, shots/r4-minji-wu2-screens_comparison.png.
+Renders: shots/record/r4-minji-wu2-storyboards_weekly-return.png, shots/record/r4-minji-wu2-screens_weekly-return.png,
+shots/record/r4-minji-wu2-screens_version-history.png, shots/record/r4-minji-wu2-vh-s2.png,
+shots/record/r4-minji-wu2-screens_replace-and-recipe.png, shots/record/r4-minji-wu2-flows_replace-and-recipe.png,
+shots/record/r4-minji-wu2-screens_data-panel.png, shots/record/r4-minji-wu2-screens_comparison.png.
 
 ## Think-aloud
 

@@ -10,11 +10,11 @@ their original ids, and say how sure you are of the order."
 already run.
 
 **Screens seen (renders, 1440 x 900, study view):**
-- `shots/r6-chris-top50-results-finished.png` -- the Betweenness run in the Results place, info tooltip open
-- `shots/r6-chris-top50-results-in-the-table.png` -- after clicking "295 more in the table"
-- `shots/r6-chris-top50-table-ranked.png` -- the table with degree, Louvain, betweenness and PageRank columns
-- `shots/r6-chris-top50-table-out.png` -- the Export dialog as "Export table..." opens it from that table
-- `shots/r6-chris-top50-export-table.png` -- the full Export dialog with Table chosen (drawn on a different dataset, a bank case)
+- `shots/record/r6-chris-top50-results-finished.png` -- the Betweenness run in the Results place, info tooltip open
+- `shots/record/r6-chris-top50-results-in-the-table.png` -- after clicking "295 more in the table"
+- `shots/record/r6-chris-top50-table-ranked.png` -- the table with degree, Louvain, betweenness and PageRank columns
+- `shots/record/r6-chris-top50-table-out.png` -- the Export dialog as "Export table..." opens it from that table
+- `shots/record/r6-chris-top50-export-table.png` -- the full Export dialog with Table chosen (drawn on a different dataset, a bank case)
 
 ---
 

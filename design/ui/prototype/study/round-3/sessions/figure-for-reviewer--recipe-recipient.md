@@ -10,11 +10,11 @@ Screens, in the order he met them: the styles list (the app at rest), the color-
 editor, the Look menu, and the Export dialog. What he saw is in these renders:
 
 - `shots/tasks/figure-for-reviewer/01-styles-list.png` -- the app, colored by betweenness
-- `shots/tom-r3-looks.png` -- the Look menu open (Default, Colorblind safe, Print, High contrast)
-- `shots/tom-r3-cbv-numbers.png` -- a style colored by log2FoldChange, red to blue
+- `shots/record/tom-r3-looks.png` -- the Look menu open (Default, Colorblind safe, Print, High contrast)
+- `shots/record/tom-r3-cbv-numbers.png` -- a style colored by log2FoldChange, red to blue
 - `shots/tasks/figure-for-reviewer/03-export-dialog-figure.png` -- Export, opened on a module figure
-- `shots/tom-r3-figure-signed.png` -- Export with fold change in the Print look
-- `shots/tom-r3-figure-print.png` -- Export with modules in the Print look
+- `shots/record/tom-r3-figure-signed.png` -- Export with fold change in the Print look
+- `shots/record/tom-r3-figure-print.png` -- Export with modules in the Print look
 
 ## Transcript
 
@@ -43,7 +43,7 @@ He does not click Edit a copy. He notices the small plus next to "Styles".
 
 "There's a plus. I'll try that, it's the only thing that looks like 'add'."
 
-(The plus opens a new empty style layer, then the color picker: `shots/tom-r3-cbv-numbers.png`
+(The plus opens a new empty style layer, then the color picker: `shots/record/tom-r3-cbv-numbers.png`
 shows where it ends up.)
 
 **Minute 2. The color picker.**
@@ -77,7 +77,7 @@ anywhere on this screen."
 
 The moderator waits. After about 40 seconds he notices the small palette icon next to "Graph"
 on the right and clicks it because it is the only picture of a paint palette on the screen.
-(`shots/tom-r3-looks.png`)
+(`shots/record/tom-r3-looks.png`)
 
 "'Look for the whole project'. 'Print -- prints well in gray: colors keep their order in
 grayscale and read on white paper.' That's it. That's what I want. I'd never have found that
@@ -99,7 +99,7 @@ picture colored by module, with Ribosome, Proteasome and so on, and a yellow war
 And the top-left says 'Proteostasis screen'. I was in 'Stress response study'. Did I open the
 wrong thing? That's what I mean -- I can't tell if it's me or the file."
 
-(The moderator moves him on to the fold change state, `shots/tom-r3-figure-signed.png`, as if
+(The moderator moves him on to the fold change state, `shots/record/tom-r3-figure-signed.png`, as if
 the dialog had opened on his own view.)
 
 "OK, this one is fold change. 'Look: Print'. 'File is written with: Print look'. Legend says

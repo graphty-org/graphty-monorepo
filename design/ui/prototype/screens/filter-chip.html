@@ -52,10 +52,11 @@
   .fc-step[data-off] .fc-count { color: var(--cm-text-secondary); }
   .fc-step[data-off] .fc-note, .fc-step[data-off] .fc-scopeline { display: none; }
   /* a run whose scope is not the current filter says so, in body ink */
-  .fc-runs { width: 300px; padding: 4px 0; }
+  .fc-runs { padding: 0 0 4px; }
+  #runs-sec[hidden], #graphs-sec[hidden], #sets-sec[hidden], #ts-filter[hidden] { display: none; }
   .fc-runs .k-item { height: auto; min-height: 32px; }
-  .fc-runline { padding: 0 16px 4px 40px; line-height: 16px; color: var(--cm-text); }
-  .fc-runline .k-btn { margin-top: 6px; }
+  .fc-runline { padding: 0 8px 8px 16px; line-height: 16px; color: var(--cm-text); }
+  .fc-runline .k-btn { margin-top: 6px; max-width: 100%; box-sizing: border-box; }
   /* the chip's mark on a number that follows the chip, only while the chip is not Full graph */
   .fc-fm { color: var(--cm-text); margin-left: 3px; vertical-align: -1px; cursor: help; flex: none; }
   .k-scope .fc-fm, .fc-stat-scope .fc-fm { margin: 0 4px 0 0; }
@@ -116,7 +117,13 @@
   .fc-cv .bg { fill: var(--k-canvas); }
   .fc-cv .ed { stroke: #808080; stroke-opacity: .55; stroke-width: 1; stroke-linecap: round; }
   .fc-cv text { font: 12px "Inter Variable", Inter, system-ui, sans-serif; fill: var(--k-canvas-ink); stroke: var(--k-canvas); stroke-width: 3; stroke-linejoin: round; paint-order: stroke; }
-  .k-legend-card[hidden] { display: none; }
+  .k-legend-card[hidden], #cv[hidden], .fc-cvimg[hidden], .k-dock[hidden], .k-timeslider[hidden] { display: none; }
+  .fc-cvimg { position: absolute; inset: 0; }
+  .fc-cvimg img { width: 100%; height: 100%; display: block; }
+  /* the date column's header in the table: transfers per day, a band dragged across it, and the command that keeps it */
+  .k-table th.fc-dateth { vertical-align: bottom; min-width: 220px; }
+  .fc-dateth .k-hist { position: relative; z-index: 0; height: 28px; margin: 2px 0; }
+  .fc-dateth .fc-throw { display: flex; align-items: center; gap: 8px; }
 
   /* below the screen: the states a 77-node graph cannot show */
   .fc-spec { width: 1440px; box-sizing: border-box; padding: 24px 32px 48px; border-top: 1px solid var(--cm-border); }
@@ -143,7 +150,7 @@
   <a href="../index.html">Gallery</a>
   <b>Filter chip and its steps</b>
   <span class="k-tabs" role="tablist" aria-label="States" id="tabs"></span>
-  <span class="k-secondary">Try it: tick a step off, drag down the checkboxes, drag a row, double-click a row to edit its rule, or open a row's menu. Ctrl+Z undoes. Below the screen: a time window as a step, and the chip on a larger graph.</span>
+  <span class="k-secondary">Try it: tick a step off, drag down the checkboxes, drag a row, double-click a row to edit its rule, or open a row's menu. Ctrl+Z undoes. The Transfers tabs write a time window as a step three ways; below the screen, the same routes side by side and the chip on a larger graph.</span>
   <span class="fc-grow"></span>
   <span>Theme <label><input type="radio" name="fc-th" value="" checked> system</label> <label><input type="radio" name="fc-th" value="light"> light</label> <label><input type="radio" name="fc-th" value="dark"> dark</label></span>
   <label><input type="checkbox" id="fc-notes-toggle"> Annotations</label>
@@ -151,31 +158,33 @@
 
 <div class="fc-wrap">
 <div class="k-app fc-app" id="app">
-<nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
+<nav class="k-rail" aria-label="Main"><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" id="rail-graph" aria-pressed="true"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" id="rail-results" aria-pressed="false"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></nav>
 
-<aside class="k-panel" aria-label="Graph">
+<aside class="k-panel" id="left" aria-label="Graph">
   <div class="k-panel-head">
     <div class="k-title-line"><span class="k-project" id="project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div><a class="k-privacy">Nothing has been sent from this project</a>
     <span class="k-chip k-chip-btn" id="chip" role="button" aria-haspopup="dialog" aria-expanded="true" tabindex="0"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span class="k-num fc-chip-text" id="chip-text"></span><svg class="k-i k-i-sm k-caret" aria-hidden="true"><use href="../kit/icons.svg#chevron-down"/></svg></span>
   </div>
   <div class="k-scroll">
-    <section class="k-section"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+    <section class="k-section" id="graphs-sec"><div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <ul class="k-list"><li class="k-item" aria-selected="true"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis" id="graph-name">Co-appearances</span><span class="k-trail k-num" id="graph-count">77 nodes</span></li></ul></section>
-    <section class="k-section"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
+    <section class="k-section" id="sets-sec"><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
       <ul class="k-list" id="sets"></ul></section>
-    
+    <!-- Results, when the rail's Results is chosen: a run whose scope is not the current filter says so, in body ink -->
+    <section class="k-section" id="runs-sec" hidden><div class="k-section-head">Results</div><ul class="k-list fc-runs" id="runs"></ul></section>
   </div>
 </aside>
 
 <main class="k-main">
   <div class="k-canvas" id="canvas">
-    <div class="k-stage"><svg class="fc-cv" id="cv" viewBox="0 0 1200 800" role="img"></svg></div>
+    <div class="k-stage"><svg class="fc-cv" id="cv" viewBox="0 0 1200 800" role="img"></svg><div class="fc-cvimg" id="cv-img" hidden></div></div>
     <div class="k-legend-card" id="legend"></div>
     <div class="k-toolbar-dock"><div class="k-toolbar" role="toolbar"><span class="k-tool" aria-pressed="true"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span><span class="k-toolbar-sep"></span><span class="k-tool k-tool-label" title="Quick actions Ctrl+K"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span></div></div>
     <span class="k-help"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
   </div>
-  <section class="k-dock" aria-label="Table">
-    <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
+  <section class="k-dock" id="dock" aria-label="Table">
+    <div class="k-timeslider" id="tslide" hidden><span class="k-icon-btn" aria-label="Play"><svg class="k-i"><use href="../kit/icons.svg#play"/></svg></span><div class="k-track"><span class="k-window" style="left:22.6%;width:22.6%"></span></div><span class="k-num">Mar 8 to Mar 14</span><span class="k-btn k-btn-secondary" role="button" id="ts-filter">Filter to this window</span></div>
+    <div class="k-dock-tabs"><span class="k-tab" id="tab-nodes" aria-selected="true">Nodes</span><span class="k-tab" id="tab-edges" aria-selected="false">Edges</span><span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
     <div class="k-scope" id="scope" aria-live="polite"></div>
     <div class="k-table-wrap"><table class="k-table"><thead id="thead"></thead><tbody id="rows"></tbody></table></div>
   </section>
@@ -186,7 +195,7 @@
   <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
   <div class="k-typerow"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-name" id="graph-name2">Co-appearances</span><span class="k-secondary">Graph</span></div>
   <div class="k-scroll"><section class="k-section" id="stat-section"><div class="k-section-head" id="stat-head">Statistics</div><div id="stats"></div></section><section class="k-section"><div class="k-section-head">Style stack<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-      <ul class="k-list">
+      <ul class="k-list" id="styles">
         <li class="k-item"><svg class="k-sizechip" viewBox="0 0 16 12"><circle cx="3" cy="8" r="2" fill="#808080"/><circle cx="10" cy="6" r="5" fill="#808080"/></svg><span class="k-ellipsis">Size: degree</span></li>
         <li class="k-item"><span class="k-chit" style="background:conic-gradient(#E69F00 0 25%,#56B4E9 0 50%,#009E73 0 75%,#0072B2 0)"></span><span class="k-ellipsis" id="style-name">Group color</span></li>
         <li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li></ul></section></div>
@@ -202,7 +211,7 @@
 
 <section class="fc-spec" data-kit-note aria-label="A time window as a step, and states a small graph cannot show">
   <h2>A time window is a filter step</h2>
-  <p>Les Miserables has no dates, so this part uses the March transfers (<span data-fx="scenarios.filterChipWindow.accounts">3,000</span> accounts, <span data-fx="scenarios.filterChipWindow.transfers">9,113</span> transfers, each with a timestamp). Three places write the same step, and the step is an ordinary row on the chip: it can be turned off, moved, edited or deleted like any other.</p>
+  <p>The three Transfers tabs above draw these in the screen. Les Miserables has no dates, so this part uses the March transfers (<span data-fx="scenarios.filterChipWindow.accounts">3,000</span> accounts, <span data-fx="scenarios.filterChipWindow.transfers">9,113</span> transfers, each with a timestamp). Three places write the same step, and the step is an ordinary row on the chip: it can be turned off, moved, edited or deleted like any other.</p>
   <div class="fc-specs">
     <div class="fc-route">
       <h3>From the time slider</h3>
@@ -239,24 +248,6 @@
         <div class="fc-add"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg>Add step</div></div></div>
     </div>
   </div>
-  <h2>A run whose scope is not the current filter says so</h2>
-  <p>A run keeps the graph it ran on. When that is not what the filter chip keeps now, the run says so in its own row, and Re-run names the graph it would use and that the earlier run stays. It follows the steps above: turn a step off and these lines recount.</p>
-  <div class="fc-specs"><div class="fc-route"><h3>Results</h3><div class="fc-box fc-runs"><ul class="k-list" id="runs"></ul></div></div></div>
-  <h2>Counts that measure different things</h2>
-  <p>When two counts on one screen count different things, each says what it counts. The protein evidence file has one row per pair of proteins and evidence source, so its <span data-fx="datasets.ppiEvidence.edges">2,298</span> rows join only <span data-fx="datasets.ppiEvidence.pairs">1,262</span> distinct pairs. Density and components count pairs; degree counts every row. The edge count carries the pair count beside it only when the two differ: Les Miserables, the 300-protein network and the March transfers never repeat a pair, so there the clause is left out.</p>
-  <div class="fc-specs">
-    <div class="fc-route">
-      <h3>Statistics, evidence file</h3>
-      <div class="fc-box" style="width:240px;padding:4px 0">
-        <div class="k-data"><span class="k-name">Proteins</span><span class="k-value k-num" data-fx="datasets.ppiEvidence.nodes">300</span></div>
-        <div class="fc-stat"><span class="fc-sn">Evidence rows</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.edges">2,298</span> (<span class="k-num" data-fx="datasets.ppiEvidence.pairs">1,262</span> distinct pairs)</div>
-        <div class="fc-stat"><span class="fc-sn">Density</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.density">0.0281</span>, of the <span class="k-num" data-fx="datasets.ppiEvidence.pairs">1,262</span> distinct pairs</div>
-        <div class="fc-stat"><span class="fc-sn">Average degree</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.averageDegree">15.3</span>, counting every evidence row</div>
-        <div class="fc-stat"><span class="fc-sn">Components</span> <span class="fc-sv k-num" data-fx="datasets.ppiEvidence.stats.components">3</span>, of the distinct pairs</div>
-      </div>
-      <p class="fc-cap">Unfiltered, so no row says "of the filtered graph"; the words say what each count counts instead.</p>
-    </div>
-  </div>
   <h2>The chip at its width steps</h2>
   <p>On a larger graph the chip's text is longer than its slot (216 px, the left panel header). It drops words in this order until it fits, and its tooltip and accessible name always carry the full text. Measured live below on the March transfers, with one of two steps on: merchants filtered out, a risk-score step turned off.</p>
   <div class="fc-specs"><table id="spec-widths"></table></div>
@@ -270,6 +261,15 @@
           <li class="k-item fc-step"><span class="fc-cb"><span class="k-check" aria-checked="true" aria-label="Step on"></span></span><span class="fc-text"><span class="fc-out">Filter out</span><span class="fc-rule">kind merchant</span></span><span class="fc-tail"></span><span class="fc-count k-num">took out 60 &middot; 2,940 left</span></li>
           <li class="k-item fc-step"><span class="fc-cb"><span class="k-check" aria-checked="true" aria-label="Step on"></span></span><span class="fc-text"><span class="fc-out">Filter to</span><span class="fc-rule">riskScore &gt;= 20</span></span><span class="fc-tail"></span><span class="fc-count k-secondary"><svg class="k-i k-i-sm" role="img" aria-label="counting" style="vertical-align:-2px"><use href="../kit/icons.svg#loader-circle"/></svg> counting</span></li>
         </ul><div class="fc-add"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg>Add step</div></div></div>
+    </div>
+  </div>
+  <h2>When transfers repeat a pair</h2>
+  <p>The March transfers never send twice between the same two accounts, so their pair count equals their transfer count. A bank export often does: here one account paid another more than once, so the edge count and the pair count differ, and the pair count sits beside it. Density and components count pairs; degree counts every transfer, and each line says which.</p>
+  <div class="fc-specs">
+    <div class="fc-box" id="repeat-pairs" style="padding:8px 12px;max-width:440px">
+      <div class="fc-stat"><span class="fc-sn">Transfers</span> <span class="fc-sv k-num"><span data-fx="scenarios.blankAmounts.transfers" data-fx-noun="transfers">9,380 transfers</span></span> (<span data-fx="scenarios.blankAmounts.distinctPairs" data-fx-noun="distinct pair|distinct pairs">8,102 distinct pairs</span>)</div>
+      <div class="fc-stat"><span class="fc-sn">Density and components:</span> <span class="k-secondary">counted over the <span data-fx="scenarios.blankAmounts.distinctPairs" data-fx-noun="distinct pair|distinct pairs">8,102 distinct pairs</span></span></div>
+      <div class="fc-stat"><span class="fc-sn">Average degree:</span> <span class="k-secondary">counts every transfer</span></div>
     </div>
   </div>
 </section>
@@ -325,7 +325,17 @@ const STATES = [
   { id: "alloff", tab: "All steps off", make: () => [LCC(false), R(false, "degree", ">=", 5, false), R(true, "group", "=", 8, false)] },
   { id: "many", tab: "Many steps", make: () => [LCC(), R(true, "group", "=", 1), R(true, "group", "=", 3), R(false, "degree", ">=", 2), R(true, "label", "=", "Javert", false), KC(2), R(true, "group", "=", 0, false), R(true, "label", "=", "Boulatruelle"), R(false, "degree", ">=", 3), R(true, "group", "=", 10)] },
   { id: "zero", tab: "Leaves 0 nodes", make: () => [R(false, "degree", ">=", 2), R(false, "degree", ">=", 40), R(true, "group", "=", 8)] },
+  // the rail's Results with the three steps on: each stored run says whether it ran on the current filter
+  { id: "runs", tab: "Results: runs on other graphs", panel: "results", closed: true, make: () => [R(false, "degree", ">=", 2), R(false, "degree", ">=", 5), R(true, "group", "=", 8)] },
+  // Drawn states on other data (renderStatic): a time window is an ordinary step, written three ways
+  // (the time slider, the date column's histogram, a date rule), on the March transfers; and counts that
+  // say whether repeats are counted, on the protein evidence file (one row per pair and evidence source).
+  { id: "window-slider", tab: "Transfers: time slider", static: "slider", closed: true },
+  { id: "window", tab: "Transfers: window as a step", static: "window" },
+  { id: "window-rule", tab: "Transfers: a date rule", static: "rule" },
+  { id: "evidence", tab: "Protein evidence: repeated pairs", static: "evidence", closed: true },
 ];
+let ST = null, panel = "graph"; // the static state shown (null while the live model draws); the left panel's place
 const ALIAS = { wrong: "after-removal" };
 const SETS0 = () => D.key === "ppi" ? [{ name: "Hubs", kind: "rule", members: new Set([...ALL].filter((i) => degFull[i] >= 20)) }]
   : [{ name: "The barricade", kind: "rule", members: new Set([...ALL].filter((i) => N[i][1] === 8)) }];
@@ -376,8 +386,9 @@ function applyStep(s, keep) {
 const readsStructure = (s) => s.t !== "rule" || s.attr === "degree";
 // a neighbor step counts neighbors (a degree rule, a k-core): its row carries a Scope line
 const isNeighbor = (s) => s.t === "kcore" || (s.t === "rule" && s.attr === "degree");
-// a degree rule also counts on the full graph, so its row can state both counts; null for any other step
-const fullLeft = (s) => (s.t === "rule" && s.attr === "degree" ? applyStep(s, ALL).size : null);
+// a step whose result depends on its position (one that reads structure: a degree rule, a k-core, the largest
+// component) also counts on the full graph, so its row can state both counts; null for any other step
+const fullLeft = (s) => (readsStructure(s) ? applyStep(s, ALL).size : null);
 const isOn = (s, i) => (sweep && sweep.ids.has(s.id) ? sweep.target : s.on);
 /* ---------- counts through the kit's scope formatter ---------- */
 // Every count a drawn state shows is bound to its fixture, scenarios.filterChip.states.<state>
@@ -415,9 +426,11 @@ function noteFor(s, r) {
   if (s.t === "lcc") return r.pieces > 1 ? `keeps only the largest of the ${r.pieces} connected pieces it reads` : "";
   return "";
 }
-// Degree keeps pipeline scope: it counts on what the steps above it left. Nothing changes silently: when
-// that is not the full graph, the row states both counts ("took out 20 &middot; 40 left; 41 on the full graph"), in the same words as every other row; the rule is named once, in the step's name.
-function degreeWords(s, r, i) {
+// A step whose result depends on its position keeps pipeline scope: it reads what the steps above it left.
+// Nothing changes silently: when that is not the full graph, the row states both counts, in body ink
+// ("took out 20 &middot; 40 left; 41 on the full graph"; a largest-component step: "took out 15 &middot; 61 left;
+// 77 on the full graph"). That second count is the position mark; the rule is named once, in the step's name.
+function positionWords(s, r, i) {
   if (!r || !r.input.size || r.input.size === TOTAL || fullLeft(s) == null) return "";
   const FB = stateFx();
   return `${r.took ? `took out ${fmt(r.took)} &middot; ` : ""}${fxc(FB && `${FB}.steps.${i}.left`, r.left)} left; ${fxc(FB && `${FB}.steps.${i}.full`, fullLeft(s))} on the full graph`;
@@ -480,6 +493,8 @@ const strip = (h) => h.replace(/&middot;/g, ",").replace(/&gt;/g, ">").replace(/
 
 /* ---------- render ---------- */
 function render() {
+  if (ST) return renderStatic(ST);
+  resetFrame();
   const { keep, per } = evaluate();
   const { a, e } = adj(keep);
   const on = steps.filter((s, i) => isOn(s, i)).length, n = steps.length, filtered = keep.size < TOTAL;
@@ -582,7 +597,7 @@ function renderPop(per) {
   const rows = steps.map((s, i) => {
     const r = per[i], onNow = isOn(s, i), note = onNow ? noteFor(s, r) : "";
     const countTip = r ? (r.took ? `Took out ${fmt(r.took)}: ${names(r.removed)}.` : "Took out none.") : "Off: takes nothing out.";
-    const count = degreeWords(s, r, i) || countWords(s, r);
+    const count = positionWords(s, r, i) || countWords(s, r);
     const scopeLine = onNow && r && isNeighbor(s) ? `Scope: ${scopeWords(i, r, true)}` : "";
     const name = `Step ${i + 1} of ${steps.length}: ${labelSpoken(s)}, ${strip(count)}${scopeLine ? ". " + strip(scopeLine) : ""}${note ? ". " + note : ""}`;
     return `<div class="k-item fc-step" role="row" tabindex="-1" draggable="${sweep ? "false" : "true"}" data-id="${s.id}"${onNow ? "" : " data-off"}${sweep && sweep.ids.has(s.id) ? " data-preview" : ""}${s.id === focusId ? ' aria-selected="true"' : ""} aria-label="${name}">` +
@@ -650,7 +665,7 @@ function editorWords(s, r, i) {
   return {
     title: `Step ${i + 1}: ${labelHtml(s)}`,
     scope: !r ? `Full graph: ${fxc(window.kitCount && `datasets.${D.key}.nodes`, TOTAL, { noun: D.unit })}` : scopeWords(i, r),
-    res: r ? degreeWords(s, r, i) || countWords(s, r) : "Off: takes nothing out.",
+    res: r ? positionWords(s, r, i) || countWords(s, r) : "Off: takes nothing out.",
     note: noteFor(s, r) ? `<div class="fc-line">${noteFor(s, r)}</div>` : "",
   };
 }
@@ -878,7 +893,12 @@ const NOTES = [
   { sel: "#steps .fc-count", at: [1, 0.5, 14], text: "Under each rule: what the step took out and what is left after it. Hover or focus names who it took out. An off step says it takes nothing out. A step that removes nothing says 'kept all 77' (a component step: 'found 1 piece &middot; kept all 77'), never 'took out 0'.", cite: "Proposed in framework-changes.md (Filter chip: each step row reads 'took out N, M left'). Built with: Tree row, second line, Text in the body color." },
   { sel: "#steps .fc-cb", text: "The checkbox, in the leading slot, turns a step off and keeps it. Drag down the column to sweep several: shown while the pointer is down, committed on release, canceled by leaving the column or Esc. Space turns off the focused step. The feedback is the recount; no notice appears while the popover is open.", cite: "Framework: interaction-pattern-entries.md 6.5; interface-specification.md 2.2. Leading slot and Space are proposed in framework-changes.md. Built with: CompactCheckboxIcon." },
   { sel: "#steps .fc-scopeline", at: [0, 0.5, -12], text: "A neighbor step (a degree rule, a k-core) counts neighbors on the graph the steps above it leave, and its row says which graph that is on a Scope line: 'Scope: after step 1, 60 of 77 characters', or 'Scope: full graph, 77 characters' when it is first. Body ink, like every line of the row.", cite: "Framework: conceptual-model.md 3, Live attributes; interface-templates.md 7. Built with: Tree row, third line, Text in the body color." },
-  { sel: "#steps .fc-step", nth: 1, at: [0, 0.35, -12], text: "A degree step keeps pipeline scope: it counts on what the steps above it left, so step order means the same thing for every kind of step. When that is not the full graph, the row states both counts in body ink, in the words every row uses: 'took out 20 &middot; 40 left; 41 on the full graph'. The rule is named once, in the step's name, never restated in other words. There is no switch for which graph it counts on and no grey print; hover still names who it took out.", cite: "Framework: conceptual-model.md 3, Live attributes; content-design.md 5, Counts. Built with: Tree row, second line, Text in the body color." },
+  { sel: "#steps .fc-step", nth: 1, at: [0, 0.35, -12], text: "A step whose result depends on its position (a degree rule, a k-core, Largest component) reads what the steps above it left, so step order means the same thing for every kind of step. When that is not the full graph, the row states both counts in body ink, in the words every row uses: 'took out 20 &middot; 40 left; 41 on the full graph', or for Largest component in the wrong place 'took out 15 &middot; 61 left; 77 on the full graph'. That second count is the mark that its position matters. The rule is named once, in the step's name, never restated in other words. There is no switch for which graph it counts on and no grey print; hover still names who it took out.", cite: "Framework: conceptual-model.md 3, Live attributes; content-design.md 5, Counts. Built with: Tree row, second line, Text in the body color." },
+  { sel: "#ts-filter", at: [0, 0.5, -12], text: "A time window is an ordinary filter step, not a separate tool. The table dock's time slider shows one window and filters nothing; Filter to this window writes it as a step on the chip, which can be turned off, moved, edited or deleted like any other.", cite: "Proposed in framework-changes.md (a time window is a filter step). Built with: compact-mantine Button, secondary, in the dock's time slider row." },
+  { sel: "#hist-filter", at: [0, 0.5, -12], text: "The second route: drag across the date column's histogram to mark a band, then Filter to Mar 8 to Mar 14 writes the same step.", cite: "Built with: the table header's histogram, Button secondary." },
+  { sel: ".fc-ed-title", at: [0, 0.5, -12], text: "The third route: a date rule in the step editor (timestamp between two dates). All three write one step kind; the row reads like every other row.", cite: "Framework: interface-templates.md 7 and 10 (the Rule row)." },
+  { sel: "#ev-rows", at: [0, 0.3, -12], text: "When a file repeats a pair, the edge count says so beside it: 'Evidence rows 2,298 (1,262 distinct pairs)'. Density and components count pairs; degree counts every row, and each line says which. The transfers say it too, where no pair repeats: 'Transfers 9,113 (9,113 distinct pairs)'.", cite: "Proposed in framework-changes.md (Counts name what they count)." },
+  { sel: "#runs .fc-runline", at: [0, 0.3, -12], text: "A run keeps the graph it ran on. When that is not what the filter chip keeps now, its row says so in body ink, and Re-run names the graph it would use and that the earlier run stays.", cite: "Proposed in framework-changes.md (a run whose scope is not the current filter says so). Built with: Tree row, second line, Text in the body color." },
   { sel: "#steps .fc-note", at: [0, 0.5, -12], text: "A component step on a graph in pieces says what it keeps of that graph ('keeps only the largest of the 7 connected pieces it reads'), in body ink, worded from the reader's side, never as a warning and never about a step below it.", cite: "Proposed in framework-changes.md (Filter chip: a step's note says what it keeps)." },
   { sel: "#steps .fc-step", nth: 1, at: [1, 0.5, 14], text: "Enter or a double-click opens the step's editor. The row menu, the context menu, Shift+F10 and the Menu key hold the same commands in the same order. Move up is Ctrl+] and Move down Ctrl+[, Figma's Bring forward and Send backward; the Tree's Alt+Arrow also works. Delete removes the step; Ctrl+Z undoes any change.", cite: "Framework: interaction-pattern-entries.md 6.3, 6.4, 6.7 and 9.3; the chords are proposed in framework-changes.md. Built with: Mantine Menu." },
   { sel: "#add", text: "Add step: Filter to or Filter out, appended at the end. A step with settings opens its editor at once.", cite: "Framework: interaction-pattern-entries.md 6.1. Built with: Mantine Menu." },
@@ -928,6 +948,112 @@ function specWidths() {
   });
 }
 
+/* ---------- the frame's parts the drawn states change, put back for the live model ---------- */
+const STYLES0 = $("styles").innerHTML;
+function resetFrame() {
+  const results = panel === "results";
+  $("rail-graph").setAttribute("aria-pressed", !results); $("rail-results").setAttribute("aria-pressed", results);
+  $("left").setAttribute("aria-label", results ? "Results" : "Graph");
+  $("graphs-sec").hidden = results; $("sets-sec").hidden = results; $("runs-sec").hidden = !results;
+  $("cv").hidden = false; $("cv-img").hidden = true; $("cv-img").innerHTML = ""; $("dock").hidden = false; $("tslide").hidden = true;
+  $("tab-nodes").setAttribute("aria-selected", true); $("tab-edges").setAttribute("aria-selected", false);
+  $("styles").innerHTML = STYLES0;
+}
+
+/* ---------- drawn states on other data: every count bound to its fixture through the kit's formatter ---------- */
+// scenarios.filterChipWindow is written by screens/filter-chip-window-numbers.mjs (with the drawing of the
+// kept accounts, screens/img/fc-window-{theme}.svg); the rest are the datasets' own fixtures.
+function renderStatic(st) {
+  if (!window.kitCount) return; // drawn once the fixtures load (kit:fixtures below)
+  const kc = window.kitCount, kv = window.kitValue, W = "scenarios.filterChipWindow", WS = `${W}.state`;
+  const tx = st.static !== "evidence", filtered = st.static === "window" || st.static === "rule";
+  const ds = tx ? "transactions" : "ppiEvidence", unit = tx ? "accounts" : "proteins";
+  document.body.dataset.dataset = ds;
+  panel = "graph"; resetFrame();
+  const fr = kv(`datasets.${ds}.frame`);
+  $("project").textContent = fr.project;
+  $("graph-name").textContent = fr.graphRow; $("graph-name2").textContent = fr.graphRow;
+  $("graph-count").innerHTML = kc(`datasets.${ds}.nodes`, { noun: unit });
+  $("sets-sec").hidden = true; $("legend").hidden = true;
+  $("styles").innerHTML = `<li class="k-item"><span class="k-chit" style="background:#808080"></span><span class="k-ellipsis">Base style</span></li>`;
+  // canvas: a density drawing (unfiltered, or the accounts the window keeps) or the evidence file's
+  const draw = filtered ? kv(`${WS}.drawing`) : fr.drawing, alt = filtered ? kv(`${WS}.alt`) : fr.alt;
+  $("cv").hidden = true; $("cv-img").hidden = false;
+  const base = filtered ? "../" : "../kit/"; // the window's drawing is this page's own (screens/img); the rest are the kit's
+  $("cv-img").innerHTML = `<img class="k-light-only" src="${base}${draw.replace("{theme}", "light")}" alt="${alt}"><img class="k-dark-only" src="${base}${draw.replace("{theme}", "dark")}" alt="${alt}">`;
+  // chip
+  const forms = filtered ? chipForms(kv(`${WS}.nodes`), 1, 1, kv(`${WS}.of`), unit, WS) : ["Full graph"];
+  fitChip($("chip"), $("chip-text"), forms);
+  $("chip").dataset.tip = strip(forms[0]); $("chip").setAttribute("aria-label", strip(forms[0]) + ". Filter steps");
+  $("chip").setAttribute("aria-expanded", popOpen);
+  // the step, its list row and its editor
+  const took = kc(`${WS}.steps.0.took`), left = kc(`${WS}.steps.0.left`);
+  const note = `keeps only the ${kc(`${W}.transfersIn`, { noun: "transfers" })} in the window and the accounts that sent or received one`;
+  const winLabel = kv(`${W}.window.label`);
+  const close = `<span class="k-icon-btn" id="pop-close" role="button" tabindex="0" aria-label="Close" data-tip="Close">${I("x")}</span>`;
+  const pop = $("pop");
+  pop.hidden = !popOpen;
+  if (!filtered) {
+    pop.innerHTML = `<div class="k-popover-head">Filter steps<span class="k-grow"></span>${close}</div><div class="k-popover-body"><div class="fc-empty">No filter steps. Every number reads the full graph.</div>` +
+      `<div class="fc-add" id="add" role="button" tabindex="0" aria-haspopup="menu">${I("plus")}Add step</div></div>`;
+  } else if (st.static === "window") {
+    pop.innerHTML = `<div class="k-popover-head">Filter steps<span class="k-grow"></span>${close}</div><div class="k-popover-body"><div class="k-list" id="steps" role="treegrid" aria-label="Filter steps, in the order they apply">` +
+      `<div class="k-item fc-step" role="row" tabindex="-1" aria-label="Step 1 of 1: Filter to timestamp ${winLabel}"><span class="fc-cb" role="gridcell"><span class="k-check" role="checkbox" aria-checked="true" aria-label="Step on"></span></span>` +
+      `<span class="fc-text" role="gridcell"><span class="fc-out">Filter to</span><span class="fc-rule">timestamp ${winLabel}</span></span><span class="fc-tail" role="gridcell"><span class="k-icon-btn fc-more" role="button" aria-label="More">${I("ellipsis")}</span></span>` +
+      `<span class="fc-count k-num">took out ${took} &middot; ${left} left</span><span class="fc-note">${note}</span></div></div>` +
+      `<div class="fc-add" id="add" role="button" tabindex="0" aria-haspopup="menu">${I("plus")}Add step</div></div>`;
+  } else if (st.static === "rule") {
+    pop.innerHTML = `<div class="k-popover-head"><span class="fc-back" id="ed-back" role="button" tabindex="0" aria-label="Back to filter steps">${I("chevron-left")}Filter steps</span><span class="k-grow"></span>${close}</div>` +
+      `<div class="k-popover-body fc-ed" role="group" aria-label="Edit step 1"><div class="fc-ed-title">Step 1: Filter to timestamp ${winLabel}</div>` +
+      `<div class="k-fieldrow"><span class="k-legend">Outcome</span><div class="k-fields"><span class="k-seg k-seg-fill k-span" role="radiogroup" aria-label="Outcome"><span role="radio" aria-checked="true">Filter to</span><span role="radio" aria-checked="false">Filter out</span></span></div></div>` +
+      `<div class="k-fieldrow"><span class="k-legend">Rule</span></div><div class="fc-fields2"><span class="k-field">timestamp${I("chevron-down", "k-i k-i-sm k-caret")}</span><span class="k-field">between${I("chevron-down", "k-i k-i-sm k-caret")}</span><span class="k-field k-num">Mar 8 2026</span><span class="k-field k-num">Mar 14 2026</span></div>` +
+      `<div class="k-data"><span class="k-name">Scope</span><span class="k-value">Full graph: ${kc(`datasets.${ds}.nodes`, { noun: unit })}</span></div>` +
+      `<div class="k-data"><span class="k-name">Result</span><span class="k-value k-num">took out ${took} &middot; ${left} left</span></div><div class="fc-line">${note}</div>` +
+      `<div class="fc-note-add">${I("plus")}Add note</div></div>`;
+    $("ed-back").onclick = () => { location.hash = "window"; };
+  }
+  if ($("pop-close")) $("pop-close").onclick = (ev) => { ev.stopPropagation(); closePop(); };
+  // statistics: filtered, each count a sentence naming its graph; the evidence file says what each count counts
+  const FM = filtered ? `<svg class="k-i k-i-sm fc-fm" role="img" aria-label="on: filtered graph" data-tip="Follows the filter chip: counted on the filtered graph"><use href="../kit/icons.svg#funnel"/></svg>` : "";
+  const scope = filtered ? `, of the filtered graph (${kc(`${WS}.nodes`, { of: `${WS}.of`, noun: unit })})` : "";
+  const row = (name, v, tail = "") => filtered || !tx ? `<div class="fc-stat"><span class="fc-sn">${name}</span> <span class="fc-sv k-num">${v}</span>${tail}</div>` : `<div class="k-data"><span class="k-name">${name}</span><span class="k-value k-num">${v}${tail}</span></div>`;
+  const S = filtered ? WS : `datasets.${ds}.stats`;
+  $("stat-head").innerHTML = `Statistics${FM}`;
+  $("stats").innerHTML = !tx
+    ? row("Proteins", kc("datasets.ppiEvidence.nodes")) +
+      row("Evidence rows", kc("datasets.ppiEvidence.edges"), ` (${kc("datasets.ppiEvidence.pairs", { noun: "distinct pair|distinct pairs" })})`) +
+      row("Density", kc("datasets.ppiEvidence.stats.density"), `, of the ${kc("datasets.ppiEvidence.pairs", { noun: "distinct pair|distinct pairs" })}`) +
+      row("Average degree", kc("datasets.ppiEvidence.stats.averageDegree"), ", counting every evidence row") +
+      row("Connected components", kc("datasets.ppiEvidence.stats.components"), ", of the distinct pairs")
+    : row("Accounts", filtered ? kc(`${WS}.nodes`, { of: `${WS}.of` }) : kc("datasets.transactions.nodes"), filtered ? ", in the filtered graph" : "") +
+      row("Transfers", filtered ? kc(`${WS}.edges`, { of: `${WS}.edgesOf` }) : kc("datasets.transactions.edges"), ` (${kc(`scenarios.onScreen.marchPairs.${filtered ? "window" : "full"}`, { noun: "distinct pair|distinct pairs" })})${filtered ? ", in the filtered graph" : ""}`) +
+      row("Weak components", kc(`${S}.components`), scope) +
+      row("Average total degree", kc(`${S}.averageDegree`), scope) +
+      row("Density", kc(`${S}.density`), scope);
+  if (!tx) $("stats").children[1].id = "ev-rows";
+  // the table: accounts (filtered) or the transfers with the date column's histogram (the slider state)
+  $("dock").hidden = !tx;
+  $("tslide").hidden = !tx;
+  $("ts-filter").hidden = filtered; // once the window is a step, the slider has nothing to write
+  $("ts-filter").onclick = () => { location.hash = "window"; };
+  if (!tx) return;
+  if (st.static === "slider") {
+    $("tab-nodes").setAttribute("aria-selected", false); $("tab-edges").setAttribute("aria-selected", true);
+    const per = kv(`${W}.transfersPerDay`), max = Math.max(...per);
+    const bars = per.map((c, d) => `<i style="height:${(100 * c / max).toFixed(1)}%"${d + 1 >= 8 && d + 1 <= 14 ? " data-on" : ""}></i>`).join("");
+    $("thead").innerHTML = `<tr><th>from_account</th><th>to_account</th><th class="k-n">amount</th><th class="fc-dateth" id="th-date"><div class="fc-throw">timestamp<span class="k-grow"></span><span class="k-btn k-btn-secondary" role="button" id="hist-filter">Filter to ${winLabel}</span></div>` +
+      `<div class="k-hist" role="img" aria-label="Transfers per day in March, ${winLabel} marked"><span class="fc-band" style="left:22.6%;width:22.6%"></span>${bars}</div></th></tr>`;
+    $("rows").innerHTML = kv("datasets.transactions.firstRows").map((r) => `<tr><td class="k-id">${r.from_account}</td><td class="k-id">${r.to_account}</td><td class="k-n">${r.amount}</td><td class="k-num">${r.timestamp.replace("T", " ").replace("Z", "")}</td></tr>`).join("");
+    $("scope").innerHTML = `Full graph: ${kc("datasets.transactions.edges", { noun: "transfers" })}. In file order. The slider shows ${winLabel} and filters nothing.`;
+    $("hist-filter").onclick = () => { location.hash = "window"; };
+  } else {
+    $("thead").innerHTML = `<tr><th>id</th><th>kind</th><th class="k-n" id="th-deg">Total degree (filtered)${FM}</th><th class="k-n">Total degree (full graph)</th></tr>`;
+    $("rows").innerHTML = kv(`${WS}.top`).map((r) => `<tr><td class="k-id">${r.id}</td><td>${r.kind}</td><td class="k-n">${r.totalDegree}</td><td class="k-n">${r.totalDegreeFull}</td></tr>`).join("");
+    $("scope").innerHTML = `${FM}Filtered graph: ${kc(`${WS}.nodes`, { of: `${WS}.of`, noun: unit })}. Sorted by total degree (filtered).`;
+  }
+  placeNotes();
+}
+
 /* ---------- page controls and states ---------- */
 $("tabs").innerHTML = STATES.map((s) => `<span class="k-tab" role="tab" data-state="${s.id}">${s.tab}</span>`).join("");
 $("tabs").querySelectorAll(".k-tab").forEach((t) => t.addEventListener("click", () => {
@@ -941,7 +1067,10 @@ $("fc-notes-toggle").addEventListener("change", (ev) => { document.body.classLis
 function load(name) {
   const st = STATES.find((s) => s.id === (ALIAS[name] || name)) || STATES[0];
   stateName = st.id; uid = 0;
-  if (D?.key !== (st.data || "lesmis")) useData(st.data || "lesmis");
+  ST = st.static ? st : null; panel = st.panel || "graph";
+  if (st.closed) popOpen = false;
+  if (ST) { hideMenu(); editId = null; render(); return; }
+  useData(st.data || "lesmis");
   steps = st.make(); sets = SETS0(); undo = []; sweep = null; lastChange = null;
   editId = st.edit !== undefined ? steps[st.edit].id : null;
   focusId = editId;
@@ -949,6 +1078,7 @@ function load(name) {
   render();
   if (st.then) { st.then(); stateName = st.id; render(); }
 }
+
 /* URL hash: #<state> picks a state (three, off, proteins, keeps-all, after-removal, edit, none, alloff, many, zero);
    add &notes for annotations, &bare to drop the page bar and the notes below (study sessions and
    storyboard frames), &closed to start with the popover closed. */
@@ -970,7 +1100,7 @@ document.addEventListener("kit:fixtures", ({ detail: { get } }) => {
   $("win-hist").insertAdjacentHTML("beforeend", w.transfersPerDay.map((c, d) => `<i style="height:${(100 * c / max).toFixed(1)}%"${d + 1 >= 8 && d + 1 <= 14 ? " data-on" : ""}></i>`).join(""));
 });
 // The counts bind once the kit has read the fixtures: draw again then.
-document.addEventListener("kit:fixtures", () => { useData(D.key); render(); });
+document.addEventListener("kit:fixtures", () => { if (!ST) useData(D.key); render(); });
 fromHash();
 specWidths();
 document.fonts.ready.then(() => { render(); specWidths(); });

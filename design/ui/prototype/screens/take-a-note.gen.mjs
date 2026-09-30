@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// States 10 (two authors on the transfers), 11 (a citation opens the run's Details) and 12 (the findings report in the Export dialog) were added to screens/take-a-note.html by hand, as were later edits there (the Cites chip's tooltip): port them before running this script.
 // Builds screens/take-a-note.html: writing and reading a note (task-flows.md 7) in nine states.
 // Run from design/ui/prototype/: node screens/take-a-note.gen.mjs
 // Every number is from kit/fixtures.json: the March transfers (transactions), the mule ring's

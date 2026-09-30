@@ -11,11 +11,11 @@ genes into it and tell me when it is ready."
 `qpcr-hits-2026-09.csv` (96 rows: symbol, log2FC, padj). He knows it is 96 rows because he made it.
 
 **Screens, in order, as the participant saw them (participant view, 1440 wide, whole page):**
-`../../../shots/r4-tom-ucf-start-screen.png` (state 4, a recipe waiting for data),
-`../../../shots/r4-tom-ucf-binding-step.png` (the Apply dialog, from "table not added" to
-"85 of 96 matched"), `../../../shots/r4-tom-ucf-recipe-apply.png` (the applied graph and the Undo
-state), then a look at `../../../shots/r4-tom-ucf-recipe-travels.png` and
-`../../../shots/r4-tom-ucf-replace-and-recipe.png` when the moderator asked if anything else on
+`../../../shots/record/r4-tom-ucf-start-screen.png` (state 4, a recipe waiting for data),
+`../../../shots/record/r4-tom-ucf-binding-step.png` (the Apply dialog, from "table not added" to
+"85 of 96 matched"), `../../../shots/record/r4-tom-ucf-recipe-apply.png` (the applied graph and the Undo
+state), then a look at `../../../shots/record/r4-tom-ucf-recipe-travels.png` and
+`../../../shots/record/r4-tom-ucf-replace-and-recipe.png` when the moderator asked if anything else on
 the gallery was relevant.
 
 **Outcome:** He got his genes on and could say "84 of 96, 85 if I take the MDM2 fix, and here are

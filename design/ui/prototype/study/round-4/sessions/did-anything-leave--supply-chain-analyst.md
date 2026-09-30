@@ -14,7 +14,7 @@ Screens seen, in order:
 - `shots/screens__frame-at-rest.png` -- a sample project open (Les Miserables)
 - `shots/screens__data-panel.png` and `shots/screens__data-panel-s7.png` -- the Data panel, with
   "Sent and saved from this project"
-- `shots/screens__data-location.png`, `shots/screens__where-your-data-goes--study.png` and
+- `shots/screens__data-location.png`, `shots/record/screens__where-your-data-goes--study.png` and
   `shots/screens__data-location-full.png` -- the "Where your data goes" page, top and whole,
   including section 3, "What the app says when something leaves" (the line under the project
   name after a data-source query, the Sent and saved list, and "See what was sent")

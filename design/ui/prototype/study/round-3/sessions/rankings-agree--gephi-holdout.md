@@ -7,8 +7,8 @@ user since 0.8, checks every number against NetworkX).
 PageRank against betweenness on the April transfers", then the second view (March against April)
 and the small state panels under it; then the Results panel mock
 (`screens/results-panel.html`), the finished and sampled states.
-**Renders read:** `shots/r3-mara-rankings-comparison-full.png`,
-`shots/r3-mara-rankings-results-full.png`, `shots/r3-mara-rankings-results-sampled.png`,
+**Renders read:** `shots/record/r3-mara-rankings-comparison-full.png`,
+`shots/record/r3-mara-rankings-results-full.png`, `shots/record/r3-mara-rankings-results-sampled.png`,
 `shots/screens__results-panel--finished.png` (study view: design notes hidden).
 
 **Outcome:** finished, with difficulty. She answered correctly -- no, they do not agree on who

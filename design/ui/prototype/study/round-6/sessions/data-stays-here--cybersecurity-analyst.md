@@ -6,12 +6,12 @@ Decide whether you may use this tool on your data, and tell me what you would sa
 **Screens seen, in order, as the participant sees them (design notes hidden), dark theme, about
 half a 1440p monitor (1280 wide):**
 
-1. The start screen -- `shots/r6-priya-ds-start-screen.png`
-2. An open project at rest (Les Miserables sample) -- `shots/r6-priya-ds-frame-at-rest.png`
-3. "Where your data goes", the whole page -- `shots/r6-priya-ds-data-location-full.png`
+1. The start screen -- `shots/record/r6-priya-ds-start-screen.png`
+2. An open project at rest (Les Miserables sample) -- `shots/record/r6-priya-ds-frame-at-rest.png`
+3. "Where your data goes", the whole page -- `shots/record/r6-priya-ds-data-location-full.png`
    (the old "where-your-data-goes" address now just redirects to this page)
-4. Data panel, payments project, scrolled to the bottom -- `shots/r6-priya-ds-data-panel.png`,
-   `shots/r6-priya-ds-data-panel-tall.png`
+4. Data panel, payments project, scrolled to the bottom -- `shots/record/r6-priya-ds-data-panel.png`,
+   `shots/record/r6-priya-ds-data-panel-tall.png`
 
 ---
 

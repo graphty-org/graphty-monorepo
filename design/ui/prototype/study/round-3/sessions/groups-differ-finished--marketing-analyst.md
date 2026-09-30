@@ -7,8 +7,8 @@
 - **Screens:** the Results panel with a finished Louvain run (`screens/results-panel.html#louvain`),
   then its groups in the table (`#louvain-table`), then the table dock on its own
   (`screens/table-dock.html`).
-- **Renders read:** `shots/r3-jordan-gdf-louvain.png`, `shots/r3-jordan-gdf-louvain-table.png`,
-  `shots/r3-jordan-gdf-tabledock.png` (1440 by 900, laptop width).
+- **Renders read:** `shots/record/r3-jordan-gdf-louvain.png`, `shots/record/r3-jordan-gdf-louvain-table.png`,
+  `shots/record/r3-jordan-gdf-tabledock.png` (1440 by 900, laptop width).
 
 ## Think-aloud
 

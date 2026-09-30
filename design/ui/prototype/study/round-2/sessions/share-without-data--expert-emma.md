@@ -3,7 +3,7 @@
 **Participant:** Expert Emma, network scientist and consultant (notebook first, Gephi for the final figure).
 **Task as given by the moderator:** "Send your lab your setup so they can use it on their own data, without sending yours."
 **Screen:** the Export dialog mock (screens/export-dialog.html). She starts on the dialog as it opens from Export files... in the header (the state where the current view is checked), then goes to the state where Recipe is ticked.
-**Renders she looked at:** shots/emma-share-first.png (dialog as it opens), shots/emma-share-recipe.png and shots/emma-share-recipe-foot.png (Recipe ticked, footer visible).
+**Renders she looked at:** shots/record/emma-share-first.png (dialog as it opens), shots/record/emma-share-recipe.png and shots/record/emma-share-recipe-foot.png (Recipe ticked, footer visible).
 
 ## Transcript (think-aloud)
 

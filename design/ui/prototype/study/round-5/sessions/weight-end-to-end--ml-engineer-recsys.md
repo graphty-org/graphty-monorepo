@@ -14,15 +14,15 @@ the table dock (ranked measures on 3,000 accounts, the path's Edges tab, CSV exp
 panel (finished betweenness, Louvain run record).
 
 Renders the participant looked at (all in study view):
-- `../../../shots/r4-chris-we2e-load-step.png`
-- `../../../shots/r4-chris-we2e-binding-step.png`
-- `../../../shots/r4-chris-we2e-run-and-read.png`
-- `../../../shots/r4-chris-we2e-sp-s3.png`, `../../../shots/r4-chris-we2e-sp-s4.png`,
-  `../../../shots/r4-chris-we2e-sp-s5.png`, `../../../shots/r4-chris-we2e-sp-s6.png`
+- `../../../shots/record/r4-chris-we2e-load-step.png`
+- `../../../shots/record/r4-chris-we2e-binding-step.png`
+- `../../../shots/record/r4-chris-we2e-run-and-read.png`
+- `../../../shots/record/r4-chris-we2e-sp-s3.png`, `../../../shots/record/r4-chris-we2e-sp-s4.png`,
+  `../../../shots/record/r4-chris-we2e-sp-s5.png`, `../../../shots/record/r4-chris-we2e-sp-s6.png`
 - `../../../shots/flows__sets-and-paths.png` (the flow page; the study-view render came out blank)
-- `../../../shots/r4-chris-we2e-table-dock.png`
-- `../../../shots/r4-chris-we2e-results-panel.png`, `../../../shots/screens__results-panel--finished.png`,
-  `../../../shots/screens__results-panel--louvain.png`
+- `../../../shots/record/r4-chris-we2e-table-dock.png`
+- `../../../shots/record/r4-chris-we2e-results-panel.png`, `../../../shots/screens__results-panel--finished.png`,
+  `../../../shots/record/screens__results-panel--louvain.png`
 
 ## Think-aloud
 

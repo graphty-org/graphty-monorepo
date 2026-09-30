@@ -18,17 +18,17 @@ characters beside him. Done means 47 of 77 nodes, 2 of 3 steps, with the same 18
 selected again.
 
 **Screens seen** (renders, in order):
-- `../../../shots/r6-emma-getback-notice-01-start.png` -- the starting screen
-- `../../../shots/r6-emma-getback-notice-02-ctrlz-reflex.png` -- after Ctrl+Z once
-- `../../../shots/r6-emma-getback-notice-02b-edit-menu-after-ctrlz.png` -- the Edit menu after that press
-- `../../../shots/r6-emma-getback-notice-03-redo.png` -- after Ctrl+Shift+Z
-- `../../../shots/r6-emma-getback-notice-04-two-undos.png` -- after Ctrl+Z twice more
-- `../../../shots/r6-emma-getback-notice-05-show-in-steps.png` -- the line's Show in steps
-- `../../../shots/r6-emma-getback-notice-06-tick-group8.png` -- group 8 step ticked back on (her
+- `../../../shots/record/r6-emma-getback-notice-01-start.png` -- the starting screen
+- `../../../shots/record/r6-emma-getback-notice-02-ctrlz-reflex.png` -- after Ctrl+Z once
+- `../../../shots/record/r6-emma-getback-notice-02b-edit-menu-after-ctrlz.png` -- the Edit menu after that press
+- `../../../shots/record/r6-emma-getback-notice-03-redo.png` -- after Ctrl+Shift+Z
+- `../../../shots/record/r6-emma-getback-notice-04-two-undos.png` -- after Ctrl+Z twice more
+- `../../../shots/record/r6-emma-getback-notice-05-show-in-steps.png` -- the line's Show in steps
+- `../../../shots/record/r6-emma-getback-notice-06-tick-group8.png` -- group 8 step ticked back on (her
   end state)
 - Shown after the task, when the moderator asked about the other route:
-  `../../../shots/r6-emma-getback-notice-07-B-edit-menu-at-start.png` (Edit menu before any
-  press) and `../../../shots/r6-emma-getback-notice-12-B-tick8.png` (the end state had she
+  `../../../shots/record/r6-emma-getback-notice-07-B-edit-menu-at-start.png` (Edit menu before any
+  press) and `../../../shots/record/r6-emma-getback-notice-12-B-tick8.png` (the end state had she
   pressed Bring it back first)
 
 ## Think-aloud

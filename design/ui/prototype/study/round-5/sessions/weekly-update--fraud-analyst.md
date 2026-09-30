@@ -9,7 +9,7 @@ Pages worked, as the participant sees them (study view): storyboards/weekly-retu
 screens/weekly-return, screens/data-panel, screens/version-history, screens/replace-and-recipe,
 flows/replace-and-recipe, screens/comparison.
 Renders used: shots/r4-sarah-weekly-*.png (full-page study renders made for this session) and
-shots/r4-sarah-weekly-dp-s4.png (the data panel's Update with new data dialog).
+shots/record/r4-sarah-weekly-dp-s4.png (the data panel's Update with new data dialog).
 
 ## Transcript (think-aloud)
 

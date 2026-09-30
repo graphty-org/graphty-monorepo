@@ -7,15 +7,15 @@ Mild red-green colour vision deficiency.
 route between two accounts and the most central accounts, and tell me what each answer used."
 
 **Screens seen, in order:** the load step, clean transfers file
-(`shots/r4-alex-weight-e2e-load-step.png`, first frame); the recipe binding step, only the
-"what a weight means" part (`shots/r4-alex-weight-e2e-binding-step.png`); the run menu and the
-first betweenness result (`shots/r4-alex-weight-e2e-run-and-read.png`); the sets and paths screen
-(`shots/r4-alex-weight-e2e-sets-and-paths.png`) and the flow's screens 3 to 7
+(`shots/record/r4-alex-weight-e2e-load-step.png`, first frame); the recipe binding step, only the
+"what a weight means" part (`shots/record/r4-alex-weight-e2e-binding-step.png`); the run menu and the
+first betweenness result (`shots/record/r4-alex-weight-e2e-run-and-read.png`); the sets and paths screen
+(`shots/record/r4-alex-weight-e2e-sets-and-paths.png`) and the flow's screens 3 to 7
 (`shots/sets-and-paths-s3.png` to `-s7.png`, the path tool, found path, "amount: what it means",
 no path, frozen copy); the flow's table "What the path length counted"; the results panel, mainly
 the finished betweenness and the "Review out of date" states
-(`shots/r4-alex-weight-e2e-results-panel.png`); the table dock, the transfers Nodes tab and the
-path's Edges tab (`shots/r4-alex-weight-e2e-table-dock.png`).
+(`shots/record/r4-alex-weight-e2e-results-panel.png`); the table dock, the transfers Nodes tab and the
+path's Edges tab (`shots/record/r4-alex-weight-e2e-table-dock.png`).
 
 Note for the reader: the transfers mocks show the path search and an unweighted PageRank, but no
 screen shows a weighted path result or a weighted centrality on transfers. Where Alex reads a

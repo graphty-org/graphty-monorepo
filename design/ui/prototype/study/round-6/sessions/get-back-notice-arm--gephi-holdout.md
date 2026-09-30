@@ -14,12 +14,12 @@ bring the selection back).
 
 **Screens seen** (participant view, Les Miserables sample, 27 of 77 nodes, three filter steps, a
 hand-built selection of 18 characters just cleared):
-- `../../../shots/r6-mara-getback-notice-01-start.png` (the starting screen: "Selection cleared (18 nodes)" with Bring it back)
-- `../../../shots/r6-mara-getback-notice-02-undo1.png` (after one Cmd+Z: 40 of 77, "Undone: Filter out group 8")
-- `../../../shots/r6-mara-getback-notice-03-undo2.png` (after a second Cmd+Z: 60 of 77, "Undone: Filter out group 8 and Filter to degree >= 5")
-- `../../../shots/r6-mara-getback-notice-04-steps.png` (Show in steps: the steps list, both later steps off)
-- `../../../shots/r6-mara-getback-notice-05-group8-on.png` (group 8 step ticked back on: 47 of 77)
-- `../../../shots/r6-mara-getback-notice-08-edit.png` (main menu, Edit, at the end)
+- `../../../shots/record/r6-mara-getback-notice-01-start.png` (the starting screen: "Selection cleared (18 nodes)" with Bring it back)
+- `../../../shots/record/r6-mara-getback-notice-02-undo1.png` (after one Cmd+Z: 40 of 77, "Undone: Filter out group 8")
+- `../../../shots/record/r6-mara-getback-notice-03-undo2.png` (after a second Cmd+Z: 60 of 77, "Undone: Filter out group 8 and Filter to degree >= 5")
+- `../../../shots/record/r6-mara-getback-notice-04-steps.png` (Show in steps: the steps list, both later steps off)
+- `../../../shots/record/r6-mara-getback-notice-05-group8-on.png` (group 8 step ticked back on: 47 of 77)
+- `../../../shots/record/r6-mara-getback-notice-08-edit.png` (main menu, Edit, at the end)
 
 ## Think-aloud
 

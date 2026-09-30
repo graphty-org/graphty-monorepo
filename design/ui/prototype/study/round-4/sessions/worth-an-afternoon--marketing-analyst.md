@@ -9,7 +9,7 @@ Task as given by the moderator: "A colleague sent this file. Is it worth an afte
 Screens seen, in order: the start screen, the load step with the scores read as text, the load
 step with repeated pairs, the graph after loading, and a glance at the first-look storyboard.
 Renders: `shots/tasks/worth-an-afternoon/01-start-screen.png` to `04-frame-at-rest.png`, plus
-`shots/screens__where-your-data-goes--study.png` and `shots/screens__load-step-report--study.png`.
+`shots/record/screens__where-your-data-goes--study.png` and `shots/record/screens__load-step-report--study.png`.
 
 ---
 

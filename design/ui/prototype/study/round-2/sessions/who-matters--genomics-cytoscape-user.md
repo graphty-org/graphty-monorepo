@@ -4,7 +4,7 @@ Participant: Maren, cancer-genomics postdoc who makes network figures in Cytosca
 Screens used: the Results panel mock (its states in order), the Inspector mock and the resting frame on the protein network, at 1440 by 900 (her laptop).
 Moderator's task, word for word: "Your manager wants the people who matter most in this network, and how sure you are."
 
-Renders she looked at: `shots/screens__results-panel.png`, `shots/r2-maren-rp-finished-sampled.png`, `shots/r2-maren-rp-finished.png`, `shots/r2-maren-rp-finished-unpainted.png`, `shots/r2-maren-rp-in-the-table.png`, `shots/screens__results-panel--new-project.png`, `shots/screens__inspector.png`, `shots/inspector-one-node.png`, `shots/screens__frame-at-rest-dataset-ppi.png`.
+Renders she looked at: `shots/screens__results-panel.png`, `shots/record/r2-maren-rp-finished-sampled.png`, `shots/record/r2-maren-rp-finished.png`, `shots/record/r2-maren-rp-finished-unpainted.png`, `shots/record/r2-maren-rp-in-the-table.png`, `shots/record/screens__results-panel--new-project.png`, `shots/screens__inspector.png`, `shots/inspector-one-node.png`, `shots/screens__frame-at-rest-dataset-ppi.png`.
 
 ## Think-aloud transcript
 

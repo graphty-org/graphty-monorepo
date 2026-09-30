@@ -3,7 +3,7 @@
 **Participant:** Dr. Mara Lindqvist, the Gephi holdout (fictional composite; see ../../personas/gephi-holdout.md).
 **Task as given by the moderator:** "See who an account deals with directly, once on a small network and once on one too large to draw."
 **Screens:** the inspector (small network: 300 human proteins) and the frame past the drawing limit (large network: 124,318 patents, 1,480,221 citations).
-**Renders looked at:** shots/inspector-one-node.png, shots/inspector-grow.png, shots/inspector-filtered.png, shots/screens__past-drawing-limit.png, shots/screens__past-drawing-limit-narrow.png, shots/r3-mara-neighbors-pdl-rule.png, shots/r3-mara-neighbors-pdl-full.png (the editor insets under the rule state).
+**Renders looked at:** shots/inspector-one-node.png, shots/inspector-grow.png, shots/inspector-filtered.png, shots/screens__past-drawing-limit.png, shots/record/screens__past-drawing-limit-narrow.png, shots/record/r3-mara-neighbors-pdl-rule.png, shots/record/r3-mara-neighbors-pdl-full.png (the editor insets under the rule state).
 
 ## Think-aloud
 

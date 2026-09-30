@@ -23,7 +23,7 @@ Renders she saw, in order (all in shots/):
 - r3-elena-colleague-chosen.png -- the same step with a column chosen and Mdm2 matched by hand
 
 Moderator note on the renders: the study-view render of the start screen
-(shots/screens__start-screen--study.png) hides the product's own text in state 4 -- the recipe's
+(shots/record/screens__start-screen--study.png) hides the product's own text in state 4 -- the recipe's
 name, its description, "It carries no data" and the privacy lines all disappear, leaving only
 "Recipe waiting for data", Open... and Close recipe. The study view hides every heading and
 paragraph outside a `.k-app` frame, and the start screen's frame is not one. The session used a

@@ -2,8 +2,8 @@
 
 Participant: Dr. Chen (persona: study/personas/bioinformatics-researcher.md), group leader, Cytoscape and R user.
 Task as given by the moderator: "Send your lab your setup so they can use it on their own data, without sending yours."
-Screens seen: the Export dialog as it opens (shots/r3-chen-share-first.png), then the same dialog with Recipe ticked
-(shots/r3-chen-share-recipe.png). Both rendered from screens/export-dialog.html in the study view.
+Screens seen: the Export dialog as it opens (shots/record/r3-chen-share-first.png), then the same dialog with Recipe ticked
+(shots/record/r3-chen-share-recipe.png). Both rendered from screens/export-dialog.html in the study view.
 
 ## Transcript (thinking aloud)
 

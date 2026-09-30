@@ -9,7 +9,7 @@ hand-built selection of 19 characters just lost to a stray click on empty canvas
 Task, as read aloud: "After your last few actions the numbers changed in a way you did not
 expect. Get back to where you were, without losing work you meant to keep."
 
-Renders used: shots/sess-gb-sca-s3.png (start), -s2.png (one undo), -s1.png (two undos),
+Renders used: shots/record/sess-gb-sca-s3.png (start), -s2.png (one undo), -s1.png (two undos),
 -s3-pop.png and -s2-pop.png (steps list open), -s2-menu-hist.png (Edit menu), -fix.png (end).
 
 ## Transcript
@@ -77,7 +77,7 @@ read the small print over the table. If I'd been looking at the picture I'd neve
 because I'm not sure I could explain it to anyone."
 
 **Did not open:** the Edit menu or Undo history. "I don't go into menus to undo things. Ctrl+Z
-is Ctrl+Z." (Asked afterwards; shown shots/sess-gb-sca-s2-menu-hist.png.) "Oh, that tells me
+is Ctrl+Z." (Asked afterwards; shown shots/record/sess-gb-sca-s2-menu-hist.png.) "Oh, that tells me
 'Undo Filter to degree >= 5' before I press it. That's useful, but it's three clicks deep
 behind the hamburger. Put that line on screen when I press Ctrl+Z."
 

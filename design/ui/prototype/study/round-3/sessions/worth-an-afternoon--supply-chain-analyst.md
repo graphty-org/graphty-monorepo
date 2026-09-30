@@ -15,8 +15,8 @@ Screens walked, in order, as the participant saw them (the study view, design no
 the start screen, the open dialog blocked on the `confidence` column, the same dialog with the
 duplicate-rows choice open, and the main window after loading.
 
-Renders used: `shots/dana-r3-start.png`, `shots/dana-r3-blocked.png`, `shots/dana-r3-policy.png`,
-`shots/dana-r3-frame.png`.
+Renders used: `shots/record/dana-r3-start.png`, `shots/record/dana-r3-blocked.png`, `shots/record/dana-r3-policy.png`,
+`shots/record/dana-r3-frame.png`.
 
 ---
 

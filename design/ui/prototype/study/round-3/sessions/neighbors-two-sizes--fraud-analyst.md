@@ -9,10 +9,10 @@ and once on one too large to draw."
 
 Screens: the inspector mock (screens/inspector.html) and the frame past the drawing limit
 (screens/past-drawing-limit.html). Renders read: shots/inspector-one-node.png,
-shots/inspector-grow.png, shots/inspector-filtered.png, shots/inspector-cap.png,
-shots/r3-rw-ia-inspector-c-directed.png, shots/screens__past-drawing-limit-not-drawn.png,
-shots/screens__past-drawing-limit-narrow.png, shots/r3-sarah-neighbors-past-limit-rule.png and
-shots/r3-sarah-neighbors-past-limit-full.png (the editor for "Around a node" is in the row of
+shots/inspector-grow.png, shots/inspector-filtered.png, shots/record/inspector-cap.png,
+shots/record/r3-rw-ia-inspector-c-directed.png, shots/record/screens__past-drawing-limit-not-drawn.png,
+shots/record/screens__past-drawing-limit-narrow.png, shots/record/r3-sarah-neighbors-past-limit-rule.png and
+shots/record/r3-sarah-neighbors-past-limit-full.png (the editor for "Around a node" is in the row of
 small panels under the rule editor).
 
 Note for the reader: the small network in the mock is a protein network, not accounts. The

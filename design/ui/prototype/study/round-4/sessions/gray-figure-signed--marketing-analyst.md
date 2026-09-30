@@ -15,13 +15,13 @@ the change (the dialog's "ways in" state), the done state after export, the tabl
 appears on the navigation screen (a different dataset), the Export dialog's table preview (also a
 different dataset), and the export flow page.
 
-Renders she looked at: shots/r4-jordan-grayfig-styles.png, shots/r4-jordan-grayfig-styles-looks.png,
-shots/r4-jordan-grayfig-styles-top-n.png, shots/r4-jordan-grayfig-cbv-choose.png,
-shots/r4-jordan-grayfig-cbv-numbers.png, shots/r4-jordan-grayfig-export-figure.png,
-shots/r4-jordan-grayfig-export-grey.png, shots/r4-jordan-grayfig-export-first.png,
-shots/r4-jordan-grayfig-export-ways-in.png, shots/r4-jordan-grayfig-export-done.png,
-shots/r4-jordan-grayfig-export-table.png, shots/r4-jordan-grayfig-table.png,
-shots/r4-jordan-grayfig-table-ppi.png, shots/r4-jordan-grayfig-flow-export-full.png.
+Renders she looked at: shots/record/r4-jordan-grayfig-styles.png, shots/record/r4-jordan-grayfig-styles-looks.png,
+shots/record/r4-jordan-grayfig-styles-top-n.png, shots/record/r4-jordan-grayfig-cbv-choose.png,
+shots/record/r4-jordan-grayfig-cbv-numbers.png, shots/record/r4-jordan-grayfig-export-figure.png,
+shots/record/r4-jordan-grayfig-export-grey.png, shots/record/r4-jordan-grayfig-export-first.png,
+shots/record/r4-jordan-grayfig-export-ways-in.png, shots/record/r4-jordan-grayfig-export-done.png,
+shots/record/r4-jordan-grayfig-export-table.png, shots/record/r4-jordan-grayfig-table.png,
+shots/record/r4-jordan-grayfig-table-ppi.png, shots/record/r4-jordan-grayfig-flow-export-full.png.
 
 Moderator's task, as given: "Make a black-and-white figure of the fold changes for a journal that
 prints in gray, and tell me which genes went up the most."

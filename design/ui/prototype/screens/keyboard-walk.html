@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keyboard walk on the protein network</title>
-<!-- Interactive screen mock: walk TP53 and its 32 neighbors with the keyboard alone.
-     States load from the address: #s1 canvas focused, #s2 walking, #s9 selection of two,
-     #s6 left the canvas, #s10 the key sheet, #s11 the inspector visit (Alt+Enter), #s12 going to TP53
-     with Ctrl+K, #s13 back on the drawing after the table with the walk kept (and #s3, #s4, #s5, #s7, #s8
-     used by the keyboard flow). They start with
-     nothing selected, so the walk starts at the drawn node of highest degree.
-     #f1 to #f19 are the keyboard storyboard's frames, one state per frame, each the frame's key
-     presses replayed from the start; the storyboard's analyst arrives with TP53 selected.
+<title>Keyboard walk on Les Miserables</title>
+<!-- Interactive screen mock: walk Les Miserables, filtered to degree 5 or more (40 of 77 characters), with the
+     keyboard alone. States load from the address: #s1 canvas focused, #s2 walking, #s9 selection of two,
+     #s6 left the canvas, #s10 the key sheet, #s11 the inspector visit (Alt+Enter), #s12 going to Javert
+     with Ctrl+K, #s13 back on the drawing after the table with the walk kept, #s14 walking the members of a set
+     with ] (and #s3, #s4, #s5, #s7, #s8 used by the keyboard flow). They start with nothing selected, so the walk
+     starts at the drawn node of highest degree, Valjean.
+     #f1 to #f19 are the keyboard storyboard's frames on the protein graph (TP53 and its 32 neighbors), one state
+     per frame, each the frame's key presses replayed from the start; ?dataset=ppi shows the protein graph too.
      ?mac=1 or ?mac=0 forces the key names (Cmd or Ctrl); by default they follow the platform.
      Every state is reached by replaying key presses through the same handlers the viewer uses. -->
 <link rel="stylesheet" href="../kit/cm.css">
@@ -20,7 +20,7 @@
   :root {
     --kb-outer: var(--k-mark-out); --kb-inner: var(--k-mark-in);
     --kb-fill-edge: var(--k-fill-edge);
-    --kw-fit-bottom: 184px; /* toolbar dock (12 + 48) + gap 8 + focus pill 100 + 16 clear */
+    --kw-fit-bottom: 200px; /* toolbar dock (12 + 48) + gap 8 + focus pill 116 + 16 clear */
   }
   body { margin: 0; min-width: 1440px; background: var(--cm-bg); }
   .kw-head { position: sticky; top: 0; z-index: 300; background: var(--cm-bg); }
@@ -110,8 +110,17 @@
   body:not([data-quick]) .kw-note-quick, body:not([data-sets]) .kw-note-set, body:not([data-walk]) .kw-note-walk { display: none !important; }
   .kw-note code { font-size: 11px; }
 </style>
-</head>
-<body data-region="none" data-dataset="ppi">
+<body data-region="none" data-dataset="lesmis">
+<script>
+// the page's dataset, set before kit.js reads it: ?dataset=<id>, else the dataset of ?task=<id>, else Les Miserables.
+// The keyboard storyboard's frames (#f1 to #f19) replay on the protein graph they were written for.
+// ponytail: the two keyboard-walk tasks' dataset is copied here from kit/fixtures.json; read it if a third task arrives.
+(() => {
+  const p = new URLSearchParams(location.search), TASK_DS = { "keyboard-walk": "ppi", "keyboard-walk-shift-arrow": "ppi" };
+  const ds = p.get("dataset") ?? TASK_DS[p.get("task")] ?? (/^#f\d+$/.test(location.hash) ? "ppi" : "lesmis");
+  document.body.dataset.dataset = ds === "ppi" ? "ppi" : "lesmis";
+})();
+</script>
 <div class="kw-head">
 <div class="kw-bar">
   <a href="../index.html">Gallery</a>
@@ -128,8 +137,9 @@
     <span class="k-tab" role="tab" data-state="s8" data-more>New set</span>
     <span class="k-tab" role="tab" data-state="s10" data-more>Key sheet</span>
     <span class="k-tab" role="tab" data-state="s11" data-more>Inspector visit</span>
-    <span class="k-tab" role="tab" data-state="s12" data-more>Go to TP53</span>
+    <span class="k-tab" role="tab" data-state="s12" data-more id="kw-tab-goto">Go to Javert</span>
     <span class="k-tab" role="tab" data-state="s13" data-more>Walk kept after the table</span>
+    <span class="k-tab" role="tab" data-state="s14" data-more>Walking a set</span>
   </span>
   <span class="kw-framename" id="kw-framename"></span>
   <span class="kw-grow"></span>
@@ -143,165 +153,33 @@
   <div class="k-rail" aria-label="Main" id="kw-rail" tabindex="-1" data-rove role="toolbar" aria-orientation="vertical"><div class="k-rail-btn" data-say="Main menu"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#menu"/></svg></span></div><div class="k-rail-sep"></div><div class="k-rail-btn" aria-pressed="true" data-say="Graph"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg></span>Graph</div><div class="k-rail-btn" aria-pressed="false" data-say="Data"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#database"/></svg></span>Data</div><div class="k-rail-btn" aria-pressed="false" data-say="Results"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#flask-conical"/></svg></span>Results</div><div class="k-rail-btn" data-say="Notes"><span class="k-rail-pill"><svg class="k-i"><use href="../kit/icons.svg#sticky-note"/></svg></span>Notes</div><div class="k-rail-btn k-asst-off" data-say="Assistant" title="Assistant: off until you set a provider in Preferences">Assistant<span class="k-asst-cap">Off. Nothing is sent.</span></div></div>
   <aside class="k-panel" aria-label="Graph">
     <div class="k-panel-head">
-      <div class="k-title-line"><span class="k-project">Protein interactions</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
+      <div class="k-title-line"><span class="k-project" id="kw-project">Les Miserables</span><svg class="k-i k-i-sm k-secondary"><use href="../kit/icons.svg#chevron-down"/></svg></div>
       <a class="k-privacy">Nothing has been sent from this project</a>
-      <span class="k-chip k-chip-btn" role="button"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span data-fx="datasets.ppi.tp53Slice.nodes" data-fx-of="datasets.ppi.nodes">33 of 300</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
+      <span class="k-chip k-chip-btn" role="button" id="kw-chip"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#funnel"/></svg><span data-fx="datasets.lesmis.filterSteps.after.step2" data-fx-of="datasets.lesmis.nodes">40 of 77</span><svg class="k-i k-i-sm k-caret"><use href="../kit/icons.svg#chevron-down"/></svg></span>
     </div>
     <div class="k-scroll">
       <section class="k-section">
         <div class="k-section-head">Graphs<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div>
-        <ul class="k-list" role="listbox" aria-label="Graphs" id="kw-graphs" tabindex="-1" data-rove><li class="k-item" role="option" aria-selected="true" data-say="ppi-core-300, 300 nodes"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis k-id">ppi-core-300</span><span class="k-trail k-num"><span data-fx="datasets.ppi.nodes" data-fx-noun="nodes">300 nodes</span></span></li></ul>
+        <ul class="k-list" role="listbox" aria-label="Graphs" id="kw-graphs" tabindex="-1" data-rove></ul>
       </section>
       <section class="k-section" id="kw-sets" data-empty><div class="k-section-head">Sets and paths<span class="k-grow"></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#plus"/></svg></span></div><ul class="k-list" role="tree" aria-label="Sets and paths" id="kw-setlist"></ul></section>
-      
+
       <section class="k-section" data-collapsed><div class="k-section-head">Views <span class="k-count k-num">1</span></div></section>
     </div>
   </aside>
   <main class="k-main">
     <div class="k-canvas" id="kw-canvas">
+      <h2 class="k-sr">Graph drawing</h2>
       <div class="kw-fit">
-        <svg class="kw-svg" id="kw-svg" viewBox="225 40 795 720" aria-hidden="true"><g id="kw-view">
-<g class="kw-edges">
-<line x1="535.6" y1="70" x2="711.1" y2="71.9"/>
-<line x1="281.2" y1="223.4" x2="464.9" y2="193"/>
-<line x1="464.9" y1="193" x2="624.3" y2="96.4"/>
-<line x1="607.7" y1="376.5" x2="773.8" y2="484.4"/>
-<line x1="607.7" y1="376.5" x2="760.1" y2="166.7"/>
-<line x1="607.7" y1="376.5" x2="935.9" y2="411.3"/>
-<line x1="607.7" y1="376.5" x2="586.5" y2="538.4"/>
-<line x1="607.7" y1="376.5" x2="929.3" y2="217.2"/>
-<line x1="607.7" y1="376.5" x2="884" y2="467.7"/>
-<line x1="607.7" y1="376.5" x2="790.3" y2="262.7"/>
-<line x1="607.7" y1="376.5" x2="607.5" y2="666.9"/>
-<line x1="607.7" y1="376.5" x2="785.6" y2="573.4"/>
-<line x1="607.7" y1="376.5" x2="770.8" y2="347.6"/>
-<line x1="773.8" y1="484.4" x2="586.5" y2="538.4"/>
-<line x1="773.8" y1="484.4" x2="790.3" y2="262.7"/>
-<line x1="773.8" y1="484.4" x2="607.5" y2="666.9"/>
-<line x1="773.8" y1="484.4" x2="802.6" y2="664.4"/>
-<line x1="760.1" y1="166.7" x2="945.6" y2="314"/>
-<line x1="935.9" y1="411.3" x2="929.3" y2="217.2"/>
-<line x1="935.9" y1="411.3" x2="790.3" y2="262.7"/>
-<line x1="935.9" y1="411.3" x2="785.6" y2="573.4"/>
-<line x1="935.9" y1="411.3" x2="770.8" y2="347.6"/>
-<line x1="586.5" y1="538.4" x2="607.5" y2="666.9"/>
-<line x1="586.5" y1="538.4" x2="785.6" y2="573.4"/>
-<line x1="586.5" y1="538.4" x2="770.8" y2="347.6"/>
-<line x1="929.3" y1="217.2" x2="790.3" y2="262.7"/>
-<line x1="929.3" y1="217.2" x2="770.8" y2="347.6"/>
-<line x1="884" y1="467.7" x2="790.3" y2="262.7"/>
-<line x1="884" y1="467.7" x2="770.8" y2="347.6"/>
-<line x1="884" y1="467.7" x2="802.6" y2="664.4"/>
-<line x1="790.3" y1="262.7" x2="945.6" y2="314"/>
-<line x1="607.5" y1="666.9" x2="802.6" y2="664.4"/>
-<line x1="945.6" y1="314" x2="770.8" y2="347.6"/>
-<line x1="379.1" y1="238.2" x2="349.5" y2="411.3"/>
-<line x1="438.9" y1="674" x2="599.8" y2="730"/>
-<line x1="607.7" y1="376.5" x2="599.8" y2="730"/>
-<line x1="607.7" y1="376.5" x2="281.2" y2="223.4"/>
-<line x1="607.7" y1="376.5" x2="802.6" y2="664.4"/>
-<line x1="607.7" y1="376.5" x2="269.8" y2="504.7"/>
-<line x1="607.7" y1="376.5" x2="464.9" y2="193"/>
-<line x1="607.7" y1="376.5" x2="945.6" y2="314"/>
-<line x1="607.7" y1="376.5" x2="372" y2="498.5"/>
-<line x1="607.7" y1="376.5" x2="711.1" y2="71.9"/>
-<line x1="607.7" y1="376.5" x2="446.1" y2="589.9"/>
-<line x1="607.7" y1="376.5" x2="367.7" y2="135.6"/>
-<line x1="607.7" y1="376.5" x2="890.1" y2="559.3"/>
-<line x1="607.7" y1="376.5" x2="344.7" y2="597.9"/>
-<line x1="607.7" y1="376.5" x2="379.1" y2="238.2"/>
-<line x1="607.7" y1="376.5" x2="624.3" y2="96.4"/>
-<line x1="607.7" y1="376.5" x2="287.5" y2="314.8"/>
-<line x1="607.7" y1="376.5" x2="832.9" y2="143.3"/>
-<line x1="607.7" y1="376.5" x2="349.5" y2="411.3"/>
-<line x1="607.7" y1="376.5" x2="458.2" y2="97.6"/>
-<line x1="607.7" y1="376.5" x2="693.3" y2="655.7"/>
-<line x1="607.7" y1="376.5" x2="254.4" y2="398.4"/>
-<line x1="607.7" y1="376.5" x2="535.6" y2="70"/>
-<line x1="607.7" y1="376.5" x2="438.9" y2="674"/>
-<line x1="287.5" y1="314.8" x2="372" y2="498.5"/>
-<line x1="287.5" y1="314.8" x2="269.8" y2="504.7"/>
-</g>
-<g class="kw-nodes">
-<circle data-id="TP53" cx="607.7" cy="376.5" r="15.2" fill="#D55E00"/>
-<circle data-id="BRCA1" cx="773.8" cy="484.4" r="11.5" fill="#D55E00"/>
-<circle data-id="RAD51" cx="760.1" cy="166.7" r="9" fill="#D55E00"/>
-<circle data-id="RAD50" cx="935.9" cy="411.3" r="10.7" fill="#D55E00"/>
-<circle data-id="MRE11" cx="586.5" cy="538.4" r="9" fill="#D55E00"/>
-<circle data-id="MSH2" cx="929.3" cy="217.2" r="10.1" fill="#D55E00"/>
-<circle data-id="PALB2" cx="884" cy="467.7" r="9" fill="#D55E00"/>
-<circle data-id="FANCD2" cx="790.3" cy="262.7" r="11.2" fill="#D55E00"/>
-<circle data-id="WRN" cx="607.5" cy="666.9" r="11.5" fill="#D55E00"/>
-<circle data-id="RPA1" cx="785.6" cy="573.4" r="9.8" fill="#D55E00"/>
-<circle data-id="RPA2" cx="770.8" cy="347.6" r="11" fill="#D55E00"/>
-<circle data-id="LTBP1" cx="599.8" cy="730" r="10.4" fill="#F0E442"/>
-<circle data-id="RPL5" cx="281.2" cy="223.4" r="11" fill="#56B4E9"/>
-<circle data-id="PCNA" cx="802.6" cy="664.4" r="11.2" fill="#D55E00"/>
-<circle data-id="RPL14" cx="269.8" cy="504.7" r="9.8" fill="#56B4E9"/>
-<circle data-id="RPS8" cx="464.9" cy="193" r="12.4" fill="#56B4E9"/>
-<circle data-id="53BP1" cx="945.6" cy="314" r="9.8" fill="#D55E00"/>
-<circle data-id="NDUFS7" cx="372" cy="498.5" r="10.4" fill="#009E73"/>
-<circle data-id="PSMD14" cx="711.1" cy="71.9" r="10.1" fill="#E69F00"/>
-<circle data-id="CDC20" cx="446.1" cy="589.9" r="9.4" fill="#CC79A7"/>
-<circle data-id="NDUFB8" cx="367.7" cy="135.6" r="9.8" fill="#009E73"/>
-<circle data-id="SF3B2" cx="890.1" cy="559.3" r="9.4" fill="#0072B2"/>
-<circle data-id="PSMA4" cx="344.7" cy="597.9" r="9.8" fill="#E69F00"/>
-<circle data-id="SHC1" cx="379.1" cy="238.2" r="10.4" fill="#000000"/>
-<circle data-id="RPS13" cx="624.3" cy="96.4" r="10.4" fill="#56B4E9"/>
-<circle data-id="UBC" cx="287.5" cy="314.8" r="13.2" fill="#BDBDBD"/>
-<circle data-id="PSMB2" cx="832.9" cy="143.3" r="10.7" fill="#E69F00"/>
-<circle data-id="DUSP6" cx="349.5" cy="411.3" r="10.4" fill="#000000"/>
-<circle data-id="NDUFA7" cx="458.2" cy="97.6" r="11" fill="#009E73"/>
-<circle data-id="SNRPD3" cx="693.3" cy="655.7" r="10.1" fill="#0072B2"/>
-<circle data-id="HSPA8" cx="254.4" cy="398.4" r="8.6" fill="#BDBDBD"/>
-<circle data-id="PSMC6" cx="535.6" cy="70" r="11.2" fill="#E69F00"/>
-<circle data-id="SMAD5" cx="438.9" cy="674" r="10.7" fill="#F0E442"/>
-</g>
-<g class="kw-marks"></g>
-<g class="kw-labels">
-<text data-id="TP53" x="626.9" y="380.5">TP53</text>
-<text data-id="BRCA1" x="789.3" y="488.4">BRCA1</text>
-<text data-id="RAD51" x="773.2" y="170.7">RAD51</text>
-<text data-id="RAD50" x="950.6" y="415.3">RAD50</text>
-<text data-id="MRE11" x="599.5" y="542.4">MRE11</text>
-<text data-id="MSH2" x="943.4" y="221.2">MSH2</text>
-<text data-id="PALB2" x="897.1" y="471.7">PALB2</text>
-<text data-id="FANCD2" x="805.6" y="266.7">FANCD2</text>
-<text data-id="WRN" x="622.9" y="670.9">WRN</text>
-<text data-id="RPA1" x="799.4" y="577.4">RPA1</text>
-<text data-id="RPA2" x="785.7" y="351.6">RPA2</text>
-<text data-id="LTBP1" x="614.2" y="734">LTBP1</text>
-<text data-id="RPL5" x="296.1" y="227.4">RPL5</text>
-<text data-id="PCNA" x="817.8" y="668.4">PCNA</text>
-<text data-id="RPL14" x="283.6" y="508.7">RPL14</text>
-<text data-id="RPS8" x="481.3" y="197">RPS8</text>
-<text data-id="53BP1" x="959.4" y="318">53BP1</text>
-<text data-id="NDUFS7" x="386.4" y="502.5">NDUFS7</text>
-<text data-id="PSMD14" x="725.2" y="75.9">PSMD14</text>
-<text data-id="CDC20" x="459.5" y="593.9">CDC20</text>
-<text data-id="NDUFB8" x="381.5" y="139.6">NDUFB8</text>
-<text data-id="SF3B2" x="903.5" y="563.3">SF3B2</text>
-<text data-id="PSMA4" x="358.4" y="601.9">PSMA4</text>
-<text data-id="SHC1" x="393.5" y="242.2">SHC1</text>
-<text data-id="RPS13" x="638.7" y="100.4">RPS13</text>
-<text data-id="UBC" x="304.7" y="318.8">UBC</text>
-<text data-id="PSMB2" x="847.6" y="147.3">PSMB2</text>
-<text data-id="DUSP6" x="363.9" y="415.3">DUSP6</text>
-<text data-id="NDUFA7" x="473.1" y="101.6">NDUFA7</text>
-<text data-id="SNRPD3" x="707.4" y="659.7">SNRPD3</text>
-<text data-id="HSPA8" x="267" y="402.4">HSPA8</text>
-<text data-id="PSMC6" x="550.8" y="74">PSMC6</text>
-<text data-id="SMAD5" x="453.6" y="678">SMAD5</text>
-</g>
-        </g></svg>
+        <svg class="kw-svg" id="kw-svg" viewBox="500 60 480 600" aria-hidden="true"><g id="kw-view"></g></svg>
       </div>
-      <div class="k-legend-card"><div class="k-lg-title">Module color <span class="k-secondary">by module</span></div><div class="k-lg-row"><span class="k-chit" style="background:#D55E00"></span>DNA repair<span class="k-value">13</span></div><div class="k-lg-row"><span class="k-chit" style="background:#E69F00"></span>Proteasome<span class="k-value">4</span></div><div class="k-lg-row"><span class="k-chit" style="background:#56B4E9"></span>Ribosome<span class="k-value">4</span></div><div class="k-lg-row"><span class="k-chit" style="background:#009E73"></span>Complex I<span class="k-value">3</span></div><div class="k-lg-row k-secondary">5 more</div></div>
+      <div class="k-legend-card" id="kw-legend"></div>
       <div class="k-toolbar-dock">
         <div class="k-secondary-bar kw-walkslot" id="kw-slot" hidden></div>
         <div class="k-toolbar" role="toolbar" aria-label="Tools" tabindex="0" id="kw-toolbar" data-rove>
           <span class="k-tool" aria-pressed="true" title="Select" data-say="Select"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#mouse-pointer-2"/></svg></span><span class="k-tool-caret"><svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span>
           <span class="k-tool" title="Path" data-say="Path"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#route"/></svg></span>
-          
+
           <span class="k-toolbar-sep"></span>
           <span class="k-tool k-tool-label" title="Quick actions" data-say="Quick actions" data-act="quick"><svg class="k-i k-i-lg"><use href="../kit/icons.svg#zap"/></svg>Quick actions</span>
           <span class="k-toolbar-sep"></span>
@@ -309,7 +187,7 @@
         </div>
       </div>
       <div class="kw-target" id="kw-target" tabindex="0" role="application" aria-roledescription="graph drawing" aria-label="Graph drawing" aria-describedby="kw-target-desc"></div>
-      <span class="kw-sr" id="kw-target-desc">Shift and the arrow keys walk the graph. Enter adds the node the walk is on to the selection. Esc ends the walk. Tab leaves the drawing; the walk is kept for your return. F6 moves between regions.</span>
+      <span class="kw-sr" id="kw-target-desc">Plain arrows move the view. Shift and the arrow keys walk the graph. Space adds or removes the node the walk is on. Esc ends the walk; focus stays on the drawing. Tab leaves the drawing; the walk is kept for your return. F6 moves between regions.</span>
       <div class="kw-sr" id="kw-live" aria-live="polite" data-fx-param></div>
       <div class="kw-sheet" id="kw-sheet" hidden role="dialog" aria-label="Keys" tabindex="0">
         <div class="kw-sheet-head"><b role="heading" aria-level="3">Keys</b><span class="k-grow"></span><span class="k-kbd">Esc</span></div>
@@ -326,13 +204,13 @@
           <span class="k-kbd">Shift+Left</span><span>Previous neighbor</span>
           <span class="k-kbd">Shift+Enter</span><span>Back one step (Shift+Up too)</span>
           <span class="k-kbd">Shift+Home</span><span>Back to the start</span>
-          <span class="k-kbd">O</span><span>Order: confidence, degree, name</span>
+          <span class="k-kbd">O</span><span>Neighbor order: edge weight, degree, name</span>
+          <span class="k-kbd">Space</span><span>Add this node to the selection, or remove it</span>
           <span class="k-kbd">Enter</span><span>Add this node to the selection</span>
-          <span class="k-kbd">Space</span><span>Add or remove this node</span>
-          <span class="k-kbd">] [</span><span>Next or previous selected node</span>
+          <span class="k-kbd">] [</span><span>Next or previous member of this node's set</span>
           <span class="k-kbd" id="kw-sheet-visit">Alt+Enter</span><span>Visit the inspector</span>
           <span class="k-kbd" id="kw-sheet-prev">Ctrl+Z</span><span>Undo; right after a clear, restores the selection</span>
-          <span class="k-kbd">Esc</span><span>End the walk; again, clear the selection</span>
+          <span class="k-kbd">Esc</span><span>End the walk, focus stays here; again, clear the selection</span>
           <span class="k-kbd">Tab</span><span>To the Nodes table; the walk is kept</span>
           <h4>Nodes table</h4>
           <span class="k-kbd">Up, Down</span><span>Move between rows</span>
@@ -349,54 +227,84 @@
       <span class="k-help" id="kw-help" tabindex="0" data-rove role="button" aria-haspopup="menu" aria-label="Help and resources" title="Help" data-say="Help and resources, menu button"><svg class="k-i"><use href="../kit/icons.svg#circle-help"/></svg></span>
     </div>
     <section class="k-dock" aria-label="Nodes table">
+      <h2 class="k-sr">Nodes table</h2>
       <div class="k-dock-tabs"><span class="k-tab" aria-selected="true">Nodes</span><span class="k-tab">Edges</span><span class="k-grow"></span>
         <span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#search"/></svg></span><span class="k-icon-btn"><svg class="k-i"><use href="../kit/icons.svg#ellipsis"/></svg></span></div>
-      <div class="k-scope" id="kw-scope">Filtered graph: <span data-fx="datasets.ppi.tp53Slice.nodes" data-fx-of="datasets.ppi.nodes" data-fx-noun="nodes">33 of 300 nodes</span>. Sorted by degree.</div>
-      <div class="k-table-wrap" id="kw-tablewrap"><table class="k-table kw-grid" id="kw-grid" role="grid" aria-label="Nodes, filtered graph" aria-multiselectable="true" aria-rowcount="34" tabindex="0">
-        <thead><tr><th>id</th><th>module <span class="k-profile">9 values</span></th><th class="k-n">degree <span class="k-profile">4 to 32</span></th><th class="k-n">degree rank <span class="k-profile">1 to 300</span></th></tr></thead>
+      <div class="k-scope" id="kw-scope"></div>
+      <div class="k-table-wrap" id="kw-tablewrap"><table class="k-table kw-grid" id="kw-grid" role="grid" aria-label="Nodes, filtered graph" aria-multiselectable="true" tabindex="0">
+        <thead id="kw-thead"></thead>
         <tbody id="kw-rows"></tbody></table></div>
     </section>
   </main>
   <aside class="k-right" aria-label="Inspector">
-    
+
     <div class="k-header2"><span class="k-grow"></span><span class="k-btn k-btn-ghost k-num">100%<svg class="k-i k-i-sm"><use href="../kit/icons.svg#chevron-down"/></svg></span></div>
     <div id="kw-insp" tabindex="0" data-rove role="group" aria-label="Inspector" style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0"></div>
   </aside>
 </div>
 
 <div class="k-annot-note kw-note" style="left:70px;top:420px;max-width:220px"><b>Regions</b>: F6 and Shift+F6 cycle the rail and left panel, the inspector, Help, the toolbar, the canvas and the table, the order Tab also follows where it crosses a region (proposed order, framework changes; interaction pattern entries 9.1). Lists and the inspector are one Tab stop each, with a roving row moved by the arrows.</div>
-<div class="k-annot-note kw-note" style="left:312px;top:40px"><b>Canvas focus target</b>, <code>role="application"</code>, owned by graphty-element: Tab from the toolbar reaches it; Tab always leaves it for the table and ends the walk, but graphty-element keeps the walk's start and where it left off, so the next Shift+Arrow goes on from there. Interaction pattern entries 9.1 and 9.2; interaction patterns 3.6 (dispatch) and 3.8 (the walk's state chart). Component: graphty-element, no compact-mantine part.</div>
+<div class="k-annot-note kw-note" style="left:312px;top:40px"><b>Canvas focus target</b>, <code>role="application"</code>, owned by graphty-element: Tab from the toolbar reaches it; Tab always leaves it for the table and ends the walk, but graphty-element keeps the walk's start and where it left off, so the next Shift+Arrow goes on from there. Plain arrows move the camera and never walk. Interaction pattern entries 9.1 and 9.2; interaction patterns 3.6 (dispatch) and 3.8 (the walk's state chart). Component: graphty-element, no compact-mantine part.</div>
 <div class="k-annot-note kw-note" style="left:1200px;top:490px;max-width:220px"><b>Not product UI.</b> The magenta strip above the frame mirrors the one polite live region (interaction pattern entries 9.4) so a sighted tester reads what the screen reader says. "On focus" lines are what the screen reader reads from the focused element; "not in this mock" lines mark a control the mock does not build, so study notes can tell a mock limit from a design failure.</div>
-<div class="k-annot-note kw-note" style="left:560px;top:180px;max-width:260px"><b>Fit</b>: the drawing is fitted to the canvas less the toolbar dock and the walk slot's row, so no node starts under canvas chrome and starting a walk never moves it (proposed, framework changes: where the walk-position slot is drawn).</div>
-<div class="k-annot-note kw-note kw-note-walk" style="left:312px;top:420px;max-width:250px"><b>Focus pill</b>, shown while the canvas has keyboard focus: the start node on arrival; in the walk, the focused node, its place among the neighbors of the node stepped from, whether it is selected, the selection count, the edge's value named by its column ("confidence 0.98"), degree and rank, the neighbor order with its switch (O, proposed) and one fixed hint. Silent: the live region speaks the same values. Interaction pattern entries 9.2, as proposed in framework changes. Components: <code>SegmentedControl</code>, <code>Badge</code>, <code>Kbd</code> in a card in the secondary bar's place.</div>
-<div class="k-annot-note kw-note kw-note-walk" style="left:960px;top:500px;max-width:190px"><b>Focus ring</b>: three bands (1 + 2 + 1 px) after a 2 px gap, outside the selection ring and the 1 px fill edge, drawn in screen pixels at any zoom. Canvas drawing 2, 4 and 6. Drawn by graphty-element.</div>
-<div class="k-annot-note kw-note" style="left:1190px;top:170px;max-width:230px"><b>Inspector stays on the selection</b> while the walk moves focus. In the walk Enter adds the focused node to the selection and never replaces it, Space adds or removes it, and Alt+Enter (Option+Enter on a Mac) visits the focused node here without changing the selection (Esc goes back to the node) (interaction patterns 3.1; interaction pattern entries 9.2). Type row: name over the kind word, three verbs and the overflow (interface specification 4.2). Components: <code>ActionIcon</code>, <code>SplitButton</code>, <code>ControlSection</code>, <code>DataRow</code>.</div>
-<div class="k-annot-note kw-note" style="left:312px;top:640px;max-width:300px"><b>Nodes table</b>, the text equivalent of the drawing and one selection with it (interaction patterns 3.1, linked views): click, Shift+click or Shift+arrow for a range, Mod+click or Space to toggle, Esc collapses to the focused row (9.1). A selection made on the canvas scrolls its newest row into view without taking focus (proposed). Interface templates 16. Component: <code>DataTable</code>.</div>
-<div class="k-annot-note kw-note kw-note-quick" style="left:560px;top:230px"><b>Quick actions</b> lists every command with its key, which is how keys are learned (interaction pattern entries 9.3; interface templates 15). A node's exact name is the first row, "Go to TP53": Enter puts the walk on it as the start and selects nothing. Ctrl+F opens Find; Enter on a hit also puts the walk on it and selects nothing. This mock lists the selection and set commands only, and shows a key only where the framework or a proposal names one. Component: <code>QuickActions</code>.</div>
-<div class="k-annot-note kw-note kw-note-set" style="left:70px;top:230px;max-width:220px"><b>A new set opens in rename</b>; Enter commits and focus stays on the row. The set is the selection: its members carry the thin member ring and the member row mark, and are not selected themselves. Interaction pattern entries 9.3 (the group key); canvas drawing 6. Components: <code>Tree</code>, <code>InlineRename</code>.</div>
+<div class="k-annot-note kw-note" style="left:1000px;top:120px;max-width:180px"><b>Fit</b>: the drawing is fitted to the canvas less the toolbar dock and the walk slot's row, so no node starts under canvas chrome and starting a walk never moves it (proposed, framework changes: where the walk-position slot is drawn).</div>
+<div class="k-annot-note kw-note kw-note-walk" style="left:312px;top:420px;max-width:250px"><b>Focus pill</b>, shown while the canvas has keyboard focus: the start node on arrival; in the walk, the focused node, its place among the neighbors of the node stepped from, scoped to the graph the walk runs on ("3 of 21 shown, on: filtered graph"), whether it is selected, the selection count, the edge's weight named by its column ("value 17"), degree, the neighbor order with its switch between edge weight, degree and name (O, proposed) and one fixed hint. Silent: the live region speaks the same values, and every walk start says what is selected. Interaction pattern entries 9.2, as proposed in framework changes. Components: <code>SegmentedControl</code>, <code>Badge</code>, <code>Kbd</code> in a card in the secondary bar's place.</div>
+<div class="k-annot-note kw-note kw-note-walk" style="left:1000px;top:330px;max-width:180px"><b>Focus ring</b>: three bands (1 + 2 + 1 px) after a 2 px gap, outside the selection ring and the 1 px fill edge, drawn in screen pixels at any zoom. Canvas drawing 2, 4 and 6. Drawn by graphty-element.</div>
+<div class="k-annot-note kw-note" style="left:1190px;top:170px;max-width:230px"><b>Inspector stays on the selection</b> while the walk moves focus. In the walk Space adds or removes the focused node, Enter adds it and never replaces the selection, and Alt+Enter (Option+Enter on a Mac) visits the focused node here without changing the selection (Esc goes back to the node) (interaction patterns 3.1; interaction pattern entries 9.2). Type row: name over the kind word, three verbs and the overflow (interface specification 4.2). Components: <code>ActionIcon</code>, <code>SplitButton</code>, <code>ControlSection</code>, <code>DataRow</code>.</div>
+<div class="k-annot-note kw-note" style="left:312px;top:640px;max-width:300px"><b>Nodes table</b>, the text equivalent of the drawing and one selection with it (interaction patterns 3.1, linked views): click, Shift+click or Shift+arrow for a range, Mod+click or Space to toggle, Esc collapses to the focused row (9.1). A selection made on the canvas scrolls its newest row into view without taking focus (proposed). Degree on the filtered graph sits beside degree on the full graph. Interface templates 16. Component: <code>DataTable</code>.</div>
+<div class="k-annot-note kw-note kw-note-quick" style="left:560px;top:230px"><b>Quick actions</b> lists every command with its key, which is how keys are learned (interaction pattern entries 9.3; interface templates 15). A node's exact name is the first row, above the hand-off to Find: "Go to Javert", and Enter puts the walk on it as the start and selects nothing. Ctrl+F opens Find; Enter on a hit also puts the walk on it and selects nothing. This mock lists the selection and set commands only, and shows a key only where the framework or a proposal names one. Component: <code>QuickActions</code>.</div>
+<div class="k-annot-note kw-note kw-note-set" style="left:70px;top:230px;max-width:220px"><b>A new set opens in rename</b>; Enter commits and focus stays on the row. The set is the selection: its members carry the thin member ring and the member row mark, and are not selected themselves. On the drawing, ] and [ walk the members of the focused node's set. Interaction pattern entries 9.3 (the group key); canvas drawing 6. Components: <code>Tree</code>, <code>InlineRename</code>.</div>
 </div>
 
 <script>
-const D = {"nodes":{"TP53":[607.7,376.5,15.2,"DNA repair",32,2],"BRCA1":[773.8,484.4,11.5,"DNA repair",13,16],"RAD51":[760.1,166.7,9,"DNA repair",5,247],"RAD50":[935.9,411.3,10.7,"DNA repair",10,62],"MRE11":[586.5,538.4,9,"DNA repair",5,247],"MSH2":[929.3,217.2,10.1,"DNA repair",8,129],"PALB2":[884,467.7,9,"DNA repair",5,247],"FANCD2":[790.3,262.7,11.2,"DNA repair",12,24],"WRN":[607.5,666.9,11.5,"DNA repair",13,16],"RPA1":[785.6,573.4,9.8,"DNA repair",7,172],"RPA2":[770.8,347.6,11,"DNA repair",11,40],"LTBP1":[599.8,730,10.4,"TGF-beta",9,94],"RPL5":[281.2,223.4,11,"Ribosome",11,40],"PCNA":[802.6,664.4,11.2,"DNA repair",12,24],"RPL14":[269.8,504.7,9.8,"Ribosome",7,172],"RPS8":[464.9,193,12.4,"Ribosome",17,11],"53BP1":[945.6,314,9.8,"DNA repair",7,172],"NDUFS7":[372,498.5,10.4,"Complex I",9,94],"PSMD14":[711.1,71.9,10.1,"Proteasome",8,129],"CDC20":[446.1,589.9,9.4,"Cell cycle",6,217],"NDUFB8":[367.7,135.6,9.8,"Complex I",7,172],"SF3B2":[890.1,559.3,9.4,"Spliceosome",6,217],"PSMA4":[344.7,597.9,9.8,"Proteasome",7,172],"SHC1":[379.1,238.2,10.4,"MAPK signaling",9,94],"RPS13":[624.3,96.4,10.4,"Ribosome",9,94],"UBC":[287.5,314.8,13.2,"Unassigned",21,7],"PSMB2":[832.9,143.3,10.7,"Proteasome",10,62],"DUSP6":[349.5,411.3,10.4,"MAPK signaling",9,94],"NDUFA7":[458.2,97.6,11,"Complex I",11,40],"SNRPD3":[693.3,655.7,10.1,"Spliceosome",8,129],"HSPA8":[254.4,398.4,8.6,"Unassigned",4,271],"PSMC6":[535.6,70,11.2,"Proteasome",12,24],"SMAD5":[438.9,674,10.7,"TGF-beta",10,62]},"nb":{"TP53":[["PALB2",0.98],["RPA1",0.95],["RAD51",0.87],["RPA2",0.86],["FANCD2",0.84],["LTBP1",0.83],["MSH2",0.82],["UBC",0.8],["DUSP6",0.79],["MRE11",0.79],["RAD50",0.78],["CDC20",0.77],["SNRPD3",0.77],["PSMA4",0.76],["WRN",0.75],["BRCA1",0.71],["PSMC6",0.71],["NDUFS7",0.7],["SMAD5",0.62],["NDUFA7",0.57],["NDUFB8",0.55],["PSMB2",0.55],["HSPA8",0.51],["RPL14",0.51],["PSMD14",0.5],["SF3B2",0.5],["RPS13",0.49],["53BP1",0.46],["SHC1",0.43],["PCNA",0.42],["RPL5",0.42],["RPS8",0.42]],"BRCA1":[["WRN",0.91],["FANCD2",0.88],["MRE11",0.82],["PCNA",0.75],["TP53",0.71]],"RAD51":[["TP53",0.87],["53BP1",0.8]],"RAD50":[["RPA1",0.98],["MSH2",0.97],["FANCD2",0.83],["TP53",0.78],["RPA2",0.73]],"MRE11":[["RPA1",0.89],["BRCA1",0.82],["TP53",0.79],["RPA2",0.78],["WRN",0.71]],"MSH2":[["RAD50",0.97],["RPA2",0.91],["TP53",0.82],["FANCD2",0.73]],"PALB2":[["TP53",0.98],["PCNA",0.95],["RPA2",0.9],["FANCD2",0.72]],"FANCD2":[["BRCA1",0.88],["TP53",0.84],["RAD50",0.83],["53BP1",0.73],["MSH2",0.73],["PALB2",0.72]],"WRN":[["BRCA1",0.91],["PCNA",0.76],["TP53",0.75],["MRE11",0.71]],"RPA1":[["RAD50",0.98],["TP53",0.95],["MRE11",0.89]],"RPA2":[["53BP1",0.92],["MSH2",0.91],["PALB2",0.9],["TP53",0.86],["MRE11",0.78],["RAD50",0.73]],"LTBP1":[["SMAD5",0.88],["TP53",0.83]],"RPL5":[["RPS8",0.87],["TP53",0.42]],"PCNA":[["PALB2",0.95],["WRN",0.76],["BRCA1",0.75],["TP53",0.42]],"RPL14":[["UBC",0.79],["TP53",0.51]],"RPS8":[["RPL5",0.87],["RPS13",0.86],["TP53",0.42]],"53BP1":[["RPA2",0.92],["RAD51",0.8],["FANCD2",0.73],["TP53",0.46]],"NDUFS7":[["UBC",0.73],["TP53",0.7]],"PSMD14":[["PSMC6",0.92],["TP53",0.5]],"CDC20":[["TP53",0.77]],"NDUFB8":[["TP53",0.55]],"SF3B2":[["TP53",0.5]],"PSMA4":[["TP53",0.76]],"SHC1":[["DUSP6",0.95],["TP53",0.43]],"RPS13":[["RPS8",0.86],["TP53",0.49]],"UBC":[["TP53",0.8],["RPL14",0.79],["NDUFS7",0.73]],"PSMB2":[["TP53",0.55]],"DUSP6":[["SHC1",0.95],["TP53",0.79]],"NDUFA7":[["TP53",0.57]],"SNRPD3":[["TP53",0.77]],"HSPA8":[["TP53",0.51]],"PSMC6":[["PSMD14",0.92],["TP53",0.71]],"SMAD5":[["LTBP1",0.88],["TP53",0.62]]},"colors":{"Proteasome":"#E69F00","Ribosome":"#56B4E9","Complex I":"#009E73","Spliceosome":"#0072B2","DNA repair":"#D55E00","Cell cycle":"#CC79A7","MAPK signaling":"#000000","TGF-beta":"#F0E442","Unassigned":"#BDBDBD"}};
-const TOTAL = { nodes: 300, edges: 1262 }, SLICE = { nodes: 33, edges: 59 };
+// Two graphs, one walk. Les Miserables after "Filter to degree >= 2" and "Filter to degree >= 5" (40 of 77
+// characters, 193 of 254 co-appearances, the published edge list; kit/gen-canvas.mjs positions): each node is
+// [x, y, radius, group, degree on the filtered graph, degree on the full graph], neighbors [name, value] by value.
+// The protein graph (TP53 and its 32 neighbors) stays for the keyboard storyboard: [x, y, radius, module, degree, rank].
+const DATA = {
+  lesmis: {
+    raw: {"nodes":{"Valjean":[698.7,394.3,16.0,2,21,36],"Tholomyes":[587.2,166.7,10.0,3,9,9],"Listolier":[592.5,119.9,9.3,3,7,7],"Fameuil":[561.6,132.6,9.3,3,7,7],"Blacheville":[617.9,106.3,9.3,3,7,7],"Favourite":[546.4,112.1,9.3,3,7,7],"Dahlia":[567.0,90.8,9.3,3,7,7],"Zephine":[595.8,85.6,9.3,3,7,7],"Fantine":[626.4,181.0,11.7,3,12,15],"Mme.Thenardier":[785.3,352.8,10.6,4,9,11],"Thenardier":[789.4,393.1,12.0,4,13,16],"Cosette":[587.1,378.9,10.6,5,8,11],"Javert":[755.4,392.0,12.2,4,12,17],"Bamatabois":[642.6,349.5,9.7,2,8,8],"Judge":[651.4,400.0,8.9,2,6,6],"Champmathieu":[630.5,375.6,8.9,2,6,6],"Brevet":[605.3,385.3,8.9,2,6,6],"Chenildieu":[635.2,425.1,8.9,2,6,6],"Cochepaille":[606.8,415.6,8.9,2,6,6],"Eponine":[848.0,423.2,10.6,4,10,11],"Gavroche":[820.6,539.7,13.4,8,19,22],"Gillenormand":[557.8,457.8,9.3,5,4,7],"Mlle.Gillenormand":[530.1,404.4,9.3,5,4,7],"Marius":[750.6,530.6,12.7,8,16,19],"Mabeuf":[800.4,553.3,10.6,8,10,11],"Enjolras":[777.8,559.5,11.7,8,15,15],"Combeferre":[789.9,588.3,10.6,8,11,11],"Prouvaire":[795.8,635.6,10.0,8,9,9],"Feuilly":[767.9,611.1,10.6,8,11,11],"Courfeyrac":[800.4,605.2,11.2,8,13,13],"Bahorel":[827.3,576.1,10.9,8,12,12],"Bossuet":[764.2,584.6,11.2,8,13,13],"Joly":[822.1,597.0,10.9,8,12,12],"Grantaire":[827.6,627.6,10.3,8,10,10],"Gueulemer":[820.2,407.9,10.3,4,10,10],"Babet":[831.5,385.0,10.3,4,10,10],"Claquesous":[793.3,428.6,10.3,4,10,10],"Montparnasse":[815.6,446.3,10.0,4,9,9],"Brujon":[866.6,438.6,9.3,4,7,7],"Mme.Hucheloup":[854.9,597.3,9.3,8,7,7]},"nb":{"Valjean":[["Cosette",31],["Marius",19],["Javert",17],["Thenardier",12],["Fantine",9],["Mme.Thenardier",7],["Enjolras",4],["Champmathieu",3],["Judge",3],["Bamatabois",2],["Brevet",2],["Chenildieu",2],["Cochepaille",2],["Gillenormand",2],["Mlle.Gillenormand",2],["Babet",1],["Bossuet",1],["Claquesous",1],["Gavroche",1],["Gueulemer",1],["Montparnasse",1]],"Tholomyes":[["Blacheville",4],["Fameuil",4],["Listolier",4],["Dahlia",3],["Fantine",3],["Favourite",3],["Zephine",3],["Cosette",1],["Marius",1]],"Listolier":[["Blacheville",4],["Fameuil",4],["Tholomyes",4],["Dahlia",3],["Fantine",3],["Favourite",3],["Zephine",3]],"Fameuil":[["Blacheville",4],["Listolier",4],["Tholomyes",4],["Dahlia",3],["Fantine",3],["Favourite",3],["Zephine",3]],"Blacheville":[["Fameuil",4],["Favourite",4],["Listolier",4],["Tholomyes",4],["Dahlia",3],["Fantine",3],["Zephine",3]],"Favourite":[["Dahlia",5],["Blacheville",4],["Fantine",4],["Zephine",4],["Fameuil",3],["Listolier",3],["Tholomyes",3]],"Dahlia":[["Favourite",5],["Fantine",4],["Zephine",4],["Blacheville",3],["Fameuil",3],["Listolier",3],["Tholomyes",3]],"Zephine":[["Dahlia",4],["Fantine",4],["Favourite",4],["Blacheville",3],["Fameuil",3],["Listolier",3],["Tholomyes",3]],"Fantine":[["Valjean",9],["Javert",5],["Dahlia",4],["Favourite",4],["Zephine",4],["Blacheville",3],["Fameuil",3],["Listolier",3],["Tholomyes",3],["Mme.Thenardier",2],["Bamatabois",1],["Thenardier",1]],"Mme.Thenardier":[["Thenardier",13],["Valjean",7],["Cosette",4],["Eponine",2],["Fantine",2],["Babet",1],["Claquesous",1],["Gueulemer",1],["Javert",1]],"Thenardier":[["Mme.Thenardier",13],["Valjean",12],["Babet",6],["Gueulemer",5],["Javert",5],["Claquesous",4],["Brujon",3],["Eponine",3],["Marius",2],["Cosette",1],["Fantine",1],["Gavroche",1],["Montparnasse",1]],"Cosette":[["Valjean",31],["Marius",21],["Mme.Thenardier",4],["Gillenormand",3],["Mlle.Gillenormand",2],["Javert",1],["Thenardier",1],["Tholomyes",1]],"Javert":[["Valjean",17],["Enjolras",6],["Fantine",5],["Thenardier",5],["Babet",2],["Bamatabois",1],["Claquesous",1],["Cosette",1],["Gavroche",1],["Gueulemer",1],["Mme.Thenardier",1],["Montparnasse",1]],"Bamatabois":[["Champmathieu",2],["Judge",2],["Valjean",2],["Brevet",1],["Chenildieu",1],["Cochepaille",1],["Fantine",1],["Javert",1]],"Judge":[["Champmathieu",3],["Valjean",3],["Bamatabois",2],["Brevet",2],["Chenildieu",2],["Cochepaille",2]],"Champmathieu":[["Judge",3],["Valjean",3],["Bamatabois",2],["Brevet",2],["Chenildieu",2],["Cochepaille",2]],"Brevet":[["Champmathieu",2],["Chenildieu",2],["Cochepaille",2],["Judge",2],["Valjean",2],["Bamatabois",1]],"Chenildieu":[["Brevet",2],["Champmathieu",2],["Cochepaille",2],["Judge",2],["Valjean",2],["Bamatabois",1]],"Cochepaille":[["Brevet",2],["Champmathieu",2],["Chenildieu",2],["Judge",2],["Valjean",2],["Bamatabois",1]],"Eponine":[["Marius",5],["Thenardier",3],["Mme.Thenardier",2],["Babet",1],["Brujon",1],["Claquesous",1],["Courfeyrac",1],["Gueulemer",1],["Mabeuf",1],["Montparnasse",1]],"Gavroche":[["Courfeyrac",7],["Enjolras",7],["Combeferre",6],["Bahorel",5],["Bossuet",5],["Marius",4],["Joly",3],["Feuilly",2],["Babet",1],["Brujon",1],["Grantaire",1],["Gueulemer",1],["Javert",1],["Mabeuf",1],["Mme.Hucheloup",1],["Montparnasse",1],["Prouvaire",1],["Thenardier",1],["Valjean",1]],"Gillenormand":[["Marius",12],["Mlle.Gillenormand",9],["Cosette",3],["Valjean",2]],"Mlle.Gillenormand":[["Gillenormand",9],["Marius",6],["Cosette",2],["Valjean",2]],"Marius":[["Cosette",21],["Valjean",19],["Gillenormand",12],["Courfeyrac",9],["Enjolras",7],["Mlle.Gillenormand",6],["Bossuet",5],["Combeferre",5],["Eponine",5],["Gavroche",4],["Joly",2],["Thenardier",2],["Bahorel",1],["Feuilly",1],["Mabeuf",1],["Tholomyes",1]],"Mabeuf":[["Bahorel",2],["Combeferre",2],["Courfeyrac",2],["Bossuet",1],["Enjolras",1],["Eponine",1],["Feuilly",1],["Gavroche",1],["Joly",1],["Marius",1]],"Enjolras":[["Courfeyrac",17],["Combeferre",15],["Bossuet",10],["Gavroche",7],["Marius",7],["Feuilly",6],["Javert",6],["Joly",5],["Bahorel",4],["Prouvaire",4],["Valjean",4],["Grantaire",3],["Claquesous",1],["Mabeuf",1],["Mme.Hucheloup",1]],"Combeferre":[["Enjolras",15],["Courfeyrac",13],["Bossuet",9],["Gavroche",6],["Bahorel",5],["Feuilly",5],["Joly",5],["Marius",5],["Mabeuf",2],["Prouvaire",2],["Grantaire",1]],"Prouvaire":[["Enjolras",4],["Courfeyrac",3],["Bahorel",2],["Bossuet",2],["Combeferre",2],["Feuilly",2],["Joly",2],["Gavroche",1],["Grantaire",1]],"Feuilly":[["Bossuet",6],["Courfeyrac",6],["Enjolras",6],["Combeferre",5],["Joly",5],["Bahorel",3],["Gavroche",2],["Prouvaire",2],["Grantaire",1],["Mabeuf",1],["Marius",1]],"Courfeyrac":[["Enjolras",17],["Combeferre",13],["Bossuet",12],["Marius",9],["Gavroche",7],["Bahorel",6],["Feuilly",6],["Joly",5],["Prouvaire",3],["Grantaire",2],["Mabeuf",2],["Eponine",1],["Mme.Hucheloup",1]],"Bahorel":[["Courfeyrac",6],["Combeferre",5],["Gavroche",5],["Joly",5],["Bossuet",4],["Enjolras",4],["Feuilly",3],["Mabeuf",2],["Prouvaire",2],["Grantaire",1],["Marius",1],["Mme.Hucheloup",1]],"Bossuet":[["Courfeyrac",12],["Enjolras",10],["Combeferre",9],["Joly",7],["Feuilly",6],["Gavroche",5],["Marius",5],["Bahorel",4],["Grantaire",3],["Prouvaire",2],["Mabeuf",1],["Mme.Hucheloup",1],["Valjean",1]],"Joly":[["Bossuet",7],["Bahorel",5],["Combeferre",5],["Courfeyrac",5],["Enjolras",5],["Feuilly",5],["Gavroche",3],["Grantaire",2],["Marius",2],["Prouvaire",2],["Mabeuf",1],["Mme.Hucheloup",1]],"Grantaire":[["Bossuet",3],["Enjolras",3],["Courfeyrac",2],["Joly",2],["Bahorel",1],["Combeferre",1],["Feuilly",1],["Gavroche",1],["Mme.Hucheloup",1],["Prouvaire",1]],"Gueulemer":[["Babet",6],["Thenardier",5],["Claquesous",4],["Brujon",3],["Montparnasse",2],["Eponine",1],["Gavroche",1],["Javert",1],["Mme.Thenardier",1],["Valjean",1]],"Babet":[["Gueulemer",6],["Thenardier",6],["Claquesous",4],["Brujon",3],["Javert",2],["Montparnasse",2],["Eponine",1],["Gavroche",1],["Mme.Thenardier",1],["Valjean",1]],"Claquesous":[["Babet",4],["Gueulemer",4],["Thenardier",4],["Montparnasse",2],["Brujon",1],["Enjolras",1],["Eponine",1],["Javert",1],["Mme.Thenardier",1],["Valjean",1]],"Montparnasse":[["Babet",2],["Claquesous",2],["Gueulemer",2],["Brujon",1],["Eponine",1],["Gavroche",1],["Javert",1],["Thenardier",1],["Valjean",1]],"Brujon":[["Babet",3],["Gueulemer",3],["Thenardier",3],["Claquesous",1],["Eponine",1],["Gavroche",1],["Montparnasse",1]],"Mme.Hucheloup":[["Bahorel",1],["Bossuet",1],["Courfeyrac",1],["Enjolras",1],["Gavroche",1],["Grantaire",1],["Joly",1]]},"colors":{"0":"#000000","1":"#0072B2","2":"#E69F00","3":"#D55E00","4":"#009E73","5":"#CC79A7","6":"#BDBDBD","7":"#BDBDBD","8":"#56B4E9","10":"#BDBDBD"}},
+    project: "Les Miserables", graph: "Co-appearances", total: 77, shown: 40, catName: "group", edgeCol: "value", fmtW: (w) => String(w),
+    viewBox: "500 60 480 600", goName: "Javert",
+    sets: [{ name: "The Thenardiers", members: ["Thenardier", "Mme.Thenardier", "Eponine", "Gavroche"], given: true }],
+    fx: { shown: "datasets.lesmis.filterSteps.after.step2", total: "datasets.lesmis.nodes", edges: "datasets.lesmis.filterSteps.statsByState.1-2.edges", edgesTotal: "datasets.lesmis.edges" },
+    typed: { chip: "40 of 77", nodes: "77 nodes", scope: "40 of 77 nodes", edges: "193 of 254" },
+    legend: { title: "Group color", by: "by group", rows: [["8", 13], ["4", 9], ["3", 8], ["2", 7], ["5", 3]], more: "" },
+    catLabel: (c) => `group ${c}`,
+  },
+  ppi: {
+    raw: {"nodes":{"TP53":[607.7,376.5,15.2,"DNA repair",32,2],"BRCA1":[773.8,484.4,11.5,"DNA repair",13,16],"RAD51":[760.1,166.7,9,"DNA repair",5,247],"RAD50":[935.9,411.3,10.7,"DNA repair",10,62],"MRE11":[586.5,538.4,9,"DNA repair",5,247],"MSH2":[929.3,217.2,10.1,"DNA repair",8,129],"PALB2":[884,467.7,9,"DNA repair",5,247],"FANCD2":[790.3,262.7,11.2,"DNA repair",12,24],"WRN":[607.5,666.9,11.5,"DNA repair",13,16],"RPA1":[785.6,573.4,9.8,"DNA repair",7,172],"RPA2":[770.8,347.6,11,"DNA repair",11,40],"LTBP1":[599.8,730,10.4,"TGF-beta",9,94],"RPL5":[281.2,223.4,11,"Ribosome",11,40],"PCNA":[802.6,664.4,11.2,"DNA repair",12,24],"RPL14":[269.8,504.7,9.8,"Ribosome",7,172],"RPS8":[464.9,193,12.4,"Ribosome",17,11],"53BP1":[945.6,314,9.8,"DNA repair",7,172],"NDUFS7":[372,498.5,10.4,"Complex I",9,94],"PSMD14":[711.1,71.9,10.1,"Proteasome",8,129],"CDC20":[446.1,589.9,9.4,"Cell cycle",6,217],"NDUFB8":[367.7,135.6,9.8,"Complex I",7,172],"SF3B2":[890.1,559.3,9.4,"Spliceosome",6,217],"PSMA4":[344.7,597.9,9.8,"Proteasome",7,172],"SHC1":[379.1,238.2,10.4,"MAPK signaling",9,94],"RPS13":[624.3,96.4,10.4,"Ribosome",9,94],"UBC":[287.5,314.8,13.2,"Unassigned",21,7],"PSMB2":[832.9,143.3,10.7,"Proteasome",10,62],"DUSP6":[349.5,411.3,10.4,"MAPK signaling",9,94],"NDUFA7":[458.2,97.6,11,"Complex I",11,40],"SNRPD3":[693.3,655.7,10.1,"Spliceosome",8,129],"HSPA8":[254.4,398.4,8.6,"Unassigned",4,271],"PSMC6":[535.6,70,11.2,"Proteasome",12,24],"SMAD5":[438.9,674,10.7,"TGF-beta",10,62]},"nb":{"TP53":[["PALB2",0.98],["RPA1",0.95],["RAD51",0.87],["RPA2",0.86],["FANCD2",0.84],["LTBP1",0.83],["MSH2",0.82],["UBC",0.8],["DUSP6",0.79],["MRE11",0.79],["RAD50",0.78],["CDC20",0.77],["SNRPD3",0.77],["PSMA4",0.76],["WRN",0.75],["BRCA1",0.71],["PSMC6",0.71],["NDUFS7",0.7],["SMAD5",0.62],["NDUFA7",0.57],["NDUFB8",0.55],["PSMB2",0.55],["HSPA8",0.51],["RPL14",0.51],["PSMD14",0.5],["SF3B2",0.5],["RPS13",0.49],["53BP1",0.46],["SHC1",0.43],["PCNA",0.42],["RPL5",0.42],["RPS8",0.42]],"BRCA1":[["WRN",0.91],["FANCD2",0.88],["MRE11",0.82],["PCNA",0.75],["TP53",0.71]],"RAD51":[["TP53",0.87],["53BP1",0.8]],"RAD50":[["RPA1",0.98],["MSH2",0.97],["FANCD2",0.83],["TP53",0.78],["RPA2",0.73]],"MRE11":[["RPA1",0.89],["BRCA1",0.82],["TP53",0.79],["RPA2",0.78],["WRN",0.71]],"MSH2":[["RAD50",0.97],["RPA2",0.91],["TP53",0.82],["FANCD2",0.73]],"PALB2":[["TP53",0.98],["PCNA",0.95],["RPA2",0.9],["FANCD2",0.72]],"FANCD2":[["BRCA1",0.88],["TP53",0.84],["RAD50",0.83],["53BP1",0.73],["MSH2",0.73],["PALB2",0.72]],"WRN":[["BRCA1",0.91],["PCNA",0.76],["TP53",0.75],["MRE11",0.71]],"RPA1":[["RAD50",0.98],["TP53",0.95],["MRE11",0.89]],"RPA2":[["53BP1",0.92],["MSH2",0.91],["PALB2",0.9],["TP53",0.86],["MRE11",0.78],["RAD50",0.73]],"LTBP1":[["SMAD5",0.88],["TP53",0.83]],"RPL5":[["RPS8",0.87],["TP53",0.42]],"PCNA":[["PALB2",0.95],["WRN",0.76],["BRCA1",0.75],["TP53",0.42]],"RPL14":[["UBC",0.79],["TP53",0.51]],"RPS8":[["RPL5",0.87],["RPS13",0.86],["TP53",0.42]],"53BP1":[["RPA2",0.92],["RAD51",0.8],["FANCD2",0.73],["TP53",0.46]],"NDUFS7":[["UBC",0.73],["TP53",0.7]],"PSMD14":[["PSMC6",0.92],["TP53",0.5]],"CDC20":[["TP53",0.77]],"NDUFB8":[["TP53",0.55]],"SF3B2":[["TP53",0.5]],"PSMA4":[["TP53",0.76]],"SHC1":[["DUSP6",0.95],["TP53",0.43]],"RPS13":[["RPS8",0.86],["TP53",0.49]],"UBC":[["TP53",0.8],["RPL14",0.79],["NDUFS7",0.73]],"PSMB2":[["TP53",0.55]],"DUSP6":[["SHC1",0.95],["TP53",0.79]],"NDUFA7":[["TP53",0.57]],"SNRPD3":[["TP53",0.77]],"HSPA8":[["TP53",0.51]],"PSMC6":[["PSMD14",0.92],["TP53",0.71]],"SMAD5":[["LTBP1",0.88],["TP53",0.62]]},"colors":{"Proteasome":"#E69F00","Ribosome":"#56B4E9","Complex I":"#009E73","Spliceosome":"#0072B2","DNA repair":"#D55E00","Cell cycle":"#CC79A7","MAPK signaling":"#000000","TGF-beta":"#F0E442","Unassigned":"#BDBDBD"}},
+    project: "Protein interactions", graph: "ppi-core-300", total: 300, shown: 33, catName: "module", edgeCol: "confidence", fmtW: (w) => w.toFixed(2),
+    viewBox: "225 40 795 720", goName: "TP53", sets: [],
+    fx: { shown: "datasets.ppi.tp53Slice.nodes", total: "datasets.ppi.nodes", edges: "datasets.ppi.tp53Slice.edges", edgesTotal: "datasets.ppi.edges" },
+    typed: { chip: "33 of 300", nodes: "300 nodes", scope: "33 of 300 nodes", edges: "59 of 1,262" },
+    legend: { title: "Module color", by: "by module", rows: [["DNA repair", 13], ["Proteasome", 4], ["Ribosome", 4], ["Complex I", 3]], more: "5 more" },
+    catLabel: (c) => c,
+  },
+};
+const DSID = document.body.dataset.dataset, ds = DATA[DSID], D = ds.raw;
+const TOTAL = { nodes: ds.total }, SLICE = { nodes: ds.shown };
 const params = new URLSearchParams(location.search);
 // Mod is Cmd on macOS and Ctrl elsewhere (interaction pattern entries 9.3); Alt is Option on macOS
 const MAC = params.has("mac") ? params.get("mac") === "1" : /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = MAC ? "Cmd" : "Ctrl", ALT = MAC ? "Option" : "Alt";
 const BACK_KEY = "Shift+Enter"; // the walk-back key; Shift+Up is a second binding
 const PREV_KEY = `${MOD}+Z`, VISIT_KEY = `${ALT}+Enter`;
+const HINT = "Shift+Arrow: next neighbor. Space: select. ?: keys.";
 const INFRAME = window !== window.top;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-const node = (id) => { const [x, y, r, module, degree, rank] = D.nodes[id]; return { id, x, y, r, module, degree, rank }; };
+const node = (id) => { const [x, y, r, cat, degree, extra] = D.nodes[id]; return DSID === "ppi" ? { id, x, y, r, cat, degree, full: degree, rank: extra } : { id, x, y, r, cat, degree, full: extra }; };
 const ROWS = Object.keys(D.nodes).sort((a, b) => D.nodes[b][4] - D.nodes[a][4] || (a < b ? -1 : 1));
 const START = ROWS[0]; // the drawn node of highest degree, ties to the lowest id: the entry node with nothing selected (9.2)
+// a node's values as spoken; degree is read on the graph shown, with the full graph's beside it when they differ
+function facts(n) { return DSID === "ppi" ? `degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}` : `degree ${n.degree}${n.full !== n.degree ? `, ${n.full} on: full graph` : ""}`; }
+const catText = (n) => `${ds.catName} ${n.cat}`;
 
 let S;
 function reset(sel = []) {
   S = {
-    sel: sel.slice(), prevSel: null, setSel: false, sets: [], renaming: false,
-    walking: false, anchor: null, frames: [], depth: 0, jump: null, spokeExits: false, spokeMemberKeys: false, hinted: false,
+    sel: sel.slice(), prevSel: null, setSel: false, sets: ds.sets.map((s) => ({ ...s, members: s.members.slice() })), renaming: false,
+    walking: false, anchor: null, frames: [], depth: 0, jump: null, jumpSet: null, spokeExits: false, hinted: false,
     // the walk's start and the place it left off, held by graphty-element: they outlive the walk (Tab, F6, Esc,
     // overlays) and are replaced only by going to another node or a Find hit. welcomed: the long reading is said once
     start: null, welcomed: false,
@@ -407,12 +315,11 @@ function reset(sel = []) {
 const curSet = () => S.sets[S.sets.length - 1];
 
 // ---------- the walk model ----------
-// the neighbor order (9.2, proposed): the declared edge weight (confidence), degree, or name;
+// the neighbor order (9.2, proposed): the edge weight (the declared edge column), degree, or name;
 // ties by name. A frame keeps the node it is on, so a new order keeps every step of the path.
 const ORDERS = ["weight", "degree", "name"];
-const EDGE_COL = "confidence"; // the readout names the edge column and its value ("confidence 0.98"), never "weight"
-const ORDER_NAME = { weight: EDGE_COL, degree: "degree", name: "name" }; // the walk names the column it orders by
-const ORDER_WORD = { weight: "by confidence, highest first", degree: "by degree, highest first", name: "by name, A to Z" };
+const ORDER_NAME = { weight: "edge weight", degree: "degree", name: "name" };
+const ORDER_WORD = { weight: "by edge weight, highest first", degree: "by degree, highest first", name: "by name, A to Z" };
 function nbList(from) {
   const l = D.nb[from].slice();
   if (S.order === "degree") l.sort((a, b) => D.nodes[b[0]][4] - D.nodes[a[0]][4] || (a[0] < b[0] ? -1 : 1));
@@ -420,6 +327,8 @@ function nbList(from) {
   return l;
 }
 function posOf(fr) { const l = nbList(fr.from), i = l.findIndex((x) => x[0] === fr.id); return { i, n: l.length, w: l[i][1] }; }
+// the place among the neighbors, scoped to the graph the walk runs on when a filter hides some of them
+function place(fr) { const { i, n } = posOf(fr); return D.nb[fr.from].length < node(fr.from).full ? `${i + 1} of ${n} shown, on: filtered graph` : `${i + 1} of ${n}`; }
 function focused() {
   if (!S.walking) return null;
   if (S.jump) return S.jump;
@@ -431,23 +340,24 @@ function selPhrase() {
   if (S.setSel) return `${curSet().name} selected on canvas, ${S.sel.length} members.`;
   const n = S.sel.length; return n === 0 ? "Nothing selected." : n === 1 ? `${S.sel[0]} selected on canvas.` : `${n} selected on canvas.`;
 }
-function countPhrase() { return S.sel.length ? `${S.sel.length} selected on canvas.` : "Nothing selected on canvas."; }
+function countPhrase() { if (S.setSel) return `${curSet().name} selected on canvas.`; return S.sel.length ? `${S.sel.length} selected on canvas.` : "Nothing selected on canvas."; }
 function flags(id) { let s = ""; if (S.sel.includes(id) && !S.setSel) s += ", selected"; if (id === cameFrom()) s += ", where you came from"; return s; }
-function inFiltered(from) { return D.nb[from].length < D.nodes[from][4] ? " in filtered graph" : ""; }
+function wText(w) { return `${ds.edgeCol} ${ds.fmtW(w)}`; }
 function posFirst() {
-  const f = S.frames[S.depth - 1], { i, n: N, w } = posOf(f), n = node(f.id);
-  return `${f.id}, neighbor ${i + 1} of ${N} of ${f.from}${inFiltered(f.from)}, ${ORDER_WORD[S.order]}. ${EDGE_COL} ${w.toFixed(2)}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${flags(f.id)}.`;
+  const f = S.frames[S.depth - 1], { w } = posOf(f), n = node(f.id);
+  return `${f.id}, neighbor ${place(f)}, from ${f.from}, ${ORDER_WORD[S.order]}. ${wText(w)}, ${facts(n)}${flags(f.id)}.`;
 }
 function posStep() {
-  const f = S.frames[S.depth - 1], { i, n: N, w } = posOf(f), n = node(f.id);
-  return `${f.id}, ${i + 1} of ${N}, ${EDGE_COL} ${w.toFixed(2)}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${flags(f.id)}.`;
+  const f = S.frames[S.depth - 1], { w } = posOf(f), n = node(f.id);
+  return `${f.id}, ${place(f)}, ${wText(w)}, ${facts(n)}${flags(f.id)}.`;
 }
-// said when focus comes back to the walk from the inspector or the key sheet
+function jumpPos() { const s = S.sets.find((x) => x.name === S.jumpSet); return `${s.members.indexOf(S.jump) + 1} of ${s.members.length} from the set ${s.name}`; }
+// said when focus comes back to the walk from the inspector, the key sheet or a kept walk
 function posShort() {
   const f = focused();
-  if (S.jump) return `${f}, selected ${S.sel.indexOf(f) + 1} of ${S.sel.length}.`;
+  if (S.jump) return `${f}, ${jumpPos()}.`;
   if (S.depth === 0) return `${f}, start of the walk.`;
-  const { i, n } = posOf(S.frames[S.depth - 1]); return `${f}, ${i + 1} of ${n} from ${S.frames[S.depth - 1].from}.`;
+  const fr = S.frames[S.depth - 1]; return `${f}, ${place(fr)}, from ${fr.from}.`;
 }
 function setOrder(o) {
   S.order = o;
@@ -455,26 +365,22 @@ function setOrder(o) {
   if (!f) return `Neighbors ${ORDER_WORD[o]}.`;
   // the node stepped from is kept; focus goes to the first neighbor in the new order
   f.id = nbList(f.from)[0][0]; S.frames = S.frames.slice(0, S.depth);
-  const { n: N, w } = posOf(f), n = node(f.id);
-  return `Neighbors ${ORDER_WORD[o]}. ${f.id}, neighbor 1 of ${N} of ${f.from}, ${EDGE_COL} ${w.toFixed(2)}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${flags(f.id)}.`;
+  const { w } = posOf(f), n = node(f.id);
+  return `Neighbors ${ORDER_WORD[o]}. ${f.id}, neighbor ${place(f)}, from ${f.from}, ${wText(w)}, ${facts(n)}${flags(f.id)}.`;
 }
-const MEMBER_KEYS = " ] and [ step through the selection.";
 const WALKING = "Walking the drawing.";
-// the entry announcement names the exits, and the member-walk keys once there is a selection to step
-// through; a walk that starts with nothing selected names them when Space first adds a node (9.2)
+// the first walk announcement names the exits once
 function exits() {
   if (S.spokeExits) return "";
   S.spokeExits = true;
-  let s = ` ${BACK_KEY} goes back, Esc ends the walk, Tab leaves the drawing`;
-  if (S.sel.length && !S.setSel) { s += ", ] and [ step through the selection"; S.spokeMemberKeys = true; }
-  return s + ", O changes the order, question mark lists the keys.";
+  return ` ${BACK_KEY} goes back, Esc ends the walk, Tab leaves the drawing, O changes the order, question mark lists the keys.`;
 }
 function entryNode() { return S.start ?? S.sel[0] ?? START; }
 const kept = () => !S.walking && S.anchor && S.anchor === S.start; // a walk that was left, start and place held
 // a walk starts at the start node, or goes on from where it was left (never starts itself on arrival)
 function startWalk() {
-  if (kept()) { S.walking = true; S.jump = null; return true; }
-  S.walking = true; S.anchor = S.start = entryNode(); S.frames = []; S.depth = 0; S.jump = null; S.spokeExits = false; S.spokeMemberKeys = false;
+  if (kept()) { S.walking = true; return true; }
+  S.walking = true; S.anchor = S.start = entryNode(); S.frames = []; S.depth = 0; S.jump = null; S.spokeExits = false;
   return false;
 }
 function goTo(id) { // Quick actions' Go to, and a Find hit: a new start, the old place dropped
@@ -500,15 +406,15 @@ function say(text, kind = "live") {
 }
 // the long reading once per project; every later arrival names the region, the kept walk and the selection
 function canvasReading() {
-  if (!S.welcomed) { S.welcomed = true; return `Graph drawing, application. Protein interactions, ${SLICE.nodes} of ${TOTAL.nodes} nodes shown. ${selPhrase()} The walk starts at ${entryNode()}. Shift+Arrow: walk. Enter: select. Question mark: keys.`; }
+  if (!S.welcomed) { S.welcomed = true; return `Graph drawing, application. ${ds.project}, ${SLICE.nodes} of ${TOTAL.nodes} nodes shown, on: filtered graph. ${selPhrase()} The walk starts at ${entryNode()}. Shift+Arrow: next neighbor. Space: select. Question mark: keys.`; }
   return `Graph drawing. ${kept() ? keptPhrase() : `The walk starts at ${entryNode()}.`} ${countPhrase()}`;
 }
-function visitReading() { const n = node(S.visit); return `Inspector, ${n.id}, ${S.sel.includes(n.id) && !S.setSel ? "selected" : "not selected"}. Module ${n.module}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}.`; }
+function visitReading() { const n = node(S.visit); return `Inspector, ${n.id}, ${S.sel.includes(n.id) && !S.setSel ? "selected" : "not selected"}. ${catText(n)}, ${facts(n)}.`; }
 function rowReading() {
   const id = ROWS[S.row], n = node(id);
   // aria-selected: the screen reader says its own word, "selected"; the live announcements of a change end "on canvas"
   const st = S.setSel ? (curSet().members.includes(id) ? `, member of ${curSet().name}` : "") : S.sel.includes(id) ? ", selected" : "";
-  return `${id}, ${n.module}, degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}${st}. Row ${S.row + 1} of ${ROWS.length}.`;
+  return `${id}, ${catText(n)}, ${facts(n)}${st}. Row ${S.row + 1} of ${ROWS.length}.`;
 }
 
 // ---------- selection ----------
@@ -521,17 +427,13 @@ function toggle(id) {
   const had = S.sel.includes(id);
   S.sel = had ? S.sel.filter((x) => x !== id) : [...S.sel, id];
   changed();
-  let m = `${id} ${had ? "removed" : "added"}. ${countPhrase()}`;
-  if (S.walking && S.sel.length && !S.spokeMemberKeys) { m += MEMBER_KEYS; S.spokeMemberKeys = true; }
-  return m;
+  return `${id} ${had ? "removed" : "added"}. ${countPhrase()}`;
 }
 function addSel(id) { // Enter in the walk: adds the focused node, never replaces or removes
   if (S.sel.includes(id) && !S.setSel) return `${id} is already selected. Space removes it.`;
   if (S.setSel) { S.sel = []; S.setSel = false; }
   S.sel = [...S.sel, id]; changed();
-  let m = `${id} selected. ${countPhrase()}`;
-  if (S.sel.length && !S.spokeMemberKeys) { m += MEMBER_KEYS; S.spokeMemberKeys = true; }
-  return m;
+  return `${id} selected. ${countPhrase()}`;
 }
 function clearSelection() { if (!S.sel.length) return null; const was = S.sel.slice(); S.sel = []; S.setSel = false; changed(); S.prevSel = was; return `Selection cleared (${was.length} node${was.length === 1 ? "" : "s"}). ${PREV_KEY} brings it back.`; }
 function restoreSelection() { // Ctrl+Z right after a clear; otherwise Ctrl+Z is Undo, which this mock does not draw
@@ -541,7 +443,7 @@ function restoreSelection() { // Ctrl+Z right after a clear; otherwise Ctrl+Z is
 }
 function createSet() {
   if (!S.sel.length) return "Nothing selected to make a set from.";
-  const name = `Set ${S.sets.length + 1}`;
+  const name = `Set ${S.sets.filter((s) => !s.given).length + 1}`;
   S.sets.push({ name, members: S.sel.slice() });
   S.setSel = true; S.renaming = true;
   return `Set created, ${S.sel.length} nodes. Name, edit, ${name}.`;
@@ -569,19 +471,20 @@ function onCanvasKey(c) {
     if (!S.hinted && !S.walking) { S.hinted = true; say("View moved. Shift+Arrow walks the graph."); }
     return true;
   }
-  const back = "Shift+Enter";
+  const back = BACK_KEY;
   // Shift+Enter is the walk-back key (Figma's go-to-parent); Shift+Up is a second binding for it
   if (c === "Shift+ArrowUp") c = back;
-  // a kept walk goes on where it was left: focus back on that node, nothing stepped
-  if (!S.walking && kept() && ["Shift+ArrowDown", "Shift+ArrowRight", "Shift+ArrowLeft", back].includes(c)) { startWalk(); say(`${WALKING} ${posShort()}`); return true; }
+  // a kept walk goes on where it was left: focus back on that node, nothing stepped; the start says what is selected
+  if (!S.walking && kept() && ["Shift+ArrowDown", "Shift+ArrowRight", "Shift+ArrowLeft", back].includes(c)) { startWalk(); say(`${WALKING} ${posShort()} ${countPhrase()}`); return true; }
   if (c === "Shift+ArrowDown" || c === "Shift+ArrowRight" && (!S.walking || (S.depth === 0 && !S.jump))) {
     const fresh = !S.walking;
     if (!S.walking) startWalk();
-    say((fresh ? `${WALKING} ` : "") + stepIn() + exits());
+    say(fresh ? `${WALKING} ${stepIn()} ${countPhrase()}${exits()}` : stepIn());
     return true;
   }
   if (c === "Shift+ArrowRight" || c === "Shift+ArrowLeft") {
     if (!S.walking) { say(`Shift+Down walks from ${entryNode()}.`); return true; }
+    if (S.jump && !S.depth) { say(`Shift+Down walks from ${S.jump}.`); return true; }
     S.jump = null;
     const fr = S.frames[S.depth - 1], l = nbList(fr.from), d = c === "Shift+ArrowRight" ? 1 : -1, j = posOf(fr).i + d;
     if (j < 0 || j >= l.length) { say(d > 0 ? "Last neighbor." : "First neighbor."); return true; }
@@ -591,7 +494,7 @@ function onCanvasKey(c) {
   }
   if (c === back) {
     if (!S.walking) { say(`Shift+Down walks from ${entryNode()}.`); return true; }
-    const backTo = (fr) => { const { i, n } = posOf(fr); return `Back to ${fr.id}, neighbor ${i + 1} of ${n} of ${fr.from}.`; };
+    const backTo = (fr) => `Back to ${fr.id}, ${place(fr)}, from ${fr.from}.`;
     if (S.jump) { S.jump = null; say(S.depth ? backTo(S.frames[S.depth - 1]) : `Back to the start, ${S.anchor}.`); return true; }
     if (S.depth === 0) { say(`At the start, ${S.anchor}.`); return true; }
     S.depth--;
@@ -604,7 +507,7 @@ function onCanvasKey(c) {
   }
   if (c === "Delete" || c === "Backspace") {
     // proposed: during the walk Delete acts only when the focused node is selected, and says so when it is not
-    if (f && !S.sel.includes(f)) { say(`Nothing removed; ${f} is not selected. Enter adds it.`); return true; }
+    if (f && !S.sel.includes(f)) { say(`Nothing removed; ${f} is not selected. Space adds it.`); return true; }
     say("Remove: not built in this mock.", "mock"); return true;
   }
   // Space arrives here on release with no drag in between (see the keyup listener), or from a replay
@@ -615,23 +518,28 @@ function onCanvasKey(c) {
     // starts the walk: with a set selected it goes to its members (4.2); otherwise it says how to walk
     if (f) { say(addSel(f)); return true; }
     if (S.setSel) { const s = curSet(); S.setSel = false; S.sel = s.members.slice(); changed(); say(`${s.members.length} members of ${s.name} selected. ${countPhrase()}`); return true; }
-    say(`Shift+Down walks from ${entryNode()}. Enter adds the node you are on to the selection.`); return true;
+    say(`Shift+Down walks from ${entryNode()}. Space adds the node you are on to the selection.`); return true;
   }
   if (c === "Alt+Enter") { // the inspector visit: on the focused node in the walk, else on the selection; Esc comes back
     if (f) { S.visit = f; enterRegion("insp"); return true; }
     enterRegion("insp"); return true;
   }
   if (c === "]" || c === "[") {
-    if (!S.sel.length) { say("Nothing selected."); return true; }
-    const cur = S.sel.indexOf(f), n = S.sel.length;
+    // ] and [ walk the members of a set: the set that is the selection, else the newest set holding the node the walk is on
+    const at = f ?? keptOn() ?? entryNode();
+    const s = S.setSel ? curSet() : [...S.sets].reverse().find((x) => x.members.includes(at));
+    if (!s) { say(`${at} is in no set. ] and [ walk the members of a set.`); return true; }
+    const cur = s.members.indexOf(at), n = s.members.length;
     const i = c === "]" ? (cur < 0 ? 0 : Math.min(n - 1, cur + 1)) : (cur < 0 ? n - 1 : Math.max(0, cur - 1));
-    if (!S.walking) startWalk();
-    S.jump = S.sel[i];
-    say(`${S.jump}, selected ${i + 1} of ${n}.`);
+    if (cur === i) { say(i === n - 1 ? `Last member of ${s.name}.` : `First member of ${s.name}.`); return true; }
+    const fresh = !S.walking;
+    if (fresh) startWalk();
+    S.jump = s.members[i]; S.jumpSet = s.name;
+    say(`${fresh ? `${WALKING} ` : ""}${S.jump}, ${jumpPos()}, ${facts(node(S.jump))}${flags(S.jump)}.${fresh ? ` ${countPhrase()}` : ""}`);
     return true;
   }
   if (c === "Escape") {
-    if (S.walking) { const at = f; endWalk(); say(`Walk ended at ${at}. ${countPhrase()}`); return true; }  // start and place kept
+    if (S.walking) { const at = f; endWalk(); say(`Walk ended at ${at}. Focus stays on the drawing. ${countPhrase()}`); return true; }  // start and place kept
     const m = clearSelection(); if (!m) return false; say(m); return true; // nothing to clear: the key is not used (kit/README.md, "The Esc rule")
   }
   return onCommonKey(c);
@@ -723,22 +631,23 @@ const COMMANDS = [
   { g: "Selection", name: "Select none", key: "Esc", run: () => say(clearSelection() ?? "Nothing selected."), needsSel: true },
   { g: "Selection", name: "Show in table", run: () => enterRegion("table"), needsSel: true },
   { g: "Sets and paths", name: "Create set", key: `${MOD}+G`, run: () => runCreateSet(), needsSel: true },
-  ...ORDERS.map((o) => ({ g: "Graph drawing", name: `Walk order: ${ORDER_NAME[o]}`, key: "O", run: () => say(setOrder(o)) })),
+  ...ORDERS.map((o) => ({ g: "Graph drawing", name: `Neighbor order: ${ORDER_NAME[o]}`, key: "O", run: () => say(setOrder(o)) })),
 ];
 function unavailable(h) { return h.needsSel && !S.sel.length ? "nothing selected" : h.needsSet && !S.setSel ? "no set selected" : ""; }
-// Quick actions: a node's exact name is the first row, "Go to {name}", which moves the walk there and selects
-// nothing; any typed text also offers Find "{text}". Find (Ctrl+F): nodes by prefix, then substring; Enter goes there and selects nothing.
+// Quick actions: a node's exact name is the first row, "Go to {name}", above the hand-off row to Find; Go to moves
+// the walk there and selects nothing. Find (Ctrl+F): nodes by prefix, then substring; Enter goes there and selects nothing.
 function quickHits() {
   const raw = S.quick.q.trim(), q = raw.toLowerCase(), ids = Object.keys(D.nodes);
+  const detail = (id) => { const n = node(id); return `${catText(n)}, degree ${n.degree}`; };
   if (S.quick.mode === "find") {
     if (!q) return [];
     const hit = ids.filter((id) => id.toLowerCase().includes(q)).sort((a, b) => (b.toLowerCase().startsWith(q) - a.toLowerCase().startsWith(q)) || D.nodes[b][4] - D.nodes[a][4]);
-    return hit.map((id) => ({ g: "Nodes", name: id, pick: id, detail: `${D.nodes[id][3]}, degree ${D.nodes[id][4]}` }));
+    return hit.map((id) => ({ g: "Nodes", name: id, pick: id, detail: detail(id) }));
   }
   const exact = q && ids.find((id) => id.toLowerCase() === q);
   const cmds = COMMANDS.filter((c) => !q || c.name.toLowerCase().includes(q));
   const nodes = [];
-  if (exact) nodes.push({ g: "Nodes", name: `Go to ${exact}`, go: exact, detail: `${D.nodes[exact][3]}, degree ${D.nodes[exact][4]}` });
+  if (exact) nodes.push({ g: "Nodes", name: `Go to ${exact}`, go: exact, detail: detail(exact) });
   if (q) nodes.push({ g: "Nodes", name: `Find "${raw}"`, find: raw, detail: "nodes, sets, styles and more, in Find" });
   return [...nodes, ...cmds];
 }
@@ -759,16 +668,12 @@ function onQuickKey(c) {
     const h = hits[S.quick.i]; if (!h) return true;
     const u = unavailable(h); if (u) { say(`${h.name} is unavailable: ${u}.`); return true; }
     const back = S.quick.from; S.quick = null;
-    if (h.go) { // the walk on the node, as its start; nothing selected
-      goTo(h.go); S.region = "none"; enterRegion("canvas", { quiet: true }); startWalk();
-      const n = node(h.go);
-      say(`${WALKING} ${h.go}, start of the walk${S.sel.includes(h.go) ? ", selected" : ", not selected"}. Degree ${n.degree}, rank ${n.rank} of ${TOTAL.nodes}, module ${n.module}. ${countPhrase()}`); render(); return true;
+    if (h.go || h.pick) { // the walk on the node, as its start; nothing selected
+      const id = h.go ?? h.pick, n = node(id);
+      goTo(id); S.region = "none"; enterRegion("canvas", { quiet: true }); startWalk();
+      say(`${WALKING} ${id}, start of the walk${S.sel.includes(id) ? ", selected" : ", not selected"}. ${facts(n)}, ${catText(n)}. ${countPhrase()}`); render(); return true;
     }
     if (h.find) { openQuick("find", h.find); S.quick.from = back; return true; }
-    if (h.pick) { // Find, like Go to: the hit becomes the walk's start; nothing selected
-      goTo(h.pick); S.region = "none"; enterRegion("canvas", { quiet: true }); startWalk();
-      say(`${WALKING} ${h.pick}, start of the walk${S.sel.includes(h.pick) ? ", selected" : ", not selected"}. ${countPhrase()}`); render(); return true;
-    }
     if (h.name === "Create set") runCreateSet(); else { enterRegion(back === "none" ? "canvas" : back); h.run(); }
     return true;
   }
@@ -808,10 +713,10 @@ function enterRegion(r, { keepRow = false, quiet = false } = {}) {
   if (r === "insp") S.inspFrom = from === "canvas" ? "canvas" : null;
   S.region = r;
   if (quiet) { render(); return; }
-  if (r === "canvas") say(S.walking ? `${WALKING} ${posShort()}` : canvasReading(), "focus");
+  if (r === "canvas") say(S.walking ? `${WALKING} ${posShort()} ${countPhrase()}` : canvasReading(), "focus");
   else if (r === "sheet") say("Keys, dialog. Everywhere, heading.", "focus");
   else if (r === "insp" && S.visit) say(visitReading(), "focus");
-  else if (r === "insp" && from === "canvas") say(`Inspector, ${S.setSel ? curSet().name : S.sel.length === 1 ? S.sel[0] : S.sel.length ? `${S.sel.length} selected` : "Protein interactions, graph"}.`, "focus");
+  else if (r === "insp" && from === "canvas") say(`Inspector, ${S.setSel ? curSet().name : S.sel.length === 1 ? S.sel[0] : S.sel.length ? `${S.sel.length} selected` : `${ds.project}, graph`}.`, "focus");
   else if (r === "table") {
     let extra = "";
     // Tab from the canvas lands on the first selected node's row (proposed)
@@ -820,7 +725,7 @@ function enterRegion(r, { keepRow = false, quiet = false } = {}) {
     say(`Nodes table, filtered graph, ${ROWS.length} rows, sorted by degree. ${rowReading()}${extra}${S.tableHinted ? "" : " Shift+Arrow here extends the row selection."}`, "focus");
     S.tableHinted = true;
   } else if (r === "quick") say(S.quick.mode === "find" ? `Find, nodes in this graph. ${quickReading()}` : `Quick actions. ${quickHits().length} results. ${quickReading()}`, "focus");
-  else if (r === "set" && from !== "rename") say(`Sets and paths, tree. ${curSet().name}, frozen set, ${curSet().members.length} nodes, 1 of 1.`, "focus");
+  else if (r === "set" && from !== "rename") say(`Sets and paths, tree. ${curSet().name}, frozen set, ${curSet().members.length} nodes, ${S.sets.length} of ${S.sets.length}.`, "focus");
   else if (ROVE[r]) { const its = roveItems(r), i = Math.min(S.rove[r] ?? 0, its.length - 1); S.rove[r] = i; say(`${ROVE[r].name ? ROVE[r].name + ". " : ""}${itemReading(its[i], i, its.length)}`, "focus"); }
   render();
 }
@@ -892,6 +797,33 @@ $("kw-rows").addEventListener("mousedown", (e) => {
 });
 $("kw-qinput").addEventListener("input", (e) => { typeQuick(e.target.value); render(); });
 
+// ---------- the frame's dataset parts ----------
+function buildFrame() {
+  const fx = (key, of, noun, text) => `<span data-fx="${key}"${of ? ` data-fx-of="${of}"` : ""}${noun ? ` data-fx-noun="${noun}"` : ""}>${text}</span>`;
+  document.title = `Keyboard walk on ${DSID === "ppi" ? "the protein network" : "Les Miserables"}`;
+  $("kw-project").textContent = ds.project;
+  $("kw-chip").querySelector("[data-fx]").outerHTML = fx(ds.fx.shown, ds.fx.total, "", ds.typed.chip);
+  $("kw-graphs").innerHTML = `<li class="k-item" role="option" aria-selected="true" data-say="${esc(ds.graph)}, ${ds.typed.nodes}"><svg class="k-i"><use href="../kit/icons.svg#network"/></svg><span class="k-grow k-ellipsis k-id">${esc(ds.graph)}</span><span class="k-trail k-num">${fx(ds.fx.total, "", "nodes", ds.typed.nodes)}</span></li>`;
+  $("kw-scope").innerHTML = `Filtered graph: ${fx(ds.fx.shown, ds.fx.total, "nodes", ds.typed.scope)}. Sorted by degree.`;
+  $("kw-grid").setAttribute("aria-rowcount", ROWS.length + 1);
+  const degs = ROWS.map((id) => node(id).degree), cats = new Set(ROWS.map((id) => node(id).cat));
+  $("kw-thead").innerHTML = DSID === "ppi"
+    ? `<tr><th>id</th><th>module <span class="k-profile">${cats.size} values</span></th><th class="k-n">degree <span class="k-profile">${Math.min(...degs)} to ${Math.max(...degs)}</span></th><th class="k-n">degree rank <span class="k-profile">1 to 300</span></th></tr>`
+    : `<tr><th>label</th><th>group <span class="k-profile">${cats.size} values</span></th><th class="k-n">degree (filtered graph) <span class="k-profile">${Math.min(...degs)} to ${Math.max(...degs)}</span></th><th class="k-n">degree (full graph) <span class="k-profile">${Math.min(...ROWS.map((id) => node(id).full))} to ${Math.max(...ROWS.map((id) => node(id).full))}</span></th></tr>`;
+  const lg = ds.legend;
+  $("kw-legend").innerHTML = `<div class="k-lg-title">${lg.title} <span class="k-secondary">${lg.by}</span></div>` + lg.rows.map(([c, k]) => `<div class="k-lg-row"><span class="k-chit" style="background:${D.colors[c]}"></span>${esc(c)}<span class="k-value">${k}</span></div>`).join("") + (lg.more ? `<div class="k-lg-row k-secondary">${lg.more}</div>` : "");
+  $("kw-tab-goto").textContent = `Go to ${ds.goName}`;
+  // the drawing: every edge once, the nodes, then the marks and the labels over them
+  const seen = new Set(); let e = "", nd = "", lb = "";
+  for (const a of Object.keys(D.nb)) for (const [b] of D.nb[a]) {
+    const k = a < b ? `${a}|${b}` : `${b}|${a}`; if (seen.has(k)) continue; seen.add(k);
+    const p = node(a), q = node(b); e += `<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}"/>`;
+  }
+  for (const id of Object.keys(D.nodes)) { const n = node(id); nd += `<circle data-id="${esc(id)}" cx="${n.x}" cy="${n.y}" r="${n.r}" fill="${D.colors[n.cat]}"/>`; lb += `<text data-id="${esc(id)}" y="${n.y + 4}">${esc(id)}</text>`; }
+  $("kw-svg").setAttribute("viewBox", ds.viewBox);
+  $("kw-view").innerHTML = `<g class="kw-edges">${e}</g><g class="kw-nodes">${nd}</g><g class="kw-marks"></g><g class="kw-labels">${lb}</g>`;
+}
+
 // ---------- drawing ----------
 // Band positions in CSS px out from the silhouette (canvas drawing 6), turned into drawing units so the
 // rings are the same on screen at any fit: fill edge 1; selection 2 + 2 or member 1 + 1; focus after a
@@ -911,6 +843,19 @@ function keepInView(id, u) {
   if (n.y + py < vb.y + m) py = vb.y + m - n.y; if (n.y + py > vb.y + vb.height - m) py = vb.y + vb.height - m - n.y;
   S.pan = [px, py];
 }
+// labels culled by collision, as the drawings are: marked nodes first, then by degree; a dropped label is the lower-degree one
+function placeLabels(f, u, ext) {
+  const pri = (id) => (id === f ? 0 : S.sel.includes(id) ? 1 : 2);
+  const texts = [...document.querySelectorAll(".kw-labels text")].sort((a, b) => pri(a.dataset.id) - pri(b.dataset.id) || D.nodes[b.dataset.id][4] - D.nodes[a.dataset.id][4]);
+  const boxes = [], pad = 2 * u;
+  for (const t of texts) {
+    const n = node(t.dataset.id);
+    t.setAttribute("x", (n.x + n.r + ((ext[n.id] ?? 1) + 3) * u).toFixed(1)); t.setAttribute("y", (n.y + 4 * u).toFixed(1));
+    t.style.display = "";
+    const b = t.getBBox(), hit = boxes.some((k) => b.x < k.x + k.width + pad && k.x < b.x + b.width + pad && b.y < k.y + k.height && k.y < b.y + b.height);
+    if (hit && pri(n.id) === 2) t.style.display = "none"; else boxes.push(b);
+  }
+}
 function render() {
   const f = focused(), u = unit();
   if (f) keepInView(f, u);
@@ -928,31 +873,33 @@ function render() {
   // a label starts 3 px past the node's outermost ring, so a marked node keeps its label clear of its rings
   const ext = {}; for (const id of S.sel) ext[id] = S.setSel ? 3 : 5;
   if (f) ext[f] = 1 + (ext[f] ? ext[f] - 1 : 0) + 2 + 4;
-  for (const t of document.querySelectorAll(".kw-labels text")) { const n = node(t.dataset.id); t.setAttribute("x", (n.x + n.r + ((ext[n.id] ?? 1) + 3) * u).toFixed(1)); }
   const lab = document.querySelector(".kw-labels"); lab.style.fontSize = `${(12 * u).toFixed(2)}px`; lab.style.strokeWidth = `${(3 * u).toFixed(2)}px`; // labels at 12 CSS px
-  $("kw-target").setAttribute("aria-label", `Graph drawing. Protein interactions, ${SLICE.nodes} of ${TOTAL.nodes} nodes shown. ${selPhrase()}`);
+  placeLabels(f, u, ext);
+  $("kw-target").setAttribute("aria-label", `Graph drawing. ${ds.project}, ${SLICE.nodes} of ${TOTAL.nodes} nodes shown, on: filtered graph. ${selPhrase()}`);
 
   // the focus pill: what the live region says, shown (9.2, proposed); the start node before a walk
   const slot = $("kw-slot");
   slot.hidden = !pillOn;
   if (pillOn) {
     const id = f ?? (kept() ? keptOn() : null) ?? entryNode(), n = node(id), selOn = S.sel.includes(id) && !S.setSel;
-    let head, w = null;
+    let head, w = null, where = "";
     if (!f && kept()) head = keptOn() ? `<b>Graph drawing</b><span>Walk kept: on <span class="k-id">${esc(keptOn())}</span>, from <span class="k-id">${esc(S.anchor)}</span></span>` : `<b>Graph drawing</b><span>Walk kept: at the start, <span class="k-id">${esc(S.anchor)}</span></span>`;
     else if (!f) head = `<b>Graph drawing</b><span>Start: <span class="k-id">${esc(id)}</span></span><span class="k-secondary">the walk starts here</span>`;
     else {
-      let pos;
-      if (S.jump) pos = `selected ${S.sel.indexOf(S.jump) + 1} of ${S.sel.length}`;
+      let pos, from = "";
+      if (S.jump) pos = jumpPos();
       else if (S.depth === 0) pos = "start of the walk";
-      else { const fr = S.frames[S.depth - 1], p = posOf(fr); w = p.w; pos = `${p.i + 1} of ${p.n} from ${fr.from}${inFiltered(fr.from) ? ", in filtered graph" : ""}`; }
-      head = `<b>Walking the drawing</b><b class="k-id">${esc(f)}</b><span class="k-num">${esc(pos)}</span>${selOn ? '<span class="k-badge">selected</span>' : ""}`;
+      else { const fr = S.frames[S.depth - 1]; w = posOf(fr).w; pos = `neighbor ${place(fr)}`; from = `<span>from <span class="k-id">${esc(fr.from)}</span></span>`; }
+      head = `<b>Walking the drawing</b><b class="k-id">${esc(f)}</b>${selOn ? '<span class="k-badge">selected</span>' : ""}`;
+      where = `<div class="kw-pr"><span class="k-num">${esc(pos)}</span>${from}</div>`;
     }
-    const count = S.setSel ? `${curSet().name} selected` : S.sel.length ? `${S.sel.length} selected` : "nothing selected";
-    const seg = ORDERS.map((o) => `<span aria-pressed="${o === S.order}">${ORDER_NAME[o][0].toUpperCase() + ORDER_NAME[o].slice(1)}</span>`).join("");
-    slot.innerHTML = `<div class="kw-pr">${head}<span class="k-grow"></span><span>${count}</span></div>`
-      + `<div class="kw-pr">${w != null ? `<span>${EDGE_COL} <b class="k-num">${w.toFixed(2)}</b></span>` : ""}<span>degree <b class="k-num">${n.degree}</b>, rank <b class="k-num">${n.rank}</b> of <span class="k-num">${TOTAL.nodes}</span></span><span><span class="k-chit" style="background:${D.colors[n.module]}"></span> ${esc(n.module)}</span></div>`
+    const count = S.setSel ? `${esc(curSet().name)} selected` : S.sel.length ? `${S.sel.length} selected` : "nothing selected";
+    const seg = ORDERS.map((o) => `<span${o === S.order ? " data-pressed" : ""}>${ORDER_NAME[o][0].toUpperCase() + ORDER_NAME[o].slice(1)}</span>`).join("");
+    const deg = DSID === "ppi" ? `degree <b class="k-num">${n.degree}</b>, rank <b class="k-num">${n.rank}</b> of <span class="k-num">${TOTAL.nodes}</span>` : `degree <b class="k-num">${n.degree}</b>${n.full !== n.degree ? ` <span class="k-fact">(${n.full}, on: full graph)</span>` : ""}`;
+    slot.innerHTML = `<div class="kw-pr">${head}<span class="k-grow"></span><span>${count}</span></div>` + where
+      + `<div class="kw-pr">${w != null ? `<span>${ds.edgeCol} <b class="k-num">${ds.fmtW(w)}</b></span>` : ""}<span>${deg}</span><span><span class="k-chit" style="background:${D.colors[n.cat]}"></span> ${esc(catText(n))}</span></div>`
       + `<div class="kw-pr"><span>Neighbors by</span><span class="k-seg" data-wired>${seg}</span><span class="k-kbd">O</span></div>`
-      + `<div class="kw-pr k-secondary">Shift+Arrow: walk. Enter: select. ?: keys.</div>`;
+      + `<div class="kw-pr k-secondary">${HINT}</div>`;
     slot.querySelectorAll(".k-seg > span").forEach((s, i) => s.addEventListener("mousedown", (e) => { e.preventDefault(); say(setOrder(ORDERS[i])); render(); }));
   }
   $("kw-sheet").hidden = !S.sheet;
@@ -967,7 +914,8 @@ function render() {
   const set = S.setSel ? curSet() : null;
   $("kw-rows").innerHTML = ROWS.map((id, i) => {
     const n = node(id), sel = !set && S.sel.includes(id), mem = set && set.members.includes(id);
-    return `<tr role="row" id="kw-row-${i}" data-id="${id}" aria-rowindex="${i + 2}" aria-selected="${sel}"${mem ? " data-member" : ""}${i === S.row ? " data-focus" : ""}><td class="k-id" role="gridcell">${id}</td><td role="gridcell"><span class="k-chit" style="background:${D.colors[n.module]}"></span>${n.module}</td><td class="k-n" role="gridcell">${n.degree}</td><td class="k-n" role="gridcell">${n.rank}</td></tr>`;
+    const last = DSID === "ppi" ? n.rank : n.full;
+    return `<tr role="row" id="kw-row-${i}" data-id="${esc(id)}" aria-rowindex="${i + 2}" aria-selected="${sel}"${mem ? " data-member" : ""}${i === S.row ? " data-focus" : ""}><td class="k-id" role="gridcell">${esc(id)}</td><td role="gridcell"><span class="k-chit" style="background:${D.colors[n.cat]}"></span>${esc(n.cat)}</td><td class="k-n" role="gridcell">${n.degree}</td><td class="k-n" role="gridcell">${last}</td></tr>`;
   }).join("");
   $("kw-grid").setAttribute("aria-activedescendant", `kw-row-${S.row}`);
   const w = $("kw-tablewrap"), wr = w.getBoundingClientRect(), head = 32;
@@ -1027,32 +975,35 @@ function renderInspector() {
   const icon = (n) => `<svg class="k-i"><use href="../kit/icons.svg#${n}"/></svg>`;
   const verb = (ic, label, act, split) => `<span class="kw-split"><span class="k-icon-btn" title="${label}" data-item data-say="${label}, button"${act ? ` data-act="${act}"` : ""}>${icon(ic)}</span>${split ? `<span class="kw-caret">${icon("chevron-down").replace('class="k-i"', 'class="k-i k-i-sm"')}</span>` : ""}</span>`;
   const type = (ic, name, kind, verbs, isId) => `<div class="kw-type"><div class="kw-l1">${icon(ic)}<span class="k-name${isId ? " k-id" : ""}">${esc(name)}</span></div><div class="kw-l2"><span class="k-secondary k-ellipsis">${esc(kind)}</span><span class="k-grow"></span>${verbs}<span class="k-icon-btn" title="More actions" data-item data-say="More actions, menu button">${icon("ellipsis")}</span></div></div>`;
-  const row = (k, v, sayV, rank) => `<div class="kw-dr" data-item data-say="${esc(k)}, ${esc(sayV ?? v)}"><span class="k-name">${k}</span><span class="k-value k-num">${v}</span><span class="kw-rank k-num">${rank ?? ""}</span></div>`;
-  const chit = (m) => `<span class="k-chit" style="background:${D.colors[m]}"></span> ${m}`;
+  const row = (k, v, sayV, rank) => `<div class="kw-dr" data-item data-say="${esc(k.replace(/<[^>]*>/g, ""))}, ${esc(sayV ?? v)}"><span class="k-name">${k}</span><span class="k-value k-num">${v}</span><span class="kw-rank k-num">${rank ?? ""}</span></div>`;
+  const chit = (m) => `<span class="k-chit" style="background:${D.colors[m]}"></span> ${esc(m)}`;
   const sec = (head, body) => `<section class="k-section"><div class="k-section-head">${head}</div>${body}</section>`;
-  const list = (ids) => ids.map((id) => row(`<span class="k-id">${id}</span>`, node(id).degree, `degree ${node(id).degree}`)).join("");
+  const list = (ids) => ids.map((id) => row(`<span class="k-id">${esc(id)}</span>`, node(id).degree, `degree ${node(id).degree}`)).join("");
+  const fx = (key, of, text) => `<span data-fx="${key}" data-fx-of="${of}">${text}</span>`;
+  const degRow = (n) => DSID === "ppi" ? row("degree", n.degree, `${n.degree}, rank ${n.rank} of 300`, `#${n.rank} of 300`) : row("degree", n.degree, facts(n).replace(/^degree /, ""), n.full !== n.degree ? `${n.full}, on: full graph` : "");
+  const attrs = (n) => sec("Attributes", row(ds.catName, chit(n.cat), n.cat) + degRow(n));
   let html;
   if (S.visit) { // Alt+Enter in the walk: the focused node, visited; the selection is unchanged
     const n = node(S.visit), selOn = S.sel.includes(n.id) && !S.setSel;
     html = type("circle-dot", n.id, "Node", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("pin", "Pin"), true)
         .replace("</span></div>", `</span><span class="k-badge">${selOn ? "selected" : "not selected"}</span></div>`)
-      + `<div class="k-scroll">${sec("Attributes", row("module", chit(n.module), n.module) + row("degree", n.degree, `${n.degree}, rank ${n.rank} of 300`, `#${n.rank} of 300`))}</div>`;
+      + `<div class="k-scroll">${attrs(n)}</div>`;
   } else if (S.setSel) {
     const s = curSet();
     html = type("group", s.name, `Frozen set, ${s.members.length}`, verb("circle-dot", "Select members", "members") + verb("funnel", "Filter to") + verb("plus", "Add to set"))
       + `<div class="k-scroll">${sec(`Members <span class="k-count k-num">${s.members.length}</span>`, list(s.members))}</div>`;
   } else if (S.sel.length === 0) {
-    html = type("network", "Protein interactions", "Graph", "")
-      + `<div class="k-scroll">${sec("Graph", row("nodes", '<span data-fx="datasets.ppi.tp53Slice.nodes" data-fx-of="datasets.ppi.nodes">33 of 300</span>', "33 of 300") + row("edges", '<span data-fx="datasets.ppi.tp53Slice.edges" data-fx-of="datasets.ppi.edges">59 of 1,262</span>', "59 of 1,262") + row("components", "1") + row("edge weight", "confidence"))}</div>`;
+    html = type("network", ds.project, "Graph", "")
+      + `<div class="k-scroll">${sec("Graph", row("nodes", fx(ds.fx.shown, ds.fx.total, ds.typed.chip), ds.typed.chip) + row("edges", fx(ds.fx.edges, ds.fx.edgesTotal, ds.typed.edges), ds.typed.edges) + row("components", "1") + row("edge weight", ds.edgeCol))}</div>`;
   } else if (S.sel.length === 1) {
     const n = node(S.sel[0]), inSets = S.sets.filter((s) => s.members.includes(n.id));
     html = type("circle-dot", n.id, "Node", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("pin", "Pin"), true)
-      + `<div class="k-scroll">${sec("Attributes", row("module", chit(n.module), n.module) + row("degree", n.degree, `${n.degree}, rank ${n.rank} of 300`, `#${n.rank} of 300`))}`
+      + `<div class="k-scroll">${attrs(n)}`
       + (inSets.length ? sec("Memberships", row("In", `${inSets.length} set${inSets.length > 1 ? "s" : ""}`, inSets.map((s) => s.name).join(", "))) : "") + `</div>`;
   } else {
-    const mods = [...new Set(S.sel.map((id) => node(id).module))];
+    const cats = [...new Set(S.sel.map((id) => node(id).cat))];
     html = type("circle-dot", `${S.sel.length} selected`, "Nodes", verb("network", "Select neighbors", "neighbors", true) + verb("funnel", "Filter to") + verb("group", "Create set", "createSet"))
-      + `<div class="k-scroll">${sec("Attributes", row("module", mods.length === 1 ? chit(mods[0]) : "Mixed", mods.length === 1 ? mods[0] : "mixed") + row("degree", "Mixed", "mixed"))}${sec(`Selection <span class="k-count k-num">${S.sel.length}</span>`, list(S.sel))}</div>`;
+      + `<div class="k-scroll">${sec("Attributes", row(ds.catName, cats.length === 1 ? chit(cats[0]) : "Mixed", cats.length === 1 ? cats[0] : "mixed") + row("degree", "Mixed", "mixed"))}${sec(`Selection <span class="k-count k-num">${S.sel.length}</span>`, list(S.sel))}</div>`;
   }
   $("kw-insp").innerHTML = html;
 }
@@ -1061,9 +1012,10 @@ function renderInspector() {
 const K = (key, mods = {}) => ({ key, code: "", shiftKey: !!mods.shift, ctrlKey: !!mods.ctrl, altKey: !!mods.alt, metaKey: false, rename: mods.rename });
 const SD = K("ArrowDown", { shift: true }), SR = K("ArrowRight", { shift: true }), SP = K(" "), ESC = K("Escape");
 const PREV = K("z", { ctrl: true }), QUICK = K("k", { ctrl: true });
-// the studio's states start with nothing selected, so the walk starts at the node of highest degree;
-// the selection of two is built with two Space presses on the walk (RPA2, then 53BP1)
-const TWO = [SD, SR, SR, SR, SP, SD, SP];
+// the studio's states start with nothing selected, so the walk starts at the node of highest degree. The selection
+// of two is built with two Space presses on the walk: on Les Miserables, Javert (3 of Valjean's 21 shown neighbors)
+// and then Javert's first neighbor, Valjean; on the proteins RPA2, then 53BP1
+const TWO = DSID === "ppi" ? [SD, SR, SR, SR, SP, SD, SP] : [SD, SR, SR, SP, SD, SP];
 const STATES = {
   s1: { sel: [], keys: [] },
   s2: { sel: [], keys: [SD] },
@@ -1076,8 +1028,10 @@ const STATES = {
   s8: { sel: [], keys: [...TWO, SR, SP, ESC, ESC, PREV, K("Tab"), QUICK, "set", K("Enter")] },
   s10: { sel: [], keys: [...TWO, K("?")] },
   s11: { sel: [], keys: [...TWO, K("Enter", { alt: true })] },
-  s12: { sel: [], keys: [K("k", { ctrl: true }), "tp53", K("Enter")] },
+  s12: { sel: [], keys: [QUICK, ds.goName.toLowerCase(), K("Enter")] },
   s13: { sel: [], keys: [...TWO, SR, K("Enter"), K("Tab"), K("Tab", { shift: true })] },
+  // Valjean's fourth neighbor, Thenardier, is in the set The Thenardiers: ] walks on to its next member
+  s14: { sel: [], keys: DSID === "ppi" ? [SD] : [SD, SR, SR, SR, K("]")] },
 };
 // the keyboard storyboard (storyboards/keyboard-only.html): one state per frame; its analyst arrives with TP53 selected from an earlier Find
 const DOWN = K("ArrowDown"), SL = K("ArrowLeft", { shift: true }), SU = K("ArrowUp", { shift: true }), SH = K("Home", { shift: true });
@@ -1101,7 +1055,7 @@ F[16] = [...F[15], PREV];
 F[17] = [...F[16], K("Tab")];
 F[18] = [...F[17], QUICK, "set"];
 F[19] = [...F[18], K("Enter"), K("Enter", { rename: "TP53 via RPA2" })];
-for (let i = 1; i < F.length; i++) STATES[`f${i}`] = { sel: ["TP53"], keys: F[i] };
+if (DSID === "ppi") for (let i = 1; i < F.length; i++) STATES[`f${i}`] = { sel: ["TP53"], keys: F[i] };
 function play(name) {
   const st = STATES[name];
   reset(st.sel);
@@ -1118,10 +1072,13 @@ function play(name) {
 }
 function fromHash() {
   const name = location.hash.slice(1);
+  // a storyboard frame opened on the Les Miserables page (or the other way round) loads its own graph
+  if (/^f\d+$/.test(name) && DSID !== "ppi" && !params.has("dataset")) { location.reload(); return; }
   if (STATES[name]) play(name); else { reset(); render(); document.querySelectorAll(".kw-bar .k-tab").forEach((t) => t.setAttribute("aria-selected", "false")); }
 }
 
 // ---------- the bar ----------
+buildFrame();
 document.querySelectorAll(".kw-bar .k-tab").forEach((t) => t.addEventListener("click", () => { if (location.hash === "#" + t.dataset.state) fromHash(); else location.hash = t.dataset.state; }));
 $("kw-sheet-prev").textContent = PREV_KEY; $("kw-sheet-visit").textContent = VISIT_KEY;
 $("kw-sheet-quick").textContent = `${MOD}+K`; $("kw-sheet-find").textContent = `${MOD}+F`;

@@ -18,8 +18,8 @@ panel screen in ten states (a protein project, a different dataset, used here on
 notes list, find and read-only view behave). The take-a-note flow page renders blank in the
 participant view, because all of it is designer narration; Sarah was not shown it.
 
-Renders: shots/r4-sarah-remember-tan-s1.png to -s8.png (take a note),
-shots/r4-sarah-remember-np-s1.png to -s10.png (notes panel).
+Renders: shots/record/r4-sarah-remember-tan-s1.png to -s8.png (take a note),
+shots/record/r4-sarah-remember-np-s1.png to -s10.png (notes panel).
 
 Outcome: success, with difficulty. She wrote the note in the first place offered and found it
 again the next week from the notes list. She lost the second half of a multi-line note to the

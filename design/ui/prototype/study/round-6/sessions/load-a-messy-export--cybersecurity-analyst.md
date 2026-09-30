@@ -12,12 +12,12 @@ Excel workbook that could not be opened, and the graph just after Load), the old
 step, the graph at rest with the same transfers, and the Data panel. She glanced at the flow page
 for the load and gave up on it after the diagram ("that's your wiring, not my screen").
 
-Renders she looked at: `shots/r6-priya-lme-transfers-ready.png`,
-`shots/r6-priya-lme-transfers-amount-policy.png`, `shots/r6-priya-lme-transfers-not-read.png`,
-`shots/r6-priya-lme-transfers-loaded.png` (at her half-monitor width, 1280) and
-`shots/r6-priya-lme-transfers-loaded-1440.png`, `shots/r6-priya-lme-load-step.png`,
-`shots/r6-priya-lme-frame-at-rest.png`, `shots/r6-priya-lme-data-panel.png`,
-`shots/r6-priya-lme-flow.png`.
+Renders she looked at: `shots/record/r6-priya-lme-transfers-ready.png`,
+`shots/record/r6-priya-lme-transfers-amount-policy.png`, `shots/record/r6-priya-lme-transfers-not-read.png`,
+`shots/record/r6-priya-lme-transfers-loaded.png` (at her half-monitor width, 1280) and
+`shots/record/r6-priya-lme-transfers-loaded-1440.png`, `shots/record/r6-priya-lme-load-step.png`,
+`shots/record/r6-priya-lme-frame-at-rest.png`, `shots/record/r6-priya-lme-data-panel.png`,
+`shots/record/r6-priya-lme-flow.png`.
 
 ## Think-aloud
 

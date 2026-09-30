@@ -10,11 +10,11 @@ week; hands work over to colleagues and to his manager.
 authors, a row's menu, Find, a list with one author), the Note editor (writing, added), the main
 menu's Preferences submenu and the name dialog, the navigation frame.
 
-Renders: `shots/r6-alex-names-notes-panel.png`, `shots/r6-alex-names-notes-s2.png`,
-`shots/r6-alex-names-notes-s4.png`, `shots/r6-alex-names-notes-s5.png`,
-`shots/r6-alex-names-notes-s11.png`, `shots/r6-alex-names-tan-s2.png`,
-`shots/r6-alex-names-tan-s3.png`, `shots/r6-alex-names-preferences.png`,
-`shots/r6-alex-names-navigation.png`.
+Renders: `shots/record/r6-alex-names-notes-panel.png`, `shots/record/r6-alex-names-notes-s2.png`,
+`shots/record/r6-alex-names-notes-s4.png`, `shots/record/r6-alex-names-notes-s5.png`,
+`shots/record/r6-alex-names-notes-s11.png`, `shots/record/r6-alex-names-tan-s2.png`,
+`shots/record/r6-alex-names-tan-s3.png`, `shots/record/r6-alex-names-preferences.png`,
+`shots/record/r6-alex-names-navigation.png`.
 
 ## Think-aloud
 

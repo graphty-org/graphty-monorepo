@@ -9,10 +9,10 @@ Louvain giving different groups on a rerun, believes "same number, same group".
 
 **Pages used:** the weekly-return screen at the compare-pick, compare and follow-up states; the
 comparison screen (PageRank, two data versions); version history. Renders:
-`shots/r6-alex-rcn-wr-rerun.png`, `shots/r6-alex-rcn-wr-compare-pick.png`,
-`shots/r6-alex-rcn-wr-compare.png`, `shots/r6-alex-rcn-wr-compare-tall.png`,
-`shots/r6-alex-rcn-wr-followup.png`, `shots/r6-alex-rcn-version-history.png`,
-`shots/r6-alex-rcn-comparison-versions.png`.
+`shots/record/r6-alex-rcn-wr-rerun.png`, `shots/record/r6-alex-rcn-wr-compare-pick.png`,
+`shots/record/r6-alex-rcn-wr-compare.png`, `shots/record/r6-alex-rcn-wr-compare-tall.png`,
+`shots/record/r6-alex-rcn-wr-followup.png`, `shots/record/r6-alex-rcn-version-history.png`,
+`shots/record/r6-alex-rcn-comparison-versions.png`.
 
 ## Think-aloud
 

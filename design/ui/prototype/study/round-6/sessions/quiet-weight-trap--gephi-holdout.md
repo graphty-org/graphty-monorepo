@@ -8,11 +8,11 @@ presbyopia.
 then tell me whether you trust the ranking and why."
 
 **Screens seen, in order:** the load step (`shots/tasks/quiet-weight-trap/01-weight-role-trap.png`);
-the weight trap page, states A2 to A6 (`shots/screens__weight-role-trap-a2--study.png` to
+the weight trap page, states A2 to A6 (`shots/record/screens__weight-role-trap-a2--study.png` to
 `-a6--study.png`); for comparison, the node table with its ranks on the same dataset
-(`shots/qwt-mara-r6-table-dock.png`), the Run a measure menu and the main menu's Algorithms list
-on the protein project (`shots/qwt-mara-r6-run-and-read.png`, `shots/qwt-mara-r6-results-panel.png`)
-and the data panel on the payments project (`shots/qwt-mara-r6-data-panel.png`).
+(`shots/record/qwt-mara-r6-table-dock.png`), the Run a measure menu and the main menu's Algorithms list
+on the protein project (`shots/record/qwt-mara-r6-run-and-read.png`, `shots/record/qwt-mara-r6-results-panel.png`)
+and the data panel on the payments project (`shots/record/qwt-mara-r6-data-panel.png`).
 
 **Outcome:** success. She answered the weight question correctly on the first look, ran weighted
 betweenness, and afterwards checked the numbers in her own NetworkX notebook: all of them matched

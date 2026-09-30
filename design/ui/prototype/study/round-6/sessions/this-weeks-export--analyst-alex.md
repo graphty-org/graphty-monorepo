@@ -11,15 +11,15 @@ gone, and that he had nothing to hand his manager except a CSV to rebuild in Exc
 
 **Screens seen, in the participant view (design notes hidden), in the order he met them:**
 
-- `shots/r6-alex-twe-data-panel.png` -- Data panel, March current, before anything
-- `shots/r6-alex-twe-data-panel-s8.png` -- after clicking the file chip: the source row's menu
-- `shots/r6-alex-twe-data-panel-s4.png` -- Update with new data, April's two files
-- `shots/r6-alex-twe-load-step-add-data.png` -- the load step for the same file, the Add data path
-- `shots/r6-alex-twe-data-panel-s6.png` -- April current, styled
-- `shots/r6-alex-twe-version-history.png` -- Versions, April's What changed open
-- `shots/r6-alex-twe-data-panel-s7.png` -- Sent and saved from this project, with the saved files
-- `shots/r6-alex-twe-comparison-versions.png` -- comparison, PageRank March against April
-- `shots/r6-alex-twe-export-dialog-table.png`, `shots/r6-alex-twe-export-dialog-ways-in-menu.png` --
+- `shots/record/r6-alex-twe-data-panel.png` -- Data panel, March current, before anything
+- `shots/record/r6-alex-twe-data-panel-s8.png` -- after clicking the file chip: the source row's menu
+- `shots/record/r6-alex-twe-data-panel-s4.png` -- Update with new data, April's two files
+- `shots/record/r6-alex-twe-load-step-add-data.png` -- the load step for the same file, the Add data path
+- `shots/record/r6-alex-twe-data-panel-s6.png` -- April current, styled
+- `shots/record/r6-alex-twe-version-history.png` -- Versions, April's What changed open
+- `shots/record/r6-alex-twe-data-panel-s7.png` -- Sent and saved from this project, with the saved files
+- `shots/record/r6-alex-twe-comparison-versions.png` -- comparison, PageRank March against April
+- `shots/record/r6-alex-twe-export-dialog-table.png`, `shots/record/r6-alex-twe-export-dialog-ways-in-menu.png` --
   the Export dialog and the project menu
 
 **Outcome:** finished, with some difficulty. He got April in without doubling it, found last week's

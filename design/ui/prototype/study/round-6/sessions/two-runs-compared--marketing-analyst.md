@@ -8,12 +8,12 @@ What she decided the task meant: yesterday's ranking was betweenness on Les Mise
 
 Screens used, all at 1440 by 900, as a participant sees them (design notes hidden):
 
-- the navigation screen on Les Miserables (shots/jordan-r6-tworuns-navigation.png)
-- the betweenness result on Les Miserables under a filter, with its run record open (shots/jordan-r6-tworuns-results-panel-filtered.png)
-- the options while a second run goes, and after Cancel (shots/jordan-r6-tworuns-results-panel-running-result.png, shots/jordan-r6-tworuns-results-panel-canceled.png; both on a patent network)
-- the Runs list with the "Compare with" menu open (shots/jordan-r6-tworuns-results-panel-compare-with.png; patent network)
-- the comparison surface: two months, and the strip of smaller states, including a comparison of one measure at two settings and the inspector's "Compare with" picker (shots/jordan-r6-tworuns-comparison-versions.png, shots/jordan-r6-tworuns-comparison-strips.png, shots/jordan-r6-tworuns-comparison-strips-2.png; payments network)
-- the table dock on Les Miserables (shots/jordan-r6-tworuns-table-dock-full.png, top state)
+- the navigation screen on Les Miserables (shots/record/jordan-r6-tworuns-navigation.png)
+- the betweenness result on Les Miserables under a filter, with its run record open (shots/record/jordan-r6-tworuns-results-panel-filtered.png)
+- the options while a second run goes, and after Cancel (shots/record/jordan-r6-tworuns-results-panel-running-result.png, shots/record/jordan-r6-tworuns-results-panel-canceled.png; both on a patent network)
+- the Runs list with the "Compare with" menu open (shots/record/jordan-r6-tworuns-results-panel-compare-with.png; patent network)
+- the comparison surface: two months, and the strip of smaller states, including a comparison of one measure at two settings and the inspector's "Compare with" picker (shots/record/jordan-r6-tworuns-comparison-versions.png, shots/record/jordan-r6-tworuns-comparison-strips.png, shots/record/jordan-r6-tworuns-comparison-strips-2.png; payments network)
+- the table dock on Les Miserables (shots/record/jordan-r6-tworuns-table-dock-full.png, top state)
 
 ## Think-aloud
 

@@ -17,7 +17,7 @@ finished sampled run with its run record, a finished run opened in the table, th
 (screens/find.html); a selection over the drawing cap (screens/selection-over-cap.html).
 Viewed at 1440 x 900 in the participant view.
 
-**Renders she saw:** shots/r6-minji-t200-pdl-not-drawn.png, -pdl-narrow.png, -pdl-keep.png,
+**Renders she saw:** shots/record/r6-minji-t200-pdl-not-drawn.png, -pdl-narrow.png, -pdl-keep.png,
 -pdl-kept.png, -pdl-rule.png, -pdl-drawn.png, -pdl-sample.png, -pdl-insets.png (the editors below
 the frame), -rp-quick-actions.png, -rp-refused.png, -rp-finished-sampled.png, -rp-in-the-table.png,
 -rp-cpu-path.png, -ofc-over-budget.png, -ofc-sample-over-budget.png, -td-ranked.png, -td-large.png,

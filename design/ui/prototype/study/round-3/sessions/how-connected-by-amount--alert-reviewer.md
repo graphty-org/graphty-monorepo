@@ -11,9 +11,9 @@ connected, weighted by amount, and get the transfers with amounts and dates out.
 paths mock (path tool, found path, what amount means), the bottom dock table mock (a path's hops as
 rows, Export table as CSV...).
 
-Renders looked at: `shots/r3-dana-howconn-inspector-two.png`, `shots/r3-dana-howconn-inspector-path.png`,
+Renders looked at: `shots/record/r3-dana-howconn-inspector-two.png`, `shots/record/r3-dana-howconn-inspector-path.png`,
 `shots/sets-and-paths-s3.png`, `shots/sets-and-paths-s4.png`, `shots/sets-and-paths-s5.png`,
-`shots/r3-nadia-howconn-sp-s1.png`, `shots/r3-nadia-howconn-table-out.png`.
+`shots/record/r3-nadia-howconn-sp-s1.png`, `shots/record/r3-nadia-howconn-table-out.png`.
 
 ---
 

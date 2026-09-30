@@ -11,9 +11,9 @@ Screens worked: the weekly-return mocks for the case project "Case 0314, mule ri
 report, the Results list, the Compare with... picker on the Louvain result, the comparison surface,
 the follow-up table of the new accounts' transfers, the note on the kept set), the Version history
 panel, and the measure comparison screen. Renders as the participant saw them, design notes hidden:
-shots/r6-marcus-rcn-weekly-return.png (frames 8 to 13 of 17), shots/r6-marcus-rcn-version-history.png,
-shots/r6-marcus-rcn-comparison.png. The compare-versions flow page itself renders empty in the
-participant view (shots/r6-marcus-rcn-compare-versions.png), so he never saw it.
+shots/record/r6-marcus-rcn-weekly-return.png (frames 8 to 13 of 17), shots/record/r6-marcus-rcn-version-history.png,
+shots/record/r6-marcus-rcn-comparison.png. The compare-versions flow page itself renders empty in the
+participant view (shots/record/r6-marcus-rcn-compare-versions.png), so he never saw it.
 
 ## Think-aloud
 

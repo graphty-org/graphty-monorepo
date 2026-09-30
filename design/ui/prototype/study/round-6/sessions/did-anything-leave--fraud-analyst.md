@@ -16,9 +16,9 @@ transfers file; the start screen; the "Where your data goes" page, read top to b
 the strip of app pictures at its foot; the Data panel of a payments project, first at the top and
 then scrolled to "Sent and saved".
 Renders: shots/tasks/did-anything-leave/01-frame-at-rest.png, 02-start-screen.png,
-03-data-location.png; shots/r6-sarah-dal-data-location-full.png (whole page, crops in
-tmp/sarah-did-anything-leave/c0.png to c2.png); shots/r6-sarah-dal-data-panel-s1.png and
-shots/r6-sarah-dal-data-panel-s7.png.
+03-data-location.png; shots/record/r6-sarah-dal-data-location-full.png (whole page, crops in
+tmp/sarah-did-anything-leave/c0.png to c2.png); shots/record/r6-sarah-dal-data-panel-s1.png and
+shots/record/r6-sarah-dal-data-panel-s7.png.
 
 ---
 

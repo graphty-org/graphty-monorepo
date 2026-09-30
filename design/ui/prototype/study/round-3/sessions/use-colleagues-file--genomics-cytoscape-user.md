@@ -2,7 +2,7 @@
 
 Task given by the moderator, and nothing more: "Your lab lead emailed you this file. Use it on your gene list."
 
-Screens used: the start screen (`screens/start-screen.html`: first run, then the state with a recipe waiting for data), then the binding step (`screens/binding-step.html`: 12 genes not matched, then the column chosen, then nothing matched). Renders the participant saw: `shots/screens__start-screen.png`, `shots/start-screen--s4.png` and the study-view renders `shots/r3-maren-colleague-start.png` and `shots/r3-maren-colleague-binding.png`.
+Screens used: the start screen (`screens/start-screen.html`: first run, then the state with a recipe waiting for data), then the binding step (`screens/binding-step.html`: 12 genes not matched, then the column chosen, then nothing matched). Renders the participant saw: `shots/screens__start-screen.png`, `shots/record/start-screen--s4.png` and the study-view renders `shots/record/r3-maren-colleague-start.png` and `shots/record/r3-maren-colleague-binding.png`.
 
 Outcome: success with difficulty. She got the file open and reached a screen that said exactly how many of her genes matched (84 of 96, then 85 after one fix by hand), named the 12 that did not, and caught two Excel-mangled gene names. The rough part was before that: nothing on the start screen said her lab lead's file was the kind of thing it opens, and the recipe then told her to open a protein network she does not have -- and a network appeared anyway, with no word on where it came from. She never saw her genes coloured in these screens; she stopped at Apply. Single Ease Question: 5 of 7.
 
@@ -95,4 +95,4 @@ Outcome: success with difficulty. She got the file open and reached a screen tha
 ## Moderator notes (for the studio)
 
 - The study view of the start screen hides the product's own text: the "Open a graph" title, the two privacy lines, and the recipe card's name, description, "It carries no data" and privacy line. The kit's study mode hides every heading and paragraph outside a `.k-app` frame, and the start screen draws its window as `.ss-win`, not `.k-app`, so the participant would see a recipe card with a heading and two buttons and nothing else. Her reactions above are to the full text, read from the normal render and the page.
-- The saved render `shots/start-screen--s4.png` is out of date against the page: it shows "Add data...", a "Saved by ... on 26 Sep 2026" line, "Or try it on a sample" and "red for down and blue for up"; the page now has "Open...", no author line, no samples and "red for up and blue for down".
+- The saved render `shots/record/start-screen--s4.png` is out of date against the page: it shows "Add data...", a "Saved by ... on 26 Sep 2026" line, "Or try it on a sample" and "red for down and blue for up"; the page now has "Open...", no author line, no samples and "red for up and blue for down".

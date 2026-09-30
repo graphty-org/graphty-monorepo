@@ -14,13 +14,13 @@ session, on a version where the way back was in the table.
 
 Screens he saw, in order:
 
-- `../../../shots/r6-marcus-getback-notice-01-start.png` (the moment he sits down)
-- `../../../shots/r6-marcus-getback-notice-02-restored.png` (after Bring it back)
-- `../../../shots/r6-marcus-getback-notice-03-ctrlz.png` (after one Ctrl+Z)
-- `../../../shots/r6-marcus-getback-notice-04-ctrly.png` (after Ctrl+Y)
-- `../../../shots/r6-marcus-getback-notice-05-show-in-steps.png` (the line's Show in steps)
-- `../../../shots/r6-marcus-getback-notice-06-untick.png` (the middle step unticked)
-- `../../../shots/r6-marcus-getback-notice-07-done.png` (list closed; where he stopped)
+- `../../../shots/record/r6-marcus-getback-notice-01-start.png` (the moment he sits down)
+- `../../../shots/record/r6-marcus-getback-notice-02-restored.png` (after Bring it back)
+- `../../../shots/record/r6-marcus-getback-notice-03-ctrlz.png` (after one Ctrl+Z)
+- `../../../shots/record/r6-marcus-getback-notice-04-ctrly.png` (after Ctrl+Y)
+- `../../../shots/record/r6-marcus-getback-notice-05-show-in-steps.png` (the line's Show in steps)
+- `../../../shots/record/r6-marcus-getback-notice-06-untick.png` (the middle step unticked)
+- `../../../shots/record/r6-marcus-getback-notice-07-done.png` (list closed; where he stopped)
 
 ## Think-aloud
 
@@ -163,7 +163,7 @@ click -- I wouldn't have had to think at all. Right now the box and the key disa
 - **He read the line before touching the keyboard, but only because Ctrl+Z hurt him in the earlier
   session.** He said so. A first-time participant with the same habits would likely have pressed
   Ctrl+Z first. Rendered separately
-  (`../../../shots/r6-marcus-getback-notice-x1-ctrlz-first.png`): in this version, Ctrl+Z before
+  (`../../../shots/record/r6-marcus-getback-notice-x1-ctrlz-first.png`): in this version, Ctrl+Z before
   Bring it back replaces the line with "Undone: Filter out group 8", Bring it back is gone, and the
   selection cannot be recovered -- while the table scope line still reads "Selected: none, showing
   the selection just cleared" with no action on it.

@@ -2,7 +2,7 @@
 
 **Participant:** Dr. Min-ji Kim (fictional composite), knowledge graph engineer and ontologist at a financial-services company; GraphDB workbench, SPARQL in notebooks, Protege; has given up on Neo4j Browser, WebVOWL and Gephi's RDF plugin.
 **Task as given by the moderator:** "Here is last period's citation data. Find anything worth a closer look."
-**Screens used, in order:** the frame past the drawing limit (all its states: not drawn, isolates opened, the filter steps list, the rule editor, narrowed and drawn, the offered top-3 route, the unsupported-browser Layout row), then the find screen, then the filter chip and its steps. All at 1440 x 900, the study view (design notes hidden). Renders: `shots/r3-ke-past-drawing-limit.png`, `shots/r3-ke-find.png`, `shots/r3-ke-filter-chip.png`.
+**Screens used, in order:** the frame past the drawing limit (all its states: not drawn, isolates opened, the filter steps list, the rule editor, narrowed and drawn, the offered top-3 route, the unsupported-browser Layout row), then the find screen, then the filter chip and its steps. All at 1440 x 900, the study view (design notes hidden). Renders: `shots/record/r3-ke-past-drawing-limit.png`, `shots/record/r3-ke-find.png`, `shots/record/r3-ke-filter-chip.png`.
 **Dataset on screen:** a patent citation sample, 124,318 patents and 1,480,221 citations (patent-citations-sample.csv). The find and filter-chip screens switch to other datasets (Les Miserables co-appearances, a 3,000-account transfer graph).
 
 ## Transcript (thinking aloud)

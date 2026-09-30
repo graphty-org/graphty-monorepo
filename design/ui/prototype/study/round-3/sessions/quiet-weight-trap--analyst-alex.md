@@ -10,8 +10,8 @@ is suspected of having been used as a distance (bigger = farther) in a ranking.
 
 Screens used: the Results panel mock (starting at its first state) and the load step mock.
 Renders read: `shots/screens__results-panel.png`, `shots/screens__results-panel--finished.png`,
-`shots/r3-alex-quiet-weight-filtered.png`, `shots/r3-alex-quiet-weight-louvain.png`,
-`shots/r3-alex-quiet-weight-outofdate.png`, `shots/r3-alex-quiet-weight-load-policy.png`.
+`shots/record/r3-alex-quiet-weight-filtered.png`, `shots/record/r3-alex-quiet-weight-louvain.png`,
+`shots/record/r3-alex-quiet-weight-outofdate.png`, `shots/record/r3-alex-quiet-weight-load-policy.png`.
 
 ## Transcript
 

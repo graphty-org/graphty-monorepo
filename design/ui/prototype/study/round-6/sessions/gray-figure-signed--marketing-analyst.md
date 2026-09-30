@@ -17,13 +17,13 @@ dialog (Figure checked in the Screen look, then in the Print look with the hidde
 open), the Data panel with its node table (the Export dialog's "ways in" state), the done state
 after export, the table dock and its column-header menu, and the inspector showing a result.
 
-Renders: shots/r6-jordan-gfs-styles-list.png, shots/r6-jordan-gfs-styles-list-looks.png,
-shots/r6-jordan-gfs-styles-list-top-n.png, shots/r6-jordan-gfs-colour-by-value-choose.png,
-shots/r6-jordan-gfs-colour-by-value-numbers.png, shots/r6-jordan-gfs-export-dialog-figure.png,
-shots/r6-jordan-gfs-export-dialog-figure-grey.png, shots/r6-jordan-gfs-export-dialog-ways-in.png,
-shots/r6-jordan-gfs-export-dialog-done.png, shots/r6-jordan-gfs-table-dock.png,
-shots/r6-jordan-gfs-table-dock-ranked.png, shots/r6-jordan-gfs-table-dock-header.png,
-shots/r6-jordan-gfs-inspector-result.png.
+Renders: shots/record/r6-jordan-gfs-styles-list.png, shots/record/r6-jordan-gfs-styles-list-looks.png,
+shots/record/r6-jordan-gfs-styles-list-top-n.png, shots/record/r6-jordan-gfs-colour-by-value-choose.png,
+shots/record/r6-jordan-gfs-colour-by-value-numbers.png, shots/record/r6-jordan-gfs-export-dialog-figure.png,
+shots/record/r6-jordan-gfs-export-dialog-figure-grey.png, shots/record/r6-jordan-gfs-export-dialog-ways-in.png,
+shots/record/r6-jordan-gfs-export-dialog-done.png, shots/record/r6-jordan-gfs-table-dock.png,
+shots/record/r6-jordan-gfs-table-dock-ranked.png, shots/record/r6-jordan-gfs-table-dock-header.png,
+shots/record/r6-jordan-gfs-inspector-result.png.
 
 ---
 

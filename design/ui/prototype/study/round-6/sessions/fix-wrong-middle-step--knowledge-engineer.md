@@ -7,15 +7,15 @@ Screens used: the filter chip (its three-steps, editing-a-step, one-step-off and
 wrong-middle-step states), the wrong-middle-step recovery page, filter steps and the ways back,
 and undo. Renders seen, as the participant sees them:
 
-- shots/r6-minji-fixmid-filter-chip.png (three steps, list open)
-- shots/r6-minji-fixmid-chip-edit.png (the middle step's editor)
+- shots/record/r6-minji-fixmid-filter-chip.png (three steps, list open)
+- shots/record/r6-minji-fixmid-chip-edit.png (the middle step's editor)
 - tmp/fixmid-knowledge-engineer/edit3.png and edit3-list.png (after changing 5 to 3; captured
   from a file URL, so the icon sprite is missing in these two)
-- shots/r6-minji-fixmid-chip-off.png (middle step turned off)
-- shots/r6-minji-fixmid-chip-after-removal.png, shots/r6-minji-fixmid-rec-c2.png,
-  shots/r6-minji-fixmid-rec-c4.png, shots/r6-minji-fixmid-rec-c5u.png (Largest component as the
+- shots/record/r6-minji-fixmid-chip-off.png (middle step turned off)
+- shots/record/r6-minji-fixmid-chip-after-removal.png, shots/record/r6-minji-fixmid-rec-c2.png,
+  shots/record/r6-minji-fixmid-rec-c4.png, shots/record/r6-minji-fixmid-rec-c5u.png (Largest component as the
   wrong step)
-- shots/r6-minji-fixmid-filter-steps-and-undo.png, shots/r6-minji-fixmid-undo.png
+- shots/record/r6-minji-fixmid-filter-steps-and-undo.png, shots/record/r6-minji-fixmid-undo.png
 
 ## Think-aloud
 

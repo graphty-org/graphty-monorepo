@@ -9,13 +9,13 @@ order."
 
 Screens used, in the order she met them (all rendered in the participant view, design notes hidden):
 
-- The project at rest, Les Miserables: `screens/frame-at-rest.html?dataset=lesmis` (render `shots/r6-chen-who-frame-at-rest.png`)
+- The project at rest, Les Miserables: `screens/frame-at-rest.html?dataset=lesmis` (render `shots/record/r6-chen-who-frame-at-rest.png`)
 - The main menu's Algorithms list: `shots/tasks/who-matters/02-results-panel-new-project.png` (drawn over the protein network)
 - A finished betweenness result: `shots/tasks/who-matters/03-results-panel-finished.png` (protein network, see the moderator note)
 - Its table: `shots/tasks/who-matters/04-results-panel-in-the-table.png` (protein network)
-- The Les Miserables table with degree and betweenness side by side, Valjean selected, and the betweenness column popover: `screens/table-dock.html?dataset=lesmis` (render `shots/r6-chen-who-table-dock.png`)
-- Betweenness re-run after "Filter to degree >= 2", 60 of 77, with Valjean selected: `screens/run-and-read.html#subset` (render `shots/r6-chen-who-run-and-read.png`, the Les Miserables state)
-- Closeness on "76 of 77 nodes, 1 step": `screens/closeness-variant.html` (render `shots/r6-chen-who-closeness-variant.png`)
+- The Les Miserables table with degree and betweenness side by side, Valjean selected, and the betweenness column popover: `screens/table-dock.html?dataset=lesmis` (render `shots/record/r6-chen-who-table-dock.png`)
+- Betweenness re-run after "Filter to degree >= 2", 60 of 77, with Valjean selected: `screens/run-and-read.html#subset` (render `shots/record/r6-chen-who-run-and-read.png`, the Les Miserables state)
+- Closeness on "76 of 77 nodes, 1 step": `screens/closeness-variant.html` (render `shots/record/r6-chen-who-closeness-variant.png`)
 - The Compare with... menu: `shots/screens__results-panel--compare-with.png` (patent network)
 - The inspector on one node: `shots/tasks/who-matters/05-inspector-one-node.png` (protein network)
 

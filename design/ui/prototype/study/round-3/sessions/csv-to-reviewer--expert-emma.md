@@ -6,9 +6,9 @@ Screens used: the Export dialog, then the table's CSV dialog it opens (screens/e
 
 What the participant saw:
 
-- The Export dialog as it opens: ../../../shots/r3-emma-reviewer-export-open.png
-- The CSV dialog for the filtered table: ../../../shots/r3-emma-reviewer-export-table.png
-- The table's own Export table as CSV... routes: ../../../shots/r3-emma-reviewer-tabledock-out.png
+- The Export dialog as it opens: ../../../shots/record/r3-emma-reviewer-export-open.png
+- The CSV dialog for the filtered table: ../../../shots/record/r3-emma-reviewer-export-table.png
+- The table's own Export table as CSV... routes: ../../../shots/record/r3-emma-reviewer-tabledock-out.png
 
 ## Think-aloud
 

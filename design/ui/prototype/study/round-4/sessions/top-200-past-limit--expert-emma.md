@@ -12,14 +12,14 @@ session):
 
 - the patent citation graph past the drawing limit: nothing drawn, the table, the filter steps,
   Keep top rows, the 200 kept and drawn, the most cited patents plus their neighbors
-  (shots/r4-emma-top200-pdl-not-drawn.png, -pdl-narrow, -pdl-keep, -pdl-kept, -pdl-sample;
+  (shots/record/r4-emma-top200-pdl-not-drawn.png, -pdl-narrow, -pdl-keep, -pdl-kept, -pdl-sample;
   screens/past-drawing-limit)
 - Betweenness on the same graph: refused for time with routes, the sampled run running, a larger
-  sample offered after it finished (shots/r4-emma-top200-ofc-over-budget.png, -ofc-within-budget,
+  sample offered after it finished (shots/record/r4-emma-top200-ofc-over-budget.png, -ofc-within-budget,
   -ofc-sample-over-budget; screens/option-form-cost)
 - the Betweenness result as a result: the refusal and the finished sampled run with its run record
-  open (shots/r4-emma-top200-rp-refused.png, -rp-finished-sampled; screens/results-panel)
-- one patent found by id and selected while nothing is drawn (shots/r4-emma-top200-find-s7.png;
+  open (shots/record/r4-emma-top200-rp-refused.png, -rp-finished-sampled; screens/results-panel)
+- one patent found by id and selected while nothing is drawn (shots/record/r4-emma-top200-find-s7.png;
   screens/find, state 7)
 
 Page HTML was read only to see what a control does when clicked (tooltips, the options of the

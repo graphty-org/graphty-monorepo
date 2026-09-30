@@ -11,8 +11,8 @@ these screens.
 **Screens used:** the take-a-note screen (the "March transfers" project, a frozen set called "Mule
 ring", 14 accounts), the notes panel on "Human protein interactions" (empty, with the new-note
 editor, and with notes by two authors), and the sets-and-paths screen (a frozen copy of a rule
-set). Renders she looked at: `shots/r6-chen-remember-tan-s1.png` to `-s8.png`,
-`shots/r6-chen-remember-np-s1.png` to `-s11.png`, `shots/r6-chen-remember-sp-s7.png`.
+set). Renders she looked at: `shots/record/r6-chen-remember-tan-s1.png` to `-s8.png`,
+`shots/record/r6-chen-remember-np-s1.png` to `-s11.png`, `shots/record/r6-chen-remember-sp-s7.png`.
 
 **Outcome:** done, on the first path she tried, with no wrong turn. **Single Ease Question:** 6 of 7.
 

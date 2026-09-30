@@ -3,7 +3,7 @@
 Participant: Nadia (study/personas/alert-reviewer.md), level-1 transaction monitoring analyst.
 Screen: the Find mock (screens/find.html), states 1, 10 and 11, rendered at her viewport
 (1536 by 740) in the study view:
-shots/r3-nadia-elsewhere-s1.png, shots/r3-nadia-elsewhere-s10.png, shots/r3-nadia-elsewhere-s11.png.
+shots/record/r3-nadia-elsewhere-s1.png, shots/record/r3-nadia-elsewhere-s10.png, shots/record/r3-nadia-elsewhere-s11.png.
 
 Moderator's task, as given: "An alert names an account you remember from an older case. Find it."
 

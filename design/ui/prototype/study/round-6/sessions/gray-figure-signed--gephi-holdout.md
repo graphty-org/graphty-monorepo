@@ -13,12 +13,12 @@ by value (choosing an attribute, then the numbers settings), the Export dialog w
 the Screen look and in the Print look, the Export dialog's table preview, the table dock (as drawn,
 at rest, ranked, and its column-header menu), and the inspector on one node.
 
-Renders she looked at: shots/r6-mara-graysig-sl.png, shots/r6-mara-graysig-sl-looks.png,
-shots/r6-mara-graysig-cbv-choose.png, shots/r6-mara-graysig-cbv-numbers.png,
-shots/r6-mara-graysig-exp-fig.png, shots/r6-mara-graysig-exp-grey.png,
-shots/r6-mara-graysig-exp-table.png, shots/r6-mara-graysig-dock.png,
-shots/r6-mara-graysig-dock-ranked.png, shots/r6-mara-graysig-dock-header.png,
-shots/r6-mara-graysig-insp-one.png.
+Renders she looked at: shots/record/r6-mara-graysig-sl.png, shots/record/r6-mara-graysig-sl-looks.png,
+shots/record/r6-mara-graysig-cbv-choose.png, shots/record/r6-mara-graysig-cbv-numbers.png,
+shots/record/r6-mara-graysig-exp-fig.png, shots/record/r6-mara-graysig-exp-grey.png,
+shots/record/r6-mara-graysig-exp-table.png, shots/record/r6-mara-graysig-dock.png,
+shots/record/r6-mara-graysig-dock-ranked.png, shots/record/r6-mara-graysig-dock-header.png,
+shots/record/r6-mara-graysig-insp-one.png.
 
 ## Transcript (thinking aloud)
 

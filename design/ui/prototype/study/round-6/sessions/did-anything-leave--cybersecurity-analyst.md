@@ -13,8 +13,8 @@ screen, Where your data goes (full page, including the pictures at the bottom), 
 scrolled to Sent and saved (Payments network review, April file).
 
 Renders: `shots/tasks/did-anything-leave/01-frame-at-rest.png`, `02-start-screen.png`,
-`03-data-location.png`, `shots/r6-priya-leave-data-location-full.png`,
-`shots/r6-priya-leave-data-panel-s7.png`.
+`03-data-location.png`, `shots/record/r6-priya-leave-data-location-full.png`,
+`shots/record/r6-priya-leave-data-panel-s7.png`.
 
 ---
 

@@ -21,7 +21,7 @@ that, it doesn't say so from here."
 Clicks: the "..." menu at the top right of the table. Confidence 4.
 "The table is sorted by degree. I'd add another column and sort by that, like I would in Splunk."
 
-**fc-4. A stray click cleared the picked-out characters; get them back.** (shots/round-6-fc-undo-notice.png)
+**fc-4. A stray click cleared the picked-out characters; get them back.** (shots/record/round-6-fc-undo-notice.png)
 Clicks: "Bring it back" on the dark notice above the toolbar. Confidence 6.
 "It's right there and it says 18 nodes, which is what I lost. Otherwise my hand goes to Ctrl+Z."
 

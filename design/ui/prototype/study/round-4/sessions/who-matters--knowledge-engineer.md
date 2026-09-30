@@ -16,14 +16,14 @@ betweenness ranked side by side; the same table after three filter steps; the co
 its histogram popover).
 
 Renders the participant looked at (all in the participant's view, design notes hidden):
-- `../../../shots/r4-minji-who-frame-at-rest.png`
-- `../../../shots/r4-minji-who-nav-new.png`, `../../../shots/r4-minji-who-nav-new-node.png`,
-  `../../../shots/r4-minji-who-nav-new-menu.png`
-- `../../../shots/r4-minji-who-rp-catalog.png`, `../../../shots/r4-minji-who-rp-filtered.png`,
-  `../../../shots/r4-minji-who-rp-finished.png`, `../../../shots/r4-minji-who-rp-in-the-table.png`
-- `../../../shots/r4-minji-who-ins-one-node.png`
-- `../../../shots/r4-minji-who-td-small.png`, `../../../shots/r4-minji-who-td-stale.png`,
-  `../../../shots/r4-minji-who-td-header.png`
+- `../../../shots/record/r4-minji-who-frame-at-rest.png`
+- `../../../shots/record/r4-minji-who-nav-new.png`, `../../../shots/record/r4-minji-who-nav-new-node.png`,
+  `../../../shots/record/r4-minji-who-nav-new-menu.png`
+- `../../../shots/record/r4-minji-who-rp-catalog.png`, `../../../shots/record/r4-minji-who-rp-filtered.png`,
+  `../../../shots/record/r4-minji-who-rp-finished.png`, `../../../shots/record/r4-minji-who-rp-in-the-table.png`
+- `../../../shots/record/r4-minji-who-ins-one-node.png`
+- `../../../shots/record/r4-minji-who-td-small.png`, `../../../shots/record/r4-minji-who-td-stale.png`,
+  `../../../shots/record/r4-minji-who-td-header.png`
 
 ## Think-aloud
 

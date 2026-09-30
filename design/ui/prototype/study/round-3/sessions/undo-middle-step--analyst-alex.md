@@ -6,8 +6,8 @@ wrong. Get back to the result you had with only the right steps on."
 
 Screens used, in order: Undo and ways back (the participant view, opening on three filter steps
 already applied), then a look at the filter chip screen for comparison. Renders:
-`shots/r3-alex-undomid-s3.png` (start), `shots/r3-alex-undomid-s3-pop.png` (steps list open),
-`shots/r3-alex-undomid-off.png` (end state), `shots/screens__filter-chip-three--study.png`.
+`shots/record/r3-alex-undomid-s3.png` (start), `shots/record/r3-alex-undomid-s3-pop.png` (steps list open),
+`shots/record/r3-alex-undomid-off.png` (end state), `shots/record/screens__filter-chip-three--study.png`.
 
 Outcome: success. One click to open the list of steps, one click to untick the middle step. The end
 state reads 47 of 77 nodes, "2 of 3 steps". Nobody pressed Undo.

@@ -12,11 +12,11 @@ is."
 
 Screens seen, in order, as the participant sees them (design notes hidden):
 
-- the start screen and the Excel file refused: shots/r6-dana-lac-transfers-not-read.png
+- the start screen and the Excel file refused: shots/record/r6-dana-lac-transfers-not-read.png
 - the load step on the CSV, two issues: shots/screens__load-transfers.png (the page's own state
-  strip cropped out of her view), and at laptop size shots/r6-dana-lac-transfers-ready-1280.png
-- the amount choice opened: shots/r6-dana-lac-transfers-amount-policy.png
-- after Load, with the "higher number means" question open: shots/r6-dana-lac-transfers-loaded.png
+  strip cropped out of her view), and at laptop size shots/record/r6-dana-lac-transfers-ready-1280.png
+- the amount choice opened: shots/record/r6-dana-lac-transfers-amount-policy.png
+- after Load, with the "higher number means" question open: shots/record/r6-dana-lac-transfers-loaded.png
 - the Data panel after the first load: shots/screens__data-panel.png
 
 ## Before she touches anything

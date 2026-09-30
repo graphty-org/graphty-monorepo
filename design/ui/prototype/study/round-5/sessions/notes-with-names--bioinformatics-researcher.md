@@ -12,10 +12,10 @@ set, quoting a value, saved, a note on one node, list, a note on the graph, a re
 earlier data), screens/preferences.html (the Preferences menu and the name dialog),
 screens/export-dialog.html (project menu, figure, figure in Print look).
 
-Renders: shots/r4-chen-names-notes-s1.png to shots/r4-chen-names-notes-s10.png,
-shots/r4-chen-names-take-s2.png to shots/r4-chen-names-take-s8.png,
-shots/r4-chen-names-preferences.png, shots/r4-chen-names-take-a-note.png,
-shots/r4-chen-names-export-dialog.png, shots/r4-chen-names-notes-panel.png.
+Renders: shots/record/r4-chen-names-notes-s1.png to shots/record/r4-chen-names-notes-s10.png,
+shots/record/r4-chen-names-take-s2.png to shots/record/r4-chen-names-take-s8.png,
+shots/record/r4-chen-names-preferences.png, shots/record/r4-chen-names-take-a-note.png,
+shots/record/r4-chen-names-export-dialog.png, shots/record/r4-chen-names-notes-panel.png.
 
 Note on the data: the notes panel mock is the "Human protein interactions" project (300 proteins),
 which already holds notes by two people, "Adam Powers" and "Lin Chen". The take-a-note mock is a

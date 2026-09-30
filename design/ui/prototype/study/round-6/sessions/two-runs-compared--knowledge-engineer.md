@@ -10,9 +10,9 @@ colleague asks you to rank them again with one thing changed, and to tell her wh
 the two rankings and how each was made."
 
 Screens used: screens/navigation, screens/results-panel, screens/comparison, screens/table-dock, all
-in the study view (design notes hidden). Renders: shots/r6-minji-trc-navigation.png,
-shots/r6-minji-trc-results-panel.png, shots/r6-minji-trc-comparison.png,
-shots/r6-minji-trc-table-dock.png.
+in the study view (design notes hidden). Renders: shots/record/r6-minji-trc-navigation.png,
+shots/record/r6-minji-trc-results-panel.png, shots/record/r6-minji-trc-comparison.png,
+shots/record/r6-minji-trc-table-dock.png.
 
 ## Think-aloud
 

@@ -9,14 +9,14 @@ so a colleague can read the picture."
 
 Screens, in the order he met them, rendered as a participant sees them (design notes hidden):
 
-- `shots/tom-r4-restyle-frame-at-rest.png` -- the app at rest: Les Miserables, colored by group
-- `shots/tom-r4-restyle-ins-group.png` -- after clicking a group in the legend (drawn on the
+- `shots/record/tom-r4-restyle-frame-at-rest.png` -- the app at rest: Les Miserables, colored by group
+- `shots/record/tom-r4-restyle-ins-group.png` -- after clicking a group in the legend (drawn on the
   protein file: Community 4 selected)
-- `shots/tom-r4-restyle-cbv-cat.png` -- a color layer's editor, one color per value, with a row's
+- `shots/record/tom-r4-restyle-cbv-cat.png` -- a color layer's editor, one color per value, with a row's
   menu open ("Change color...")
-- `shots/tom-r4-restyle-sl-add.png` -- the color picker (Custom tab)
-- `shots/tom-r4-restyle-sl-lib.png` -- the color picker (Libraries tab)
-- `shots/tom-r4-restyle-sl-looks.png` -- the Look menu in the Style stack header (Screen, Print,
+- `shots/record/tom-r4-restyle-sl-add.png` -- the color picker (Custom tab)
+- `shots/record/tom-r4-restyle-sl-lib.png` -- the color picker (Libraries tab)
+- `shots/record/tom-r4-restyle-sl-looks.png` -- the Look menu in the Style stack header (Screen, Print,
   High contrast)
 
 Three of these are drawn on the protein file, not on Les Miserables; the mocks do not draw the

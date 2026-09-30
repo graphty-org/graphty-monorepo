@@ -22,11 +22,11 @@ one Undo; the "What the recipe holds" panel. The "Replace data and apply a recip
 skimmed for the Recipes menu and the recipe picker; the rest is about bank transfers.
 
 Renders the participant looked at (participant view, design notes hidden):
-- `../../../shots/r4-alex-ucf-start-screen.png`
-- `../../../shots/r4-alex-ucf-recipe-apply.png`
-- `../../../shots/r4-alex-ucf-binding-step.png`
-- `../../../shots/r4-alex-ucf-replace-and-recipe.png`
-- `../../../shots/r4-alex-ucf-recipe-travels.png`
+- `../../../shots/record/r4-alex-ucf-start-screen.png`
+- `../../../shots/record/r4-alex-ucf-recipe-apply.png`
+- `../../../shots/record/r4-alex-ucf-binding-step.png`
+- `../../../shots/record/r4-alex-ucf-replace-and-recipe.png`
+- `../../../shots/record/r4-alex-ucf-recipe-travels.png`
 
 ## Think-aloud
 

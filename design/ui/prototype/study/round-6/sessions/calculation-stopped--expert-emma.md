@@ -12,23 +12,23 @@ Decide what you can still trust on the screen, and get a result you can use."
 Screens seen, in order, as a participant sees them (design notes hidden). All were rendered fresh
 for this session, in the participant view unless noted:
 
-- `shots/r6-emma-stop-gpu-lost-run.png` -- the patent citation graph, seven frames top to bottom: a
+- `shots/record/r6-emma-stop-gpu-lost-run.png` -- the patent citation graph, seven frames top to bottom: a
   PageRank re-run in progress, the run failing, the Results list after the failure, a betweenness
   run refused, a sampled run in progress, the sampled run canceled, the sampled run's settings
-- `shots/r6-emma-stop-rp-failed.png`, `shots/r6-emma-stop-rp-failed-run.png` -- the same kind of
+- `shots/record/r6-emma-stop-rp-failed.png`, `shots/record/r6-emma-stop-rp-failed-run.png` -- the same kind of
   failure drawn on the Results panel page, list and opened
-- `shots/r6-emma-stop-rp-canceled.png`, `shots/r6-emma-stop-rp-running-result.png` -- a run with its
+- `shots/record/r6-emma-stop-rp-canceled.png`, `shots/record/r6-emma-stop-rp-running-result.png` -- a run with its
   options open, and a run in progress with Run 1 still shown
-- `shots/r6-emma-stop-rp-finished-sampled.png` -- a finished sampled betweenness with its run record
+- `shots/record/r6-emma-stop-rp-finished-sampled.png` -- a finished sampled betweenness with its run record
   open
-- `shots/r6-emma-stop-rp-in-the-table.png` -- a finished exact betweenness with the table docked
+- `shots/record/r6-emma-stop-rp-in-the-table.png` -- a finished exact betweenness with the table docked
   (on a protein graph, not the citation graph)
-- `shots/r6-emma-stop-notices-device-lost.png`, `shots/r6-emma-stop-notices-later.png` -- a
+- `shots/record/r6-emma-stop-notices-device-lost.png`, `shots/record/r6-emma-stop-notices-later.png` -- a
   failure notice on a transfers graph, and the same screen after the notice has gone
-- `shots/r6-emma-stop-option-form-cost.png` -- the cost choices as a pop-up over the canvas
+- `shots/record/r6-emma-stop-option-form-cost.png` -- the cost choices as a pop-up over the canvas
   (glanced at)
-- `shots/r6-emma-stop-far-top.png` -- the storyboard page in the participant view: a blank white
-  page. `shots/r6-emma-stop-far-full.png` is the same page with design notes on, which she was
+- `shots/record/r6-emma-stop-far-top.png` -- the storyboard page in the participant view: a blank white
+  page. `shots/record/r6-emma-stop-far-full.png` is the same page with design notes on, which she was
   shown after she said it was blank
 
 ---

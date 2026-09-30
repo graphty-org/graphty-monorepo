@@ -13,9 +13,9 @@ screens/take-a-note.html (the note editor on a set, on one node, on the graph),
 screens/preferences.html (the Preferences menu and the name dialog), screens/navigation.html (the
 new header and rail, and where the name setting now lives).
 
-Renders: shots/screens__notes-panel-s1--study.png, -s2, -s3, -s4, -s10 and -s11 (study view);
-shots/screens__take-a-note-s3--study.png and -s4; shots/r6-chen-names-preferences.png (and the
-slices in tmp/r6-chen-names/pref0.png, pref1.png); shots/r6-chen-names-navigation.png.
+Renders: shots/record/screens__notes-panel-s1--study.png, -s2, -s3, -s4, -s10 and -s11 (study view);
+shots/record/screens__take-a-note-s3--study.png and -s4; shots/record/r6-chen-names-preferences.png (and the
+slices in tmp/r6-chen-names/pref0.png, pref1.png); shots/record/r6-chen-names-navigation.png.
 
 Note on the data: the notes-panel mock is a "Human protein interactions" project (300 proteins)
 that already holds notes by "Adam Powers" and "Lin Chen". The note editor with its "Saving as" line

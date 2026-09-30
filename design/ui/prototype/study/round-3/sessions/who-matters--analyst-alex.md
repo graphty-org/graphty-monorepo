@@ -6,8 +6,8 @@ picture). Simulated participant.
 network, and how sure you are."
 **Screens used:** the Results panel (starting screen), the Inspector, the main frame at rest.
 Renders read from `shots/`; the page source was read only to see what a click would do.
-Renders captured for this session: `shots/r3-who-matters-alex--finished-sampled.png`,
-`shots/r3-who-matters-alex--in-the-table.png`.
+Renders captured for this session: `shots/record/r3-who-matters-alex--finished-sampled.png`,
+`shots/record/r3-who-matters-alex--in-the-table.png`.
 
 **Outcome:** got a defensible top list with an honest "how sure" on the big patent graph, and a
 side-by-side ranking table on the protein graph. Two contradictions on screen cost him trust.

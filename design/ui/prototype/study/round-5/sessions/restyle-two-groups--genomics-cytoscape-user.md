@@ -6,13 +6,13 @@ Task as given: "Two of the groups are drawn in colors you cannot tell apart. Fix
 
 Screens seen, as the participant sees them (design notes hidden):
 
-- `shots/r4-maren-restyle-frame-at-rest.png` -- the app at rest (a sample network, Les Miserables)
-- `shots/r4-maren-restyle-ins-one-node.png` -- the protein network colored by module, TP53 selected
-- `shots/r4-maren-restyle-ins-group.png` -- a community picked from the legend
-- `shots/r4-maren-restyle-sl-dropped.png` -- the Style stack with Module color near the top
-- `tmp/maren-restyle/cbv-cat.png` (crop of `shots/r4-maren-restyle-colour-by-value.png`, the "Module as color" popover with a value row's menu open)
-- `shots/r4-maren-restyle-sl-add-to-selection.png`, `shots/r4-maren-restyle-sl-libraries.png` -- a layer for the selection and the color picker
-- `shots/r4-maren-restyle-sl-looks.png` -- the Look menu (Screen, Print, High contrast)
+- `shots/record/r4-maren-restyle-frame-at-rest.png` -- the app at rest (a sample network, Les Miserables)
+- `shots/record/r4-maren-restyle-ins-one-node.png` -- the protein network colored by module, TP53 selected
+- `shots/record/r4-maren-restyle-ins-group.png` -- a community picked from the legend
+- `shots/record/r4-maren-restyle-sl-dropped.png` -- the Style stack with Module color near the top
+- `tmp/maren-restyle/cbv-cat.png` (crop of `shots/record/r4-maren-restyle-colour-by-value.png`, the "Module as color" popover with a value row's menu open)
+- `shots/record/r4-maren-restyle-sl-add-to-selection.png`, `shots/record/r4-maren-restyle-sl-libraries.png` -- a layer for the selection and the color picker
+- `shots/record/r4-maren-restyle-sl-looks.png` -- the Look menu (Screen, Print, High contrast)
 
 ---
 

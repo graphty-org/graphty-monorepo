@@ -12,9 +12,9 @@ Decide whether you may use this tool on your data, and tell me what you would sa
 **Screens seen, in order** (study view, design notes hidden): the start screen, the "Where your
 data goes" page, the project frame (Les Miserables sample), the Data panel of a payments project,
 and the Data panel scrolled to "Sent and saved".
-Renders: shots/r4-sarah-dsh-start-screen-view.png, shots/r4-sarah-dsh-data-location.png (and
-the crops in tmp/sarah-dsh/), shots/r4-sarah-dsh-frame-at-rest.png,
-shots/r4-sarah-dsh-data-panel-view.png, shots/screens__data-panel-s7.png.
+Renders: shots/record/r4-sarah-dsh-start-screen-view.png, shots/record/r4-sarah-dsh-data-location.png (and
+the crops in tmp/sarah-dsh/), shots/record/r4-sarah-dsh-frame-at-rest.png,
+shots/record/r4-sarah-dsh-data-panel-view.png, shots/screens__data-panel-s7.png.
 
 ---
 

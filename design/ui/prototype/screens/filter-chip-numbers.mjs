@@ -29,7 +29,7 @@ const out = {};
 try {
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${srv.address().port}/screens/filter-chip.html`, { waitUntil: "networkidle" });
-    const ids = await page.evaluate(() => STATES.map((s) => s.id));
+    const ids = await page.evaluate(() => STATES.filter((s) => !s.static).map((s) => s.id)); // a static state reads its own fixtures
     for (const id of ids) {
         out[id] = await page.evaluate((id) => {
             load(id);

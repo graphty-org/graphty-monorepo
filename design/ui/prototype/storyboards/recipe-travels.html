@@ -121,7 +121,7 @@
       <p>She chooses Main menu, Recipes, Save as a recipe... The Export dialog opens with only Recipe checked; she names it Expression overlay. Scope is grayed out, because a recipe holds no data; its tooltip says so.</p>
       <p><b>She sees</b> the preview's first line: no data inside, no genes, interactions, fold-change values, positions or notes. Below it, what travels (two color layers, the confidence filter, overview readings), what stays behind, including her 38-gene knockdown set, and, under "The person who opens it sees", the "Expects:" list exactly as it will appear on Tom's screen. It names the network she made the recipe on, ppi-core-300.graphml, and says it is not inside. Under the list, each input says where it comes from. The gene id reads "Their table", as a join always does. The fold change starts at "The network", because her layer reads the network's log2FoldChange; she switches it to "Their table" and gives the name Tom's sheets use, log2FC, and the list above changes to say so. Module and confidence stay "The network".</p>
       <span class="s-lab">What we expect her to say</span><div class="s-expect">"So that's what Tom gets. The network off the shared drive and his own log2FC, not the old fold change in the network. Good, that column is from the 2024 screen."</div>
-      <p><b>Then</b> she exports one file: Expression overlay, a recipe. The recipe records who saved it and when, taken from her project's author setting.</p>
+      <p><b>Then</b> she exports one file: Expression overlay, a recipe. The recipe records who saved it and when (Maren Holt, Sep 26 2026, 16:42), taken from her project's author setting as she gave it.</p>
       <a class="s-link" href="../screens/recipe-apply.html#export">Full screen: Export the recipe</a>
     </div>
   </section>
@@ -140,34 +140,41 @@
       <div class="s-who">Between people; no graphty screen.</div>
       <p>Tom has two files to bring: the lab's network, ppi-core-300.graphml, on the shared drive, and his own table qpcr-hits-2026-09.csv in his Downloads folder, <span data-fx="datasets.ppi.expression.rows">96</span> rows with the columns symbol, log2FC and padj. He does not know that the network file still carries a log2FoldChange column from an earlier screen.</p>
       <span class="s-lab">What we expect him to say</span><div class="s-expect">"Just the colors. Fine. We'll see what it does with my list."</div>
-      <p><b>Then</b> he opens graphty in his browser: no install, no sign-in.</p>
+      <p><b>Then</b> he opens graphty in his browser: no install, no sign-in. It is his first time, so graphty asks once about usage data (frame 3).</p>
     </div>
   </section>
 
   <!-- 3 -->
   <section class="s-fr">
     <div class="s-pics">
+      <section class="s-card" role="img" aria-label="The first-use question about usage data">
+        <div class="s-eyebrow">First start only, under the line about files</div>
+        <h4>Your data is yours, but please help us</h4>
+        <p>graphty will never see the data you analyze. We would like to collect how you use the app, so we can make it better. That record is only ever used by graphty's author and his Claude Code sessions.</p>
+        <p class="k-secondary">Nothing is collected unless you say yes. You can change this any time in Preferences.</p>
+        <div class="s-actions"><span class="k-btn k-btn-secondary">Yes, share how I use graphty</span><span class="k-btn k-btn-secondary" data-focus-ring>No thanks</span></div>
+      </section>
       <section class="s-card" aria-label="Recipe waiting for data">
         <div class="s-eyebrow">Recipe waiting for data</div>
         <h4><svg class="k-i"><use href="../kit/icons.svg#file"/></svg>Expression overlay</h4>
-        <div class="k-secondary">Recipe, version 1. Saved by Maren on Sep 26 2026.</div>
+        <div class="k-secondary">Recipe, version 1.</div>
         <p>Colors your genes by log2 fold change, red for up and blue for down, draws the other proteins in muted module colors, and hides interactions with confidence under 0.7.</p>
         <p><b>No data inside.</b></p>
         <div class="s-expects"><b>Expects:</b><ul><li>a protein network with a module per protein and a confidence per interaction. It is not in this recipe; it was made on ppi-core-300.graphml.</li><li>your own table of genes: a gene id per row and a fold change named <span class="k-id">log2FC</span>, above and below 0. The fold change is never taken from the network.</li></ul></div>
         <div class="s-trust"><svg class="k-i"><use href="../kit/icons.svg#lock"/></svg><span><b>Data stays on this computer.</b>This recipe names no server, so graphty contacts none. Files you add are read in this browser and are not uploaded.</span></div>
         <div class="s-actions"><span class="k-btn" data-focus-ring>Add data...</span><span class="k-btn k-btn-ghost">Close recipe</span></div>
       </section>
-      <div class="s-loc" style="--x:368;--y:72;--w:704;--h:362"><iframe src="../screens/recipe-apply.html#start" scrolling="no" title="" tabindex="-1"></iframe><i></i></div>
-      <div class="s-loc-cap">The start screen. The card is redrawn here with its "Expects:" list; the samples sit below it.</div>
+      <div class="s-loc-cap" style="width:600px">Top: the question graphty asks once, the first time it opens on a computer. Below: the start screen after the drop. The recipe's card replaces the samples: while a recipe waits for data, no sample is shown, so nothing on the screen can be taken for the network it expects. No "Saved by" line: the recipe has one author, and the line is shown only when a project holds more than one.</div>
     </div>
     <div class="s-cap">
       <h3><span class="k-step">3</span>Tom drops the recipe on the start screen</h3>
       <div class="s-who">Tom, lab manager, 13-inch laptop between two meetings.</div>
       <p>He drags the attachment onto the page, his first move with any file. The page lights up "Drop to open".</p>
-      <p><b>He sees</b> a card at the top: Expression overlay, a recipe waiting for data, saved by Maren on Sep 26 2026. A recipe records who saved it and when, from the author setting of the project it was saved in. The card says what the recipe does and "No data inside.", then "Expects:" and the same two lines Maren saw in her preview: the network the recipe was made on, ppi-core-300.graphml, which is not in the recipe, and his own table with a log2FC column. Before he adds anything it answers the question he always asks: his data stays on this computer, and the recipe names no server, so graphty contacts none.</p>
+      <p><b>Before the drop</b>, because this is the first time graphty has opened on this laptop, the start screen asks once whether it may collect how the app is used, with two answers of equal weight and neither chosen. Tom clicks No thanks, so usage data stays off; had he ignored the card, it would have stayed off too. The answer is kept in Preferences and the card does not come back.</p>
+      <p><b>He sees</b>, after the drop, a card where the samples were: Expression overlay, a recipe waiting for data. While a recipe waits for data the start screen shows no samples, so the sample protein network cannot be taken for the one the recipe expects. The card has no "Saved by" line. A recipe records who saved it and when, from the author setting of the project it was saved in, as given, and blank if none is set; the line is shown only when a project holds more than one author, and this one holds only Maren's recipe. In a shared lab project with notes by others it would read "Saved by Maren Holt, Sep 26 2026, 16:42". The card says what the recipe does and "No data inside.", then "Expects:" and the same two lines Maren saw in her preview: the network the recipe was made on, ppi-core-300.graphml, which is not in the recipe, and his own table with a log2FC column. Before he adds anything it answers the question he always asks: his data stays on this computer, and the recipe names no server, so graphty contacts none.</p>
       <span class="s-lab">What we expect him to say</span><div class="s-expect">"ppi-core-300, that's the one on the shared drive. And my own list with log2FC. These hits aren't published; it stays on this laptop? Then I'll add them."</div>
       <p><b>Then</b> he clicks Add data... and picks the network the card named, on the shared drive; he does not need the email to know which. His table is in another folder; he means to add it next. Choosing a file makes an Untitled project holding the recipe; from here on, Cancel and Undo come back to that project, not to the start screen.</p>
-      <a class="s-link" href="../screens/recipe-apply.html#start">Full screen: A recipe waiting for data (the earlier card)</a>
+      <a class="s-link" href="../screens/recipe-apply.html#start">Full screen: an earlier version of this card, which still drew the samples below it</a>
     </div>
   </section>
 
@@ -359,6 +366,9 @@
     <tr><td>A signed column</td><td>When the recipient's column runs below and above 0, as the recipe's colors do, nothing is asked; the row shows what it will do on his numbers ("36 up, 48 down"). A question is asked only when the column's sign disagrees with the recipe's scale.</td></tr>
     <tr><td>Focus and keyboard</td><td>The dialog opens with focus on the first thing that needs him: Add your table... (frame 4), the fold-change picker (branch B), or Apply when nothing does. Tab walks the rows in order, then Cancel and Apply; a disabled Apply stays in the Tab order so its reason is read with it. Esc or Cancel closes it with nothing applied and lands on the project's canvas with the recipe waiting, focus on the card's Add data.... After Apply, focus goes to the canvas and the notice is announced politely; Ctrl+Z is the one Undo, Ctrl+Shift+Z the Redo.</td></tr>
     <tr><td>Undo</td><td>One entry, "Apply recipe Expression overlay", that removes the layers, the filter and the files loaded for it, and returns to the same project with the recipe waiting for data. No notice: the empty canvas and its card are the feedback. Files on disk and the recipe file are never written.</td></tr>
+    <tr><td>Usage data</td><td>The first time graphty opens on a computer, the start screen asks once, under the line about files: "Your data is yours, but please help us", with "Yes, share how I use graphty" and "No thanks" of equal weight and neither chosen. Usage data is off until the person says yes; ignoring the card leaves it off. The answer is kept in Preferences, and the card never comes back once answered. Graph content is always masked.</td></tr>
+    <tr><td>No samples while a recipe waits</td><td>When a recipe is dropped on the start screen, its card takes the samples' place, and no sample is shown until the recipe is closed. A sample network next to a recipe that expects a network reads as the network it wants.</td></tr>
+    <tr><td>Who saved it</td><td>A recipe records who saved it and when, from the author setting of the project it was saved in, as given (blank if none is set). The card shows "Saved by {name}, {date}, {time}", as in "Saved by Maren Holt, Sep 26 2026, 16:42", only when the project holds more than one author; with one author the line is left out.</td></tr>
     <tr><td>Where data goes</td><td>Answered on the start screen before any data is added. When a recipe names a data source, the same line names the host and Apply waits for a separate confirm to contact it; nothing is fetched first.</td></tr>
   </table>
 
@@ -378,6 +388,7 @@
     <li><b>Ask the sender</b> (branch B). Does he stop and ask, or pick logFC? Either is fine; the failure is picking without reading the line. Does the list of his table's signed columns help him, or read as a suggestion to take?</li>
     <li><b>The count check.</b> Does he still add up "36 up, 48 down" against his 84? If he does not need to any more, the dialog is doing its job.</li>
     <li><b>Reading direction.</b> Can he tell up from down from the legend on the first try? The recipe uses red for up and blue for down, the usual expression convention, and red-blue avoids the red-green pair his mild color weakness confuses. Does he read a muted sky-blue Ribosome node as down-regulated?</li>
+    <li><b>Usage data.</b> Does Tom, who worries about unpublished hits, read the first-use question as graphty asking for his data? Does "graphty will never see the data you analyze" settle it before he drops the recipe?</li>
     <li><b>Expects.</b> Does Tom know which network to add from the card alone, without the email? Does "It is not in this recipe" read as a missing attachment?</li>
     <li><b>Use these styles.</b> With no layers of his own, both choices do the same thing here. Does Tom stop at a choice that changes nothing for him, and does the line "none of yours do" settle it?</li>
     <li><b>"Not in this network".</b> Does he read it as "these genes do not exist"? Does he notice that TP53BP1 and H2AFX name proteins the network holds under other names (53BP1, H2AX)? Matching by alias or previous symbol is deferred; a lab could add an alias column to its network.</li>

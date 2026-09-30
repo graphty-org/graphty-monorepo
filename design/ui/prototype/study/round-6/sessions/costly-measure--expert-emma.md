@@ -11,13 +11,13 @@ Results rail place showing the exact run as "Not run", the finished sampled run 
 the same measure set up but "Not run yet" (screens/results-panel.html), and the not-drawn view of the
 graph with its table (screens/past-drawing-limit.html).
 
-**Renders she saw (study view):** shots/r6-emma-costly-over-budget.png,
+**Renders she saw (study view):** shots/record/r6-emma-costly-over-budget.png,
 shots/tasks/costly-measure/01-option-form-cost-within-budget.png,
 shots/tasks/costly-measure/02-option-form-cost-sample-over-budget.png,
 shots/tasks/costly-measure/03-results-panel-refused.png,
 shots/tasks/costly-measure/04-results-panel-finished-sampled.png,
-shots/r6-emma-costly-not-run.png, shots/tasks/costly-measure/05-past-drawing-limit.png,
-shots/r6-emma-costly-catalog.png (the algorithm menu, shown on another graph).
+shots/record/r6-emma-costly-not-run.png, shots/tasks/costly-measure/05-past-drawing-limit.png,
+shots/record/r6-emma-costly-catalog.png (the algorithm menu, shown on another graph).
 
 ---
 

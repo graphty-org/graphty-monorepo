@@ -9,11 +9,11 @@ and then goes back to what she knows. The deadline (end of day) was part of the 
 
 Screens she saw, as a participant sees them (design notes hidden):
 
-- the main frame at rest on the March transfers: `../../../shots/r4-sarah-inout-screens_frame-at-rest_html_dataset_transactions.png`
-- the bottom table, every state: `../../../shots/r4-sarah-inout-screens_table-dock_html.png`
-- the results in the inspector, every state: `../../../shots/r4-sarah-inout-screens_results-panel_html.png`
-- run a measure and read it, every state: `../../../shots/r4-sarah-inout-screens_run-and-read_html.png`
-- the Export dialog: `../../../shots/r4-sarah-inout-screens_export-dialog_html.png` and `../../../shots/screens__export-dialog-table--study.png`
+- the main frame at rest on the March transfers: `../../../shots/record/r4-sarah-inout-screens_frame-at-rest_html_dataset_transactions.png`
+- the bottom table, every state: `../../../shots/record/r4-sarah-inout-screens_table-dock_html.png`
+- the results in the inspector, every state: `../../../shots/record/r4-sarah-inout-screens_results-panel_html.png`
+- run a measure and read it, every state: `../../../shots/record/r4-sarah-inout-screens_run-and-read_html.png`
+- the Export dialog: `../../../shots/record/r4-sarah-inout-screens_export-dialog_html.png` and `../../../shots/record/screens__export-dialog-table--study.png`
 
 ## Transcript
 

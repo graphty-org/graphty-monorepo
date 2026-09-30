@@ -16,12 +16,12 @@ the full graph and after three filter steps (screens/table-dock.html, "small" an
 three-measure ranking on the protein network (screens/table-dock.html, "ranked"), and Les Miserables
 without Valjean (screens/closeness-variant.html, B1 and B2). Everything seen in the participant view.
 
-**Renders she saw:** shots/r6-emma-who-frame-at-rest.png, shots/r6-emma-who-results-panel.png,
-shots/r6-emma-who-run-and-read.png, shots/r6-emma-who-navigation.png,
-shots/r6-emma-who-results-panel-html-filtered.png, shots/r6-emma-who-run-and-read-html-subset.png,
-shots/r6-emma-who-table-dock-html-small.png, shots/r6-emma-who-table-dock-html-stale.png,
-shots/r6-emma-who-table-dock-html-ranked.png, shots/r6-emma-who-closeness-variant-html-b1.png,
-shots/r6-emma-who-closeness-variant-html-b2.png.
+**Renders she saw:** shots/record/r6-emma-who-frame-at-rest.png, shots/record/r6-emma-who-results-panel.png,
+shots/record/r6-emma-who-run-and-read.png, shots/record/r6-emma-who-navigation.png,
+shots/record/r6-emma-who-results-panel-html-filtered.png, shots/record/r6-emma-who-run-and-read-html-subset.png,
+shots/record/r6-emma-who-table-dock-html-small.png, shots/record/r6-emma-who-table-dock-html-stale.png,
+shots/record/r6-emma-who-table-dock-html-ranked.png, shots/record/r6-emma-who-closeness-variant-html-b1.png,
+shots/record/r6-emma-who-closeness-variant-html-b2.png.
 
 ---
 

@@ -12,10 +12,10 @@ is read as text and cannot weigh the connections.
 
 Screens seen, in order, all rendered in the study view (design notes hidden) at 1440 by 900:
 
-1. Start screen -- `shots/r3-elena-afternoon-start-screen.png`
-2. Load step, confidence read as text, Load off -- `shots/r3-elena-afternoon-load-step-blocked.png`
-3. Load step, confidence fixed, the duplicate-rows choice open -- `shots/r3-elena-afternoon-load-step-policy.png`
-4. The loaded graph -- `shots/r3-elena-afternoon-frame-at-rest.png`
+1. Start screen -- `shots/record/r3-elena-afternoon-start-screen.png`
+2. Load step, confidence read as text, Load off -- `shots/record/r3-elena-afternoon-load-step-blocked.png`
+3. Load step, confidence fixed, the duplicate-rows choice open -- `shots/record/r3-elena-afternoon-load-step-policy.png`
+4. The loaded graph -- `shots/record/r3-elena-afternoon-frame-at-rest.png`
 
 ## Transcript
 

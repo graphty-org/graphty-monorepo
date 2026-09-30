@@ -8,8 +8,8 @@ it went next and tell me whether the order of the transfers makes sense."
 
 Screens worked: the alert triage screen (the queue, the account's own transfers, the Neighbors
 options menu, the dated two-hop trace), the inspector, and the bottom table. Renders as the
-participant saw them, design notes hidden: shots/r6-marcus-dated-alert-triage.png,
-shots/r6-marcus-dated-inspector.png, shots/r6-marcus-dated-table-dock.png.
+participant saw them, design notes hidden: shots/record/r6-marcus-dated-alert-triage.png,
+shots/record/r6-marcus-dated-inspector.png, shots/record/r6-marcus-dated-table-dock.png.
 
 ## Think-aloud
 

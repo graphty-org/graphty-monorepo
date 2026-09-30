@@ -8,9 +8,9 @@ and redoes the Gephi half by hand every month.
 
 **Screens seen, in the participant view (design notes hidden):** the weekly return storyboard
 (start screen through to the export), the data panel, version history, the replace-and-recipe
-walkthrough and the comparison screen. Renders: `shots/r6-alex-wu-weekly-return.png`,
-`shots/r6-alex-wu-data-panel.png`, `shots/r6-alex-wu-version-history.png`,
-`shots/r6-alex-wu-replace-and-recipe.png`, `shots/r6-alex-wu-comparison.png`.
+walkthrough and the comparison screen. Renders: `shots/record/r6-alex-wu-weekly-return.png`,
+`shots/record/r6-alex-wu-data-panel.png`, `shots/record/r6-alex-wu-version-history.png`,
+`shots/record/r6-alex-wu-replace-and-recipe.png`, `shots/record/r6-alex-wu-comparison.png`.
 
 **Outcome:** finished. He updated the project to April, and wrote a three-sentence explanation of
 why the group count went from 35 to 65, every number in it read off the screen. Ease 6 of 7.

@@ -5,10 +5,10 @@ Task as given by the moderator: "Hand a reviewer the filtered table of your resu
 Screens used, in order: the Export dialog (the evidence-file state, then Export table as CSV...), the CSV dialog it opens, and the table under the canvas (the ranked protein table and its own Export table as CSV...).
 
 Renders the participant saw:
-- shots/r3-chen-csvrev-export-evidence.png -- Export files... opened on a filtered project
-- shots/r3-chen-csvrev-export-table.png -- the CSV dialog reached from Export, with the methods file beside it
-- shots/r3-chen-csvrev-table-ranked.png -- the protein table with three measures ranked
-- shots/r3-chen-csvrev-table-out.png -- the table's own Export table as CSV... dialog
+- shots/record/r3-chen-csvrev-export-evidence.png -- Export files... opened on a filtered project
+- shots/record/r3-chen-csvrev-export-table.png -- the CSV dialog reached from Export, with the methods file beside it
+- shots/record/r3-chen-csvrev-table-ranked.png -- the protein table with three measures ranked
+- shots/record/r3-chen-csvrev-table-out.png -- the table's own Export table as CSV... dialog
 
 Note: the filtered example in the Export dialog is a bank-transfers case (14 flagged accounts), not a protein network. The participant was asked to treat it as her own filtered gene table.
 

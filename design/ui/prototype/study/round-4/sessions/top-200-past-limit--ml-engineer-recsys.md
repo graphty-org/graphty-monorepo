@@ -18,10 +18,10 @@ never run and then kept as 200 rows on one screen -- so the steps between "betwe
 and "200 kept" were guessed from the citations-sorted version of the same controls. Viewed at
 1440 x 900, study view (design notes hidden).
 
-**Renders he saw:** shots/r4-chris-top200-past-drawing-limit.png,
-shots/r4-chris-top200-option-form-cost.png, shots/r4-chris-top200-results-panel.png,
-shots/r4-chris-top200-table-dock.png, shots/r4-chris-top200-table-dock-limit.png,
-shots/r4-chris-top200-find-s7.png, shots/r4-chris-top200-find-s14.png (the full-page renders were
+**Renders he saw:** shots/record/r4-chris-top200-past-drawing-limit.png,
+shots/record/r4-chris-top200-option-form-cost.png, shots/record/r4-chris-top200-results-panel.png,
+shots/record/r4-chris-top200-table-dock.png, shots/record/r4-chris-top200-table-dock-limit.png,
+shots/record/r4-chris-top200-find-s7.png, shots/record/r4-chris-top200-find-s14.png (the full-page renders were
 read one 1440 x 900 viewport at a time).
 
 ---

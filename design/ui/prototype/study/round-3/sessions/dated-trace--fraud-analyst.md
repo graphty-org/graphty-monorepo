@@ -181,6 +181,6 @@ She reads the dates down the column, one route at a time, with a finger on the s
 
 ## Renders she saw
 
-- ../../../shots/r3-dated-trace-fraud--filter-chip-full.png (the filter chip screen with the time window below it)
+- ../../../shots/record/r3-dated-trace-fraud--filter-chip-full.png (the filter chip screen with the time window below it)
 - ../../../shots/screens__sets-and-paths.png, sets-and-paths-s3.png, sets-and-paths-s4.png, sets-and-paths-s5.png
-- ../../../shots/r3-dated-trace-fraud--table-dock-edges.png (the path's hops as dated rows, and the Edges tab)
+- ../../../shots/record/r3-dated-trace-fraud--table-dock-edges.png (the path's hops as dated rows, and the Edges tab)

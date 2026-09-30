@@ -10,13 +10,13 @@ accounts and the most central accounts, and tell me what each answer used."
 Material worked from, as the participant sees it (study view, 1440 x 900):
 
 - the load step on the March transfer file, and the protein file after loading, for the
-  Statistics weight line (shots/screens__load-step--study.png,
-  shots/screens__load-step-loaded--study.png)
-- the recipe binding step (shots/screens__binding-step--study.png)
+  Statistics weight line (shots/record/screens__load-step--study.png,
+  shots/record/screens__load-step-loaded--study.png)
+- the recipe binding step (shots/record/screens__binding-step--study.png)
 - the path tool on March transfers: the form, the found path, the "what amount means" popover,
-  no directed path, the frozen copy (shots/r4-sarah-we2e-sp-s3.png, -s4, -s5, -s6, -s7)
+  no directed path, the frozen copy (shots/record/r4-sarah-we2e-sp-s3.png, -s4, -s5, -s6, -s7)
 - the table dock on the transfers with PageRank and Degree ranked, and the rows out of the path
-  (shots/r4-sarah-we2e-td-large.png, -td-out; -td-ranked rendered but not needed)
+  (shots/record/r4-sarah-we2e-td-large.png, -td-out; -td-ranked rendered but not needed)
 - the run-and-read and results-panel pages for how a centrality run reads when done
   (shots/screens__run-and-read.png, shots/screens__results-panel--finished.png)
 

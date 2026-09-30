@@ -8,14 +8,14 @@ Slides charts and her company's analytics dashboard. Says "dots" and "lines", ne
 
 **Screens seen (study view, 1440 by 900, design notes hidden):**
 
-- Start screen: `shots/r6-elena-worth-01-start.png`
-- Open dialog, the confidence column read as text, its menu open: `shots/r6-elena-worth-02-blocked.png`
-- Open dialog, pairs that repeat, its menu open: `shots/r6-elena-worth-03-policy.png`
-- The loaded graph: `shots/r6-elena-worth-04-frame.png`
+- Start screen: `shots/record/r6-elena-worth-01-start.png`
+- Open dialog, the confidence column read as text, its menu open: `shots/record/r6-elena-worth-02-blocked.png`
+- Open dialog, pairs that repeat, its menu open: `shots/record/r6-elena-worth-03-policy.png`
+- The loaded graph: `shots/record/r6-elena-worth-04-frame.png`
 - Shown by the moderator when she asked what clicking a dot and the Quick actions button would
   do: the first-look screens on the Les Miserables sample -- a clicked dot
-  (`shots/r6-elena-worth-fl-s5.png`), Quick actions typed into (`shots/r6-elena-worth-fl-s6a.png`)
-  and the result it opens (`shots/r6-elena-worth-fl-s6b.png`). The moderator said these were the
+  (`shots/record/r6-elena-worth-fl-s5.png`), Quick actions typed into (`shots/record/r6-elena-worth-fl-s6a.png`)
+  and the result it opens (`shots/record/r6-elena-worth-fl-s6b.png`). The moderator said these were the
   same screens on a different file.
 
 **Outcome:** success with difficulty on loading; partial on the question. She got the file in,

@@ -5,9 +5,9 @@ colour-blind reader, with the top 10 labelled."
 
 Screens used, in order: Styles list (frames 1, 13 and 14), Color or size by a value (the fold-change
 state), Export dialog (a figure, viewed as gray, and the first release). Renders of the exact frames
-she looked at: shots/r2-chen-grey-top-n.png, shots/r2-chen-grey-looks.png,
-shots/r2-chen-grey-cbv-numbers.png, shots/r2-chen-grey-export-figure-grey.png,
-shots/r2-chen-grey-export-first-release.png.
+she looked at: shots/record/r2-chen-grey-top-n.png, shots/record/r2-chen-grey-looks.png,
+shots/record/r2-chen-grey-cbv-numbers.png, shots/record/r2-chen-grey-export-figure-grey.png,
+shots/record/r2-chen-grey-export-first-release.png.
 
 ## Think-aloud transcript
 

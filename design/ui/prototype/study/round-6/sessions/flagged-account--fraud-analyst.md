@@ -10,9 +10,9 @@ refer it, and save what you would attach as evidence."
 Screens seen, in order (study view, 1440 x 900, rendered fresh for this session): the alert triage
 screen's task states -- open, find, the Neighbors menu, one hop, the account's own transfers, the
 referred set with its note, export, the filter step menu, "Where the data is"
-(shots/r6-sarah-flagged-01-open.png to r6-sarah-flagged-09-file.png). Then, following controls she
+(shots/record/r6-sarah-flagged-01-open.png to r6-sarah-flagged-09-file.png). Then, following controls she
 saw in the Neighbors menu, the direction-and-date trace and the later case export
-(shots/r6-sarah-flagged-y-case-trace-menu.png, r6-sarah-flagged-y-case-trace.png,
+(shots/record/r6-sarah-flagged-y-case-trace-menu.png, r6-sarah-flagged-y-case-trace.png,
 r6-sarah-flagged-y-case-export.png). She also glanced at the other named screens
 (shots/r6-sarah-flagged-x-*.png). HTML read only to see what the Nodes tab, the step menu and the
 Export "+" would do when clicked.
@@ -77,7 +77,7 @@ accounts that are themselves alerted for the same thing, which all pay one money
 business, and two of them pay back in. An L1 who cleared this would be in my QA sample by Friday."
 
 **Trying the direction and date.** She goes back to the Neighbors menu and sets Direction to Out
-and From to Aug 6, 2026 (shots/r6-sarah-flagged-y-case-trace-menu.png). "'On or after, on the
+and From to Aug 6, 2026 (shots/record/r6-sarah-flagged-y-case-trace-menu.png). "'On or after, on the
 column time (UTC).' Good, it tells me which column and which clock. 1 hop, 'its 4 transfers out
 from Aug 6 on'. 2 hops, 11 nodes."
 

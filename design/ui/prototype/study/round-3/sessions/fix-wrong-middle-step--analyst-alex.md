@@ -7,11 +7,11 @@ losing the third."
 **Screens used:** the undo screen first (participant view, the three steps on), then the filter chip
 screen.
 **What he saw:**
-- `shots/r3-alexmid-s3.png`: the start
-- `shots/r3-alexmid-pop.png`: the steps list open
-- `shots/r3-alexmid-off.png`: the middle step off
-- `shots/r3-alexmid-fc-three.png`: the filter chip screen, list open
-- `shots/r3-alexmid-fc-edit.png`: the step editor
+- `shots/record/r3-alexmid-s3.png`: the start
+- `shots/record/r3-alexmid-pop.png`: the steps list open
+- `shots/record/r3-alexmid-off.png`: the middle step off
+- `shots/record/r3-alexmid-fc-three.png`: the filter chip screen, list open
+- `shots/record/r3-alexmid-fc-edit.png`: the step editor
 
 ## Transcript (think-aloud)
 

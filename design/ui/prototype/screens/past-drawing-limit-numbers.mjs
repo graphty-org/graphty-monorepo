@@ -129,3 +129,29 @@ for (const id of s.ids) if (text.includes(`"${id}"`)) throw new Error("modeled i
 if (s.nodes !== s.n) throw new Error("the step keeps " + s.nodes + " nodes, not " + s.n);
 for (const t of ["light", "dark"]) copyFileSync(join(scratch, "canvas", `citations-top200-${t}.svg`), join(here, "img", `pdl-top200-${t}.svg`));
 console.log("wrote kit/fixtures.json scenarios.pastLimitTop200", JSON.stringify({ ...s, rows: s.rows.slice(0, 3), ids: s.ids.length }));
+
+// The same Keep top rows cut on a sampled column: the table sorted by Betweenness (sampled), Run 1
+// (datasets.citations.sampledBetweenness, whose run record states an error bound of +/- 0.00035,
+// 95 runs in 100). Modeled: the ten listed values, then a power law from row 10 to the middle of the
+// nonzero values, then the estimated zeros. Two rows are "within the error bound" of each other when
+// their values differ by no more than twice the bound, the rule the Results panel's rank ranges use
+// (#3-#7). The count excludes row 200 itself.
+{
+    const fix = JSON.parse(readFileSync(join(kit, "fixtures.json"), "utf8"));
+    const C = fix.datasets.citations, sb = C.sampledBetweenness, K = fix.scenarios.pastLimitTop200.n;
+    const bound = 0.00035;
+    const nonzero = C.nodes - sb.estimatedZero;
+    const v10 = sb.top[9].betweenness;
+    const b = Math.log(v10 / sb.middleOfNonzero) / Math.log(nonzero / 2 / 10);
+    const v = (r) => (r <= 10 ? sb.top[r - 1].betweenness : r <= nonzero ? v10 * (r / 10) ** -b : 0);
+    const at = Number(v(K).toPrecision(2));
+    let first = 0, within = 0;
+    for (let r = 1; r <= C.nodes; r++) if (r !== K && Math.abs(v(r) - at) <= 2 * bound) { within++; if (!first) first = r; }
+    fix.scenarios.pastLimitTop200.sampledCut = {
+        note: "modeled: the Keep top rows cut when the table is sorted by Betweenness (sampled), Run 1; within = rows other than row n whose value is within twice the error bound of row n's",
+        column: "Betweenness (sampled)", run: "Run 1", seed: sb.seed, errorBound: bound,
+        valueAtCut: at, within, firstWithin: first, lastWithin: C.nodes,
+    };
+    writeFileSync(join(kit, "fixtures.json"), JSON.stringify(fix, null, 1));
+    console.log("wrote scenarios.pastLimitTop200.sampledCut", JSON.stringify(fix.scenarios.pastLimitTop200.sampledCut));
+}

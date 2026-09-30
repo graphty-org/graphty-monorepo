@@ -26,7 +26,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 // Imported for its side effect as well as its type: it is what defines <graphty-element>.
 import { Graphty } from "../../src/graphty-element";
 import { waitForGraphSettled } from "../../stories/helpers";
@@ -413,7 +413,7 @@ describe("pumping frames by hand", () => {
 
     it("draws nothing when asked to step the model, and draws when asked to render", async () => {
         await graph.addNodes([{ id: "a" }, { id: "b" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         let drawn = 0;
         graph.getScene().onAfterRenderObservable.add(() => {

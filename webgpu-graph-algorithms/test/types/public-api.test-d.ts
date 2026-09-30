@@ -1,10 +1,12 @@
-import { type BfsOptions, type IndexedPageRankOptions, type SsspOptions } from "@graphty/algorithms";
+import { type BfsOptions, type PageRankOptionsLike, type SsspOptions } from "@graphty/algorithms";
 import { type F32, type F64, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
 import {
     type AcceleratorOptions,
     type AdapterInfoLike,
     type AdapterSummary,
     type AlgorithmAccelerator,
+    allPairsShortestPath,
+    type ApspOptions,
     type ApspResultLike,
     ARC_WINDOW_ALIGN,
     bellmanFord,
@@ -14,6 +16,7 @@ import {
     breadthFirstSearch,
     calibrateLayout,
     type CalibrateOptions,
+    type ClosenessAcceleratorOptions,
     closenessCentrality,
     type CommonLayoutOptions,
     type CommunityResultLike,
@@ -38,10 +41,12 @@ import {
     type FruchtermanReingoldStats,
     type FruchtermanReingoldTraceRecord,
     type GpuAccelerator,
+    type GpuApspResult,
     type GpuBellmanFordResult,
     type GpuBfsResult,
     type GpuCalibration,
     type GpuCaps,
+    type GpuClosenessResult,
     GpuContext,
     type GpuContextOptions,
     type GpuHitsResult,
@@ -52,6 +57,7 @@ import {
     type GpuRunOptions,
     type GpuScoresResult,
     type GpuSsspResult,
+    type GpuTriangleResult,
     hasErrorCode,
     hits,
     type HitsOptions,
@@ -61,6 +67,8 @@ import {
     isWebGpuGraphError,
     katzCentrality,
     type KatzOptions,
+    labelPropagation,
+    type LabelPropagationOptions,
     type LabelResultLike,
     LAYOUT_TUNING_DEFAULTS,
     type LayoutAccelerator,
@@ -93,6 +101,7 @@ import {
     sssp,
     type SsspResultLike,
     STORAGE_ALIGN,
+    triangleCount,
     WebGpuGraphError,
     type WebGpuGraphErrorCode,
     WORKGROUP_SIZE,
@@ -317,8 +326,10 @@ expectTypeOf(sssp).returns.resolves.toEqualTypeOf<GpuSsspResult>();
 expectTypeOf(bellmanFord).parameter(2).toBeNumber();
 expectTypeOf(bellmanFord).parameter(3).toEqualTypeOf<(SsspOptions & GpuRunOptions) | undefined>();
 expectTypeOf(bellmanFord).returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
-expectTypeOf(closenessCentrality).parameter(2).toEqualTypeOf<(HitsOptionsLike & GpuRunOptions) | undefined>();
-expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf(closenessCentrality)
+    .parameter(2)
+    .toEqualTypeOf<(ClosenessAcceleratorOptions & HitsOptionsLike & GpuRunOptions) | undefined>();
+expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuClosenessResult>();
 expectTypeOf<GpuBfsResult["depth"]>().toEqualTypeOf<U32>();
 expectTypeOf<GpuBfsResult["parent"]>().toEqualTypeOf<U32>();
 expectTypeOf<GpuBfsResult["order"]>().toEqualTypeOf<U32>();
@@ -344,8 +355,36 @@ expectTypeOf<GpuAccelerator["sssp"]>().parameter(2).toEqualTypeOf<SsspOptions | 
 expectTypeOf<GpuAccelerator["sssp"]>().returns.resolves.toEqualTypeOf<GpuSsspResult>();
 expectTypeOf<GpuAccelerator["bellmanFord"]>().parameter(2).toEqualTypeOf<SsspOptions | undefined>();
 expectTypeOf<GpuAccelerator["bellmanFord"]>().returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
-expectTypeOf<GpuAccelerator["closenessCentrality"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
-expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>()
+    .parameter(1)
+    .toEqualTypeOf<ClosenessAcceleratorOptions | undefined>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuClosenessResult>();
+
+// ---- all-pairs shortest paths (design 3.3 lines 813 and 835, 8.7, 9.7)
+expectTypeOf(allPairsShortestPath).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(allPairsShortestPath).parameter(2).toEqualTypeOf<(ApspOptions & GpuRunOptions) | undefined>();
+expectTypeOf(allPairsShortestPath).returns.resolves.toEqualTypeOf<GpuApspResult>();
+expectTypeOf<keyof GpuApspResult>().toEqualTypeOf<"dist" | "n">();
+expectTypeOf<GpuApspResult["dist"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuApspResult["n"]>().toBeNumber();
+expectTypeOf<keyof ApspOptions>().toEqualTypeOf<"weighted">();
+expectTypeOf<ApspOptions["weighted"]>().toEqualTypeOf<boolean | undefined>();
+expectTypeOf<GpuApspResult>().toMatchTypeOf<ApspResultLike>();
+expectTypeOf<GpuAccelerator["allPairsShortestPath"]>().parameter(1).toEqualTypeOf<SsspOptions | undefined>();
+expectTypeOf<GpuAccelerator["allPairsShortestPath"]>().returns.resolves.toEqualTypeOf<GpuApspResult>();
+// ---- P11: triangle counting and label propagation (design 3.3 lines 806-807, 8.5, 8.6)
+expectTypeOf(triangleCount).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(triangleCount).parameter(2).toEqualTypeOf<GpuRunOptions | undefined>();
+expectTypeOf(triangleCount).returns.resolves.toEqualTypeOf<GpuTriangleResult>();
+expectTypeOf<keyof GpuTriangleResult>().toEqualTypeOf<"perNode" | "total" | "coefficient" | "transitivity">();
+expectTypeOf<GpuTriangleResult["perNode"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuTriangleResult["coefficient"]>().toEqualTypeOf<F32>();
+expectTypeOf(labelPropagation).parameter(2).toEqualTypeOf<(LabelPropagationOptions & GpuRunOptions) | undefined>();
+expectTypeOf(labelPropagation).returns.resolves.toEqualTypeOf<GpuLabelResult>();
+expectTypeOf<keyof LabelPropagationOptions>().toEqualTypeOf<"maxIterations" | "weighted">();
+expectTypeOf<GpuAccelerator["triangleCount"]>().returns.resolves.toEqualTypeOf<GpuTriangleResult>();
+expectTypeOf<GpuAccelerator["labelPropagation"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
+expectTypeOf<GpuAccelerator["labelPropagation"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();
@@ -372,17 +411,23 @@ expectTypeOf(createFruchtermanReingold)
 expectTypeOf(createFruchtermanReingold).returns.toEqualTypeOf<FrSim>();
 expectTypeOf<FrSim>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf(createSpringElectrical).parameter(0).toEqualTypeOf<GpuContext>();
-expectTypeOf(createSpringElectrical).parameter(1).toEqualTypeOf<(SpringElectricalOptions & GpuLayoutTuning) | undefined>();
+expectTypeOf(createSpringElectrical)
+    .parameter(1)
+    .toEqualTypeOf<(SpringElectricalOptions & GpuLayoutTuning) | undefined>();
 expectTypeOf(createSpringElectrical).returns.toEqualTypeOf<SeSim>();
 expectTypeOf<SeSim>().toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<FruchtermanReingoldStats>().toMatchTypeOf<LayoutStatsBase>();
 expectTypeOf<FruchtermanReingoldStats["temperature"]>().toBeNumber();
 expectTypeOf<FruchtermanReingoldStats["trace"]>().toEqualTypeOf<ReadonlyArray<FruchtermanReingoldTraceRecord>>();
-expectTypeOf<keyof FruchtermanReingoldTraceRecord>().toEqualTypeOf<"temperature" | "meanDisplacement" | "settledCount">();
+expectTypeOf<keyof FruchtermanReingoldTraceRecord>().toEqualTypeOf<
+    "temperature" | "meanDisplacement" | "settledCount"
+>();
 expectTypeOf<SpringElectricalStats>().toMatchTypeOf<LayoutStatsBase>();
 expectTypeOf<SpringElectricalStats["kineticEnergy"]>().toBeNumber();
 expectTypeOf<SpringElectricalStats["trace"]>().toEqualTypeOf<ReadonlyArray<SpringElectricalTraceRecord>>();
-expectTypeOf<keyof SpringElectricalTraceRecord>().toEqualTypeOf<"kineticEnergy" | "meanDisplacement" | "settledCount">();
+expectTypeOf<keyof SpringElectricalTraceRecord>().toEqualTypeOf<
+    "kineticEnergy" | "meanDisplacement" | "settledCount"
+>();
 expectTypeOf<FrSim["stats"]>().toEqualTypeOf<FruchtermanReingoldStats>();
 expectTypeOf<FrSim["setParams"]>().parameter(0).toEqualTypeOf<Partial<FruchtermanReingoldOptions>>();
 expectTypeOf<SeSim["stats"]>().toEqualTypeOf<SpringElectricalStats>();
@@ -426,7 +471,9 @@ expectTypeOf<GpuAccelerator["connectedComponents"]>().returns.resolves.toEqualTy
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().parameter(1).toEqualTypeOf<ComponentsOptions | undefined>();
 expectTypeOf<GpuAccelerator["weaklyConnectedComponents"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 // the two P5 layout members (spec 3.3 lines 892-893; PD-19): the CPU option type in, the GPU simulation out
-expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().parameter(0).toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>()
+    .parameter(0)
+    .toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
 expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toEqualTypeOf<FrSim>();
 expectTypeOf<GpuAccelerator["springElectrical"]>().parameter(0).toEqualTypeOf<SpringElectricalOptions | undefined>();
 expectTypeOf<GpuAccelerator["springElectrical"]>().returns.toEqualTypeOf<SeSim>();
@@ -455,7 +502,7 @@ expectTypeOf<CommunityResultLike["modularity"]>().toBeNumber();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().parameter(0).toEqualTypeOf<GraphSnapshot>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>()
     .parameter(1)
-    .toEqualTypeOf<IndexedPageRankOptions | undefined>();
+    .toEqualTypeOf<PageRankOptionsLike | undefined>();
 expectTypeOf<HitsOptions>().toEqualTypeOf<HitsOptionsLike>(); // M8b's record IS the CPU seam's shape
 expectTypeOf<BetweennessAcceleratorOptions["sources"]>().toEqualTypeOf<readonly number[] | undefined>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().returns.resolves.toEqualTypeOf<PageRankResultLike>();

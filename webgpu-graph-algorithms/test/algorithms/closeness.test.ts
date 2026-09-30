@@ -1,11 +1,11 @@
 /**
  * Closeness centrality (design 8.4, 3.3 line 810, 9.7, 11.3; P8-T11, the P8 plan's PD-13 / PD-19 / PD-25 / DEP-P8-F)
- * against `closenessOracle`, the legacy `closenessCentrality` of `@graphty/algorithms` called with no options (the
- * parity target: the legacy `1 / sumOfDistances`, `0` when nothing is reached, no reached factor and no
- * Wasserman-Faust scaling), and the closed forms of the path and the star -- every readback naming its buffer: the
+ * against `closenessOracle`, the CPU `closenessCentrality` of `@graphty/algorithms` called with no options
+ * (the parity target, which computes what algorithms 2.x's id-keyed `closenessCentrality` did: `1 / sumOfDistances`, `0` when
+ * nothing is reached, no reached factor and no Wasserman-Faust scaling), and the closed forms of the path and the star -- every readback naming its buffer: the
  * `perSource` block of every batch (the exact integer `reached` and 64-bit `sum` per source, read through the inspect
  * seam) and the `scores` the driver folds from it. The path and the star analytically, karate against the oracle AND
- * the legacy function, a disconnected graph (an unreached node adds nothing, an isolated node scores 0), a 70-node
+ * the CPU function, a disconnected graph (an unreached node adds nothing, an isolated node scores 0), a 70-node
  * graph (three batches, one partial), the weighted karate under `weighted: true` (one `sssp` per source: within the
  * derived SSSP tolerance of the f64 Dijkstra sums, bitwise the f32 oracle) and under `weighted: false` (the column
  * ignored: bitwise the unweighted karate), `maxIterations` / `tolerance` refused before any device work while
@@ -14,10 +14,11 @@
  * (the empty graph, one node, `dest`, a negative weight). Run-twice bitwise on `perSource` and `scores` everywhere.
  */
 
-import { closenessCentrality as legacyClosenessCentrality, Graph } from "@graphty/algorithms";
+import { accelerated, closenessCentrality as cpuClosenessCentrality } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
+import { createAccelerator } from "../../src/accelerator.js";
 import { closenessCentrality, closenessWithTuning, SOURCES_PER_BATCH } from "../../src/algorithms/closeness.js";
 import { GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
@@ -56,22 +57,13 @@ async function expectRejection(promise: Promise<unknown>, code: string): Promise
 }
 
 /**
- * The legacy CPU closeness on the same graph as an object graph, no options (every node added first so an isolated
- * node exists), index-aligned.
- * @param edges - the edges
- * @param n - the node count
- * @returns the legacy scores by node index
+ * The CPU closeness of `@graphty/algorithms` on the same snapshot with no options, which computes what the
+ * id-keyed `closenessCentrality` of 2.x did (the algorithms package checks it against that function's recorded results).
+ * @param s - the snapshot
+ * @returns the CPU scores by node index
  */
-function legacyScores(edges: readonly EdgeSpec[], n: number): Float64Array {
-    const graph = new Graph();
-    for (let v = 0; v < n; v++) {
-        graph.addNode(v);
-    }
-    for (const [u, v] of edges) {
-        graph.addEdge(u, v);
-    }
-    const scores = legacyClosenessCentrality(graph);
-    return Float64Array.from({ length: n }, (_, v) => scores[String(v)]);
+function cpuScores(s: GraphSnapshot): Float64Array {
+    return cpuClosenessCentrality(s).scores;
 }
 
 /**
@@ -171,18 +163,18 @@ describe("closenessCentrality (design 8.4 / 9.7; P8-T11)", () => {
         ctx.release(s);
     }, 60_000);
 
-    it("karate: the oracle's sums exactly, and score for score within 1e-5 relative of the legacy closenessCentrality with no options (the legacy 1 / sum, never the NetworkX form)", async (t) => {
+    it("karate: the oracle's sums exactly, and score for score within 1e-5 relative of the CPU closenessCentrality with no options (the legacy 1 / sum, never the NetworkX form)", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(KARATE_EDGES, { label: "closeness-karate" });
         const run = await checkRun(ctx, "karate", s);
-        const legacy = legacyScores(KARATE_EDGES, s.nodeCount);
-        expectScoresClose(run.result.scores, legacy, SCORE_REL, "karate vs legacy");
+        const cpu = cpuScores(s);
+        expectScoresClose(run.result.scores, cpu, SCORE_REL, "karate vs the CPU closeness");
         // the NetworkX / Wasserman-Faust form would be 33x every legacy number on this connected graph
-        expect(run.result.scores[0] * 33).not.toBeCloseTo(legacy[0], 6);
+        expect(run.result.scores[0] * 33).not.toBeCloseTo(cpu[0], 6);
         ctx.release(s);
     }, 60_000);
 
-    it("a disconnected graph: an unreached node adds nothing to a sum, an isolated node scores 0 (never 1 / 0), through the oracle and the legacy function", async (t) => {
+    it("a disconnected graph: an unreached node adds nothing to a sum, an isolated node scores 0 (never 1 / 0), through the oracle and the CPU closeness", async (t) => {
         const ctx = await context(t);
         // a 5-path on 0..4, a triangle on 6..8, node 5 and node 9 isolated
         const edges: EdgeSpec[] = [...pathEdges(5), [6, 7], [7, 8], [8, 6]];
@@ -196,7 +188,7 @@ describe("closenessCentrality (design 8.4 / 9.7; P8-T11)", () => {
         expect(run.sum[0]).toBe(1 + 2 + 3 + 4);
         expect(run.reached[6]).toBe(2);
         expect(run.sum[6]).toBe(2);
-        expectScoresClose(run.result.scores, legacyScores(edges, 10), SCORE_REL, "disconnected vs legacy");
+        expectScoresClose(run.result.scores, cpuScores(s), SCORE_REL, "disconnected vs the CPU closeness");
         ctx.release(s);
     }, 60_000);
 
@@ -375,6 +367,94 @@ describe("closenessCentrality (design 8.4 / 9.7; P8-T11)", () => {
         const stillSweeps = await closenessCentrality(ctx, negative, { weighted: false });
         expect(Array.from(stillSweeps.scores)).toEqual([Math.fround(1 / 3), Math.fround(1 / 2), Math.fround(1 / 3)]);
         ctx.release(negative);
+    }, 60_000);
+
+    it("sampled sources, every node of karate: bitwise the exact run's scores (the same integer sums, folded per node instead of per source)", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES, { label: "closeness-sampled-every" });
+        const every = Array.from({ length: s.nodeCount }, (_, i) => i);
+        const exact = await closenessCentrality(ctx, s);
+        const sampled = await closenessCentrality(ctx, s, { sources: every });
+        expectBitwiseEqual(sampled.scores, exact.scores, "sampled over every node vs exact");
+        expect(sampled.sourcesUsed).toBe(s.nodeCount);
+        expect(exact.sourcesUsed).toBe(s.nodeCount);
+        expect(sampled.iterations).toBe(exact.iterations);
+        ctx.release(s);
+    }, 60_000);
+
+    it("sampled sources: the CPU port on the same sources, score for score, duplicates run twice, run twice bitwise", async (t) => {
+        const ctx = await context(t);
+        const cases: [string, GraphSnapshot, number[]][] = [
+            ["karate", snapshotOf(KARATE_EDGES, { label: "closeness-sampled-karate" }), [0, 33, 5, 5, 16]],
+            // two batches, the second partial, a duplicate straddling them
+            [
+                "random70",
+                snapshotOf(randomEdges(70, 200, 11), { nodeCount: 70, label: "closeness-sampled-random70" }),
+                Array.from({ length: 40 }, (_, i) => (i * 7) % 70).concat([0]),
+            ],
+            [
+                "disconnected",
+                snapshotOf([...pathEdges(5), [6, 7], [7, 8], [8, 6]], {
+                    nodeCount: 10,
+                    label: "closeness-sampled-disconnected",
+                }),
+                [0, 9, 7],
+            ],
+        ];
+        for (const [label, s, sources] of cases) {
+            const first = await closenessCentrality(ctx, s, { sources });
+            const second = await closenessCentrality(ctx, s, { sources });
+            expectBitwiseEqual(first.scores, second.scores, `${label}: run twice`);
+            expect(first.sourcesUsed, `${label}: sourcesUsed`).toBe(sources.length);
+            expect(first.iterations, `${label}: batches`).toBe(Math.ceil(sources.length / SOURCES_PER_BATCH));
+            const cpu = cpuClosenessCentrality(s, { sources });
+            expect(cpu.sourcesUsed).toBe(sources.length);
+            expectScoresClose(first.scores, cpu.scores, SCORE_REL, `${label}: vs the CPU port on the same sources`);
+            ctx.release(s);
+        }
+    }, 120_000);
+
+    it("sampled by k through the dispatcher: the accelerator runs the port's own draw, so CPU and GPU agree score for score", async (t) => {
+        const ctx = await context(t);
+        const acc = createAccelerator(ctx);
+        const s = snapshotOf(randomEdges(70, 200, 11), { nodeCount: 70, label: "closeness-sampled-k" });
+        for (const k of [1, 20, 45]) {
+            const gpu = await accelerated(acc).closenessCentrality(s, { k });
+            const cpu = cpuClosenessCentrality(s, { k });
+            expect(gpu.sourcesUsed).toBe(k);
+            expect(gpu.scores).toBeInstanceOf(Float32Array);
+            expectScoresClose(gpu.scores, cpu.scores, SCORE_REL, `k = ${k}`);
+        }
+        acc.release(s);
+    }, 120_000);
+
+    it("sampled sources on the weighted karate (one sssp per source): within the derived SSSP tolerance of the CPU port's sampled sums", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(weightedEdges(KARATE_EDGES, "uniform", 1), { label: "closeness-sampled-weighted" });
+        const sources = [0, 33, 2, 2];
+        const gpu = await closenessCentrality(ctx, s, { weighted: true, sources });
+        expect(gpu.sourcesUsed).toBe(4);
+        expect(gpu.iterations).toBe(4);
+        const cpu = cpuClosenessCentrality(s, { weighted: true, sources });
+        const tolerance = ssspTolerance();
+        expectScoresClose(gpu.scores, cpu.scores, tolerance.value, `weighted vs CPU (${tolerance.basis})`);
+        ctx.release(s);
+    }, 120_000);
+
+    it("sampled sources refused: a directed snapshot is E_UNSUPPORTED, a source outside the snapshot E_INVALID_ARGUMENT, an empty list scores 0 with no batch", async (t) => {
+        const ctx = await context(t);
+        const directed = snapshotOf(pathEdges(5), { directed: true, label: "closeness-sampled-directed" });
+        const refused = await expectRejection(closenessCentrality(ctx, directed, { sources: [0] }), "E_UNSUPPORTED");
+        expect(refused.details).toMatchObject({ feature: "closenessCentrality.directedSources" });
+        ctx.release(directed);
+        const s = snapshotOf(pathEdges(5), { label: "closeness-sampled-bad" });
+        const bad = await expectRejection(closenessCentrality(ctx, s, { sources: [5] }), "E_INVALID_ARGUMENT");
+        expect(bad.details).toMatchObject({ argument: "sources" });
+        const none = await closenessCentrality(ctx, s, { sources: [] });
+        expect(Array.from(none.scores)).toEqual([0, 0, 0, 0, 0]);
+        expect(none.sourcesUsed).toBe(0);
+        expect(none.iterations).toBe(0);
+        ctx.release(s);
     }, 60_000);
 
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {

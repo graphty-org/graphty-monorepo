@@ -1,23 +1,98 @@
-import {
-    Edge as LayoutEdge,
-    Graph as LayoutGraph,
-    kamadaKawaiLayout,
-    Node as LayoutNode,
-} from "@graphty/layout";
+import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
+import { kamadaKawai } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { pairWeightKey, SimpleLayoutConfig, SimpleLayoutEngine, WEIGHT_EPSILON } from "./LayoutEngine";
+import { GraphtyLogger } from "../logging/GraphtyLogger.js";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom } from "./SnapshotLayoutEngine";
+
+const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
 /**
- * The attribute name handed to `kamadaKawaiLayout`.
+ * The smallest summed weight the layout acts on.
  *
- * It reaches the element's own `getEdgeData` callback and is ignored there: which record key
- * carries the weight was already settled one layer up, at ingest, by
- * `config.data.knownFields.edgeWeightPath`, for every engine at once. A second attribute name here
- * would be a second weight channel, and the two would disagree.
+ * A record may carry `weight: 0`, and the distance of a zero-weight edge is `1 / 0`. Clamping here
+ * means zero reads as "as weak as the solver can express": the largest possible distance.
  */
-const WEIGHT_ATTRIBUTE = "weight";
+const WEIGHT_EPSILON = 1e-6;
+
+/** The derived edge column the layout reads its distances from. */
+const DISTANCE_COLUMN = "graphty.kamadaKawaiDistance";
+
+/**
+ * The graph's per-edge weights at full precision: the f64 role-`weight` column when there is one,
+ * else the f32 weights, else null for an unweighted graph.
+ * @param g - the graph
+ * @returns one weight per edge, or null
+ */
+function edgeWeights(g: GraphSnapshot): NumericVector | null {
+    const exact = g.edges.byRole("weight");
+    return exact?.dtype === "f64" ? exact.data : g.edgeList().weights;
+}
+
+/**
+ * The graph with one distance per edge, `1 / w` where `w` is the SUM of the weights of every edge
+ * between the same two nodes, or null when every such sum is 1 and there is nothing to read.
+ *
+ * Summed first because Kamada-Kawai keeps one distance per pair of nodes: left to itself it would
+ * take the shortest of two parallel edges, so the order a file listed them in -- or which of the
+ * two was heavier -- would decide the picture instead of the connection they make together.
+ *
+ * The sum is taken over `source`, the graph as stored, and not over `g`: turning a directed graph
+ * undirected has already collapsed a reciprocal pair (a->b and b->a) into one edge carrying only
+ * the first edge's weight, so summing after that would drop the other half.
+ * @param g - the undirected graph the layout reads
+ * @param source - the graph `g` was derived from, with the same node rows; `g` itself when undirected
+ * @returns the graph with the distance column, or null
+ */
+function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot | null {
+    const weights = edgeWeights(source);
+    if (weights === null) {
+        return null;
+    }
+
+    const n = g.nodeCount;
+    const pairKey = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
+    const summed = new Map<number, number>();
+    const stored = source.edgeList();
+    for (let e = 0; e < source.edgeCount; e++) {
+        const key = pairKey(stored.src[e], stored.dst[e]);
+        summed.set(key, (summed.get(key) ?? 0) + weights[e]);
+    }
+
+    // Decided on the sums, not on the stored weights: a reciprocal pair of weight 1 sums to 2 and
+    // must read as distance 1/2 whether or not some other edge of the graph happens to weigh more.
+    if ([...summed.values()].every((w) => w === 1)) {
+        return null;
+    }
+
+    const { src, dst } = g.edgeList();
+
+    let clamped = 0;
+    for (const w of summed.values()) {
+        if (w < WEIGHT_EPSILON) {
+            clamped++;
+        }
+    }
+
+    if (clamped > 0) {
+        // Once per run and not per edge: a graph whose weights are all zero would otherwise bury
+        // every other message in the run it happened during.
+        logger.warn("Edge weights at or below zero were clamped before the layout read them", {
+            layout: "kamada-kawai",
+            clamped,
+            epsilon: WEIGHT_EPSILON,
+        });
+    }
+
+    const distance = new Float64Array(g.edgeCount);
+    for (let e = 0; e < g.edgeCount; e++) {
+        distance[e] = 1 / Math.max(summed.get(pairKey(src[e], dst[e])) ?? 1, WEIGHT_EPSILON);
+    }
+
+    return g.withColumns(undefined, { [DISTANCE_COLUMN]: distance });
+}
 
 /**
  * Zod-based options schema for Kamada-Kawai Layout
@@ -69,12 +144,14 @@ type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
 /**
  * Kamada-Kawai layout engine using spring-embedder energy minimization
  */
-export class KamadaKawaiLayout extends SimpleLayoutEngine {
+export class KamadaKawaiLayout extends SnapshotLayoutEngine {
     static type = "kamada-kawai";
     static maxDimensions = 3;
     static override honoursWeights = true;
     static zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
-    scalingFactor = 50;
+    /** Layout units to scene units. */
+    private static readonly scale = 50;
+    protected readonly dimensions: 2 | 3;
     config: KamadaKawaiLayoutConfigType;
 
     /**
@@ -84,6 +161,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     constructor(opts: KamadaKawaiLayoutOpts) {
         super(opts);
         this.config = KamadaKawaiLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -96,6 +174,14 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     }
 
     /**
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
+     */
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
      * Compute node positions using Kamada-Kawai algorithm
      *
      * A WEIGHT IS INVERTED ON THE WAY IN, and that is the one thing about this engine a reader
@@ -105,34 +191,48 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
      * larger number is a stronger connection. Nothing on screen would say which convention was in
      * force. So the element hands this solver `1 / weight` and the whole package keeps one
      * reading: heavier means more strongly connected, means drawn closer together.
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
-        const graph: LayoutGraph = { nodes, edges };
+    protected compute(input: SnapshotLayoutInput): F32 {
+        const dim = layoutDim(this.config.dim);
+        const weighted = this.config.weighted ? withDistances(input.graph, input.stored) : null;
+        return sceneUnits(
+            kamadaKawai(weighted ?? input.graph, {
+                dist: this.distances(),
+                pos: startFrom(input, dim, KamadaKawaiLayout.scale) ?? this.rowsOfRecord(this.config.pos, dim),
+                weight: weighted === null ? false : DISTANCE_COLUMN,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim,
+            }),
+            KamadaKawaiLayout.scale,
+        );
+    }
 
-        const weights = this.config.weighted ? this.pairWeights(this._edges) : null;
-        if (weights !== null) {
-            this.reportClampedWeights("kamada-kawai", weights);
-            graph.getEdgeData = (source: LayoutNode, target: LayoutNode): number | undefined => {
-                const weight = weights.get(pairWeightKey(source, target));
-                if (weight === undefined) {
-                    return undefined;
-                }
-
-                return 1 / Math.max(weight, WEIGHT_EPSILON);
-            };
+    /**
+     * The `dist` option as the matrix the layout reads, `n * n` distances row by row; a pair the
+     * record does not give is unreachable.
+     * @returns the matrix, or null for no option
+     */
+    private distances(): Float64Array | null {
+        const { dist } = this.config;
+        if (dist === null) {
+            return null;
         }
 
-        this.positions = kamadaKawaiLayout(
-            graph,
-            this.config.dist,
-            this.config.pos,
-            WEIGHT_ATTRIBUTE,
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-        );
+        const n = this.graph.nodeCount;
+        const out = new Float64Array(n * n).fill(Number.POSITIVE_INFINITY);
+        for (const [source, row] of Object.entries(dist)) {
+            const i = this.rowOfId(source);
+            for (const [target, d] of Object.entries(row)) {
+                const j = this.rowOfId(target);
+                if (i !== INVALID_INDEX && j !== INVALID_INDEX) {
+                    out[i * n + j] = d;
+                }
+            }
+        }
+
+        return out;
     }
 }

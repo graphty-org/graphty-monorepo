@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { dijkstra, Graph } from "@graphty/algorithms";
+import { dijkstra } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     COLORS,
     createAnimationControls,
@@ -42,23 +39,6 @@ interface DijkstraArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph with weights.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
-}
-
-/**
  * Animation step for Dijkstra visualization.
  */
 interface DijkstraStep {
@@ -77,11 +57,11 @@ function runDijkstraAndCreateSteps(
     startNode: number,
     targetNode: number,
 ): DijkstraStep[] {
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
     const steps: DijkstraStep[] = [];
 
     // Run actual Dijkstra algorithm
-    const result = dijkstra(graph, startNode);
+    const sssp = dijkstra(graph, graph.ids.requireIndex(startNode));
 
     // Build adjacency for simulation
     const adjacency = new Map<number, Array<{ target: number; weight: number }>>();
@@ -172,8 +152,12 @@ function runDijkstraAndCreateSteps(
     }
 
     // Highlight the shortest path to target if it exists
-    const targetResult = result.get(targetNode);
-    if (targetResult && targetResult.path) {
+    const target = graph.ids.requireIndex(targetNode);
+    const targetResult =
+        sssp.dist[target] === Infinity
+            ? undefined
+            : { path: idsOf(graph, sssp.pathTo(target)), distance: sssp.dist[target] };
+    if (targetResult) {
         for (let i = 0; i < targetResult.path.length; i++) {
             const nodeId = targetResult.path[i] as number;
             steps.push({
@@ -270,7 +254,9 @@ function createDijkstraStory(args: DijkstraArgs): HTMLElement {
      */
     function updateDistanceDisplay(): void {
         const distancesEl = distancePanel.querySelector("[data-distances]");
-        if (!distancesEl) {return;}
+        if (!distancesEl) {
+            return;
+        }
 
         distancesEl.innerHTML = "";
         for (const node of generatedGraph.nodes) {
@@ -360,11 +346,15 @@ function createDijkstraStory(args: DijkstraArgs): HTMLElement {
      * Play animation continuously.
      */
     function play(): void {
-        if (isPlaying) {return;}
+        if (isPlaying) {
+            return;
+        }
         isPlaying = true;
 
         function tick(): void {
-            if (!isPlaying) {return;}
+            if (!isPlaying) {
+                return;
+            }
 
             const hasMore = executeStep();
             if (hasMore) {

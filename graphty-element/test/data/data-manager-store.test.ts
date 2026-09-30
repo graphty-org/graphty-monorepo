@@ -1,9 +1,11 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { CAPACITY_COLUMN } from "../../src/data/GraphStore";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import type { GraphEvent } from "../../src/events";
-import { DataManager } from "../../src/managers/DataManager";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import type { GraphContext } from "../../src/managers/GraphContext";
 import type { Node } from "../../src/Node";
@@ -48,9 +50,7 @@ function registerEdgeStub(dm: DataManager, srcId: string, dstId: string, index: 
         dstNode: { id: dstId },
         dispose: () => undefined,
     } as unknown as Edge;
-    dm.edges.set(edge.id, edge);
-    dm.edgeCache.set(srcId, dstId, edge);
-    dm.edgesByIndex[index] = edge;
+    dataManagerInternals.adoptEdge(dm, edge);
     return edge;
 }
 
@@ -117,9 +117,9 @@ describe("DataManager owns the graph store", () => {
     });
 
     it("folds a repeated record for a pending pair into the first one when the policy says first", () => {
-        // `edgeCache` cannot answer this on its own: it only learns about an edge when the Edge is
-        // built, so a repeat policy that looked only there would take the same pair twice for
-        // every edge whose endpoints have not arrived.
+        // The built edges cannot answer this on their own: an Edge exists only once both endpoints
+        // have a render Node, so a repeat policy that looked only there would take the same pair
+        // twice for every edge whose endpoints have not arrived.
         const { dm } = makeManager();
         dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
         dm.addEdges([{ src: "a", dst: "b" }], { repeated: "first" });
@@ -136,15 +136,34 @@ describe("DataManager owns the graph store", () => {
         assert.strictEqual(snapshot.weights?.[snapshot.edgeToArc[0] ?? 0], 5, "carrying the group's total weight");
     });
 
+    it("stores each record's capacity in the capacity column, and the replacing record's under last", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b", capacity: 2.5 },
+            { src: "b", dst: "c", value: 7 },
+        ]);
+        dm.addEdges([{ src: "a", dst: "b", capacity: 4 }], { repeated: "last" });
+        dm.addEdges([{ src: "b", dst: "c", capacity: 9 }], { repeated: "sum" });
+
+        const capacity = dm.getSnapshot().edges.requireTyped(CAPACITY_COLUMN, "f64");
+        assert.deepStrictEqual(Array.from(capacity.data), [4, 7], "sum keeps the first record, last takes the new one");
+    });
+
     it("keeps the mirror of a directed pair, which is a different edge", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "a" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "a" },
+        ]);
         assert.strictEqual(dm.getSnapshot().edgeCount, 2);
     });
 
     it("sizes the positions array to the node count, every row unplaced", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         const snapshot = dm.getSnapshot();
         assert.strictEqual(dm.positions.count, snapshot.nodeCount);
         const out = { x: 0, y: 0, z: 0 };
@@ -160,7 +179,7 @@ describe("DataManager owns the graph store", () => {
         dm.addEdges([{ src: "a", dst: "b" }]);
         const snapshot = dm.getSnapshot();
         const column = snapshot.nodes.requireTyped("position", "f32");
-        dm.positions.write(0, 7, 8, 9);
+        dm[WRITABLE_LANE].write(0, 7, 8, 9);
         assert.strictEqual(column.data[0], 7);
         assert.strictEqual(column.data[1], 8);
         assert.strictEqual(column.data[2], 9);
@@ -217,10 +236,13 @@ describe("DataManager removal reaches the store", () => {
 
     it("takes a removed node AND its incident edges out of the snapshot", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const removed = nodeStub("a", 0);
-        dm.nodes.set("a", removed);
+        dataManagerInternals.adoptNode(dm, removed);
         dm.nodeCache.set("a", removed);
         const ab = registerEdgeStub(dm, "a", "b", 0);
         registerEdgeStub(dm, "b", "c", 1);
@@ -238,12 +260,15 @@ describe("DataManager removal reaches the store", () => {
         // visible by the per-frame mask.
         assert.strictEqual(dm.edges.size, 1, "only the edge that touches neither end of the removal is left");
         assert.isUndefined(dm.getEdge("0"), "and the incident edge is not reachable by its id");
-        assert.deepStrictEqual([...dm.edgeCache.get("a", "b")], [], "nor by its endpoint pair");
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [], "nor by its endpoint pair");
     });
 
     it("takes a removed edge out of the snapshot and leaves its endpoints", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const bc = registerEdgeStub(dm, "b", "c", 1);
 
@@ -258,13 +283,16 @@ describe("DataManager removal reaches the store", () => {
 describe("DataManager walks a compacting freeze", () => {
     it("slides every surviving index down, in the render objects and in edgesByIndex", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const a = nodeStub("a", 0);
         const b = nodeStub("b", 1);
         const c = nodeStub("c", 2);
         for (const node of [a, b, c]) {
-            dm.nodes.set(node.id, node);
+            dataManagerInternals.adoptNode(dm, node);
             dm.nodeCache.set(node.id, node);
         }
 
@@ -282,14 +310,17 @@ describe("DataManager walks a compacting freeze", () => {
 
     it("carries every surviving node's coordinates with it", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
-        dm.positions.write(0, 10, 0, 0);
-        dm.positions.write(1, 20, 0, 0);
-        dm.positions.write(2, 30, 0, 0);
+        dm[WRITABLE_LANE].write(0, 10, 0, 0);
+        dm[WRITABLE_LANE].write(1, 20, 0, 0);
+        dm[WRITABLE_LANE].write(2, 30, 0, 0);
 
         const a = nodeStub("a", 0);
-        dm.nodes.set("a", a);
+        dataManagerInternals.adoptNode(dm, a);
         dm.nodeCache.set("a", a);
         dm.removeNodeAndIncidentEdges("a");
         dm.getSnapshot();
@@ -304,10 +335,13 @@ describe("DataManager walks a compacting freeze", () => {
 
     it("drops a pending edge whose store edge died, and frees its pair for a later record", () => {
         const { dm } = makeManager();
-        dm.addEdges([{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
         dm.getSnapshot();
         const a = nodeStub("a", 0);
-        dm.nodes.set("a", a);
+        dataManagerInternals.adoptNode(dm, a);
         dm.nodeCache.set("a", a);
 
         dm.removeNodeAndIncidentEdges("a");
@@ -341,7 +375,9 @@ describe("DataManager store lifecycle", () => {
         dm.addEdges([{ src: "x", dst: "y" }]);
         const snapshot = dm.getSnapshot();
         assert.notStrictEqual(snapshot.nodes.byRole("position"), null);
-        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 0);
+        // The counter belongs to the manager, not the store, so the Clear does not rewind it: the
+        // cleared graph's edge took 0, and reissuing 0 would re-point anything still naming it.
+        assert.strictEqual(snapshot.edges.requireTyped("graphty.edgeId", "u32").data[0], 1);
     });
 
     it("forgets a pending edge across clear(), so the pair is accepted again", () => {
@@ -370,5 +406,74 @@ describe("DataManager indices", () => {
         dm.addEdges([{ src: "a", dst: "b" }]);
         dm.getSnapshot();
         assert.strictEqual(dm.edgesByIndex[0], undefined, "no render object claimed row 0 yet");
+    });
+});
+
+describe("DataManager answers edge lookups from the store", () => {
+    it("lists the edges of one ordered pair, oldest first, and nothing for the mirror or a stranger", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+            { src: "b", dst: "a" },
+        ]);
+        const first = registerEdgeStub(dm, "a", "b", 0);
+        const second = registerEdgeStub(dm, "a", "b", 1);
+        const mirror = registerEdgeStub(dm, "b", "a", 2);
+
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [first, second]);
+        assert.deepStrictEqual([...dm.getEdgesBetween("b", "a")], [mirror]);
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "nobody")], []);
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "a")], []);
+    });
+
+    it("keeps the pair's order in an undirected graph, where the store matches either orientation", () => {
+        const eventManager = new EventManager();
+        const styles = Styles.default();
+        styles.config.data.directed = false;
+        const dm = new DataManager(eventManager, styles);
+        dm.setGraphContext({} as unknown as GraphContext);
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "a" },
+        ]);
+        const forward = registerEdgeStub(dm, "a", "b", 0);
+        const backward = registerEdgeStub(dm, "b", "a", 1);
+
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [forward]);
+        assert.deepStrictEqual([...dm.getEdgesBetween("b", "a")], [backward]);
+    });
+
+    it("leaves out an edge whose render object is still pending, and a removed one", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+        ]);
+        const built = registerEdgeStub(dm, "a", "b", 1);
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], [built], "row 0 has no render object yet");
+
+        assert.isTrue(dm.removeEdge(built.id));
+        assert.deepStrictEqual([...dm.getEdgesBetween("a", "b")], []);
+    });
+
+    it("counts what the store holds, which is what statistics().edgeCount reports", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        registerEdgeStub(dm, "a", "b", 0);
+
+        const snapshot = dm.getSnapshot();
+        assert.deepStrictEqual(dm.heldCounts(), { nodes: snapshot.nodeCount, edges: snapshot.edgeCount });
+        assert.strictEqual(dm.heldCounts().edges, 3, "pending edges are in the graph too");
+        assert.strictEqual(dm.heldCounts().nodes, 3, "so are endpoints no record declared as a node");
+        assert.deepStrictEqual(
+            [dm.getStats().nodeCount, dm.getStats().edgeCount],
+            [3, 3],
+            "getStats gives the same numbers",
+        );
     });
 });

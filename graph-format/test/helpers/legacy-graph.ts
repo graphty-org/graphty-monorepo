@@ -1,6 +1,6 @@
 /**
- * A TEST-ONLY copy of the legacy `Graph` class of `@graphty/algorithms` (algorithms/src/core/graph.ts
- * in the monorepo) together with the four types it needs, so the differential suite of design
+ * A TEST-ONLY copy of the `Graph` class of `@graphty/algorithms` 2.x (algorithms/src/core/graph.ts
+ * before algorithms 3.0.0 removed it) together with the four types it needs, so the differential suite of design
  * section 16.2 can compare GraphBuilder output against the legacy Map-of-Maps semantics without
  * the format package taking a dependency on the algorithms package.
  *

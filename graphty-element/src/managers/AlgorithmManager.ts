@@ -1,18 +1,55 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { Algorithm } from "../algorithms/Algorithm";
-import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
+import type { SimplifyPolicy } from "../algorithms/input/derivedInputs";
+import { checkNodeOptions } from "../algorithms/input/maskBack";
+import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../catalog/registry";
 import type { AlgorithmDescriptor } from "../catalog/types";
+import { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Graph } from "../Graph";
+import { Node } from "../Node";
+import { type AlgoLegacyCommand, legacyFacade, LegacyWrites, openLegacyScope } from "../session/commands/algo";
+import { dispatcherOf } from "../session/GraphSession";
+import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
+import { resolutionBehind } from "../session/scope/ScopeApi";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
 
+/**
+ * How many parallel edges an algorithm run over this graph merges before it can run.
+ *
+ * A run says so in its caveats: the numbers an algorithm produces over a multigraph are the
+ * numbers for the SIMPLIFIED graph, and a reader looking at a result card has no other way to
+ * learn that. It counts repeats in the graph AS DECLARED, which is the same number
+ * `statistics().repeatedEdgeCount` reports, so the caveat and the graph summary agree.
+ * @param data - the element's data manager
+ * @param data.getSnapshot - the declared snapshot
+ * @returns how many edges the simplification removes; zero for a graph with no parallel edges
+ */
+function mergedParallelEdges(data: { getSnapshot(): GraphSnapshot }): number {
+    const declared = data.getSnapshot();
+    if (!declared.flags.multigraph) {
+        return 0;
+    }
+
+    return declared.edgeCount - declared.simplified({ weights: "sum" }).snapshot.edgeCount;
+}
+
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_NAMESPACE = "graphty";
+
+/** How a run's caveat says a group of parallel edges became one, by the class's merge policy. */
+const MERGED_WEIGHTS: Readonly<Record<Exclude<SimplifyPolicy, "none">, string>> = {
+    sum: "with weights summed",
+    min: "keeping the lowest weight",
+    max: "keeping the highest weight",
+};
 
 /** Which registered class one run should build, and what to build it with. */
 interface AlgorithmTarget {
@@ -163,20 +200,21 @@ export class AlgorithmManager implements Manager {
         // stack's work, scheduled from the run finishing: the `algorithm-run` trigger Graph
         // registers repaints from the session's stack once the run leaves the queue.
 
-        // A run over a multigraph is a run over the SIMPLIFIED graph -- `@graphty/algorithms`
-        // cannot hold two edges between one pair -- and a reader has no other way to learn that.
+        // A run over a multigraph is a run over the SIMPLIFIED graph unless its class keeps parallel
+        // edges apart, and a reader has no other way to learn that.
         // The note is appended here rather than in each algorithm because the merge is the
         // element's doing, not any one algorithm's.
         const { caveats } = result.summary();
-        const merged = mergedParallelEdges(this.graph.getDataManager());
+        const policy = (algorithm.constructor as typeof Algorithm).parallelEdges ?? "sum";
+        const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
         const noted =
-            merged === 0
+            merged === 0 || policy === "none"
                 ? caveats
                 : {
                       ...caveats,
                       notes: [
                           ...caveats.notes,
-                          `${String(merged)} parallel ${merged === 1 ? "edge was" : "edges were"} merged, with weights summed, ` +
+                          `${String(merged)} parallel ${merged === 1 ? "edge was" : "edges were"} merged, ${MERGED_WEIGHTS[policy]}, ` +
                               `because this algorithm runs over a graph that holds one edge per pair. Every member of a merged ` +
                               `group carries the merged value.`,
                       ],
@@ -191,28 +229,32 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
-     * Run algorithms specified in the template configuration
-     * Called during initialization if runAlgorithmsOnLoad is true
+     * Run algorithms specified in the template configuration, as one undoable step.
      * @param algorithms - Array of algorithm names in "namespace:type" format
      */
     async runAlgorithmsFromTemplate(algorithms: string[]): Promise<void> {
         const errors: Error[] = [];
 
-        for (const algName of algorithms) {
-            try {
-                const trimmedName = algName.trim();
-                const [namespace, type] = trimmedName.split(":");
-                if (!namespace || !type) {
-                    throw new Error(`invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`);
-                }
+        await dispatcherOf(this.graph.getSession()).transaction("Ran the template's algorithms", async (tx) => {
+            for (const algName of algorithms) {
+                try {
+                    const trimmedName = algName.trim();
+                    const [namespace, type] = trimmedName.split(":");
+                    if (!namespace || !type) {
+                        throw new Error(
+                            `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
+                        );
+                    }
 
-                await this.runAlgorithm(namespace.trim(), type.trim());
-            } catch (error) {
-                const algorithmError = error instanceof Error ? error : new Error(String(error));
-                errors.push(algorithmError);
-                // Individual error already emitted by runAlgorithm
+                    await this.dispatchLegacy(
+                        { op: "algo.legacy", namespace: namespace.trim(), type: type.trim() },
+                        (command) => tx.dispatch(command),
+                    );
+                } catch (error) {
+                    errors.push(error instanceof Error ? error : new Error(String(error)));
+                }
             }
-        }
+        });
 
         // If there were any errors, throw a summary error
         if (errors.length > 0) {
@@ -232,8 +274,7 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
-     * Run a specific algorithm by its 1.10 registry address, publishing the result through side
-     * effects and returning nothing.
+     * Run a specific algorithm by its 1.10 registry address, as one undoable step.
      *
      * This is the path a PLUGIN algorithm takes. A plugin registers itself under a
      * `namespace:type` and publishes no catalogue descriptor, so it cannot be started by key and
@@ -241,37 +282,109 @@ export class AlgorithmManager implements Manager {
      * to agree with. Everything this package ships goes through {@link AlgorithmManager.execute}
      * instead, reached from `graph.run` and `session.runs.start`.
      *
-     * It goes when plugin algorithms publish descriptors of their own.
+     * It dispatches `algo.legacy`, which takes its turn on the queue, constructs the plugin with a
+     * facade of the graph and runs it: what it writes to node and edge records and
+     * `graphResults`, and every door it calls on the graph, are one step.
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "dijkstra")
      * @param algorithmOptions - Optional algorithm-specific options (source, target, etc.)
      */
     async runAlgorithm(namespace: string, type: string, algorithmOptions?: AlgorithmSpecificOptions): Promise<void> {
+        const dispatcher = dispatcherOf(this.graph.getSession());
+        await this.dispatchLegacy(
+            {
+                op: "algo.legacy",
+                namespace,
+                type,
+                ...(algorithmOptions === undefined ? {} : { options: algorithmOptions }),
+            },
+            (command) => dispatcher.dispatch(command),
+        );
+    }
+
+    /**
+     * Carry out one `algo.legacy` the dispatcher has started: construct the plugin with a
+     * group-tagged facade of the graph, run it with the element's node and edge records read
+     * copy-on-write, and write what it wrote into the command's draft. Registered by the graph
+     * as its session's legacy service; nothing else calls it.
+     * @param command - The command.
+     * @param ctx - The command's context.
+     * @returns Settles once everything the plugin wrote is in the command's draft.
+     * @internal
+     */
+    async runLegacy(command: AlgoLegacyCommand, ctx: UndoableContext): Promise<void> {
+        const dispatcher = dispatcherOf(this.graph.getSession());
+        const data = this.graph.getDataManager();
+        const scope = new LegacyWrites(
+            dispatcher,
+            (element) =>
+                data.nodes.get((element as Node).id) === element || data.edges.get((element as Edge).id) === element,
+        );
+        const facade = legacyFacade(this.graph, dispatcher, ctx.inline);
+        const close = openLegacyScope(scope, [
+            { prototype: Node.prototype, target: "node" },
+            { prototype: Edge.prototype, target: "edge" },
+        ]);
         try {
+            const options = command.options as AlgorithmSpecificOptions | undefined;
             // Pass options to constructor for new-style algorithms with zodOptionsSchema
-            const alg = Algorithm.get(this.graph, namespace, type, algorithmOptions);
+            const alg = Algorithm.get(facade, command.namespace, command.type, options);
             if (!alg) {
-                throw new Error(`algorithm not found: ${namespace}:${type}`);
+                throw new Error(`algorithm not found: ${command.namespace}:${command.type}`);
             }
 
             // Also call configure for backward compatibility with legacy algorithms
             // that use the deprecated configure() method instead of constructor options
-            if (algorithmOptions && "configure" in alg && typeof alg.configure === "function") {
-                alg.configure(algorithmOptions);
+            if (options && "configure" in alg && typeof alg.configure === "function") {
+                alg.configure(options);
             }
 
-            await alg.run(this.graph);
+            await alg.run(facade);
+        } finally {
+            // Kept open until the plugin settles, even after a cancel: a write it makes late still
+            // lands in the copy, never on a record.
+            close();
+        }
 
-            // As in `execute`: the repaint belongs to the style stack and is scheduled from the
-            // run finishing, not forced from here. A plugin algorithm writes its results onto the
-            // element's own node and edge records, which the session reads as attributes, so a
-            // layer selecting on one of those paths is repainted by the same trigger.
+        // Reading the draft throws once the command was cancelled, so nothing late is written.
+        const { draft } = ctx;
+        const written = scope.writes();
+        const service = ctx.services.data;
+        if (service !== undefined) {
+            for (const target of ["node", "edge"] as const) {
+                const rows = target === "node" ? written.nodes : written.edges;
+                if (rows.length > 0) {
+                    service.apply({ kind: "update-rows", target, rows }, draft);
+                }
+            }
+
+            if (written.graph !== null) {
+                service.values?.(written.graph, draft);
+            }
+        }
+
+        if (command.applySuggestedStyles === true) {
+            // Through the facade, so the layers join this step.
+            facade.applySuggestedStyles(`${command.namespace}:${command.type}`);
+        }
+    }
+
+    /**
+     * Dispatch one `algo.legacy`, announcing a failure on the graph's error channel.
+     * @param command - The command.
+     * @param dispatch - Where it goes.
+     */
+    private async dispatchLegacy(
+        command: AlgoLegacyCommand,
+        dispatch: (command: AlgoLegacyCommand) => Promise<unknown>,
+    ): Promise<void> {
+        try {
+            await dispatch(command);
         } catch (error) {
-            // Emit error event for any error (not found or execution)
             const algorithmError = error instanceof Error ? error : new Error(String(error));
 
             this.eventManager.emitGraphError(this.graph, algorithmError, "algorithm", {
-                algorithm: `${namespace}:${type}`,
+                algorithm: `${command.namespace}:${command.type}`,
                 component: "AlgorithmManager",
             });
 
@@ -324,6 +437,24 @@ export class AlgorithmManager implements Manager {
     }
 
     /**
+     * A run's scope as bitmaps over the snapshot the graph holds now. The run resolved it when it
+     * started; a freeze since then resolves it again, so an algorithm never reads bitmaps over a
+     * snapshot that is no longer the graph.
+     * @param context - What the run handed the work.
+     * @returns The scope, or null when the run carries none this module can read.
+     */
+    private scopeOf(context: RunExecutionContext): ResolvedInputScope | null {
+        const behind = resolutionBehind(context.scope);
+        if (behind === undefined) {
+            return null;
+        }
+
+        const { reading } = behind;
+
+        return { ...(behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now()), reading };
+    }
+
+    /**
      * Do the work.
      *
      * One call, whichever family the algorithm belongs to: `publishResult` is the name every
@@ -342,16 +473,29 @@ export class AlgorithmManager implements Manager {
         context: RunExecutionContext,
         descriptor: AlgorithmDescriptor,
     ): Promise<RunResult> {
-        const published = await algorithm.publishResult(
-            {
-                signal: context.signal,
-                report: (progress: RunProgressReport) => {
-                    context.report(progress);
-                },
-                yieldNow: yieldToHost,
-            },
-            context.runId,
-            descriptor.fields,
+        // A node option naming a node outside the scope is refused before any work starts.
+        checkNodeOptions(descriptor.options, context.params, this.scopeOf(context));
+
+        // The run's scope is handed to the algorithm through the input accessor, which gives it to a
+        // class that declares a scoped input and the whole graph to every other; whatever it
+        // derives is held until the work settles, and what it publishes is masked back to it.
+        const published = await withRunInput(
+            algorithm,
+            this.graph,
+            () => this.scopeOf(context),
+            context.signal,
+            () =>
+                algorithm.publishResult(
+                    {
+                        signal: context.signal,
+                        report: (progress: RunProgressReport) => {
+                            context.report(progress);
+                        },
+                        yieldNow: yieldToHost,
+                    },
+                    context.runId,
+                    descriptor.fields,
+                ),
         );
 
         return published ?? emptyResult(context, descriptor);

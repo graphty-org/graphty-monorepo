@@ -40,7 +40,6 @@ export type { GraphtyErrorCode };
  */
 export type { DrawingMode };
 
-
 // ---------------------------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------------------------
@@ -57,8 +56,14 @@ export type RunId = string;
 /** The identity of a style layer. Element-minted and stable; never an array index. */
 export type LayerId = string;
 
-/** The identity of a saved scope. */
-export type ScopeId = string;
+/**
+ * The identity of a kept set. Element-minted; every minted id starts with `set_` and everything
+ * after that prefix is opaque. An id is never reissued within a project, and a rename keeps it.
+ */
+export type SetId = string;
+
+/** The identity of a saved scope: a kept set, so the same type as {@link SetId}. */
+export type ScopeId = SetId;
 
 /** A JMESPath expression over the published result root. */
 export type Path = string;
@@ -74,9 +79,8 @@ export type Query = string;
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
  * the built-in set without a catalogue instance.
  *
- * Two of these names are deprecated: `all-paths` and `clustering-coefficient` are reserved but
- * not implemented, and starting either fails with `E_UNSUPPORTED`. See
- * {@link DEPRECATED_ALGORITHMS}.
+ * One of these names is deprecated: `all-paths` is reserved but not implemented, and starting it
+ * fails with `E_UNSUPPORTED`. See {@link DEPRECATED_ALGORITHMS}.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -107,21 +111,21 @@ export const KNOWN_ALGORITHMS = [
 ] as const;
 
 /**
- * One of the built-in algorithms. `all-paths` and `clustering-coefficient` are deprecated and do
- * not run; see {@link DEPRECATED_ALGORITHMS}.
+ * One of the built-in algorithms. `all-paths` is deprecated and does not run; see
+ * {@link DEPRECATED_ALGORITHMS}.
  */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
 
 /**
  * The built-in algorithm names the element reserves but does not run.
  *
- * Nothing implements these two yet. The names stay in {@link KNOWN_ALGORITHMS}, so no plugin can
- * claim them and no code that names them stops compiling, but starting one fails with
- * `E_UNSUPPORTED` rather than `E_UNKNOWN_ALGORITHM`. Each is removed at the next major release
- * unless it is implemented first: `all-paths` is tracked by issue #329 and
- * `clustering-coefficient` by issue #330.
+ * Nothing implements this one yet. The name stays in {@link KNOWN_ALGORITHMS}, so no plugin can
+ * claim it and no code that names it stops compiling, but starting it fails with `E_UNSUPPORTED`
+ * rather than `E_UNKNOWN_ALGORITHM`. It is removed at the next major release unless it is
+ * implemented first; `all-paths` is tracked by issue #329. `clustering-coefficient`, reserved here
+ * until issue #330, now runs.
  */
-export const DEPRECATED_ALGORITHMS = ["all-paths", "clustering-coefficient"] as const satisfies readonly KnownAlgorithm[];
+export const DEPRECATED_ALGORITHMS = ["all-paths"] as const satisfies readonly KnownAlgorithm[];
 
 /** A built-in algorithm name the element reserves but does not run, and will remove. */
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
@@ -151,10 +155,21 @@ export const KNOWN_LAYOUT_IDS = [
 /** A layout id: a built-in name, or a plugin's. */
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 
-/** The built-in file formats. */
+/**
+ * The built-in file formats.
+ *
+ * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
+ * #306 and #307). A load that names either fails with that reason. Both are removed at the next
+ * major release unless a reader lands first.
+ */
 export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2"] as const;
 
-/** A format id: a built-in name, or a plugin's. */
+/**
+ * A format id: a built-in name, or a plugin's.
+ *
+ * The built-in names "sif" and "cx2" are deprecated and unserved (issues #306 and #307); they are
+ * removed at the next major release unless a reader lands first.
+ */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 /**
@@ -242,7 +257,6 @@ export const RESULT_SHAPES = [
 /** The shape of an algorithm's result. */
 export type ResultShape = (typeof RESULT_SHAPES)[number];
 
-
 /** One field a result publishes, per element or for the graph as a whole. */
 export interface FieldDescriptor {
     name: string;
@@ -311,8 +325,17 @@ export interface OptionChoice {
     label: string;
 }
 
+/**
+ * Which kind of element an "attribute" or "partition" option reads. Without it, neither a form nor
+ * the element can tell whether "confidence" names a node attribute or an edge attribute.
+ */
+export interface OptionDescriptorDomain {
+    /** Nodes (the default) or edges. Meaningful only for type "attribute" or "partition". */
+    on?: "node" | "edge";
+}
+
 /** One configurable option, as plain JSON a form can render with no knowledge of Zod. */
-export interface OptionDescriptor {
+export interface OptionDescriptor extends OptionDescriptorDomain {
     name: string;
     plainName: string;
     technicalName?: string;
@@ -478,7 +501,11 @@ export type Binding =
 /** Declarative attribute-to-channel bindings. */
 export type Encoding = Partial<Record<Channel, Binding>>;
 
-/** What a layer matches. Spelled out rather than implied, so it is greppable and lintable. */
+/**
+ * What a layer matches. Spelled out rather than implied, so it is greppable and lintable.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
 export type Selector =
     | { match: "expression"; where: Query }
     | { match: "has"; path: Path }
@@ -489,7 +516,14 @@ export type Selector =
      * See `TopRanking` for the policy.
      */
     | { match: "top"; path: Path; n: number }
-    | { match: "everything" };
+    | { match: "everything" }
+    /**
+     * The members of a scope, usually a kept set: `{ match: "member", of: { set: id } }`. The
+     * layer follows the set: a redefinition repaints exactly the elements that moved. A removed
+     * set paints from its kept record, so removing a set never blanks a layer; a scope that
+     * cannot be evaluated paints nothing and never throws.
+     */
+    | { match: "member"; of: Scope };
 
 /** Who put a layer in the stack. Every layer names its source. */
 export type LayerSource =
@@ -560,6 +594,19 @@ export interface AlgorithmDescriptor {
         accelerator?: boolean;
         connected?: boolean;
     };
+    /**
+     * What a run over a scope computes on. `"subgraph"`: the scope's own nodes and edges, so a
+     * small scope is estimated and run as small. `"none"`: the whole graph, keeping only the
+     * scope's values, so the run is estimated -- and refused -- as a whole-graph run.
+     *
+     * DERIVED, NOT AUTHORED: `Algorithm.register` fills it from the class's `static scopeInput`,
+     * which is the one declaration the run, its caveat and this field all read. A plugin leaves
+     * it out of the descriptor it writes; one that disagrees with the class is refused.
+     *
+     * OPEN UNION: values may be added in a minor release (`"mask"` is reserved); treat an
+     * unknown value as `"none"`.
+     */
+    scopeInput?: "none" | "subgraph";
 }
 
 /** One layout the element can place a graph with. */
@@ -585,16 +632,25 @@ export interface LayoutDescriptor {
      * nothing.
      */
     honoursWeights: boolean;
+    /**
+     * Whether the default engine accepts a scope: `setLayout(type, opts, { scope })` moves only
+     * the scope's nodes and holds every other node still.
+     *
+     * A picker reads it to know where a "Lay out this set" control does something. Of the
+     * element's own engines, the five live simulations answer true; a one-shot arrangement
+     * refuses a scope with `E_UNSUPPORTED`.
+     */
+    scoped: boolean;
 }
 
 /**
  * A layout descriptor as a third party's engine class authors it.
  *
- * `honoursWeights` is missing from it because the engine class already declares that fact as a
- * static, and a fact written in two places is a fact that can disagree with itself.
- * `LayoutEngine.register` reads the static and publishes the complete descriptor.
+ * `honoursWeights` and `scoped` are missing from it because the engine class already declares
+ * those facts as statics, and a fact written in two places is a fact that can disagree with
+ * itself. `LayoutEngine.register` reads the statics and publishes the complete descriptor.
  */
-export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights">;
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 /** One file format the element can read, write, or both. */
 export interface FormatDescriptor {
@@ -604,7 +660,14 @@ export interface FormatDescriptor {
     mimeTypes: readonly string[];
     canImport: boolean;
     canExport: boolean;
+    /** The options its reader accepts. */
     options: readonly OptionDescriptor[];
+    /**
+     * The options `exportGraph` accepts for it, graph-io's common `sanitizeIds` and
+     * `onMixedDirection` included. Absent when nothing writes the format; an option not listed
+     * here is refused with `E_UNKNOWN_OPTION`.
+     */
+    writerOptions?: readonly OptionDescriptor[];
 }
 
 /** One colour palette. */
@@ -617,6 +680,16 @@ export interface PaletteDescriptor {
     capacity: number | null;
     colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
 }
+
+/**
+ * What `registerPalette` accepts: a {@link PaletteDescriptor} whose derived and optional members
+ * may be left off. `capacity` is derived from the kind and the colours, and a missing
+ * `colorblindSafe` is no claim.
+ */
+export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorblindSafe"> & {
+    capacity?: number | null;
+    colorblindSafe?: PaletteDescriptor["colorblindSafe"];
+};
 
 /**
  * One camera view: a named way of deciding where the viewer stands and what they look at.
@@ -743,7 +816,15 @@ export interface QueryValidation {
     }[];
 }
 
-/** What a run, a layout or an export is allowed to look at. */
+/**
+ * What an operation runs over: a set reference.
+ *
+ * `{ define }` carries a set definition inline, with edge members in stable form; a write
+ * position that also accepts session edge ids takes {@link ScopeInput}. The keyword `"search"` is
+ * reserved for a later release and refused.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ */
 export type Scope =
     | "visible"
     | "graph"
@@ -751,7 +832,262 @@ export type Scope =
     | "largest-component"
     | { set: ScopeId }
     | { where: Query }
-    | { nodes: readonly NodeId[] };
+    | { nodes: readonly NodeId[] }
+    | { define: SetDefinition };
+
+/**
+ * A {@link Scope} as a write position accepts it: an inline definition may name edges by session
+ * {@link EdgeId}. Every getter returns the canonical {@link Scope}, with stable members.
+ */
+export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefinitionInput };
+
+/**
+ * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree
+ * leaf counts and which way a neighbourhood selection walks.
+ */
+export type SelectionDirection = "in" | "out" | "all";
+
+/**
+ * A rule tree: what the visibility filter keeps, and what a rule set holds.
+ *
+ * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
+ * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `member`
+ * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
+ * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
+ * on; every other leaf speaks nodes. A group with no members constrains nothing.
+ *
+ * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
+ */
+export type RuleTree =
+    | { readonly kind: "expression"; readonly where: Query }
+    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
+    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
+    | {
+          readonly kind: "degree";
+          readonly min?: number;
+          readonly max?: number;
+          readonly direction?: SelectionDirection;
+      }
+    | { readonly kind: "component"; readonly id: number }
+    | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
+    | { readonly kind: "edges"; readonly where: Query }
+    /**
+     * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
+     * set is read from its kept record, so removing a set never changes what a rule holds.
+     */
+    | { readonly kind: "member"; readonly of: Scope }
+    /**
+     * The elements one item of a result holds: community 3, the path's nodes and edges. Speaks
+     * the half or halves the result publishes the key's field on (`onPath` speaks both).
+     */
+    | { readonly kind: "item"; readonly item: ResultItem }
+    /**
+     * The elements whose value for a path passes one cut. The population is the elements that
+     * carry a finite number for the path; each half that has one speaks, ranked on its own.
+     * Reserved, refused until built: `percentile`, `z` and `population`.
+     */
+    | {
+          readonly kind: "threshold";
+          /** A value path: `results.<run>.<field>` or `data.<field>`. */
+          readonly path: Path;
+          /** The top `n`, whole tie groups only (the `TopRanking` tie policy). Exactly one cut. */
+          readonly top?: number;
+          /** Strictly above this value. Exactly one cut. */
+          readonly above?: number;
+      }
+    | { readonly kind: "all"; readonly of: readonly RuleTree[] }
+    | { readonly kind: "any"; readonly of: readonly RuleTree[] }
+    | { readonly kind: "not"; readonly of: RuleTree };
+
+// ---------------------------------------------------------------------------------------------
+// Sets: what a kept set holds, and how it came to exist
+//
+// Every value here is plain, frozen-friendly and structured-cloneable, so a definition can be
+// stored, posted to a worker, hashed and compared by value. `parseSetDefinition` (in
+// `./sets/parse`) is the one validator that turns an unknown value into one of these.
+//
+// No kind, reading or keyword the element defines will ever contain a colon. A plugin's kind is
+// spelled `<package>:<kind>`, so it can never collide with a later built-in.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Which edges come with a set's nodes. Stored, never inferred from whether edges are present.
+ *
+ * - `induced`: the node half plus every edge between its nodes (NetworkX `G.subgraph(nodes)`).
+ * - `listed`: the edge half plus its endpoints, plus the node half (NetworkX
+ *   `G.edge_subgraph(edges)` plus any listed nodes). Paths, edge sets and edge rules.
+ * - `clipped`: the node half, plus the edge half clipped to edges whose endpoints are both in the
+ *   node half. Rules only: exactly what the visibility filter shows. A fixed set given `clipped`
+ *   is stored `listed`, which holds the same members.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type EdgeReading = "induced" | "listed" | "clipped";
+
+/**
+ * An edge member, by its stable identity: the endpoints plus exactly one discriminator, `id`,
+ * `key` or the pair `ordinal` and `among`. The validator refuses any other combination.
+ *
+ * OPEN: may gain optional members in a minor release.
+ */
+export interface EdgeMember {
+    /** The node the edge leaves, as loaded. */
+    readonly source: NodeId;
+    /** The node the edge enters, as loaded. */
+    readonly target: NodeId;
+    /**
+     * The file's edge id, read at the element's configured `edgeIdPath`, or for an edge added in
+     * the session without one, the id the element minted for it (`graphty:e<n>`).
+     */
+    readonly id?: string | number;
+    /** The file's parallel-edge key. Reserved: refused until the element reads one. */
+    readonly key?: string | number;
+    /**
+     * Last resort, for a file edge without an id: the edge's position, counting from 0, among
+     * every edge of its pair in the load that ingested it, in ingest order. Present with `among`
+     * or not at all.
+     */
+    readonly ordinal?: number;
+    /** That pair's edge count in that load. Present with `ordinal` or not at all. */
+    readonly among?: number;
+}
+
+/**
+ * An edge as a write position accepts it: a session {@link EdgeId}, or its stable
+ * {@link EdgeMember}. The element stores the stable form; every getter returns it.
+ */
+export type EdgeRef = EdgeId | EdgeMember;
+
+/**
+ * What a set holds.
+ *
+ * - `fixed`: a member list. Ids, never row indices; ids the graph no longer holds read missing
+ *   and are never pruned. A fixed set read `induced` stores no edges unless some were listed.
+ * - `rule`: a query or a rule tree, re-evaluated as the data changes.
+ * - `path`: a walk, in order, node-first. Repeats allowed; one node is a zero-length path. It
+ *   resolves to its distinct nodes and the edges its steps name, read `listed`.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type SetDefinition =
+    | {
+          readonly kind: "fixed";
+          /** Canonical order, no duplicates. */
+          readonly nodes: readonly NodeId[];
+          /** Canonical order, no duplicates. Only edges listed explicitly; an induced set derives its edges. */
+          readonly edges?: readonly EdgeMember[];
+          readonly reading: "induced" | "listed";
+      }
+    | {
+          readonly kind: "rule";
+          /** A JMESPath predicate over nodes, or a rule tree ({@link RuleTree}). */
+          readonly where: Query | RuleTree;
+          readonly reading: EdgeReading;
+      }
+    | {
+          readonly kind: "path";
+          /** The walk, in order. */
+          readonly nodes: readonly NodeId[];
+          /**
+           * Optional; when present, exactly `nodes.length - 1` entries. Entry i names the edge, or
+           * the group of parallel or reciprocal edges, joining `nodes[i]` and `nodes[i + 1]`.
+           * `null`: every edge between that pair.
+           */
+          readonly edges?: readonly (EdgeMember | readonly EdgeMember[] | null)[];
+          /** Steps must follow declared edge direction. Default false. */
+          readonly directed?: boolean;
+      };
+
+/**
+ * A {@link SetDefinition} as a write position accepts it: edges may be named by session
+ * {@link EdgeId} wherever an {@link EdgeMember} appears, and a fixed set may say `clipped` (stored
+ * as `listed`). Every getter returns the canonical {@link SetDefinition}.
+ */
+export type SetDefinitionInput =
+    | {
+          readonly kind: "fixed";
+          readonly nodes: readonly NodeId[];
+          readonly edges?: readonly EdgeRef[];
+          readonly reading: EdgeReading;
+      }
+    | Extract<SetDefinition, { kind: "rule" }>
+    | {
+          readonly kind: "path";
+          readonly nodes: readonly NodeId[];
+          readonly edges?: readonly (EdgeRef | readonly EdgeRef[] | null)[];
+          readonly directed?: boolean;
+      };
+
+/**
+ * How an item is found in a result. A field matches when it equals the value or, for an
+ * array-valued field, contains it.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ */
+export type ItemKey = {
+    /** The result field, such as `group` for a community or `onPath` for a path. */
+    readonly field: string;
+    /** The value an element's field equals, or its array contains, to be in the item. */
+    readonly value: string | number | boolean;
+};
+
+/**
+ * The id of a result: what a style layer, a rule or an item address binds to. The same string as
+ * the {@link RunId} a run answers to, because a result is named by its first run and keeps the
+ * name while later runs replace its values.
+ */
+export type ResultId = RunId;
+
+/**
+ * One item of a result: community 3 of a Louvain result, the path of a Dijkstra result.
+ *
+ * OPEN: may gain optional members in a minor release.
+ */
+export interface ResultItem {
+    /** The result that holds the item. */
+    readonly result: ResultId;
+    /**
+     * Present: holds that one run of the result, as it was. Absent: follows the result's current
+     * run. Opaque; compare for equality only.
+     */
+    readonly run?: string;
+    /** How the item's elements are found in that result. */
+    readonly key: ItemKey;
+}
+
+/**
+ * How two or more sets combine into one.
+ *
+ * OPEN UNION: operations may be added in a minor release; handle unknown operations.
+ */
+export type SetCombine = "union" | "intersection" | "difference" | "symmetric-difference";
+
+/**
+ * A reference as {@link SetCreatedFrom} records it: a scope, or an inline member list replaced by
+ * its sizes, so a large operand is never stored twice.
+ */
+export type SetOperand = Scope | { readonly inline: { readonly nodes: number; readonly edges: number } };
+
+/**
+ * How a set came to exist. Written once, when the set is created.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type SetCreatedFrom =
+    | { readonly kind: "user" }
+    | { readonly kind: "selection" }
+    | { readonly kind: "scope"; readonly from: SetOperand }
+    /** `item.run` is always present: the set holds the run it was created from. */
+    | { readonly kind: "result"; readonly item: ResultItem }
+    | { readonly kind: "combine"; readonly op: SetCombine; readonly of: readonly SetOperand[] };
+
+/**
+ * What kind of walk a path set is, most specific first: `cycle` (a closed trail), `simple` (no
+ * node repeats), `trail` (no edge repeats), `walk` (anything else).
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 /**
  * The catalogue: everything the element can offer, as data.

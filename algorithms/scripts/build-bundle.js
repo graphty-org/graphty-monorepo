@@ -3,7 +3,6 @@
  *
  * Creates a single ES module bundle (dist/algorithms.js) that:
  * - Contains all the library code in a single file
- * - Is used by the examples (via Vite alias)
  * - Can be distributed as a standalone file
  * - Is the single source of truth for the bundled version
  */
@@ -48,37 +47,6 @@ async function buildBundle() {
                 sourcemap: true,
             },
         });
-
-        // The examples (the vite dev server's redirect plugin and the gh-pages copies) load the
-        // bundle as a plain relative module from a browser, which cannot resolve a bare specifier.
-        // They get their own build with nothing external. It is NOT an entry point -- package.json's
-        // "main" and "exports" both stay on dist/algorithms.js -- and it needs no .d.ts, because
-        // nothing types against it; it rides along in the published tarball only because "files"
-        // names the whole dist/ directory.
-        await build({
-            configFile: false,
-            build: {
-                lib: {
-                    entry: path.resolve(__dirname, "../src/index.ts"),
-                    name: "GraphAlgorithms",
-                    formats: ["es"],
-                    fileName: () => "algorithms.standalone.js",
-                },
-                outDir: path.resolve(__dirname, "../dist"),
-                emptyOutDir: false,
-                rollupOptions: {
-                    external: [],
-                    output: {
-                        preserveModules: false,
-                        inlineDynamicImports: true,
-                    },
-                },
-                minify: false,
-                sourcemap: true,
-            },
-        });
-
-        console.log("Successfully built dist/algorithms.standalone.js");
 
         console.log("Successfully built dist/algorithms.js");
 

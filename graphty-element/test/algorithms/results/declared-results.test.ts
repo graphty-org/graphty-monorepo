@@ -82,7 +82,7 @@ const CASES: readonly Case[] = [
         name: "label propagation",
         key: "label-propagation",
         shape: "community",
-        method: "label-propagation",
+        method: "label-propagation-synchronous",
         make: (g) => new LabelPropagationAlgorithm(g),
     },
     {
@@ -201,6 +201,8 @@ function recordingContext(signal?: AbortSignal): RecordingContext {
             reports.push(progress);
         },
         yieldNow: () => Promise.resolve(),
+        // Built-ins read their input through the algorithm, never through the context.
+        input: detachedRunContext().input,
     };
 }
 
@@ -243,9 +245,7 @@ describe("declared algorithm results", () => {
                 const descriptor = algorithmByKey(testCase.key);
                 assert.ok(descriptor, `no catalogue descriptor for ${testCase.key}`);
 
-                const declared = new Set(
-                    descriptor.fields.map((field) => `${field.kind}.${field.name}:${field.type}`),
-                );
+                const declared = new Set(descriptor.fields.map((field) => `${field.kind}.${field.name}:${field.type}`));
                 const output = await runCase(testCase);
                 const undeclared = output.fields
                     .map((field) => `${field.kind}.${field.name}:${field.type}`)
@@ -319,7 +319,7 @@ describe("declared algorithm results", () => {
             const output = await runCase(CASES.find((entry) => entry.name === "dijkstra")!);
             const onRoute = output.nodes?.filter((node) => node.values.onPath === true) ?? [];
 
-            const {graph} = output;
+            const { graph } = output;
             assert.ok(graph);
             assert.isAtLeast(onRoute.length, 2);
             assert.strictEqual(graph.length, onRoute.length);

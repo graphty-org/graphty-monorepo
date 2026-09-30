@@ -18,7 +18,7 @@ import { prepareRadixSort, type RadixBits, radixHistBytes } from "../../src/prim
 import { prepareScan } from "../../src/primitives/scan.js";
 import { bindingOf, uploadBuffer } from "../helpers/device.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
-import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { adapterClass, sampleStrided, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { identityVals, RADIX_SEED, radixKeys, radixReport, runRadixSort } from "../helpers/radix-sort.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { testReduceScope } from "../helpers/segmented-reduce.js";
@@ -32,8 +32,8 @@ function radixSizes(): number[] {
     return [0, 1, 255, 256, 257, 4097, Math.ceil(65_537 * gpuScale()), Math.ceil(2 ** 22 * gpuScale())];
 }
 
-/** Every 1024th word: the committed fixture of the 2^20 sort (the whole output would be 11 MB of JSON per adapter). */
-const FIXTURE_STRIDE = 1024;
+/** Every 1025th word (odd, issue #267): the committed fixture of the 2^20 sort (the whole output would be 11 MB of JSON per adapter). */
+const FIXTURE_STRIDE = 1025;
 
 /**
  * Sorts once on the GPU and once on the oracle and asserts both pairs equal bitwise.
@@ -270,7 +270,7 @@ describe("radixSort (spec 6 row 6; P4-T4): equals the stable oracle bitwise, twi
         }
     });
 
-    it("records the random1m-24 u32 fixtures of this adapter: every 1024th sorted key and every 1024th word of the last pass's raw (unscanned) histogram table (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+    it("records the random1m-24 u32 fixtures of this adapter: every 1025th sorted key and every 1025th word of the last pass's raw (unscanned) histogram table (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "radix-noise" });
         try {
@@ -281,13 +281,7 @@ describe("radixSort (spec 6 row 6; P4-T4): equals the stable oracle bitwise, twi
             const want = radixSortOracle(keys, vals, 24);
             expectBitwiseEqual(run.keys, want.keys, "random1m-24 keys vs oracle");
             expectBitwiseEqual(run.vals, want.vals, "random1m-24 vals vs oracle");
-            const sample = (words: Uint32Array): Uint32Array => {
-                const out = new Uint32Array(Math.ceil(words.length / FIXTURE_STRIDE));
-                for (let i = 0; i < out.length; i++) {
-                    out[i] = words[i * FIXTURE_STRIDE];
-                }
-                return out;
-            };
+            const sample = (words: Uint32Array): number[] => sampleStrided(words, FIXTURE_STRIDE);
             const cls = adapterClass(ctx.caps);
             writeNoiseFixture("radix-scatter", "random1m-24", cls, sample(run.keys), "u32");
             writeNoiseFixture("radix-hist", "random1m-24-table", cls, sample(run.histTable), "u32");

@@ -25,7 +25,7 @@ import "../../src/algorithms";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { OTHER_GROUP_COLOR } from "../../src/config/palettes/categorical";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
 import { paintOf } from "../helpers/paint-assertions";
 
@@ -64,7 +64,7 @@ describe("a run with more groups than the default palette has colours", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         session = graph.getSession() as ElementSession;
     });
 
@@ -79,7 +79,7 @@ describe("a run with more groups than the default palette has colours", () => {
 
         assert.strictEqual(run.status, "succeeded", "the run finished");
         assert.isTrue(graph.applySuggestedStyles("components"), "the run refused to paint what it had measured");
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         const names = new Set(
             session.styles
@@ -128,11 +128,7 @@ describe("a run with more groups than the default palette has colours", () => {
         const named = pieceColours.filter((colour) => colour !== OTHER_GROUP_COLOR.toLowerCase());
 
         assert.lengthOf(named, 8, "the eight largest pieces keep a palette colour");
-        assert.lengthOf(
-            new Set(named),
-            8,
-            "and no two of them share one: a categorical palette must never wrap.",
-        );
+        assert.lengthOf(new Set(named), 8, "and no two of them share one: a categorical palette must never wrap.");
         assert.lengthOf(grey, PIECES - 8, "every piece past the palette is the one 'other' grey");
     });
 
@@ -141,7 +137,7 @@ describe("a run with more groups than the default palette has colours", () => {
         await run;
 
         assert.isTrue(graph.applySuggestedStyles("components"));
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const problems = paintOf(graph)
             .problems()

@@ -26,6 +26,8 @@
  * module's import graph and fails if Babylon.js, Lit or a DOM global appears in it.
  */
 
+import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+
 export * from "./src/catalog/index";
 
 // ---------------------------------------------------------------------------------------------
@@ -60,3 +62,48 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
 export type { ChannelDescriptor, ChannelValueKind } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+
+// ---------------------------------------------------------------------------------------------
+// Sets: what a kept set holds, and the one validator for it
+//
+// `parseSetDefinition` checks any value -- from a form, a file or an assistant -- and returns the
+// canonical definition, or refuses it with `E_BAD_COMMAND`. `parseScope` does the same for a scope,
+// which may carry a definition inline. Neither reaches a graph.
+// ---------------------------------------------------------------------------------------------
+
+export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
+export type {
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
+    ItemKey,
+    PathKind,
+    ResultId,
+    ResultItem,
+    RuleTree,
+    Scope,
+    ScopeId,
+    ScopeInput,
+    SelectionDirection,
+    SetCombine,
+    SetCreatedFrom,
+    SetDefinition,
+    SetDefinitionInput,
+    SetId,
+    SetOperand,
+} from "./src/catalog/types";
+
+/**
+ * A rule tree: what the visibility filter keeps.
+ * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule
+ * tree is also what a rule set holds, not only what the visibility filter keeps. Removed in the
+ * major version that ships the project file.
+ */
+export type Filter = RuleTree;
+
+/**
+ * Which arcs a degree filter counts.
+ * @deprecated Use {@link SelectionDirection}, the same type under the name the rule grammar uses.
+ * Removed in the major version that ships the project file.
+ */
+export type FilterDirection = SelectionDirection;

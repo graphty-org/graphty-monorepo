@@ -68,10 +68,16 @@ interface LoadedConfig {
                     browser?: {
                         /** The Playwright instances the project launches. */
                         instances?: {
-                            /** The launch options, where the Chromium switches live. */
-                            launch?: {
-                                /** The Chromium switches. */
-                                args?: string[];
+                            /** The instance's Playwright provider, which carries the launch options. */
+                            provider?: {
+                                /** What was passed to `playwright()`. */
+                                options?: {
+                                    /** The launch options, where the Chromium switches live. */
+                                    launchOptions?: {
+                                        /** The Chromium switches. */
+                                        args?: string[];
+                                    };
+                                };
                             };
                         }[];
                     };
@@ -90,7 +96,7 @@ function browserArgs(loaded: LoadedConfig): string[] {
     const project = loaded.default?.test?.projects?.find((entry) => entry.test?.name === "browser");
     assert.isDefined(project, "the loaded config has no project named 'browser'");
 
-    return project.test?.browser?.instances?.[0]?.launch?.args ?? [];
+    return project.test?.browser?.instances?.[0]?.provider?.options?.launchOptions?.args ?? [];
 }
 
 describe("vitest.config.ts under the GPU flag values CI sets", () => {

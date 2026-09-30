@@ -93,6 +93,14 @@ export class ErrorAggregator {
     }
 
     /**
+     * Get the number of errors this aggregator collects before it stops
+     * @returns The error limit
+     */
+    getErrorLimit(): number {
+        return this.maxErrors;
+    }
+
+    /**
      * Check if error limit has been reached
      * @returns True if the maximum error count has been reached
      */

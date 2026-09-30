@@ -72,6 +72,13 @@ export interface QueryEngine {
      */
     unresolvedPathsOf(where: Query): readonly Path[];
     /**
+     * Every path an expression reads, as its node compile sees them: what a cached answer over it
+     * is keyed on.
+     * @param where - The expression.
+     * @returns The paths.
+     */
+    pathsOf(where: Query): readonly Path[];
+    /**
      * The nodes a text search finds.
      * @param text - What was typed.
      * @param mode - How to match it.
@@ -179,6 +186,7 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
             };
         },
         unresolvedPathsOf: (where) => unresolvedOf(compile(where, "node").paths),
+        pathsOf: (where) => compile(where, "node").paths,
         find,
     };
 }

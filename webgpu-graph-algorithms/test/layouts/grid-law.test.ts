@@ -19,7 +19,7 @@ import { type GpuContext } from "../../src/context.js";
 import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "../../src/layouts/spring-electrical.js";
 import { type GpuLayoutTuning, type LayoutStatsBase } from "../../src/types/layout.js";
-import { paritySnapshot } from "../helpers/fa2-parity.js";
+import { ORACLE_F64_CLASS, paritySnapshot } from "../helpers/fa2-parity.js";
 import { FR_BASE_OPTIONS } from "../helpers/fr-parity.js";
 import {
     LAW_FIXTURES,
@@ -29,8 +29,9 @@ import {
     lawFixture,
     type LawModel,
 } from "../helpers/grid-law.js";
-import { gridTolerance } from "../helpers/grid-parity.js";
+import { GRID_NOISE_FIXTURES, gridTolerance, sampleNodes } from "../helpers/grid-parity.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { SE_BASE_OPTIONS } from "../helpers/se-parity.js";
 import { storyGraph } from "../helpers/story-graph.js";
@@ -199,6 +200,33 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
             }
         }
     }
+
+    it(
+        "writes the spring-electrical widening members of grid-exact.rms / grid-exact.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
+        async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // the unscaled exact tier costs minutes on lavapipe; test/noise-floor.test.ts checks the committed fixtures
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
+            requireGpu(t);
+            const { snapshot: s, start } = lawFixture("random20k", 1);
+            try {
+                const a = await lawExactVsGrid(ctx, "se", "random20k", s, start, 2);
+                console.warn(
+                    `[grid-law] noise/se/random20k/2d: rms ${a.total.rms.toExponential(3)}, p99 ${a.total.p99.toExponential(3)}`,
+                );
+                const n = s.nodeCount;
+                const cls = adapterClass(ctx.caps);
+                for (const member of [GRID_NOISE_FIXTURES.exactRmsSe, GRID_NOISE_FIXTURES.exactP99Se]) {
+                    writeNoiseFixture(member.kernel, member.fixture, cls, sampleNodes(a.total.grid, n), "f32");
+                    writeNoiseFixture(member.kernel, member.fixture, ORACLE_F64_CLASS, sampleNodes(a.total.exact, n), "f32");
+                }
+            } finally {
+                ctx.release(s);
+            }
+        },
+        CASE_TIMEOUT,
+    );
 
     it(
         "(2, 3) the FR grid run on the story graph is finite and cools (the temperature trace decreases), twice bitwise; its pipeline keys carry LAW 1 on grid-far-field and grid-near-field",

@@ -56,14 +56,14 @@ uses:
 > plain data, or a closure over the consumer's own state -- it registers through a free
 > `registerX` function exported from `./extend`.**
 
-| Point | Unit | Registration |
-|---|---|---|
-| Algorithm | class extending `DeclaredAlgorithm` | `Algorithm.register(MyAlgorithm)` |
-| Layout | class extending `LayoutEngine` or `SimpleLayoutEngine` | `LayoutEngine.register(MyLayout)` |
-| File format | class extending `DataSource` | `DataSource.register(MyReader)` |
-| Palette | a `PaletteDescriptor` | `registerPalette(descriptor)` |
-| Camera | a descriptor plus one pure `compute` function | `registerCameraView({ descriptor, compute })` |
-| Logging | a descriptor plus a `create(options)` factory | `registerLogSink({ descriptor, create })` |
+| Point       | Unit                                                                                         | Registration                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Algorithm   | class extending `DeclaredAlgorithm`                                                          | `Algorithm.register(MyAlgorithm)`                                                    |
+| Layout      | a descriptor and a `compute` function (one pass), or a class extending `LayoutEngine` (live) | `registerSnapshotLayout({ descriptor, compute })`, `LayoutEngine.register(MyLayout)` |
+| File format | class extending `DataSource`                                                                 | `DataSource.register(MyReader)`                                                      |
+| Palette     | a `PaletteDescriptor`                                                                        | `registerPalette(descriptor)`                                                        |
+| Camera      | a descriptor plus one pure `compute` function                                                | `registerCameraView({ descriptor, compute })`                                        |
+| Logging     | a descriptor plus a `create(options)` factory                                                | `registerLogSink({ descriptor, create })`                                            |
 
 A consumer learns two shapes, and which one applies is predictable from one question: does the
 element build it for me? An algorithm is built once per run, a layout once per `setLayout`, a
@@ -91,7 +91,7 @@ once and cannot drift.
 
 **Duplicates.** Registering the identical implementation under the same name again is a no-op,
 because a module re-evaluated by a bundler or by hot module replacement must not become two
-extensions. Registering a *different* implementation under a name already taken replaces it and
+extensions. Registering a _different_ implementation under a name already taken replaces it and
 warns once on the console, unless the caller passed `{ strict: true }`, in which case it throws
 `E_DUPLICATE_PLUGIN`. This is the accelerator registry's policy (`src/acceleration/registry.ts`),
 which is the only duplicate policy in the package that is written down with a reason.
@@ -120,7 +120,7 @@ This is a requirement, not a hope, and it is met by five specific properties.
 - **Registration only adds.** The six built-in descriptor tables stay frozen module constants and
   are exactly what `./catalog` publishes. Nothing appends to them. Composition happens at the
   catalogue door, in `src/session/catalog.ts`.
-- **The identity promise survives.** Each composed table returns the built-in array *itself* until
+- **The identity promise survives.** Each composed table returns the built-in array _itself_ until
   something registers, so a page that imports no plugin gets the same object it got before the
   catalogue learned to carry plugins, and two sessions that agree still compare equal.
 - **Built-in ids are reserved**, so no registration can change what an existing key means.
@@ -148,7 +148,7 @@ function compose<T>(builtIn: readonly T[], registered: readonly T[]): readonly T
 ```
 
 It returns `builtIn` itself when `registered` is empty, and otherwise a frozen concatenation
-cached on the *identity* of `registered` -- which each registry already guarantees is stable until
+cached on the _identity_ of `registered` -- which each registry already guarantees is stable until
 its map changes. Six tables use it: algorithms, formats, layouts, palettes, cameras and log sinks.
 `scales` keeps returning its frozen table, because scales are internal.
 
@@ -156,7 +156,7 @@ its map changes. Six tables use it: algorithms, formats, layouts, palettes, came
 widens to:
 
 ```ts
-Pick<CatalogApi, "algorithms" | "cameras" | "formats" | "layouts" | "logSinks" | "metrics" | "palettes" | "scales">
+Pick<CatalogApi, "algorithms" | "cameras" | "formats" | "layouts" | "logSinks" | "metrics" | "palettes" | "scales">;
 ```
 
 **The static tables in `./catalog` keep meaning "what the element ships".** They stay frozen and
@@ -196,7 +196,7 @@ catalogue already publishes, and the element validates the caller's values again
   `details.candidates`, and `E_OPTION_RANGE` with the range and the value passed. The run path
   already does exactly this for algorithms; every other point joins it.
 
-`optionsFromZod` stays published as a *convenience*: an author who prefers to write a Zod schema
+`optionsFromZod` stays published as a _convenience_: an author who prefers to write a Zod schema
 calls it once and registers the descriptors it emits. Zod is one way to produce the contract, not
 the contract. The element's own built-ins keep their internal Zod schemas and keep emitting
 descriptors from them, unchanged.
@@ -228,31 +228,31 @@ and the contract requires a coded one.
 Three new codes. Adding a code is a minor-version addition, which `src/errors/codes.ts` states as
 its own rule. Inventing an error class is not allowed, and two of these exist to retire one.
 
-| Code | Meaning |
-|---|---|
+| Code                | Meaning                                                                                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `E_UNKNOWN_PALETTE` | A binding, an `encode` call or a document names a palette nothing registered. `details.available` lists the known palette ids, `details.candidates` the nearest few. |
-| `E_UNKNOWN_CAMERA` | A camera view name nothing registered. `details.available` lists the known view ids. |
-| `E_UNKNOWN_SINK` | A logging configuration names a log destination nothing registered. `details.available` lists the registered sink ids. |
+| `E_UNKNOWN_CAMERA`  | A camera view name nothing registered. `details.available` lists the known view ids.                                                                                 |
+| `E_UNKNOWN_SINK`    | A logging configuration names a log destination nothing registered. `details.available` lists the registered sink ids.                                               |
 
 They join the `E_UNKNOWN_*` family beside `E_UNKNOWN_ALGORITHM`, `E_UNKNOWN_LAYOUT` and
 `E_UNKNOWN_FORMAT`, and they bucket as `unknown-name` in the error-model test's exhaustive switch.
 
 Existing codes carry everything else. Nothing new is invented where a code already fits:
 
-| Situation | Code |
-|---|---|
-| A malformed registration: no id, no colours, a non-function factory, a contradicting palette kind and capacity, an anchor that is not a colour, a format claiming `canExport`, an algorithm whose `descriptor.key` differs from its `static type` | `E_BAD_COMMAND`, `details.field` naming it |
-| A different implementation under a taken name with `{ strict: true }`, or any registration under a built-in id | `E_DUPLICATE_PLUGIN`, `details` naming the kind and the name |
-| An unknown option name | `E_UNKNOWN_OPTION` |
-| An option value out of range or not one of the choices | `E_OPTION_RANGE` |
-| A camera view asked for in a drawing mode it does not declare | `E_UNSUPPORTED`, `details.reason` and `details.modes` |
-| A layout asked for in more dimensions than its `maxDimensions` | `E_UNSUPPORTED` |
-| `saveCameraPreset` given a name a registered view already holds | `E_PROTECTED` |
-| A categorical palette asked to name more groups than it has colours | `E_CAP_EXCEEDED` (unchanged) |
-| An unknown layout name | `E_UNKNOWN_LAYOUT`, replacing a bare `TypeError` |
-| An unknown format name, or detection that matched nothing | `E_UNKNOWN_FORMAT`, replacing two plain `Error`s |
-| A file that will not parse | `E_PARSE_FAILED`, `details` carrying the format and the line |
-| A source that will not fetch | `E_FETCH_FAILED`, `details` carrying the url and the status |
+| Situation                                                                                                                                                                                                                                         | Code                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| A malformed registration: no id, no colours, a non-function factory, a contradicting palette kind and capacity, an anchor that is not a colour, a format claiming `canExport`, an algorithm whose `descriptor.key` differs from its `static type` | `E_BAD_COMMAND`, `details.field` naming it                   |
+| A different implementation under a taken name with `{ strict: true }`, or any registration under a built-in id                                                                                                                                    | `E_DUPLICATE_PLUGIN`, `details` naming the kind and the name |
+| An unknown option name                                                                                                                                                                                                                            | `E_UNKNOWN_OPTION`                                           |
+| An option value out of range or not one of the choices                                                                                                                                                                                            | `E_OPTION_RANGE`                                             |
+| A camera view asked for in a drawing mode it does not declare                                                                                                                                                                                     | `E_UNSUPPORTED`, `details.reason` and `details.modes`        |
+| A layout asked for in more dimensions than its `maxDimensions`                                                                                                                                                                                    | `E_UNSUPPORTED`                                              |
+| `saveCameraPreset` given a name a registered view already holds                                                                                                                                                                                   | `E_PROTECTED`                                                |
+| A categorical palette asked to name more groups than it has colours                                                                                                                                                                               | `E_CAP_EXCEEDED` (unchanged)                                 |
+| An unknown layout name                                                                                                                                                                                                                            | `E_UNKNOWN_LAYOUT`, replacing a bare `TypeError`             |
+| An unknown format name, or detection that matched nothing                                                                                                                                                                                         | `E_UNKNOWN_FORMAT`, replacing two plain `Error`s             |
+| A file that will not parse                                                                                                                                                                                                                        | `E_PARSE_FAILED`, `details` carrying the format and the line |
+| A source that will not fetch                                                                                                                                                                                                                      | `E_FETCH_FAILED`, `details` carrying the url and the status  |
 
 **`ScreenshotError` stops being a camera error family.** Its three camera codes convert:
 `CAMERA_PRESET_NOT_FOUND` becomes `E_UNKNOWN_CAMERA`, `CAMERA_PRESET_NOT_AVAILABLE_IN_2D` becomes
@@ -263,7 +263,7 @@ documentation already reads "owned by the element and may not be removed or edit
 **The element's own importers must throw coded errors too.** Today every one of the seven throws a
 plain `Error`, and `E_PARSE_FAILED`, `E_FETCH_FAILED` and `E_UNKNOWN_FORMAT` are defined and used
 nowhere but the error-model unit test. A plugin cannot have parity with a built-in here because
-the built-ins have nothing to be at parity *with*. The honest fix is to make the element's own
+the built-ins have nothing to be at parity _with_. The honest fix is to make the element's own
 import path coded first, and then require the same of a plugin, so this design does both.
 
 **A failing log sink is never reported through the logger.** Reporting a logging failure through
@@ -283,7 +283,7 @@ different things in this code and only one of them can honestly be an extension 
 `calculateIsometric`, each reading a bounding box over the nodes and branching on 2D against 3D. A
 consumer names one by string, and animation, easing, duration, queueing, cancellation, the
 state-changed event and screenshot framing are all already built around that string. It is also
-the sentence the contract itself uses for this point: "a way of *deciding* where the viewer is and
+the sentence the contract itself uses for this point: "a way of _deciding_ where the viewer is and
 what they are looking at". Deciding, not owning pixels.
 
 **(B) A camera controller.** A Babylon camera plus `zoomToBoundingBox(min, max)` plus a paired
@@ -318,7 +318,11 @@ A plain object: a descriptor, and one pure function from a bounding box to a cam
 
 ```ts
 // src/camera/types.ts -- Node-safe, plain data, no Babylon.js
-export interface Vec3 { readonly x: number; readonly y: number; readonly z: number }
+export interface Vec3 {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+}
 
 export type DrawingMode = "2d" | "3d";
 
@@ -375,7 +379,7 @@ export interface CameraDescriptor {
 
 `modes` is what replaces the built-ins' current way of expressing availability, which is to throw
 from inside a `switch`. A picker cannot read a throw. With `modes` on the descriptor the element
-refuses *before* calling, with `E_UNSUPPORTED`, and a picker never offers a view it cannot use.
+refuses _before_ calling, with `E_UNSUPPORTED`, and a picker never offers a view it cannot use.
 
 ### What this changes about the five built-ins
 
@@ -403,7 +407,7 @@ published contract.
 
 ### What stays where it is
 
-**User presets stay per-graph.** `saveCameraPreset(name)` stores a snapshot of where *this*
+**User presets stay per-graph.** `saveCameraPreset(name)` stores a snapshot of where _this_
 graph's camera is. That is not a capability of the element, so it does not belong in a shared
 catalogue that answers "what can the element do". `catalog.cameras()` lists registered views;
 `getCameraPresets()` lists this graph's snapshots. `saveCameraPreset` now refuses a name any
@@ -432,21 +436,21 @@ unit and a class would be a data carrier wearing a constructor.
 
 **Validated at the door, with reasons.**
 
-- *An anchor that is not a colour is refused* with `E_BAD_COMMAND` naming the palette and the
+- _An anchor that is not a colour is refused_ with `E_BAD_COMMAND` naming the palette and the
   colour. Today the same check happens inside `prepareRamp`, one repaint after the mistake.
-- *Anchors are normalised to six-digit hex at registration.* The parser the element already uses
+- _Anchors are normalised to six-digit hex at registration._ The parser the element already uses
   accepts three, four, six or eight hex digits, named colours, `rgb()`, `hsl()` and `oklch()`, but
   the interpolation path reads six digits only and returns magenta otherwise -- so a sequential
   palette written in named colours would pass validation, produce correct endpoints and a magenta
   middle. Normalising once at registration means an author may write `oklch(...)` and the
   renderer, the legend and every consumer read the same hexes. `src/catalog/color.ts` holds the
   one normaliser; `src/session/styles/channels.ts` calls it so there is one parse, not two.
-- *`kind` is authoritative and `capacity` is derived.* Categorical gets `colors.length`,
+- _`kind` is authoritative and `capacity` is derived._ Categorical gets `colors.length`,
   sequential and diverging get `null`. A descriptor whose `capacity` contradicts its `kind` is
   refused with `E_BAD_COMMAND`. The built-ins already keep the two in lockstep and a test pins it;
   this makes a plugin obey the same rule rather than being able to hand in `kind: "sequential"`
   with `capacity: 8`, which nothing cross-checks today.
-- *A built-in palette id is refused* with `E_DUPLICATE_PLUGIN`.
+- _A built-in palette id is refused_ with `E_DUPLICATE_PLUGIN`.
 
 **An unknown palette is refused at the edit, not at the repaint.** `checkBinding` already does
 exactly this for scales -- `E_UNKNOWN_SCALE` with candidates, at `validate` and `add` time -- and
@@ -472,34 +476,34 @@ it first. The refusal survives; the wrong sentence does not.
 
 **Deliberate limits, stated rather than left to be discovered.**
 
-- *A palette takes no options.* `PaletteDescriptor` is the only catalogue descriptor with no
+- _A palette takes no options._ `PaletteDescriptor` is the only catalogue descriptor with no
   `options` field, because every knob -- scale, domain, clamp, midpoint, reverse, missing, bins --
   belongs to the binding. No built-in palette takes configuration, so nothing is withheld, and
   adding an options surface no built-in has would be inventing a parity gap rather than closing
   one.
-- *A palette does no work over time*, so the progress-and-cancellation clause is satisfied
+- _A palette does no work over time_, so the progress-and-cancellation clause is satisfied
   vacuously. Preparing a ramp is synchronous and bounded by the anchor count; the progress and
   cancellation that exist belong to the layer edit, and a layer naming a plugin's palette gets
   them unchanged.
-- *The element takes a `colorblindSafe` claim on trust*, exactly as it takes its own palettes'.
+- _The element takes a `colorblindSafe` claim on trust_, exactly as it takes its own palettes'.
   `isPaletteSafe` can compute the answer and is already published, but computing it would have the
   element overrule an author about their own palette. A picker that wants to verify calls the
   published function itself.
-- *The function-style helpers are legacy and closed.* `sequential.viridis(v)`,
+- _The function-style helpers are legacy and closed._ `sequential.viridis(v)`,
   `categorical.okabeIto(id)`, `diverging.purpleGreen(v, mid)` and the binary pairs are a second,
   older palette vocabulary with no registration seam and no link to the catalogue, and they
   disagree with the descriptor path on over-subscription: the categorical helpers wrap by modulo
   where `prepareRamp` refuses with `E_CAP_EXCEEDED` and the catalogue's own header calls silent
   wrapping the defect that refusal exists to prevent. They are marked `@deprecated` pointing at
   `catalog.palettes()`; no registration seam is built for them.
-- *The element's hard-coded palette choices stay hard-coded.* `DEFAULT_PALETTE` (`viridis`),
+- _The element's hard-coded palette choices stay hard-coded._ `DEFAULT_PALETTE` (`viridis`),
   `CATEGORICAL_PALETTE` (`okabe-ito`), `CONTINUOUS_PALETTE` (`viridis`) and `HIGHLIGHT_PALETTE`
   (`blue-highlight`) keep no hook. Parity does not require one -- not even a consumer choosing
   among built-ins can change them today -- and changing what `encode()` writes when no palette is
   named would change the meaning of every already-saved document. A caller who wants brand colours
   names them. Recorded as a follow-on, not as a defect in this extension point.
-- *`'highlight'` is not a palette kind.* The three built-in highlight pairs are categorical
-  palettes of two colours, and the legend's highlight block comes from the *layer's* kind. A
+- _`'highlight'` is not a palette kind._ The three built-in highlight pairs are categorical
+  palettes of two colours, and the legend's highlight block comes from the _layer's_ kind. A
   plugin registering a two-colour categorical palette gets exactly what a built-in highlight pair
   gets.
 
@@ -514,8 +518,8 @@ element's own palettes. It is corrected to list all seventeen.
 ```ts
 class MyReader extends DataSource {
     static type = "mine";
-    static descriptor: FormatDescriptor;          // required
-    static detect?(sample: string): boolean;      // optional content sniffer
+    static descriptor: FormatDescriptor; // required
+    static detect?(sample: string): boolean; // optional content sniffer
     protected getConfig(): BaseDataSourceConfig;
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk>;
 }
@@ -544,7 +548,8 @@ is what puts the format into `catalog.formats()`, into `formatDescriptor`, into
 - a class with no `static descriptor`
 - a descriptor whose `id` differs from `static type`
 - a descriptor with no extensions or no media types
-- a descriptor with `canExport: true` -- see the deliberate limits
+- a descriptor with `canExport: true` -- a reader never claims to write; `registerFormatWriter`
+  marks the catalogue entry when a writer for the id is registered
 - a built-in format id
 
 all with `E_BAD_COMMAND` naming the field, or `E_DUPLICATE_PLUGIN` for the last.
@@ -598,19 +603,23 @@ is resolved through the configured weight path.
 
 **Deliberate limits.**
 
-- *Reading only.* `canExport` is false on all seven built-ins and there is no writer seam to
-  register into, so a plugin setting it true would be lying to a "Save as" menu. Registration
-  refuses it. Writers are a follow-on, and when one exists the same class carries it.
-- *Imports cannot be cancelled.* No built-in can be either, so the contract's cancellation clause
+- _A reader only reads._ Writing is a separate registration: `registerFormatWriter({ descriptor,
+exporter, writerOptions })` wraps a graph-io exporter, and the catalogue shows one entry with
+  both flags when a reader and a writer share an id. All seven built-ins can be written
+  (`exportGraph`), so their descriptors say `canExport: true`. A reader's own descriptor is still
+  refused when it says `canExport: true`, because a flag on a reader with no writer behind it
+  would put the format in a "Save as" menu that then fails; see
+  `design/decisions/2026-09-29-element-export-signature.md`.
+- _Imports cannot be cancelled._ No built-in can be either, so the contract's cancellation clause
   is satisfied vacuously -- but it is an absence nobody had decided about, so it is decided here:
   no signal is threaded through `BaseDataSourceConfig` in this design, and the limit is recorded
   rather than inherited.
-- *Progress is at parity and partly fictional.* A registered format's per-chunk progress reaches
+- _Progress is at parity and partly fictional._ A registered format's per-chunk progress reaches
   the consumer automatically under its own name with running node and edge counts, exactly like a
   built-in's. The byte figure in that event is `chunksProcessed * 64 * 1024` for every format
   alike, and `totalBytes` arrives only from a `File`'s size. Parity holds; the number is an
   invention for everyone, and saying so here is better than a plugin author trusting it.
-- *Media types are advisory.* Nothing reads them at run time; detection looks at the name and the
+- _Media types are advisory._ Nothing reads them at run time; detection looks at the name and the
   content. A registered format inherits the same advisory status rather than a third detection
   tier that does not exist.
 
@@ -640,7 +649,7 @@ the registry, so a registered view is named exactly the way a built-in is, from 
 public API, from a screenshot's `{ preset }` option, and from the natural-language layer.
 
 **Progress and cancellation.** A view computes a state synchronously and has nothing to report
-progress about. The *animated apply* already honours the operation queue's `AbortSignal` and stops
+progress about. The _animated apply_ already honours the operation queue's `AbortSignal` and stops
 the Babylon animatable rather than rejecting; a registered view inherits that unchanged, because
 the animation belongs to the apply and not to the view. Parity means cancellation only, and it is
 already met.
@@ -660,18 +669,40 @@ controller, 100 for its input controller) -- a real bug, noted here, fixed separ
 
 ### Layout
 
-**Unit.** A class extending `LayoutEngine` (a simulation the element steps every frame) or
-`SimpleLayoutEngine` (an arrangement computed in one pass), with `static type`,
-`static maxDimensions`, and now `static descriptor: LayoutDescriptor`. The shape is settled and
-already works end to end; what changes is what else the class declares and what the element does
-with it.
+**Unit.** A class extending `LayoutEngine` (a simulation the element steps every frame), with
+`static type`, `static maxDimensions`, and now `static descriptor: LayoutDescriptor`; or, for an
+arrangement computed in one pass, a descriptor and a function registered with
+`registerSnapshotLayout`. `SimpleLayoutEngine`, the earlier class for a one-pass layout, is
+deprecated in 3.0 and keeps working through 3.x.
 
-**Registration.** `LayoutEngine.register(MyLayout)`, which now also publishes the descriptor,
+**The snapshot contract as built.** `compute(input)` receives the undirected graph snapshot, the
+graph as stored (with its weights), the dimensions, the validated options, the scope, the fixed
+rows with their coordinates, every row's current coordinates, and an abort signal and a progress
+channel; it answers with a `Float32Array` of coordinates in scene units. The element's fourteen
+one-pass layouts subclass the same engine (`SnapshotLayoutEngine`) and read nothing a
+registration is not handed. It departs from the `SnapshotLayoutRegistration` sketch in
+`design/extensions/layout.d.ts` in these ways, each so that a registered function can do what a
+built-in does:
+
+- the answer may be returned directly as well as through a promise, so a synchronous layout is
+  drawn in the frame that asked for it rather than one frame later;
+- `honoursWeights` and `scoped` are optional and default to false, like the class statics they
+  replace;
+- `initial` is always present (NaN for an unplaced row) rather than optional, so a layout never
+  has to branch on its absence;
+- `column(option)` returns `readonly unknown[] | null`, one value per row;
+- `stored` (the graph before it was made undirected, which carries the weights), `added` (the rows
+  an add introduced, every other row being fixed), `firstRun` (the run that follows `setLayout`)
+  and `dataPositions()` (each node's own `position` field) are added: they are what the built-in
+  weighted, incremental and fixed layouts read.
+
+**Registration.** `registerSnapshotLayout(registration)` builds the engine class and registers it
+through `LayoutEngine.register(MyLayout)`, which now also publishes the descriptor,
 refuses a class with no `static type` or no `static descriptor`, refuses a descriptor whose `id`
 differs from `static type`, and refuses a built-in layout id.
 
-**One key, not two.** The element has two keys for a layout: the *engine* name (`ngraph`,
-`circular`), which `setLayout` takes, and the *arrangement* name (`force`, `circular`), which the
+**One key, not two.** The element has two keys for a layout: the _engine_ name (`ngraph`,
+`circular`), which `setLayout` takes, and the _arrangement_ name (`force`, `circular`), which the
 catalogue uses -- and `recommendLayout` has to hand a consumer `layout.engine` to act on. A plugin
 declares one key and its descriptor's `id` must equal it, so `layoutIdForEngine` answers a
 plugin's own id and nothing has to be named twice. A plugin cannot add an engine to an existing
@@ -790,7 +821,7 @@ win available here.
 and the built-in table deliberately never sets it so the catalogue survives `JSON.stringify` and a
 `postMessage` -- an invariant a plugin could break silently by setting it. It moves to the
 registration (`static cost` on the class, held beside the class reference in `RegisteredAlgorithm`)
-and the estimator reads it from there. The composed catalogue becomes plain JSON *by type* rather
+and the estimator reads it from there. The composed catalogue becomes plain JSON _by type_ rather
 than by discipline, and a plugin still supplies real arithmetic.
 
 **A run records the plugin's version.** `EngineVersions` has three fixed slots -- element,
@@ -808,7 +839,7 @@ including the `results.$.<name>` path strings; after this it calls one function.
 
 **One chunking helper, one yield.** The two shipped helpers disagree: `forEachChunked` uses 1024
 and reports at zero, `walkInChunks` uses 2048 and does not -- and worse, the two detached contexts
-disagree about what yielding *means*, one using `setTimeout` and the other returning
+disagree about what yielding _means_, one using `setTimeout` and the other returning
 `Promise.resolve()`, a microtask that hands the frame back to nobody and contradicts the argument
 the element makes in its own manager. `forEachChunked` is the survivor, published, at 1024 with an
 opening report; `walkInChunks` is deleted; both detached contexts yield the way the manager does.
@@ -833,12 +864,12 @@ Dijkstra and MinCut are corrected.
 
 **Deliberate limits.**
 
-- *A plugin cannot be unit-tested in Node.* `Algorithm`'s constructor takes the Babylon-backed
+- _A plugin cannot be unit-tested in Node._ `Algorithm`'s constructor takes the Babylon-backed
   `Graph` and every documented input route reads through it, so `./extend` being Node-safe buys a
   plugin type-checking rather than a headless test. No built-in can be tested headlessly either,
   so this is parity by shared absence; it is recorded here and named as a follow-on (a
   session-backed input the constructor accepts) rather than solved.
-- *`algorithmsOnLoad` still demands a `namespace:type` address*, not a catalogue key, and calls
+- _`algorithmsOnLoad` still demands a `namespace:type` address_, not a catalogue key, and calls
   `run()` directly -- no run record, no progress, no cancel, no published result for anybody. A
   shared gap, not a withheld capability; named as a follow-on.
 
@@ -850,7 +881,7 @@ must have both.
 1. A `Sink` -- `{ name, write(record), flush?, dispose?, level?, categories? }` -- handed to
    `GraphtyLogger.addSink(sink)`. This is the live-object route and it already works.
 2. A **named factory**, `registerLogSink({ descriptor, create(options) })`, which is what makes a
-   third party's destination addressable by a *value* rather than by an object reference.
+   third party's destination addressable by a _value_ rather than by an object reference.
 
 The second is the sharpest inequality in the whole audit. The element's built-in remote
 destination is turned on by a string in a config object (`remoteLogUrl`); a third party's is
@@ -862,7 +893,7 @@ configuration can round-trip it, and `E_UNKNOWN_SINK` names it when nothing regi
 **The console becomes a real sink.** Today the element's primary destination is a LogTape sink
 wired behind a one-shot latch: it never enters the sink registry, `getSinks()` does not list it,
 and `removeSink("console")` does not affect it -- so a consumer who wants element logs to go
-*only* to their collector cannot detach the element's own output. The element already ships the
+_only_ to their collector cannot detach the element's own output. The element already ships the
 piece that fixes this: `createConsoleSink` is a proper `Sink`, is exported, and is registered by
 nothing. It is registered under the name `"console"` during `configure()`, and the LogTape console
 path is retired as a destination. Two consequences worth stating: `removeSink("console")` now
@@ -877,7 +908,7 @@ costs one file and a settings panel can be built from it.
 
 **`Sink` grows three optional members**, all additive:
 
-- `level?: LogLevel` and `categories?: readonly string[]` -- a *narrowing* filter applied after the
+- `level?: LogLevel` and `categories?: readonly string[]` -- a _narrowing_ filter applied after the
   global gate, so one destination can take everything the element emits while another takes only
   errors. Neither built-in has a per-sink filter today, so this is a capability nobody had rather
   than one withheld; it is added because "filter inside `write`" is the obvious workaround and the
@@ -922,16 +953,16 @@ settings.
 
 **Deliberate limits.**
 
-- *No replay.* Records emitted before a sink is attached are dropped, and so are records emitted
+- _No replay._ Records emitted before a sink is attached are dropped, and so are records emitted
   before `configure({ enabled: true })` runs. The built-in console loses the same records, so this
   is parity -- but it is decided here rather than inherited: a bounded backlog would separate when
   a record is timestamped from when it is delivered, and a consumer that needs startup records now
-  has a way to configure logging by name *before* creating the element, which is what the factory
+  has a way to configure logging by name _before_ creating the element, which is what the factory
   registry buys.
-- *A sink cannot take more than the global level allows.* The per-sink filter narrows; it does not
+- _A sink cannot take more than the global level allows._ The per-sink filter narrows; it does not
   widen. Widening would change what every existing sink sees, and the built-in remote sink is
   behind the same gate, so parity holds. Named as a follow-on.
-- *`write` stays synchronous and fire-and-forget.* A returned promise is neither awaited nor
+- _`write` stays synchronous and fire-and-forget._ A returned promise is neither awaited nor
   caught, so an `async write` that rejects becomes an unhandled rejection rather than the caught,
   reported failure a synchronous throw gets. The built-in remote sink solves this by buffering
   internally and exposing `flush`, which a third party copies. The trap is documented on `Sink`
@@ -977,7 +1008,9 @@ Add the same three keys to `CODE_TABLE` in the same position. Nothing else in th
 The one registry implementation all six points use.
 
 ```ts
-export interface RegisterOptions { readonly strict?: boolean }
+export interface RegisterOptions {
+    readonly strict?: boolean;
+}
 
 export interface PluginRegistry<TEntry, TDescriptor> {
     register(entry: TEntry, options?: RegisterOptions): void;
@@ -1012,13 +1045,13 @@ members: `cost?: (n: number, m: number) => number` and `version?: string`.
 
 ### 4. Five new registry modules, each about ten lines over the generic
 
-| File | Exports |
-|---|---|
-| `src/catalog/paletteRegistry.ts` | `registerPalette(descriptor, options?)`, `registeredPalettes()`, `registeredPaletteDescriptors()`, `registeredPaletteById(id)`, `clearRegisteredPalettesForTesting()` |
-| `src/catalog/formatRegistry.ts` | `interface RegisteredFormat { descriptor, type, detect? }`, `publishFormatDescriptor(entry)`, `registeredFormats()`, `registeredFormatDescriptors()`, `registeredFormatById(id)`, `clearRegisteredFormatsForTesting()` |
-| `src/catalog/layoutRegistry.ts` | `interface RegisteredLayout { descriptor, type }`, `publishLayoutDescriptor(entry)`, `registeredLayouts()`, `registeredLayoutDescriptors()`, `registeredLayoutById(id)`, `clearRegisteredLayoutsForTesting()` |
-| `src/catalog/cameraRegistry.ts` | `interface RegisteredCameraView { descriptor, compute }`, `registerCameraView(registration, options?)`, `registeredCameras()`, `registeredCameraDescriptors()`, `registeredCameraById(id)`, `clearRegisteredCamerasForTesting()` |
-| `src/catalog/logSinkRegistry.ts` | `interface LogSinkRegistration { descriptor, create }`, `registerLogSink(registration, options?)`, `registeredLogSinks()`, `registeredLogSinkDescriptors()`, `registeredLogSinkById(id)`, `clearRegisteredLogSinksForTesting()` |
+| File                             | Exports                                                                                                                                                                                                                          |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/catalog/paletteRegistry.ts` | `registerPalette(descriptor, options?)`, `registeredPalettes()`, `registeredPaletteDescriptors()`, `registeredPaletteById(id)`, `clearRegisteredPalettesForTesting()`                                                            |
+| `src/catalog/formatRegistry.ts`  | `interface RegisteredFormat { descriptor, type, detect? }`, `publishFormatDescriptor(entry)`, `registeredFormats()`, `registeredFormatDescriptors()`, `registeredFormatById(id)`, `clearRegisteredFormatsForTesting()`           |
+| `src/catalog/layoutRegistry.ts`  | `interface RegisteredLayout { descriptor, type }`, `publishLayoutDescriptor(entry)`, `registeredLayouts()`, `registeredLayoutDescriptors()`, `registeredLayoutById(id)`, `clearRegisteredLayoutsForTesting()`                    |
+| `src/catalog/cameraRegistry.ts`  | `interface RegisteredCameraView { descriptor, compute }`, `registerCameraView(registration, options?)`, `registeredCameras()`, `registeredCameraDescriptors()`, `registeredCameraById(id)`, `clearRegisteredCamerasForTesting()` |
+| `src/catalog/logSinkRegistry.ts` | `interface LogSinkRegistration { descriptor, create }`, `registerLogSink(registration, options?)`, `registeredLogSinks()`, `registeredLogSinkDescriptors()`, `registeredLogSinkById(id)`, `clearRegisteredLogSinksForTesting()`  |
 
 All five are data and functions only. None imports a class, a reader, an engine or a renderer:
 they hold whatever is handed to them at run time, which is what keeps `./catalog` Node-safe.
@@ -1097,21 +1130,25 @@ and its doc comment updated to match.
 Sections, in file order. Everything not marked as a value is a type-only export.
 
 **Shared registration vocabulary**
+
 - `type RegisterOptions` from `./src/catalog/pluginRegistry`
 
 **Options, one mechanism for all six points**
+
 - `type OptionBound`, `OptionChoice`, `OptionDescriptor`, `OptionType` from `./src/catalog/types`
 - value `OPTION_TYPES`, `isOptionType` from `./src/catalog/types`
 - value `optionsFromZod` from `./src/catalog/optionsFromZod`
 - value `resolveOptionValues` from `./src/catalog/options`
 
 **Palette**
+
 - `type PaletteDescriptor`, `PaletteId` from `./src/catalog/types`
 - value `KNOWN_PALETTE_IDS` from `./src/catalog/types`
 - value `registerPalette`, `registeredPaletteDescriptors`, `clearRegisteredPalettesForTesting`
   from `./src/catalog/paletteRegistry`
 
 **File format**
+
 - `type BaseDataSourceConfig`, `DataSourceChunk`, `DeclaredDirection`, `AdHocData` from
   `./src/data/DataSource` (`DeclaredDirection` is already published)
 - value `DataSource`, `toAdHocData`, `toAdHocRecords` from `./src/data/DataSource`
@@ -1125,6 +1162,7 @@ Sections, in file order. Everything not marked as a value is a type-only export.
 - value `detectFormat`, `detectFormats` from `./src/catalog/detect`
 
 **Camera**
+
 - `type CameraDescriptor`, `CameraId` from `./src/catalog/types`
 - value `KNOWN_CAMERA_IDS` from `./src/catalog/types`
 - `type CameraState`, `CameraViewInput`, `CameraViewRegistration`, `DrawingMode`, `GraphBounds`,
@@ -1134,6 +1172,7 @@ Sections, in file order. Everything not marked as a value is a type-only export.
   from `./src/catalog/cameraRegistry`
 
 **Layout**
+
 - `type Node`, `NodeIdType` from `./src/Node`; `type Edge` from `./src/Edge` (type-only, erased)
 - `type EdgePosition`, `LayoutEngineStatics`, `Position`, `SimpleLayoutConfigType`,
   `SimpleLayoutOpts` from `./src/layout/LayoutEngine`
@@ -1145,6 +1184,7 @@ Sections, in file order. Everything not marked as a value is a type-only export.
   `./src/catalog/layoutRegistry`
 
 **Algorithm**
+
 - `type AlgorithmStatics` from `./src/algorithms/Algorithm`; value `Algorithm`
 - value `DeclaredAlgorithm` from `./src/algorithms/results/DeclaredAlgorithm`
 - `type AlgorithmOutput`, `AlgorithmRunContext`, `ResultElementValues`, `ResultFieldSpec` from
@@ -1167,6 +1207,7 @@ Sections, in file order. Everything not marked as a value is a type-only export.
   `./src/algorithms/types/OptionSchema`
 
 **Logging**
+
 - `type LoggerConfig`, `LogRecord`, `Sink` from `./src/logging/types`
 - value `LogLevel` from `./src/logging/types` (an enum, so a value)
 - `type GraphtyLoggerConfig`, `Logger` from `./src/logging/GraphtyLogger`
@@ -1183,6 +1224,7 @@ Sections, in file order. Everything not marked as a value is a type-only export.
   from `./src/catalog/logSinkRegistry`
 
 **Errors** (unchanged)
+
 - `type GraphtyErrorCode`, `GraphtyErrorInit`, `GraphtyErrorSource`, `GraphtyErrorTarget`; value
   `GraphtyError`, `isGraphtyError`
 
@@ -1407,18 +1449,18 @@ renderer, and only a non-browser project can prove it.
 
 Written down so a reader finds a decision rather than an absence.
 
-| Limit | Why it is not in this design |
-|---|---|
-| An import cannot be cancelled | No built-in can be either; parity is vacuous. Threading a signal through `BaseDataSourceConfig` and `addDataFromSource` is its own change. |
-| The File format point reads, it does not write | There is no writer seam to register into. `canExport: true` is refused so a "Save as" menu is never lied to. |
-| An algorithm plugin cannot be unit-tested in Node | `Algorithm`'s constructor takes the renderer-backed `Graph`, as it does for every built-in. Needs a headless algorithm host. |
-| Camera controllers stay internal | They cannot be published without Babylon.js in their signature, and six duck-typed branches decide their behaviour silently. |
-| A plugin cannot claim the element's default palettes | Not withheld from a plugin -- not even a consumer choosing among built-ins can change them -- and changing them changes every saved document's meaning. |
-| A log sink cannot take more than the global level allows | The built-in remote sink is behind the same gate, so parity holds. Widening changes what every existing sink sees. |
-| Log records emitted before a sink is attached are not replayed | The built-in console loses them too. A named sink can now be configured before the element exists, which is the real fix. |
-| A palette carried by a document is not scoped to that document | Requires a per-document palette lookup threaded through the repaint. Registration plus a self-describing document covers the parity clause. |
-| A layout plugin cannot add an engine to an existing arrangement | The arrangement table is the element's editorial judgement about its own engines. |
-| `StoredConfig` persists a sink by name, never a live object | An object reference cannot be serialised, which is exactly why the factory registry exists. |
+| Limit                                                           | Why it is not in this design                                                                                                                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An import cannot be cancelled                                   | No built-in can be either; parity is vacuous. Threading a signal through `BaseDataSourceConfig` and `addDataFromSource` is its own change.              |
+| The File format point reads, it does not write                  | There is no writer seam to register into. `canExport: true` is refused so a "Save as" menu is never lied to.                                            |
+| An algorithm plugin cannot be unit-tested in Node               | `Algorithm`'s constructor takes the renderer-backed `Graph`, as it does for every built-in. Needs a headless algorithm host.                            |
+| Camera controllers stay internal                                | They cannot be published without Babylon.js in their signature, and six duck-typed branches decide their behaviour silently.                            |
+| A plugin cannot claim the element's default palettes            | Not withheld from a plugin -- not even a consumer choosing among built-ins can change them -- and changing them changes every saved document's meaning. |
+| A log sink cannot take more than the global level allows        | The built-in remote sink is behind the same gate, so parity holds. Widening changes what every existing sink sees.                                      |
+| Log records emitted before a sink is attached are not replayed  | The built-in console loses them too. A named sink can now be configured before the element exists, which is the real fix.                               |
+| A palette carried by a document is not scoped to that document  | Requires a per-document palette lookup threaded through the repaint. Registration plus a self-describing document covers the parity clause.             |
+| A layout plugin cannot add an engine to an existing arrangement | The arrangement table is the element's editorial judgement about its own engines.                                                                       |
+| `StoredConfig` persists a sink by name, never a live object     | An object reference cannot be serialised, which is exactly why the factory registry exists.                                                             |
 
 Independent bugs found during this work, fixed alongside because they are cheap and each has a
 single cause: `zoom-to-fit-complete` emitted but unsubscribable; the 2D camera controller built

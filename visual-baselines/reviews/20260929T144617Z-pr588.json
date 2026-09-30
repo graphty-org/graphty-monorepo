@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "unproven": true,
+  "pr": 588,
+  "subject": {
+    "builtMerge": "5ca83e001cb4d47a402c6c726bf98f856e2436cf",
+    "head": "c842af7135a7de7a5c3dcc1e6ddb85c5a435fa19",
+    "runId": 36532671314,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "5ca83e001cb4d47a402c6c726bf98f856e2436cf"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-indicator--default.dark.png",
+      "from": "68dff7746d9fd28f7a8bfab0635b3ebc23b7a5447d5f96957f92f330c299468a",
+      "to": "7421ed764cb1994ae8d94ba0610f2778a77471f02ae4ede18b2f172e972a68b1",
+      "reason": null
+    }
+  ],
+  "reviewedAt": "2026-09-29T14:46:17.370Z"
+}

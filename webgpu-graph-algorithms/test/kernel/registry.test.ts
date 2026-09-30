@@ -15,8 +15,11 @@ import { PRELUDE_WGSL } from "../../src/kernel/prelude.js";
 import { type UniformBlock } from "../../src/kernel/struct-block.js";
 import { composeWgsl, entryPointOf, STANDARD_OVERRIDES } from "../../src/kernel/wgsl.js";
 import {
+    APSP_PARAMS,
+    BC_PARAMS,
     BF_PARAMS,
     COMPACT_PARAMS,
+    COO_PARAMS,
     FA2_PARAMS,
     FA2_PARTIAL,
     FA2_STATE,
@@ -26,12 +29,14 @@ import {
     graphBindings,
     graphOverrides,
     GRID_LEVEL_PARAMS,
+    GROUP_PARAMS,
     HIST_PARAMS,
     INDIRECT_PARAMS,
     type KernelEntry,
     type KernelId,
     KERNELS,
     kernelSpec,
+    LPA_PARAMS,
     PR_PARAMS,
     PR_PARTIAL,
     RADIX_PARAMS,
@@ -59,7 +64,7 @@ interface ExpectedEntry {
     readonly uniforms: readonly UniformBlock[];
     readonly needs: readonly "subgroups"[];
     readonly snippetSlots: readonly string[];
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9" | "P11";
     /** Storage-buffer count per stage (3.10.1: "degree 5, reduce 2, fill 1, segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2"; design 8.10: spmvPull 8, pr-scale 5, pr-finalize 1, Afforest link 3 / compress 1, sample 2; wcc-link-sample 5 = the graph slots + comp). */
     readonly storageCount: number;
 }
@@ -812,6 +817,267 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         phase: "P8",
         storageCount: 3,
     },
+    "bc-finalize": {
+        entryPoint: "bc_finalize",
+        bindings: [
+            [1, 0, "counters", "storage", "array<atomic<u32>>"],
+            [1, 1, "ends", "storage", "array<u32>"],
+            [1, 2, "S", "storage-ro", "array<u32>"],
+            [1, 3, "depthK", "storage", "array<u32>"],
+            [1, 4, "sigmaK", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 5,
+    },
+    "bc-forward": {
+        entryPoint: "bc_forward",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "S", "storage", "array<u32>"],
+            [1, 3, "ends", "storage-ro", "array<u32>"],
+            [1, 4, "counters", "storage", "array<atomic<u32>>"],
+            [1, 5, "depthK", "storage", "array<atomic<u32>>"],
+            [1, 6, "sigmaK", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 7,
+    },
+    "bc-backward": {
+        entryPoint: "bc_backward",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "S", "storage-ro", "array<u32>"],
+            [1, 3, "depthK", "storage-ro", "array<u32>"],
+            [1, 4, "sigmaK", "storage-ro", "array<u32>"],
+            [1, 5, "deltaK", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 6,
+    },
+    "bc-gather": {
+        entryPoint: "bc_gather",
+        bindings: [
+            [1, 0, "deltaK", "storage-ro", "array<f32>"],
+            [1, 1, "bc", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 2,
+    },
+    "bc-edge-gather": {
+        entryPoint: "bc_edge_gather",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "depthK", "storage-ro", "array<u32>"],
+            [1, 3, "sigmaK", "storage-ro", "array<u32>"],
+            [1, 4, "deltaK", "storage-ro", "array<f32>"],
+            [1, 5, "arcScores", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 6,
+    },
+    "bc-forward-edge": {
+        entryPoint: "bc_forward_edge",
+        bindings: [
+            [1, 0, "edgeSrc", "storage-ro", "array<u32>"],
+            [1, 1, "edgeDst", "storage-ro", "array<u32>"],
+            [1, 2, "S", "storage", "array<u32>"],
+            [1, 3, "ends", "storage-ro", "array<u32>"],
+            [1, 4, "counters", "storage", "array<atomic<u32>>"],
+            [1, 5, "depthK", "storage", "array<atomic<u32>>"],
+            [1, 6, "sigmaK", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [["UNDIRECTED", "bool", false]],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 7,
+    },
+    "apsp-init": {
+        entryPoint: "apsp_init",
+        bindings: withGraph([
+            [1, 0, "dist", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "ApspParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [APSP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 5,
+    },
+    "apsp-fw": {
+        entryPoint: "apsp_fw",
+        bindings: [
+            [1, 0, "dist", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "ApspParams"],
+        ],
+        overrideDecls: [["PHASE", "u32", 0]],
+        uniforms: [APSP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 1,
+    },
+    "coo-emit": {
+        entryPoint: "coo_emit",
+        bindings: [
+            [1, 0, "edgeSrc", "storage-ro", "array<u32>"],
+            [1, 1, "edgeDst", "storage-ro", "array<u32>"],
+            [1, 2, "edgeWeight", "storage-ro", "array<f32>"],
+            [1, 3, "order", "storage-ro", "array<u32>"],
+            [1, 4, "outSrc", "storage", "array<u32>"],
+            [1, 5, "outDst", "storage", "array<u32>"],
+            [1, 6, "outWeight", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "CooParams"],
+        ],
+        overrideDecls: [
+            ["INDEXED", "bool", false],
+            ["WEIGHTED", "bool", false],
+        ],
+        uniforms: [COO_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 7,
+    },
+    "run-flags": {
+        entryPoint: "run_flags",
+        bindings: [
+            [1, 0, "keysA", "storage-ro", "array<u32>"],
+            [1, 1, "keysB", "storage-ro", "array<u32>"],
+            [1, 2, "flags", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "CooParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COO_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 3,
+    },
+    "coo-scatter": {
+        entryPoint: "coo_scatter",
+        bindings: [
+            [1, 0, "src", "storage-ro", "array<u32>"],
+            [1, 1, "dst", "storage-ro", "array<u32>"],
+            [1, 2, "weight", "storage-ro", "array<f32>"],
+            [1, 3, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 4, "cursors", "storage", "array<atomic<u32>>"],
+            [1, 5, "colIdx", "storage", "array<u32>"],
+            [1, 6, "outWeight", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "CooParams"],
+        ],
+        overrideDecls: [
+            ["SORTED_INPUT", "bool", false],
+            ["WEIGHTED", "bool", false],
+        ],
+        uniforms: [COO_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 7,
+    },
+    "orient-flags": {
+        entryPoint: "orient_flags",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "src", "storage-ro", "array<u32>"],
+            [1, 3, "flags", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "CooParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COO_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 4,
+    },
+    "tri-intersect": {
+        entryPoint: "tri_intersect",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "src", "storage-ro", "array<u32>"],
+            [1, 3, "counts", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "CooParams"],
+        ],
+        overrideDecls: [["SEARCH", "u32", 0]],
+        uniforms: [COO_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 4,
+    },
+    "group-by-key-row": {
+        entryPoint: "group_by_key_row",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "weights", "storage-ro", "array<f32>"],
+            [1, 3, "keyIn", "storage-ro", "array<u32>"],
+            [1, 4, "rows", "storage-ro", "array<u32>"],
+            [1, 5, "hashRegion", "storage", "array<atomic<u32>>"],
+            [1, 6, "bestKey", "storage", "array<u32>"],
+            [1, 7, "bestScore", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "GroupParams"],
+        ],
+        overrideDecls: [
+            ["TIER", "u32", 0],
+            ["WEIGHTED", "bool", false],
+        ],
+        uniforms: [GROUP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 8,
+    },
+    "lpa-step": {
+        entryPoint: "lpa_step",
+        bindings: [
+            [1, 0, "labelsIn", "storage-ro", "array<u32>"],
+            [1, 1, "bestKey", "storage-ro", "array<u32>"],
+            [1, 2, "labelsOut", "storage", "array<u32>"],
+            [1, 3, "counters", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "LpaParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [LPA_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P11",
+        storageCount: 4,
+    },
 };
 
 const P1_IDS: readonly KernelId[] = ["degree", "reduce", "fill", "fa2-repulsion-exact", "fa2-speed-finalize"];
@@ -1011,6 +1277,50 @@ describe("KERNELS (contract 3.10)", () => {
 });
 
 // ============================================================ kernelSpec / setKernelBodyOverride
+
+/**
+ * The plain (non-pointer) uses of every atomic a body declares: its atomic bindings and its workgroup atomics. An
+ * atomic is only ever reached through a pointer (`&name`), because every atomic builtin takes one, so any other use
+ * is a plain read or write -- the mixed access WGSL forbids. Comments are ignored.
+ * @param body - the kernel body
+ * @param bindings - the entry's bindings
+ * @returns one "name near <text>" line per plain use
+ */
+function plainAtomicUses(body: string, bindings: readonly { name: string; wgslType: string }[]): string[] {
+    const text = ` ${body.replace(/\/\/[^\n]*/g, "")}`;
+    const atomics = bindings.filter((b) => b.wgslType.includes("atomic<")).map((b) => b.name);
+    for (const match of text.matchAll(/var<workgroup>\s+(\w+)\s*:\s*(?:array<)?atomic</g)) {
+        atomics.push(match[1]);
+    }
+    const plain: string[] = [];
+    for (const name of atomics) {
+        for (const use of text.matchAll(new RegExp(`(.)\\b${name}\\b`, "g"))) {
+            const at = use.index ?? 0;
+            const declaration = /var<workgroup>\s+$/.test(text.slice(0, at + 1));
+            if (use[1] !== "&" && !declaration) {
+                plain.push(`${name} near "${text.slice(Math.max(0, at - 20), at + 30)}"`);
+            }
+        }
+    }
+    return plain;
+}
+
+describe("no mixed atomic and plain access (design 13 row P11's gate item)", () => {
+    it("every atomic binding and workgroup atomic of every entry is reached only through a pointer, i.e. an atomic builtin", () => {
+        for (const entry of Object.values(KERNELS)) {
+            expect(plainAtomicUses(entry.body, entry.bindings), entry.id).toEqual([]);
+        }
+    });
+
+    it("the check sees a plain read and a plain write, and ignores comments and declarations", () => {
+        const bindings = [{ name: "counts", wgslType: "array<atomic<u32>>" }];
+        expect(plainAtomicUses("let x = counts[0];", bindings).length).toBe(1);
+        expect(plainAtomicUses("counts[1] = 2u;", bindings).length).toBe(1);
+        expect(plainAtomicUses("atomicAdd(&counts[1], 2u); // counts[0] is fine here", bindings)).toEqual([]);
+        expect(plainAtomicUses("var<workgroup> moved: atomic<u32>;\nlet m = moved;", []).length).toBe(1);
+        expect(plainAtomicUses("var<workgroup> moved: atomic<u32>;\natomicStore(&moved, 0u);", [])).toEqual([]);
+    });
+});
 
 describe("kernelSpec / setKernelBodyOverride (contract 3.10)", () => {
     it("returns the entry's parts with the overrides and snippets given", () => {

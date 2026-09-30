@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { LogStorage } from "../../src/server/log-storage.js";
 import {
     createMcpServer,
     getToolNames,
     SERVER_INSTRUCTIONS,
 } from "../../src/mcp/mcp-server.js";
+import { LogStorage } from "../../src/server/log-storage.js";
 
 describe("MCP Server", () => {
     let storage: LogStorage;

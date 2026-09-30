@@ -6,6 +6,7 @@
 import type { z } from "zod";
 
 import type { Graph } from "../../Graph";
+import type { TransactionScope } from "../../session/types";
 import type { AiStatus } from "../AiStatus";
 
 /**
@@ -30,12 +31,33 @@ export interface CommandResult {
 export interface CommandContext {
     /** The graph instance to operate on */
     graph: Graph;
-    /** Signal to check for cancellation */
+    /**
+     * The message's transaction. Everything a command changes through `tx` -- `tx.styles.add`,
+     * `tx.layout.set`, `tx.run` -- joins the message's one undoable step, and is rolled back with
+     * the rest of the message when a command throws. A change made through `graph` instead is a
+     * step of its own and is not rolled back.
+     */
+    tx: TransactionScope;
+    /**
+     * Fires when the message is cancelled, or undone while it is still going. A command stops
+     * on it: once it has fired, every `tx` call rejects.
+     */
     abortSignal: AbortSignal;
     /** Function to emit events */
     emitEvent: (type: string, data: unknown) => void;
     /** Function to update AI status */
     updateStatus: (updates: Partial<AiStatus>) => void;
+}
+
+/**
+ * Where a command writes: the message's transaction, so its changes join the message's step, or
+ * the graph's own session when the command is called outside a message.
+ * @param graph - The graph the command was handed.
+ * @param context - The command's context, when it has one.
+ * @returns The session to write through.
+ */
+export function writerOf(graph: Graph, context?: CommandContext): TransactionScope {
+    return context?.tx ?? graph.getSession();
 }
 
 /**

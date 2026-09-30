@@ -1,4 +1,3 @@
-import type { Graphty } from "../../../src/graphty-element";
 import {
     assertAlgorithmPainted,
     assertDistinctPicture,
@@ -141,8 +140,7 @@ export const BipartiteMatching: Story = {
             return;
         }
 
-        const graphtyElement = element as Graphty;
-        const { graph } = graphtyElement;
+        const { graph } = element;
 
         // Apply suggested styles. The positions used to have to be saved and put back around
         // this call, because applying a style walked every node and re-applied its layout
@@ -204,14 +202,12 @@ export const MaxFlow: Story = {
             return;
         }
 
-        const { graph } = element as Graphty;
+        const { graph } = element;
 
         // Name the endpoints. The algorithm otherwise defaults to the first and last node in
         // insertion order, which is only ever the right pair by accident.
-        await graph.runAlgorithm("graphty", "max-flow", {
-            algorithmOptions: { source: "reservoir", sink: "city" },
-            applySuggestedStyles: true,
-        });
+        await graph.run("max-flow", { source: "reservoir", sink: "city" });
+        graph.applySuggestedStyles("graphty:max-flow");
 
         const scene = await drawn(canvasElement, "Algorithms/Flow MaxFlow");
 

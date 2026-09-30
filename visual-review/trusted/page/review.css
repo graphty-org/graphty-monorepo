@@ -1,0 +1,509 @@
+:root {
+    --bg: #f6f7f9;
+    --fg: #1d2127;
+    --muted: #5c6470;
+    --card: #ffffff;
+    --line: #d5d9df;
+    --accent: #1c64d8;
+    --ok: #1d7a3a;
+    --bad: #b3261e;
+    --warn: #8a5a00;
+    color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #16181c;
+        --fg: #e6e8eb;
+        --muted: #9aa3ad;
+        --card: #1f2227;
+        --line: #353a42;
+        --accent: #6ea4ff;
+        --ok: #5cc27d;
+        --bad: #ff7a70;
+        --warn: #e0b04c;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* The page is one screen: the header on top, and main scrolling under it. */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    font:
+        14px/1.4 system-ui,
+        sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+}
+
+header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card);
+    flex: none;
+}
+
+#home {
+    font-weight: 700;
+}
+
+#home,
+#copy-link {
+    flex: none;
+    white-space: nowrap;
+}
+
+#status {
+    margin-left: auto;
+    color: var(--muted);
+}
+
+#status.error,
+.error {
+    color: var(--bad);
+}
+
+main {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 16px;
+}
+
+a {
+    color: var(--accent);
+}
+
+button {
+    font: inherit;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--card);
+    color: var(--fg);
+    cursor: pointer;
+}
+
+button[aria-pressed="true"] {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+button.link {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--accent);
+}
+
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+button.accept {
+    border-color: var(--ok);
+    color: var(--ok);
+}
+
+button.reject {
+    border-color: var(--bad);
+    color: var(--bad);
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.card h2 {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+
+.meta {
+    color: var(--muted);
+    margin: 4px 0;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 4px 8px;
+    border-top: 1px solid var(--line);
+}
+
+.badge {
+    display: inline-block;
+    padding: 0 6px;
+    margin: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.badge.warn,
+.badge.unstable,
+.badge.failed {
+    border-color: var(--warn);
+    color: var(--warn);
+}
+
+.badge.accept,
+.badge.new {
+    border-color: var(--ok);
+    color: var(--ok);
+}
+
+.badge.reject,
+.badge.removed {
+    border-color: var(--bad);
+    color: var(--bad);
+}
+
+.badge.changed,
+.badge.moved,
+.badge.exclude {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.component {
+    margin-bottom: 20px;
+}
+
+.component h3 {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+.stories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+/* One story, its modes (light and dark) side by side under its name. */
+.story {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px;
+    background: var(--card);
+}
+
+.story-name {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    word-break: break-all;
+}
+
+.modes {
+    display: flex;
+    gap: 6px;
+}
+
+.tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    padding: 6px;
+    width: 200px;
+    text-align: left;
+}
+
+.tile img,
+.tile .noimage {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+
+.tile .noimage {
+    display: grid;
+    place-items: center;
+    color: var(--warn);
+}
+
+.tile.decided {
+    opacity: 0.6;
+}
+
+/* A tile and, under it, its decision with an Undo: a button cannot hold another button. */
+.tile-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 200px;
+}
+
+.decision {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    align-items: baseline;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* The whole reason, wrapped: it is the point of the line. */
+.decision .what {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.decision.accept .what {
+    color: var(--ok);
+}
+
+.decision.reject .what {
+    color: var(--bad);
+}
+
+.decision.exclude .what {
+    color: var(--accent);
+}
+
+.decision button {
+    padding: 0 8px;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.decision .meta {
+    margin: 0;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.error-list .decision .what {
+    flex: none;
+    max-width: 60ch;
+}
+
+.tile .name {
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.number {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The story last opened, when the grid comes back. */
+.tile.current,
+.error-list li.current {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+    opacity: 1;
+}
+
+.errors {
+    border: 1px solid var(--bad);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 20px;
+}
+
+.errors h3 {
+    color: var(--bad);
+    margin: 0 0 4px;
+}
+
+.error-list li {
+    margin: 6px 0;
+}
+
+.error-list .reason {
+    color: var(--bad);
+}
+
+#filter,
+#goto {
+    min-width: 220px;
+    font: inherit;
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--card);
+    color: var(--fg);
+}
+
+/* The story screen fills main: its controls, then the two panes taking all the height left. */
+.story-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.story-view > * {
+    flex: none;
+}
+
+.story-view h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+}
+
+.stage {
+    display: flex;
+    gap: 16px;
+    flex: 1 1 0;
+    min-height: 200px;
+}
+
+/* Two panes of the same size, whatever each holds. */
+.stage figure {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+}
+
+.frame {
+    position: relative;
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--line);
+}
+
+/* At fit the pictures are sized to the pane; a rounding pixel never adds a scroll bar. */
+.stage.zoom-fit .frame {
+    overflow: hidden;
+}
+
+/* No image on this side: a quiet empty frame, its label says why. */
+.frame.empty {
+    border-style: dashed;
+}
+
+/* Centred while it fits; auto margins drop to 0 when it overflows, so every part scrolls in. */
+.sheet {
+    position: relative;
+    display: grid;
+    flex: none;
+    margin: auto;
+}
+
+.sheet > img,
+.sheet > canvas {
+    grid-area: 1 / 1;
+    display: block;
+    max-width: none;
+    background: repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+
+/* Hard pixels only from 4x: below that the smoothed image reads more like the real one. */
+.sheet > .crisp {
+    image-rendering: pixelated;
+}
+
+/* Highlight's changed pixels, over the image: no checkerboard behind them. */
+.sheet > canvas.diffmark {
+    background: none;
+    pointer-events: none;
+}
+
+.boxmark {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid #d000d0;
+    pointer-events: none;
+}
+
+.label {
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.console-block {
+    margin-top: 8px;
+}
+
+.console-block .console {
+    max-height: 30vh;
+    overflow: auto;
+    margin: 4px 0 0;
+}
+
+.console {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 8px;
+    white-space: pre-wrap;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding-top: 8px;
+}
+
+#reason {
+    flex: 1;
+    min-width: 240px;
+    font: inherit;
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--card);
+    color: var(--fg);
+}
+
+.tile .moved-from {
+    font-size: 12px;
+    word-break: break-all;
+    color: var(--accent);
+}

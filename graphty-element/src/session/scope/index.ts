@@ -17,7 +17,6 @@ export {
     createScopeApi,
     DEFAULT_SCOPE_SAMPLE,
     edgeSpaceOf,
-    membershipDigest,
     nodeSpaceOf,
     type SavedScope,
     type ScopeApi,

@@ -5,8 +5,10 @@
 
 import { z } from "zod";
 
+import { layoutIdForEngine } from "../../catalog/layouts";
+import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
-import type { CommandResult, GraphCommand } from "./types";
+import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Common layout types that can be used.
@@ -45,12 +47,12 @@ export const setLayout: GraphCommand = {
         { input: "Shell layout", params: { type: "shell" } },
     ],
 
-    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
-        const { type, options = {} } = params as { type: string; options?: object };
+    async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
+        const { type, options = {} } = params as { type: string; options?: Record<string, unknown> };
 
         try {
-            // Check if layout type is valid by attempting to set it
-            await graph.setLayout(type, options);
+            // The engine name maps to the catalogue id it serves, as the graph's own door maps it.
+            await writerOf(graph, context).layout.set(layoutIdForEngine(type) ?? type, { engine: type, options });
 
             return {
                 success: true,
@@ -62,6 +64,7 @@ export const setLayout: GraphCommand = {
 
             // Provide helpful error messages for common issues
             if (
+                (isGraphtyError(error) && error.code === "E_UNKNOWN_LAYOUT") ||
                 errorMessage.includes("not found") ||
                 errorMessage.includes("unknown") ||
                 errorMessage.includes("invalid")
@@ -97,7 +100,7 @@ export const setDimension: GraphCommand = {
         { input: "Enable 3D mode", params: { dimension: "3d" } },
     ],
 
-    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
         const { dimension } = params as { dimension: "2d" | "3d" };
 
         try {
@@ -108,7 +111,7 @@ export const setDimension: GraphCommand = {
             // style template around the one field it wanted to change, which meant a dimension
             // switch also rewrote the background, the layout and the column roles to whatever the
             // rebuild happened to copy.
-            await graph.setViewMode(is2D ? "2d" : "3d");
+            await writerOf(graph, context).layout.setDimension(is2D ? "2d" : "3d");
 
             return {
                 success: true,

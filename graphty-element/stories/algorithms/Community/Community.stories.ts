@@ -1,5 +1,4 @@
-import type { Graphty } from "../../../src/graphty-element";
-import { assertGraphLoaded, drawn, holds } from "../../assertions";
+import { assertGraphLoaded, drawn, holds, renderedElement } from "../../assertions";
 import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
 const meta = {
@@ -23,8 +22,13 @@ export const GirvanNewman: Story = createAlgorithmStory("graphty:girvan-newman",
 /**
  * Leiden - improved community detection (guarantees connected communities)
  * Draws with the default categorical palette, Okabe-Ito, like every community story here
+ *
+ * Not held distinct from Louvain. Both maximise modularity, and on the cat network both reach the
+ * same four communities, where the legacy Louvain function drew six at a lower modularity.
+ * The same answer from two methods that optimise the same quantity is correct, as Kruskal and Prim
+ * drawing one tree is; the picture each draws is still held to its own baseline.
  */
-export const Leiden: Story = createAlgorithmStory("graphty:leiden", { varies: "hex", atLeast: 2 });
+export const Leiden: Story = createAlgorithmStory("graphty:leiden", { varies: "hex", atLeast: 2, distinct: false });
 
 /**
  * Label Propagation - fast community detection via label spreading
@@ -70,12 +74,10 @@ export const LouvainMoreCommunitiesThanColours: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-
-        await holds(element !== null, "LouvainMoreCommunitiesThanColours: no <graphty-element> rendered");
-
-        const graphtyElement = element as Graphty;
-        const { session } = graphtyElement;
+        const { session } = await renderedElement(
+            canvasElement,
+            "LouvainMoreCommunitiesThanColours: no <graphty-element> rendered",
+        );
 
         // Started here rather than on load: inline data arrives as nodes and then edges, and a run
         // started on load can see the nodes before the edges.
@@ -172,18 +174,17 @@ export const KCore: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
 
-        const element = canvasElement.querySelector("graphty-element");
-
-        await holds(element !== null, "KCore: no <graphty-element> rendered");
-
-        const { session } = element as Graphty;
+        const { session } = await renderedElement(canvasElement, "KCore: no <graphty-element> rendered");
 
         // Started here rather than on load, for the reason LouvainMoreCommunitiesThanColours gives.
         const run = session.runs.start("k-core", {}, { style: false });
         const result = await run;
 
         for (const [id, core] of Object.entries(EXPECTED_CORE)) {
-            await holds(result.node(id)?.value === core, `${id} has core number ${String(result.node(id)?.value)}, not ${String(core)}`);
+            await holds(
+                result.node(id)?.value === core,
+                `${id} has core number ${String(result.node(id)?.value)}, not ${String(core)}`,
+            );
         }
 
         await session.styles.encode({ run: run.id, channel: "node.color" });
@@ -200,7 +201,8 @@ export const KCore: Story = {
         }
 
         await holds(
-            [...byCore.values()].every((colours) => colours.size === 1) && new Set([...byCore.values()].map((c) => [...c][0])).size === 3,
+            [...byCore.values()].every((colours) => colours.size === 1) &&
+                new Set([...byCore.values()].map((c) => [...c][0])).size === 3,
             `expected one colour per core number and three different colours, drew ${JSON.stringify([...byCore].map(([core, c]) => [core, [...c]]))}`,
         );
     },

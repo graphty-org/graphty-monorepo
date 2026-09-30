@@ -17,10 +17,10 @@
  * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`
  * and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
  * `remove`, `move`, `removeBySource`, `encode`, `highlight`, `applyTemplate` and
- * `resolveToStatic` VALIDATE AND REPAINT, and a repaint is a pass over the elements a layer
- * matches -- so they are commands, not properties, and each returns a `Run`. That is what lets a
- * layer edit on a large graph report progress, take an `AbortSignal`, and be fired from a click
- * handler and forgotten without an unhandled rejection. Awaiting one gives the layer.
+ * `resolveToStatic` each dispatch a command (`style.patch`, `style.encode`, `style.template`),
+ * which is one undoable step in the session's history, and each returns a `Run` that can be
+ * fired from a click handler and forgotten without an unhandled rejection. Awaiting one gives the
+ * layer.
  *
  * ONE ANALYSIS LAYER PER RUN AND CHANNEL. `encode()` is the one path an analysis layer takes, and
  * it REPLACES the layer already painting that channel from that run rather than stacking a second
@@ -40,11 +40,20 @@
  * window. The door for "is this valid" before anything is committed is {@link StylesApi.validate},
  * which is synchronous, writes nothing, and reports every problem at once.
  *
- * THE MODEL MOVES ONLY AFTER THE PAINT SUCCEEDS. Each verb computes the stack it WOULD produce,
- * hands it to the repaint, and commits it only when the repaint resolves. A cancelled or failed
- * edit therefore leaves the list exactly as it was, rather than leaving the layer list saying one
- * thing and the screen showing another. The visible consequence is worth stating plainly: `add()`
- * followed immediately by `list()` does not show the new layer -- `await add()` does.
+ * THE STACK MOVES AT ONCE, AND THE PICTURE FOLLOWS IT. The stack is project state: the command
+ * writes the new stack when it is dispatched, so `add()` followed immediately by `list()` shows
+ * the new layer. The repaint then runs on the session's derivation lane, from the stack the
+ * picture shows to the stack state holds, whatever moved it -- an edit, an undo, a redo -- so
+ * restoring a stack restores the picture. Several edits made faster than a repaint are drawn by
+ * one pass. What a verb's `Run` means follows from that:
+ *
+ * - it settles once the pass that repaints the edit has run, and rejects when that repaint fails
+ *   (the edit stays recorded, and undo takes it back);
+ * - a signal already aborted when the verb is called refuses the edit, and nothing is written;
+ * - `cancel()`, or an abort after the call, does NOT take the edit back: it has been recorded,
+ *   and may have merged into a larger step (a colour picker's drag is one step), so undo is the
+ *   way back. The run then resolves with the edit applied;
+ * - it is never listed in `history.pending` or in `runs`.
  *
  * AN ELEMENT-OWNED LAYER IS NOT THE CONSUMER'S. The base and selection layers are seeded at
  * construction with `source.by === "element"`, which makes them {@link Layer.locked}. Removing,
@@ -53,15 +62,17 @@
  * own comment admits breaks for a reader who calls their own layer "default".
  *
  * WHERE THE REPAINT PLUGS IN. `sources.repaint` is the seam, and nothing in this module
- * implements it: see {@link LayerRepaint} in `./Layer`. A session with no renderer hands none in
- * and paints nothing, which is not a degraded mode -- the stack is the session's and the paint is
- * the renderer's.
+ * implements it: see {@link LayerRepaint} in `./Layer`. This module registers the `styles` hook
+ * of the derivation lane, which hands the repaint the difference between two stacks
+ * (`stackChange` in `./repaint`). A session with no renderer hands none in and paints nothing,
+ * which is not a degraded mode -- the stack is the session's and the paint is the renderer's.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
+    Binding,
     Channel,
     EdgeId,
     FieldDescriptor,
@@ -78,11 +89,18 @@ import type {
 } from "../../catalog/types";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
+import {
+    STYLE_DEFINITIONS,
+    type StyleCommand,
+    type StyleEncodeCommand,
+    type StylePatchCommand,
+} from "../commands/style";
+import { Dispatcher } from "../project/Dispatcher";
+import type { ProjectState } from "../project/state";
 import { nearestNames } from "../results/ResultsApi";
 import { isHighlightShape, resultPath, resultShapeContract, type RunRef } from "../results/types";
 import {
     type Caveats,
-    createLocalRunQueue,
     deriveRunId,
     ENGINE_VERSIONS,
     type EngineVersions,
@@ -91,13 +109,15 @@ import {
     type Run,
     type RunBody,
     type RunDefinition,
-    type RunExecutionContext,
     type RunOptions,
     type RunQueue,
+    type RunQueueContext,
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
-import { isChannel } from "./channels";
+import { sealedSet } from "../sealed";
+import type { HistoryCause } from "../types";
+import { channelDescriptor, isChannel } from "./channels";
 import type { PreparedBinding } from "./encoding";
 import { type EncodingRun, type EncodingSource, type EncodingSpec, planEncoding } from "./EncodingSpec";
 import {
@@ -116,11 +136,11 @@ import {
     type Layer,
     type LayerCheck,
     type LayerCheckOptions,
-    type LayerEdit,
     type LayerPosition,
     type LayerRepaint,
     mintLayerId,
     type PathDirectory,
+    type RepaintContext,
     type RepaintReason,
     type RepaintReport,
     sourceOf,
@@ -129,6 +149,7 @@ import {
 } from "./Layer";
 import { buildLegend, type EncodingLookup, type FieldWords, type LegendBlock, type LegendSources } from "./legend";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
+import { stackChange } from "./repaint";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
 
 // ---------------------------------------------------------------------------------------------
@@ -163,7 +184,8 @@ export interface TemplateReport {
     /** The layers that bound and now paint, bottom first. */
     readonly applied: readonly LayerId[];
     /**
-     * The layers that read nothing this session answers.
+     * The layers that read nothing this session answers, and the layers naming a set this project
+     * does not hold (detached).
      *
      * They are IN the stack and disabled, never dropped: a layer naming a run that has not been
      * started is a correct layer over a session that will answer it later, and the way to make it
@@ -245,7 +267,8 @@ export interface StylesApi {
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer as it now stands, and rejects with
-     *     `E_PROTECTED` for an element-owned layer.
+     *     `E_PROTECTED` for an element-owned layer and `E_UNKNOWN_LAYER` for an id the stack
+     *     does not hold.
      */
     update(id: LayerId, patch: Partial<LayerSpec>, options?: RunOptions): Run<Layer>;
     /**
@@ -253,7 +276,7 @@ export interface StylesApi {
      * @param id - The layer to remove.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves when the layer is gone, and rejects with `E_PROTECTED` for an
-     *     element-owned layer.
+     *     element-owned layer and `E_UNKNOWN_LAYER` for an id the stack does not hold.
      */
     remove(id: LayerId, options?: RunOptions): Run<void>;
     /**
@@ -266,7 +289,7 @@ export interface StylesApi {
      * @param before - The layer to sit below, or null for the top of the stack.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves when the layer has moved, and rejects with `E_PROTECTED` for
-     *     an element-owned layer.
+     *     an element-owned layer and `E_UNKNOWN_LAYER` when either id is not in the stack.
      */
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     /**
@@ -379,8 +402,8 @@ export interface StylesApi {
      *     value out of this picture rather than an invented one.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer as it now stands, and rejects with `E_PROTECTED`
-     *     for an element-owned layer and `E_BAD_COMMAND` when that layer works the channel out
-     *     from nothing.
+     *     for an element-owned layer, `E_UNKNOWN_LAYER` for an id the stack does not hold, and
+     *     `E_BAD_COMMAND` when that layer works the channel out from nothing.
      */
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
     /**
@@ -410,6 +433,30 @@ export interface StylesApi {
      * @returns The document, bottom first.
      */
     toDocument(): StyleDocument;
+    /**
+     * Choose the palette a colour binding uses when it names none, one per palette kind: a
+     * binding on groups takes the categorical default, one on amounts the sequential default, and
+     * one with a `midpoint` the diverging default. A kind left out keeps its current default.
+     *
+     * RESOLVED WHEN A LAYER IS WRITTEN: a binding that names no palette records the default's id,
+     * so a saved document always names a concrete palette. The call therefore belongs before the
+     * layers are added. A later call leaves the layers that took the previous default as they are
+     * and writes a warning naming them; with `reapply: true` it re-resolves those layers instead.
+     * A layer that names its palette is never touched.
+     * @param palettes - The palette id per kind. Each must name a palette of that kind.
+     * @param options - How a late call treats the layers already written.
+     * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @throws `E_UNKNOWN_PALETTE` for an id no palette answers to, `E_BAD_COMMAND` for a palette
+     *   of the wrong kind or a slot that is not a palette kind.
+     */
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+}
+
+/** The palette a colour binding naming none uses, per palette kind. */
+export interface DefaultPalettes {
+    readonly categorical?: string;
+    readonly sequential?: string;
+    readonly diverging?: string;
 }
 
 /**
@@ -448,7 +495,11 @@ export interface StyleChange {
     readonly reason: RepaintReason;
     /** The layers it touched, bottom first. */
     readonly layers: readonly LayerId[];
-    /** How much was repainted, or null when no renderer is bound to this session. */
+    /**
+     * How much the pass that drew this change repainted, or null when no renderer is bound to
+     * this session. When one pass covers several edits (a colour picker's drag, a held undo),
+     * each edit's change carries that pass's whole report.
+     */
     readonly painted: RepaintReport | null;
     /**
      * The paths the changed layers read that nothing in this session answers.
@@ -458,6 +509,11 @@ export interface StyleChange {
      * paints nothing instead of showing a confident empty screen.
      */
     readonly unresolvedPaths: readonly Path[];
+    /**
+     * What moved the stack: an edit (`"command"`), or an undo, a redo, a restore or a rollback,
+     * which each publish one change per step they passed.
+     */
+    readonly cause: HistoryCause;
 }
 
 /** Everything the style stack is built from. */
@@ -469,6 +525,8 @@ export interface StylesSources {
      * across a freeze that renumbers the index space.
      */
     readonly elements: SelectorSource;
+    /** See {@link LayerCheckOptions.admitScope}. */
+    readonly admitScope?: LayerCheckOptions["admitScope"];
     /**
      * The element's own layers, seeded at the bottom of the stack in the order given.
      *
@@ -543,11 +601,16 @@ export interface StylesSources {
      */
     readonly repaint?: LayerRepaint;
     /**
-     * The queue an edit takes its turn in. Absent builds a sequential one of its own, which is
-     * right for a headless session and wrong for a rendered graph -- a rendered graph hands in
-     * the element's own operation queue so a repaint does not interleave with a load.
+     * The queue the session's runs take their turn in, which `settled()` waits on because a run
+     * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
+     * written when it is dispatched.
      */
     readonly queue?: RunQueue;
+    /**
+     * The one path every change to project state takes, and the history it records. The stack
+     * lives in its `styles` slice. Absent, the stack gets a dispatcher of its own.
+     */
+    readonly dispatcher?: Dispatcher;
     /**
      * Resolve a scope specification, so an edit can record what it looked at.
      *
@@ -642,14 +705,10 @@ const EDIT_CAVEATS: Caveats = Object.freeze({
     weight: null,
 });
 
-/** The stack an edit would produce, worked out before anything is committed. */
+/** The stack an edit produces, worked out before anything is written. */
 interface EditPlan<T> {
-    /** The stack as it would stand, bottom first. */
+    /** The stack as it will stand, bottom first. */
     readonly stack: readonly CompiledLayer[];
-    /** What changed, for the repaint's dirty set. */
-    readonly edits: readonly LayerEdit[];
-    /** The lowest position in `stack` whose painted answer can differ. */
-    readonly fromIndex: number;
     /** What the run resolves to. */
     readonly result: T;
     /** The layers the edit touched, for the change announcement. */
@@ -657,13 +716,48 @@ interface EditPlan<T> {
     /** The paths those layers read that nothing answers. */
     readonly unresolvedPaths: readonly Path[];
     /**
-     * What the repaint is told this edit was, when that is not the verb's usual one.
-     *
-     * Worked out by the plan rather than by the caller, because an `encode()` only knows whether
-     * it is adding a layer or replacing one once it has looked at the stack it is about to change.
+     * What the change announcement says this edit was. Worked out by the plan, because an
+     * `encode()` only knows whether it adds a layer or replaces one once it has looked at the
+     * stack.
      */
-    readonly reason?: RepaintReason;
+    readonly reason: RepaintReason;
 }
+
+/** What a style command's dispatch resolves with. */
+interface EditOutcome<T> {
+    /** What the verb resolves with. */
+    readonly result: T;
+    /** How much the pass repainting the edit painted; rejects when that repaint failed. */
+    readonly painted: Promise<RepaintReport | null>;
+}
+
+/** An edit written and not yet repainted, told once the pass covering it has run. */
+interface Announcement {
+    readonly change: Omit<StyleChange, "painted" | "cause">;
+    settle(painted: RepaintReport | null): void;
+    refuse(error: unknown): void;
+}
+
+/** What an edit's run is handed in place of a queue slot: it is never stopped. */
+const IMMEDIATE: RunQueueContext = {
+    signal: new AbortController().signal,
+    progress: { setProgress: () => undefined, setMessage: () => undefined, setPhase: () => undefined },
+    id: "style-edit",
+};
+
+/** An edit's run has nothing on a queue to cancel. */
+const NO_TICKET: RunTicket = { cancel: () => undefined };
+
+/**
+ * A pass's repaint is never cancelled: a newer change waits for the next pass instead.
+ */
+const PASS_CONTEXT: RepaintContext = {
+    signal: new AbortController().signal,
+    report: () => undefined,
+};
+
+/** What a pass paints when the stack it is handed is the one it already shows. */
+const NOTHING_PAINTED: RepaintReport = Object.freeze({ nodes: 0, edges: 0 });
 
 /** One layer of a style document, in both the form it was written in and the form it compiled to. */
 interface ImportedLayer {
@@ -681,9 +775,9 @@ function emptyScope(): ResolvedScope {
     return Object.freeze({
         digest: "",
         edgeCount: 0,
-        edges: new Set<never>(),
+        edges: sealedSet<never>([], "A resolved scope is an answer, not a place to write."),
         nodeCount: 0,
-        nodes: new Set<never>(),
+        nodes: sealedSet<never>([], "A resolved scope is an answer, not a place to write."),
         resolvedAt: new Date().toISOString(),
         spec: WHOLE_GRAPH,
     });
@@ -697,7 +791,7 @@ function emptyScope(): ResolvedScope {
  */
 function unknownLayer(id: LayerId, known: readonly LayerId[]): GraphtyError {
     return new GraphtyError({
-        code: "E_BAD_COMMAND",
+        code: "E_UNKNOWN_LAYER",
         message: `There is no style layer with the id "${id}".`,
         source: "style",
         target: { kind: "layer", id },
@@ -878,8 +972,10 @@ function noRuns(verb: string): GraphtyError {
  * @returns The run id.
  */
 function runIdOf(ref: RunRef): RunId {
-    if (typeof ref === "string") {
-        return ref;
+    // Anything but an object is passed through for the check to refuse, rather than thrown here:
+    // a door that threw would put the exception on the window of a fire-and-forget caller.
+    if (typeof ref !== "object" || (ref as unknown) === null) {
+        return ref as RunId;
     }
 
     return "runId" in ref ? ref.runId : ref.id;
@@ -969,29 +1065,48 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): Static
 /**
  * Build the style stack one session holds.
  * @param sources - What a selector compiles against, the element's own layers, the scales, the
- *     repaint seam, the queue and the change hook.
+ *     repaint seam, the dispatcher and the change hook.
  * @returns The stack, including the compiled form a renderer reads.
  * @throws A `GraphtyError` with code `E_INTERNAL` when one of the element's own layers is
  *     malformed, which is a bug in the element rather than in the call.
  */
 export function createStylesApi(sources: StylesSources): SessionStylesApi {
-    const queue = sources.queue ?? createLocalRunQueue();
     const engine = sources.engine ?? ENGINE_VERSIONS;
     const scales = sources.scales ?? createScaleRegistry();
+    const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: STYLE_DEFINITIONS });
 
-    let stack: readonly CompiledLayer[] = Object.freeze([]);
-    let byId = new Map<LayerId, CompiledLayer>();
-    let listCache: readonly Layer[] | null = null;
+    let listCache: { readonly of: readonly CompiledLayer[]; readonly layers: readonly Layer[] } | null = null;
+    let indexCache: {
+        readonly of: readonly CompiledLayer[];
+        readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
+    } | null = null;
     let edits = 0;
+    /** Edits written since the last pass, told once it has repainted them. */
+    const announcements: Announcement[] = [];
+    /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
+    let lastPass: { reason: RepaintReason; layers: readonly LayerId[]; painted: RepaintReport | null } = {
+        reason: "update",
+        layers: [],
+        painted: null,
+    };
 
     /**
-     * Take a prospective stack as the one the session now holds.
-     * @param next - The stack the edit produced.
+     * The stack as project state holds it now.
+     * @returns The compiled layers, bottom first.
      */
-    const commit = (next: readonly CompiledLayer[]): void => {
-        stack = Object.freeze([...next]);
-        byId = new Map(stack.map((entry) => [entry.layer.id, entry]));
-        listCache = null;
+    const current = (): readonly CompiledLayer[] => dispatcher.state.styles;
+
+    /**
+     * The layers of the stack by id, cached until the stack changes.
+     * @returns The index.
+     */
+    const byId = (): ReadonlyMap<LayerId, CompiledLayer> => {
+        const stack = current();
+        if (indexCache?.of !== stack) {
+            indexCache = { of: stack, byId: new Map(stack.map((entry) => [entry.layer.id, entry])) };
+        }
+
+        return indexCache.byId;
     };
 
     /**
@@ -999,9 +1114,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns The layers, bottom first.
      */
     const listLayers = (): readonly Layer[] => {
-        listCache ??= Object.freeze(stack.map((entry) => entry.layer));
+        const stack = current();
+        if (listCache?.of !== stack) {
+            listCache = { of: stack, layers: Object.freeze(stack.map((entry) => entry.layer)) };
+        }
 
-        return listCache;
+        return listCache.layers;
     };
 
     /**
@@ -1016,14 +1134,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns Its prepared bindings, fixed values first and rules second.
      */
     const encodingOf: EncodingLookup = (layerId) => {
-        const entry = byId.get(layerId);
+        const entry = byId().get(layerId);
 
         return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
     };
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
-        stack: () => stack,
+        stack: current,
         encoding: encodingOf,
         elements: sources.elements,
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
@@ -1046,7 +1164,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             const rows = sources.elements.measured?.(below.selector.path, below.target);
-            const test = byId.get(above.id)?.selector.test;
+            const test = byId().get(above.id)?.selector.test;
 
             if (rows === undefined || rows.length === 0 || test === undefined) {
                 return false;
@@ -1066,17 +1184,90 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * Check one layer specification against this session.
      * @param spec - The specification.
      * @param id - The id it would carry.
+     * @param admit - Whether a scope selector is admitted as at a write door (false for a
+     *     document's layer, which may name a set of the session it was saved in).
      * @returns The verdict and, when it is sound, the compiled layer.
      */
-    const check = (spec: LayerSpec, id: LayerId): LayerCheck => {
+    /** The defaults `setDefaultPalettes` chose; empty until it is called. */
+    let defaultPalettes: DefaultPalettes = {};
+    /**
+     * The bindings, as "layer id / channel", whose palette was filled in from a default rather
+     * than named by the author. Only ever read against the live stack, so an entry for a layer
+     * that is gone answers for nothing.
+     */
+    const defaulted = new Set<string>();
+
+    /**
+     * The palette kind a colour binding's default comes from, or null when it reads no palette.
+     * @param binding - The binding.
+     * @returns The kind.
+     */
+    const paletteKindOf = (binding: Binding): keyof DefaultPalettes | null => {
+        if (!("by" in binding) || binding.map !== undefined || binding.scale === "passthrough") {
+            return null;
+        }
+
+        if (scales.describe(binding.scale ?? "linear")?.domainKind === "categorical") {
+            return "categorical";
+        }
+
+        return binding.midpoint === undefined ? "sequential" : "diverging";
+    };
+
+    /**
+     * The colour bindings of a specification that name no palette, and the default each takes.
+     * @param spec - The specification.
+     * @returns Each such channel, with its binding and the default palette's id (undefined when
+     *   no default is set for its kind).
+     */
+    const unnamedPalettes = (spec: LayerSpec): { channel: string; binding: Binding; kind: keyof DefaultPalettes }[] => {
+        const found: { channel: string; binding: Binding; kind: keyof DefaultPalettes }[] = [];
+        for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
+            if (binding === undefined || channelDescriptor(channel)?.accepts !== "color") {
+                continue;
+            }
+
+            const kind = paletteKindOf(binding);
+            if (kind !== null && "by" in binding && binding.palette === undefined) {
+                found.push({ channel, binding, kind });
+            }
+        }
+
+        return found;
+    };
+
+    /**
+     * Write the default palettes into a specification's colour bindings that name none.
+     * @param spec - The specification.
+     * @param id - The layer it is written to, so the default it took can be found again.
+     * @returns The specification with every default it takes named.
+     */
+    const withDefaultPalettes = (spec: LayerSpec, id: LayerId): LayerSpec => {
+        let encode: Record<string, Binding> | undefined;
+        for (const { channel, binding, kind } of unnamedPalettes(spec)) {
+            const palette = defaultPalettes[kind];
+            if (palette !== undefined) {
+                encode ??= { ...(spec.encode as Record<string, Binding>) };
+                encode[channel] = { ...binding, palette };
+                defaulted.add(`${id}/${channel}`);
+            }
+        }
+
+        return encode === undefined ? spec : { ...spec, encode };
+    };
+
+    const check = (given: LayerSpec, id: LayerId, admit = true): LayerCheck => {
         const options: LayerCheckOptions = {
             id,
             elements: sources.elements,
             scales,
             ...(sources.paths === undefined ? {} : { paths: sources.paths }),
+            // A document's layer may name a set of the session it was saved in: kept, and reported
+            // detached, rather than refused.
+            ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
         };
 
-        return checkLayerSpec(spec, options);
+        return checkLayerSpec(withDefaultPalettes(given, id), options);
     };
 
     /**
@@ -1089,7 +1280,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns A function that mints one free id per call.
      */
     const minter = (): ((name: unknown) => LayerId) => {
-        const taken = new Set(byId.keys());
+        const taken = new Set(byId().keys());
 
         return (name: unknown): LayerId => {
             const id = mintLayerId(typeof name === "string" ? name : "", taken);
@@ -1110,15 +1301,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The layer at an id, or the refusal for naming one that is not there.
      * @param id - The id.
      * @returns The compiled layer.
-     * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the stack holds none with that id.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds none with that id.
      */
     const require = (id: LayerId): CompiledLayer => {
-        const found = byId.get(id);
+        const found = byId().get(id);
 
         if (found === undefined) {
             throw unknownLayer(
                 id,
-                stack.map((entry) => entry.layer.id),
+                current().map((entry) => entry.layer.id),
             );
         }
 
@@ -1130,36 +1321,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param id - The layer id.
      * @returns The index, bottom first.
      */
-    const positionOf = (id: LayerId): number => stack.findIndex((entry) => entry.layer.id === id);
-
-    /**
-     * Paint what an edit touched, when there is anything bound to paint it.
-     * @param reason - Which verb produced the edit.
-     * @param plan - The stack it would produce, and what changed.
-     * @param context - The run's signal and progress channel.
-     * @returns How much was painted, or null when no renderer is bound.
-     */
-    const paint = async (
-        reason: RepaintReason,
-        plan: EditPlan<unknown>,
-        context: RunExecutionContext,
-    ): Promise<RepaintReport | null> => {
-        const { repaint } = sources;
-
-        if (repaint === undefined) {
-            return null;
-        }
-
-        return repaint(
-            { reason, edits: plan.edits, stack: plan.stack, fromIndex: plan.fromIndex },
-            {
-                signal: context.signal,
-                report: (progress) => {
-                    context.report(progress);
-                },
-            },
-        );
-    };
+    const positionOf = (id: LayerId): number => current().findIndex((entry) => entry.layer.id === id);
 
     /**
      * What a run asks of the session holding it.
@@ -1175,48 +1337,41 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         // describing a stack that has changed underneath it.
         stale: () => null,
         resolveScope: () => sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope(),
+        // No queue: the edit is written when it is dispatched, and the repaint follows on the
+        // derivation lane, which never cancels or reorders it.
         enqueue: (body: RunBody): RunTicket => {
-            // `style-edit`, NOT `algorithm-run`, and the difference is whether the edit survives
-            // a load. A `data-add` obsoletes an `algorithm-run` -- correctly, because a
-            // computation's answer describes the data it read -- and a style write is not one of
-            // those: it says how to paint whatever the graph holds next. While it shared that
-            // category, the one order a render function can use (issue the edits, then set the
-            // data, because it cannot await a run) aborted every edit before its body ran, and an
-            // operation dropped from the batch settles nothing: no commit, no refusal, no
-            // problem recorded, and a forgotten promise that never resolves.
-            const id = queue.queueOperation("style-edit", body, { description: label });
+            void body(IMMEDIATE);
 
-            return {
-                cancel: () => {
-                    queue.cancelOperation(id);
-                },
-            };
+            return NO_TICKET;
         },
     });
 
     /**
-     * Start one edit: work out the stack it would produce, paint it, then commit it.
+     * Make one edit: dispatch its command, which writes the new stack at once, and hand back a
+     * run that settles once the pass repainting it has run.
      *
-     * The order is the contract. The repaint is awaited BEFORE the stack moves, so a cancelled or
-     * failed edit leaves the list exactly as it was rather than describing a picture that was
-     * never drawn.
+     * A signal already aborted writes nothing. A cancel or an abort after the call does NOT take
+     * the edit back: it has been recorded, and may have merged into a larger step, so undo is the
+     * way back. The run then resolves with the edit applied.
      * @param verb - Which door the edit came through, which is what the run is called.
-     * @param fallback - What to tell the repaint, unless the plan works out something better.
      * @param label - What to call it.
-     * @param plan - Works out the prospective stack. Throws a `GraphtyError` to refuse the edit.
-     * @param options - A signal to cancel with, and a progress handler.
+     * @param command - The command, or a function from state to one for a door that resolves late.
+     * @param options - A signal, and a progress handler.
      * @returns The run.
      */
-    const startEdit = <T>(
+    const edit = <T>(
         verb: StyleVerb,
-        fallback: RepaintReason,
         label: string,
-        plan: () => EditPlan<T>,
+        command: StyleCommand | ((state: ProjectState) => StyleCommand),
         options: RunOptions,
     ): Run<T> => {
         edits++;
         const params: Readonly<Record<string, unknown>> = Object.freeze({ edit: edits, verb });
-        const stops = [options.signal, sources.disposed].filter((entry) => entry !== undefined);
+        // Only a signal that is already aborted is handed over: it refuses the edit before anything
+        // is written. One aborted later has nothing left to stop. Disposal cancels what is pending.
+        const stops = [options.signal?.aborted === true ? options.signal : undefined, sources.disposed].filter(
+            (entry) => entry !== undefined,
+        );
         const signal = stops.length > 1 ? AbortSignal.any(stops) : stops[0];
         const definition: RunDefinition<T> = {
             algorithm: `styles.${verb}`,
@@ -1224,7 +1379,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             engine,
             exact: null,
             fields: NO_FIELDS,
-            id: deriveRunId({ algorithm: `styles.${verb}`, exact: null, params, sample: null, scope: WHOLE_GRAPH, seed: null }),
+            id: deriveRunId({
+                algorithm: `styles.${verb}`,
+                exact: null,
+                params,
+                sample: null,
+                scope: WHOLE_GRAPH,
+                seed: null,
+            }),
             params,
             sample: null,
             seed: null,
@@ -1233,7 +1395,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             shape: "fact",
             style: false,
             timeBoxMs: null,
-            execute: async (context) => {
+            // A cancel settles the run with the edit applied rather than rejecting it.
+            publishOnCancel: true,
+            execute: async () => {
                 if (options.dryRun === true) {
                     throw new GraphtyError({
                         code: "E_UNSUPPORTED",
@@ -1246,24 +1410,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     });
                 }
 
-                const planned = plan();
-                const reason = planned.reason ?? fallback;
-                const painted = await paint(reason, planned, context);
+                const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
+                await outcome.painted;
 
-                // A cancel that landed while the repaint was running settles the run without
-                // touching the stack, and a repaint that did not notice its own signal must not
-                // be able to commit anyway: the model moving after the edit was called off is
-                // exactly the "list says one thing, screen shows another" this order prevents.
-                context.signal.throwIfAborted();
-                commit(planned.stack);
-                sources.onChange?.({
-                    reason,
-                    layers: planned.layers,
-                    painted,
-                    unresolvedPaths: planned.unresolvedPaths,
-                });
-
-                return { result: planned.result };
+                return { result: outcome.result };
             },
             ...(signal === undefined ? {} : { signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -1279,12 +1429,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * Where a new layer goes, read from the neighbour it was told to sit next to.
      * @param at - The position, or undefined for the top of the stack.
      * @returns The index it would be inserted at, bottom first.
-     * @throws A `GraphtyError` with code `E_BAD_COMMAND` when both neighbours were named, or when
-     *     the named one is not in the stack.
+     * @throws A `GraphtyError` with code `E_BAD_COMMAND` when both neighbours were named, and
+     *     `E_UNKNOWN_LAYER` when the named one is not in the stack.
      */
     const insertionIndex = (at: LayerPosition | undefined): number => {
+        const { length } = current();
         if (at === undefined) {
-            return stack.length;
+            return length;
         }
 
         if (at.above !== undefined && at.below !== undefined) {
@@ -1308,7 +1459,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return positionOf(at.below);
         }
 
-        return stack.length;
+        return length;
     };
 
     /**
@@ -1342,16 +1493,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw refusedSpec(spec.name, checked.result);
         }
 
-        const next = [...stack];
+        const next = [...current()];
         next.splice(index, 0, checked.layer);
 
         return {
             stack: next,
-            edits: [{ previous: null, next: checked.layer }],
-            fromIndex: index,
             result: checked.layer.layer,
             layers: [checked.layer.layer.id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            reason: "add",
         };
     };
 
@@ -1364,16 +1514,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      *     the check refuses the merged specification with.
      */
     const planUpdate = (id: LayerId, patch: Partial<LayerSpec>): EditPlan<Layer> => {
-        const current = require(id);
+        const existing = require(id);
 
-        if (current.layer.locked) {
-            throw protectedLayer(current.layer, "changed");
+        if (existing.layer.locked) {
+            throw protectedLayer(existing.layer, "changed");
         }
 
-        const merged: LayerSpec = { ...specOf(current.layer), ...patch };
+        const merged: LayerSpec = { ...specOf(existing.layer), ...patch };
 
         if (isElementSource(sourceOf(merged))) {
-            throw protectedLayer(current.layer, "given an element source");
+            throw protectedLayer(existing.layer, "given an element source");
         }
 
         const checked = check(merged, id);
@@ -1382,27 +1532,458 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             throw refusedSpec(merged.name, checked.result);
         }
 
-        const index = positionOf(id);
-        const next = [...stack];
-        next[index] = checked.layer;
+        const next = [...current()];
+        next[positionOf(id)] = checked.layer;
 
         return {
             stack: next,
-            edits: [{ previous: current, next: checked.layer }],
-            fromIndex: index,
             result: checked.layer.layer,
             layers: [id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            reason: "update",
         };
     };
 
     /**
-     * Seed one of the element's own layers, at construction and never afterwards.
-     * @param spec - The specification.
-     * @throws A `GraphtyError` with code `E_INTERNAL` when it is malformed.
+     * The plan for taking one layer out.
+     * @param id - The layer.
+     * @returns The plan.
      */
-    const seed = (spec: ElementLayerSpec): void => {
-        const checked = check(spec, mint(spec.name));
+    const planRemove = (id: LayerId): EditPlan<void> => {
+        const existing = require(id);
+
+        if (existing.layer.locked) {
+            throw protectedLayer(existing.layer, "removed");
+        }
+
+        return {
+            stack: current().filter((entry) => entry.layer.id !== id),
+            result: undefined,
+            layers: [id],
+            unresolvedPaths: NO_PATHS,
+            reason: "remove",
+        };
+    };
+
+    /**
+     * The plan for moving one layer.
+     * @param id - The layer.
+     * @param before - The layer to sit below, or null for the top.
+     * @returns The plan.
+     */
+    const planMove = (id: LayerId, before: LayerId | null): EditPlan<void> => {
+        const existing = require(id);
+
+        if (existing.layer.locked) {
+            throw protectedLayer(existing.layer, "moved");
+        }
+
+        if (before === id) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A layer cannot be moved below itself.",
+                source: "style",
+                target: { kind: "layer", id },
+                details: { id },
+            });
+        }
+
+        const without = current().filter((entry) => entry.layer.id !== id);
+        let to = without.length;
+
+        if (before !== null) {
+            require(before);
+            to = without.findIndex((entry) => entry.layer.id === before);
+        }
+
+        const next = [...without];
+        next.splice(to, 0, existing);
+
+        return { stack: next, result: undefined, layers: [id], unresolvedPaths: NO_PATHS, reason: "move" };
+    };
+
+    /**
+     * The plan for a sweep: the layers it named, except any the element owns.
+     * @param ids - The layers the sweep matched when it was dispatched.
+     * @returns The plan.
+     */
+    const planSweep = (ids: readonly LayerId[]): EditPlan<readonly LayerId[]> => {
+        const removing = new Set(
+            current()
+                .filter((entry) => !entry.layer.locked && ids.includes(entry.layer.id))
+                .map((entry) => entry.layer.id),
+        );
+        const removed = current()
+            .filter((entry) => removing.has(entry.layer.id))
+            .map((entry) => entry.layer.id);
+
+        return {
+            stack: current().filter((entry) => !removing.has(entry.layer.id)),
+            result: Object.freeze(removed),
+            layers: removed,
+            unresolvedPaths: NO_PATHS,
+            reason: "sweep",
+        };
+    };
+
+    /**
+     * The plan for an encoding, which replaces this run's derived layer for the channel in place.
+     * @param spec - The encoding, naming its run by id.
+     * @returns The plan.
+     */
+    const planEncode = (spec: StyleEncodeCommand["spec"]): EditPlan<Layer> => {
+        const planned = planEncoding(spec, requireRuns("encode"));
+        const source = sourceOf(planned);
+        const stack = current();
+        const previous =
+            source.by === "run"
+                ? stack.find((entry) => isDerivedFor(entry.layer, source.runId, spec.channel))
+                : undefined;
+
+        if (previous === undefined) {
+            return planInsert(planned, stack.length, mint(planned.name));
+        }
+
+        // The one place a locked layer is written rather than refused, and it is what the
+        // replacement rule is for: the layer being taken over is the one the element derived from
+        // this very run, and what replaces it says so in its source. A layer somebody wrote by
+        // hand is never this layer -- `isDerivedFor` asks what the layer paints, not what it is
+        // called.
+        const { id } = previous.layer;
+        const checked = check(planned, id);
+
+        if (checked.layer === null) {
+            throw refusedSpec(planned.name, checked.result);
+        }
+
+        const next = [...stack];
+        next[positionOf(id)] = checked.layer;
+
+        return {
+            stack: next,
+            result: checked.layer.layer,
+            layers: [id],
+            unresolvedPaths: checked.result.unresolvedPaths,
+            reason: "update",
+        };
+    };
+
+    /**
+     * The plan for a highlight, which takes every other highlight out first.
+     * @param spec - The highlight, naming its run by id.
+     * @returns The plan.
+     */
+    const planHighlight = (
+        spec: Extract<StylePatchCommand, { action: "highlight" }>["spec"],
+    ): EditPlan<readonly Layer[]> => {
+        const run = requireRun(spec.run, requireRuns("highlight"));
+
+        if (!isHighlightShape(run.shape)) {
+            throw badCommand(
+                `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
+                    "with encode() rather than highlighted.",
+                { run: run.id, shape: run.shape },
+            );
+        }
+
+        const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
+        const chosen = run.fields.filter((entry) => entry.name === field);
+
+        if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
+            const published = run.fields.map((entry) => entry.name);
+
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ATTRIBUTE",
+                message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
+                source: "style",
+                details: {
+                    run: run.id,
+                    field,
+                    available: published,
+                    candidates: nearestNames(field, published),
+                },
+            });
+        }
+
+        // One entry per half the run chose AND the style has something to say about, so a route
+        // styled with an edge colour alone paints the route's edges and leaves its nodes to the
+        // layers underneath.
+        const painting = new Map<SelectorTarget, StaticStyle>();
+
+        for (const half of HALVES) {
+            const set = chosen.some((entry) => entry.kind === half) ? halfOfStyle(spec.set, half) : null;
+
+            if (set !== null) {
+                painting.set(half, set);
+            }
+        }
+
+        if (painting.size === 0) {
+            throw badCommand(
+                `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
+                    `the run "${run.id}" chose, so the highlight would paint nothing.`,
+                { run: run.id, field, set: spec.set },
+            );
+        }
+
+        const path = resultPath(run.id, field);
+        const called = spec.name ?? run.label;
+        const id = minter();
+        const added: CompiledLayer[] = [];
+        const unresolved = new Set<Path>();
+
+        for (const [half, set] of painting) {
+            const layerSpec: LayerSpec = {
+                name: painting.size > 1 ? `${called} (${half}s)` : called,
+                target: half,
+                kind: "highlight",
+                // The membership column carries FALSE for the elements the run looked at and did
+                // not choose, so a presence test would paint the whole neighbourhood of a route in
+                // the colour of the route. The value is what says "chosen", so the value is what
+                // is asked about.
+                selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
+                set,
+                source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
+            };
+            const checked = check(layerSpec, id(layerSpec.name));
+
+            if (checked.layer === null) {
+                throw refusedSpec(layerSpec.name, checked.result);
+            }
+
+            for (const unanswered of checked.result.unresolvedPaths) {
+                unresolved.add(unanswered);
+            }
+
+            added.push(checked.layer);
+        }
+
+        const stack = current();
+        const removing = new Set(
+            stack
+                .filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight")
+                .map((entry) => entry.layer.id),
+        );
+
+        return {
+            stack: [...stack.filter((entry) => !removing.has(entry.layer.id)), ...added],
+            result: Object.freeze(added.map((entry) => entry.layer)),
+            layers: [...removing, ...added.map((entry) => entry.layer.id)],
+            unresolvedPaths: Object.freeze([...unresolved]),
+            reason: "add",
+        };
+    };
+
+    /**
+     * The plan for applying a style document: every layer lands, bound or disabled, or none does.
+     * @param document - The document.
+     * @param templateId - What to record as the template.
+     * @returns The plan.
+     */
+    const planTemplate = (document: StyleDocument, templateId: string | undefined): EditPlan<TemplateReport> => {
+        checkDocument(document);
+
+        const id = minter();
+        const imported: ImportedLayer[] = [];
+        const unresolved = new Set<Path>();
+
+        for (const spec of document.layers) {
+            const authored = stamped(spec, templateId);
+
+            if (isElementSource(sourceOf(authored))) {
+                throw new GraphtyError({
+                    code: "E_PROTECTED",
+                    message:
+                        `"${authored.name}" claims to be one of the element's own layers, and only the ` +
+                        "element mints those. A document carries the layers somebody chose.",
+                    source: "style",
+                    details: { name: authored.name, source: authored.source },
+                });
+            }
+
+            const checked = check(authored, id(authored.name), false);
+
+            if (checked.layer === null) {
+                throw refusedSpec(authored.name, checked.result);
+            }
+
+            for (const unanswered of checked.result.unresolvedPaths) {
+                unresolved.add(unanswered);
+            }
+
+            imported.push({ spec: authored, compiled: checked.layer });
+        }
+
+        // Asked of the imported layers ALONE, so a layer that was already in the stack and has
+        // been waiting for its run is not reported as this import's problem.
+        const unbound = unboundLayers({
+            ...explainSources,
+            stack: () => imported.map((entry) => entry.compiled),
+        });
+        const disabled = new Set(unbound.map((entry) => entry.layerId));
+        const final = imported.map((entry): CompiledLayer => {
+            if (!disabled.has(entry.compiled.layer.id)) {
+                return entry.compiled;
+            }
+
+            const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id, false);
+
+            if (off.layer === null) {
+                throw refusedSpec(entry.spec.name, off.result);
+            }
+
+            return off.layer;
+        });
+
+        return {
+            stack: [...current(), ...final],
+            result: Object.freeze({
+                applied: Object.freeze(
+                    final.filter((entry) => !disabled.has(entry.layer.id)).map((entry) => entry.layer.id),
+                ),
+                unbound,
+            }),
+            layers: final.map((entry) => entry.layer.id),
+            unresolvedPaths: Object.freeze([...unresolved]),
+            reason: "add",
+        };
+    };
+
+    /**
+     * The plan a style command asks for, against the stack as it stands now.
+     * @param command - The command.
+     * @returns The plan. Throws a `GraphtyError` to refuse it.
+     */
+    const planOf = (command: StyleCommand): EditPlan<unknown> => {
+        if (command.op === "style.encode") {
+            return planEncode(command.spec);
+        }
+
+        if (command.op === "style.template") {
+            return planTemplate(command.document, command.templateId);
+        }
+
+        switch (command.action) {
+            case "add":
+                if (isElementSource(sourceOf(command.spec))) {
+                    throw new GraphtyError({
+                        code: "E_PROTECTED",
+                        message:
+                            "Only the element mints an element-owned layer. Leave the source unstated for a layer " +
+                            "of your own, or name the template or plugin it came from.",
+                        source: "style",
+                        details: { source: command.spec.source },
+                    });
+                }
+
+                return planInsert(command.spec, insertionIndex(command.at), mint(command.spec.name));
+            case "update":
+                return planUpdate(command.id, command.patch);
+            case "remove":
+                return planRemove(command.id);
+            case "move":
+                return planMove(command.id, command.before);
+            case "removeBySource":
+                return planSweep(command.ids);
+            case "highlight":
+                return planHighlight(command.spec);
+            case "resolveToStatic":
+                // The value and the patch are worked out by the same reading that reported the
+                // channel uneditable, and applied by the same update any other patch goes through.
+                return planUpdate(
+                    command.id,
+                    resolveRule(command.id, command.channel, explainSources, command.at).patch,
+                );
+            default:
+                throw badCommand(`"${String((command as { action?: unknown }).action)}" is not a style.patch action.`, {
+                    action: (command as { action?: unknown }).action,
+                });
+        }
+    };
+
+    // The style ops of this dispatcher compile against this session.
+    dispatcher.services.styles = {
+        execute(command, draft) {
+            const planned = planOf(command);
+            const stack = current();
+            if (planned.stack.length === stack.length && planned.stack.every((entry, at) => entry === stack[at])) {
+                // Nothing moved (a sweep that matched nothing): no step, and a pass only to say so.
+                dispatcher.lane.touch("styles", "");
+            } else {
+                draft.styles = Object.freeze([...planned.stack]);
+            }
+
+            let settle: (painted: RepaintReport | null) => void = () => undefined;
+            let refuse: (error: unknown) => void = () => undefined;
+            const painted = new Promise<RepaintReport | null>((resolve, reject) => {
+                settle = resolve;
+                refuse = reject;
+            });
+            // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
+            painted.catch(() => undefined);
+            announcements.push({
+                change: { reason: planned.reason, layers: planned.layers, unresolvedPaths: planned.unresolvedPaths },
+                settle,
+                refuse,
+            });
+
+            return { result: planned.result, painted } satisfies EditOutcome<unknown>;
+        },
+    };
+
+    // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
+    // redo or a rollback -- from the stack the picture shows to the one state holds.
+    dispatcher.lane.register("styles", async (rendered, target) => {
+        const told = announcements.splice(0);
+        const request = stackChange(rendered.styles, target.styles);
+        let painted: RepaintReport | null = null;
+        let failure: unknown = null;
+
+        if (sources.repaint !== undefined) {
+            try {
+                painted = request.edits.length === 0 ? NOTHING_PAINTED : await sources.repaint(request, PASS_CONTEXT);
+            } catch (error) {
+                failure = error;
+            }
+        }
+
+        lastPass = {
+            reason: request.reason,
+            layers: request.edits.map((each) => (each.next ?? each.previous)?.layer.id ?? ""),
+            painted,
+        };
+
+        for (const each of told) {
+            if (failure === null) {
+                each.settle(painted);
+            } else {
+                each.refuse(failure);
+            }
+
+            sources.onChange?.({ ...each.change, painted, cause: "command" });
+        }
+    });
+
+    // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
+    // event per step it passed.
+    const previousDerived = dispatcher.events.derived;
+    dispatcher.events.derived = (change) => {
+        previousDerived?.(change);
+        if (change.cause !== "command" && change.slices.includes("styles")) {
+            sources.onChange?.({
+                reason: lastPass.reason,
+                layers: lastPass.layers,
+                painted: lastPass.painted,
+                unresolvedPaths: NO_PATHS,
+                cause: change.cause,
+            });
+        }
+    };
+
+    // The element's own layers are the baseline: seeded once, and never a step.
+    const seedId = minter();
+    const seeded = (sources.base ?? []).map((spec) => {
+        const checked = check(spec, seedId(spec.name));
 
         if (checked.layer === null) {
             throw new GraphtyError({
@@ -1413,24 +1994,25 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         }
 
-        commit([...stack, checked.layer]);
-    };
-
-    for (const spec of sources.base ?? []) {
-        seed(spec);
+        return checked.layer;
+    });
+    if (seeded.length > 0) {
+        dispatcher.seed((draft) => {
+            draft.styles = Object.freeze([...current(), ...seeded]);
+        });
     }
 
-    return {
+    const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
         },
 
         compiled(): readonly CompiledLayer[] {
-            return stack;
+            return current();
         },
 
         get(id: LayerId): Layer | undefined {
-            return byId.get(id)?.layer;
+            return byId().get(id)?.layer;
         },
 
         validate(spec: LayerSpec): ValidationResult {
@@ -1438,353 +2020,199 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         add(spec: LayerSpec, at?: LayerPosition, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("add", "add", `Add layer "${spec.name}"`, () => {
-                if (isElementSource(sourceOf(spec))) {
-                    throw new GraphtyError({
-                        code: "E_PROTECTED",
-                        message:
-                            "Only the element mints an element-owned layer. Leave the source unstated for a layer " +
-                            'of your own, or name the template or plugin it came from.',
-                        source: "style",
-                        details: { source: spec.source },
-                    });
-                }
-
-                return planInsert(spec, insertionIndex(at), mint(spec.name));
-            }, options);
+            return edit<Layer>(
+                "add",
+                `Add layer "${spec.name}"`,
+                { op: "style.patch", action: "add", spec, ...(at === undefined ? {} : { at }) },
+                options,
+            );
         },
 
         update(id: LayerId, patch: Partial<LayerSpec>, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("update", "update", `Update layer ${id}`, () => planUpdate(id, patch), options);
+            return edit<Layer>(
+                "update",
+                `Update layer ${id}`,
+                { op: "style.patch", action: "update", id, patch },
+                options,
+            );
         },
 
         remove(id: LayerId, options: RunOptions = {}): Run<void> {
-            return startEdit("remove", "remove", `Remove layer ${id}`, () => {
-                const current = require(id);
-
-                if (current.layer.locked) {
-                    throw protectedLayer(current.layer, "removed");
-                }
-
-                const index = positionOf(id);
-                const next = stack.filter((entry) => entry.layer.id !== id);
-
-                return {
-                    stack: next,
-                    edits: [{ previous: current, next: null }],
-                    fromIndex: index,
-                    result: undefined,
-                    layers: [id],
-                    unresolvedPaths: NO_PATHS,
-                };
-            }, options);
+            return edit("remove", `Remove layer ${id}`, { op: "style.patch", action: "remove", id }, options);
         },
 
         move(id: LayerId, before: LayerId | null, options: RunOptions = {}): Run<void> {
-            return startEdit("move", "move", `Move layer ${id}`, () => {
-                const current = require(id);
-
-                if (current.layer.locked) {
-                    throw protectedLayer(current.layer, "moved");
-                }
-
-                if (before === id) {
-                    throw new GraphtyError({
-                        code: "E_BAD_COMMAND",
-                        message: "A layer cannot be moved below itself.",
-                        source: "style",
-                        target: { kind: "layer", id },
-                        details: { id },
-                    });
-                }
-
-                const from = positionOf(id);
-                const without = stack.filter((entry) => entry.layer.id !== id);
-                let to = without.length;
-
-                if (before !== null) {
-                    require(before);
-                    to = without.findIndex((entry) => entry.layer.id === before);
-                }
-
-                const next = [...without];
-                next.splice(to, 0, current);
-
-                return {
-                    stack: next,
-                    edits: [{ previous: current, next: current }],
-                    fromIndex: Math.min(from, to),
-                    result: undefined,
-                    layers: [id],
-                    unresolvedPaths: NO_PATHS,
-                };
-            }, options);
+            return edit("move", `Move layer ${id}`, { op: "style.patch", action: "move", id, before }, options);
         },
 
         removeBySource(predicate: (source: LayerSource) => boolean, options: RunOptions = {}): Run<readonly LayerId[]> {
-            return startEdit<readonly LayerId[]>("sweep", "sweep", "Remove layers by source", () => {
-                const doomed = stack.filter((entry) => !entry.layer.locked && predicate(entry.layer.source));
-                const ids = doomed.map((entry) => entry.layer.id);
-                const removing = new Set(ids);
-                const next = stack.filter((entry) => !removing.has(entry.layer.id));
-                const lowest = stack.findIndex((entry) => removing.has(entry.layer.id));
-
-                return {
-                    stack: next,
-                    edits: doomed.map((entry) => ({ previous: entry, next: null })),
-                    fromIndex: lowest === -1 ? next.length : lowest,
-                    result: Object.freeze(ids),
-                    layers: ids,
-                    unresolvedPaths: NO_PATHS,
-                };
-            }, options);
+            // Resolved when it is dispatched: the predicate is not data, the ids it matches are.
+            return edit<readonly LayerId[]>(
+                "sweep",
+                "Remove layers by source",
+                (state) => ({
+                    op: "style.patch",
+                    action: "removeBySource",
+                    ids: state.styles
+                        .filter((entry) => !entry.layer.locked && predicate(entry.layer.source))
+                        .map((entry) => entry.layer.id),
+                }),
+                options,
+            );
         },
 
         encode(spec: EncodingSpec, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("encode", "add", `Encode ${spec.channel}`, () => {
-                const planned = planEncoding(spec, requireRuns("encode"));
-                const source = sourceOf(planned);
-                const previous =
-                    source.by === "run"
-                        ? stack.find((entry) => isDerivedFor(entry.layer, source.runId, spec.channel))
-                        : undefined;
-
-                if (previous === undefined) {
-                    return planInsert(planned, stack.length, mint(planned.name));
-                }
-
-                // The one place a locked layer is written rather than refused, and it is what the
-                // replacement rule is for: the layer being taken over is the one the element
-                // derived from this very run, and what replaces it says so in its source. A layer
-                // somebody wrote by hand is never this layer -- `isDerivedFor` asks what the layer
-                // paints, not what it is called.
-                const { id } = previous.layer;
-                const checked = check(planned, id);
-
-                if (checked.layer === null) {
-                    throw refusedSpec(planned.name, checked.result);
-                }
-
-                const index = positionOf(id);
-                const next = [...stack];
-                next[index] = checked.layer;
-
-                return {
-                    stack: next,
-                    edits: [{ previous, next: checked.layer }],
-                    fromIndex: index,
-                    result: checked.layer.layer,
-                    layers: [id],
-                    unresolvedPaths: checked.result.unresolvedPaths,
-                    reason: "update",
-                };
-            }, options);
+            return edit<Layer>(
+                "encode",
+                `Encode ${spec.channel}`,
+                { op: "style.encode", spec: { ...spec, run: runIdOf(spec.run) } },
+                options,
+            );
         },
 
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {
-            return startEdit<readonly Layer[]>("highlight", "add", "Highlight a result", () => {
-                const run = requireRun(spec.run, requireRuns("highlight"));
-
-                if (!isHighlightShape(run.shape)) {
-                    throw badCommand(
-                        `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
-                            "with encode() rather than highlighted.",
-                        { run: run.id, shape: run.shape },
-                    );
-                }
-
-                const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
-                const chosen = run.fields.filter((entry) => entry.name === field);
-
-                if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
-                    const published = run.fields.map((entry) => entry.name);
-
-                    throw new GraphtyError({
-                        code: "E_UNKNOWN_ATTRIBUTE",
-                        message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
-                        source: "style",
-                        details: {
-                            run: run.id,
-                            field,
-                            available: published,
-                            candidates: nearestNames(field, published),
-                        },
-                    });
-                }
-
-                // One entry per half the run chose AND the style has something to say about, so a
-                // route styled with an edge colour alone paints the route's edges and leaves its
-                // nodes to the layers underneath.
-                const painting = new Map<SelectorTarget, StaticStyle>();
-
-                for (const half of HALVES) {
-                    const set = chosen.some((entry) => entry.kind === half) ? halfOfStyle(spec.set, half) : null;
-
-                    if (set !== null) {
-                        painting.set(half, set);
-                    }
-                }
-
-                if (painting.size === 0) {
-                    throw badCommand(
-                        `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
-                            `the run "${run.id}" chose, so the highlight would paint nothing.`,
-                        { run: run.id, field, set: spec.set },
-                    );
-                }
-
-                const path = resultPath(run.id, field);
-                const called = spec.name ?? run.label;
-                const id = minter();
-                const added: CompiledLayer[] = [];
-                const unresolved = new Set<Path>();
-
-                for (const [half, set] of painting) {
-                    const layerSpec: LayerSpec = {
-                        name: painting.size > 1 ? `${called} (${half}s)` : called,
-                        target: half,
-                        kind: "highlight",
-                        // The membership column carries FALSE for the elements the run looked at
-                        // and did not choose, so a presence test would paint the whole
-                        // neighbourhood of a route in the colour of the route. The value is what
-                        // says "chosen", so the value is what is asked about.
-                        selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
-                        set,
-                        source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
-                    };
-                    const checked = check(layerSpec, id(layerSpec.name));
-
-                    if (checked.layer === null) {
-                        throw refusedSpec(layerSpec.name, checked.result);
-                    }
-
-                    for (const unanswered of checked.result.unresolvedPaths) {
-                        unresolved.add(unanswered);
-                    }
-
-                    added.push(checked.layer);
-                }
-
-                const doomed = stack.filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight");
-                const removing = new Set(doomed.map((entry) => entry.layer.id));
-                const kept = stack.filter((entry) => !removing.has(entry.layer.id));
-                const lowest = stack.findIndex((entry) => removing.has(entry.layer.id));
-                const edits: LayerEdit[] = [
-                    ...doomed.map((entry): LayerEdit => ({ previous: entry, next: null })),
-                    ...added.map((entry): LayerEdit => ({ previous: null, next: entry })),
-                ];
-
-                return {
-                    stack: [...kept, ...added],
-                    edits,
-                    fromIndex: lowest === -1 ? kept.length : Math.min(lowest, kept.length),
-                    result: Object.freeze(added.map((entry) => entry.layer)),
-                    layers: [...removing, ...added.map((entry) => entry.layer.id)],
-                    unresolvedPaths: Object.freeze([...unresolved]),
-                };
-            }, options);
+            return edit<readonly Layer[]>(
+                "highlight",
+                "Highlight a result",
+                { op: "style.patch", action: "highlight", spec: { ...spec, run: runIdOf(spec.run) } },
+                options,
+            );
         },
 
         resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options: RunOptions = {}): Run<Layer> {
-            return startEdit<Layer>("resolve", "update", `Fix ${channel} on layer ${id}`, () => {
-                // The value and the patch are worked out by the same reading that reported the
-                // channel uneditable, and applied by the same update any other patch goes through.
-                const resolution = resolveRule(id, channel, explainSources, at);
-
-                return planUpdate(id, resolution.patch);
-            }, options);
+            return edit<Layer>(
+                "resolve",
+                `Fix ${channel} on layer ${id}`,
+                { op: "style.patch", action: "resolveToStatic", id, channel, ...(at === undefined ? {} : { at }) },
+                options,
+            );
         },
 
         applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
-            return startEdit<TemplateReport>("template", "add", "Apply a style document", () => {
-                checkDocument(document);
-
-                const id = minter();
-                const imported: ImportedLayer[] = [];
-                const unresolved = new Set<Path>();
-
-                for (const spec of document.layers) {
-                    const authored = stamped(spec, options.templateId);
-
-                    if (isElementSource(sourceOf(authored))) {
-                        throw new GraphtyError({
-                            code: "E_PROTECTED",
-                            message:
-                                `"${authored.name}" claims to be one of the element's own layers, and only the ` +
-                                "element mints those. A document carries the layers somebody chose.",
-                            source: "style",
-                            details: { name: authored.name, source: authored.source },
-                        });
-                    }
-
-                    const checked = check(authored, id(authored.name));
-
-                    if (checked.layer === null) {
-                        throw refusedSpec(authored.name, checked.result);
-                    }
-
-                    for (const unanswered of checked.result.unresolvedPaths) {
-                        unresolved.add(unanswered);
-                    }
-
-                    imported.push({ spec: authored, compiled: checked.layer });
-                }
-
-                // Asked of the imported layers ALONE, so a layer that was already in the stack and
-                // has been waiting for its run is not reported as this import's problem.
-                const unbound = unboundLayers({
-                    ...explainSources,
-                    stack: () => imported.map((entry) => entry.compiled),
-                });
-                const disabled = new Set(unbound.map((entry) => entry.layerId));
-                const final = imported.map((entry): CompiledLayer => {
-                    if (!disabled.has(entry.compiled.layer.id)) {
-                        return entry.compiled;
-                    }
-
-                    const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id);
-
-                    if (off.layer === null) {
-                        throw refusedSpec(entry.spec.name, off.result);
-                    }
-
-                    return off.layer;
-                });
-
-                return {
-                    stack: [...stack, ...final],
-                    edits: final.map((entry): LayerEdit => ({ previous: null, next: entry })),
-                    fromIndex: stack.length,
-                    result: Object.freeze({
-                        applied: Object.freeze(
-                            final
-                                .filter((entry) => !disabled.has(entry.layer.id))
-                                .map((entry) => entry.layer.id),
-                        ),
-                        unbound,
-                    }),
-                    layers: final.map((entry) => entry.layer.id),
-                    unresolvedPaths: Object.freeze([...unresolved]),
-                };
-            }, options);
+            return edit<TemplateReport>(
+                "template",
+                "Apply a style document",
+                {
+                    op: "style.template",
+                    document,
+                    ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
+                },
+                options,
+            );
         },
 
         legend(): readonly LegendBlock[] {
             return buildLegend(legendSources);
         },
 
-        settled(): Promise<void> {
-            // A stack with no queue behind it runs its edits inline, so there is never anything
-            // in flight for a caller to wait on and "already settled" is the true answer.
-            return sources.queue?.settled() ?? Promise.resolve();
+        async settled(): Promise<void> {
+            // What the element starts for itself (a run's suggested layers) waits on the queue;
+            // the repaint of every edit written so far waits on the derivation lane.
+            await sources.queue?.settled();
+            await dispatcher.lane.settled();
         },
 
         explain(target: ExplainTarget): StyleExplanation {
             return explainStyle(target, explainSources);
         },
 
+        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
+            for (const [kind, id] of Object.entries(palettes)) {
+                if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
+                    throw badCommand(
+                        `setDefaultPalettes takes a palette for "categorical", "sequential" or "diverging", not "${kind}".`,
+                        { field: kind },
+                    );
+                }
+
+                if (id === undefined) {
+                    continue;
+                }
+
+                const palette = paletteDescriptor(String(id));
+                if (palette === undefined) {
+                    const available = knownPaletteIds();
+                    throw new GraphtyError({
+                        code: "E_UNKNOWN_PALETTE",
+                        message: `There is no palette named "${String(id)}". Define it before making it a default.`,
+                        source: "style",
+                        details: { palette: id, available, candidates: available },
+                    });
+                }
+
+                if (palette.kind !== kind) {
+                    throw badCommand(
+                        `The palette "${palette.id}" is ${palette.kind}, so it cannot be the ${kind} default.`,
+                        { field: kind, palette: palette.id },
+                    );
+                }
+            }
+
+            // The layers that took the default a kind is about to lose: a binding naming no palette
+            // took the element's own choice, and one this session filled in took the old default.
+            const previous = defaultPalettes;
+            const stale: { layer: Layer; channels: { channel: string; kind: keyof DefaultPalettes }[] }[] = [];
+            for (const { layer } of current()) {
+                if (layer.locked) {
+                    continue;
+                }
+
+                const channels = Object.entries(layer.encode ?? {}).flatMap(([channel, binding]) => {
+                    const kind =
+                        binding === undefined || channelDescriptor(channel)?.accepts !== "color"
+                            ? null
+                            : paletteKindOf(binding);
+                    if (
+                        kind === null ||
+                        !("by" in binding) ||
+                        palettes[kind] === undefined ||
+                        palettes[kind] === previous[kind]
+                    ) {
+                        return [];
+                    }
+
+                    const took =
+                        binding.palette === undefined ||
+                        (binding.palette === previous[kind] && defaulted.has(`${layer.id}/${channel}`));
+                    return took ? [{ channel, kind }] : [];
+                });
+                if (channels.length > 0) {
+                    stale.push({ layer, channels });
+                }
+            }
+
+            defaultPalettes = { ...previous, ...palettes };
+
+            if (stale.length === 0) {
+                return;
+            }
+
+            if (options.reapply !== true) {
+                const named = stale.map(({ layer }) => `"${layer.name}" (${layer.id})`).join(", ");
+                console.warn(
+                    `[graphty] setDefaultPalettes: ${named} took the previous default palette and keep it. ` +
+                        "Call setDefaultPalettes before adding layers, or pass { reapply: true } to repaint them.",
+                );
+                return;
+            }
+
+            for (const { layer, channels } of stale) {
+                const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
+                for (const { channel, kind } of channels) {
+                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] } as Binding;
+                    defaulted.add(`${layer.id}/${channel}`);
+                }
+
+                api.update(layer.id, { encode }).then(undefined, (error: unknown) => {
+                    console.error(`[graphty] setDefaultPalettes could not reapply the layer "${layer.name}".`, error);
+                });
+            }
+        },
+
         toDocument(): StyleDocument {
-            const layers = stack.filter((entry) => !entry.layer.locked).map((entry) => specOf(entry.layer));
+            const layers = current()
+                .filter((entry) => !entry.layer.locked)
+                .map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
 
             return Object.freeze({
@@ -1796,4 +2224,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         },
     };
+
+    return api;
 }

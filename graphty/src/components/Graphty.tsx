@@ -5,72 +5,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import type { LayerItem } from "./layout/LeftSidebar";
 
-interface GraphNode {
-    id: string | number;
-    data: Record<string, unknown>;
-}
-
-interface GraphEdge {
-    id: string;
-    srcId: string | number;
-    dstId: string | number;
-    data: Record<string, unknown>;
-}
-
 /**
- * The element as this wrapper drives it.
- *
- * The property half is still written out here, because the element's own class type cannot be
- * used whole: `Graph.dataManager` is private on it and {@link GraphtyHandle.getData} reads the
- * node and edge maps through it, which is the element gap recorded on `getData` itself.
- *
- * The pin verbs, `session` and `layoutBehavior` are NOT written out. They are picked off the element's own class,
- * so their signatures are the element's and a rename over there is a type error here rather than
- * a method that quietly stops existing. That is how every member reaches this interface from now
- * on: the seven below are a duck-type of the element (root CLAUDE.md, "duck-typing or re-declaring
- * the element's types") that the element's exported `GraphtyElement` makes unnecessary, and they
- * survive only because replacing them wholesale touches every effect in this file.
+ * How the app wants the element to draw: node labels that would land on each other are thinned
+ * out. A view setting, not a project one, so it is written on the tag and records no step.
  */
-interface GraphtyElementType
-    extends
-        HTMLElement,
-        Pick<
-            GraphtyElement,
-            | "captureScreenshot"
-            | "pin"
-            | "unpin"
-            | "pinnedNodes"
-            | "session"
-            | "clearData"
-            | "loadFromFile"
-            | "loadFromUrl"
-            | "addDataFromSource"
-            | "layoutBehavior"
-        > {
-    nodeData?: { id: number | string; [key: string]: unknown }[];
-    edgeData?: { source: number | string; target: number | string; [key: string]: unknown }[];
-    layout?: string;
-    /** @deprecated Use viewMode instead */
-    layout2d?: boolean;
-    /** View mode: "2d", "3d", "vr", or "ar" */
-    viewMode?: "2d" | "3d" | "vr" | "ar";
-    layoutConfig?: Record<string, unknown>;
-    graph?: Graph;
-}
-
-/**
- * How often the style effect looks for the element's session while it is still coming up.
- *
- * The element builds its graph asynchronously and publishes no "ready" event a consumer
- * can wait on, so the one honest option is to look again. The interval is cleared the
- * moment the session is found.
- */
-const SESSION_POLL_MS = 50;
-
-/** What {@link GraphtyHandle.pinnedNodes} answers before the element exists to be asked. */
-const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
-
-type ViewMode = "2d" | "3d" | "vr" | "ar";
+const APP_LAYOUT_BEHAVIOR = { labels: { declutter: true } } as const;
 
 /** Event detail for selection-changed events */
 export interface SelectionChangedDetail {
@@ -99,46 +38,12 @@ interface GraphtyProps {
     layers: LayerItem[];
     /** The element's acceleration policy, written on the tag so it is in force before the probe starts. */
     acceleration?: AccelerationPolicy;
-    /** @deprecated Use viewMode instead */
-    layout2d?: boolean;
-    /** View mode: "2d", "3d", "vr", or "ar" */
-    viewMode?: ViewMode;
-    dataSource?: string;
-    dataSourceConfig?: Record<string, unknown>;
-    replaceExisting?: boolean;
-    layout?: string;
-    layoutConfig?: Record<string, unknown>;
     /** Called when a node is selected or deselected */
     onSelectionChange?: (detail: SelectionChangedDetail) => void;
     /** Called when style layers change in graphty-element */
     onStylesChange?: (detail: StylesChangedDetail) => void;
-}
-
-/**
- * Graph type representing the underlying graphty-element Graph instance.
- * This is used for advanced integrations like AI control.
- */
-interface Graph {
-    dataManager: {
-        nodes: Map<string | number, GraphNode>;
-        edges: Map<string, GraphEdge>;
-    };
-    /**
-     * The headless model: the style stack, the runs and their results, the selection.
-     *
-     * The only door to the layers. There is no `getStyleManager` and no `getLayers` here
-     * any more -- both addressed a layer by its place in an array, and the stack is now
-     * read bottom first off `session.styles.list()` with every layer carrying its own id.
-     */
-    getSession: () => GraphSession;
-    // Additional Graph methods accessible via the instance
-    [key: string]: unknown;
-}
-
-/** How a load treats the graph already drawn. */
-interface LoadOptions {
-    /** Replace the graph, but only once the new data has parsed; a failed load keeps the old one. */
-    replace?: boolean;
+    /** Called once with the element's session, as soon as the element has come up */
+    onSession?: (session: GraphSession) => void;
 }
 
 export interface GraphtyHandle {
@@ -147,132 +52,36 @@ export interface GraphtyHandle {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
     };
-    /**
-     * Load data from a URL, through the element's own awaited method. It detects the format when
-     * none is named, rejects when the load fails, and with `replace` keeps the current graph
-     * until the new data has parsed.
-     */
-    loadFromUrl: (url: string, format?: string, options?: LoadOptions) => Promise<{ loadId: number }>;
-    /** Load data from a File object; the same contract as {@link GraphtyHandle.loadFromUrl}. */
-    loadFromFile: (file: File, format?: string, options?: LoadOptions) => Promise<{ loadId: number }>;
-    /** Load data with a specific format and config; the same contract as {@link GraphtyHandle.loadFromUrl}. */
-    loadData: (format: string, config: Record<string, unknown>, options?: LoadOptions) => Promise<{ loadId: number }>;
-    /** Clear all data from the graph */
-    clearData: () => void;
-    /**
-     * Pin nodes where they are, so no layout moves them again.
-     *
-     * Forwarded to the element's own verb rather than reached through `graph`. The ids are the
-     * element's own, `string | number`, NOT the printed form a surface holds: the element looks
-     * a node up by exact map key, so `pin("34")` finds nothing on a graph whose ids are numbers.
-     */
-    pin: (ids: (string | number) | readonly (string | number)[]) => void;
-    /** Release nodes a reader or a drag pinned. The same id rule as {@link GraphtyHandle.pin}. */
-    unpin: (ids: (string | number) | readonly (string | number)[]) => void;
-    /** Which nodes are pinned right now, by the element's own ids; empty before the element is up. */
-    pinnedNodes: ReadonlySet<string | number>;
     /** Captures the canvas as an image, forwarded to the element's own verb. */
     captureScreenshot: GraphtyElement["captureScreenshot"];
-    /** Access to the underlying Graph instance for advanced operations (e.g., AI integration) */
-    graph: Graph | null;
+    /**
+     * The element itself, or null before it has mounted: the camera, XR and selection doors the
+     * shell calls (`zoomStep`, `loadCameraPreset`, `setXRConfig`, `selectNode`, ...). A change to
+     * the graph goes through {@link GraphtyHandle.session} instead, so it is one undoable step.
+     */
+    element: GraphtyElement | null;
     /** The element's session, or null before the element upgraded. The element publishes its capabilities here. */
     session: GraphSession | null;
 }
 
 export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
-    {
-        layers: _layers,
-        acceleration,
-        viewMode,
-        dataSource,
-        dataSourceConfig,
-        replaceExisting,
-        layout = "d3",
-        layoutConfig,
-        onSelectionChange,
-        onStylesChange,
-        ...rest
-    },
+    { layers: _layers, acceleration, onSelectionChange, onStylesChange, onSession },
     ref,
 ): React.JSX.Element {
-    // Resolve viewMode from props, with backward compatibility for deprecated layout2d prop
-    const deprecatedLayout2d = (rest as { layout2d?: boolean }).layout2d;
-    const resolvedViewMode: ViewMode = viewMode ?? (deprecatedLayout2d ? "2d" : "3d");
     const containerRef = useRef<HTMLDivElement>(null);
-    const graphtyRef = useRef<GraphtyElementType>(null);
-    const prevDataSourceRef = useRef<{ dataSource?: string; dataSourceConfig?: Record<string, unknown> } | undefined>(
-        undefined,
-    );
+    const graphtyRef = useRef<GraphtyElement>(null);
 
     useImperativeHandle(
         ref,
         () => ({
-            /*
-             * The node and edge records the data table and the node inspector draw.
-             *
-             * ELEMENT GAP, and the reason this reaches through `graph.dataManager` -- which is
-             * PRIVATE on the element's own class, so the wrapper cannot use that class as its
-             * element type and writes the property half out by hand instead. The session's data
-             * surface answers `node(id)` and `edge(id)` one at a time and publishes no listing
-             * verb: its own documentation says id listings over a scope are asynchronous by
-             * construction and not part of that surface yet. Until one exists there is no
-             * supported way to ask the element for its records, so this walks the maps behind
-             * the private field. Delete this the day the element publishes a listing.
-             */
+            /* The node and edge records the data table and the node inspector draw, as the
+               session lists them. */
             getData: () => {
-                const dataManager = graphtyRef.current?.graph?.dataManager;
-                if (!dataManager) {
-                    return { nodes: [], edges: [] };
-                }
+                const session = graphtyRef.current?.session;
 
-                // Extract node data from the Map
-                const nodes = Array.from(dataManager.nodes.values()).map((node) => ({
-                    id: node.id,
-                    ...node.data,
-                }));
-
-                // Extract edge data from the Map, under the names the element publishes. The id
-                // is written LAST rather than first: a record that carries its own `id` -- a GEXF
-                // file's edge identifier, say -- used to win the collision through the spread and
-                // replace the element's id in every record the app then read.
-                const edges = Array.from(dataManager.edges.values()).map((edge) => ({
-                    ...edge.data,
-                    id: edge.id,
-                    source: edge.srcId,
-                    target: edge.dstId,
-                }));
-
-                return { nodes, edges };
-            },
-            loadFromUrl: async (url: string, format?: string, options?: LoadOptions) => {
-                if (!graphtyRef.current) {
-                    throw new Error("Graph element not initialized");
-                }
-
-                return graphtyRef.current.loadFromUrl(url, { format, replace: options?.replace });
-            },
-            loadFromFile: async (file: File, format?: string, options?: LoadOptions) => {
-                if (!graphtyRef.current) {
-                    throw new Error("Graph element not initialized");
-                }
-
-                return graphtyRef.current.loadFromFile(file, { format, replace: options?.replace });
-            },
-            loadData: async (format: string, config: Record<string, unknown>, options?: LoadOptions) => {
-                if (!graphtyRef.current) {
-                    throw new Error("Graph element not initialized");
-                }
-
-                return graphtyRef.current.addDataFromSource(format, config, { replace: options?.replace });
-            },
-            pin: (ids: (string | number) | readonly (string | number)[]) => {
-                graphtyRef.current?.pin(ids);
-            },
-            unpin: (ids: (string | number) | readonly (string | number)[]) => {
-                graphtyRef.current?.unpin(ids);
-            },
-            get pinnedNodes() {
-                return graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES;
+                return session === undefined
+                    ? { nodes: [], edges: [] }
+                    : { nodes: [...session.data.nodes()], edges: [...session.data.edges()] };
             },
             captureScreenshot: (options) => {
                 if (!graphtyRef.current) {
@@ -281,11 +90,8 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
 
                 return graphtyRef.current.captureScreenshot(options);
             },
-            clearData: () => {
-                graphtyRef.current?.clearData();
-            },
-            get graph() {
-                return graphtyRef.current?.graph ?? null;
+            get element() {
+                return graphtyRef.current;
             },
             get session() {
                 return graphtyRef.current?.session ?? null;
@@ -294,61 +100,11 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
         [],
     );
 
-    // Handle data source changes from props
-    useEffect(() => {
-        if (!graphtyRef.current || !dataSource) {
-            return;
-        }
-
-        // Check if data source actually changed
-        const prev = prevDataSourceRef.current;
-        if (prev !== undefined) {
-            if (
-                prev.dataSource === dataSource &&
-                JSON.stringify(prev.dataSourceConfig) === JSON.stringify(dataSourceConfig)
-            ) {
-                return;
-            }
-        }
-
-        // The element reports a failure on its own `data-loading-error` channel; a prop has no
-        // caller to hand the rejection to.
-        graphtyRef.current
-            .addDataFromSource(dataSource, dataSourceConfig ?? {}, { replace: replaceExisting })
-            .catch(() => undefined);
-
-        prevDataSourceRef.current = { dataSource, dataSourceConfig };
-    }, [dataSource, dataSourceConfig, replaceExisting]);
-
-    // The app thins out node labels that would be drawn over each other. The element does the
-    // work; its default is off so that every other consumer keeps the picture it had.
-    useEffect(() => {
-        if (graphtyRef.current) {
-            graphtyRef.current.layoutBehavior = { labels: { declutter: true } };
-        }
-    }, []);
-
-    // Handle layout changes
-    useEffect(() => {
-        if (graphtyRef.current) {
-            graphtyRef.current.layout = layout;
-            if (layoutConfig) {
-                graphtyRef.current.layoutConfig = layoutConfig;
-            }
-        }
-    }, [layout, layoutConfig]);
-
     // NOTE: Layer state is managed by graphty-element (Single Source of Truth).
     // The loop is: the app reads `session.styles.list()`, the user edits, the app calls a
     // `session.styles` verb by LAYER ID, the session publishes `style:changed` once the
     // repaint has committed, and the app re-reads. Nothing here holds an index and nothing
     // here pushes a styleTemplate down.
-
-    useEffect(() => {
-        if (graphtyRef.current) {
-            graphtyRef.current.viewMode = resolvedViewMode;
-        }
-    }, [resolvedViewMode]);
 
     // Handle selection-changed events from graphty-element
     useEffect(() => {
@@ -389,55 +145,48 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
        canvas is already showing. The element's `style-changed` DOM event predates the
        stack and fires for none of that.
 
-       The session appears when the element finishes coming up, which is asynchronous, so
-       this polls for it exactly as the layer sync did before. */
+       The element builds its session in its constructor, so the session is there as soon as
+       the tag has upgraded. A tag rendered before the element's module has defined it is
+       upgraded when the definition lands, which `customElements.whenDefined` announces. */
     useEffect(() => {
         const element = graphtyRef.current;
-        if (!element || !onStylesChange) {
+        if (!element || (!onStylesChange && !onSession)) {
             return undefined;
         }
 
         let unwatch: (() => void) | null = null;
-        let pollInterval: ReturnType<typeof setInterval> | null = null;
-
-        const stopPolling = (): void => {
-            if (pollInterval !== null) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-        };
+        let disposed = false;
 
         const bind = (): boolean => {
-            // Guard against a partially initialised graph, which is what a test environment
-            // and the first few frames of a real load both hand back.
-            const { graph } = element;
-            if (!graph || typeof graph.getSession !== "function") {
+            // Undefined until the tag has upgraded to the element.
+            const session = element.session as GraphSession | undefined;
+            if (session === undefined || disposed) {
                 return false;
             }
 
-            const session = graph.getSession();
+            onSession?.(session);
 
-            unwatch = session.on("style:changed", () => {
+            if (onStylesChange) {
+                unwatch = session.on("style:changed", () => {
+                    onStylesChange({ layers: session.styles.list() });
+                });
                 onStylesChange({ layers: session.styles.list() });
-            });
-            onStylesChange({ layers: session.styles.list() });
+            }
 
             return true;
         };
 
         if (!bind()) {
-            pollInterval = setInterval(() => {
-                if (bind()) {
-                    stopPolling();
-                }
-            }, SESSION_POLL_MS);
+            void customElements.whenDefined("graphty-element").then(() => {
+                bind();
+            });
         }
 
         return () => {
-            stopPolling();
+            disposed = true;
             unwatch?.();
         };
-    }, [onStylesChange]);
+    }, [onSession, onStylesChange]);
 
     return (
         <Box
@@ -450,7 +199,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 overflow: "hidden",
             }}
         >
-            <graphty-element ref={graphtyRef} acceleration={acceleration} />
+            <graphty-element ref={graphtyRef} acceleration={acceleration} layoutBehavior={APP_LAYOUT_BEHAVIOR} />
         </Box>
     );
 });

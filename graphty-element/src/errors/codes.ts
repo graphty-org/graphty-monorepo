@@ -132,6 +132,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_RUN"
     /**
+     * A styles call names a layer id the stack does not hold -- usually one removed a moment
+     * earlier, so the caller's layer list is stale. The call itself is well formed, which is why
+     * this is not `E_BAD_COMMAND`. `details.known` lists the ids the stack does hold. The caller
+     * refreshes its layer list.
+     */
+    | "E_UNKNOWN_LAYER"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -303,6 +310,29 @@ export type GraphtyErrorCode =
      */
     | "E_DISPOSED"
     /**
+     * An extension's own code threw: a function in a simple-tier definition (an algorithm's
+     * `node`, a layout's `place`), called by the element. `details.extension` is the extension's
+     * id, `details.member` the function, and `cause` the original error. The extension's author
+     * fixes their code; this is not a defect in graphty-element, which is what `E_INTERNAL` means.
+     */
+    | "E_EXTENSION_FAILED"
+    /**
+     * A command was dispatched through a transaction's `tx` after the transaction's callback had
+     * settled, so the step it belonged to was already recorded. `details.transaction` names the
+     * transaction. The caller dispatches everything the transaction should contain before its
+     * callback returns (awaiting what it needs), or dispatches later work through the session as
+     * its own step.
+     */
+    | "E_TRANSACTION_CLOSED"
+    /**
+     * A command needs a node or edge id (or a whole graph or pin slice) that an open transaction
+     * has written and holds until it is recorded. It fails at once rather than waiting, because
+     * the transaction's callback may itself be waiting on this command. `details.transaction`
+     * names the transaction and `details.key` the held key. The caller dispatches the command
+     * through that transaction's `tx`, or dispatches it again once the transaction has settled.
+     */
+    | "E_HELD_BY_TRANSACTION"
+    /**
      * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
@@ -335,6 +365,7 @@ const CODE_TABLE = {
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
+    E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
@@ -361,6 +392,9 @@ const CODE_TABLE = {
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
+    E_EXTENSION_FAILED: "E_EXTENSION_FAILED",
+    E_TRANSACTION_CLOSED: "E_TRANSACTION_CLOSED",
+    E_HELD_BY_TRANSACTION: "E_HELD_BY_TRANSACTION",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

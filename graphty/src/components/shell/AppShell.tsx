@@ -90,12 +90,15 @@ import {
     type AccelerationPolicy,
     type AccelerationStatus,
     type Channel,
+    type DataSourceInput,
+    type GraphSession,
     type GraphStatistics,
     isGraphtyError,
+    type Layer,
     type LayerSpec,
-    recommendLayout,
     type RunId,
     type SelectionDelta,
+    type TransactionScope,
 } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -111,7 +114,6 @@ import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
 import type { LayerItem } from "../layout/LeftSidebar";
 import type { LoadDataRequest } from "../LoadDataModal";
-import { asElementGraph, elementSession } from "./analysis/elementBridge";
 import {
     edgeEndpoints,
     EMPTY_GRAPH_STATISTICS,
@@ -131,10 +133,11 @@ import {
     type DegreeResults,
     NO_DEGREE_DISTRIBUTION,
     runCommunityDetection,
-    runDegreePass,
+    startDegreePass,
 } from "./analysis/runs";
+import { useCanvasBottomStack } from "./canvas/canvasBottomStack";
 import { readPersistedCanvasLayout, resolveCanvasLayout, writePersistedCanvasLayout } from "./canvas/canvasMemory";
-import { CanvasRegion, type CanvasRegionOwnProps, useCanvasBottomStack } from "./canvas/CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "./canvas/CanvasRegion";
 import type { DataDrawerTab } from "./canvas/DataTableDrawer";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
@@ -161,12 +164,7 @@ import {
     resolveAccelerationSettings,
     writePersistedAccelerationSettings,
 } from "./defaults/accelerationSettings";
-import {
-    colourHeldBy,
-    removeRunLayers,
-    runColourBlock,
-    topSwatchColour,
-} from "./defaults/encodingReport";
+import { colourHeldBy, removeRunLayers, runColourBlock, topSwatchColour } from "./defaults/encodingReport";
 import { loadDefaults } from "./defaults/loadDefaults";
 import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "./defaults/styleDescriptors";
 import {
@@ -214,15 +212,22 @@ import { DEFAULT_EDGE_NOUN, GRAPH_SUMMARY_EMPTY_READING, graphSummaryReading } f
 import { nodeMetricHeadline, nodeMetricReading, nodeMetricResultBody } from "./readings/nodeMetricReading";
 import { formatCount } from "./readings/readingFormat";
 import { caveatsLine, runRecordLine } from "./readings/runRecord";
-import { ShellProvider, useShell } from "./ShellContext";
+import { ShellProvider } from "./ShellContext";
 import { formatAcceleration } from "./statusbar/formatAcceleration";
 import { formatCountPair, formatCountsTitle } from "./statusbar/formatCounts";
 import { StatusBar } from "./statusbar/StatusBar";
-import type { LayoutQuickPick, StatusBarCompletion, StatusBarIssuesModel, StatusBarSlotsModel } from "./statusbar/statusBarModel";
+import type {
+    LayoutQuickPick,
+    StatusBarCompletion,
+    StatusBarIssuesModel,
+    StatusBarSlotsModel,
+} from "./statusbar/statusBarModel";
 import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/CanvasToolbar";
+import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
-import { historyRows, useUndoStore } from "./topbar/undoStore";
+import { useSessionHistory } from "./topbar/useSessionHistory";
 import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
+import { useShell } from "./useShell";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
 /**
@@ -259,8 +264,6 @@ function isImageFormat(value: string): value is ImageFormat {
  * Analyze panel asks of it. The node metrics take `result-${metric}` on the same rule.
  */
 const COMMUNITY_RESULT_ID = "groups";
-
-
 
 /**
  * The community run's PLAIN name, which is the half floor item 6 insists is the same on
@@ -322,6 +325,12 @@ const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
 
 /** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
 const OPEN_SETTINGS_ACTION = "Open Settings";
+
+/** The link on a toast that reports a refused edit: there is nowhere further to go. */
+const DISMISS_ACTION = "Dismiss";
+
+/** The colour a new style layer paints until the reader changes it; any valid colour would do. */
+const NEW_LAYER_COLOR = "#F59E0B";
 
 /** The Style panel's own overflow row (spec 03 section 2.4). */
 const RESET_STYLES_ROW = "Reset styles to defaults";
@@ -461,27 +470,28 @@ function fileSizeLabel(bytes: number): string {
 }
 
 /**
- * What the Loaded data section's RT-2 compound can say about a load, from the request
- * alone.
+ * What the Loaded data section's RT-2 compound can say about a load.
  *
- * Only measured facts go in. The format is there when the request NAMED one; with
- * "auto" the loader detected it and publishes no answer, so the compound is not drawn
- * rather than drawn with a guess. The size is there when a real file was read. The
- * direction is in neither, and not because it is unknown: the element measures it and the
- * Counts "Type" row prints that. It is absent from THIS compound because the compound
- * describes the REQUEST -- what the reader asked for and what was read -- and the direction
- * is a fact about the graph that came back.
- * @param request - the load request that just succeeded.
- * @returns the compound's values, or undefined when the request measured none of them.
+ * Only measured facts go in. The format is the one the request named or, once the load is
+ * in, the one graphty-element detected (`session.data.source().type`); before that, a load
+ * with "auto" has no format yet, so the compound is not drawn rather than drawn with a
+ * guess. The size is there when a real file was read. The direction is in neither, and not
+ * because it is unknown: the element measures it and the Counts "Type" row prints that. It
+ * is absent from THIS compound because the compound describes the REQUEST -- what the
+ * reader asked for and what was read -- and the direction is a fact about the graph that
+ * came back.
+ * @param request - the load request.
+ * @param format - the format named or detected, or undefined while none is known.
+ * @returns the compound's values, or undefined when no format is known yet.
  */
-function loadedDataSummary(request: LoadDataRequest): LoadedDataSummary | undefined {
-    if (request.format === "auto") {
+function loadedDataSummary(request: LoadDataRequest, format: string | undefined): LoadedDataSummary | undefined {
+    if (format === undefined) {
         return undefined;
     }
 
     const size = request.file === undefined ? undefined : fileSizeLabel(request.file.size);
 
-    return { format: request.format, size };
+    return { format, size };
 }
 
 /**
@@ -589,6 +599,21 @@ interface ShellGraphData {
 
 const NO_GRAPH_DATA: ShellGraphData = { nodes: [], edges: [] };
 
+/**
+ * The layers a dataset boundary sweeps: the shell's own defaults, whose selector names a run
+ * over nodes that have left, and every layer a run painted, whose binding reads a column that is
+ * no longer there. Without the sweep a replacing load stacked a second set on top of the first.
+ *
+ * BY SOURCE, never by position, and an element-owned layer is never swept whatever the predicate
+ * says: an index walk once took graphty-element's own base layer, the one carrying every node's
+ * shape type, and the next load died in mesh building and drew nothing at all.
+ * @param source - the layer's source.
+ * @returns whether the layer describes the dataset rather than the reader.
+ */
+function describesDataset(source: Layer["source"]): boolean {
+    return (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) || source.by === "run";
+}
+
 /** What the shell reports as pinned before the element is up to be asked. */
 const EMPTY_PINNED_NODES: ReadonlySet<string | number> = new Set<string | number>();
 
@@ -643,11 +668,7 @@ interface LoadFailure {
 interface PendingLoad {
     /** What the reader called the source (6.10 floor item 7). */
     readonly fileName: string;
-    /**
-     * Whether a dataset is still drawn if this load fails: any load over one. A replacing
-     * load swaps the graph only once the new data has parsed, so a failed one leaves the
-     * previous graph on the canvas exactly as an additive one does.
-     */
+    /** Whether a dataset is still drawn if this load fails: a failed load rolls back to it. */
     readonly survivesFailure: boolean;
     /** The dataset the top bar named before this load began. */
     readonly previousName: string | null;
@@ -664,6 +685,42 @@ interface PendingLoad {
     readonly previousSummary: LoadedDataSummary | undefined;
 }
 
+/** What the top bar and the state axis say about the dataset on screen. */
+interface DrawnDataset {
+    /** Whether a dataset is drawn at all. */
+    readonly loaded: boolean;
+    /** What the top bar names it. */
+    readonly name: string | null;
+    /** What the Loaded data section says about it. */
+    readonly summary: LoadedDataSummary | undefined;
+}
+
+/**
+ * The data source a load request names, for `session.data.import`. graphty-element detects the
+ * format when the reader chose none, and names a file or a URL after it; pasted text has no
+ * name of its own, so it is given one.
+ * @param request - what the dialog or a drop asked for.
+ * @param format - the format the reader chose, or undefined to let the element detect it.
+ * @returns the source to import.
+ */
+function sourceOf(request: LoadDataRequest, format: string | undefined): DataSourceInput {
+    const type = format === undefined ? {} : { type: format };
+
+    if (request.inputMethod === "url" && request.url !== undefined) {
+        return { ...type, config: { url: request.url } };
+    }
+
+    if (request.inputMethod === "file" && request.file !== undefined) {
+        return { ...type, config: { file: request.file } };
+    }
+
+    if (request.inputMethod === "paste" && request.data !== undefined) {
+        return { ...type, name: PASTED_DATA_NAME, config: { data: request.data } };
+    }
+
+    throw new Error(NO_SOURCE_NAMED);
+}
+
 /** What a pasted graph is called, wherever a load has to name its source. */
 const PASTED_DATA_NAME = "pasted-data";
 
@@ -675,6 +732,17 @@ const GRAPH_NOT_INITIALISED = "the graph is not initialised yet";
 
 /** The throw the load path uses when the request carried no file, URL or text. */
 const NO_SOURCE_NAMED = "the load request named no source";
+
+/**
+ * The throw the load path uses for an ADDITIVE load over a dataset that is already drawn.
+ *
+ * It is refused before it reaches the element. The element can merge
+ * (`session.data.import(source, { mode: "merge" })`), but spec 872-882's "What to do with
+ * this file" dialog, which asks which merge the reader means, does not exist yet. Until it
+ * does the shell says so instead of pretending: a refusal a reader can act on, with the
+ * dataset they already have left untouched.
+ */
+const ADDITIVE_LOAD_UNSUPPORTED = "an additive load cannot reach the element";
 
 /**
  * The throws on the load path that are addressed to a developer, and what to say instead.
@@ -979,10 +1047,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         readonly id: string;
         /*
          * The same node, as the ELEMENT spells its id. Kept beside the printed form because the
-         * element looks a node up by exact map key: `element.pin("34")` finds nothing on a graph
-         * whose ids are numbers, and unlike `selectNode` the pin verbs return nothing, so a miss
+         * element looks a node up by exact key: `session.positions.pin(["34"])` finds nothing on a
+         * graph whose ids are numbers, and unlike `selectNode` the pin verbs skip a miss silently, so a miss
          * cannot even be detected and retried. Every call on the element made from this state
-         * passes this field.
+         * passes this field. Temporary: this is an element defect, tracked by
+         * https://github.com/graphty-org/graphty-monorepo/issues/542, and goes once it is fixed.
          */
         readonly elementId: string | number;
         readonly attributes: Record<string, unknown> | null;
@@ -996,18 +1065,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const [pinnedNodes, setPinnedNodes] = useState<ReadonlySet<string | number>>(EMPTY_PINNED_NODES);
     const layerCounter = useRef(1);
+    /* Why graphty-element refused the last new style layer, in its own words, or null. */
+    const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
     const firstLoadDone = useRef(false);
-    /* Whether the 7.2 defaults have been applied to the dataset now loaded. They are a
-       per-dataset one-shot: re-applying them would fight a layout or a label budget the
-       user has since changed, and the graph's own data events fire more than once per
-       load. `crossDatasetBoundary` clears it. */
-    const loadDefaultsAppliedRef = useRef(false);
     /** graphty-element's sentence for why this load got fewer degree labels than its budget. */
     const [labelShortfall, setLabelShortfall] = useState<string | null>(null);
-    /* The card a sample row's closing hint asked for, consumed once the defaults have
-       landed, so the suggested run happens on a graph that already has its neutral base
-       and its degrees (7.1 item 2: one interaction, in the right order). */
-    const pendingSuggestedRef = useRef<InsightCapability | null>(null);
     /* The load in flight, as its failure will need it. A ref and not state because the
        failure arrives AFTER the optimistic `finishLoad`, so by then nothing in state can say
        what the reader chose or what was on screen before. */
@@ -1015,11 +1077,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* What the top bar and the state axis were saying at the last commit, which is what
        was true when a load started from an event handler. The load-failure path restores
        it, and it cannot read the state directly for the reason above. */
-    const drawnDatasetRef = useRef<{
-        loaded: boolean;
-        name: string | null;
-        summary: LoadedDataSummary | undefined;
-    }>({ loaded: false, name: null, summary: undefined });
+    const drawnDatasetRef = useRef<DrawnDataset>({ loaded: false, name: null, summary: undefined });
     const frameRef = useRef<HTMLDivElement>(null);
     /* The id the last `selection-changed` reported, or null when that pick hit nothing.
        It is a ref and not state because its one reader is an event handler in the same
@@ -1178,8 +1236,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         readonly nodeCount: number;
         /** The edge count the pass was measured over. */
         readonly edgeCount: number;
+        /** The run that measured it, so an undo that takes the run away takes these with it. */
+        readonly runId: RunId;
     } | null>(null);
-
 
     /* The result the inspector's Algorithm-result surface is drawing, or null. A
        selected node still wins over it (see `selectionKind`), so this is kept in state
@@ -1234,6 +1293,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            run, and the card and the field disagreed about which result was on screen. */
         readonly layerName?: string;
         readonly stateSwatch?: string;
+        /** The run this result reads, which Remove result takes away with every layer reading it. */
+        readonly runId?: RunId;
         /** The run every layer this result painted names as its source. */
         readonly layerRunId?: RunId;
         /** How many layers name that run, which is the count Remove result states. */
@@ -1321,11 +1382,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     } | null>(null);
 
     /* ---------------------------------------------------------------------- */
-    /* The one history store (section 3). Producers are not wired yet, so it   */
-    /* stays empty and the pop-out honestly reads "0 entries, 0 undone".       */
+    /* History. graphty-element owns it: Undo, Redo and the History pop-out    */
+    /* read the session's history and call the session, and nothing here       */
+    /* records a step.                                                         */
     /* ---------------------------------------------------------------------- */
 
-    const undoStore = useUndoStore();
+    const [session, setSession] = useState<GraphSession | null>(null);
+    const history = useSessionHistory(session);
+    const undo = useCallback(() => {
+        void session?.undo();
+    }, [session]);
+    const redo = useCallback(() => {
+        void session?.redo();
+    }, [session]);
+    const historyRowList = useMemo(
+        () => historyRows(history.steps, history.position, ACTIVITY_TITLES),
+        [history.steps, history.position],
+    );
 
     /* ---------------------------------------------------------------------- */
     /* AI                                                                      */
@@ -1341,7 +1414,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const aiProvider = aiDefaultProvider ?? aiKeyStorage.configuredProviders[0];
 
     const aiManager = useAiManager({
-        graph: graphtyRef.current?.graph ?? undefined,
+        // Read once the session exists, which re-renders the shell after the element mounted.
+        element: session === null ? null : (graphtyRef.current?.element ?? null),
         defaultProvider: aiProvider,
         getKey: aiKeyStorage.getKey,
     });
@@ -1424,18 +1498,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     /* The counts are read on the graph's own data events rather than after a load
-       call returns, because `loadData` queues the load and returns before a single
+       call returns, because a load is queued and a call can return before a single
        node exists. This ref carries the current reader into the mount-only effect
        below, which registers once and must not re-run when the reader changes. */
     const refreshGraphDataRef = useRef<() => void>(() => undefined);
-
-    /* The graph the data listeners are already attached to.
-       `Graph` publishes `addListener` and no matching remove, and `addListener`
-       returns nothing to remove WITH, so an attach cannot be undone. The effect
-       below therefore has to be idempotent by itself: under StrictMode it runs,
-       tears down and runs again on the same graph, and without this guard every
-       data event would be handled twice for the life of the session. */
-    const dataListenerGraphRef = useRef<unknown>(null);
 
     /* Whether the graph instance exists yet. The `?test` load below waits on this:
        graphty-element initialises asynchronously, and a load issued before it has is
@@ -1444,21 +1510,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     useEffect(() => {
         let attempts = 0;
+        let unwatch: (() => void) | null = null;
 
         const timer = window.setInterval(() => {
-            const { graph } = graphtyRef.current ?? { graph: null };
+            const handle = graphtyRef.current;
+            const session = handle?.session ?? null;
 
             attempts += 1;
 
-            if (graph !== null) {
-                graphDisableBuiltInXrButtons(graph);
-
-                if (dataListenerGraphRef.current !== graph) {
-                    dataListenerGraphRef.current = graph;
-                    graphOnDataChanged(graph, () => {
-                        refreshGraphDataRef.current();
-                    });
-                }
+            if (session !== null) {
+                graphDisableBuiltInXrButtons(handle?.element ?? null);
+                unwatch = graphOnDataChanged(session, () => {
+                    refreshGraphDataRef.current();
+                });
 
                 setGraphReady(true);
                 window.clearInterval(timer);
@@ -1473,6 +1537,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         return () => {
             window.clearInterval(timer);
+            unwatch?.();
         };
     }, []);
 
@@ -1482,7 +1547,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        sentence, shown under the field. `loadCompletions` is a dependency so a query still in
        the field runs again over a newly loaded dataset. */
     useEffect(() => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
         const text = exploreQuery.trim();
 
         if (session === null || (text === "" && !exploreSelectedRef.current)) {
@@ -1563,7 +1628,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     const refreshGraphData = useCallback(() => {
         const data = graphtyRef.current?.getData() ?? NO_GRAPH_DATA;
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
         const statistics = readGraphStatistics(session);
 
         /* The counts travel with the rest of the shape, in {@link graphStatistics}, so the
@@ -1583,7 +1648,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
     /*
      * Counts the loads graphty-element has reported COMPLETE, on the frame the event
-     * bubbles to ({@link DATA_LOADED_EVENT}), and settles the wait that load is holding.
+     * bubbles to ({@link DATA_LOADED_EVENT}).
      *
      * The counts are refreshed in the same callback, so the completion and the records
      * it completed reach React in one batch: no reader can see the flag move ahead of
@@ -1615,7 +1680,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const frame = frameRef.current;
 
         const onNodeDragEnd = (): void => {
-            setPinnedNodes(new Set(graphtyRef.current?.pinnedNodes ?? EMPTY_PINNED_NODES));
+            setPinnedNodes(new Set(graphtyRef.current?.session?.positions.pinned ?? EMPTY_PINNED_NODES));
         };
 
         frame?.addEventListener(NODE_DRAG_END_EVENT, onNodeDragEnd);
@@ -1636,28 +1701,17 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /**
      * Reports a load that did not arrive, and unwinds the success the shell had claimed.
      *
-     * Every load the shell starts goes through one of graphty-element's awaited methods, so
-     * the failure arrives here as the rejection of that load's own promise -- a malformed
-     * file, a 404 URL and unparsable pasted text alike -- rather than as an event the shell
-     * would have to match to a load.
+     * A load is one transaction on graphty-element's session, and a transaction that fails
+     * rolls back: the element is left holding exactly what it held before the load began and
+     * records no step. So nothing is cleared here -- clearing would record a step of its own
+     * that wiped the dataset the rollback had just put back. What is unwound is the shell's
+     * own optimistic claim (`finishLoad` named the new file and set the state axis to Loaded):
+     * where a dataset was drawn before, its name and summary come back; where none was, the
+     * shell says Empty, which spec 4105 makes the home of a failed load ("Failed load is a
+     * sub-state of Empty: the error appears inline in the drop zone").
      *
-     * What it unwinds is the claim, not only the silence. `finishLoad` named the new dataset
-     * optimistically while it arrived, so the shell puts back what was true.
-     *
-     * Where a dataset was drawn before the load, it is still drawn: the element keeps the
-     * previous graph when a replacing load fails, and an additive load's failure leaves the
-     * graph it was adding to. That dataset keeps its own name AND its own summary rather than
-     * the name and the summary of the file that failed. And because a replacing load crossed
-     * the dataset boundary before it began -- clearing the shell's defaults with it -- the
-     * surviving graph is counted as a completed load again, so the load-defaults effect paints
-     * it as it does any dataset.
-     *
-     * Where nothing was drawn, spec 4105 makes a failed load a SUB-STATE of Empty -- "Failed
-     * load is a sub-state of Empty: the error appears inline in the drop zone" -- so the shell
-     * says Empty, Welcome comes back, and the reader has a route in rather than a populated
-     * chrome around a blank canvas. The session's first-load latch is released with it: spec
-     * 4107 spends it on "the session's first load", and a load that showed the reader nothing
-     * is not one.
+     * The session's first-load latch is released on the Empty branch: spec 4107 spends it on
+     * "the session's first load", and a load that showed the reader nothing is not one.
      * @param reason - why the load did not arrive, as a finished sentence.
      */
     const reportLoadFailure = useCallback(
@@ -1669,16 +1723,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                is carried here from the top of the load because the element's own message
                never does. */
             setLoadFailure({ fileName: pending?.fileName ?? UNNAMED_LOAD_SOURCE, reason });
-
-            /* The suggested card belonged to the dataset that did not arrive; left armed,
-               the load-defaults effect would run it over whatever is drawn instead. */
-            pendingSuggestedRef.current = null;
+            refreshGraphData();
 
             if (pending?.survivesFailure === true) {
                 setDatasetName(pending.previousName);
                 setLoadedSummary(pending.previousSummary);
-                setLoadCompletions((count) => count + 1);
-                refreshGraphData();
 
                 return;
             }
@@ -1688,7 +1737,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             setDataLoaded(false);
             setDatasetName(null);
             setLoadedSummary(undefined);
-            refreshGraphData();
 
             /* The reader was moved onto Explore by the optimistic `finishLoad` and the rail
                disables Explore in the Empty state, so leaving them there leaves an open
@@ -1703,7 +1751,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
 
     /* The current reporter, for a load's `catch` that runs seconds after the render that
-       started it. Same shape as `refreshGraphDataRef` and for the same reason. */
+       started it. */
     const reportLoadFailureRef = useRef<(reason: string) => void>(() => undefined);
 
     useEffect(() => {
@@ -1773,14 +1821,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            longer about anything on screen. */
         setLoadFailure(null);
 
-        /* The 7.2 defaults, the degree pass and any result describe the graph that has
-           gone, so they go with it: the latch is cleared so the next load applies its
-           own defaults, the completion count is zeroed so a completion reported for the
-           load that has gone cannot arm them early, and neither a stale degree ranking
-           nor a stale community reading outlives the data it was measured from. */
-        loadDefaultsAppliedRef.current = false;
-        pendingSuggestedRef.current = null;
-        setLoadCompletions(0);
+        /* The degree pass and any result describe the graph that has gone, so they go with
+           it: neither a stale degree ranking nor a stale community reading outlives the data
+           it was measured from. The style layers that encoded that graph are swept by the
+           load or the close itself, inside its transaction (see {@link describesDataset}). */
         setDegreePass(null);
         setLabelShortfall(null);
         setActiveResult(null);
@@ -1791,28 +1835,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
            was painted went with `activeResult` four lines above, which is where it lives. */
         setRunningMetric(null);
         setMetricConfirm(null);
-
-        /* The style layers that describe the graph that has gone go with it: the shell's own
-           7.2 defaults, whose selector names a run over nodes that have left, and every layer
-           a run painted, whose binding reads a column that is no longer there. Without this a
-           replacing load stacked a second set on top of the first, and every later load one
-           more.
-
-           BY SOURCE, never by position. The shell's layers carry its template id and a run's
-           carry the run, so a sweep names a category rather than a set of indices; and an
-           element-owned layer is never swept whatever the predicate says. The index walk this
-           replaces took graphty-element's own base layer with it -- the one carrying every
-           node's shape type -- and the next load then died in mesh building with "shape with
-           type required to create mesh" and drew nothing at all. */
-        const session = elementSession(graphtyRef.current?.graph);
-
-        if (session !== null) {
-            void session.styles.removeBySource(
-                (source) =>
-                    (source.by === "template" && source.templateId === SHELL_DEFAULTS_TEMPLATE_ID) ||
-                    source.by === "run",
-            );
-        }
 
         // Focus cannot move here. The same state change empties the canvas, so any
         // element chosen now is about to be unmounted and focus would fall to the
@@ -1895,6 +1917,255 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openActivity("explore");
     }, [loadCompletions, openActivity]);
 
+    /*
+     * An undo, a redo or a restore can bring a dataset back or take one away, so the top bar
+     * and the Loaded data section follow what graphty-element says the graph was loaded from,
+     * which moves with its history. A graph with no import behind it says Empty only when it
+     * really is empty, and otherwise leaves the claim alone.
+     */
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        return session.on("history:changed", ({ reason }) => {
+            if (reason !== "undo" && reason !== "redo" && reason !== "restore") {
+                return;
+            }
+
+            const source = session.data.source();
+
+            if (source !== null) {
+                setDataLoaded(true);
+                setDatasetName(source.name ?? null);
+                setLoadedSummary(
+                    source.type === undefined
+                        ? undefined
+                        : {
+                              format: source.type,
+                              size: source.size === undefined ? undefined : fileSizeLabel(source.size),
+                          },
+                );
+            } else if (session.data.statistics().nodeCount === 0) {
+                setDataLoaded(false);
+                setDatasetName(null);
+                setLoadedSummary(undefined);
+            }
+
+            refreshGraphData();
+        });
+    }, [refreshGraphData, session]);
+
+    /*
+     * The shell's copies of element state are re-read whenever the element says that state
+     * changed -- by a command, an undo, a redo, a restore or a rollback alike -- so the layout
+     * control, the 2D/3D switch, the Pinned badge and the legend follow an undo exactly as they
+     * follow the edit. A result card or the degree readings whose run undo took away go with it
+     * and come back with it on redo, and a metric run that undo cancelled or removed stops the
+     * Run spinner.
+     */
+    const takenByUndo = useRef(
+        new Map<
+            RunId,
+            { readonly result?: NonNullable<typeof activeResult>; readonly degree?: NonNullable<typeof degreePass> }
+        >(),
+    );
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+
+        const unwatchProject = session.on("project:changed", ({ slices }) => {
+            if (slices.includes("layout")) {
+                setLayoutType(session.layout.engine);
+                setLayoutConfig({ ...session.layout.options });
+                setViewMode(session.layout.dimension);
+            }
+
+            if (slices.includes("pins")) {
+                setPinnedNodes(new Set(session.positions.pinned));
+            }
+        });
+        const unwatchStyle = session.on("style:changed", () => {
+            setColourChannel(canvasLegendChannels(session.styles.legend()));
+        });
+        const unwatchRuns = session.on("run:changed", ({ run, phase }) => {
+            if (phase === "restored") {
+                // A redo brings the run back, and with it the card and readings the undo took.
+                const taken = takenByUndo.current.get(run.id);
+                takenByUndo.current.delete(run.id);
+                if (taken?.result !== undefined) {
+                    setActiveResult(taken.result);
+                }
+
+                if (taken?.degree !== undefined) {
+                    setDegreePass(taken.degree);
+                }
+
+                return;
+            }
+
+            if (phase !== "removed" && !(phase === "end" && run.status === "canceled")) {
+                return;
+            }
+
+            setRunningMetric((current) => (current === run.algorithm ? null : current));
+
+            if (phase === "removed") {
+                setActiveResult((current) => {
+                    if (current?.runId !== run.id) {
+                        return current;
+                    }
+
+                    takenByUndo.current.set(run.id, { ...takenByUndo.current.get(run.id), result: current });
+                    return null;
+                });
+                setDegreePass((current) => {
+                    if (current?.runId !== run.id) {
+                        return current;
+                    }
+
+                    takenByUndo.current.set(run.id, { ...takenByUndo.current.get(run.id), degree: current });
+                    return null;
+                });
+            }
+        });
+
+        return () => {
+            unwatchProject();
+            unwatchStyle();
+            unwatchRuns();
+        };
+    }, [session]);
+
+    /* `runFindGroups` is declared further down; a load reaches it through this ref. */
+    const runFindGroupsRef = useRef<
+        (options: { readonly retiresInsightCard: boolean }, via?: TransactionScope) => Promise<void>
+    >(() => Promise.resolve());
+
+    /**
+     * Loads a source as ONE undoable step, with the decisions 7.2 makes for a fresh dataset.
+     *
+     * One `session.transaction`, so the first Undo after a load takes the whole load away --
+     * the file, the layout the element chose for it, the label layer -- rather than only the
+     * last thing the load happened to add. Inside it, in order: the import, replacing the
+     * graph and letting graphty-element choose the arrangement (`layout: "recommended"`); the
+     * sweep of the layers that described the previous dataset; the degree pass; and the label
+     * layer, which names the degree run and so selects nothing until the run's results land,
+     * when the element repaints it.
+     *
+     * The degree pass and a sample's suggested Find groups are started through `tx` and NOT
+     * awaited, so they are deferred members of the load's step: the step is recorded as soon as
+     * the file is on screen, their results merge into it when they finish, and an Undo pressed
+     * while one is still running cancels it.
+     *
+     * A load that fails rolls back: the element keeps what it held and records nothing, and
+     * the rejection reaches the caller, which reports it.
+     * @param label - what the history calls the step: the file's name.
+     * @param summary - what the Loaded data section says about the file.
+     * @param source - the data source to import.
+     * @param suggested - the card a sample's hint asked to run once the data is in, or null.
+     * @returns settles once the data is in and the step is recorded.
+     */
+    const loadDataset = useCallback(
+        async (
+            label: string,
+            summary: LoadedDataSummary | undefined,
+            source: DataSourceInput,
+            suggested: InsightCapability | null,
+        ): Promise<void> => {
+            const session = graphtyRef.current?.session ?? null;
+
+            if (session === null) {
+                throw new Error(GRAPH_NOT_INITIALISED);
+            }
+
+            const measured: { degree?: ReturnType<typeof startDegreePass>; labelCount: number } = { labelCount: 0 };
+
+            await session.transaction(label, async (tx) => {
+                const imported = tx.data.import(source, { mode: "replace", layout: "recommended" });
+
+                await tx.styles.removeBySource(describesDataset);
+                await imported;
+
+                // The new dataset is in: what the shell held about the old one goes now.
+                crossDatasetBoundary();
+
+                const { nodeCount } = tx.data.statistics();
+
+                if (nodeCount === 0) {
+                    return;
+                }
+
+                /* The layer asks graphty-element for the top `labelCount` nodes of the RUN that
+                   measures the degrees; the element decides where the cut falls and what a tie
+                   across the budget does. A budget of zero is the reader's switch turned off.
+
+                   NO node colour or size layer, a deliberate departure from 7.2: the element's
+                   own `default` layer carries hand-tuned node and edge values, and restoring
+                   them was the product owner's call (2026-09-13). Labels stay, because they
+                   add a channel rather than overriding a tuned value. */
+                measured.labelCount = loadDefaults({ nodeCount }).labelCount;
+                measured.degree = startDegreePass(tx);
+
+                if (measured.labelCount > 0) {
+                    await tx.styles
+                        .add(
+                            topDegreeLabelLayer({
+                                degreeRunId: measured.degree.runId,
+                                labelCount: measured.labelCount,
+                            }),
+                        )
+                        .then(
+                            () => undefined,
+                            (error: unknown) => {
+                                console.error("[shell] the element refused the top-degree label layer:", error);
+                            },
+                        );
+                }
+
+                /* Spec 5643-5648: the hint's click ends "one undoable history entry, that card
+                   retired" -- this one, the load's. The run retires the card on the far side
+                   of the work, so a run that threw has retired nothing. */
+                if (suggested === "community-detection") {
+                    // The hint takes the reader to Analyze, so the first-load switch to Explore stands down.
+                    firstLoadDone.current = true;
+                    runFindGroupsRef.current({ retiresInsightCard: true }, tx).catch((error: unknown) => {
+                        console.error("[shell] could not run the suggested card:", error);
+                    });
+                }
+            });
+
+            const { degree, labelCount } = measured;
+
+            if (degree === undefined) {
+                return;
+            }
+
+            const { nodeCount, edgeCount } = session.data.statistics();
+
+            degree.results.then(
+                (results) => {
+                    /* Stamped with the graph it was measured over. Both counts, not only the
+                       nodes: a file that adds edges between nodes that are already here changes
+                       every degree in the ranking without changing its length. */
+                    setDegreePass({ results, nodeCount, edgeCount, runId: degree.runId });
+
+                    /* The layer and this sentence read the same cut, so when a tie across the
+                       budget leaves labels out, Settings > Performance says why. */
+                    if (labelCount > 0) {
+                        setLabelShortfall(
+                            session.runs.get(degree.runId)?.result?.top(METRIC_VALUE_FIELD, labelCount).reason ?? null,
+                        );
+                    }
+                },
+                // Cancelled by an Undo pressed while it ran, or failed: there is nothing to read.
+                () => undefined,
+            );
+        },
+        [crossDatasetBoundary],
+    );
+
     /* ---------------------------------------------------------------------- */
     /* `?test`: the built-in sample, so a developer can reach a populated shell */
     /* without going through the dialog. The fixture is defined once, in        */
@@ -1912,12 +2183,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return;
         }
 
-        const handle = graphtyRef.current;
-
-        if (handle === null) {
-            return;
-        }
-
         sampleLoaded.current = true;
 
         // Through the ordinary load path, not around it: the counts are read from the
@@ -1925,11 +2190,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         // `pasted-data`, and the first-load switch to Explore fires the way it does for
         // a file. The older shell wrote its counts by hand from the fixture's length,
         // which is the read-too-early bug this shell exists not to have.
-        handle.loadData("json", { data: JSON.stringify(CAT_SOCIAL_NETWORK) }).catch((error: unknown) => {
+        const summary: LoadedDataSummary = { format: "json", size: undefined };
+
+        finishLoad(CAT_SOCIAL_NETWORK_NAME, "json", summary);
+        loadDataset(
+            CAT_SOCIAL_NETWORK_NAME,
+            summary,
+            { type: "json", name: CAT_SOCIAL_NETWORK_NAME, config: { data: JSON.stringify(CAT_SOCIAL_NETWORK) } },
+            null,
+        ).catch((error: unknown) => {
+            console.error("[shell] failed to load the test fixture:", error);
             reportLoadFailureRef.current(loadFailureReason(error));
         });
-        finishLoad(CAT_SOCIAL_NETWORK_NAME, "json", { format: "json", size: undefined });
-    }, [finishLoad, graphReady]);
+    }, [finishLoad, graphReady, loadDataset]);
 
     /**
      * Loads what the dialog, a drop or a URL asked for, and says so either way.
@@ -1941,21 +2214,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * reported to the shell's own surfaces first and then re-thrown, so one rejection
      * serves both places it is needed.
      *
-     * The chain ends in graphty-element's own awaited load, which resolves once the data
-     * has arrived and rejects when it did not, so the dialog closes over a load that really
-     * arrived. A load over a drawn dataset that asks to replace it passes `replace`: the
-     * element keeps the current graph until the new data has parsed, so a bad file costs the
-     * reader nothing. A load over nothing replaces too, so a failure leaves nothing half-read
-     * on the canvas. A load that asks not to replace adds to the graph.
+     * The chain resolves only once graphty-element has the whole file: the load is one
+     * transaction on the session ({@link loadDataset}), which resolves after the last chunk
+     * and rejects, rolled back, when the data does not parse or cannot be fetched. So a
+     * malformed paste keeps the dialog open with the reader's text still in it.
      *
-     * `finishLoad` runs as the load starts, not after it: the status bar, the Loading
-     * sub-state of 6.1 and the Data table drawer name the load while the element reads it,
-     * and the failure path unwinds every claim it makes (`reportLoadFailure`). A replacing
-     * load's records appear all at once when it completes, because the element swaps the
-     * graph only once the new data has parsed; that includes a load into an empty graph,
-     * which replaces so a failed first load leaves no half-read graph behind the Empty state. The session's
-     * first-load switch to Explore waits for the element's `data-loaded` instead, because
-     * that one unmounts the dialog: see the effect beside `finishLoad`.
+     * `finishLoad` stays ahead of the load. Its optimism is not this function's to remove:
+     * the status bar, the Loading sub-state of 6.1 and the Data table drawer all describe a
+     * load WHILE it arrives, and the failure path unwinds every claim it makes
+     * (`reportLoadFailure`).
      *
      * What it rejects with is the SENTENCE, not the raw throw. The dialog draws whatever
      * reaches it, and the element's own message names the format and never the file
@@ -1964,8 +2231,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * {@link loadFailureSentence} draws on the Welcome zone and in the status bar toast,
      * built by the same formatter from the same two facts.
      * @param request - what to load, as the dialog or a drop built it.
-     * @returns a promise that resolves once graphty-element has loaded the data, and rejects
-     * when the load was refused or the element reported it did not arrive.
+     * @returns a promise that resolves once the data is in and recorded as one step, and
+     * rejects when the load was refused or did not arrive.
      */
     const handleLoad = useCallback(
         async (request: LoadDataRequest): Promise<void> => {
@@ -1977,22 +2244,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             const drawn = drawnDatasetRef.current;
             /* Held in a local as well as on the ref, because the rejection is built seconds
                later and the ref belongs to whatever load is most recent by then. */
-            const requestName = loadRequestName(request);
-            const fileName = requestName ?? UNNAMED_LOAD_SOURCE;
+            const fileName = loadRequestName(request) ?? UNNAMED_LOAD_SOURCE;
 
-            /* Recorded BEFORE the load starts: see {@link PendingLoad}. */
-            const pending: PendingLoad = {
+            /* Recorded BEFORE the load starts: see {@link PendingLoad}. A failed load rolls
+               back, so whatever was drawn before it is still drawn after it. */
+            pendingLoadRef.current = {
                 fileName,
                 survivesFailure: drawn.loaded,
                 previousName: drawn.name,
                 previousSummary: drawn.summary,
             };
-            pendingLoadRef.current = pending;
 
             const format = request.format === "auto" ? undefined : request.format;
-            const options = { replace: request.replaceExisting || !drawn.loaded };
 
-            try {
+            const load = async (): Promise<void> => {
                 const handle = graphtyRef.current;
 
                 /* Checked before anything is claimed, so a host that is not up yet reaches
@@ -2001,50 +2266,38 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     throw new Error(GRAPH_NOT_INITIALISED);
                 }
 
-                let loading: Promise<unknown>;
-                if (request.inputMethod === "url" && request.url !== undefined) {
-                    loading = handle.loadFromUrl(request.url, format, options);
-                } else if (request.inputMethod === "file" && request.file !== undefined) {
-                    loading = handle.loadFromFile(request.file, format, options);
-                } else if (request.inputMethod === "paste" && request.data !== undefined) {
-                    loading = handle.loadData(format ?? "json", { data: request.data }, options);
-                } else {
-                    throw new Error(NO_SOURCE_NAMED);
+                /* Refused HERE, before the element is touched: see
+                   {@link ADDITIVE_LOAD_UNSUPPORTED}. Both routes that can ask for one --
+                   the Data panel's drop on a loaded shell, and the dialog's unticked
+                   "Replace existing data" -- come through this one function, so the refusal
+                   is written once and neither route can quietly keep the old behaviour. */
+                if (!request.replaceExisting && drawn.loaded) {
+                    throw new Error(ADDITIVE_LOAD_UNSUPPORTED);
                 }
 
-                if (request.replaceExisting) {
-                    // A replacing load crosses the same boundary as Close dataset (6.12). After
-                    // the load has started is soon enough: the element swaps nothing until the
-                    // new data has parsed, and a request that named no source never gets here.
-                    //
-                    // KNOWN GAP: the boundary is crossed when the load STARTS, so a replacing
-                    // load that then fails has already dropped the selection, the result and
-                    // the run layers of the graph it leaves on screen. It cannot simply move to
-                    // when the load resolves: the element emits `data-loaded` before the
-                    // promise settles, and the load-defaults effect that event drives would by
-                    // then have applied the new dataset's defaults, which a late boundary would
-                    // wipe along with its latch, completion count and pending suggested card.
-                    crossDatasetBoundary();
+                const source = sourceOf(request, format);
+
+                finishLoad(fileName, format ?? "auto", loadedDataSummary(request, format));
+                await loadDataset(fileName, loadedDataSummary(request, format), source, null);
+                if (format === undefined) {
+                    setLoadedSummary(loadedDataSummary(request, handle.session?.data.source()?.type));
                 }
+            };
 
-                finishLoad(fileName, format ?? "auto", loadedDataSummary(request));
-
-                await loading;
+            try {
+                await load();
             } catch (error: unknown) {
                 console.error("[shell] failed to load data:", error);
 
                 const reason = loadFailureReason(error);
 
-                /* Through the ref, not through the captured callback: this `catch` runs
-                   SECONDS after the render that captured `reportLoadFailure`, which closes
-                   over `activeActivity` -- after the first-load switch to Explore, in fact
-                   -- and the stale copy would strand the reader on a panel the rail has
-                   just disabled. Only while this load is still the latest: a newer load owns
-                   the ref by now, and an overtaken load (graphty-element rejects it with
-                   E_SUPERSEDED) must not unwind the newer load's claims. */
-                if (pendingLoadRef.current === pending) {
-                    reportLoadFailureRef.current(reason);
-                }
+                /* Through the ref, not through the captured callback. `reportLoadFailure`
+                   closes over `activeActivity`, and this `catch` runs SECONDS after the
+                   render that captured it -- after `finishLoad` has moved the reader to
+                   Explore on the session's first load, in fact -- so the captured copy would
+                   send nobody back to Data and strand the reader on a panel the rail had
+                   just disabled. The ref is always the current reporter. */
+                reportLoadFailureRef.current(reason);
 
                 /* The sentence, not the raw throw: the dialog prints what it is handed and
                    the element's message never names the file the reader chose (6.10 floor
@@ -2053,23 +2306,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 throw new Error(loadFailureSentence({ fileName, reason }));
             }
         },
-        [crossDatasetBoundary, finishLoad],
+        [finishLoad, loadDataset],
     );
 
     /**
      * Loads one row of the sample library, and optionally runs its suggested first card.
      *
-     * It goes through the ordinary load paths rather than around them -- the `?test`
-     * fixture's `loadData` for an inline sample, `handleLoad`'s own `loadFromUrl` for a
-     * served one -- so the counts come from the graph's own data events and the first
-     * load switches the panel to Explore exactly as a file does. It crosses the dataset
-     * boundary first, as `handleLoad` does for a replacing load, because a sample click
-     * IS a replacing load.
+     * It goes through the ordinary load path, {@link loadDataset}, so the counts come from
+     * the graph's own data events and the first load switches the panel to Explore exactly
+     * as a file does.
      *
-     * The suggested card is NOT run here. It is recorded on a ref and run by the
-     * load-defaults effect once the 7.2 defaults have landed, so the grouping colours are
-     * painted over the neutral base rather than under it, and the degrees the labels need
-     * are already read back. That is what makes the hint one interaction instead of two.
+     * The suggested card runs inside the load's own transaction, after the degree pass and
+     * the label layer, so the grouping colours are painted over them and the whole hint is
+     * one interaction and one undoable step.
      * @param record - the manifest row the reader clicked.
      * @param runSuggested - whether the row's closing hint was what was clicked.
      */
@@ -2077,59 +2326,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         (record: SampleRecord, runSuggested: boolean) => {
             setLoadFailure(null);
 
-            /* Recorded before the load starts, exactly as `handleLoad` records it and for
-               the same reason: a sample whose file does not parse fails long after this
-               function has returned. A sample click is a REPLACING load, which keeps the
-               graph already drawn when it fails. */
-            const pending: PendingLoad = {
+            /* Recorded before the load starts, exactly as `handleLoad` records it: a failed
+               load rolls back, so whatever was drawn before it is still drawn after it. */
+            pendingLoadRef.current = {
                 fileName: record.fileName,
                 survivesFailure: drawnDatasetRef.current.loaded,
                 previousName: drawnDatasetRef.current.name,
                 previousSummary: drawnDatasetRef.current.summary,
             };
-            pendingLoadRef.current = pending;
 
-            const handle = graphtyRef.current;
-
-            if (handle === null) {
-                console.error("[shell] the graph is not initialised yet");
-                reportLoadFailure(loadFailureReason(new Error(GRAPH_NOT_INITIALISED)));
-
-                return;
-            }
-
-            /* A sample click is a REPLACING load, so it takes `handleLoad`'s route
-               through the 6.12 boundary rather than merging into whatever is drawn: the
-               selection, the stale result, the layers that encoded the old graph and the
-               latch that would otherwise deny the new dataset its own 7.2 defaults all go,
-               and the element swaps the records once the sample has parsed. */
-            crossDatasetBoundary();
-
-            // After the boundary, which clears it: the pending card belongs to the load
-            // that is starting, not to the dataset that has just gone.
-            pendingSuggestedRef.current = runSuggested ? (record.suggestedCapability ?? null) : null;
-
+            /* A sample click is a REPLACING load, so it takes `handleLoad`'s route: one
+               transaction that replaces the graph and sweeps the layers that encoded the old
+               one. Before this, a sample clicked from the Data panel in the Loaded state
+               renamed the dataset in the top bar while the graph kept the old one's nodes --
+               the shell asserting a dataset that was never loaded. */
             const { source } = record;
-
-            const loading =
+            const summary: LoadedDataSummary = { format: source.format, size: undefined };
+            const input: DataSourceInput =
                 source.kind === "inline"
-                    ? handle.loadData(source.format, { data: JSON.stringify(source.payload) }, { replace: true })
-                    : handle.loadFromUrl(source.url, source.format, { replace: true });
+                    ? { type: source.format, name: record.fileName, config: { data: JSON.stringify(source.payload) } }
+                    : { type: source.format, name: record.fileName, config: { url: source.url } };
 
-            finishLoad(record.fileName, source.format, { format: source.format, size: undefined });
-
-            loading.catch((error: unknown) => {
+            finishLoad(record.fileName, source.format, summary);
+            loadDataset(
+                record.fileName,
+                summary,
+                input,
+                runSuggested ? (record.suggestedCapability ?? null) : null,
+            ).catch((error: unknown) => {
                 console.error("[shell] failed to load the sample:", error);
-
-                /* Which also clears the pending suggested card: the hint belonged to the
-                   sample that did not arrive. Through the ref, and only while this is still
-                   the latest load, for the reasons `handleLoad` gives. */
-                if (pendingLoadRef.current === pending) {
-                    reportLoadFailureRef.current(loadFailureReason(error));
-                }
+                reportLoadFailure(loadFailureReason(error));
             });
         },
-        [crossDatasetBoundary, finishLoad, reportLoadFailure],
+        [finishLoad, loadDataset, reportLoadFailure],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -2167,7 +2396,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @param patch - what to change about it.
      */
     const updateLayer = useCallback((layerId: string, patch: Partial<LayerSpec>) => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null) {
             return;
@@ -2191,7 +2420,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @param channel - the channel the rule paints.
      */
     const resolveLayerChannel = useCallback((layerId: string, channel: Channel) => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null) {
             return;
@@ -2218,7 +2447,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const handleLayersChange = useCallback(
         (next: LayerItem[]) => {
-            const session = elementSession(graphtyRef.current?.graph);
+            const session = graphtyRef.current?.session ?? null;
 
             if (session === null) {
                 return;
@@ -2271,7 +2500,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * is what makes a later run's encoding stand aside for it rather than paint over it.
      */
     const handleAddLayer = useCallback(() => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null) {
             return;
@@ -2281,17 +2510,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
         layerCounter.current += 1;
 
-        void session.styles.add({ name, target: "node", selector: { match: "everything" } }).then(
-            () => undefined,
-            (error: unknown) => {
-                console.error("[shell] the element refused the new layer:", error);
-            },
-        );
+        /* One channel set, because the element refuses a layer that paints nothing. The
+           reader edits the colour, the selector and the rest in the inspector afterwards. */
+        void session.styles
+            .add({ name, target: "node", selector: { match: "everything" }, set: { "node.color": NEW_LAYER_COLOR } })
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    console.error("[shell] the element refused the new layer:", error);
+                    setStyleRefusal(error instanceof Error ? error.message : String(error));
+                },
+            );
     }, []);
 
+    /* One undoable step each, including a re-run of the layout already chosen. The mirrors are
+       what the layout control and the status bar draw. */
     const handleApplyLayout = useCallback((type: string, config: Record<string, unknown>) => {
         setLayoutType(type);
         setLayoutConfig(config);
+        graphtyRef.current?.session?.layout.set(type, { options: config }).catch((error: unknown) => {
+            console.error("[shell] the element refused the layout:", error);
+        });
     }, []);
 
     const handleSelectionChange = useCallback((detail: SelectionChangedDetail) => {
@@ -2409,19 +2648,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * job), and neither does a run that never happened.
      * @param options - what this route asks of the run.
      * @param options.retiresInsightCard - whether a COMPLETED run retires the Groups card.
+     * @param via - a transaction's `tx` the run joins, or undefined for a step of its own.
      */
     const runFindGroups = useCallback(
-        async (options: { readonly retiresInsightCard: boolean }): Promise<void> => {
-            const graph = asElementGraph(graphtyRef.current?.graph);
+        async (options: { readonly retiresInsightCard: boolean }, via?: TransactionScope): Promise<void> => {
+            const session = graphtyRef.current?.session ?? null;
 
-            if (graph === null) {
+            if (session === null) {
                 console.error("[shell] the graph is not initialised yet");
 
                 return;
             }
 
-            const session = graph.getSession();
-            const stats = await runCommunityDetection(graph);
+            const stats = await runCommunityDetection(via ?? session);
 
             /* The RUN painted the groups, not the shell. A community result publishes a group
                per node, so the session derives a categorical colour encoding from the result's
@@ -2455,7 +2694,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                row, a click on the node itself) was inert until the reader picked something
                else. */
             setSelectedNode(null);
-            graphDeselectNode(graphtyRef.current?.graph ?? null);
+            graphDeselectNode(graphtyRef.current?.element ?? null);
             setActiveResult({
                 /* Stable per run KIND: a re-run of Groups is the same result identity,
                    which is what the reader means by it. */
@@ -2473,6 +2712,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     scope: `${formatCount(stats.nodeCount)} nodes`,
                 }),
                 body: communityResultBody(statistics),
+                runId,
                 /* The applied half, all four fields together or none of them: the layer's own
                    name, a colour some node really carries, the TAG the two layer verbs act on,
                    and how many layers that tag holds, which is the count Remove result names
@@ -2482,24 +2722,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     ? {}
                     : {
                           layerName: session.styles.get(block.layerId)?.name ?? COMMUNITY_METHOD_NAME,
-                          ...(topSwatchColour(block) === undefined
-                              ? {}
-                              : { stateSwatch: topSwatchColour(block) }),
+                          ...(topSwatchColour(block) === undefined ? {} : { stateSwatch: topSwatchColour(block) }),
                           layerRunId: runId,
-                          layerCount: session.styles.list().filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
+                          layerCount: session.styles
+                              .list()
+                              .filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
                       }),
             });
             setColourChannel(canvasLegendChannels(session.styles.legend()));
             openPanelAt("analyze");
-            undoStore.push({
-                id: `groups-${String(Date.now())}`,
-                category: "algorithmResult",
-                title: "Found groups (Communities, Louvain)",
-                activity: "analyze",
-                activityLabel: ACTIVITY_TITLES.analyze,
-                at: Date.now(),
-                destinationTitle: "Ran Groups (Communities, Louvain). Opens Analyze at its card",
-            });
 
             /* Spec 5643-5648 and 7300: the card is retired once the reader has been taken
                where it was taking them. After the run, never before it -- a run that threw,
@@ -2508,8 +2739,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setInsightsMemory((current) => withRetiredCapability(current, "community-detection"));
             }
         },
-        [openPanelAt, undoStore],
+        [openPanelAt],
     );
+
+    useEffect(() => {
+        runFindGroupsRef.current = runFindGroups;
+    }, [runFindGroups]);
 
     /* ---------------------------------------------------------------------- */
     /* The three node metrics (spec 2307), and the size gate in front of them  */
@@ -2594,9 +2829,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const runNodeMetricCard = useCallback(
         async (request: MetricRunRequest): Promise<void> => {
             const { metric, confirmed } = request;
-            const graph = asElementGraph(graphtyRef.current?.graph);
+            const session = graphtyRef.current?.session ?? null;
 
-            if (graph === null) {
+            if (session === null) {
                 console.error("[shell] the graph is not initialised yet");
 
                 return;
@@ -2609,7 +2844,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    estimate is scaled from that timing rather than modelled, so the number
                    the reader is asked to accept should be the freshest one the element has.
                    It is O(1) over the shape the session already maintains. */
-                const estimate = metricCost(graph.getSession(), metric);
+                const estimate = metricCost(session, metric);
 
                 if (estimate.verdict === "unavailable") {
                     /* The element will not run this on this graph and said why. Nothing is
@@ -2643,7 +2878,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    hand. The short circuit this replaces was the shell keeping that flag,
                    and it got it wrong on an additive load: the held pass described one file
                    while the ranking reported its node count as the whole graph. */
-                const ranking = await runNodeMetric(graph, metric);
+                const ranking = await runNodeMetric(session, metric);
                 const top = ranking.byValueDescending[0];
 
                 if (top === undefined) {
@@ -2665,7 +2900,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
 
                    Every other run's layers stay, under this one: the stack order decides which
                    colour wins, and the reader can reorder, hide or remove any of them. */
-                const session = graph.getSession();
                 const { runId } = ranking;
 
                 /* A degree ranking read back off the load's own pass has a run behind it that
@@ -2728,7 +2962,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             ? {}
                             : {
                                   onSelect: () => {
-                                      graphSelectNode(graphtyRef.current?.graph ?? null, nodeId);
+                                      graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                                   },
                               }),
                     };
@@ -2740,7 +2974,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    ignores a select for the node it already holds, so a node selected when
                    the run started could not be re-selected by any route afterwards. */
                 setSelectedNode(null);
-                graphDeselectNode(graphtyRef.current?.graph ?? null);
+                graphDeselectNode(graphtyRef.current?.element ?? null);
                 /* ONE statistics literal feeding BOTH the expanded reading and the
                    collapsed headline. Two literals would be two spellings of one
                    measurement, free to drift the moment either template grew a field. */
@@ -2769,6 +3003,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     }),
                     ...(caveats === undefined ? {} : { caveats }),
                     body,
+                    ...(runId === undefined ? {} : { runId }),
                     distribution: metricDistribution(ranking),
                     /* Applied: the card names the layer that holds the channel, the
                        colour the TOP node of this run actually carries, the tag the two
@@ -2790,9 +3025,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         ? {}
                         : {
                               layerName: session.styles.get(block.layerId)?.name ?? definition.plainName,
-                              ...(topSwatchColour(block) === undefined
-                                  ? {}
-                                  : { stateSwatch: topSwatchColour(block) }),
+                              ...(topSwatchColour(block) === undefined ? {} : { stateSwatch: topSwatchColour(block) }),
                               layerRunId: runId,
                               layerCount: session.styles
                                   .list()
@@ -2810,15 +3043,6 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }
 
                 openPanelAt("analyze");
-                undoStore.push({
-                    id: `${metric}-${String(Date.now())}`,
-                    category: "algorithmResult",
-                    title: `Ran ${definition.plainName} (${definition.technicalName})`,
-                    activity: "analyze",
-                    activityLabel: ACTIVITY_TITLES.analyze,
-                    at: Date.now(),
-                    destinationTitle: `Ran ${definition.plainName} (${definition.technicalName}). Opens Analyze at its card`,
-                });
 
                 /* 7.3 conditions the retirement on the capability having been RUN, so it
                    happens here -- after the result is on screen -- and not at the call
@@ -2836,148 +3060,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 setRunningMetric(null);
             }
         },
-        [degreeResults, layers, openPanelAt, undoStore],
+        [layers, openPanelAt],
     );
-
-    /* ---------------------------------------------------------------------- */
-    /* 7.2: what a load decides, and the degree pass it runs in the background */
-    /* ---------------------------------------------------------------------- */
-
-    /*
-     * The arrangement and the label budget, applied once per dataset. Nothing else runs
-     * (7.2).
-     *
-     * WHICH ARRANGEMENT IS THE ELEMENT'S ANSWER, not this file's and not the defaults
-     * module's. `recommendLayout` reads the graph's shape and how many nodes already carry
-     * a coordinate, resolves each candidate against the element's own layout catalogue, and
-     * never names one the element cannot serve at this size or without an input nobody has
-     * supplied. What it replaced was the same three cases decided here from a copy of that
-     * catalogue -- a copy that named "grid" as 7.2's first choice for years after the engine
-     * behind it stopped existing.
-     *
-     * The degree pass is awaited because three of the four decisions need it: the size
-     * scale reads `degreePct`, the label selector needs the labelCount-th degree as its
-     * cut, and the Search card's example is the highest-degree node's id.
-     *
-     * It waits for the load to be COMPLETE rather than for its first chunk, which is what
-     * `loadCompletions` counts. graphty-element loads in chunks with an await between
-     * them, so on any file over about a thousand nodes every fact 7.2 branches on -- the
-     * layout, the label budget, the size scale, Most connected, the Search example, and
-     * the above-threshold Performance branch itself -- would otherwise be measured over
-     * whatever arrived first and never corrected. The element says when the last chunk is
-     * in (DATA_LOADED_EVENT), so the one-shot latches on that instead of recomputing per
-     * chunk: the numbers are right the first time, the layers are added once, and the
-     * suggested card of 7.1 item 2 runs once, on the whole graph.
-     */
-    useEffect(() => {
-        if (!dataLoaded || loadCompletions === 0 || loadDefaultsAppliedRef.current) {
-            return;
-        }
-
-        if (graphData.nodes.length === 0) {
-            return;
-        }
-
-        const graph = asElementGraph(graphtyRef.current?.graph);
-
-        if (graph === null) {
-            return;
-        }
-
-        loadDefaultsAppliedRef.current = true;
-
-        const defaults = loadDefaults({ nodeCount: graphStatistics.nodeCount });
-        const session = graph.getSession();
-
-        /* `seededNodeCount`, NOT `positions.placedCount`, and the difference is the whole
-           decision. The position array is written by the importer AND by every running layout,
-           so one animation frame after a file with no coordinates loads, every node carries a
-           position -- the layout put it there. This effect runs after that frame, so reading the
-           live count answered "keep the arrangement the data arrived with" for a file that
-           arrived with none, and froze the graph at whatever the first step of a force layout
-           reached. The seeded count is what the importer itself placed and nothing else writes. */
-        const arrangement = recommendLayout(graphStatistics, { placedNodes: session.seededNodeCount });
-
-        if (arrangement !== undefined) {
-            /* `engine` and not `id`: `id` is the arrangement's public name ("force"), and
-               `setLayout` takes the engine that draws it ("ngraph"). No configuration of the
-               shell's own goes with it -- the element's recommendation is the whole decision,
-               and options belong to the Layout panel, where a reader can see them. */
-            setLayoutType(arrangement.layout.engine);
-            setLayoutConfig({});
-        }
-
-        const apply = async (): Promise<void> => {
-            const degrees = await runDegreePass(graph);
-
-            /* Stamped with the graph it was just measured over. Both counts, not only the
-               nodes: a file that adds edges between nodes that are already here changes
-               every degree in the ranking without changing its length. */
-            setDegreePass({ results: degrees, nodeCount: graphStatistics.nodeCount, edgeCount: graphStatistics.edgeCount });
-
-            /* NO node colour or size layer, which is a deliberate departure from 7.2's
-               "node size by degree on a square-root scale" and "a single neutral node
-               color".
-
-               The element's own `default` layer carries node and edge values that were
-               tuned by hand over a long stretch, and both of ours overrode them from the
-               first frame. The size layer was the worse of the two: `degreePct` is
-               `degree / maxDegree`, so on a graph whose smallest degree is half its
-               largest -- the cat fixture, degrees 2 to 4 -- every node landed between
-               3.12x and 4.00x the base. That is 7.2's 4x ceiling honoured and its point
-               missed, because the spread a reader could actually see was 1.28x while the
-               whole graph grew three-fold. Restoring the tuned defaults is the product
-               owner's call (2026-09-13); re-proposing either layer means fixing the
-               normalisation first, against the observed degree RANGE rather than the
-               maximum alone. Labels stay: they add a channel rather than overriding a
-               tuned value. */
-            const degreeRunId = degrees.runId;
-            const { labelCount } = defaults;
-
-            /* The layer asks graphty-element for the top `labelCount` nodes of the RUN that
-               measured the degrees; the element decides where the cut falls and what a tie
-               across the budget does. A budget of zero is the reader's switch turned off, and
-               no run means nothing for the layer to read. */
-            if (labelCount > 0 && degreeRunId !== undefined) {
-                await session.styles.add(topDegreeLabelLayer({ degreeRunId, labelCount })).then(
-                    () => undefined,
-                    (error: unknown) => {
-                        console.error("[shell] the element refused the top-degree label layer:", error);
-                    },
-                );
-
-                /* The layer and this sentence read the same cut, so when a tie across the budget
-                   leaves labels out, Settings > Performance says why in the element's words. */
-                setLabelShortfall(
-                    session.runs.get(degreeRunId)?.result?.top(METRIC_VALUE_FIELD, labelCount).reason ?? null,
-                );
-            }
-
-            const pending = pendingSuggestedRef.current;
-
-            pendingSuggestedRef.current = null;
-
-            if (pending === "community-detection") {
-                /* Spec 5643-5648: the hint's click ends "one undoable history entry, that
-                   card retired". The reader has been taken where the card was taking
-                   them, so the card has done its job, and the retirement outlives the
-                   session in the insights key. The run itself retires it, on the far side
-                   of the work: a run that threw has retired nothing. */
-                await runFindGroups({ retiresInsightCard: true });
-            }
-        };
-
-        apply().catch((error: unknown) => {
-            console.error("[shell] could not apply the load defaults:", error);
-        });
-    }, [
-        dataLoaded,
-        graphData.nodes.length,
-        graphStatistics.edgeCount,
-        graphStatistics.nodeCount,
-        loadCompletions,
-        runFindGroups,
-    ]);
 
     /* ---------------------------------------------------------------------- */
     /* The canvas's docks and overlays                                        */
@@ -3027,32 +3111,39 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* ---------------------------------------------------------------------- */
 
     const zoomIn = useCallback(() => {
-        graphZoomStep(graphtyRef.current?.graph ?? null, "in");
+        graphZoomStep(graphtyRef.current?.element ?? null, "in");
     }, []);
     const zoomOut = useCallback(() => {
-        graphZoomStep(graphtyRef.current?.graph ?? null, "out");
+        graphZoomStep(graphtyRef.current?.element ?? null, "out");
     }, []);
     const zoomToFit = useCallback(() => {
-        graphZoomToFit(graphtyRef.current?.graph ?? null);
+        graphZoomToFit(graphtyRef.current?.element ?? null);
     }, []);
     const zoomToSelection = useCallback(() => {
-        graphZoomToSelection(graphtyRef.current?.graph ?? null, selectedNode?.id ?? null);
-    }, [selectedNode]);
+        graphZoomToSelection(graphtyRef.current?.element ?? null);
+    }, []);
     const resetView = useCallback(() => {
-        graphResetView(graphtyRef.current?.graph ?? null);
+        graphResetView(graphtyRef.current?.element ?? null);
     }, []);
     const viewTop = useCallback(() => {
-        graphViewPreset(graphtyRef.current?.graph ?? null, "top");
+        graphViewPreset(graphtyRef.current?.element ?? null, "topView");
     }, []);
     const viewFront = useCallback(() => {
-        graphViewPreset(graphtyRef.current?.graph ?? null, "front");
+        graphViewPreset(graphtyRef.current?.element ?? null, "frontView");
     }, []);
     const viewSide = useCallback(() => {
-        graphViewPreset(graphtyRef.current?.graph ?? null, "side");
+        graphViewPreset(graphtyRef.current?.element ?? null, "sideView");
+    }, []);
+    /* 2D or 3D, one undoable step. */
+    const changeViewMode = useCallback((mode: CanvasViewMode) => {
+        setViewMode(mode);
+        graphtyRef.current?.session?.layout.setDimension(mode).catch((error: unknown) => {
+            console.error("[shell] the element refused the dimension:", error);
+        });
     }, []);
     const toggleViewMode = useCallback(() => {
-        setViewMode((mode) => (mode === "3d" ? "2d" : "3d"));
-    }, []);
+        changeViewMode(viewMode === "3d" ? "2d" : "3d");
+    }, [changeViewMode, viewMode]);
 
     /* ---------------------------------------------------------------------- */
     /* Transient surfaces, and the Escape ladder's second rung                 */
@@ -3103,7 +3194,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             return false;
         }
 
-        graphDeselectNode(graphtyRef.current?.graph ?? null);
+        graphDeselectNode(graphtyRef.current?.element ?? null);
         setSelectedNode(null);
 
         return true;
@@ -3132,7 +3223,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
 
             setSelectedNode(null);
-            graphDeselectNode(graphtyRef.current?.graph ?? null);
+            graphDeselectNode(graphtyRef.current?.element ?? null);
             setSelectedLayerId(null);
         },
         [activeResult],
@@ -3249,13 +3340,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
             },
-            redo: undoStore.redo,
+            redo,
             resetView,
             toggleDataDrawer: toggleDrawer,
             toggleLegend,
             toggleSidebars,
             toggleViewMode,
-            undo: undoStore.undo,
+            undo,
             viewFront,
             viewSide,
             viewTop,
@@ -3338,7 +3429,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     label: CLOSE_DATASET_ROW,
                     separatorBefore: true,
                     onSelect: () => {
-                        graphtyRef.current?.clearData();
+                        const session = graphtyRef.current?.session ?? null;
+
+                        /* One step, so one Undo brings the dataset back with its styles: the
+                           graph is emptied and the layers that described it are swept in the
+                           same transaction. */
+                        if (session !== null) {
+                            session
+                                .transaction(`Closed ${drawnDatasetRef.current.name ?? "the dataset"}`, async (tx) => {
+                                    await tx.styles.removeBySource(describesDataset);
+                                    await tx.data.clear();
+                                })
+                                .catch((error: unknown) => {
+                                    console.error("[shell] the element refused to close the dataset:", error);
+                                });
+                        }
+
                         setDataLoaded(false);
                         setDatasetName(null);
                         setGraphData(NO_GRAPH_DATA);
@@ -3361,7 +3467,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     label: RESET_STYLES_ROW,
                     separatorBefore: true,
                     onSelect: () => {
-                        const session = elementSession(graphtyRef.current?.graph);
+                        const session = graphtyRef.current?.session ?? null;
 
                         if (session === null) {
                             return;
@@ -3372,12 +3478,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                            removing by index, which is where the off-by-one that took
                            graphty-element's base layer -- and with it every node's shape type
                            -- came from. */
-                        void session.styles.removeBySource(() => true).then(
-                            () => undefined,
-                            (error: unknown) => {
-                                console.error("[shell] the element refused to reset the styles:", error);
-                            },
-                        );
+                        void session.styles
+                            .removeBySource(() => true)
+                            .then(
+                                () => undefined,
+                                (error: unknown) => {
+                                    console.error("[shell] the element refused to reset the styles:", error);
+                                },
+                            );
                     },
                 },
             ];
@@ -3663,7 +3771,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 rows.push({
                     id: other,
                     label: other,
-                    edgeType: typeof edge.label === "string" ? edge.label : "edge",
+                    edgeType: typeof edge.label === "string" ? edge.label : undefined,
                     direction: source === nodeId ? "out" : "in",
                     value: "",
                 });
@@ -3688,19 +3796,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * @param elementId - the node, as the element spells its id.
      */
     const togglePin = useCallback((elementId: string | number) => {
-        const handle = graphtyRef.current;
+        const positions = graphtyRef.current?.session?.positions;
 
-        if (handle === null) {
+        if (positions === undefined) {
             return;
         }
 
-        if (handle.pinnedNodes.has(elementId)) {
-            handle.unpin(elementId);
-        } else {
-            handle.pin(elementId);
-        }
+        const change = positions.pinned.has(elementId) ? positions.unpin([elementId]) : positions.pin([elementId]);
 
-        setPinnedNodes(new Set(handle.pinnedNodes));
+        void change.then(
+            () => {
+                setPinnedNodes(new Set(positions.pinned));
+            },
+            (error: unknown) => {
+                console.error("[shell] the element refused the pin:", error);
+            },
+        );
     }, []);
 
     const copyReading = useCallback((text: string) => {
@@ -3765,7 +3876,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * painted none.
      */
     const removeResultLayers = useCallback((layerRunId: RunId | undefined) => {
-        const session = elementSession(graphtyRef.current?.graph);
+        const session = graphtyRef.current?.session ?? null;
 
         if (session === null || layerRunId === undefined) {
             return;
@@ -3777,6 +3888,24 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 console.error("[shell] the element refused to remove the result's layers:", error);
             },
         );
+    }, []);
+
+    /**
+     * Takes a result away: the run, and every layer that reads it, as one undoable step.
+     * @param runId - the result's run, or undefined for a result that names none.
+     */
+    const removeResult = useCallback((runId: RunId | undefined) => {
+        const session = graphtyRef.current?.session ?? null;
+
+        if (session === null || runId === undefined) {
+            return;
+        }
+
+        try {
+            session.runs.remove(runId);
+        } catch (error: unknown) {
+            console.error("[shell] the element refused to remove the result:", error);
+        }
     }, []);
 
     const inspectorSelection = useMemo<InspectorSelection>(() => {
@@ -3871,7 +4000,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        the legend naming it with the one tag-aware removal control gone from
                        the screen. */
                     onRemoveResult: () => {
-                        removeResultLayers(activeResult.layerRunId);
+                        removeResult(activeResult.runId);
                         setActiveResult(null);
                         setColourChannel([]);
                     },
@@ -3898,7 +4027,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                               connectedParts: formatCount(graphStatistics.components.count),
                               // 6.2's zero rule: a count of nothing is not a row.
                               selfLoops:
-                                  graphStatistics.selfLoopCount === 0 ? undefined : formatCount(graphStatistics.selfLoopCount),
+                                  graphStatistics.selfLoopCount === 0
+                                      ? undefined
+                                      : formatCount(graphStatistics.selfLoopCount),
                               parallelEdges:
                                   graphStatistics.repeatedEdgeCount === 0
                                       ? undefined
@@ -3924,7 +4055,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                        and the shell had never passed it, so every one of those rows was
                        inert text that looked like a control. */
                     onSelectNode: (nodeId: string) => {
-                        graphSelectNode(graphtyRef.current?.graph ?? null, nodeId);
+                        graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                     },
                     onExportTop: () => undefined,
                     onExportRanked: () => undefined,
@@ -3972,13 +4103,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onShowAllAttributes: () => {
                     openDrawerOn("nodes");
                 },
-                onAddNote: () => {
-                    openPanelAt("explore");
-                },
                 onToggleNoteDone: () => undefined,
                 onDeleteNote: () => undefined,
                 onSelectNeighbor: (nodeId: string) => {
-                    graphSelectNode(graphtyRef.current?.graph ?? null, nodeId);
+                    graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                 },
                 onNoteRelationship: () => {
                     openPanelAt("explore");
@@ -4009,12 +4137,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         degreeResults,
         edgeCount,
         graphReading,
-        graphStatistics.components.count,
-        graphStatistics.density,
-        graphStatistics.directedness,
-        graphStatistics.repeatedEdgeCount,
-        graphStatistics.selfLoopCount,
-        handleLayersChange,
+        graphStatistics,
         layers,
         mostConnected,
         neighborsOf,
@@ -4022,10 +4145,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         openDrawerOn,
         openPanelAt,
         pinnedNodes,
+        removeResult,
         removeResultLayers,
+        resolveLayerChannel,
         selectedLayerId,
         selectedNode,
         togglePin,
+        updateLayer,
         zoomToSelection,
     ]);
 
@@ -4107,12 +4233,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             acceleration: {
                 ...text,
                 onClick: () => {
-                    setSettingsSection("performance");
-                    setSettingsOpen(true);
+                    openFullPanelOverlay("settings", "performance");
                 },
             },
         };
-    }, [acceleration]);
+    }, [acceleration, openFullPanelOverlay]);
 
     const slots = useMemo<StatusBarSlotsModel>(() => {
         if (!dataLoaded) {
@@ -4197,6 +4322,20 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
+        if (styleRefusal !== null) {
+            const dismiss = (): void => {
+                setStyleRefusal(null);
+            };
+
+            return {
+                message: styleRefusal,
+                severity: "error",
+                actionLabel: DISMISS_ACTION,
+                onDetails: dismiss,
+                onDismiss: dismiss,
+            };
+        }
+
         if (acceleration === null || acceleration.state !== "error") {
             return undefined;
         }
@@ -4206,11 +4345,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             severity: "error",
             actionLabel: OPEN_SETTINGS_ACTION,
             onDetails: () => {
-                setSettingsSection("performance");
-                setSettingsOpen(true);
+                openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openPanelAt]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */
@@ -4554,11 +4692,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         graph: {
             layers: [...layers],
             acceleration: accelerationPolicy,
-            viewMode,
-            layout: layoutType,
-            layoutConfig,
             onSelectionChange: handleSelectionChange,
             onStylesChange: handleStylesChange,
+            onSession: setSession,
         },
         drawer: {
             tab: drawerTab,
@@ -4704,217 +4840,216 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     return (
         <>
             {screenTooSmall ? screenTooSmallOverlay : null}
-        <Box
-            ref={frameRef}
-            data-testid="app-shell"
-            inert={screenTooSmall}
-            aria-hidden={screenTooSmall ? true : undefined}
-            style={{
-                height: "100vh",
-                display: "grid",
-                gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
-                gridTemplateColumns: "minmax(0, 1fr)",
-                overflow: "hidden",
-                visibility: screenTooSmall ? "hidden" : undefined,
-            }}
-        >
-            {/* The top bar spans the full shell width, above the rail. */}
-            <TopBar
-                datasetName={datasetName}
-                dataLoaded={dataLoaded}
-                canUndo={undoStore.canUndo}
-                canRedo={undoStore.canRedo}
-                onUndo={undoStore.undo}
-                onRedo={undoStore.redo}
-                onOpenHistory={() => undefined}
-                onOpenCommandPalette={() => {
-                    setPaletteOpen(true);
-                }}
-                onExport={() => {
-                    openPanelAt("present");
-                }}
-                onShare={() => {
-                    openPanelAt("present");
-                }}
-                compareActive={compareActive}
-                onToggleCompare={() => {
-                    setCompareActive((active) => !active);
-                }}
-                sidebarsShown={sidebarsShown}
-                onToggleSidebars={toggleSidebars}
-                history={{
-                    rows: historyRows(undoStore),
-                    entryCount: undoStore.entries.length,
-                    undoneCount: undoStore.undoneCount,
-                    onRestore: (entry) => {
-                        undoStore.restoreTo(entry.id);
-                    },
-                    onOpenOwningPanel: (entry) => {
-                        if (entry.activity !== "settings" && entry.activity !== "help") {
-                            openPanelAt(entry.activity);
-                        }
-                    },
-                }}
-            />
-
-            {/* The main row: the rail, then everything to the right of it. It is the
-                positioned ancestor the Help menu hangs off, and it does not clip its
-                overflow, so the menu may stand outside the rail's 48 px column. */}
             <Box
-                data-testid="shell-main-row"
+                ref={frameRef}
+                data-testid="app-shell"
+                inert={screenTooSmall}
+                aria-hidden={screenTooSmall ? true : undefined}
                 style={{
-                    position: "relative",
+                    height: "100vh",
                     display: "grid",
-                    gridTemplateColumns: `${ACTIVITY_RAIL_WIDTH}px minmax(0, 1fr)`,
-                    minHeight: 0,
-                    overflow: "visible",
+                    gridTemplateRows: `${TOP_BAR_HEIGHT}px minmax(0, 1fr) ${STATUS_BAR_HEIGHT}px`,
+                    gridTemplateColumns: "minmax(0, 1fr)",
+                    overflow: "hidden",
+                    visibility: screenTooSmall ? "hidden" : undefined,
                 }}
             >
-                <Box data-shell-region="rail" style={{ display: "contents" }}>
-                    <ActivityRail
-                        activeActivity={panelActivity}
-                        disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
-                        onActivityClick={handleActivityClick}
-                        helpMenu={{
-                            opened: helpOpen,
-                            onOpenChange: setHelpOpen,
-                            onSelect: handleHelpSelect,
-                            moreSuggestionsCount: 0,
-                            alreadyRunCount: 0,
-                        }}
-                    />
-                </Box>
+                {/* The top bar spans the full shell width, above the rail. */}
+                <TopBar
+                    datasetName={datasetName}
+                    dataLoaded={dataLoaded}
+                    canUndo={history.canUndo}
+                    canRedo={history.canRedo}
+                    onUndo={undo}
+                    onRedo={redo}
+                    undoLabel={undoVerb(history.nextUndo)}
+                    onOpenHistory={() => undefined}
+                    onOpenCommandPalette={() => {
+                        setPaletteOpen(true);
+                    }}
+                    onExport={() => {
+                        openPanelAt("present");
+                    }}
+                    onShare={() => {
+                        openPanelAt("present");
+                    }}
+                    compareActive={compareActive}
+                    onToggleCompare={() => {
+                        setCompareActive((active) => !active);
+                    }}
+                    sidebarsShown={sidebarsShown}
+                    onToggleSidebars={toggleSidebars}
+                    history={{
+                        rows: historyRowList,
+                        entryCount: history.steps.length,
+                        undoneCount: history.steps.length - history.position,
+                        onRestore: (entry) => {
+                            void session?.history.restoreTo(entry.id);
+                        },
+                        onOpenOwningPanel: (entry) => {
+                            openPanelAt(entry.activity);
+                        },
+                    }}
+                />
 
-                {/* The body row: the panel, the canvas and the inspector. It is
-                    the positioned ancestor of the narrow overlays, the Settings
-                    overlay and the shortcuts surface. */}
+                {/* The main row: the rail, then everything to the right of it. It is the
+                positioned ancestor the Help menu hangs off, and it does not clip its
+                overflow, so the menu may stand outside the rail's 48 px column. */}
                 <Box
-                    data-testid="shell-body-row"
+                    data-testid="shell-main-row"
                     style={{
                         position: "relative",
-                        display: "flex",
-                        flexDirection: "row",
+                        display: "grid",
+                        gridTemplateColumns: `${ACTIVITY_RAIL_WIDTH}px minmax(0, 1fr)`,
                         minHeight: 0,
-                        minWidth: 0,
-                        overflow: "hidden",
+                        overflow: "visible",
                     }}
                 >
-                    {panelActivity !== null && (
-                        <Box data-shell-region="panel" style={{ display: "contents" }}>
-                            <PopoutRegion id="panel">
-                                <ActivityPanel
-                                    activity={panelActivity}
-                                    width={panelWidth}
-                                    presentation={presentation}
-                                    title={ACTIVITY_TITLES[panelActivity]}
-                                    overflowItems={overflowItems}
-                                    onWidthChange={setPanelWidth}
-                                >
-                                    {panelBody}
-                                </ActivityPanel>
-                            </PopoutRegion>
-                        </Box>
-                    )}
-
-                    {/* The canvas overlay is one region; the Data table drawer nests
-                            its own inside it, because 6.11 makes a dock a region of its own. */}
-                    <PopoutRegion id="canvas">
-                        <CanvasRegion {...canvasProps}>
-                            <CanvasToolbarSlot
-                                viewMode={viewMode}
-                                onViewModeChange={setViewMode}
-                                zoomToSelectionEnabled={selectedNode !== null}
-                                onZoomOut={zoomOut}
-                                onZoomIn={zoomIn}
-                                onZoomToFit={zoomToFit}
-                                onZoomToSelection={zoomToSelection}
-                                profileId={canvasToolbarProfile(shell.shellWidth).id}
-                                viewsMenuOpen={viewsMenuOpen}
-                                onViewsMenuOpenChange={setViewsMenuOpen}
-                                views={{
-                                    legendShown: canvasLayout.legend,
-                                    /* Same fact, same source as the Style panel's switch
-                                       and the L binding: one derivation, so the three
-                                       cannot report three different legends. */
-                                    legendAvailable: legendIsAvailable,
-                                    toolbarShown: canvasLayout.toolbar,
-                                    vrSupported: xrSupport.vr,
-                                    arSupported: xrSupport.ar,
-                                    visibleNodeCount,
-                                    visibleEdgeCount,
-                                    onResetView: resetView,
-                                    onViewPreset: (preset) => {
-                                        graphViewPreset(graphtyRef.current?.graph ?? null, preset);
-                                    },
-                                    onToggleToolbar: () => {
-                                        toggleOverlay("toolbar");
-                                        setViewsMenuOpen(false);
-                                    },
-                                    onToggleLegend: toggleLegend,
-                                    onEnterVr: () => undefined,
-                                    onEnterAr: () => undefined,
-                                }}
-                            />
-                        </CanvasRegion>
-                    </PopoutRegion>
-
-                    <Box data-shell-region="inspector" style={{ display: "contents" }}>
-                        <PopoutRegion id="inspector">
-                            <Inspector
-                                open={sidebarsShown}
-                                width={inspectorWidth}
-                                presentation={presentation}
-                                selectionKind={selectionKind}
-                                kindLabel={INSPECTOR_KIND_LABELS[selectionKind]}
-                                identityLabel={selectedNode?.id}
-                                pinned={dataLoaded && inspectorPinned}
-                                onCopyReading={() => {
-                                    copyReading(inspectorReadingForCopy);
-                                }}
-                                onPin={() => {
-                                    setInspectorPinned(true);
-                                }}
-                                onWidthChange={setInspectorWidth}
-                            >
-                                <InspectorBody selection={inspectorSelection} />
-                            </Inspector>
-                        </PopoutRegion>
-                    </Box>
-
-                    {/* Settings is a full-panel overlay over the body row, not a
-                            280 px panel and not a route (spec 03 section 2.7). */}
-                    <PopoutRegion id="settings">
-                        <SettingsOverlay
-                            opened={settingsOpen}
-                            section={settingsSection}
-                            aiProviders={aiProviderSettings}
-                            accelerationPolicy={accelerationPolicy}
-                            onAccelerationPolicyChange={changeAccelerationPolicy}
-                            labelShortfall={labelShortfall}
-                            onClose={() => {
-                                setSettingsOpen(false);
+                    <Box data-shell-region="rail" style={{ display: "contents" }}>
+                        <ActivityRail
+                            activeActivity={panelActivity}
+                            disabledActivities={stateAxis === "empty" ? ACTIVITIES_REQUIRING_DATA : undefined}
+                            onActivityClick={handleActivityClick}
+                            helpMenu={{
+                                opened: helpOpen,
+                                onOpenChange: setHelpOpen,
+                                onSelect: handleHelpSelect,
+                                moreSuggestionsCount: 0,
+                                alreadyRunCount: 0,
                             }}
                         />
-                    </PopoutRegion>
+                    </Box>
 
-                    <KeyboardShortcutsOverlay
-                        opened={shortcutsOpen}
-                        onClose={() => {
-                            setShortcutsOpen(false);
+                    {/* The body row: the panel, the canvas and the inspector. It is
+                    the positioned ancestor of the narrow overlays, the Settings
+                    overlay and the shortcuts surface. */}
+                    <Box
+                        data-testid="shell-body-row"
+                        style={{
+                            position: "relative",
+                            display: "flex",
+                            flexDirection: "row",
+                            minHeight: 0,
+                            minWidth: 0,
+                            overflow: "hidden",
                         }}
+                    >
+                        {panelActivity !== null && (
+                            <Box data-shell-region="panel" style={{ display: "contents" }}>
+                                <PopoutRegion id="panel">
+                                    <ActivityPanel
+                                        activity={panelActivity}
+                                        width={panelWidth}
+                                        presentation={presentation}
+                                        title={ACTIVITY_TITLES[panelActivity]}
+                                        overflowItems={overflowItems}
+                                        onWidthChange={setPanelWidth}
+                                    >
+                                        {panelBody}
+                                    </ActivityPanel>
+                                </PopoutRegion>
+                            </Box>
+                        )}
+
+                        {/* The canvas overlay is one region; the Data table drawer nests
+                            its own inside it, because 6.11 makes a dock a region of its own. */}
+                        <PopoutRegion id="canvas">
+                            <CanvasRegion {...canvasProps}>
+                                <CanvasToolbarSlot
+                                    viewMode={viewMode}
+                                    onViewModeChange={changeViewMode}
+                                    zoomToSelectionEnabled={selectedNode !== null}
+                                    onZoomOut={zoomOut}
+                                    onZoomIn={zoomIn}
+                                    onZoomToFit={zoomToFit}
+                                    onZoomToSelection={zoomToSelection}
+                                    profileId={canvasToolbarProfile(shell.shellWidth).id}
+                                    viewsMenuOpen={viewsMenuOpen}
+                                    onViewsMenuOpenChange={setViewsMenuOpen}
+                                    views={{
+                                        legendShown: canvasLayout.legend,
+                                        /* Same fact, same source as the Style panel's switch
+                                       and the L binding: one derivation, so the three
+                                       cannot report three different legends. */
+                                        legendAvailable: legendIsAvailable,
+                                        toolbarShown: canvasLayout.toolbar,
+                                        vrSupported: xrSupport.vr,
+                                        arSupported: xrSupport.ar,
+                                        visibleNodeCount,
+                                        visibleEdgeCount,
+                                        onResetView: resetView,
+                                        onViewPreset: (preset) => {
+                                            graphViewPreset(graphtyRef.current?.element ?? null, preset);
+                                        },
+                                        onToggleToolbar: () => {
+                                            toggleOverlay("toolbar");
+                                            setViewsMenuOpen(false);
+                                        },
+                                        onToggleLegend: toggleLegend,
+                                        onEnterVr: () => undefined,
+                                        onEnterAr: () => undefined,
+                                    }}
+                                />
+                            </CanvasRegion>
+                        </PopoutRegion>
+
+                        <Box data-shell-region="inspector" style={{ display: "contents" }}>
+                            <PopoutRegion id="inspector">
+                                <Inspector
+                                    open={sidebarsShown}
+                                    width={inspectorWidth}
+                                    presentation={presentation}
+                                    selectionKind={selectionKind}
+                                    kindLabel={INSPECTOR_KIND_LABELS[selectionKind]}
+                                    identityLabel={selectedNode?.id}
+                                    pinned={dataLoaded && inspectorPinned}
+                                    onCopyReading={() => {
+                                        copyReading(inspectorReadingForCopy);
+                                    }}
+                                    onPin={() => {
+                                        setInspectorPinned(true);
+                                    }}
+                                    onWidthChange={setInspectorWidth}
+                                >
+                                    <InspectorBody selection={inspectorSelection} />
+                                </Inspector>
+                            </PopoutRegion>
+                        </Box>
+
+                        {/* Settings is a full-panel overlay over the body row, not a
+                            280 px panel and not a route (spec 03 section 2.7). */}
+                        <PopoutRegion id="settings">
+                            <SettingsOverlay
+                                opened={settingsOpen}
+                                section={settingsSection}
+                                aiProviders={aiProviderSettings}
+                                accelerationPolicy={accelerationPolicy}
+                                onAccelerationPolicyChange={changeAccelerationPolicy}
+                                labelShortfall={labelShortfall}
+                                onClose={() => {
+                                    setSettingsOpen(false);
+                                }}
+                            />
+                        </PopoutRegion>
+
+                        <KeyboardShortcutsOverlay
+                            opened={shortcutsOpen}
+                            onClose={() => {
+                                setShortcutsOpen(false);
+                            }}
+                        />
+                    </Box>
+                </Box>
+
+                <Box data-shell-region="statusbar" style={{ display: "contents" }}>
+                    <StatusBar
+                        slots={slots}
+                        completion={statusCompletion}
+                        exploreNotesExpanded={activeActivity === "explore" && isSectionOpen("explore.notes")}
                     />
                 </Box>
-            </Box>
 
-            <Box data-shell-region="statusbar" style={{ display: "contents" }}>
-                <StatusBar
-                    slots={slots}
-                    completion={statusCompletion}
-                    exploreNotesExpanded={activeActivity === "explore" && isSectionOpen("explore.notes")}
-                />
-            </Box>
-
-            {/*
+                {/*
                 The size gate's one door (spec 1918-1927). It draws the estimate module's
                 own sentence and the estimate module's own Run label, and NOTHING about
                 the cost CLASS: the words instant, iterative, heavy and sampled are the
@@ -4922,55 +5057,55 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 hand a reader a category they cannot act on in place of the time they can.
                 Cancel is a plain refusal that leaves the graph exactly as it was.
             */}
-            {metricConfirm !== null && (
-                <Modal
-                    opened
+                {metricConfirm !== null && (
+                    <Modal
+                        opened
+                        onClose={() => {
+                            setMetricConfirm(null);
+                        }}
+                        title={`Run ${NODE_METRIC_DEFINITIONS[metricConfirm.metric].plainName} (${NODE_METRIC_DEFINITIONS[metricConfirm.metric].technicalName})`}
+                    >
+                        <Text size="sm" data-testid="metric-confirm-sentence">
+                            {metricConfirm.estimate.confirmSentence}
+                        </Text>
+                        <Group justify="flex-end" mt="md">
+                            <Button
+                                variant="default"
+                                onClick={() => {
+                                    setMetricConfirm(null);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    const { metric, retiresInsightCard } = metricConfirm;
+
+                                    setMetricConfirm(null);
+                                    void runNodeMetricCard({ metric, confirmed: true, retiresInsightCard });
+                                }}
+                            >
+                                {metricConfirm.estimate.runLabel}
+                            </Button>
+                        </Group>
+                    </Modal>
+                )}
+
+                <CommandPalette
+                    opened={paletteOpen}
                     onClose={() => {
-                        setMetricConfirm(null);
+                        setPaletteOpen(false);
                     }}
-                    title={`Run ${NODE_METRIC_DEFINITIONS[metricConfirm.metric].plainName} (${NODE_METRIC_DEFINITIONS[metricConfirm.metric].technicalName})`}
-                >
-                    <Text size="sm" data-testid="metric-confirm-sentence">
-                        {metricConfirm.estimate.confirmSentence}
-                    </Text>
-                    <Group justify="flex-end" mt="md">
-                        <Button
-                            variant="default"
-                            onClick={() => {
-                                setMetricConfirm(null);
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                const { metric, retiresInsightCard } = metricConfirm;
+                    items={paletteItems}
+                />
 
-                                setMetricConfirm(null);
-                                void runNodeMetricCard({ metric, confirmed: true, retiresInsightCard });
-                            }}
-                        >
-                            {metricConfirm.estimate.runLabel}
-                        </Button>
-                    </Group>
-                </Modal>
-            )}
-
-            <CommandPalette
-                opened={paletteOpen}
-                onClose={() => {
-                    setPaletteOpen(false);
-                }}
-                items={paletteItems}
-            />
-
-            <FeedbackModal
-                opened={feedbackOpen}
-                onClose={() => {
-                    setFeedbackOpen(false);
-                }}
-            />
-        </Box>
+                <FeedbackModal
+                    opened={feedbackOpen}
+                    onClose={() => {
+                        setFeedbackOpen(false);
+                    }}
+                />
+            </Box>
         </>
     );
 }

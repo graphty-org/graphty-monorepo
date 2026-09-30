@@ -183,6 +183,26 @@ export function completeEdges(n: number): EdgeSpec[] {
 }
 
 /**
+ * `layers` groups of `width` vertices, every vertex of group i joined to every vertex of group i + 1: a vertex of the
+ * first group reaches a vertex of the last by `width^(layers - 2)` shortest paths, so `layeredEdges(4, 18)` overflows a
+ * u32 path count (4^16) on 72 vertices and `layeredEdges(4, 16)` (4^14, about 2.7e8) does not.
+ * @param width - vertices per group
+ * @param layers - groups
+ * @returns the edges
+ */
+export function layeredEdges(width: number, layers: number): EdgeSpec[] {
+    const edges: EdgeSpec[] = [];
+    for (let layer = 0; layer + 1 < layers; layer++) {
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < width; j++) {
+                edges.push([layer * width + i, (layer + 1) * width + j]);
+            }
+        }
+    }
+    return edges;
+}
+
+/**
  * The graph-format benchmark xorshift32 generator (harness.ts makeRandom; bitwise on the generator state only,
  * never on an index). Used by every random generator here: the gpu-upload.test.ts LCG (state * 1103515245 + 12345
  * mod 2^32) has low bits of tiny period, so when n is a power of two `state % n` depends on those low bits alone
@@ -425,6 +445,19 @@ export const FIXTURE_NAMES: readonly string[] = Object.freeze([
 ]);
 
 /**
+ * The first six positions of "nonfinite" (karate, the rest seeded as in "outside5"): NaN and +/-Infinity on different axes. Nodes 0, 1, 2, 3 and 5 are
+ * outside in 2D and 3D; node 4 is non-finite on z only, so it is inside in 2D (z is not keyed) and outside in 3D.
+ */
+const NONFINITE_POSITIONS: readonly (readonly [number, number, number])[] = Object.freeze([
+    [NaN, 0.1, 0.1],
+    [0.2, Infinity, 0],
+    [-Infinity, -0.3, 0],
+    [NaN, NaN, NaN],
+    [0.1, 0.2, NaN],
+    [Infinity, -Infinity, Infinity],
+]);
+
+/**
  * Seeded positions in [-1, 1) for n nodes, 3 per node.
  * @param n - node count
  * @param seed - the generator seed
@@ -506,7 +539,8 @@ function clumpyPositions(n: number, blobs: number): F32 {
  * y = 0.3 x + 0.1, z = 0), "polyline163" (163 nodes on an irregular closed polygon, a cycle), "onecell1k" (1,024
  * nodes inside a 1e-3 box: exactly GRID_HUB_CELL entries in one finest cell), "onecell1025" (one over the
  * threshold), "outside5" (karate with five positions far outside the extent) and "hubcell" (20k nodes, scaled,
- * inside the same box).
+ * inside the same box). "nonfinite" (karate with NaN and infinite coordinates on its first six nodes, the grid
+ * cell key's non-finite case) is positioned too but not listed in FIXTURE_NAMES: only the grid build reads it.
  * @param name - a FIXTURE_NAMES entry
  * @param scale - the size factor (default 1)
  * @returns the snapshot, its positions (null unless the fixture supplies them) and the name
@@ -667,6 +701,15 @@ export function fixture(
             ];
             for (let k = 0; k < far.length; k++) {
                 [p[3 * k], p[3 * k + 1], p[3 * k + 2]] = far[k];
+            }
+            positions = p;
+            break;
+        }
+        case "nonfinite": {
+            snapshot = snapshotOf(KARATE_EDGES, { label: name });
+            const p = seededPositions(34, P4_SEED);
+            for (let k = 0; k < NONFINITE_POSITIONS.length; k++) {
+                [p[3 * k], p[3 * k + 1], p[3 * k + 2]] = NONFINITE_POSITIONS[k];
             }
             positions = p;
             break;

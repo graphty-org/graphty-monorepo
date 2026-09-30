@@ -13,7 +13,7 @@
  * setPosition (5 -> 3; the re-synchronised oracles follow). numRuns stays at the spec's 200 on every adapter.
  */
 
-import { INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import fc from "fast-check";
 
 import type { GpuContext } from "../../src/context.js";
@@ -32,6 +32,7 @@ import {
     withSim,
     xyzOf,
 } from "../helpers/fa2-parity.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
@@ -402,27 +403,31 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
             await fc.assert(
                 fc.asyncProperty(fc.integer({ min: 1, max: 100_000 }), async (seed) => {
                     const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed };
-                    await withSim(ctx, options, PAPER, async (sim) => {
-                        const positions = startPositions(s, options, false);
-                        sim.load(s, positions);
-                        const mass = s.outDegree();
-                        const st = debugStages(sim);
-                        await st.run("K5");
-                        const force = asF32(await st.read("force"));
-                        const after = xyzOf(asF32(await st.read("positions")), n);
-                        const { speed } = readState(await st.read("state"));
-                        for (let i = 0; i < n; i++) {
-                            const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
-                            const swing = (mass[i] + 1) * f; // paper mode, iteration 1: oldForce is 0
-                            const bound = (speed * f) / (1 + Math.sqrt(speed * swing));
-                            const dp = Math.hypot(
-                                after[3 * i] - positions[3 * i],
-                                after[3 * i + 1] - positions[3 * i + 1],
-                            );
-                            expect(dp, `node ${i}`).toBeLessThanOrEqual(bound * (1 + 1e-5) + 1e-7);
-                            expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
-                        }
-                    });
+                    const positions = startPositions(s, options, false);
+                    const once = (): Promise<{ force: F32; after: F32; speed: number }> =>
+                        withSim(ctx, options, PAPER, async (sim) => {
+                            sim.load(s, Float32Array.from(positions));
+                            const st = debugStages(sim);
+                            await st.run("K5");
+                            const force = asF32(await st.read("force"));
+                            const after = xyzOf(asF32(await st.read("positions")), n);
+                            const { speed } = readState(await st.read("state"));
+                            return { force, after, speed };
+                        });
+                    const first = await once();
+                    const { force, after, speed } = await once();
+                    expectBitwiseEqual(first.force, force, "force, run 1 vs run 2");
+                    expectBitwiseEqual(first.after, after, "positions after K5, run 1 vs run 2");
+                    expect(Object.is(first.speed, speed), "speed, run 1 vs run 2").toBe(true);
+                    const mass = s.outDegree();
+                    for (let i = 0; i < n; i++) {
+                        const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
+                        const swing = (mass[i] + 1) * f; // paper mode, iteration 1: oldForce is 0
+                        const bound = (speed * f) / (1 + Math.sqrt(speed * swing));
+                        const dp = Math.hypot(after[3 * i] - positions[3 * i], after[3 * i + 1] - positions[3 * i + 1]);
+                        expect(dp, `node ${i}`).toBeLessThanOrEqual(bound * (1 + 1e-5) + 1e-7);
+                        expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
+                    }
                 }),
                 { numRuns: NUM_RUNS },
             );

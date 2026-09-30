@@ -1,93 +1,79 @@
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { degreeCentrality } from "../../src/algorithms/centrality/degree.js";
-import { dijkstra } from "../../src/algorithms/shortest-path/dijkstra.js";
-import { breadthFirstSearch, depthFirstSearch } from "../../src/algorithms/traversal/index.js";
-import { Graph } from "../../src/core/graph.js";
+import { breadthFirstSearch, degreeCentrality, depthFirstSearch, dijkstra, pageRank } from "../../src/index.js";
 
-describe("Browser Environment Tests", () => {
-    it("should create and manipulate graphs in browser", () => {
-        const graph = new Graph();
+/**
+ * Freeze an undirected graph from its edges.
+ * @param edges - Source, target and optional weight per edge
+ * @returns The snapshot
+ */
+function undirected(edges: [string, string, number?][]): GraphSnapshot {
+    const builder = new GraphBuilder({ directed: false });
+    for (const [source, target, weight] of edges) {
+        builder.addEdge(source, target, weight ?? 1);
+    }
+    return builder.freeze();
+}
 
-        graph.addEdge("a", "b");
-        graph.addEdge("b", "c");
-        graph.addEdge("c", "d");
+describe("the algorithms in a browser", () => {
+    it("freezes a snapshot", () => {
+        const s = undirected([
+            ["a", "b"],
+            ["b", "c"],
+            ["c", "d"],
+        ]);
 
-        expect(graph.nodeCount).toBe(4);
-        expect(graph.totalEdgeCount).toBe(3);
+        expect(s.nodeCount).toBe(4);
+        expect(s.edgeCount).toBe(3);
     });
 
-    it("should run BFS traversal in browser", () => {
-        const graph = new Graph();
+    it("runs breadth-first and depth-first search", () => {
+        const s = undirected([
+            ["a", "b"],
+            ["a", "c"],
+            ["b", "d"],
+        ]);
+        const a = s.ids.requireIndex("a");
 
-        graph.addEdge("a", "b");
-        graph.addEdge("a", "c");
-        graph.addEdge("b", "d");
-
-        const result = breadthFirstSearch(graph, "a");
-
-        expect(result.visited.size).toBe(4);
-        expect(result.order).toHaveLength(4);
-        expect(result.order[0]).toBe("a");
+        const bfs = breadthFirstSearch(s, a);
+        expect(Array.from(bfs.order.subarray(0, bfs.visitedCount), (i) => s.ids.idOf(i))).toEqual(["a", "b", "c", "d"]);
+        const dfs = depthFirstSearch(s, a);
+        expect(Array.from(dfs.order.subarray(0, dfs.visitedCount), (i) => s.ids.idOf(i))).toEqual(["a", "b", "d", "c"]);
     });
 
-    it("should run DFS traversal in browser", () => {
-        const graph = new Graph();
+    it("computes degree centrality", () => {
+        const s = undirected([
+            ["center", "a"],
+            ["center", "b"],
+            ["center", "c"],
+        ]);
 
-        graph.addEdge("a", "b");
-        graph.addEdge("a", "c");
-        graph.addEdge("b", "d");
-
-        const result = depthFirstSearch(graph, "a");
-
-        expect(result.visited.size).toBe(4);
-        expect(result.order).toHaveLength(4);
-        expect(result.order[0]).toBe("a");
+        expect(Array.from(degreeCentrality(s))).toEqual([3, 1, 1, 1]);
     });
 
-    it("should calculate degree centrality in browser", () => {
-        const graph = new Graph();
+    it("finds a weighted shortest path with Dijkstra", () => {
+        const s = undirected([
+            ["a", "b", 1],
+            ["b", "c", 2],
+            ["a", "c", 4],
+        ]);
+        const c = s.ids.requireIndex("c");
 
-        graph.addEdge("center", "a");
-        graph.addEdge("center", "b");
-        graph.addEdge("center", "c");
-
-        const centrality = degreeCentrality(graph);
-
-        expect(centrality.center).toBe(3);
-        expect(centrality.a).toBe(1);
+        const result = dijkstra(s, s.ids.requireIndex("a"));
+        expect(result.dist[c]).toBe(3);
+        expect(Array.from(result.pathTo(c), (i) => s.ids.idOf(i))).toEqual(["a", "b", "c"]);
     });
 
-    it("should run Dijkstra algorithm in browser", () => {
-        const graph = new Graph();
-
-        graph.addEdge("a", "b", 1);
-        graph.addEdge("b", "c", 2);
-        graph.addEdge("a", "c", 4);
-
-        const results = dijkstra(graph, "a");
-        const resultC = results.get("c");
-
-        expect(resultC).toBeDefined();
-        expect(resultC?.distance).toBe(3); // a -> b -> c
-        expect(resultC?.path).toEqual(["a", "b", "c"]);
-    });
-
-    it("should handle large graphs in browser", () => {
-        const graph = new Graph();
-        const nodeCount = 100;
-
-        // Create a chain
-        for (let i = 0; i < nodeCount - 1; i++) {
-            graph.addEdge(i, i + 1);
+    it("runs PageRank over a 100-node chain", () => {
+        const edges: [string, string][] = [];
+        for (let i = 0; i < 99; i++) {
+            edges.push([`n${i}`, `n${i + 1}`]);
         }
+        const s = undirected(edges);
 
-        expect(graph.nodeCount).toBe(nodeCount);
-
-        // Run BFS to ensure traversal works
-        const result = breadthFirstSearch(graph, 0);
-
-        expect(result.visited.size).toBe(nodeCount);
-        expect(result.order).toHaveLength(nodeCount);
+        const { scores } = pageRank(s);
+        expect(scores).toHaveLength(100);
+        expect(scores.reduce((sum, x) => sum + x, 0)).toBeCloseTo(1, 6);
     });
 });

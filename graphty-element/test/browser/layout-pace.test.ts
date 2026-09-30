@@ -28,7 +28,10 @@ describe("layout pace", () => {
         graph = undefined;
     });
 
-    async function settle(frameMs: number): Promise<{ passes: number; steps: number }> {
+    async function settle(
+        frameMs: number,
+        minDelta = 0,
+    ): Promise<{ passes: number; steps: number; x: number }> {
         graph = await createTestGraph();
         const inner = graph as unknown as { renderManager: RenderManager; updateManager: UpdateManager };
         release = inner.renderManager.holdFrames();
@@ -42,24 +45,26 @@ describe("layout pace", () => {
                 { src: String(i), dst: String((i + 7) % count) },
             ]).flat(),
         );
+        graph.setLayoutBehavior({ layout: { minDelta } });
         await graph.setLayout("ngraph", {});
 
         const layoutManager = graph.getLayoutManager();
         const engine = layoutManager.layoutEngine as NGraphEngine;
         let passes = 0;
 
-        while (!engine.isSettled && passes < 5000) {
+        while (layoutManager.running && !engine.isSettled && passes < 5000) {
             inner.updateManager.update(frameMs);
             passes++;
         }
 
         const steps = engine._stepCount;
+        const x = engine.getNodePosition([...layoutManager.nodes][0])?.x ?? Number.NaN;
         release();
         release = undefined;
         cleanupTestGraph(graph);
         graph = undefined;
 
-        return { passes, steps };
+        return { passes, steps, x };
     }
 
     it("settles in the same steps and proportionally fewer passes when each frame is slow", async () => {
@@ -73,4 +78,17 @@ describe("layout pace", () => {
         // 200 ms is 12 nominal frames, so a slow frame owes 12 steps.
         assert.isAtMost(slow.passes, Math.ceil(fast.steps / 12) + 1, `settled in ${slow.passes} passes of 200 ms`);
     });
+
+    // `minDelta` stops the layout once a round of steps moves no node that far. A slow frame runs
+    // several rounds, so measuring over the whole frame would compare a bigger move and stop at a
+    // different step -- one saved project would end in a different layout on a slower machine.
+    for (const minDelta of [0.5, 1, 2]) {
+        it(`stops at the same step and position at any frame rate with minDelta ${minDelta}`, async () => {
+            const fast = await settle(1000 / 60, minDelta);
+            const slow = await settle(200, minDelta);
+
+            assert.equal(slow.steps, fast.steps, "the threshold must trip at the same step");
+            assert.equal(slow.x, fast.x, "and leave the layout in the same place");
+        });
+    }
 });

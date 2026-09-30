@@ -896,8 +896,10 @@ export class UpdateManager implements Manager {
     /**
      * Update the layout engine
      *
-     * `minDelta` is the settle threshold: once a whole frame of stepping moves every node less
-     * than that, the layout has arrived and is stopped. Zero -- the default -- switches the
+     * `minDelta` is the settle threshold: once one round of stepping (`stepMultiplier` steps, one
+     * nominal frame's worth) moves every node less than that, the layout has arrived and is
+     * stopped. It is measured per ROUND, not per drawn frame, so a slow frame that catches up
+     * several rounds stops at the same step a fast one would. Zero -- the default -- switches the
      * threshold off and lets the engine decide for itself, which is what every graph did before,
      * because `minDelta` was published, documented as pacing the layout, set by eight test files,
      * and read by nothing at all.
@@ -924,14 +926,18 @@ export class UpdateManager implements Manager {
         this.statsManager.graphStep.beginMonitoring();
 
         const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
-        const before = minDelta > 0 ? this.enginePositions() : null;
 
         if (this.layoutManager.layoutEngine instanceof SimulationLayoutEngine) {
             // ONE batch per frame. The simulation computes `iterationsPerStep` iterations inside
             // it, so this is the same amount of work the loop below does on the CPU -- and on an
             // accelerator it is the one shape that lets the device coalesce rather than queue.
+            const before = minDelta > 0 ? this.enginePositions() : null;
             this.layoutManager.stepBatch();
             this.layoutStepCount++;
+
+            if (before !== null && this.largestMove(before) < minDelta) {
+                this.layoutManager.running = false;
+            }
         } else {
             const rounds = Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
             const started = rounds > 1 ? performance.now() : 0;
@@ -943,15 +949,18 @@ export class UpdateManager implements Manager {
                     break;
                 }
 
+                const before = minDelta > 0 ? this.enginePositions() : null;
+
                 for (let i = 0; i < stepMultiplier; i++) {
                     this.layoutManager.step();
                     this.layoutStepCount++;
                 }
-            }
-        }
 
-        if (before !== null && this.largestMove(before) < minDelta) {
-            this.layoutManager.running = false;
+                if (before !== null && this.largestMove(before) < minDelta) {
+                    this.layoutManager.running = false;
+                    break;
+                }
+            }
         }
 
         this.statsManager.graphStep.endMonitoring();

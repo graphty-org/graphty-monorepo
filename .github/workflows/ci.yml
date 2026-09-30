@@ -1059,7 +1059,8 @@ jobs:
                   echo "All checks passed!"
 
             # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
-            # with baselines on the base branch fails here when its newest capture (the highest attempt
+            # of the base branch's visual-review.config.json, seeded or not (it fails closed; only an
+            # unseeded project with "gate": false is skipped), fails here when its newest capture (the highest attempt
             # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged,
             # excluded or unseeded items (unseeded: no baseline yet, and this pull request does not
             # change it), or when that capture is missing, unfinished or invalid. It also fails when

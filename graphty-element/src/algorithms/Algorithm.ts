@@ -23,6 +23,7 @@ import {
 } from "./input/ScopedInput";
 import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
+import { type Graph as LegacyGraph, legacyGraphOf } from "./utils/legacyGraph";
 
 /**
  * Type for algorithm class constructor
@@ -349,6 +350,20 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     constructor(g: Graph, options?: Partial<TOptions>) {
         this.graph = g;
         this._schemaOptions = this.resolveOptions(options);
+    }
+
+    /**
+     * The graph this run reads, as the object graph `@graphty/algorithms` 2.x worked on: the run's
+     * input with parallel edges merged (weights summed), nodes in snapshot order.
+     * @param mode - `"undirected"` merges a reciprocal pair into one edge; `"directed"` keeps
+     *   each edge in its declared orientation.
+     * @returns a freshly built graph
+     * @deprecated Removed in graphty-element 4.0. Read `context.input("undirected").subgraph()`
+     *   (or `"declared"` for `"directed"`) in `compute()`; see the custom-algorithms guide,
+     *   "Moving from algorithmGraph()".
+     */
+    protected algorithmGraph(mode: AlgorithmGraphMode): LegacyGraph {
+        return legacyGraphOf(this.input(orientationOf(mode)).subgraph(), mode);
     }
 
     /**

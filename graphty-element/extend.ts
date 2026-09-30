@@ -272,6 +272,12 @@ export type {
     ScopeInputDeclaration,
 } from "./src/algorithms/input/ScopedInput";
 export { communityFields, edgeMetricFields, metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
+/**
+ * The type `Algorithm.algorithmGraph()` returns.
+ * @deprecated Removed in graphty-element 4.0 with `algorithmGraph()`; read the graph through
+ * `context.input(orientation).subgraph()`, a `GraphSnapshot`.
+ */
+export type AlgorithmGraphView = import("./src/algorithms/utils/legacyGraph").Graph;
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
 export {
     communityFieldSpecs,

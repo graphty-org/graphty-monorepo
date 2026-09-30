@@ -567,10 +567,12 @@ fields match the shape you declared.
 
 ### Moving from `algorithmGraph()`
 
-graphty-element 3.0 removed `Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type. They
-handed over an `@graphty/algorithms` object graph that held one edge per pair of nodes, so a plugin
-could not name one of two parallel edges, and the only route to an edge id went through the
-session. Read `context.input(...)` instead:
+`Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type are deprecated from graphty-element
+3.1 and will be removed in 4.0. A plugin that calls them keeps working on 3.x and reads the same
+graph it did on 3.0: an object graph with the `@graphty/algorithms` 2.x `Graph` methods, parallel
+edges merged with their weights summed. That graph holds one edge per pair of nodes, so a plugin
+cannot name one of two parallel edges, and the only route to an edge id goes through the session.
+Read `context.input(...)` instead:
 
 | Before                                          | Now                                                                            |
 | ----------------------------------------------- | ------------------------------------------------------------------------------ |

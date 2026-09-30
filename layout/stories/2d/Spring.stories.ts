@@ -4,20 +4,15 @@
  * Demonstrates spring layout using force-directed Fruchterman-Reingold algorithm.
  * Shows animation from random initial positions to final optimized positions.
  *
- * IMPORTANT: This story uses the actual springLayout implementation
+ * IMPORTANT: This story uses the actual fruchtermanReingold implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { springLayout } from "@graphty/layout";
+import { fruchtermanReingold, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -48,22 +43,15 @@ function createSpringStory(args: SpringArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final spring layout using actual algorithm
-    const finalPositions = springLayout(
-        layoutGraph,
-        null, // k - optimal distance (auto-calculated)
-        null, // pos - initial positions
-        null, // fixed nodes
-        iterations, // iterations
-        scale, // scale
-        [0, 0], // center
-        2, // dim
-        seed, // seed
+    const finalPositions = toPositionMap(
+        fruchtermanReingold(snapshot, { iterations, scale, center: [0, 0], dim: 2, seed }),
+        snapshot.ids,
     );
 
     // Create container
@@ -75,10 +63,7 @@ function createSpringStory(args: SpringArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Spring Layout (Fruchterman-Reingold)");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Force-directed layout with ${iterations} iterations and scale ${scale}.`,
-    );
+    updateInfoPanel(infoPanel, `Force-directed layout with ${iterations} iterations and scale ${scale}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -128,15 +113,7 @@ const meta: Meta<SpringArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         iterations: {
@@ -168,7 +145,7 @@ type Story = StoryObj<SpringArgs>;
 /**
  * Spring layout story - force-directed Fruchterman-Reingold algorithm.
  *
- * This story uses the actual `springLayout()` function from @graphty/layout.
+ * This story uses the actual `fruchtermanReingold()` function from @graphty/layout.
  * The play function animates from random positions to the optimized arrangement.
  */
 export const Spring: Story = {

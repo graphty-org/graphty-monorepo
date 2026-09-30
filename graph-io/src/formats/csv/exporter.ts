@@ -3,7 +3,8 @@
  * (`Source,Target,Type,Id,Label,Weight,<attributes>` in the Gephi dialect, `source,target,weight,
  * <attributes>` in the generic one) or, with `table: "nodes"`, the node table (`Id,Label,
  * <attributes>`), RFC 4180 quoted, one row per logical edge with expanded pairs folded back
- * through the `pair` role column.
+ * through the `pair` role column; or, with `table: "adjacency"`, an adjacency table: a node and its
+ * neighbours per row (`id:weight` for an explicit weight), no header, no attribute columns.
  *
  * What survives a re-import exactly: ids (as text under the canonical rule), topology and
  * orientation, explicit weights (blank cells for defaulted ones), the per-row direction of the
@@ -14,6 +15,11 @@
  * values are written as text, non-finite numbers do not read back, attribute names that collide
  * with the reserved headers are not written, node attributes are written by the node table only,
  * and the edge table carries neither isolated nodes nor the node order.
+ *
+ * The adjacency table keeps ids, the node order, isolated nodes, the edge order, orientation and
+ * explicit weights: consecutive edges with the same source share a row, a node the rows would
+ * otherwise introduce out of index order gets a row of its own first, and a neighbour id holding a
+ * colon is written `id:` when it has no weight so the importer does not read its tail as one.
  */
 
 import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
@@ -31,6 +37,7 @@ import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { EDGE_ID_NAMES, findColumn, LABEL_NAMES } from "./header.js";
+import { DELIMITER_CANDIDATES } from "./records.js";
 
 /** The format-specific options of the CSV exporter. */
 export interface CsvExportOptions {
@@ -39,13 +46,16 @@ export interface CsvExportOptions {
      * direction; "generic" writes `source,target,...,weight` and no direction column.
      */
     dialect?: "gephi" | "generic" | undefined;
-    /** Which table to write: the edge table (default) or the node table. */
-    table?: "edges" | "nodes" | undefined;
+    /**
+     * Which table to write: the edge table (default), the node table, or an adjacency table (a node
+     * and its neighbours per row; read back with the importer's `table: "adjacency"`).
+     */
+    table?: "edges" | "nodes" | "adjacency" | undefined;
     /** The field delimiter; "," by default. */
     delimiter?: string | undefined;
     /** The line terminator; "\n" by default. */
     newline?: "\n" | "\r\n" | undefined;
-    /** Whether to write the header row; true by default. */
+    /** Whether to write the header row; true by default (an adjacency table never has one). */
     header?: boolean | undefined;
 }
 
@@ -83,6 +93,8 @@ export const CSV_LOSS = Object.freeze({
     ISOLATED_NODES: "W_CSV_ISOLATED_NODES",
     /** The edge table lists nodes by first appearance; the node order (and indices) change on re-import. */
     NODE_ORDER: "W_CSV_NODE_ORDER",
+    /** An adjacency table holds no edge column but the weight: edge ids, labels and attributes are not written. */
+    EDGE_COLUMNS: "W_CSV_EDGE_COLUMNS",
 });
 
 /** What the CSV format keeps as declared. */
@@ -133,12 +145,13 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
     "timestamps",
     "spells",
     "open",
+    "spellsOpen",
 ]);
 
 /** The CSV options with defaults applied. */
 interface ResolvedCsvExportOptions {
     readonly dialect: Dialect;
-    readonly table: "edges" | "nodes";
+    readonly table: "edges" | "nodes" | "adjacency";
     readonly delimiter: string;
     readonly newline: string;
     readonly header: boolean;
@@ -183,8 +196,8 @@ function resolveCsvExportOptions(
             found: o.dialect,
         });
     }
-    if (o.table !== undefined && o.table !== "edges" && o.table !== "nodes") {
-        throw new GraphFormatError("E_UNSUPPORTED", 'option table: expected "edges" or "nodes"', {
+    if (o.table !== undefined && o.table !== "edges" && o.table !== "nodes" && o.table !== "adjacency") {
+        throw new GraphFormatError("E_UNSUPPORTED", 'option table: expected "edges", "nodes" or "adjacency"', {
             option: "table",
             found: o.table,
         });
@@ -207,6 +220,12 @@ function resolveCsvExportOptions(
         throw new GraphFormatError("E_UNSUPPORTED", "option newline: expected LF or CRLF", {
             option: "newline",
             found: o.newline,
+        });
+    }
+    if (o.table === "adjacency" && o.header === true) {
+        throw new GraphFormatError("E_UNSUPPORTED", "option header: an adjacency table has no header row", {
+            option: "header",
+            found: o.header,
         });
     }
     if (o.header !== undefined && typeof o.header !== "boolean") {
@@ -377,19 +396,20 @@ function planExport(
             edgeRows.push(e);
         }
     }
-    if (csv.dialect.type === null) {
+    if (csv.dialect.type === null || csv.table === "adjacency") {
+        const where = csv.table === "adjacency" ? "an adjacency table" : "the generic dialect";
         const mixed = countMixedEdges(snapshot);
         if (!snapshot.directed) {
             note(
                 CSV_LOSS.DIRECTION_DROPPED,
-                `the generic dialect has no direction column; ${snapshot.edgeCount} undirected edge(s) read back as directed unless the importer is told otherwise`,
+                `${where} has no direction column; ${snapshot.edgeCount} undirected edge(s) read back as directed unless the importer is told otherwise`,
                 null,
                 snapshot.edgeCount,
             );
         } else if (mixed > 0) {
             note(
                 CSV_LOSS.DIRECTION_DROPPED,
-                `the generic dialect has no direction column; ${mixed} undirected edge(s) of a mixed graph read back as one directed edge each`,
+                `${where} has no direction column; ${mixed} undirected edge(s) of a mixed graph read back as one directed edge each`,
                 null,
                 mixed,
             );
@@ -432,6 +452,17 @@ function planExport(
         edgeLabel,
         csv.table === "edges" ? note : null,
     );
+    if (csv.table === "adjacency") {
+        const dropped = edgeColumns.length + (edgeId === null ? 0 : 1) + (edgeLabel === null ? 0 : 1);
+        if (dropped > 0) {
+            note(
+                CSV_LOSS.EDGE_COLUMNS,
+                `${dropped} edge column(s) are not written: an adjacency table holds the weight only`,
+                null,
+                dropped,
+            );
+        }
+    }
     if (csv.table === "edges" && values) {
         checkRoleColumn(edgeId, "id", EDGE_ID_NAMES, "edge", edgeRows, note);
         checkRoleColumn(edgeLabel, "label", LABEL_NAMES, "edge", edgeRows, note);
@@ -779,6 +810,101 @@ function typeText(snapshot: GraphSnapshot, plan: Plan, e: number): string {
 }
 
 /**
+ * A neighbour cell of the adjacency table: `id:weight` for an explicit weight; `id:` for an id
+ * holding a colon without one, so the importer does not read the id's tail as a weight; `id`
+ * otherwise.
+ * @param id - the neighbour's id text
+ * @param weight - the weight text, or null
+ * @returns the cell text (unquoted)
+ */
+function neighbourCell(id: string, weight: string | null): string {
+    if (weight !== null) {
+        return `${id}:${weight}`;
+    }
+    return id.includes(":") ? `${id}:` : id;
+}
+
+/**
+ * The rows of the adjacency table (design section 8.5: the order survives the importer's first-
+ * appearance numbering). Consecutive edges with one source share a row, so the edge order is kept;
+ * a row that would introduce nodes out of index order is preceded by one-cell rows for every node
+ * up to its highest new index, and the nodes no edge names close the table the same way, so the
+ * node order and the isolated nodes are kept.
+ * @param snapshot - the snapshot
+ * @param plan - the plan
+ * @yields one line at a time
+ * @returns nothing
+ */
+function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
+    const { delimiter, newline } = plan.csv;
+    const forced = (text: string): string => `"${text.replace(/"/g, '""')}"`;
+    // rows vary in width by design, so a bare cell holding any delimiter the importer sniffs for
+    // (a space in "New York") can win the sniff over the real delimiter: such a cell is quoted
+    const quote = (text: string): string =>
+        DELIMITER_CANDIDATES.some((c) => text.includes(c)) ? forced(text) : quoteCsvCell(text, delimiter);
+    // a leading `#` or `%` would open a comment line on the first row
+    const first = (text: string): string => (/^[#%]/.test(text) ? forced(text) : quote(text));
+    const list = snapshot.edgeList();
+    const { edgeRows, weights } = plan;
+    const seen = new Uint8Array(snapshot.nodeCount);
+    let next = 0;
+    const advance = (): void => {
+        while (next < seen.length && seen[next] === 1) {
+            next++;
+        }
+    };
+    function* singles(upTo: number): Generator<string, void, undefined> {
+        for (let i = next; i <= upTo; i++) {
+            if (seen[i] === 0) {
+                seen[i] = 1;
+                yield first(plan.idText(i)) + newline;
+            }
+        }
+        advance();
+    }
+    let r = 0;
+    while (r < edgeRows.length) {
+        const source = list.src[edgeRows[r]];
+        let end = r;
+        while (end < edgeRows.length && list.src[edgeRows[end]] === source) {
+            end++;
+        }
+        // the nodes this row introduces, in the order the importer meets them; in index order from
+        // `next` they need nothing more
+        const fresh: number[] = [];
+        let highest = -1;
+        let inOrder = true;
+        const mark = (v: number): void => {
+            if (seen[v] === 0) {
+                seen[v] = 1;
+                inOrder &&= v === next + fresh.length;
+                fresh.push(v);
+                highest = Math.max(highest, v);
+            }
+        };
+        mark(source);
+        for (let k = r; k < end; k++) {
+            mark(list.dst[edgeRows[k]]);
+        }
+        if (!inOrder) {
+            for (const v of fresh) {
+                seen[v] = 0;
+            }
+            yield* singles(highest);
+        }
+        advance();
+        const cells = [first(plan.idText(source))];
+        for (let k = r; k < end; k++) {
+            const e = edgeRows[k];
+            cells.push(quote(neighbourCell(plan.idText(list.dst[e]), weights.weighted ? weights.text(e) : null)));
+        }
+        yield cells.join(delimiter) + newline;
+        r = end;
+    }
+    yield* singles(snapshot.nodeCount - 1);
+}
+
+/**
  * The lines of the export, one string per row (terminator included).
  * @param snapshot - the snapshot
  * @param plan - the plan
@@ -787,6 +913,10 @@ function typeText(snapshot: GraphSnapshot, plan: Plan, e: number): string {
  */
 function* lines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { csv } = plan;
+    if (csv.table === "adjacency") {
+        yield* adjacencyLines(snapshot, plan);
+        return;
+    }
     const { delimiter, newline } = csv;
     const quote = (text: string): string => quoteCsvCell(text, delimiter);
     const cell = (column: Column, row: number): string => {

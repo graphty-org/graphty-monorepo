@@ -1,8 +1,13 @@
+import type { ScopeInput } from "../catalog/types";
 import type { OperationCategory } from "../managers/OperationQueueManager";
 
 export interface QueueableOptions {
     /**
-     * Skip the operation queue and execute immediately (for backwards compatibility)
+     * Skip the operation queue and execute immediately (for backwards compatibility).
+     *
+     * This also skips what the queue runs after the operation: nodes or edges added this way are
+     * not repainted from the style layers and do not start the load-time algorithm list
+     * (`runAlgorithmsOnLoad`). Leave it unset for data pushes.
      */
     skipQueue?: boolean;
 
@@ -20,6 +25,23 @@ export interface QueueableOptions {
      * Whether to respect progress when obsoleting (don't cancel >90% complete)
      */
     respectProgress?: boolean;
+}
+
+/**
+ * What `setLayout` accepts as its third argument: the queue options, and what the layout runs over.
+ */
+export interface SetLayoutOptions extends QueueableOptions {
+    /**
+     * What the layout runs over. The scope's nodes move and every other node is held still; a node
+     * added after the layout starts is held too, because the members are the ones the scope had
+     * when the layout started.
+     *
+     * CARRIED: absent keeps the scope the last layout ran over, so changing one option never
+     * un-scopes a layout; `"graph"` clears it. Only a live simulation accepts one -- a layout
+     * whose catalogue entry reads `scoped: false` refuses it with `E_UNSUPPORTED` -- and a scope
+     * that is malformed or names a removed set is refused with `E_BAD_COMMAND`.
+     */
+    scope?: ScopeInput;
 }
 
 /**
@@ -46,4 +68,3 @@ export interface RunAlgorithmOptions extends QueueableOptions {
      */
     algorithmOptions?: AlgorithmSpecificOptions;
 }
-

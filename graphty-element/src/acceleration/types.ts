@@ -398,7 +398,7 @@ export const ACCELERATION_MIN_NODES_DEFAULT = 0;
 /**
  * Where and when the per-capability floors below were measured, as the plan's reason quotes it.
  */
-export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chromium, 2026-09-25";
+export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chromium, 2026-09-27";
 
 /**
  * The node count below which the element declines the accelerator for one capability, when the
@@ -411,44 +411,98 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * before the device has started. One number cannot serve both, which is why the layout default
  * stays 0 and each algorithm capability the adapters route carries its own floor here.
  *
- * MEASURED, not guessed. `tmp/traversal-threshold/kernel-cpu-vs-gpu.ts` (the harness, kept
- * out of the tree) mounted `<graphty-element acceleration="required">` in headless Chromium on
- * the dev box (RTX 4070 SUPER through ANGLE's Vulkan backend, 2026-09-25, load average
- * 18 to 23), took the accelerator the element built, built seeded undirected graphs with ten
- * edges per node and integer weights 1..10 in the page, and timed the two dispatchers
- * `Algorithm.accelerated()` uses -- `accelerated(null)` for the CPU port and
- * `accelerated(narrowAlgorithms(accelerator))` for the device -- directly on the snapshot, so no
- * renderer frame is in the loop. Medians of nine warm calls after one cold call, in ms:
+ * MEASURED END TO END THROUGH THE ELEMENT, 2026-09-27, on the dev box (RTX 4070 SUPER through
+ * ANGLE's Vulkan backend, headless Chromium 143; the page reported the renderer as
+ * "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA GeForce RTX 4070 SUPER), NVIDIA)", so no software
+ * rasteriser is in these numbers). `<graphty-element acceleration="required">` was mounted with
+ * `layout="random"`, a seeded undirected graph was built in the page, and each capability was
+ * timed as `session.runs.start(...)` -- the call a consumer makes -- so the snapshot derivation,
+ * the dispatch and the publication of the result rows are all inside the number. The two arms
+ * were selected on ONE loaded element by flipping `acceleration-min-nodes` between 0 and
+ * 1,000,000,000: that threshold is the one gate that still sends `"required"` to the CPU port, so
+ * the accelerator stayed attached and the graph stayed resident across both arms, and a run whose
+ * `caveats.precision` did not read `f32` on the device arm and `f64` on the processor arm was
+ * rejected rather than counted.
  *
- * | nodes / edges | BFS cpu | BFS gpu | sssp cpu | sssp gpu | pageRank cpu | pageRank gpu | components cpu | components gpu |
- * | ------------- | ------: | ------: | -------: | -------: | -----------: | -----------: | -------------: | -------------: |
- * | 1k / 10k      |     0.1 |     7.8 |      0.3 |      7.3 |          0.7 |          3.0 |            0.2 |            3.9 |
- * | 5k / 50k      |     0.6 |     8.8 |      1.6 |      7.9 |          5.3 |          2.9 |            1.2 |            5.3 |
- * | 10k / 100k    |     1.0 |     7.5 |      2.8 |      7.2 |          4.6 |          2.9 |            2.3 |            7.4 |
- * | 20k / 200k    |     1.7 |     9.1 |      3.8 |     13.5 |         16.2 |          3.0 |            4.8 |            7.5 |
- * | 50k / 500k    |     5.7 |    13.0 |     25.8 |     27.6 |         50.3 |          4.3 |           11.6 |            7.8 |
- * | 100k / 1M     |     9.8 |    17.3 |     30.4 |     49.2 |         67.4 |          5.6 |           16.2 |            8.6 |
- * | 200k / 2M     |    17.6 |    23.2 |     73.0 |     79.6 |        148.3 |         10.5 |           29.9 |           11.5 |
- * | 500k / 5M     |    88.3 |    33.6 |    343.8 |    150.3 |        523.0 |         36.1 |           99.7 |           20.9 |
- * | 1M / 10M      |   250.9 |    24.2 |   1031.1 |    274.9 |       1762.4 |         17.5 |          215.7 |           43.2 |
+ * Medians of fifteen passes after one discarded pass of each arm, in ms, with the minimum of the
+ * fifteen beside it. Measured on a quiet box: the one-minute load average was 5.3 at the start and
+ * 3.2 at the end on 32 hardware threads, and a capability's fastest and slowest pass were usually
+ * within 10 percent of each other. An earlier sweep of the same code at load 55 to 74 read up to
+ * three times these absolute costs and landed on the same crossovers, because interleaving the
+ * arms put both under the same interference -- which is why a busy-box RATIO can be trusted where
+ * a busy-box millisecond cannot. Node counts above 10,000 carry 100,000 edges rather than ten per
+ * node, because 100,000 edges is the most the element will hold (see below):
  *
- * The two traversals were then measured twice more around their crossover, because the device's
- * time at one size moves with what else the box is doing (the first sweep's 200k row was taken
- * at a load average of 22.6, the repeats at about 18):
+ * | nodes / edges     | BFS cpu | BFS gpu | sssp cpu | sssp gpu | pageRank cpu | pageRank gpu | components cpu | components gpu |
+ * | ----------------- | ------: | ------: | -------: | -------: | -----------: | -----------: | -------------: | -------------: |
+ * | 1,000 / 10,000    |     4.7 |    11.3 |      5.5 |     11.6 |          5.3 |          7.8 |            4.4 |            9.5 |
+ * | 5,000 / 50,000    |     2.1 |    17.1 |      6.9 |     21.9 |          5.3 |         13.2 |            1.4 |           26.5 |
+ * | 10,000 / 100,000  |     3.9 |    18.0 |     14.6 |     32.8 |         11.3 |         19.4 |            2.6 |           23.9 |
+ * | 20,000 / 100,000  |     7.5 |    20.4 |     26.7 |     36.2 |         22.4 |         27.6 |            4.5 |           27.4 |
+ * | 50,000 / 100,000  |    22.5 |    41.7 |     27.7 |     40.4 |         73.6 |         59.3 |            9.5 |           35.3 |
  *
- * | nodes / edges | BFS cpu | BFS gpu | sssp cpu | sssp gpu |
- * | ------------- | ------: | ------: | -------: | -------: |
- * | 100k / 1M     |     7.4 |     9.5 |     26.9 |     20.9 |
- * | 200k / 2M     |    15.6 |    10.1 |     66.3 |     37.8 |
- * | 200k / 2M     |    17.8 |    11.0 |     70.6 |     42.5 |
- * | 300k / 3M     |    35.2 |    13.3 |    129.2 |     77.1 |
- * | 300k / 3M     |    34.4 |    18.9 |    129.8 |     65.2 |
- * | 400k / 4M     |    63.3 |    30.7 |    226.6 |    128.2 |
- * | 500k / 5M     |    93.1 |    32.5 |    361.9 |    200.0 |
+ * The same sizes by the minimum of the fifteen passes:
  *
- * So: BFS loses at 100k in both runs and splits at 200k (one loss, two wins); Dijkstra splits at
- * both 100k and 200k; from 300k up the device wins every run of both by two to ten times.
- * PageRank wins from 5k and connected components from 50k, in the one run each was measured.
+ * | nodes / edges     | BFS cpu | BFS gpu | sssp cpu | sssp gpu | pageRank cpu | pageRank gpu | components cpu | components gpu |
+ * | ----------------- | ------: | ------: | -------: | -------: | -----------: | -----------: | -------------: | -------------: |
+ * | 1,000 / 10,000    |     4.4 |    10.9 |      5.1 |     11.1 |          5.0 |          7.5 |            4.3 |            5.5 |
+ * | 5,000 / 50,000    |     1.8 |    14.0 |      6.4 |     20.4 |          4.6 |         11.7 |            1.3 |           25.2 |
+ * | 10,000 / 100,000  |     3.4 |    15.9 |     13.0 |     27.1 |         11.2 |         16.3 |            2.5 |           22.9 |
+ * | 20,000 / 100,000  |     7.0 |    19.0 |     17.2 |     27.7 |         22.0 |         24.4 |            4.2 |           24.5 |
+ * | 50,000 / 100,000  |    19.6 |    31.4 |     24.8 |     35.6 |         70.5 |         55.8 |            8.7 |           32.2 |
+ *
+ * WHAT THE ELEMENT CAN HOLD IS THE BINDING CONSTRAINT, and it is why four of the five rows above
+ * stop at 100,000 edges. `DEFAULT_LIMITS.renderCeiling` is 50,000 nodes and
+ * `DEFAULT_LIMITS.edgesDrawn` is 100,000 edges, and a load past either is REFUSED with
+ * `E_TOO_LARGE` rather than drawn badly. So the largest graph a consumer can put in front of
+ * these algorithms is 50,000 nodes with 100,000 edges -- or 10,000 nodes if the graph has the ten
+ * edges per node the sweep above uses for its smaller sizes. Sizes beyond that cannot be
+ * measured through the element, only through the package underneath it.
+ *
+ * ONLY PAGERANK CROSSES INSIDE WHAT THE ELEMENT CAN HOLD. It wins at 50,000 nodes by 1.24x on the
+ * medians and 1.26x on the minima, and loses at every smaller size, 20,000 included, where it
+ * reads 0.81x and 0.90x. That settles 20,000, which the busy-box sweep could not: three runs there
+ * disagreed at 1.09x, 0.94x and 0.86x, and the same sweep reported a tie at 10,000 on the minima
+ * that the quiet run shows was interference (0.69x). So 20,000 is below the floor and 50,000 is
+ * the floor. Breadth-first search, shortest paths and connected components lose at EVERY size the
+ * element can hold: the device's best showing is 0.54x for breadth-first search and 0.69x for
+ * shortest paths at 50,000 / 100,000, and connected components never gets past 0.46x on the
+ * medians because the processor implementation finishes a 50,000-node graph in 8.7 to 15.8 ms.
+ *
+ * The reason is a fixed cost, not a slow kernel. An accelerated call through the element never
+ * came back in less than about 5.5 ms at any size, and took 7.5 to 11 ms at the smallest, because
+ * each level of a traversal and each convergence test of an iterative algorithm is a readback, and
+ * a readback in Chromium is about 2 ms of round trip. The processor path pays no such floor: it
+ * answered in 1.3 ms at 5,000 nodes.
+ * Below the point where the processor's own work exceeds the device's round trips, the device
+ * cannot win however fast its arithmetic is.
+ *
+ * SO THREE OF THE FOUR FLOORS ARE ABOVE THE RENDER CEILING AND THOSE CAPABILITIES ARE NOT ROUTED
+ * TO THE DEVICE AT ALL TODAY. Their numbers are not from the sweep above -- it cannot reach them
+ * -- but from the crossovers measured on `@graphty/webgpu-graph-algorithms` itself with the graph
+ * resident, in `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`: 141,000 nodes for
+ * breadth-first search, 107,000 for shortest paths and 132,000 for connected components. Those are
+ * floors for the KERNEL, and the element adds the readback round trips above to the device arm and
+ * a few milliseconds of result publication to both, so the element's true crossing is at or above
+ * each. Carrying them is what makes the element's behaviour and that record agree; raising the
+ * render ceiling (issue #419) is what would let any of the three be measured here and sharpened.
+ *
+ * HITS, KATZ AND EIGENVECTOR CENTRALITY ARE FLOORED FROM THE SAME RECORD AND SIT BELOW THE CEILING.
+ * No sweep through the element has measured them yet. The record's section "Re-derived against the
+ * measured ports" times the kernels at 100 iterations against the index-based CPU ports in Chromium:
+ * HITS at 0.72x and 5.71x, Katz at 0.36x and 3.66x, at 10,000 and 100,000 nodes, so both LOSE at
+ * 10,000. The floors are where the speedup crosses 1x between those two measured sizes, taken on a
+ * straight line in log size against log speedup and rounded up: 15,000 nodes for HITS and 28,000
+ * for Katz. Eigenvector centrality shares Katz's floor: the record costs the two as one row, runs
+ * the same power iteration for both, and has no re-derivation of its own. All three are inside
+ * what the element can hold; a sweep through the element is what would sharpen them.
+ *
+ * CLOSENESS IS FLOORED FROM THE SAME RECORD, AT ITS CONSERVATIVE FIGURE. Sampled closeness from
+ * 100 sources crosses 1x at about 100 nodes on the record's loaded medians and at about 5,800 on
+ * the minimum of N, which that record says is the figure to ship on; the floor is 5,800. One
+ * floor covers both forms because the seam has one member: exact closeness crosses lower (1,000 to
+ * 2,800 on the minimum of N), so 5,800 is conservative for it as well, and the closeness adapter
+ * never sends an exact run above 30,000 nodes, where the record drops it as too slow to wait for.
  *
  * A floor is the smallest measured size at which the device's median was at or below the CPU
  * port's IN EVERY RUN, so a size that won under one load and lost under another is below it. A
@@ -456,10 +510,9 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  *
  * Two things the table does not cover. It is one card and one browser: a slower CPU or a
  * slower device moves the crossover, and a consumer who has measured their own machine sets
- * `acceleration.minNodes`, which replaces every floor here with their number. And it is the
- * kernel's time, not the run's: through the element a run also publishes its result rows,
- * which costs the same on either path and is why the element-level numbers in the issue read
- * higher on both sides.
+ * `acceleration.minNodes`, which replaces every floor here with their number. And a PageRank run
+ * that sets `personalization` or `initialRanks`, or runs over an undirected graph, takes the CPU
+ * implementation whatever the node count, so the floor never applies to it.
  *
  * Under `acceleration="required"` the floors do not apply: `"required"` is what a benchmark
  * runs under, and a benchmark of the small end of the curve has to reach the device.
@@ -473,9 +526,30 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  */
 export type FlooredCapability = Exclude<keyof AlgorithmAccelerator, "kind" | "release">;
 
-export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze({
-    breadthFirstSearch: 300_000,
-    sssp: 300_000,
-    pageRank: 5_000,
-    connectedComponents: 50_000,
-});
+export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze(
+    {
+        // Above the 50,000-node render ceiling, so not routed to the device today; the kernel's own
+        // resident crossover, because the element cannot hold a graph this large to measure one.
+        breadthFirstSearch: 141_000,
+        // Likewise above the render ceiling, and likewise the kernel's resident crossover.
+        sssp: 107_000,
+        // Measured through the element, and it crosses at the top of what the element can hold.
+        pageRank: 50_000,
+        // Above the render ceiling. Was 50,000, where the device measured 0.51x -- twice as slow.
+        connectedComponents: 132_000,
+        // Interpolated between the kernel's measured 0.72x at 10,000 and 5.71x at 100,000 nodes
+        // against the index-based port; inside the render ceiling, so a graph this large does reach
+        // the device.
+        hits: 15_000,
+        // Likewise, between Katz's 0.36x and 3.66x; eigenvector centrality is costed as the same row.
+        katzCentrality: 28_000,
+        eigenvectorCentrality: 28_000,
+        // Sampled closeness (100 sources), from the same record: its crossover is ~100 nodes on
+        // the loaded medians and ~5,800 on the minimum of N, and this takes the CONSERVATIVE
+        // 5,800, the figure that record says to ship on. It is above the exact run's own
+        // minimum-of-N crossover (1,000 to 2,800), so it is conservative for an exact run too,
+        // which the closeness adapter never sends above 30,000 nodes (see
+        // EXACT_CLOSENESS_MAX_ACCELERATED_NODES).
+        closenessCentrality: 5_800,
+    },
+);

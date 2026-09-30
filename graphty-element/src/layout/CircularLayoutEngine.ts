@@ -1,8 +1,10 @@
-import { circularLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import type { F32 } from "@graphty/graph-format";
+import { circular } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * NEW: Zod-based options schema with UI metadata for Circular Layout
@@ -48,7 +50,7 @@ type CircularLayoutOpts = Partial<CircularLayoutConfigType>;
 /**
  * Circular layout engine that arranges nodes in a circle
  */
-export class CircularLayout extends SimpleLayoutEngine {
+export class CircularLayout extends SnapshotLayoutEngine {
     static type = "circular";
     static maxDimensions = 3;
 
@@ -57,7 +59,9 @@ export class CircularLayout extends SimpleLayoutEngine {
      */
     static zodOptionsSchema: OptionsSchema = circularLayoutOptionsSchema;
 
-    scalingFactor = 80;
+    /** Layout units to scene units. */
+    private static readonly scale = 80;
+    protected readonly dimensions: 2 | 3;
     config: CircularLayoutConfigType;
 
     /**
@@ -67,6 +71,7 @@ export class CircularLayout extends SimpleLayoutEngine {
     constructor(opts: CircularLayoutOpts) {
         super(opts);
         this.config = CircularLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -79,13 +84,26 @@ export class CircularLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions in a circular arrangement
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = circularLayout({ nodes, edges }, this.config.scale, this.config.center, this.config.dim);
+    /**
+     * Compute node positions in a circular arrangement
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            circular(input.graph, {
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+            }),
+            CircularLayout.scale,
+        );
     }
 }

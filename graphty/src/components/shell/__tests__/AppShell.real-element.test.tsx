@@ -17,7 +17,8 @@ import { SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest
 import { fireEvent, render } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
 
-type GraphtyElement = import("@graphty/graphty-element").Graphty;
+/** The element itself, by its own published type; the import above registers it. */
+type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
 /** A hang guard for loading a sample, laying it out and drawing it; not a pass/fail timing. */
 const LOAD_TEST_TIMEOUT_MS = 120_000;
@@ -34,7 +35,7 @@ interface LoadedSample {
  * @param element - the mounted graphty-element.
  * @returns how many distinct RGBA values the captured image holds.
  */
-async function countScreenshotColours(element: GraphtyElement): Promise<number> {
+async function countScreenshotColours(element: ElementUnderTest): Promise<number> {
     const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -59,7 +60,7 @@ async function countScreenshotColours(element: GraphtyElement): Promise<number> 
  */
 async function loadSampleThroughWelcome(record: SampleRecord): Promise<LoadedSample> {
     const { container } = render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
-    const element = container.querySelector<GraphtyElement>("graphty-element");
+    const element = container.querySelector<ElementUnderTest>("graphty-element");
 
     if (element === null) {
         throw new Error("the shell mounted no graphty-element");
@@ -186,13 +187,13 @@ describe("AppShell with the real graphty-element", () => {
         async () => {
             const served = servedSample();
 
-            // The element parses this without an error and holds one node, so it is the
-            // count check, not the error event, that has to catch it (issue #503).
+            // The element refuses a GML file that ends inside an open list, so the load itself
+            // fails rather than holding the one node that parsed.
             serveBrokenFile(served.source.url, "graph [ node [ id 1 ");
 
             const failure = await failureOf(expectSampleLoads(served));
 
-            assert.include(failure.message, "the element's counts against the manifest's");
+            assert.include(failure.message, `the element rejected ${served.fileName}`);
         },
         LOAD_TEST_TIMEOUT_MS,
     );

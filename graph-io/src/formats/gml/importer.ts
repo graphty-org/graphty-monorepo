@@ -14,9 +14,10 @@
  * a `graphics [ x y z ]` node record mapped to the `position` role (note 07 section 9) with the
  * remaining graphics keys kept as a json column.
  *
- * Node ids are the integer `id` keys (the GML spec type; a non-integer id is a validation error,
- * never a silent string) under `nodeIdFrom: "id"`, the `label` under `"label"`, and the node's
- * ordinal under `"index"`; `source` / `target` always resolve through the integer ids. A node's
+ * Node ids are the `id` keys under `nodeIdFrom: "id"`, the `label` under `"label"`, and the node's
+ * ordinal under `"index"`; `source` / `target` always resolve through the `id` keys. The GML spec
+ * types ids as integers; a string id (written by NetworkX and Gephi) is accepted under the `ids`
+ * rule with one warning per file, and a real or record id is a validation error. A node's
  * `graphty_originalId` key written by the exporter's `sanitizeIds: "mangle"` restores the
  * original id under `restoreMangledIds` (the default).
  */
@@ -96,8 +97,10 @@ export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
 export const MISSING_LABEL_CODE = "E_GML_MISSING_LABEL";
 /** Issue code: an edge block has no `source` or no `target` key. */
 export const MISSING_ENDPOINT_CODE = SHARED_MISSING_ENDPOINT_CODE;
-/** Issue code: an `id`, `source` or `target` value is not an integer. */
+/** Issue code: an `id`, `source` or `target` value is neither an integer nor a string. */
 export const ID_TYPE_CODE = "E_GML_ID_TYPE";
+/** Issue code: string `id`, `source` or `target` values, outside the GML spec's integer ids; warned once per file. */
+export const STRING_ID_CODE = "W_GML_STRING_ID";
 /** Issue code: a node id (or label under `nodeIdFrom: "label"`) is declared twice; later keys overwrite. */
 export const DUPLICATE_NODE_CODE = SHARED_DUPLICATE_NODE_CODE;
 /** Issue code: a structural key (`id`, `source`, `target`) appears twice in one block. */
@@ -106,8 +109,11 @@ export const REPEATED_KEY_CODE = "E_GML_REPEATED_KEY";
 export const ELEMENT_TYPE_CODE = "E_GML_ELEMENT_TYPE";
 /** Issue code: a `directed` or `multigraph` flag that is not an integer. */
 export const FLAG_TYPE_CODE = "E_GML_FLAG_TYPE";
-/** Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), or one repeated. */
+/** Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), one written as a quoted integer, or one repeated. */
 export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
+
+/** A flag written as a quoted integer, surrounding spaces allowed. */
+const QUOTED_INT = /^\s*[+-]?[0-9]+\s*$/;
 /** Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity; it is kept as written. */
 export const UNKNOWN_ENTITY_CODE = "W_GML_UNKNOWN_ENTITY";
 /** Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1). */
@@ -301,7 +307,7 @@ class GmlImport {
     private elementsSinceCheck = 0;
 
     /** The sink id every file id maps to when they differ (label / index / restored ids), else null. */
-    private idMap: Map<number, NodeId> | null = null;
+    private idMap: Map<NodeId, NodeId> | null = null;
 
     /** Node indices declared by a node block of this import, for duplicate detection. */
     private declared = new Uint32Array(64);
@@ -710,6 +716,9 @@ class GmlImport {
                           namespace: null,
                       }
                     : undefined,
+            // The header as written, so a reader can say which words set the direction and tell
+            // `directed 0` from a file that relies on the specification's default.
+            extra: this.directedToken >= 0 ? { gml: { directed: textOf(this.directedToken) } } : undefined,
         });
     }
 
@@ -724,7 +733,16 @@ class GmlImport {
             return null;
         }
         const t = this.requireTokens();
-        if (t.kind[v] !== TOKEN_INT) {
+        // Files in the wild write the flag as a quoted integer (`directed "1"`); read it, with a warning.
+        const quoted = t.kind[v] === TOKEN_STRING && QUOTED_INT.test(t.stringOf(v));
+        if (quoted) {
+            this.report.warning(
+                "validation-error",
+                FLAG_VALUE_CODE,
+                `flag "${name}" is written as the string ${describeValue(t, v)}; read as an integer`,
+                { line: t.line[v], element: name },
+            );
+        } else if (t.kind[v] !== TOKEN_INT) {
             this.report.error(
                 "validation-error",
                 FLAG_TYPE_CODE,
@@ -733,7 +751,7 @@ class GmlImport {
             );
             return null;
         }
-        const n = Number(t.textOf(v));
+        const n = Number(quoted ? t.stringOf(v) : t.textOf(v));
         if (n !== 0 && n !== 1) {
             this.report.warning(
                 "validation-error",
@@ -866,7 +884,9 @@ class GmlImport {
             if (idTok < 0) {
                 throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
             }
-            const fileId = this.integerOf(idTok, "id");
+            // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
+            // "keep", where the integer 1 and the string "1" are different ids by design)
+            const fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
             if (originalTok >= 0) {
                 sinkId = this.restoredId(originalTok);
             } else {
@@ -883,7 +903,7 @@ class GmlImport {
                         sinkId = ordinal;
                         break;
                     default:
-                        sinkId = this.coerceInteger(idTok, fileId);
+                        sinkId = fileId;
                 }
             }
             if (this.idMap !== null) {
@@ -1019,22 +1039,46 @@ class GmlImport {
     }
 
     /**
-     * The integer value of an id / source / target token (the GML grammar's integer ids; a string
-     * id is refused, as the malformed corpus pins, although NetworkX would accept it).
+     * The value of an id / source / target token: an integer (the GML spec's type) as a number, a
+     * string (NetworkX and Gephi write them) as its text with one warning per file.
      * @param v - the value token
      * @param key - the key name, for the error
-     * @returns the number
+     * @returns the number or the string
      */
-    private integerOf(v: number, key: string): number {
+    private fileIdOf(v: number, key: string): number | string {
         const t = this.requireTokens();
+        if (t.kind[v] === TOKEN_STRING) {
+            this.report.warnOnce(
+                "validation-error",
+                STRING_ID_CODE,
+                `${key} is the string "${t.textOf(v)}"; GML ids are integers, string ids are kept under the ids rule`,
+                { line: t.line[v], element: t.stringOf(v) },
+            );
+            return t.stringOf(v);
+        }
         if (t.kind[v] !== TOKEN_INT) {
-            throw new GraphFormatError("E_INVALID_ID", `${key} must be an integer, found ${describeValue(t, v)}`, {
-                reason: "not an integer",
-                key,
-                value: t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v),
-            });
+            throw new GraphFormatError(
+                "E_INVALID_ID",
+                `${key} must be an integer or a string, found ${describeValue(t, v)}`,
+                {
+                    reason: "not an integer",
+                    key,
+                    value: t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v),
+                },
+            );
         }
         return Number(t.textOf(v));
+    }
+
+    /**
+     * Coerce an id / source / target value under the `ids` rule: a string by its text, an integer
+     * through coerceInteger().
+     * @param v - the value token
+     * @param id - its value (fileIdOf())
+     * @returns the id
+     */
+    private coerceFileId(v: number, id: number | string): NodeId {
+        return typeof id === "string" ? this.coercer.text(id) : this.coerceInteger(v, id);
     }
 
     /**
@@ -1099,14 +1143,8 @@ class GmlImport {
      * @returns the id
      */
     private endpoint(v: number, key: string): NodeId {
-        const n = this.integerOf(v, key);
-        if (this.idMap !== null) {
-            const mapped = this.idMap.get(n);
-            if (mapped !== undefined) {
-                return mapped;
-            }
-        }
-        return this.coerceInteger(v, n);
+        const id = this.coerceFileId(v, this.fileIdOf(v, key));
+        return this.idMap?.get(id) ?? id;
     }
 
     /**

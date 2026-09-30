@@ -8,15 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { depthFirstSearch, Graph } from "@graphty/algorithms";
+import { depthFirstSearch } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
 import {
     createAnimationControls,
     createDataStructurePanel,
@@ -43,23 +41,6 @@ interface DFSArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Captured step during DFS traversal.
  */
 interface CapturedStep {
@@ -75,29 +56,23 @@ function runDFSAndCaptureSteps(
     generatedGraph: GeneratedGraph,
     startNode: number,
 ): { steps: CapturedStep[]; tree: Map<number | string, number | string | null> } {
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
     const capturedSteps: CapturedStep[] = [];
 
-    // Run the actual DFS algorithm with visitCallback to capture each step
-    const result = depthFirstSearch(graph, startNode, {
-        visitCallback: (node, depth) => {
-            capturedSteps.push({
-                node: node as number,
-                depth,
-                parent: null, // Will be filled from tree
-            });
-        },
-    });
-
-    // Fill in parent information from the tree
-    for (const step of capturedSteps) {
-        const parent = result.tree?.get(step.node);
-        step.parent = parent === null || parent === undefined ? null : (parent as number);
+    // Run the actual DFS algorithm and capture each visited node, in visit order
+    const walk = depthFirstSearch(graph, graph.ids.requireIndex(startNode));
+    const tree = new Map<number, number | null>();
+    for (let k = 0; k < walk.visitedCount; k++) {
+        const i = walk.order[k];
+        const parent = walk.parent[i] === INVALID_INDEX ? null : Number(graph.ids.idOf(walk.parent[i]));
+        const node = Number(graph.ids.idOf(i));
+        tree.set(node, parent);
+        capturedSteps.push({ node, depth: walk.depth[i], parent });
     }
 
     return {
         steps: capturedSteps,
-        tree: result.tree ?? new Map(),
+        tree,
     };
 }
 

@@ -9,7 +9,7 @@
 import { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 /** A star with a tail: degrees run 1 (tail) to 4 (hub). */
@@ -38,7 +38,7 @@ describe("sizing nodes by a run with style: { size }", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -51,7 +51,7 @@ describe("sizing nodes by a run with style: { size }", () => {
      * @returns Half the world-space bounding box width of each node's mesh, by id.
      */
     async function drawnRadii(): Promise<Map<string, number>> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (let frame = 0; frame < 10; frame++) {
             graph.scene.render();

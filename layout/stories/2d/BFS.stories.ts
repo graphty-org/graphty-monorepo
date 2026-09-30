@@ -5,20 +5,15 @@
  * in layers based on their distance from a starting node.
  * Shows animation from random initial positions to final BFS positions.
  *
- * IMPORTANT: This story uses the actual bfsLayout implementation
+ * IMPORTANT: This story uses the actual bfs implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { bfsLayout } from "@graphty/layout";
+import { bfs, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -50,7 +45,7 @@ function createBFSStory(args: BFSArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
@@ -59,12 +54,9 @@ function createBFSStory(args: BFSArgs): HTMLElement {
     const validStartNode = Math.min(startNode, nodeCount - 1);
 
     // Compute final BFS layout using actual algorithm
-    const finalPositions = bfsLayout(
-        layoutGraph,
-        validStartNode,
-        align,
-        scale,
-        [0, 0],
+    const finalPositions = toPositionMap(
+        bfs(snapshot, { start: validStartNode, align, scale, center: [0, 0] }),
+        snapshot.ids,
     );
 
     // Create container
@@ -76,10 +68,7 @@ function createBFSStory(args: BFSArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("BFS Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Positions nodes by BFS distance from node ${validStartNode} in ${align} layers.`,
-    );
+    updateInfoPanel(infoPanel, `Positions nodes by BFS distance from node ${validStartNode} in ${align} layers.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -129,15 +118,7 @@ const meta: Meta<BFSArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         startNode: {
@@ -175,7 +156,7 @@ type Story = StoryObj<BFSArgs>;
 /**
  * BFS layout story - positions nodes by BFS distance from a start node.
  *
- * This story uses the actual `bfsLayout()` function from @graphty/layout.
+ * This story uses the actual `bfs()` function from @graphty/layout.
  * The play function animates from random positions to the BFS arrangement.
  */
 export const BFS: Story = {

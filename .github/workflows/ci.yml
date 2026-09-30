@@ -164,6 +164,21 @@ jobs:
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
+            # Element data sources read files through @graphty/graph-io importers, not their own
+            # parsers. The same check runs in tools/prepush.sh.
+            - name: Element data sources on graph-io
+              run: pnpm run check:data-source-migration
+
+            # The import reader of the script that prints the counts in design/graph-format/STATUS.md.
+            - name: Migration count script
+              run: pnpm run check:migration-counts
+
+            # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
+            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
+            # The same check runs in tools/prepush.sh.
+            - name: Legacy graph API use
+              run: pnpm run check:legacy-use
+
             - name: Build Storybook (graphty-element)
               run: pnpm exec nx run graphty-element:build-storybook
 
@@ -193,8 +208,8 @@ jobs:
               run: pnpm exec nx run layout:build:gh-pages
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
-            # The per-package artifacts below stay: release.yml, deploy-pages.yml and the
-            # performance job download them by name.
+            # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
+            # by name.
             - name: Upload all package builds
               uses: actions/upload-artifact@v4
               with:
@@ -440,18 +455,6 @@ jobs:
             - name: Write core dumps to a file so the shard's ulimit -c 0 holds
               if: matrix.shard == 'webgpu-graph-algorithms-node'
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
-
-            - name: SCRATCH verify a crash writes no core dump
-              if: matrix.shard == 'webgpu-graph-algorithms-node'
-              working-directory: ${{ runner.temp }}
-              run: |
-                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
-                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
-                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
-                  rm -f core*
-                  start=$(date +%s); crash 0; end=$(date +%s)
-                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
-                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
 
             - name: Run tests
               run: ${{ matrix.test-command }}
@@ -799,9 +802,9 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Performance regression tests (algorithms only, master branch)
+    # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare
     performance:
-        name: Performance Tests
+        name: Performance Benchmarks
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         runs-on: ubuntu-latest
@@ -821,32 +824,19 @@ jobs:
               env:
                   HUSKY: "0"
 
-            - name: Download algorithms build
+            # Every package's dist: the benchmark runs algorithms from source under tsx, and that
+            # source imports @graphty/graph-format, which resolves to graph-format's dist.
+            - name: Download all package builds
               uses: actions/download-artifact@v4
               with:
-                  name: build-algorithms
-                  path: algorithms/dist/
+                  name: build-packages
+                  path: .
 
-            - name: Download performance baseline
-              uses: actions/download-artifact@v4
-              with:
-                  name: performance-baseline
-                  path: algorithms/test/
-              continue-on-error: true
-
-            - name: Run performance regression tests
+            - name: Run the algorithms benchmarks
               run: pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
-
-            - name: Upload performance baseline
-              uses: actions/upload-artifact@v4
-              with:
-                  name: performance-baseline
-                  path: algorithms/test/performance-baseline.json
-                  retention-days: 90
-                  if-no-files-found: ignore
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
@@ -897,6 +887,132 @@ jobs:
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
 
+    # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
+    # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
+    # visual-review.config.json, design in design/visual-testing/design.md). This job is the "visual"
+    # job of the package's workflow template (visual-review/templates/visual-review.yml) with two
+    # differences: the matrix is written out here, and the Storybook is downloaded from this run's
+    # build job instead of built again. A test (visual-review/test/workflows.test.mjs) keeps the
+    # commands the same as the template's. The owner reviews
+    # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
+    # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
+    # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
+    # the job fails only when the tool itself crashes, and continue-on-error keeps even that from failing
+    # the run, because release.yml, deploy-pages.yml and coverage.yml gate on the run's conclusion. What
+    # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
+    # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
+    # 4-worker development machine; CI runners are slower and not yet measured.
+    visual:
+        name: visual (${{ matrix.project }})
+        needs: build
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+            # To download master's newest capture (the reference step below).
+            actions: read
+        continue-on-error: true
+        timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: compact-mantine
+                      artifact: build-storybook-compact-mantine
+                    - project: graphty-element
+                      artifact: build-storybook-element
+                    - project: layout
+                      artifact: build-storybook-layout
+        steps:
+            # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
+            # LFS objects by default); this job alone fetches them, and only its own project's. The objects
+            # are cached in the Actions cache keyed by the pointer files' hash (which is the list of object
+            # ids), so a run downloads from LFS only the images accepted since the cache was saved, and the
+            # organisation's LFS bandwidth (250 GiB a month, a $0 budget that blocks rather than bills)
+            # stays near zero. design/visual-testing/design.md section 7 has the estimate.
+            - uses: actions/checkout@v4
+
+            - name: Restore this project's baseline images
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project)) }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            # With the browser cached this installs only the system libraries Chromium needs.
+            - name: Install Chromium
+              run: pnpm exec visual-review install-browser
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.project }}/storybook-static/
+
+            # Seeding is per story: a story with no baseline that looks as it does in master's newest capture is
+            # "unseeded" and does not block this pull request; one that differs, or is new, blocks until the
+            # owner accepts it. Without a reference (none downloaded) every story with no baseline is "new".
+            - name: Download master's newest capture
+              id: reference
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+
+            - name: Capture
+              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
+
+            # Kept even when capture crashed, so the owner sees the partial results.json.
+            - name: Upload captures
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual/
+                  retention-days: 30
+
+            - name: Write the counts to the job summary
+              if: always()
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  {
+                      echo "### Visual review (${{ matrix.project }})"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"seeded: \(.seeded), complete: \(.complete), \(.items | length) of \(.expected) items, master reference run: \(.reference)",
+                              "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      else
+                          echo "No results.json: capture did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job or Chromatic job for an unaffected
@@ -916,6 +1032,7 @@ jobs:
                 chromatic-compact-mantine,
                 chromatic-algorithms,
                 chromatic-layout,
+                visual,
             ]
         if: always()
         runs-on: ubuntu-latest
@@ -929,11 +1046,50 @@ jobs:
                   [[ "$EVENT" == "pull_request" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # Chromatic jobs are opt-in (see chromatic-element), so a skipped one passes on every event.
+                  # The visual job never decides here, whatever result job-level continue-on-error makes
+                  # it report: on a pull request the gate step below judges its results.json, and on
+                  # master a capture crash must not hold release, deploy or coverage.
                   bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
+                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
                       exit 1
                   fi
                   echo "All checks passed!"
+
+            # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
+            # with baselines on the base branch fails here when its newest capture (the highest attempt
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged,
+            # excluded or unseeded items (unseeded: no baseline yet, and this pull request does not
+            # change it), or when that capture is missing, unfinished or invalid. It also fails when
+            # a baseline PNG or an excluding settings file differs from the base without a review record
+            # added in the pull request that names its new hash. So it shows the captures match the pull
+            # request's baselines and that each baseline change is named (path and new hash) in a record;
+            # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
+            # (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
+            # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
+            # (standard library only), run from this checkout rather than with npx as the package's
+            # template does, so a change to the gate is tested by its own pull request; it reads
+            # visual-review.config.json from the base tip (sparse checkout keeps the root's files). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
+            # the pull request was merged onto; blobs are fetched only for the changed baselines, which are
+            # Git LFS pointer files naming the image's SHA-256, so no LFS object is downloaded here.
+            - name: Check out the gate
+              if: github.event_name == 'pull_request'
+              uses: actions/checkout@v4
+              with:
+                  sparse-checkout: visual-review
+                  fetch-depth: 2
+                  filter: blob:none
+
+            - name: Download visual captures
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Check visual changes were accepted
+              if: github.event_name == 'pull_request'
+              run: node visual-review/trusted/cli.mjs gate --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD

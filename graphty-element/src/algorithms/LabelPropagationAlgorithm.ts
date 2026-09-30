@@ -1,9 +1,9 @@
-import { labelPropagation } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -51,6 +51,8 @@ interface LabelPropagationOptions extends Record<string, unknown> {
 export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
     static namespace = "graphty";
     static type = "label-propagation";
+    /** Groups over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = labelPropagationOptionsSchema;
 
@@ -85,7 +87,8 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
      * @returns The community result, or null when there are no nodes to group.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, so a member with no edge in the scope stands alone.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
@@ -94,17 +97,22 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
         const { maxIterations, randomSeed } = this.schemaOptions;
 
         // Undirected: a label spreads across an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("labelPropagation", "undirected");
+        const { ids } = snapshot;
 
+        /* The seed is always passed, so one seed gives one partition: the dispatcher answers a
+           seeded call on the CPU port, since no accelerator kernel has a seed to honour. The port
+           reports its iterations and whether it converged; an accelerator's result would not. */
         context.report({ phase: "Spreading labels", total: null });
-        const result = labelPropagation(graphData, {
-            maxIterations,
-            randomSeed,
-        });
+        const { value, precision } = await run((dispatch, s) =>
+            dispatch.labelPropagation(s, { maxIterations, randomSeed }),
+        );
+        const converged = "converged" in value && typeof value.converged === "boolean" ? value.converged : undefined;
+        const iterations = "iterations" in value && typeof value.iterations === "number" ? value.iterations : undefined;
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: result.communities.get(String(nodeId)) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: value.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {
@@ -115,9 +123,10 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
                 method: "label-propagation",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
-                converged: result.converged,
-                iterations: result.iterations,
+                converged,
+                iterations,
                 seed: randomSeed,
+                precision,
                 notes: ["Label propagation does not score its own partition, so it reports no modularity."],
             }),
         };

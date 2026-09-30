@@ -87,24 +87,6 @@ export interface AiStatus {
     error?: Error;
 }
 
-/** Status change callback type */
-type StatusChangeCallback = (status: AiStatus) => void;
-
-/** Key persistence configuration for AiManager */
-interface KeyPersistenceConfig {
-    enabled: boolean;
-    encryptionKey?: string;
-    storage?: "localStorage" | "sessionStorage";
-    prefix?: string;
-}
-
-/** AI Manager configuration */
-interface AiManagerConfig {
-    provider: ProviderType;
-    apiKey?: string;
-    keyPersistence?: KeyPersistenceConfig;
-}
-
 /** Execution result from AI command */
 export interface ExecutionResult {
     success: boolean;
@@ -164,38 +146,8 @@ declare class ApiKeyManagerClass {
     clear(): void;
 }
 
-/**
- * AiManager class interface - matches graphty-element's AiManager
- */
-declare class AiManagerClass {
-    /**
-     *
-     */
-    init(graph: unknown, config: AiManagerConfig): void;
-    /**
-     *
-     */
-    onStatusChange(callback: StatusChangeCallback): () => void;
-    /**
-     *
-     */
-    execute(input: string): Promise<ExecutionResult>;
-    /**
-     *
-     */
-    cancel(): void;
-    /**
-     *
-     */
-    dispose(): void;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used in typeof expression below
-declare function createAiManagerFn(): AiManagerClass;
-
 // Export types for the classes
 export type { ApiKeyManagerClass as ApiKeyManagerType };
-export type { AiManagerClass as AiManagerType };
 
 /**
  * Get the graphty-element AI module lazily.
@@ -212,17 +164,6 @@ export async function getApiKeyManager(): Promise<typeof ApiKeyManagerClass> {
 
     // The declaration above is the app's own, not the element's, so the shapes are asserted
     return (mod as unknown as { ApiKeyManager: typeof ApiKeyManagerClass }).ApiKeyManager;
-}
-
-/**
- * Get the createAiManager function lazily.
- * @returns The createAiManager function
- */
-export async function getCreateAiManager(): Promise<typeof createAiManagerFn> {
-    const mod = await getGraphtyElement();
-
-    // The declaration above is the app's own, not the element's, so the shapes are asserted
-    return (mod as unknown as { createAiManager: typeof createAiManagerFn }).createAiManager;
 }
 
 /**

@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import * as pkg from "../../../src/index.js";
+
 // process.cwd(), not import.meta.url: the default project runs under happy-dom, which rewrites
 // import.meta.url to an http: URL (test/helpers/performance-regression.ts:46 locates its file the same way).
 const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
@@ -22,5 +24,28 @@ describe("graph-format wiring", () => {
         const format = await import("@graphty/graph-format");
         expect(format.FORMAT_VERSION).toBe(1);
         expect(typeof format.GraphBuilder).toBe("function");
+    });
+});
+
+describe("the 3.0 barrel at run time", () => {
+    it("exports every algorithm at the top level, and the deprecated indexed namespace holds the same functions", () => {
+        const names = Object.keys(pkg.indexed);
+        expect(names.length).toBeGreaterThan(60);
+        for (const name of names) {
+            expect(pkg[name as keyof typeof pkg], name).toBe(pkg.indexed[name as keyof typeof pkg.indexed]);
+        }
+    });
+
+    it("no longer exports the 2.x Graph class, its bridge or the CSR helpers", () => {
+        for (const name of [
+            "Graph",
+            "toSnapshot",
+            "CSRGraph",
+            "toCSRGraph",
+            "DirectionOptimizedBFS",
+            "floydWarshall",
+        ]) {
+            expect(name in pkg, name).toBe(false);
+        }
     });
 });

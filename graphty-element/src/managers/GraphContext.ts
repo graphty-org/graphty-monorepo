@@ -3,6 +3,7 @@ import type { Scene } from "@babylonjs/core";
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
@@ -40,6 +41,13 @@ export interface GraphContext {
      * Get the DataManager for node/edge operations
      */
     getDataManager(): DataManager;
+
+    /**
+     * Get the session whose state this graph draws, when there is one: what a node's own doors
+     * dispatch through.
+     * @returns The session, or undefined for a context built without one.
+     */
+    getSession?(): GraphSession;
 
     /**
      * Get the LayoutManager for layout operations

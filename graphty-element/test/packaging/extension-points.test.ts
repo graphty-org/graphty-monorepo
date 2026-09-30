@@ -17,6 +17,7 @@ import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { maskTest } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import * as catalog from "../../catalog";
@@ -28,6 +29,7 @@ const REGISTRATION_SURFACES: readonly { point: string; name: keyof typeof extend
     { point: "File format", name: "DataSource", shape: "class" },
     { point: "Camera", name: "registerCameraView", shape: "function" },
     { point: "Layout", name: "LayoutEngine", shape: "class" },
+    { point: "Layout", name: "registerSnapshotLayout", shape: "function" },
     { point: "Algorithm", name: "Algorithm", shape: "class" },
     { point: "Logging", name: "registerLogSink", shape: "function" },
 ];
@@ -84,6 +86,18 @@ describe("the six extension points, from a published entry point", () => {
     it("publishes the error vocabulary a plugin reports through", () => {
         assert.typeOf(extend.GraphtyError, "function");
         assert.typeOf(extend.isGraphtyError, "function");
+    });
+
+    it("publishes maskTest from the element's own graph-format, so a plugin reads masks without its own copy", () => {
+        // graph-format is a regular dependency, not a peer, so a plugin's own copy can be on
+        // another major than the snapshots and masks the element hands it.
+        assert.strictEqual(extend.maskTest, maskTest);
+        const mask = new Uint32Array([0b101]);
+
+        assert.deepEqual(
+            [0, 1, 2].map((row) => extend.maskTest(mask, row)),
+            [true, false, true],
+        );
     });
 
     it("publishes format detection, which a consumer used to have to reimplement", () => {
@@ -203,4 +217,24 @@ describe("the three codes the extension points added", () => {
             assert.strictEqual(error.code, code);
         },
     );
+});
+
+describe("what a run hands an algorithm to compute over", () => {
+    it("is typed from ./extend alone, graph-format's snapshot and masks included", () => {
+        // A compile-time check: a plugin names every type of `context.input` from one entry point.
+        // `tsc --noEmit` over the tests fails here if one of them stops being published.
+        type Input = extend.ScopedInput;
+        const options: extend.ScopedInputOptions = { simplify: "min" };
+        const shape = (input: Input): [extend.GraphSnapshot, extend.NodeMask, extend.EdgeMask, boolean] => [
+            input.graph,
+            input.nodes,
+            input.edges,
+            input.whole,
+        ];
+        const read = (context: extend.AlgorithmRunContext): Input => context.input("undirected", options);
+
+        assert.typeOf(shape, "function");
+        assert.typeOf(read, "function");
+        assert.strictEqual(options.simplify, "min");
+    });
 });

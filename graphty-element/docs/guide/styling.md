@@ -61,7 +61,7 @@ if (!verdict.ok) {
 
 ## Selectors
 
-A selector says which elements a layer is about. There are five kinds, and they are spelled out
+A selector says which elements a layer is about. There are six kinds, and they are spelled out
 rather than implied:
 
 ```typescript
@@ -70,7 +70,17 @@ rather than implied:
 { match: "ids", nodes: ["alice", "bob"] }        // exactly these
 { match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
+{ match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
+
+### A set
+
+`{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
+scope names (`"selection"`, `{ define }`). The layer follows its scope: redefine the set, change
+the data a rule set reads, or re-run the run a followed set reads, and the layer repaints the
+elements that joined or left without being touched. A set has no colour of its own -- colouring
+one is this layer. A layer naming a set that was removed keeps painting the members the set's
+kept record names, so removing a set never blanks a layer.
 
 ### The top N
 
@@ -133,45 +143,45 @@ await element.session.styles.add({
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel      | Takes                                                         |
-| ----------------- | ------------------------------------------------------------- |
-| `node.color`      | any CSS colour                                                |
-| `node.size`       | a number                                                      |
-| `node.shape`      | `sphere`, `box`, `cylinder`, `icosphere`, ...                 |
-| `node.label`      | the words to draw                                             |
-| `node.labelStyle` | `{font, sizePx, weight, color, background, outline, padding, ...}` |
-| `node.tooltip`    | the words to show on hover                                    |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                       |
-| `node.opacity`    | 0 to 1                                                        |
-| `node.outline`    | a colour                                                      |
-| `node.glow`       | a colour                                                      |
-| `node.glowStrength` | a number                                                    |
-| `node.wireframe`  | true or false                                                 |
-| `node.flat`       | true or false                                                 |
+| Node channel        | Takes                                                              |
+| ------------------- | ------------------------------------------------------------------ |
+| `node.color`        | any CSS colour                                                     |
+| `node.size`         | a number                                                           |
+| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
+| `node.label`        | the words to draw                                                  |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
+| `node.tooltip`      | the words to show on hover                                         |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
+| `node.opacity`      | 0 to 1                                                             |
+| `node.outline`      | a colour                                                           |
+| `node.glow`         | a colour                                                           |
+| `node.glowStrength` | a number                                                           |
+| `node.wireframe`    | true or false                                                      |
+| `node.flat`         | true or false                                                      |
 
-| Edge channel             | Takes                                        |
-| ------------------------ | -------------------------------------------- |
-| `edge.color`             | any CSS colour                               |
-| `edge.width`             | a number                                     |
-| `edge.opacity`           | 0 to 1                                       |
-| `edge.style`             | `solid`, `dash`, `dot`, `zigzag`, ...        |
-| `edge.patternCount`      | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
-| `edge.curvature`         | true or false (a bezier)                     |
-| `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
-| `edge.arrowHeadSize`     | a number, 1 being the element's own size     |
-| `edge.arrowHeadColor`    | a colour                                     |
-| `edge.arrowHeadOpacity`  | 0 to 1                                       |
-| `edge.arrowHeadText`     | words drawn beside the head cap              |
-| `edge.arrowHeadTextStyle` | as `node.labelStyle`                        |
-| `edge.arrowTail`         | the same arrows                              |
-| `edge.arrowTailSize`     | a number                                     |
-| `edge.arrowTailColor`    | a colour                                     |
-| `edge.arrowTailOpacity`  | 0 to 1                                       |
-| `edge.arrowTailText`     | words drawn beside the tail cap              |
-| `edge.arrowTailTextStyle` | as `node.labelStyle`                        |
-| `edge.animationSpeed`    | a number                                     |
-| `edge.label`             | the words to draw                            |
-| `edge.labelStyle`        | as `node.labelStyle`                         |
+| Edge channel              | Takes                                                                      |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `edge.color`              | any CSS colour                                                             |
+| `edge.width`              | a number                                                                   |
+| `edge.opacity`            | 0 to 1                                                                     |
+| `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
+| `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
+| `edge.curvature`          | true or false (a bezier)                                                   |
+| `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
+| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadColor`     | a colour                                                                   |
+| `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
+| `edge.arrowHeadText`      | words drawn beside the head cap                                            |
+| `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
+| `edge.arrowTail`          | the same arrows                                                            |
+| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailColor`     | a colour                                                                   |
+| `edge.arrowTailOpacity`   | 0 to 1                                                                     |
+| `edge.arrowTailText`      | words drawn beside the tail cap                                            |
+| `edge.arrowTailTextStyle` | as `node.labelStyle`                                                       |
+| `edge.animationSpeed`     | a number                                                                   |
+| `edge.label`              | the words to draw                                                          |
+| `edge.labelStyle`         | as `node.labelStyle`                                                       |
 
 Writing `node.label` or `edge.label` is what switches a label on.
 

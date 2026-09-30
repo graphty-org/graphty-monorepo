@@ -1,3 +1,4 @@
+import type { Graphty } from "@graphty/graphty-element";
 import type { AccelerationPolicy } from "@graphty/graphty-element/session";
 import type React from "react";
 
@@ -15,6 +16,9 @@ declare module "react" {
                    node is inserted, so the element's policy is in force before its
                    connectedCallback starts probing for an accelerator. */
                 acceleration?: AccelerationPolicy;
+                /* How the element drives its layout and draws its labels; the view half of it
+                   (label declutter) records no undo step. */
+                layoutBehavior?: Graphty["layoutBehavior"];
             };
         }
     }

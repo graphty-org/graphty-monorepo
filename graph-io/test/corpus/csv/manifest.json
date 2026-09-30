@@ -33,6 +33,24 @@
             "expectedNodes": 107,
             "expectedEdges": 352,
             "features": ["gephi", "weighted", "social-network"]
+        },
+        {
+            "path": "adjacency-weighted.csv",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 5,
+            "expectedEdges": 6,
+            "features": ["adjacency", "weighted", "isolated-node", "colon-id"],
+            "options": { "table": "adjacency" }
+        },
+        {
+            "path": "nodes-without-id.csv",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 3,
+            "expectedEdges": 0,
+            "features": ["node-list", "row-number-ids"],
+            "options": { "table": "nodes", "rowNumberIds": true }
         }
     ]
 }

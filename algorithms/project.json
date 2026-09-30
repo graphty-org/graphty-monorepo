@@ -57,13 +57,6 @@
                 "cwd": "algorithms"
             }
         },
-        "examples": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run examples:html",
-                "cwd": "algorithms"
-            }
-        },
         "build:gh-pages": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/gh-pages"],

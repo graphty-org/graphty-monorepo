@@ -17,7 +17,7 @@ import "../../src/graphty-element";
 import { type AbstractMesh, UtilityLayerRenderer, WebXRHandJoint } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { type Graph, operationQueueOf } from "../../src/Graph";
 import { installIWER, type IWERHandle } from "../interactions/helpers/iwer-setup";
 
 /** Generous for a swiftshader CI runner; every wait below returns as soon as its condition holds. */
@@ -131,7 +131,7 @@ async function mountXRGraph(handTracking = false): Promise<Graph> {
     await vi.waitFor(() => {
         assert.isNotNull(xrControl('[data-xr-mode="immersive-ar"]'), "AR button never appeared");
     }, WAIT);
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await vi.waitFor(() => {
         assert.isAbove([...element.graph.getNodes()].length, 0, "the graph never loaded its nodes");
     }, WAIT);
@@ -191,6 +191,15 @@ describe.each([
                 assert.strictEqual(node.mesh.getScene(), graph.scene, `node ${String(node.id)} is not in the scene`);
             }
 
+            // A step recorded in the headset says so, with the session it belongs to.
+            await element.session.data.addNodes([{ id: "added-in-xr" }]);
+            const inside = element.session.history.steps.at(-1)?.provenance.xr;
+            assert.match(
+                inside ?? "",
+                new RegExp(`^${viewMode}:\\d{4}-\\d{2}-\\d{2}T`),
+                "the step carries the session",
+            );
+
             await element.setViewMode("3d");
 
             await vi.waitFor(() => {
@@ -198,6 +207,12 @@ describe.each([
             }, WAIT);
             assert.isNull(graph.getXRSessionManager()?.getActiveMode(), "the session manager still holds a session");
             assert.strictEqual(graph.getViewMode(), "3d");
+            await element.session.data.addNodes([{ id: "added-after-xr" }]);
+            assert.notProperty(
+                element.session.history.steps.at(-1)?.provenance ?? {},
+                "xr",
+                "and one after it does not",
+            );
 
             const orbit = graph.camera.getActiveController()?.camera;
 

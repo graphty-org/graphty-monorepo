@@ -225,10 +225,6 @@ async function setupShowcase(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 100));
     const graph = element.graph as VoiceGraph & GraphtyElement["graph"];
 
-    // Add sample data
-    await graph.addNodes(SAMPLE_NODES);
-    await graph.addEdges(SAMPLE_EDGES);
-
     // State
     let isConnected = false;
     let isVoiceActive = false;
@@ -1232,7 +1228,16 @@ This demo integrates:
 
             <div class="showcase-layout">
                 <div class="graph-container">
-                    <graphty-element layout-type="ngraph"></graphty-element>
+                    <!-- The sample network is handed over with the element rather than added once it has
+                         rendered: the layout steps on every frame, and a frame drawn between an
+                         add of nodes and an add of edges lays the nodes out without their edges
+                         for however many frames fit in the gap, so the settled picture depended
+                         on how fast the machine was. -->
+                    <graphty-element
+                        layout-type="ngraph"
+                        .nodeData=${SAMPLE_NODES}
+                        .edgeData=${SAMPLE_EDGES}
+                    ></graphty-element>
                 </div>
 
                 <div class="control-panel">
@@ -1372,7 +1377,7 @@ export const Default: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "AI Control Default");
 
-        // The showcase puts its own sample network into the element a tick after it renders.
+        // The showcase hands its own sample network to the element as it renders.
         await assertGraphLoaded(scene, { nodes: 12, edges: 20 });
         await assertLayoutPlaced(scene, {});
 

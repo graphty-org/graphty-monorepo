@@ -49,6 +49,7 @@ import {
     type Position,
 } from "../../extend";
 import type { Graphty } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
 
 /**
  * How many pre-steps the graphs below ask for.
@@ -224,7 +225,7 @@ function mountEmpty(): Graphty {
  * @param element - the mounted element
  */
 async function settle(element: Graphty): Promise<void> {
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 

@@ -35,7 +35,13 @@
 
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
-import { cameraDescriptor, formatDescriptor, layoutDescriptor, logSinkDescriptor, paletteDescriptor } from "../../../catalog";
+import {
+    cameraDescriptor,
+    formatDescriptor,
+    layoutDescriptor,
+    logSinkDescriptor,
+    paletteDescriptor,
+} from "../../../catalog";
 import {
     type AlgorithmDescriptor,
     type AlgorithmOutput,
@@ -75,7 +81,8 @@ import { Graph } from "../../../index.js";
  * point and its registration from another.
  */
 import { GraphtyLogger, LogLevel, type LogRecord, type Sink } from "../../../logging";
-import type { GraphSession, LayerSpec, NodeId } from "../../../session";
+import type { GraphSession, LayerSpec } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
 // 1. The palette
@@ -416,8 +423,8 @@ class AtlasLinks extends DeclaredAlgorithm {
      * @returns What was measured, or null when there was nothing to measure.
      */
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const graph = this.algorithmGraph("undirected");
-        const ids = [...graph.nodes()].map((node) => node.id as NodeId);
+        const graph = context.input("undirected").subgraph();
+        const ids = Array.from({ length: graph.nodeCount }, (_, row) => graph.ids.idOf(row));
 
         if (ids.length === 0) {
             return null;
@@ -431,7 +438,8 @@ class AtlasLinks extends DeclaredAlgorithm {
             context.signal.throwIfAborted();
 
             const id = ids[index];
-            measured.push({ id, values: { value: [...graph.neighbors(id)].length } });
+            // The neighbours of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
+            measured.push({ id, values: { value: graph.rowPtr[index + 1] - graph.rowPtr[index] } });
 
             context.report({ phase: "Counting links", completed: index + 1, total: ids.length });
             await context.yieldNow();
@@ -590,30 +598,30 @@ describe("six extensions, one graph", () => {
         // FORMAT: the data arrives by naming the registered reader. Nothing else in this file
         // adds a node, so every assertion below stands on the plugin's parser having worked.
         await graph.addDataFromSource(ATLAS_FORMAT, { data: ROLL_FILE });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // LAYOUT: the registered engine decides where those nodes sit.
         await graph.setLayout(ATLAS_LAYOUT, {});
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // ALGORITHM: the registered algorithm measures them.
         const run = graph.run(ATLAS_ALGORITHM);
         await run;
         runId = run.id;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // PALETTE: a layer paints them through the registered palette, on top of whatever the
         // element derived from the run.
         await session.styles.add(SIGNAL_LAYER);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // CAMERA: the registered view decides where the viewer stands.
         await graph.applyCameraView("atlas-overhead", { animate: false });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterAll(async () => {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.dispose();
         container.remove();
 
@@ -772,8 +780,16 @@ describe("six extensions, one graph", () => {
     it("painted the graph with the registered palette, landing on the anchors the palette declared", () => {
         // Two anchors and a domain of 0 to 4: the lowest score takes the first anchor and the
         // highest the last, exactly, with nothing to interpolate.
-        assert.strictEqual(paintedColor("ann"), SIGNAL_ANCHORS[0].toUpperCase(), "the lowest score takes the first anchor");
-        assert.strictEqual(paintedColor("ed"), SIGNAL_ANCHORS[1].toUpperCase(), "the highest score takes the last anchor");
+        assert.strictEqual(
+            paintedColor("ann"),
+            SIGNAL_ANCHORS[0].toUpperCase(),
+            "the lowest score takes the first anchor",
+        );
+        assert.strictEqual(
+            paintedColor("ed"),
+            SIGNAL_ANCHORS[1].toUpperCase(),
+            "the highest score takes the last anchor",
+        );
     });
 
     it("reports the registered palette in the legend, under the kind it registered", () => {
@@ -804,7 +820,12 @@ describe("six extensions, one graph", () => {
 
         assert.ok(landed.position, "the element reports where the camera ended up");
         assert.ok(expected.position);
-        assert.closeTo(landed.position.x, expected.position.x, PLACE_TOLERANCE, "the viewer stands where the view said");
+        assert.closeTo(
+            landed.position.x,
+            expected.position.x,
+            PLACE_TOLERANCE,
+            "the viewer stands where the view said",
+        );
         assert.closeTo(landed.position.y, expected.position.y, PLACE_TOLERANCE);
         assert.closeTo(landed.position.z, expected.position.z, PLACE_TOLERANCE);
 
@@ -873,6 +894,7 @@ describe("every registration surface the published entry points carry", () => {
     const SURFACES: Readonly<Record<string, { suite: string } | { excluded: string; coveredBy?: string }>> = {
         "extend.registerPalette": { suite: "browser/extensions/palette-extension.test.ts" },
         "extend.DataSource": { suite: "browser/extensions/format-extension.test.ts" },
+        "extend.registerFormatWriter": { suite: "browser/extensions/format-extension.test.ts" },
         "extend.registerCameraView": { suite: "browser/extensions/camera-extension.test.ts" },
         "extend.LayoutEngine": { suite: "browser/extensions/layout-extension.test.ts" },
         "extend.SimpleLayoutEngine": { suite: "browser/extensions/layout-extension.test.ts" },
@@ -891,6 +913,7 @@ describe("every registration surface the published entry points carry", () => {
             excluded: "the class of acceleratorRegistry, internal like it",
             coveredBy: "acceleration/registry.test.ts",
         },
+        "extend.registerSnapshotLayout": { suite: "browser/extensions/layout-extension.test.ts" },
         "extend.SimpleLayoutConfig": {
             excluded: "a Zod schema: its register method is Zod's metadata registry, not the element's",
         },
@@ -923,7 +946,9 @@ describe("every registration surface the published entry points carry", () => {
         }
 
         return (
-            typeof value === "object" && value !== null && typeof (value as { register?: unknown }).register === "function"
+            typeof value === "object" &&
+            value !== null &&
+            typeof (value as { register?: unknown }).register === "function"
         );
     }
 

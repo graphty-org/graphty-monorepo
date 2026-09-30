@@ -18,7 +18,13 @@ const config: KnipConfig = {
     workspaces: {
         // Root workspace - shared configs and docs
         ".": {
-            entry: ["vite.shared.config.ts", "vitest.shared.config.ts", "docs/.vitepress/config.ts", "tools/*.mjs"],
+            entry: [
+                "vite.shared.config.ts",
+                "vitest.shared.config.ts",
+                "docs/.vitepress/config.ts",
+                "tools/*.mjs",
+                "tools/changelog-renderer.cjs",
+            ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignore: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
             ignoreDependencies: [

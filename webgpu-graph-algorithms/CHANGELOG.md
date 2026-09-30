@@ -1,3 +1,31 @@
+## 0.6.15 (2026-09-30)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** sampled closeness from the seam's sources ([#426](https://github.com/graphty-org/graphty-monorepo/issues/426))
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+- **webgpu-graph-algorithms:** expose betweenness on the accelerator and the barrel ([21853d18](https://github.com/graphty-org/graphty-monorepo/commit/21853d18))
+- **webgpu-graph-algorithms:** compute exact and sampled betweenness on the GPU ([adaf31bd](https://github.com/graphty-org/graphty-monorepo/commit/adaf31bd))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** correct sampled edge betweenness and the size bound ([e50f033b](https://github.com/graphty-org/graphty-monorepo/commit/e50f033b))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** measure the sampled betweenness crossover ([9daf8146](https://github.com/graphty-org/graphty-monorepo/commit/9daf8146))
+- **webgpu-graph-algorithms:** add the betweenness benchmark group ([ccedf52e](https://github.com/graphty-org/graphty-monorepo/commit/ccedf52e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.2
+- Updated algorithms to 3.0.0
+- Updated layout to 2.0.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.14 (2026-09-30)
 
 ### 🧱 Updated Dependencies
@@ -10,16 +38,16 @@
 
 ### 🚀 Features
 
-- ⚠️  **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+- ⚠️ **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
 - **algorithms:** dispatch eigenvector centrality and personalized pagerank ([f37e5b72](https://github.com/graphty-org/graphty-monorepo/commit/f37e5b72))
 
 ### 🩹 Fixes
 
 - **algorithms:** give accelerated hits and katz the cpu port's scale and weighting ([062aafb2](https://github.com/graphty-org/graphty-monorepo/commit/062aafb2))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **layout:** make the snapshot layouts the only layouts and drop the generators  ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+- **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
   the positional layouts are removed. Replace each with
   the snapshot layout of the same algorithm, and toPositionMap(result,
   s.ids) where id-keyed positions are needed (s = toLayoutSnapshot(graph)
@@ -239,7 +267,7 @@
 
 ### 🚀 Features
 
-- ⚠️  **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
+- ⚠️ **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
 - **webgpu-graph-algorithms:** record the grid layout baseline on the Tesla T4 ([4c0735b0](https://github.com/graphty-org/graphty-monorepo/commit/4c0735b0))
 - **webgpu-graph-algorithms:** add calibrateLayout, layout-grid and the crossover re-check ([f12b9098](https://github.com/graphty-org/graphty-monorepo/commit/f12b9098))
 - **webgpu-graph-algorithms:** give the FR and spring-electrical models the grid tier through LAW ([201ba566](https://github.com/graphty-org/graphty-monorepo/commit/201ba566))
@@ -272,9 +300,9 @@
 
 - **webgpu-graph-algorithms:** walk a dense row with a constant stride again ([57873440](https://github.com/graphty-org/graphty-monorepo/commit/57873440))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **webgpu-graph-algorithms:** refuse a device that computes the wrong answer  ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
+- **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
   E_DEVICE_INCORRECT joins the exported error code union, and a device that
   computes incorrectly now raises it instead of returning numbers.
 
@@ -315,11 +343,11 @@
 
 ### 🚀 Features
 
-- ⚠️  **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
+- ⚠️ **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions  ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
+- **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
   CpuAlgorithmOptions is no longer exported. The accelerator
   methods' option parameters are now the CPU package's own types
   (IndexedPageRankOptions, HitsOptionsLike, BetweennessAcceleratorOptions).

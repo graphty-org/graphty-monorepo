@@ -1,3 +1,25 @@
+## 0.3.12 (2026-09-30)
+
+### 🚀 Features
+
+- **graph-io:** read quoted gml flags and keep dot pos as text on request ([743aa6aa](https://github.com/graphty-org/graphty-monorepo/commit/743aa6aa))
+- **graph-io:** record a gml file's directed key as written ([dc1ad686](https://github.com/graphty-org/graphty-monorepo/commit/dc1ad686))
+
+### 🩹 Fixes
+
+- **graphty-element:** record how dot, gml and pajek loads differ from 2.x ([b1891017](https://github.com/graphty-org/graphty-monorepo/commit/b1891017))
+- **graph-io:** recognise gexf and graphml only in a document that starts as markup ([6e01ce08](https://github.com/graphty-org/graphty-monorepo/commit/6e01ce08))
+- **graph-io:** recognise a dot header followed by a quoted id or a comment ([8d1d04ce](https://github.com/graphty-org/graphty-monorepo/commit/8d1d04ce))
+- **graphty-element:** detect any delimited table as csv and never space-split text ([044281fd](https://github.com/graphty-org/graphty-monorepo/commit/044281fd))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.11 (2026-09-30)
 
 ### 🧱 Updated Dependencies
@@ -100,15 +122,15 @@
 
 ### 🚀 Features
 
-- ⚠️  **graph-io:** decode any encoding once, and read every graph in a file ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
+- ⚠️ **graph-io:** decode any encoding once, and read every graph in a file ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
 
 ### 🩹 Fixes
 
 - **graph-io:** exporters round-trip -0, DOT line continuations and GEXF 1.2 timestamps ([72292b6c](https://github.com/graphty-org/graphty-monorepo/commit/72292b6c))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **graph-io:** decode any encoding once, and read every graph in a file  ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
+- **graph-io:** decode any encoding once, and read every graph in a file ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
   GML_ISSUE.SECOND_GRAPH is now MULTIPLE_GRAPHS and
   PAJEK_ISSUE.MULTIPLE_NETWORKS is now MULTIPLE_GRAPHS; both carry the new
   W_MULTIPLE_GRAPHS warning code, since a second graph is no longer an error.

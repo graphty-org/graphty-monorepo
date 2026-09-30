@@ -3,17 +3,17 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 659651,
-        "./session": 377429,
+        ".": 679426,
+        "./session": 391654,
         "./schema": 11887,
-        "./catalog": 142623,
+        "./catalog": 173474,
         "./commands": 1562,
-        "./extend": 96402,
+        "./extend": 108642,
         "./format": 1287,
-        "./logging": 12581,
+        "./logging": 12993,
         "./react": 1045,
         "./webgpu": 7119,
-        "./ai": 192179,
-        "./bundle": 3393109
+        "./ai": 220868,
+        "./bundle": 3547981
     }
 }

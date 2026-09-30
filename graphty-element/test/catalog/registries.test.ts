@@ -4,7 +4,12 @@ import "../../src/layout/index";
 import { assert, describe, it } from "vitest";
 
 import { unknownFormat } from "../../src/catalog/detect";
-import { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "../../src/catalog/formats";
+import {
+    FORMAT_DESCRIPTORS,
+    formatDescriptor,
+    formatsForExtension,
+    UNSERVED_FORMAT_IDS,
+} from "../../src/catalog/formats";
 import {
     LAYOUT_CATALOG,
     LAYOUT_DESCRIPTORS,
@@ -110,7 +115,10 @@ describe("layout catalogue", () => {
             entry.implementations.map((implementation) => implementation.engine),
         );
 
-        assert.deepEqual(named.filter((engine) => !registeredEngines.includes(engine)), []);
+        assert.deepEqual(
+            named.filter((engine) => !registeredEngines.includes(engine)),
+            [],
+        );
     });
 
     it("covers all nineteen registered engines", () => {
@@ -132,7 +140,10 @@ describe("layout catalogue", () => {
     });
 
     it("serves every built-in layout name, so none is listed as unserved", () => {
-        assert.deepEqual(UNSERVED_LAYOUT_IDS.map((entry) => entry.id), []);
+        assert.deepEqual(
+            UNSERVED_LAYOUT_IDS.map((entry) => entry.id),
+            [],
+        );
         for (const entry of UNSERVED_LAYOUT_IDS) {
             assert.isTrue((KNOWN_LAYOUT_IDS as readonly string[]).includes(entry.id));
             assert.isAbove(entry.reason.length, 20);
@@ -152,7 +163,10 @@ describe("layout catalogue", () => {
             const [primary, ...alternates] = entry.implementations;
 
             assert.isTrue(primary.isDefault);
-            assert.deepEqual(alternates.map((alternate) => alternate.isDefault), alternates.map(() => false));
+            assert.deepEqual(
+                alternates.map((alternate) => alternate.isDefault),
+                alternates.map(() => false),
+            );
             assert.strictEqual(entry.descriptor.engine, primary.engine);
             assert.deepEqual(entry.descriptor.options, primary.options);
             assert.strictEqual(entry.descriptor.kind, primary.kind);
@@ -208,14 +222,10 @@ describe("layout catalogue", () => {
         const force = layoutEntry("force");
 
         assert.strictEqual(force?.descriptor.engine, "ngraph");
-        assert.deepEqual(force?.implementations.map((implementation) => implementation.engine), [
-            "ngraph",
-            "d3",
-            "forceatlas2",
-            "spring",
-            "kamada-kawai",
-            "spring-electrical",
-        ]);
+        assert.deepEqual(
+            force?.implementations.map((implementation) => implementation.engine),
+            ["ngraph", "d3", "forceatlas2", "spring", "kamada-kawai", "spring-electrical"],
+        );
     });
 
     it("carries each engine's own options, emitted from its schema", () => {
@@ -245,13 +255,19 @@ describe("format catalogue", () => {
     it("gives every registered data source a descriptor", () => {
         const described = new Set(FORMAT_DESCRIPTORS.map((descriptor) => String(descriptor.id)));
 
-        assert.deepEqual(registeredFormats.filter((format) => !described.has(format)), []);
+        assert.deepEqual(
+            registeredFormats.filter((format) => !described.has(format)),
+            [],
+        );
     });
 
     it("describes no format the element cannot read", () => {
         const ids = FORMAT_DESCRIPTORS.map((descriptor) => String(descriptor.id));
 
-        assert.deepEqual(ids.filter((id) => !registeredFormats.includes(id)), []);
+        assert.deepEqual(
+            ids.filter((id) => !registeredFormats.includes(id)),
+            [],
+        );
     });
 
     it("gives every built-in format name a descriptor or a stated reason", () => {
@@ -262,12 +278,15 @@ describe("format catalogue", () => {
             assert.deepEqual([id, served.has(id) || unserved.has(id)], [id, true]);
         }
 
-        assert.deepEqual(UNSERVED_FORMAT_IDS.map((entry) => entry.id), ["sif", "cx2"]);
+        assert.deepEqual(
+            UNSERVED_FORMAT_IDS.map((entry) => entry.id),
+            ["sif", "cx2"],
+        );
     });
 
-    it("reports that nothing can be written yet, rather than leaving it unsaid", () => {
+    it("reports that every built-in format can be read and written", () => {
         assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canImport));
-        assert.isFalse(FORMAT_DESCRIPTORS.some((descriptor) => descriptor.canExport));
+        assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canExport));
     });
 
     it("gives every format lower-case dotted extensions and at least one media type", () => {
@@ -282,12 +301,18 @@ describe("format catalogue", () => {
     });
 
     it("finds a format from a file name's extension", () => {
-        assert.deepEqual(formatsForExtension(".GRAPHML").map((descriptor) => descriptor.id), ["graphml"]);
+        assert.deepEqual(
+            formatsForExtension(".GRAPHML").map((descriptor) => descriptor.id),
+            ["graphml"],
+        );
         // Both XML formats claim ".xml", and a real ambiguity being answered with two entries is
         // the point: a drop target offers the reader both, and detection asks each format's own
         // content sniffer which of them the file is instead of a private branch comparing two
         // hard-coded namespace strings.
-        assert.deepEqual(formatsForExtension(".xml").map((descriptor) => descriptor.id), ["graphml", "gexf"]);
+        assert.deepEqual(
+            formatsForExtension(".xml").map((descriptor) => descriptor.id),
+            ["graphml", "gexf"],
+        );
         assert.deepEqual(formatsForExtension(".nope"), []);
     });
 
@@ -295,13 +320,10 @@ describe("format catalogue", () => {
         const csv = formatDescriptor("csv");
         const variant = csv?.options.find((option) => option.name === "variant");
 
-        assert.deepEqual(csv?.options.map((option) => option.name), [
-            "delimiter",
-            "variant",
-            "idColumn",
-            "edgeSource",
-            "edgeTarget",
-        ]);
+        assert.deepEqual(
+            csv?.options.map((option) => option.name),
+            ["delimiter", "variant", "idColumn", "edgeSource", "edgeTarget"],
+        );
         assert.strictEqual(variant?.type, "enum");
         assert.include(variant?.values?.map((choice) => choice.value) ?? [], "edge-list");
     });
@@ -402,19 +424,14 @@ describe("palette catalogue", () => {
         }
 
         assert.deepEqual(paletteDescriptor("red-blue")?.colorblindSafe, []);
-        assert.deepEqual(paletteDescriptor("viridis")?.colorblindSafe, [
-            "deuteranopia",
-            "protanopia",
-            "tritanopia",
-        ]);
+        assert.deepEqual(paletteDescriptor("viridis")?.colorblindSafe, ["deuteranopia", "protanopia", "tritanopia"]);
     });
 
     it("offers the palettes of one kind to a picker that knows what it is encoding", () => {
-        assert.deepEqual(palettesOfKind("diverging").map((descriptor) => descriptor.id), [
-            "purple-green",
-            "blue-orange",
-            "red-blue",
-        ]);
+        assert.deepEqual(
+            palettesOfKind("diverging").map((descriptor) => descriptor.id),
+            ["purple-green", "blue-orange", "red-blue"],
+        );
     });
 
     it("answers nothing for a palette it does not know", () => {
@@ -424,17 +441,10 @@ describe("palette catalogue", () => {
 
 describe("scale catalogue", () => {
     it("describes every scale a binding can name", () => {
-        assert.deepEqual(SCALE_DESCRIPTORS.map((descriptor) => descriptor.name), [
-            "linear",
-            "log",
-            "neglog10",
-            "sqrt",
-            "pow",
-            "bins",
-            "quantile",
-            "ordinal",
-            "passthrough",
-        ]);
+        assert.deepEqual(
+            SCALE_DESCRIPTORS.map((descriptor) => descriptor.name),
+            ["linear", "log", "neglog10", "sqrt", "pow", "bins", "quantile", "ordinal", "passthrough"],
+        );
     });
 
     it("names each scale plainly as well as technically", () => {
@@ -445,10 +455,10 @@ describe("scale catalogue", () => {
     });
 
     it("separates the scales that need numbers from the scales that do not", () => {
-        assert.deepEqual(scalesForDomain("categorical").map((descriptor) => descriptor.name), [
-            "ordinal",
-            "passthrough",
-        ]);
+        assert.deepEqual(
+            scalesForDomain("categorical").map((descriptor) => descriptor.name),
+            ["ordinal", "passthrough"],
+        );
         assert.lengthOf(scalesForDomain("numeric"), 7);
         assert.deepEqual(scalesForDomain("boolean"), []);
     });
@@ -459,11 +469,10 @@ describe("scale catalogue", () => {
             assert.deepEqual([descriptor.name, new Set(names).size], [descriptor.name, names.length]);
         }
 
-        assert.deepEqual(scaleDescriptor("pow")?.options.map((option) => option.name), [
-            "exponent",
-            "reverse",
-            "midpoint",
-        ]);
+        assert.deepEqual(
+            scaleDescriptor("pow")?.options.map((option) => option.name),
+            ["exponent", "reverse", "midpoint"],
+        );
         assert.strictEqual(scaleDescriptor("quantile")?.options.find((option) => option.name === "bins")?.default, 4);
         assert.deepEqual(scaleDescriptor("passthrough")?.options, []);
     });

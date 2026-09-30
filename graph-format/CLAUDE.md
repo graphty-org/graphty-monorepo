@@ -120,7 +120,9 @@ npm run ready:commit
 
 - The invariants I1-I18 (design section 3.2), `INVALID_INDEX`, the counting vocabulary and the view
   tables are public API. Changing any of them is a breaking change even when no TypeScript signature
-  changes (design section 13.5).
+  changes (design section 13.5). Cut one with a commit scoped `feat(graph-format)!:` that touches
+  `graph-format/`, and move the dependents' peer ranges to the new major in the same change: an
+  unscoped `feat!:` gives every dependent a major too (issue #102).
 - Zero runtime dependencies. No DOM lib in the core: `tsconfig.json` sets `lib: ["ES2020"]`; anything
   needing `ReadableStream` or `AbortSignal` belongs in @graphty/graph-io.
 - `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are OFF for `src/` (every consumer
@@ -222,7 +224,10 @@ npm run ready:commit
 
 - Main entry: `dist/graph-format.js` (bundled ES module); types: `dist/graph-format.d.ts`
   (a one-line re-export of `dist/src/index.d.ts`).
-- `files` ships `dist/`, `src/`, `README.md`, `LICENSE`; always run `npm run build:all` first.
+- `files` ships `dist/`, `src/`, `README.md`, `LICENSE`, but NOT the tsc runtime output
+  `dist/src/**/*.js` (declarations stay): only the bundle is stamped with the build commit, and
+  the unbundled modules would write `@graphty/graph-format@dev` into every wire manifest.
+  `test/build-output.test.ts` packs the tarball and checks both. Always run `npm run build:all` first.
 - `WIRE_PRODUCER` in `src/wire/to-wire.ts` is `<name>@<build commit>`, never the npm version:
   CI builds the artifact and `nx release` versions it afterwards, so a version baked in here is
   always the previous release's. `test/build-output.test.ts` pins only the shape (a short commit,

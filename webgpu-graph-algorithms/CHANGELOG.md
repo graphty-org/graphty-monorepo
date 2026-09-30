@@ -1,3 +1,73 @@
+## 0.6.14 (2026-09-30)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.1
+- Updated algorithms to 2.2.1
+- Updated layout to 2.0.1
+
+## 0.6.13 (2026-09-29)
+
+### 🚀 Features
+
+- ⚠️  **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+- **algorithms:** dispatch eigenvector centrality and personalized pagerank ([f37e5b72](https://github.com/graphty-org/graphty-monorepo/commit/f37e5b72))
+
+### 🩹 Fixes
+
+- **algorithms:** give accelerated hits and katz the cpu port's scale and weighting ([062aafb2](https://github.com/graphty-org/graphty-monorepo/commit/062aafb2))
+
+### ⚠️  Breaking Changes
+
+- **layout:** make the snapshot layouts the only layouts and drop the generators  ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+  the positional layouts are removed. Replace each with
+  the snapshot layout of the same algorithm, and toPositionMap(result,
+  s.ids) where id-keyed positions are needed (s = toLayoutSnapshot(graph)
+  for a nodes()/edges() object):
+  randomLayout(G, center, dim, seed) -> random(s, { center, dim, seed });
+  circularLayout(G, scale, center, dim) -> circular(s, { scale, center, dim });
+  gridLayout(G, columns, scale, center) -> grid(s, { columns, scale, center });
+  shellLayout(G, nlist, ...) -> shell(s, { nlist, ... }), nlist as node indices;
+  spiralLayout(G, scale, center, dim, resolution, equidistant) -> spiral(s, { ... });
+  spectralLayout(G, scale, center, dim, seed) -> spectral(s, { ... });
+  planarLayout(G, scale, center, dim, seed) -> planar(s, { ... });
+  radialLayout(G, root, scale, center) -> radial(s, { root, ... }), root as a node index;
+  bfsLayout(G, start, align, scale, center) -> bfs(s, { start, ... }), start as a node index;
+  bipartiteLayout(G, nodes, align, scale, center, aspectRatio) -> bipartite(s, { top, ... }),
+  top a node mask or a bool column;
+  multipartiteLayout(G, subsetKey, align, scale, center) -> multipartite(s, { subsets, ... });
+  kamadaKawaiLayout(G, dist, pos, weight, scale, center, dim) -> kamadaKawai(s, { ... });
+  forceatlas2Layout(G, pos, maxIter, ...) -> forceAtlas2(s, { pos, maxIter, ... });
+  fruchtermanReingoldLayout and springLayout(G, k, pos, fixed, iterations, ...) ->
+  fruchtermanReingold(s, { ... }), fixed a node mask;
+  arfLayout(G, pos, scaling, a, maxIter, seed) -> arf(s, { ... }).
+  The generators completeGraph, cycleGraph, starGraph, wheelGraph,
+  gridGraph, randomGraph, bipartiteGraph and scaleFreeGraph are removed:
+  use @graphty/graph-samples/generators (randomGraph is erdosRenyiGraph,
+  bipartiteGraph is randomBipartiteGraph, scaleFreeGraph is
+  barabasiAlbertGraph) and freeze the result with fromEdgeArrays.
+  Results that differ from 1.x: kamadaKawai reads a zero weight as a zero
+  distance, gives an unreachable pair the ideal distance 1e6 instead of
+  Infinity, rejects a negative or NaN weight and starts a 2D layout from
+  the unit circle about the origin, so its positions differ from
+  kamadaKawaiLayout's; every layout takes dim 2 or 3 only, where
+  circularLayout, fruchtermanReingoldLayout, springLayout and
+  kamadaKawaiLayout accepted other dimensions; fruchtermanReingold rejects
+  a negative or infinite k and leaves a pinned single node where pos put
+  it instead of moving it to center; bipartite and multipartite centre a
+  horizontal layout on center, where 1.x centred it on the swapped centre;
+  positions are Float32Array values, not f64 numbers.
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.0
+- Updated algorithms to 2.2.0
+- Updated layout to 2.0.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.12 (2026-09-28)
 
 ### 🧱 Updated Dependencies

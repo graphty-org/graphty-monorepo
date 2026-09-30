@@ -7,6 +7,120 @@ and onto the frozen `GraphSnapshot`, and moving graphty-element's file parsing i
 `STATUS.md` in this directory records the state it starts from; this file says what is left, in
 what order, and how "finished" is proven.
 
+## Revision of 2026-09-28: one breaking release, and the work that is left
+
+This section replaces the release sequence (section 4.4), the owner questions (section 6), the
+"one pull request per release window" rule of section 0 and every item of section 5 that is not
+already merged. The sections below it are kept as the record of how the migration got here.
+
+### What changed and why
+
+The owner decided, on 2026-09-28, everything section 6 asked and more
+(`design/decisions/2026-09-28-one-breaking-release-window.md` on this branch;
+`design/decisions/2026-09-28-extension-contract-owner-decisions.md` and
+`2026-09-28-graph-format-migration-owner-decisions.md` on branch `docs/extension-point-specs`,
+pull request #574):
+
+1. **One breaking release, one merge.** The migration ships as graphty-element 3.0.0 (the
+   migration, the undo and redo work of pull request #553, and the removal of
+   `Algorithm.algorithmGraph()` and `AlgorithmGraphView`), algorithms 3.0.0 (the legacy `Graph`
+   removed, `indexed.*` promoted to the top level) and layout 2.0.0, all released by the owner
+   merging pull request #587. (#587 merged an earlier state of the branch on 2026-09-29; the rest
+   reaches master through a new pull request, see `STATUS.md`, "Finished state".) There is no deprecation release first and no second pull request,
+   so every removal lands on `feat/graph-format-migration` now. Pull request #553's branch is
+   already merged into it (`a778a43f`).
+2. **Plugin algorithms get a snapshot accessor**: `edgeId(row)` on the graph,
+   `subgraphEdgeIds(row)` on a simplified subgraph (a value published for a merged row is copied
+   to every edge behind it), `input.column(option)` for attribute and partition options,
+   `input.weight` with its meaning (distance or strength), and earlier results readable as
+   columns (`design/extensions/algorithm.md` on `docs/extension-point-specs`).
+3. **Third-party layouts get the snapshot layout contract** (`SnapshotLayoutRegistration` in
+   `design/extensions/layout.md`), and the built-in layouts are built on it. The class-based
+   `LayoutEngine` stays supported in 3.0, deprecated with its replacement named.
+4. **Third-party file writers register through graphty-element**: `registerFormatWriter` wraps a
+   graph-io exporter, and `./extend` re-exports graph-io's writer types. An export carries
+   whatever the chosen format can represent (data, positions, algorithm results, style where the
+   format has a place) and reports what it could not hold.
+5. **graph-format and graph-io are regular dependencies** of graphty-element, not peers (issue
+   #85).
+6. **Data sources are an official extension point.** `DataSource` stays, with an adapter that
+   turns a graph-io importer into one.
+7. **The flow and cut wrappers delegate to their ports** and accept four result differences (net
+   flow on opposite directed edges, `minSTCut` cut edges on numeric ids, `stoerWagner` summing
+   opposite directed edges, a seeded `kargerMinCut`); **the matching and isomorphism wrappers
+   delegate** and accept three (a deterministic greedy visiting order, edge direction ignored by
+   default, `edgeMatch` seeing every arc and self-loop). Every difference goes in the changelog.
+
+Visual changes are approved only by the owner, and he reviews them all at once on pull request
+#587. An item whose only unmet condition was "the owner reviewed the visual change" is finished
+once its change is listed in `visual-changes/README.md` with the stories, what changed and why.
+That page is the single list.
+
+Reversible choices made here, so no item waits on them:
+
+- **Traversal and path adapter results.** The adapters keep the port results: undirected
+  PageRank and strongly connected components as the ports compute them, Prim and Bellman-Ford
+  tie-breaks by row order, a node option that names no node refused with an error. Each goes in
+  the graphty-element 3.0.0 changelog. Under `acceleration: "required"` a personalized PageRank
+  is refused, as the integration branch does today (`23f94701`); the other branch's alternative
+  (`24e561ad`) is not taken.
+- **The fixed layout** places nodes at their `data.position` on its first run and then keeps the
+  position array, so a drag survives a recompute (the integration branch's behaviour after the
+  undo work). The review branch's "every run" variant (`5130940a`) is not taken.
+- **CSV node ids stay text** after the move to graph-io (2.x typed numeric-looking ids as numbers).
+  Recorded in the changelog.
+- **The flow, cut, matching and isomorphism delegations happen before the removal**, although the
+  removal deletes the wrappers, because their differential tests are what the removal turns into
+  golden-fixture tests: the seven accepted differences are then pinned as recorded results rather
+  than lost.
+
+### The items
+
+Merge items bring a finished local branch into `feat/graph-format-migration` with `git merge`,
+resolving conflicts in favour of what the integration branch already holds unless the item says
+otherwise, then run lint, build, knip and the touched packages' test projects. Build items branch
+from the integration branch in their own worktree. Every item that changes a story adds its entry
+to `visual-changes/README.md`.
+
+| Item                                      | Kind  | Branch or scope                                                                                                                                                                                                                                                                                                   | Waits for                                                                                                    |
+| ----------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `merge-housekeeping-fixes`                | merge | `mig/housekeeping-issues-r2`: graph-format publishes only the commit-stamped bundle (#101), the scoped breaking commit rule (#102), the package table. The merge commit carries `Closes #101`.                                                                                                                    | --                                                                                                           |
+| `merge-shipped-port-adapters`             | merge | `mig/merge-element-adapters-on-shipped-ports-r2`: HITS, Katz, k-core, Louvain and degree over the snapshot, plus the Louvain options test `f7188d57` from `mig/element-adapters-on-shipped-ports-r2`. Brings `visual-changes/element-shipped-port-adapters/`.                                                     | --                                                                                                           |
+| `merge-flow-matching-link-adapters`       | merge | `mig/merge-element-adapters-flow-matching-link-r2`: max flow, min cut, bipartite matching and link prediction on the ports, capacity in a store edge column, plus the capacity test `85035c81` from `mig/element-adapters-flow-matching-link-r2`. Conflicts with the undo work in `GraphStore` and `DataManager`. | `merge-shipped-port-adapters`                                                                                |
+| `merge-dot-gml-pajek-sources`             | merge | `mig/element-remaining-data-sources-on-graph-io-r2`: DOT, GML and Pajek read through graph-io, detection through graph-io's sniffers, the element's parser corpus deleted, one import helper. Closes #503.                                                                                                        | `merge-flow-matching-link-adapters`                                                                          |
+| `merge-element-story-record`              | merge | `mig/element-migration-visual-review-r2`: the record of every graphty-element story change up to `48ff1b3a`. Keep the integration branch's `FixedLayoutEngine.ts`, and correct the record's fixed-layout section to match it.                                                                                     | --                                                                                                           |
+| `merge-golden-legacy-results`             | merge | `mig/algorithms-3-0-removal-r2`: the ports checked against recorded legacy results instead of live legacy code, the first step of the algorithms removal.                                                                                                                                                         | `merge-shipped-port-adapters`                                                                                |
+| `element-traversal-adapter-fixes`         | build | The recursive depth-first search with a target walks on past it again (from `8a1908e0`); the traversal result changes above go in the changelog notes.                                                                                                                                                            | `merge-shipped-port-adapters`, `merge-flow-matching-link-adapters`                                           |
+| `element-static-layout-fixes`             | build | From `1f2f557a`: Kamada-Kawai sums reciprocal edge weights over the graph as stored, and nodes added under a static layout are carried into the held frame; its fixed-layout part is not taken.                                                                                                                   | `merge-element-story-record`                                                                                 |
+| `element-regular-dependencies`            | build | graph-format and graph-io as regular dependencies only; closes #85.                                                                                                                                                                                                                                               | `merge-dot-gml-pajek-sources`                                                                                |
+| `element-plugin-snapshot-accessor`        | build | The accessor of decision 2; `custom-algorithms.md` rewritten. The owner later kept graphty-element on 3.x, so `algorithmGraph()` and `AlgorithmGraphView` stay, deprecated, until 4.0.                                                                                                                            | `merge-shipped-port-adapters`, `merge-flow-matching-link-adapters`, `element-traversal-adapter-fixes`        |
+| `element-snapshot-layout-contract`        | build | Decision 3: `SnapshotLayoutRegistration`, the built-in static layouts on it, `LayoutEngine` deprecated with the replacement named.                                                                                                                                                                                | `element-static-layout-fixes`                                                                                |
+| `element-export-and-format-writers`       | build | Decision 4: the element's export method, `registerFormatWriter`, graph-io's writer types from `./extend`, `canExport: true`, loss notes.                                                                                                                                                                          | `merge-dot-gml-pajek-sources`, `element-regular-dependencies`                                                |
+| `element-data-source-extension-point`     | build | Decision 6: `DataSource` documented as an extension point, an adapter from a graph-io importer.                                                                                                                                                                                                                   | `merge-dot-gml-pajek-sources`, `element-export-and-format-writers`                                           |
+| `algorithms-flow-cut-matching-delegation` | build | Decision 7: the five flow and cut and the four matching and isomorphism functions delegate; the seven differences pinned and written as changelog notes.                                                                                                                                                          | `merge-golden-legacy-results`                                                                                |
+| `algorithms-3-0-removal`                  | build | The legacy `Graph`, implementations, `optimized/*`, `graphToMap`, `CSRGraph` and Map-of-Maps signatures deleted; `indexed.*` promoted; stories, docs, examples, benchmarks, webgpu and element test oracles migrated; the conventions in the root and algorithms `CLAUDE.md` rewritten.                           | `merge-golden-legacy-results`, `algorithms-flow-cut-matching-delegation`, `element-plugin-snapshot-accessor` |
+| `story-comparison-for-owner-review`       | build | Every graphty-element, layout and graphty app story rendered on master and on the finished branch; every difference not yet in `visual-changes/README.md` added with captures and its cause.                                                                                                                      | every item that changes graphty-element or layout                                                            |
+| `migration-complete-check`                | build | The legacy-use baseline and the data-source check's pending list empty; `STATUS.md` final counts; the full CI-parity gate; `nx release --dry-run` giving graphty-element 3.0.0, algorithms 3.0.0 and layout 2.0.0.                                                                                                | every other item                                                                                             |
+
+Dropped, because the decisions made them moot or the work is already on the branch: the
+deprecation tags and the deprecation release (branches `mig/deprecate-legacy-entry-points-r1`
+and `-r2` are not merged), the release-order and version questions, absorbing pull requests #490
+and #513 (they stay separate), the layout 2.0 removal (merged, `45ded070`), the element data layer
+cleanup (done: `EdgeMap` is gone and on-load algorithms start once per load), the CSV, JSON, GEXF
+and GraphML sources and the import helper consolidation (merged), the centrality, community,
+Floyd-Warshall and label propagation adapters (merged), the matching and isomorphism port merge
+(merged as `ec11f93d`), the pushing of the integration branch (pull request #587 is open from
+it), the separate conventions rewrite (folded into `algorithms-3-0-removal`), and the four
+visual-review items (the owner reviews `visual-changes/README.md` on pull request #587 instead).
+Branches superseded by the ones named above and not merged: `mig/element-csv-and-json-sources-r1`,
+`mig/element-floyd-and-label-propagation-adapters-r2`, `mig/element-adapters-traversal-and-paths-r2`
+(its one missing fix is `element-traversal-adapter-fixes`), `mig/element-gml-dot-pajek-sources-r1`
+and `-r2`, `mig/element-detection-and-corpus-cleanup-r1` and `-r2`,
+`mig/element-adapters-on-shipped-ports-r1` and `-r2`, `mig/element-adapters-flow-matching-link-r1`
+and `-r2`, `mig/housekeeping-issues` and `-r1`, `mig/element-legacy-baseline-cleared-r2` (its
+counts are in `STATUS.md`), `mig/element-static-layout-engines-r1` (its fixes are
+`element-static-layout-fixes`) and `mig/merge-matching-and-isomorphism-port-r1`.
+
 ## 0. How work flows
 
 - All work lands on the integration branch `feat/graph-format-migration`
@@ -15,9 +129,9 @@ what order, and how "finished" is proven.
   integration branch. When the item's done-when holds, the agent merges its branch into the
   integration branch with `git merge` and pushes the integration branch. No agent merges a pull
   request and no agent pushes to master.
-- The integration branch reaches master through ONE pull request per release window, opened by the
-  items `ship-dual-api-window` and `verify-migration-complete`, and merged by the owner. That split
-  is what gives consumers a published release with both APIs (section 4.4).
+- The integration branch reaches master through ONE pull request, #587, which the owner merges.
+  (#587 merged on 2026-09-29 before the branch was finished; the rest goes through a new pull request.)
+  (The earlier two-release plan is superseded; see "Revision of 2026-09-28".)
 - Before starting, every item merges `origin/master` into its branch. Items that touch files an open
   pull request also touches wait until that pull request has merged and been absorbed (item
   `absorb-open-element-prs`, section 5 phase 0).
@@ -76,7 +190,7 @@ matching note at each place (decision log entry 17.9); the original text is kept
 | 14.4, 14.6 IO1: a DataSource streams into the io importer with the element's builder as the sink                                   | The element's builder carries no attribute columns; every attribute lives in per-node and per-edge data bags that styles, id paths and schemas read. The wrapper imports into a scratch builder and turns its columns back into records with today's keys.                                                                                                                                                                              | `graphty-element/src/data/GraphStore.ts`; `graphty-element/src/managers/DataManager.ts`                                                                                           |
 | 8.2, C16, section 18 decision 2: graph-io takes fast-xml-parser and papaparse from the element                                     | graph-io uses hand-written tokenisers and has no runtime parser dependency. The element keeps both until its wrappers land.                                                                                                                                                                                                                                                                                                             | `graph-io/package.json`; `graphty-element/package.json`                                                                                                                           |
 | 8.2, 14.4: `format-detection.ts` becomes graph-io's sniff table                                                                    | Detection is the element's public, plugin-extensible API. Only its built-in sniffers delegate to graph-io.                                                                                                                                                                                                                                                                                                                              | `graphty-element/src/catalog/detect.ts`                                                                                                                                           |
-| 14.4: the snapshot cache is keyed on `builder.mutationCount`, which counts column writes                                           | False until commit f7db019c made every change a freeze would show count; true now. Issue #100 is still open.                                                                                                                                                                                                                                                                                                                            | commit f7db019c                                                                                                                                                                   |
+| 14.4: the snapshot cache is keyed on `builder.mutationCount`, which counts column writes                                           | False until commit f7db019c made every change a freeze would show count; true now. Issue #100 is closed.                                                                                                                                                                                                                                                                                                                                | commit f7db019c                                                                                                                                                                   |
 | 14.6 E1, L1 gates: "Chromatic re-baseline"                                                                                         | Chromatic is switched off. Visual changes go through the `visual-review` package and the owner's review. Its baselines are not seeded yet; layout's Storybook is one of its projects on the integration branch (work item `visual-review-ready`).                                                                                                                                                                                       | PR #541; PR #557; PR #559; `visual-review/projects.json`                                                                                                                          |
 | 14.6 D1: tag deprecations "after E1 removed the last internal callers"                                                             | The gate is "no src file outside the legacy directories references a legacy entry point". Because legacy algorithms call each other, the lint rule exempts only the legacy directories scheduled for deletion.                                                                                                                                                                                                                          | `eslint.config.js` (no-deprecated is an error in every src tree)                                                                                                                  |
 | 14.6: the dual-API window ends at the removal release, with no release step between                                                | The deprecation release reaches npm (owner-merged pull request of the integration branch) before any removal commit lands; otherwise one release run would publish the deprecations and the removals together.                                                                                                                                                                                                                          | `nx.json` release (`conventionalCommits`, independent projects); `.github/workflows/release.yml`                                                                                  |
@@ -229,8 +343,36 @@ graphty-element (element minor):
   minimum is used, not the sum) and on graphs with self-loops.
 - Floyd-Warshall now refuses a graph above 5,792 nodes with a coded error before the run starts.
   Before, it had no bound and a large graph ran until the tab ran out of memory.
+- Link prediction, Adamic-Adar method: the same pairs are scored, but a score can differ from
+  2.x in the last bits (up to about 2e-11), because the port rounds each shared neighbour's weight
+  1/ln(degree) to a multiple of 2^-36 before adding. Pairs whose scores tie exactly can therefore
+  come out in another order, and at the `topK` cut-off a different one of the tied pairs can be
+  kept. The common-neighbours method is unchanged.
+- Max flow: when the capacities between one pair of nodes add up to a negative number, that pair
+  now has capacity 0 and each of its edges publishes `capacity: 0`. Before, the edges published the
+  negative sum (the flow was 0 either way).
+- Max flow and min cut: a `source` equal to the `sink` is refused with a `GraphtyError` coded
+  `E_OPTION_RANGE`. Before, the run went ahead and published a meaningless result.
+- Max flow: a graph with fewer than two nodes publishes no result. Before, a single node with a
+  self-loop ran with its source equal to its sink.
+- Max flow and min cut: a `source` or `sink` option is matched against node ids exactly first, and
+  by string form only when no node matches exactly. In a graph holding both the number 1 and the
+  string "1", `source: "1"` names the string. Before, every id was compared as a string.
+- DOT, GML and Pajek files are read by graph-io, which reads them as Graphviz, NetworkX and Pajek
+  do. Every difference from the 2.x readers, with an example of each, is listed in
+  `graphty-element/docs/guide/data-sources.md`, "Changes in graphty-element 3.1": DOT `strict`
+  merges parallel edges, `node`/`edge` defaults apply, `+` concatenates, backslash-newline
+  continues, first-mention node order, a headerless text or a mid-line `#` fails; GML refuses bare
+  words, `directed true` and multi-line strings, drops a non-integer id, decodes entities, reads
+  `NAN` as a number and loads the first of two graph blocks; Pajek requires `*Vertices`, creates
+  every declared vertex in number order, drops edges to undeclared vertices, with non-numeric
+  weights or by label, refuses a single coordinate, reads an unquoted word as a label, stores
+  coordinates as f32, keeps keywords as record keys, merges a vertex written twice and reads
+  `*Matrix` and `*Edgeslist`.
 
 ### 4.4 The release sequence
+
+Superseded on 2026-09-28 by "Revision of 2026-09-28" at the top of this file.
 
 1. The facades, ports and element moves land on the integration branch, then the deprecation tags
    (`deprecate-legacy-entry-points`).
@@ -318,12 +460,20 @@ visual change is reviewed.
 **element-adapters-on-shipped-ports.** Move `HITSAlgorithm`, `KatzCentralityAlgorithm`,
 `KCoreAlgorithm`, `LouvainAlgorithm` and `DegreeAlgorithm` onto the dispatcher: the first four
 through `this.accelerated(...)` with every schema option mapped (an option the port lacks is
-implemented or refused, never dropped); Degree from the input snapshot's degree views. Forward
+implemented or refused, never dropped); Degree from the input snapshot, counting each edge's
+source and target from its edge list (the degree views give every node its full degree as both in-
+and out-degree on a graph loaded undirected, which would double the total). Forward
 `hits` and `katzCentrality` in `graphty-element/src/acceleration/narrow.ts` with their floors in
 `acceleration/types.ts` (section 3); k-core and Louvain stay on the CPU port. Done when: all five
 are on the dispatcher, adapter tests match the legacy route on the existing fixtures (scores within
 1e-9, identical coreness and degree, Louvain modularity within tolerance), routing tests cover both
-sides of each floor, and the visual change is reviewed.
+sides of each floor, and the visual change is reviewed. Merged into the integration branch; two readings differ
+from the legacy route on purpose: k-core no longer counts a self-loop, so a self-looped node and
+any node whose core leaned on self-looped neighbours can sit lower (the result equals the legacy
+function's on the graph with self-loops removed); and Louvain's partition differs -- higher
+modularity on the cat network the stories load, lower on some graphs (0.26 against 0.30 on a
+six-node path; up to 0.05 lower on 11 of 600 random graphs of up to 28 nodes). The changed stories are recorded for the owner in
+`visual-changes/element-shipped-port-adapters/README.md`, not yet reviewed.
 
 ### Phase 2 -- algorithm ports by family
 
@@ -508,7 +658,9 @@ start node other than 0).
 **element-static-layout-engines.** `SimpleLayoutEngine` loads the undirected snapshot and the
 position array, calls `indexed.*`, writes with `toPositionColumn`, reseeds with
 `fromPositionColumn` and the pinned mask, and reloads on snapshot replacement. Delete
-`LayoutEngine.pairWeights`, `pairWeightKey` and the per-call `{ nodes, edges }` objects. Kamada-Kawai
+`LayoutEngine.pairWeights`, `pairWeightKey` and the per-call `{ nodes, edges }` objects. (Superseded for the two helpers by the owner's 2026-09-28 extension-contract
+decision: they came back, deprecated, for third-party `SimpleLayoutEngine` subclasses; the built-in
+engines still do not use them.) Kamada-Kawai
 gets the derived `1 / sum` column of section 3 (parallel weights summed first). `FixedLayout` reads
 the position array. Done when: no engine imports a positional layout function,
 `weighted-layouts.test.ts` passes without `pairWeights` (its "sums two parallel edges" case
@@ -571,6 +723,8 @@ io's loss notes; `canExport: true` in the catalog. Done when: for each of the ei
 corpus file loads, exports and reloads with equal counts, ids and the fidelity matrix's keys.
 
 ### Phase 7 -- deprecation, removal and proof
+
+Superseded on 2026-09-28 by "Revision of 2026-09-28" at the top of this file.
 
 **housekeeping-issues.** #101 (no published graph-format file writes producer `dev`), close #100
 with commit f7db019c and its test as evidence, close #102 (the design now requires a scoped
@@ -644,6 +798,8 @@ branch to master. Done when: the check is in CI and green, every CI shard and GP
 visual diffs are approved by the owner, and `STATUS.md` records the finished state.
 
 ## 6. Decisions only the owner can make
+
+Superseded on 2026-09-28 by "Revision of 2026-09-28" at the top of this file.
 
 Each changes a published contract that the design never specified.
 

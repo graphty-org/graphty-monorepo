@@ -354,6 +354,57 @@ describe("edge weights and the two layouts that read them", () => {
             assert.isTrue(samePlaces(parallel, reversed), "the order the parallel edges arrived in changes nothing");
             assert.isTrue(samePlaces(parallel, summed), "and edges of 2 and 3 arrange exactly as one edge of 5");
         });
+
+        it("sums the two directions of a reciprocal pair on a directed graph", () => {
+            // Making a directed graph undirected merges a->b and b->a into one edge that keeps only
+            // the first weight, so a sum taken after that sees 2 and not 5, and the picture would
+            // depend on which direction the file listed first.
+            const reciprocal = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 2],
+                    ["b", "a", 3],
+                    ["b", "c", 1],
+                ]),
+            );
+            const summed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 5],
+                    ["b", "c", 1],
+                ]),
+            );
+
+            assert.isTrue(
+                samePlaces(reciprocal, summed),
+                "edges of 2 and 3 in opposite directions arrange as one edge of 5",
+            );
+        });
+
+        it("sums a reciprocal pair of unit weights too, when every stored weight is 1", () => {
+            // Every edge weighs 1, but a->b and b->a together are one connection of 2; the pair must
+            // not fall back to distance 1 just because no edge anywhere weighs anything else.
+            const reciprocal = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 1],
+                    ["b", "a", 1],
+                    ["b", "c", 1],
+                ]),
+            );
+            const summed = arrange(
+                kamadaKawai(),
+                graphOf([
+                    ["a", "b", 2],
+                    ["b", "c", 1],
+                ]),
+            );
+
+            assert.isTrue(
+                samePlaces(reciprocal, summed),
+                "edges of 1 and 1 in opposite directions arrange as one edge of 2",
+            );
+        });
     });
 
     it("advertises which engines read weights at all, so a picker offers the option on those two only", () => {
@@ -442,9 +493,10 @@ function directKamadaKawai(table: Readonly<Record<string, number>>): Arrangement
         dim: 2,
     });
 
-    // The engine multiplies every coordinate by its scaling factor and stores it as an f32, so the
-    // comparison has to be made against the same numbers rather than against the raw values.
-    const scale = new KamadaKawaiLayout({ dim: 2, scale: 1 }).scalingFactor;
+    // The engine multiplies every coordinate by its layout-to-scene factor (50 scene units per
+    // layout unit) and stores it as an f32, so the comparison has to be made against the same
+    // numbers rather than against the raw values.
+    const scale = 50;
     const out: Record<string, readonly [number, number, number]> = {};
     for (let i = 0; i < placed.n; i++) {
         out[String(undirected.ids.idOf(i))] = [

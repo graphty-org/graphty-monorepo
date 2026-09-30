@@ -1,4 +1,4 @@
-import type { AdjacencyView, F64, GraphSnapshot } from "@graphty/graph-format";
+import type { AdjacencyView, F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
 /** Options of the index-based degree centrality, matching the legacy `degreeCentrality`. @public */
 export interface DegreeCentralityOptions {
@@ -52,4 +52,33 @@ export function degreeCentrality(s: GraphSnapshot, options: DegreeCentralityOpti
         }
     }
     return scores;
+}
+
+/** Each node's edge count, split by the end of the edge it sits at. @public */
+export interface DegreesResult {
+    /** Edges declared into the node. */
+    readonly inDegree: U32;
+    /** Edges declared out of the node. */
+    readonly outDegree: U32;
+}
+
+/**
+ * Each node's edges counted from the edge list: every logical edge once at its declared source (out)
+ * and once at its declared target (in), so a self-loop counts once in each half. The orientation is
+ * the one each edge was declared with, on an undirected snapshot too, so in plus out is the degree
+ * counted once -- where the snapshot's own degree views give an undirected node its whole degree as
+ * both halves. Parallel edges each count; merge them first to count a pair once.
+ * @param s - The snapshot
+ * @returns The two halves, one count per node index
+ * @public
+ */
+export function degrees(s: GraphSnapshot): DegreesResult {
+    const { src, dst } = s.edgeList();
+    const inDegree = new Uint32Array(s.nodeCount);
+    const outDegree = new Uint32Array(s.nodeCount);
+    for (let e = 0; e < src.length; e++) {
+        outDegree[src[e]]++;
+        inDegree[dst[e]]++;
+    }
+    return { inDegree, outDegree };
 }

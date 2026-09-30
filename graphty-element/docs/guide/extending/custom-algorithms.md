@@ -1,6 +1,6 @@
 # Custom algorithms
 
-Available from graphty-element 2.7.
+Available from graphty-element 3.0.
 
 An algorithm computes something over the graph and publishes a result: a score for every node, a
 score for every edge, or a group for every node. You write the part that is yours -- how to score
@@ -262,7 +262,11 @@ summary, a reading and the derived picture all hang off a run.
 
 ### The whole of it
 
-````ts
+A tie-strength measure over an interaction log, where two people can be linked by many recorded
+interactions: for every tie, the share of the weaker person's total strength that the tie carries.
+It publishes one value per EDGE, on a graph with parallel edges, and imports nothing but the
+element's extension entry point.
+
 ```ts
 import {
     type AlgorithmDescriptor,
@@ -270,170 +274,144 @@ import {
     type AlgorithmRunContext,
     DeclaredAlgorithm,
     declaredCaveats,
+    edgeMetricFields,
+    forEachChunked,
     metricFieldSpecs,
-    nodeMetricFields,
-    type OptionDescriptor,
     type ResultElementValues,
 } from "@graphty/graphty-element/extend";
 
-/** The one thing a reader can configure, declared ONCE. */
-const HOPS_OPTION: OptionDescriptor = {
-    name: "hops",
-    plainName: "Steps",
-    technicalName: "hops",
-    type: "integer",
-    default: 1,
-    min: 1,
-    max: 4,
-    description: "How many steps away a node still counts as reachable.",
-};
-
 /** What a caller may configure about a run. One interface, matching the one option list. */
-interface HopReachOptions extends Record<string, unknown> {
-    hops: number;
+interface TieStrengthOptions extends Record<string, unknown> {
+    strength: string;
 }
 
-const HOP_REACH_DESCRIPTOR: AlgorithmDescriptor = {
+const TIE_STRENGTH_DESCRIPTOR: AlgorithmDescriptor = {
     // `key` must equal `static type` below: an algorithm has one name.
-    key: "hop-reach",
-    plainName: "Nearby nodes",
-    technicalName: "bounded reach",
-    description: "Counts how many other nodes each linked node can get to within a few steps.",
-    category: "centrality",
+    key: "tie-strength",
+    plainName: "Tie strength",
+    technicalName: "share of the weaker end's strength",
+    description: "How much of the weaker end's total strength one tie between two nodes carries.",
+    category: "structure",
     // The shape fixes the FIELD NAMES, which is how any consumer reads `results.<runId>.value`
     // without opening the catalogue first.
-    shape: "node-metric",
-    // Ten descriptors for one measured number, built for you -- each carries a published path
-    // string a plugin should never have to learn or retype.
-    fields: nodeMetricFields({
-        plainName: "Nodes within reach",
-        technicalName: "bounded reach",
-        type: "integer",
-        unit: "nodes",
-    }),
-    options: [HOPS_OPTION],
+    shape: "edge-metric",
+    // Ten descriptors for one measured number, each carrying a published path string a plugin
+    // should never have to learn or retype.
+    fields: edgeMetricFields({ plainName: "Share of strength", technicalName: "tie share" }),
+    // The one thing a reader can configure, declared ONCE: which edge attribute is the strength.
+    options: [
+        {
+            name: "strength",
+            plainName: "Strength",
+            type: "attribute",
+            default: "strength",
+            description: "The edge attribute saying how strong each recorded interaction is.",
+        },
+    ],
     costClass: "instant",
-    complexity: "O(n * (n + m))",
+    complexity: "O(n + m)",
 };
 
-class HopReach extends DeclaredAlgorithm<HopReachOptions> {
+export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
     static override namespace = "acme";
-    static override type = "hop-reach";
-    static override descriptor = HOP_REACH_DESCRIPTOR;
+    static override type = "tie-strength";
+    static override descriptor = TIE_STRENGTH_DESCRIPTOR;
 
     /** Optional: recorded on every run, so a saved result says what produced its numbers. */
     static version = "1.0.0";
 
     /**
      * Optional: the work over a graph of n nodes and m edges, for the pre-click estimate, in the
-     * units of the declared costClass ("instant": elements visited). The element divides it by the
-     * rate it measured on this device, so the estimate follows the machine it runs on.
+     * units of the declared costClass ("instant": elements visited).
      */
-    static costUnits = (n: number, m: number): number => n * (n + m);
+    static costUnits = (n: number, m: number): number => n + m;
 
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        // Options arrive already checked and with the declared default filled in, so the running
-        // code never tests for a missing parameter.
-        const { hops } = this.schemaOptions;
+        // Options arrive already checked and with the declared default filled in.
+        const { strength } = this.schemaOptions;
 
-        // The one way to read the input: the graph as a graph-format snapshot, undirected, built
-        // from the graph the reader loaded rather than from the render objects. Its nodes are
-        // rows 0 .. nodeCount - 1, and the neighbours of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
-        const graph = context.input("undirected").subgraph();
+        // The graph as a graph-format snapshot, undirected, with every edge between two nodes merged
+        // into one tie. Parallel edges in one direction merge by SUM; a reciprocal pair (A -> B and
+        // B -> A) keeps one direction's weight, not their sum. The weights come from the attribute
+        // the reader chose; the element fills them and records the choice as the run's weight caveat.
+        const input = context.input("undirected", {
+            simplify: "sum",
+            weight: { attribute: strength, meaning: "strength" },
+        });
+        const ties = input.subgraph();
 
-        if (graph.nodeCount === 0) {
+        if (ties.edgeCount === 0) {
             return null;
         }
 
-        const measured: ResultElementValues[] = [];
-        const steps = new Int32Array(graph.nodeCount);
+        // A node's strength: the summed weight of every tie it has.
+        const nodeStrength = ties.weightedDegree();
+        const { src, dst, weights } = ties.edgeList();
+        const rows = Array.from({ length: ties.edgeCount }, (_, row) => row);
+        const edges: ResultElementValues<string>[] = [];
 
-        context.report({ phase: "Counting nearby nodes", completed: 0, total: graph.nodeCount });
+        // Chunks of 1024, a progress report at the start of each and the frame handed back between
+        // them; a cancelled run stops at the next chunk.
+        await forEachChunked(context, "Measuring ties", rows, (row) => {
+            const weaker = Math.min(nodeStrength[src[row]], nodeStrength[dst[row]]);
 
-        for (let row = 0; row < graph.nodeCount; row++) {
-            // Checked at the top of every step, and the throw is never caught: a stopped run
-            // stops rather than finishing quietly and publishing half an answer.
-            context.signal.throwIfAborted();
-
-            // A breadth-first walk from this node, at most `hops` steps out.
-            steps.fill(-1);
-            steps[row] = 0;
-            const queue = [row];
-            for (let head = 0; head < queue.length; head++) {
-                const at = queue[head];
-                if (steps[at] === hops) {
-                    continue;
-                }
-
-                for (let arc = graph.rowPtr[at]; arc < graph.rowPtr[at + 1]; arc++) {
-                    const next = graph.colIdx[arc];
-                    if (steps[next] === -1) {
-                        steps[next] = steps[at] + 1;
-                        queue.push(next);
-                    }
-                }
+            // A tie with no strength at either end has nothing to share: no row, rather than a
+            // measurement that was never made.
+            if (weaker <= 0) {
+                return;
             }
 
-            const reached = queue.length - 1;
+            const value = (weights === null ? 1 : weights[row]) / weaker;
 
-            // A node this algorithm has nothing to say about gets NO ROW. Publishing zero for it
-            // would be a measurement that was never made, and the ranking, the distribution and
-            // the colour ramp would all then carry an invented value. Publish by id, never by row.
-            if (reached > 0) {
-                measured.push({ id: graph.ids.idOf(row), values: { value: reached } });
+            // Publish by the element's edge id, never by row. One tie stands for every edge
+            // merged into it, so the value is each of theirs.
+            for (const id of input.subgraphEdgeIds(row)) {
+                edges.push({ id, values: { value } });
             }
-
-            context.report({ phase: "Counting nearby nodes", completed: row + 1, total: graph.nodeCount });
-
-            // Hands the frame back, so the page stays responsive through a long computation.
-            await context.yieldNow();
-        }
+        });
 
         return {
-            shape: "node-metric",
-            fields: metricFieldSpecs("node", "integer"),
-            nodes: measured,
+            shape: "edge-metric",
+            fields: metricFieldSpecs("edge"),
+            edges,
             graph: { normalization: "none" },
             // What this run does that its numbers do not admit to, printed unedited to a reader.
             caveats: declaredCaveats({
                 direction: "undirected",
-                weight: null,
-                method: `breadth-first walk, ${hops} step(s)`,
-                notes: ["Nodes with no links are left unmeasured rather than counted as zero."],
+                method: "tie weight over the weaker end's strength",
+                notes: [
+                    "Every edge between the same two nodes is one tie. Parallel edges in one direction " +
+                        "sum their strengths; a reciprocal pair keeps one direction's strength.",
+                ],
             }),
         };
     }
 }
 
-DeclaredAlgorithm.register(HopReach);
-````
+DeclaredAlgorithm.register(TieStrength);
+```
 
 `compute` RETURNS what it measured. It never writes a result anywhere, and it computes no ranking,
 no percentile and no statistics -- those are the element's to derive, and deriving them per
 algorithm is how two algorithms come to disagree about what a percentile is.
 
-**Read the graph through `context.input`**, never through the render objects (`this.graph`, a
-`Node`, an `Edge`). Older plugins read `this.algorithmGraph("undirected")`, a graph object from
-`@graphty/algorithms`; it is being retired (it goes in graphty-element 4.0), so new code does not
-use it.
-
 ### Running it
 
 ```ts
 // From the element
-const run = graph.run("hop-reach", { hops: 2 });
+const run = graph.run("tie-strength", { strength: "calls" });
 await run;
 
 // Or from the session, with a progress handler and a signal
 const started = session.runs.start(
-    "hop-reach",
-    { hops: 2 },
-    { as: "reach", onProgress: (progress) => console.log(progress.phase, progress.completed) },
+    "tie-strength",
+    { strength: "calls" },
+    { as: "ties", onProgress: (progress) => console.log(progress.phase, progress.completed) },
 );
 await started;
 
-// What it measured
-session.results.get("reach")?.node("d")?.value;
+// What it measured, by the element's edge id
+session.results.get("ties")?.edge(edgeId)?.value;
 ```
 
 A finished run is one undoable step: `session.undo()` takes the run, its result and the style
@@ -453,8 +431,99 @@ every iteration), source-edge pairs for `heavy`, operations for `cubic`. Once th
 calibrated the estimate reports `"calibrated"`, like a built-in's. The older
 `static cost = (n, m) => seconds` still works, but those seconds cannot be scaled to the device,
 so its estimate always reports `"modelled"`; `costUnits` wins when a class declares both.
+
 `costUnits` is also handed the run's option values, the declared defaults filled in, so an option
 that multiplies the work is priced: `(n, m, options) => (n + m) * Number(options.maxIterations)`.
+
+### Reading the graph
+
+`context.input(orientation, options)` is the only way an algorithm reads the graph. It hands over
+graph-format snapshots -- typed arrays in compressed sparse row form -- built from the graph the
+reader loaded, never the render objects:
+
+| Member                   | What it is                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `graph`                  | The full graph as loaded, one row per node and one per edge                                         |
+| `subgraph()`             | The run's input as its own compact snapshot, in the orientation asked, with parallel edges merged   |
+| `edgeId(row)`            | The element's id of edge `row` of `graph`                                                           |
+| `subgraphEdgeIds(row)`   | The ids of every edge of `graph` behind edge `row` of `subgraph()`                                  |
+| `column(option)`         | The values behind a declared `"attribute"` or `"partition"` option, as a column over `graph`'s rows |
+| `weight`                 | The weight the input was asked for, when it was                                                     |
+| `nodes`, `edges`         | The run's scope as bit masks over `graph`                                                           |
+| `nodeCount`, `edgeCount` | How many nodes and edges the scope holds                                                            |
+| `whole`                  | True when the scope is the whole graph                                                              |
+
+The orientation is `"declared"` (edges as the records state them) or `"undirected"` (a reciprocal
+pair `A -> B`, `B -> A` becomes one edge, which keeps the lower row's weight). The options:
+
+- `simplify` says how parallel edges merge in `subgraph()`: `"sum"` by default, the element's
+  reading of a repeated edge as more connection; `"min"` for a shortest path; `"max"`; or `"none"`
+  to keep every edge its own row.
+- `weight` names the edge attribute the weights come from and whether a weight is a `"distance"`
+  or a `"strength"`. The element fills `graph.weights` from it (an edge with no number there
+  weighs 1), merges it into `subgraph()` by `simplify`, and states it as the run's
+  `caveats.weight`, so the run cannot read one weight and report another. `weight: null` reads the
+  graph unweighted, and `subgraph()` stays unweighted too: merged parallel edges do not weigh as
+  many as they merged. Without it the weights are the ones the graph was loaded with, whose meaning
+  the run does not state.
+
+In a snapshot the neighbours of row `r` are `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `edgeList()`
+gives `src`, `dst` and `weights` per edge; `ids.idOf(row)` is a node's id; and `weightedDegree()`,
+`degree()` and the other members of graph-format 1.x's `GraphSnapshot` are there to use. An
+undirected snapshot stores each edge as two arcs, one in each endpoint's row. Take `GraphSnapshot`,
+`Column`, `NodeMask` and `EdgeMask` from `@graphty/graphty-element/extend`, never from your own
+copy of graph-format.
+
+**Publish by id, never by row.** Rows of `subgraph()` are not rows of `graph`, and neither is an
+id. A node's id is `snapshot.ids.idOf(row)`; an edge's is `input.edgeId(row)` for a row of
+`graph`, or each of `input.subgraphEdgeIds(row)` for a row of `subgraph()`. A row of `subgraph()`
+that merged parallel edges -- or a reciprocal pair -- stands for all of them, so its value is
+published under every id behind it, as the example does. Columns whose names begin with
+`graphty.` are the element's own bookkeeping: do not read them.
+
+### Attributes and earlier results
+
+Declare an option of type `"attribute"` (on nodes or edges) or `"partition"` (a grouping of nodes),
+and read what it names with `input.column(name)`. The reader picks the attribute; your code never
+sees the name:
+
+```ts
+const DESCRIPTOR: AlgorithmDescriptor = {
+    // ...
+    options: [
+        { name: "group", plainName: "Grouping", type: "partition", default: "results.communities.group" },
+        { name: "confidence", plainName: "Confidence", type: "attribute", default: "confidence" },
+    ],
+};
+
+override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+    const input = context.input("undirected", { simplify: "max" });
+    const group = input.column("group"); // over the rows of input.graph's nodes
+    const confidence = input.column("confidence"); // over the rows of input.graph's edges
+
+    // Ask for the columns first: subgraph() carries every column handed out so far, under the
+    // column's name, merged by the same rule as the weights.
+    const sub = input.subgraph();
+    const merged = sub.edges.require(confidence.meta.name);
+
+    for (let row = 0; row < input.graph.nodeCount; row++) {
+        if (group.isSet(row)) {
+            // group.value(row) ...
+        }
+    }
+    // ...
+}
+```
+
+The value of the option is a path. `confidence` or `data.confidence` names an attribute the
+records carry; `results.<run>.<field>` names what an earlier run published, so one algorithm can
+build on another's result. A row whose element carries no value is unset (`isSet(row)` is false).
+An attribute that both nodes and edges carry under the same name is read on the nodes; give an
+edge attribute a name no node attribute uses. A partition is always read on the nodes, and the
+weight on the edges, so a result field of the other kind is refused like a missing one.
+A name that nothing in the graph carries is refused with `E_OPTION_RANGE` before your loop runs,
+and a column asked for an option you did not declare as an attribute or partition with
+`E_UNKNOWN_OPTION`.
 
 ### Computing over the run's scope
 
@@ -463,45 +532,17 @@ another run found. Declare `static scopeInput = "subgraph"` and your algorithm c
 part:
 
 ```ts
-class HopReach extends DeclaredAlgorithm<HopReachOptions> {
+class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
     // ...as above...
     static scopeInput = "subgraph" as const;
 }
 ```
 
-With it declared, `context.input(...).subgraph()` above already returns the scope's subgraph, so
-the example needs no other change. The input has more to it:
+With it declared, `subgraph()` is the scope's own compact snapshot, so the example needs no other
+change; `graph` stays the full graph, with the scope as the `nodes` and `edges` masks over it.
 
-```ts
-override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-    const input = context.input("undirected", { simplify: "min" });
-
-    // The compact snapshot of the scope's nodes and edges: rows are the subgraph's, not the graph's
-    const sub = input.subgraph();
-    for (let row = 0; row < sub.nodeCount; row++) {
-        const id = sub.ids.idOf(row); // publish by id, never by row
-        // ...
-    }
-
-    // Or the full graph with the scope as masks over it, for an algorithm that only skips nodes
-    console.log(input.graph.nodeCount, input.nodeCount, input.whole);
-    // ...
-}
-```
-
-| Member                   | What it is                                                                         |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `subgraph()`             | The scope as its own compact graph-format snapshot, built on first call and cached |
-| `graph`                  | The full graph, as loaded                                                          |
-| `nodes`, `edges`         | The scope as bit masks over `graph` (`edges` over the declared orientation)        |
-| `nodeCount`, `edgeCount` | How many nodes and edges the scope holds                                           |
-| `whole`                  | True when the scope is the whole graph; `subgraph()` then returns the graph itself |
-
-`simplify` says how parallel edges merge in `subgraph()`: `"sum"` by default, `"min"` for a
-shortest path, `"max"`, or `"none"` to keep them apart.
-
-**Declare it only once every node list, edge read and count your algorithm takes comes from the
-input.** An algorithm that lists its nodes some other way while reading a scoped topology would
+**Declare it only once every node list, edge read and count your algorithm takes comes from
+`subgraph()`.** An algorithm that lists its nodes from `graph` while reading a scoped topology would
 report every node over a subgraph's edges.
 
 **Without the declaration**, your algorithm is handed the whole graph, the element keeps only the
@@ -513,40 +554,37 @@ run the whole graph is too large for. `register` publishes the declaration as th
 ### Chunking, for free
 
 `forEachChunked` walks a collection in chunks of 1024, reporting at the start of each and yielding
-between them, so a long pass is one call rather than a hand-written loop:
+between them, so a long pass is one call rather than a hand-written loop -- the example uses it.
+For a loop of your own, call `context.report(...)`, check `context.signal.throwIfAborted()` and
+`await context.yieldNow()` between chunks: an analysis that cannot be watched or stopped is
+indistinguishable, on a big graph, from one that has hung.
 
-```ts
-import { forEachChunked } from "@graphty/graphty-element/extend";
+Field-spec builders exist for every shape: `metricFieldSpecs`, `communityFieldSpecs`,
+`PATH_FIELD_SPECS`, `LAYERED_GROUPING_FIELD_SPECS` and `setFieldSpecs`, and `nodeMetricFields` and
+`edgeMetricFields` build a metric descriptor's fields, `communityFields` a community one's, and
+`metricField` any other. `checkShapeContract` tells you whether your
+fields match the shape you declared.
 
-const rows = Array.from({ length: graph.nodeCount }, (_, row) => row);
+### Moving from `algorithmGraph()`
 
-await forEachChunked(context, "Counting links", rows, (row) => {
-    measured.push({ id: graph.ids.idOf(row), values: { value: graph.rowPtr[row + 1] - graph.rowPtr[row] } });
-});
-```
+`Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type are deprecated from graphty-element
+3.1 and will be removed in 4.0. A plugin that calls them keeps working on 3.x and reads the same
+graph it did on 3.0: an object graph with the `@graphty/algorithms` 2.x `Graph` methods, parallel
+edges merged with their weights summed. In TypeScript it is no longer the same TYPE as
+`@graphty/algorithms` 2.x's `Graph` (3.0 aliased that class; 3.1 carries a copy, and TypeScript
+compares classes with private fields by name), so a TypeScript plugin that passes it to its own
+`@graphty/algorithms@2` functions needs a cast, `this.algorithmGraph("directed") as unknown as Graph`,
+to compile; at run time nothing changed. That graph holds one edge per pair of nodes, so a plugin
+cannot name one of two parallel edges, and the only route to an edge id goes through the session.
+Read `context.input(...)` instead:
 
-### Per-edge values and attribute values: not yet
-
-**No advanced algorithm can publish per-edge values correctly yet.** A result row for an edge is
-keyed by the id the element minted for that edge, and the input gives a plugin no way to turn an
-edge of the snapshot into that id. Building a key from the two endpoints does not work: it cannot
-name one of two parallel edges, and reading the ids from the session breaks the rule above. An
-accessor for edge ids is planned.
-
-**Nor can it read an attribute's values.** The snapshot carries the topology and one weight per
-edge (`graph.weights`, filled from the attribute the element is configured to read as the edge
-weight, else `1`, and merged when parallel edges are merged); it does not carry the loaded node
-and edge attributes, or earlier runs' results. An attribute option therefore reaches `compute` as
-a name with no route to its values. Do not declare a weight or attribute option you cannot read:
-a method that silently ignores its weights is worse than one that declares none.
-
-Until both land, write an algorithm that needs either with the simple tier above: its `edge` form
-publishes by the element's own edge ids, and its graph reads any attribute or result by name.
-The descriptor's fields have builders for three shapes -- `nodeMetricFields`, `edgeMetricFields`
-and `communityFields` -- and `metricField` for any other. Field-spec builders exist for every shape
-the advanced tier can publish: `metricFieldSpecs`,
-`communityFieldSpecs`, `PATH_FIELD_SPECS`, `LAYERED_GROUPING_FIELD_SPECS` and `setFieldSpecs`.
-`checkShapeContract` tells you whether your fields match the shape you declared.
+| Before                                          | Now                                                                            |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| `this.algorithmGraph("undirected")`             | `context.input("undirected").subgraph()`                                       |
+| `this.algorithmGraph("directed")`               | `context.input("declared").subgraph()`                                         |
+| `[...graph.nodes()].map((node) => node.id)`     | `Array.from({ length: g.nodeCount }, (_, row) => g.ids.idOf(row))`             |
+| `graph.neighbors(id)`                           | `g.colIdx.subarray(g.rowPtr[row], g.rowPtr[row + 1])`, rows mapped to ids      |
+| an edge id from `scope.resolve` and `data.edge` | `input.edgeId(row)`, or `input.subgraphEdgeIds(row)` for a row of `subgraph()` |
 
 ### How it is refused
 
@@ -557,6 +595,8 @@ the advanced tier can publish: `metricFieldSpecs`,
 | A key nothing registered                                               | `E_UNKNOWN_ALGORITHM`, with `details.available` |
 | An option the descriptor does not declare                              | `E_UNKNOWN_OPTION`, with `details.candidates`   |
 | An option value outside the declared range                             | `E_OPTION_RANGE`                                |
+| `input.column(name)` for an option not declared as attribute/partition | `E_UNKNOWN_OPTION`                              |
+| `input.column(name)` or `weight` naming what nothing carries           | `E_OPTION_RANGE`                                |
 
 A coded failure you raise yourself reaches the caller under the code you chose:
 
@@ -567,12 +607,12 @@ throw new GraphtyError({
     code: "E_UNSUPPORTED",
     message: "this algorithm needs a weighted graph",
     source: "run",
-    details: { algorithm: "hop-reach" },
+    details: { algorithm: "tie-strength" },
 });
 ```
 
-In the advanced tier, a plain `Error` -- a bug in your code -- is given `E_INTERNAL` with the
-original kept as `cause`, rather than escaping raw into a consumer's handler.
+In the advanced tier, a plain `Error` -- a bug in your code -- is given `E_INTERNAL` with the original kept as `cause`,
+rather than escaping raw into a consumer's handler.
 
 ### The styling rule
 

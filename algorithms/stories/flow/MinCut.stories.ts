@@ -8,15 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, stoerWagner } from "@graphty/algorithms";
+import { stoerWagner } from "@graphty/algorithms";
+import { maskTest } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -32,23 +30,6 @@ interface MinCutArgs {
     nodeCount: number;
     graphType: GraphType;
     seed: number;
-}
-
-/**
- * Convert GeneratedGraph to @graphty/algorithms Graph with string node IDs.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(String(node.id));
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(String(edge.source), String(edge.target), edge.weight ?? 1);
-    }
-
-    return graph;
 }
 
 /**
@@ -68,10 +49,25 @@ function createMinCutStory(args: MinCutArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
 
     // Run Stoer-Wagner minimum cut algorithm
-    const result = stoerWagner(graph);
+    const cut = stoerWagner(graph);
+    const partition1 = new Set<string>();
+    const partition2 = new Set<string>();
+    for (let i = 0; i < graph.nodeCount; i++) {
+        (maskTest(cut.side, i) ? partition1 : partition2).add(String(graph.ids.idOf(i)));
+    }
+    const { src, dst } = graph.edgeList();
+    const result = {
+        cutValue: cut.cutValue,
+        partition1,
+        partition2,
+        cutEdges: Array.from(cut.cutEdges, (e) => ({
+            from: String(graph.ids.idOf(src[e])),
+            to: String(graph.ids.idOf(dst[e])),
+        })),
+    };
 
     // Create container
     const { container, svg } = createStoryContainer();

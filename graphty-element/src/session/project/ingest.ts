@@ -226,18 +226,18 @@ export class Ingest<K extends KnownEdge> {
     private loadTally: ImportTally | null = null;
 
     /**
-     * Whether a load from a data source is still streaming records in.
-     * @returns true between a load's first chunk and its end
-     */
-    get loading(): boolean {
-        return this.loadTally !== null;
-    }
-
-    /**
      * Start with no records seen and no report.
      * @param host - what draws the graph, and knows which edges it already holds
      */
     constructor(private readonly host: IngestHost<K>) {}
+
+    /**
+     * Whether a load from a data source is still streaming records in.
+     * @returns true between a load's first chunk and its end
+     */
+    get isLoading(): boolean {
+        return this.loadTally !== null;
+    }
 
     /** Forget everything about the graph that was: called when the host discards its store. */
     reset(): void {
@@ -1000,7 +1000,7 @@ export class Ingest<K extends KnownEdge> {
      * than to repeat one level down.
      * @returns the node and edge counts the graph holds
      */
-    private heldCounts(): { nodes: number; edges: number } {
+    heldCounts(): { nodes: number; edges: number } {
         const { builder } = this.host.store();
         return { nodes: builder.nodeCount, edges: builder.edgeCount };
     }

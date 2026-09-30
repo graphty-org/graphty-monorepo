@@ -1,6 +1,6 @@
 # Custom palettes
 
-Available from graphty-element 2.7.
+Available from graphty-element 3.0.
 
 A palette is a named list of colours that a style layer paints with. The element ships eighteen
 (viridis, okabe-ito and the rest); `definePalette` adds yours, and from then on it is offered and
@@ -68,7 +68,7 @@ with no build step, import it from the bundle:
 ```html
 <graphty-element id="graph"></graphty-element>
 <script type="module">
-    import { definePalette } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js";
+    import { definePalette } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js";
 
     definePalette({ id: "acme-brand", kind: "categorical", colors: ["#0B1D51", "#1B7F79", "#F2A65A"] });
     document.getElementById("graph").setDefaultPalettes({ categorical: "acme-brand" });

@@ -173,6 +173,15 @@ export interface ViewMasks {
 /** The version a mask that is not there reports, which no real mask can hold. */
 const NO_MASK_VERSION = -1;
 
+/** The frame a layout step stands for: one step per frame at 60 Hz. See `updateLayout`. */
+const NOMINAL_FRAME_MS = 1000 / 60;
+
+/**
+ * The most step rounds one frame takes to catch up: a frame of 200 ms or more owes 12. Above it,
+ * as after a hidden tab's first frame, the rest of the time is dropped rather than owed.
+ */
+const MAX_CATCH_UP_ROUNDS = 12;
+
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
 
@@ -797,15 +806,18 @@ export class UpdateManager implements Manager {
      * The pass itself is the private `runUpdatePass()`; what is added here is the one
      * question a consumer cares about and the pass has several exits from -- whether the state it
      * leaves behind is a finished picture.
+     * @param frameMs - How long the previous frame took. A running layout keeps to one step per
+     *     nominal 60 Hz frame of that time, so it settles in the same seconds however slowly the
+     *     frames are drawn. Omitted or 0 -- every hand-pumped pass -- it takes one step.
      */
-    update(): void {
+    update(frameMs = 0): void {
         // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
         // the next frame draws, so it has to be announced again once that frame is drawn.
         if (!this.pictureIsFinished()) {
             this.drawnFrameIsFinished = false;
         }
 
-        this.runUpdatePass();
+        this.runUpdatePass(frameMs);
 
         this.stateIsFinished = this.pictureIsFinished();
 
@@ -817,8 +829,9 @@ export class UpdateManager implements Manager {
 
     /**
      * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
+     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
      */
-    private runUpdatePass(): void {
+    private runUpdatePass(frameMs: number): void {
         this.frameCount++;
 
         // Before anything is drawn or measured: the masks decide what IS drawn, so a node that a
@@ -859,7 +872,7 @@ export class UpdateManager implements Manager {
         }
 
         // Update layout engine (step the force-directed algorithm)
-        this.updateLayout();
+        this.updateLayout(frameMs);
 
         // ASKED BEFORE THE GRAPH IS MEASURED, because the answer decides how the measurement is
         // taken: reading a node's world position as of THIS instant costs a forced matrix per node
@@ -883,8 +896,10 @@ export class UpdateManager implements Manager {
     /**
      * Update the layout engine
      *
-     * `minDelta` is the settle threshold: once a whole frame of stepping moves every node less
-     * than that, the layout has arrived and is stopped. Zero -- the default -- switches the
+     * `minDelta` is the settle threshold: once one round of stepping (`stepMultiplier` steps, one
+     * nominal frame's worth) moves every node less than that, the layout has arrived and is
+     * stopped. It is measured per ROUND, not per drawn frame, so a slow frame that catches up
+     * several rounds stops at the same step a fast one would. Zero -- the default -- switches the
      * threshold off and lets the engine decide for itself, which is what every graph did before,
      * because `minDelta` was published, documented as pacing the layout, set by eight test files,
      * and read by nothing at all.
@@ -892,29 +907,60 @@ export class UpdateManager implements Manager {
      * MEASURED FROM THE ENGINE rather than from the meshes, because the meshes are moved later in
      * the same frame and would lag the measurement by one. Paid only when a threshold is set: at
      * zero this reads no positions and allocates nothing.
+     *
+     * PACED BY TIME, NOT BY FRAMES. A layout converges after a fixed number of steps, and one step
+     * a frame made the time to settle that count times the cost of a frame -- which is dominated
+     * by moving the meshes and trimming every edge at its nodes, not by the step. The graphty
+     * app's college-football sample settles after 162 steps: under 3 s at 60 Hz, over 30 s on a
+     * software-rendered runner drawing a frame every 190 ms. So a slow frame takes the steps the
+     * frames it stood in for would have taken, `frameMs` / 16.7 of them, and moves the meshes once.
+     * The steps and where the layout ends are the same; only the number of drawn frames changes.
+     *
+     * Bounded twice, so a frame that is slow BECAUSE of stepping cannot feed itself: never more
+     * than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round once stepping has used half of
+     * `frameMs`. A simulation layout keeps its one batch a frame (see below).
+     * @param frameMs - How long the previous frame took; 0 takes one round.
      */
-    private updateLayout(): void {
+    private updateLayout(frameMs: number): void {
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 
         const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
-        const before = minDelta > 0 ? this.enginePositions() : null;
 
         if (this.layoutManager.layoutEngine instanceof SimulationLayoutEngine) {
             // ONE batch per frame. The simulation computes `iterationsPerStep` iterations inside
             // it, so this is the same amount of work the loop below does on the CPU -- and on an
             // accelerator it is the one shape that lets the device coalesce rather than queue.
+            const before = minDelta > 0 ? this.enginePositions() : null;
             this.layoutManager.stepBatch();
             this.layoutStepCount++;
-        } else {
-            for (let i = 0; i < stepMultiplier; i++) {
-                this.layoutManager.step();
-                this.layoutStepCount++;
-            }
-        }
 
-        if (before !== null && this.largestMove(before) < minDelta) {
-            this.layoutManager.running = false;
+            if (before !== null && this.largestMove(before) < minDelta) {
+                this.layoutManager.running = false;
+            }
+        } else {
+            const rounds = Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
+            const started = rounds > 1 ? performance.now() : 0;
+
+            for (let round = 0; round < rounds; round++) {
+                // A settled engine has nothing left to catch up on.
+                const engine = this.layoutManager.layoutEngine;
+                if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
+                    break;
+                }
+
+                const before = minDelta > 0 ? this.enginePositions() : null;
+
+                for (let i = 0; i < stepMultiplier; i++) {
+                    this.layoutManager.step();
+                    this.layoutStepCount++;
+                }
+
+                if (before !== null && this.largestMove(before) < minDelta) {
+                    this.layoutManager.running = false;
+                    break;
+                }
+            }
         }
 
         this.statsManager.graphStep.endMonitoring();

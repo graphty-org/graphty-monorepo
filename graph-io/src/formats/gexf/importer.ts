@@ -2284,13 +2284,21 @@ function parseColor(attrs: ReadonlyMap<string, string>): number[] {
     return [r / 255, g / 255, b / 255, a];
 }
 
+/** A head that starts with markup, after an optional byte-order mark and whitespace. */
+const XML_START = /^\uFEFF?\s*</;
+
 /**
  * Confidence that a document head is GEXF.
  * @param head - the first bytes
- * @returns 1 for a `<gexf` tag, 0.8 for a gexf.net namespace, 0 otherwise
+ * @returns 1 for a `<gexf` tag, 0.8 for a gexf.net namespace, 0 otherwise or when the head does
+ *     not start with markup
  */
 function sniffGexf(head: Uint8Array): number {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(head);
+    // Only a document that starts as markup: a JSON or CSV value may mention a `<gexf>` tag.
+    if (!XML_START.test(text)) {
+        return 0;
+    }
     if (/<(\w+:)?gexf[\s>]/.test(text)) {
         return 1;
     }

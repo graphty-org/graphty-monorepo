@@ -1,10 +1,10 @@
 /**
  * @file Floyd-Warshall and label propagation, run through `accelerated()`.
  *
- * Both run on the index-based CPU port whatever accelerator is attached: the element does not
- * route either to an accelerator yet, so one that implements the member is never asked, and the
- * run says its numbers are double precision. What each publishes is checked against answers
- * worked out by hand.
+ * Both run on the index-based CPU port below their routing floors, whatever accelerator is
+ * attached: one that implements the member is never asked, and the run says its numbers are double
+ * precision. What each publishes is checked against answers worked out by hand. The routing above
+ * the floors is in `accelerated-new-capabilities.test.ts`.
  */
 
 import { assert, describe, it } from "vitest";
@@ -97,12 +97,11 @@ async function withImplementingAccelerator(
         },
     });
     const graph = await createMockGraph(opts);
-    if (policy === "required") {
-        (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
-            policy,
-            registry: new AcceleratorRegistry(),
-        });
-    }
+    // A controller with the built-in floors in force: the mock's own sets its threshold to 0.
+    (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
+        policy,
+        registry: new AcceleratorRegistry(),
+    });
     graph.acceleration.setAccelerator(fake);
     return { graph, calls };
 }
@@ -236,7 +235,9 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
         assert.strictEqual(new Set([...group.values()].map((value) => value.group)).size, 3);
 
         assert.strictEqual(output.caveats.precision, "f64");
-        assert.strictEqual(output.caveats.seed, 42);
+        // No seed: the synchronous definition, which has none to report.
+        assert.isUndefined(output.caveats.seed);
+        assert.strictEqual(output.caveats.method, "label-propagation-synchronous");
         assert.strictEqual(output.caveats.converged, true);
     });
 
@@ -262,7 +263,9 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
     });
 
     it("hands maxIterations to the run, so a capped run stops there unconverged", async () => {
-        const output = await computed(new LabelPropagationAlgorithm(await createMockGraph(RING), { maxIterations: 1 }));
+        const output = await computed(
+            new LabelPropagationAlgorithm(await createMockGraph(RING), { maxIterations: 1, randomSeed: 42 }),
+        );
 
         assert.strictEqual(output.caveats.iterations, 1);
         assert.strictEqual(output.caveats.converged, false);
@@ -278,18 +281,39 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
     });
 });
 
-describe("not routed to an accelerator, so acceleration=required does not refuse them", () => {
-    it("runs both on the CPU port under required with an accelerator that implements the members", async () => {
+describe("under acceleration=required both reach the accelerator at any size", () => {
+    it("hands both to an accelerator that implements the members, and its failure is the run's", async () => {
         const path = await withImplementingAccelerator(PATH, "required");
-        const allPairs = await computed(new FloydWarshallAlgorithm(path.graph));
-        assert.strictEqual(path.calls.allPairsShortestPath, 0);
-        assert.strictEqual(allPairs.caveats.precision, "f64");
-        assert.strictEqual(allPairs.graph?.diameter, 6);
+        let allPairs: unknown;
+        try {
+            await computed(new FloydWarshallAlgorithm(path.graph));
+        } catch (error) {
+            allPairs = error;
+        }
+        assert.strictEqual(path.calls.allPairsShortestPath, 1);
+        assert.include(String(allPairs), "the fake all-pairs member was called");
 
         const triangles = await withImplementingAccelerator(TWO_TRIANGLES, "required");
-        const groups = await computed(new LabelPropagationAlgorithm(triangles.graph));
-        assert.strictEqual(triangles.calls.labelPropagation, 0);
-        assert.strictEqual(groups.caveats.precision, "f64");
-        assert.strictEqual(new Set([...nodeValues(groups).values()].map((value) => value.group)).size, 3);
+        let groups: unknown;
+        try {
+            await computed(new LabelPropagationAlgorithm(triangles.graph));
+        } catch (error) {
+            groups = error;
+        }
+        assert.strictEqual(triangles.calls.labelPropagation, 1);
+        assert.include(String(groups), "the fake label propagation member was called");
+    });
+
+    it("refuses a seeded label propagation, which no accelerator answers, before any work", async () => {
+        const { graph, calls } = await withImplementingAccelerator(TWO_TRIANGLES, "required");
+        let caught: unknown;
+        try {
+            await computed(new LabelPropagationAlgorithm(graph, { randomSeed: 7 }));
+        } catch (error) {
+            caught = error;
+        }
+        assert.isTrue(isGraphtyError(caught), String(caught));
+        assert.strictEqual((caught as { code: string }).code, "E_NO_ACCELERATOR");
+        assert.strictEqual(calls.labelPropagation, 0);
     });
 });

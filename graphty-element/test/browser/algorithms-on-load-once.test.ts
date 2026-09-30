@@ -12,7 +12,7 @@ import { ActionManager } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../src/Graph.js";
-import { sessionRunsOf } from "../../src/session/GraphSession";
+import { sessionRunsOf } from "../../src/session/GraphSession.js";
 
 const NODES = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
 const EDGES = NODES.slice(1).map((node, i) => ({ source: `n${i}`, target: node.id }));
@@ -22,7 +22,7 @@ let graph: Graph | null = null;
 /**
  * A graph whose load-time list names two algorithms, counting how often each is asked to start.
  *
- * Counted where every start goes, `startVia`, rather than off the run notifications: the run registry reuses a run
+ * Counted at the runs API's `startVia` rather than off the run notifications: the run registry reuses a run
  * already under way for the same result, so the notifications alone cannot tell one request from
  * seven -- but each extra request still freezes a snapshot and may re-run over a graph that is
  * still arriving.
@@ -35,6 +35,8 @@ async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> 
     await made.getSession().config.set({ runAlgorithmsOnLoad: true, data: { algorithms: ["degree", "pagerank"] } });
 
     const starts = new Map<string, number>();
+    // Every start goes through startVia: the on-load list hands it the deferred dispatch of the
+    // step that added the rows, and runs.start hands it the session's own.
     const runs = sessionRunsOf(made.getSession());
     const startVia = runs.startVia.bind(runs);
     vi.spyOn(runs, "startVia").mockImplementation((dispatch, algorithm, params, options) => {
@@ -83,16 +85,10 @@ describe("the load-time algorithm list", () => {
         assert.deepStrictEqual(Object.fromEntries(starts), { degree: 1, pagerank: 1 });
     });
 
-    test("starts each algorithm once for pushes made as one step, and again for a later push", async () => {
-        // The on-load runs are deferred members of the step that added the rows, so undoing the
-        // add takes them with it: one step, one start, however many adds the step holds.
+    test("starts each algorithm once for pushes queued together, and again for a later push", async () => {
         const { graph: made, starts } = await makeGraph();
 
-        await made.getSession().transaction("Added a graph", async (tx) => {
-            await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: NODES.slice(0, 5) } });
-            await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: NODES.slice(5) } });
-            await tx.execute({ op: "data.apply", mutation: { kind: "add-edges", records: EDGES } });
-        });
+        await Promise.all([made.addNodes(NODES.slice(0, 5)), made.addNodes(NODES.slice(5)), made.addEdges(EDGES)]);
         await settle(made);
 
         assert.deepStrictEqual(Object.fromEntries(starts), { degree: 1, pagerank: 1 });

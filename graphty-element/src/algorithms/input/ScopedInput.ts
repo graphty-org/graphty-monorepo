@@ -23,19 +23,26 @@
  */
 
 import {
+    type Column,
+    type ColumnInput,
     type DerivedGraph,
     type EdgeMask,
+    fromEdgeArrays,
     type GraphSnapshot,
     INVALID_INDEX,
     makeMask,
     maskTest,
     type NodeMask,
+    type TypedArrayData,
     type U32,
 } from "@graphty/graph-format";
 
 import type { AlgorithmDescriptor, EdgeId, EdgeReading, NodeId } from "../../catalog/types";
 import { EDGE_ID_COLUMN, edgeIdOf } from "../../data/edgeIdentity";
+import { GraphtyError } from "../../errors";
+import type { WeightMeaning } from "../../session/runs/types";
 import type { Resolution } from "../../session/sets/resolve";
+import type { ColumnValues, InputColumns } from "./columns";
 import {
     type DerivedInput,
     DerivedInputs,
@@ -47,6 +54,12 @@ import {
 /** Counts the input tests read: `derivations` is one per graph-format derivation, each a CSR pass. */
 export const scopedInputCounters = { derivations: 0 };
 
+/**
+ * How an algorithm wants the reader's graph presented: `"directed"` reads the declared
+ * orientation, `"undirected"` collapses a reciprocal pair into one edge.
+ */
+export type AlgorithmGraphMode = "directed" | "undirected";
+
 /** How a run wants its input built. OPEN: may gain members. */
 export interface ScopedInputOptions {
     /**
@@ -54,6 +67,15 @@ export interface ScopedInputOptions {
      * of a repeated edge as more connection; shortest paths want "min".
      */
     readonly simplify?: "sum" | "min" | "max" | "none";
+    /**
+     * The edge attribute that fills the weights, and whether a weight is a distance or a
+     * strength. The element fills `graph.weights` (and the subgraph's, merged by `simplify`) from
+     * it -- an edge carrying no number there weighs 1 -- and records it as the run's
+     * `caveats.weight`. `null` reads the graph unweighted, the subgraph included. Absent, the weights are the ones the
+     * graph was loaded with (`data.knownFields.edgeWeightPath`), whose meaning the run does not
+     * state.
+     */
+    readonly weight?: WeightMeaning | null;
 }
 
 /** What a scoped run computes over (design 10.2). OPEN: may gain members. */
@@ -70,8 +92,41 @@ export interface ScopedInput {
     readonly nodeCount: number;
     /** How many edges the scope holds: the set bits of `edges`. */
     readonly edgeCount: number;
-    /** The derived compact snapshot in the asked orientation. Lazy, cached, shared. */
+    /**
+     * The derived compact snapshot in the asked orientation. Lazy, cached, shared. It carries every
+     * column {@link ScopedInput.column} has handed out so far, under the same name, so ask for the
+     * columns first. An edge column merges by the same rule as the weights: a reciprocal pair the
+     * undirected view collapses keeps its lower row's value, and a group of parallel edges is
+     * combined by the `simplify` policy (a column that is not numeric keeps the group's first).
+     */
     subgraph(): GraphSnapshot;
+    /** The weight this input was asked for; undefined when it was not asked (see ScopedInputOptions.weight). */
+    readonly weight?: WeightMeaning | null;
+    /**
+     * The element's id of one edge of `graph`: what an edge result is published under.
+     * @param row - The edge's row in `graph`.
+     * @returns The id.
+     */
+    edgeId(row: number): EdgeId;
+    /**
+     * The ids of every edge of `graph` behind one edge of `subgraph()`: more than one when
+     * parallel edges were merged, or a reciprocal pair collapsed into one undirected edge. A value
+     * computed for the row belongs to each of them, so publish it under every id.
+     * @param row - The edge's row in `subgraph()`.
+     * @returns The ids, in `graph` row order.
+     */
+    subgraphEdgeIds(row: number): readonly EdgeId[];
+    /**
+     * The column behind a declared "attribute" or "partition" option, over the rows of `graph`:
+     * node rows or edge rows, whichever the attribute is carried on. An option naming a result
+     * path (`results.<run>.<field>`) reads that run's published values. `column.meta.name` is the
+     * path, which is also its name in `subgraph()`.
+     * @param optionName - The option's name.
+     * @returns The column; a row whose element carries no value is unset.
+     * @throws A GraphtyError with E_UNKNOWN_OPTION for an option not declared as an attribute or
+     *   partition, or E_OPTION_RANGE when nothing in the graph carries what it names.
+     */
+    column(optionName: string): Column;
 }
 
 /**
@@ -307,12 +362,146 @@ function scopedInput(
     return current === base ? base : inputs.put(holder, membership, orientation, simplify, current, declared);
 }
 
+/** The dtypes whose `data` is one number per component per row, so it can be handed on as is. */
+const NUMERIC_DTYPES: ReadonlySet<string> = new Set(["f32", "f64", "i32", "u32", "u8"]);
+
+/**
+ * A table's columns that hold a number in every row, as typed arrays to rebuild them from. These
+ * are the element's bookkeeping columns -- the edge ids among them -- which the store's snapshot
+ * carries; a column with unset rows or of another dtype is not carried, and the weights' own
+ * shadow column is rebuilt with them.
+ * @param table - The table.
+ * @returns The columns, by name.
+ */
+function completeNumericColumns(table: GraphSnapshot["edges"]): Record<string, ColumnInput> {
+    const out: Record<string, ColumnInput> = {};
+    for (const column of table) {
+        // The weight-role column (the f64 shadow of the weights) is rebuilt with the weights.
+        if (
+            NUMERIC_DTYPES.has(column.dtype) &&
+            column.nullCount === 0 &&
+            column.meta.role !== "weight" &&
+            "data" in column
+        ) {
+            out[column.meta.name] = {
+                data: column.data as TypedArrayData,
+                decl: { dtype: column.dtype, components: column.meta.components, role: column.meta.role ?? undefined },
+            };
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The declared graph with its weights read from an edge attribute: the same nodes, and the same
+ * edges in the same rows, so a row of it is a row of the store's snapshot and every mask and edge
+ * id carries over, and so do the store's complete numeric columns (the edge ids among them).
+ * @param declared - The store's snapshot.
+ * @param values - The attribute, by edge row; null for an unweighted graph.
+ * @returns The snapshot.
+ */
+function reweighted(declared: GraphSnapshot, values: readonly unknown[] | null): GraphSnapshot {
+    const { src, dst } = declared.edgeList();
+    const ids = Array.from({ length: declared.nodeCount }, (_, row) => declared.ids.idOf(row));
+    const weights =
+        values === null
+            ? undefined
+            : Float64Array.from(values, (value) => (typeof value === "number" && Number.isFinite(value) ? value : 1));
+
+    return fromEdgeArrays({
+        directed: declared.directed,
+        ids,
+        src,
+        dst,
+        weights,
+        nodeColumns: completeNumericColumns(declared.nodes),
+        edgeColumns: completeNumericColumns(declared.edges),
+    });
+}
+
+/**
+ * The input over a snapshot the run cache does not hold -- a reweighted one, or one carrying the
+ * columns a run named -- by the same derivation steps, uncached. A named edge column merges by
+ * the same rule as the weights: the lower row of a collapsed reciprocal pair, then the `simplify`
+ * policy over a group of parallel edges (a column that is not numeric keeps the group's first).
+ * @param declared - The snapshot.
+ * @param membership - The scope's bitmaps, or null for the whole graph.
+ * @param orientation - The orientation.
+ * @param simplify - The merge policy.
+ * @param unweighted - Whether the run asked for no weights: merged edges then stay unweighted,
+ *   rather than weighing as many as the edges merged into them.
+ * @param numeric - The named edge columns that hold numbers.
+ * @returns The input.
+ */
+function uncachedInput(
+    declared: GraphSnapshot,
+    membership: InputMembership | null,
+    orientation: InputOrientation,
+    simplify: SimplifyPolicy,
+    unweighted: boolean,
+    numeric: readonly string[] = [],
+): DerivedInput {
+    let current: DerivedInput =
+        membership === null
+            ? { snapshot: declared, edgeRemap: null, nodeOrigin: null }
+            : intermediateOf(membership, declared);
+    if (orientation === "undirected" && current.snapshot.directed) {
+        current = chained(current, counted(current.snapshot.toUndirected()));
+    }
+
+    if (simplify !== "none" && current.snapshot.flags.multigraph) {
+        const edgeReducers = Object.fromEntries(numeric.map((name) => [name, simplify]));
+        current = chained(
+            current,
+            counted(current.snapshot.simplified({ weights: unweighted ? "first" : simplify, edgeReducers })),
+        );
+    }
+
+    return current;
+}
+
+/**
+ * The rows of `graph` behind each edge row of a derived input.
+ * @param derived - The input.
+ * @param declaredEdges - How many edges `graph` has.
+ * @returns The groups, by derived edge row.
+ */
+function edgeGroups(derived: DerivedInput, declaredEdges: number): number[][] {
+    const groups = Array.from({ length: derived.snapshot.edgeCount }, (): number[] => []);
+    const { edgeRemap } = derived;
+    for (let row = 0; row < declaredEdges; row++) {
+        const target = edgeRemap === null ? row : edgeRemap[row];
+        if (target !== INVALID_INDEX && target < groups.length) {
+            groups[target].push(row);
+        }
+    }
+
+    return groups;
+}
+
+/**
+ * Refuse a path nothing carries.
+ * @param what - What named it: an option, or the weight.
+ * @param path - The path.
+ * @returns The error.
+ */
+function nothingCarries(what: string, path: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_OPTION_RANGE",
+        message: `no node or edge carries "${path}", which ${what} names`,
+        source: "run",
+        details: { option: what, path },
+    });
+}
+
 /**
  * The input one algorithm reads, in one orientation.
  * @param data - The data manager.
  * @param orientation - The orientation.
- * @param options - The merge policy.
+ * @param options - The merge policy and the weight.
  * @param run - The run's binding, when the algorithm declares a scoped input and runs as a run.
+ * @param columns - Where attribute and result columns are read; absent, `column()` refuses.
  * @returns The input.
  * @throws An Error when the run's scope was resolved against another snapshot than the current one.
  */
@@ -321,30 +510,68 @@ export function createScopedInput(
     orientation: InputOrientation,
     options?: ScopedInputOptions,
     run?: RunInput,
+    columns?: InputColumns,
 ): ElementScopedInput {
-    const declared = data.getSnapshot();
+    const store = data.getSnapshot();
     const simplify = options?.simplify ?? "sum";
     const scope = run?.scope() ?? null;
-    if (scope !== null && scope.graph !== declared) {
+    if (scope !== null && scope.graph !== store) {
         throw new Error("A run's scope was resolved against a snapshot that is no longer the graph.");
     }
 
     const resolution = scope?.resolution;
     const membership =
         resolution === undefined ||
-        (resolution.nodeCount === declared.nodeCount && resolution.edgeCount === declared.edgeCount)
+        (resolution.nodeCount === store.nodeCount && resolution.edgeCount === store.edgeCount)
             ? null
             : resolution;
+
+    let edgeCounters: U32 | null = null;
+    const edgeId = (row: number): EdgeId => {
+        if (edgeCounters === null) {
+            const column = store.edges.typed(EDGE_ID_COLUMN, "u32");
+            if (column === null) {
+                throw new Error(`The graph carries no "${EDGE_ID_COLUMN}" column to name its edges by.`);
+            }
+            edgeCounters = column.data;
+        }
+
+        if (!Number.isInteger(row) || row < 0 || row >= store.edgeCount) {
+            throw new RangeError(`edge row ${String(row)} is outside the graph's ${String(store.edgeCount)} edges`);
+        }
+
+        return edgeIdOf(edgeCounters[row]);
+    };
+
+    const weight = options?.weight;
+    let declared = store;
+    if (weight !== undefined) {
+        const values = weight === null ? null : columns?.read(store, weight.attribute, "edge", edgeId)?.values;
+        if (values === undefined) {
+            throw nothingCarries("the weight", weight?.attribute ?? "");
+        }
+        declared = reweighted(store, values);
+    }
+
     let derived: DerivedInput | null = null;
+    let groups: number[][] | null = null;
     let nodes: U32 | null = membership?.nodes ?? null;
     let edges: U32 | null = membership?.edges ?? null;
+    /** Every column handed out, by path, with its values over `graph`. */
+    const named = new Map<string, ColumnValues & { column: Column }>();
+    let withNamed: { size: number; snapshot: GraphSnapshot } | null = null;
 
     const input = {
         graph: declared,
         whole: membership === null,
         nodeCount: membership?.nodeCount ?? declared.nodeCount,
         edgeCount: membership?.edgeCount ?? declared.edgeCount,
+        ...(weight === undefined ? {} : { weight }),
         derived(): DerivedInput {
+            if (derived === null && declared !== store) {
+                derived = uncachedInput(declared, membership, orientation, simplify, weight === null);
+            }
+
             derived ??=
                 membership === null || run === undefined
                     ? wholeInput(data, declared, orientation, simplify)
@@ -352,8 +579,80 @@ export function createScopedInput(
             return derived;
         },
         subgraph(): GraphSnapshot {
-            return input.derived().snapshot;
+            if (named.size === 0) {
+                return input.derived().snapshot;
+            }
+
+            if (withNamed?.size !== named.size) {
+                const nodeColumns: Record<string, ColumnInput> = {};
+                const edgeColumns: Record<string, ColumnInput> = {};
+                const numeric: string[] = [];
+                for (const [path, { kind, values }] of named) {
+                    (kind === "node" ? nodeColumns : edgeColumns)[path] = { data: values, decl: {} };
+                    if (kind === "edge" && values.every((value) => value === undefined || typeof value === "number")) {
+                        numeric.push(path);
+                    }
+                }
+
+                const carrier = declared.withColumns(nodeColumns, edgeColumns);
+                withNamed = {
+                    size: named.size,
+                    snapshot: uncachedInput(carrier, membership, orientation, simplify, weight === null, numeric)
+                        .snapshot,
+                };
+            }
+
+            return withNamed.snapshot;
         },
+        edgeId,
+        subgraphEdgeIds(row: number): readonly EdgeId[] {
+            const all = groupsOf();
+            if (!Number.isInteger(row) || row < 0 || row >= all.length) {
+                throw new RangeError(`edge row ${String(row)} is outside the subgraph's ${String(all.length)} edges`);
+            }
+
+            return all[row].map(edgeId);
+        },
+        column(optionName: string): Column {
+            if (columns === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNKNOWN_OPTION",
+                    message: `"${optionName}" is not an attribute or partition option of this algorithm`,
+                    source: "run",
+                    details: { option: optionName },
+                });
+            }
+
+            const { path, on } = columns.option(optionName);
+            const held = named.get(path);
+            if (held !== undefined) {
+                return held.column;
+            }
+
+            const read = columns.read(declared, path, on, edgeId);
+            if (read === null) {
+                throw nothingCarries(`"${optionName}"`, path);
+            }
+
+            const cell = { data: read.values, decl: {} };
+            const carrier =
+                read.kind === "node"
+                    ? declared.withColumns({ [path]: cell })
+                    : declared.withColumns(undefined, { [path]: cell });
+            const column = (read.kind === "node" ? carrier.nodes : carrier.edges).require(path);
+            named.set(path, { ...read, column });
+
+            return column;
+        },
+    };
+
+    /**
+     * The rows of `graph` behind each edge of the subgraph, built on first use.
+     * @returns The groups.
+     */
+    const groupsOf = (): number[][] => {
+        groups ??= edgeGroups(input.derived(), declared.edgeCount);
+        return groups;
     };
 
     Object.defineProperties(input, {
@@ -456,24 +755,34 @@ export function derivedInputsOf(owner: InputOwner): DerivedInputs {
     if (inputs === undefined) {
         inputs = new DerivedInputs({
             release: (snapshot) => {
-                const { accelerator } = owner.acceleration;
-                const release = accelerator?.release;
-                if (typeof release !== "function") {
-                    return;
-                }
-
-                try {
-                    (release as (target: GraphSnapshot) => void).call(accelerator, snapshot);
-                } catch (error) {
-                    // A third party's release is untrusted code; a throw must not fail the run.
-                    console.warn("graphty: an accelerator threw while releasing a derived input", error);
-                }
+                releaseOnAccelerator(owner, snapshot);
             },
         });
         caches.set(owner, inputs);
     }
 
     return inputs;
+}
+
+/**
+ * Frees the attached accelerator's device buffers for a snapshot nothing will read again, when the
+ * accelerator has a `release`. Safe for a snapshot the accelerator never saw.
+ * @param owner - The graph.
+ * @param snapshot - The snapshot to release.
+ */
+export function releaseOnAccelerator(owner: InputOwner, snapshot: GraphSnapshot): void {
+    const { accelerator } = owner.acceleration;
+    const release = accelerator?.release;
+    if (typeof release !== "function") {
+        return;
+    }
+
+    try {
+        (release as (target: GraphSnapshot) => void).call(accelerator, snapshot);
+    } catch (error) {
+        // A third party's release is untrusted code; a throw must not fail the run.
+        console.warn("graphty: an accelerator threw while releasing a derived input", error);
+    }
 }
 
 /**

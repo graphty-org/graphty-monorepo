@@ -1,9 +1,10 @@
-import { INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import { bipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Bipartite Layout
@@ -61,11 +62,13 @@ type BipartiteLayoutOpts = Partial<BipartiteLayoutConfigType>;
 /**
  * Bipartite layout engine for graphs with two distinct node sets
  */
-export class BipartiteLayout extends SimpleLayoutEngine {
+export class BipartiteLayout extends SnapshotLayoutEngine {
     static type = "bipartite";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = bipartiteLayoutOptionsSchema;
-    scalingFactor = 40;
+    /** Layout units to scene units. */
+    private static readonly scale = 40;
+    protected readonly dimensions: 2 | 3;
     config: BipartiteLayoutConfigType;
 
     /**
@@ -75,6 +78,7 @@ export class BipartiteLayout extends SimpleLayoutEngine {
     constructor(opts: BipartiteLayoutOpts) {
         super(opts);
         this.config = BipartiteLayoutConfig.parse(opts);
+        this.dimensions = 2;
     }
 
     /**
@@ -93,11 +97,20 @@ export class BipartiteLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions for bipartite graph
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const top = makeMask(this.graph.nodeCount);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
+     * Compute node positions for bipartite graph
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        const top = makeMask(input.graph.nodeCount);
         for (const id of this.config.nodes) {
             const row = this.rowOfId(id);
             if (row !== INVALID_INDEX) {
@@ -105,12 +118,15 @@ export class BipartiteLayout extends SimpleLayoutEngine {
             }
         }
 
-        this.result = bipartite(this.graph, {
-            top,
-            align: this.config.align,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            aspectRatio: this.config.aspectRatio,
-        });
+        return sceneUnits(
+            bipartite(input.graph, {
+                top,
+                align: this.config.align,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                aspectRatio: this.config.aspectRatio,
+            }),
+            BipartiteLayout.scale,
+        );
     }
 }

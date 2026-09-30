@@ -25,6 +25,11 @@ export interface GpuScoresResult {
     readonly precision: "f32";
 }
 
+/** Closeness scores with the number of sources run: `n` for the exact score, the sample's length for a sampled one. */
+export interface GpuClosenessResult extends GpuScoresResult {
+    readonly sourcesUsed: number;
+}
+
 /** Spec 3.3 line 816: `iterations` is the first iteration whose L1 delta fell below the tolerance (8.2), not the batch boundary. */
 export interface GpuPageRankResult extends GpuScoresResult {
     readonly danglingMass: number;

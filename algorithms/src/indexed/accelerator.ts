@@ -29,7 +29,7 @@ import type { GirvanNewmanOptions, GirvanNewmanResult } from "./girvan-newman.js
 import type { HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
 import type { KatzOptions } from "./katz.js";
-import type { LabelPropagationOptions } from "./label-propagation.js";
+import type { LabelPropagationOptions, SynchronousLabelPropagationOptions } from "./label-propagation.js";
 import type { LeidenOptions, LeidenResult } from "./leiden.js";
 import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
 import type { LouvainOptions } from "./louvain.js";
@@ -37,6 +37,7 @@ import type { BipartiteMatchingOptions, BipartiteMatchingResult } from "./matchi
 import type { KargerOptions, StoerWagnerOptions } from "./min-cut.js";
 import type { MstOptions, PrimOptions, PrimResult } from "./mst.js";
 import type { PageRankOptions } from "./pagerank.js";
+import { clusteringFrom, simpleUndirectedRows, type TriangleCountResult } from "./triangles.js";
 
 // ============================================================ result shapes (design 9.2 lines 2909-2922)
 // Scores may be f32 (an accelerator) or f64 (the CPU ports), so every score field is NumericVector.
@@ -302,6 +303,18 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * or the port's `k` draw -- but only on an undirected snapshot: the port measures each node's distance TO
  * the sources, which the accelerator's searches from the sources give only when distance is symmetric.
  *
+ * `labelPropagationSynchronous` is the deterministic label propagation on both paths: the accelerator's
+ * `labelPropagation` member (webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule) or
+ * the synchronous port. The two share the rule family -- synchronous passes, the lowest of the best-voted
+ * labels, an alternating direction guard -- but not every detail (which direction the first pass moves, and
+ * whether a label that ties for the lead is kept), so on a tie the partitions can differ; they agree on
+ * planted structure. Use it where a result should not depend on whether a device answered; use
+ * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
+ *
+ * `triangleCount` goes to the accelerator whenever it has the member, and the result always carries the
+ * clustering coefficient and the transitivity: an accelerator that returns only the seam's
+ * `{ perNode, total }` gets them computed here from the counts and the distinct degrees.
+ *
  * `depthFirstSearch`, `degrees`, `stronglyConnectedComponents`, `leiden`, `girvanNewman`, `maxFlow`,
  * `minSTCut`, `stoerWagner`, `kargerMinCut`, `commonNeighborsPrediction`, `adamicAdarPrediction`,
  * `primMST` and `maximumBipartiteMatching` always run the CPU port: `AlgorithmAccelerator` declares no member for
@@ -331,6 +344,11 @@ export interface AcceleratedAlgorithms {
     hits(s: GraphSnapshot, options?: HitsOptions): Promise<HitsResultLike>;
     louvain(s: GraphSnapshot, options?: LouvainOptions): Promise<CommunityResultLike>;
     labelPropagation(s: GraphSnapshot, options?: LabelPropagationOptions): Promise<LabelResultLike>;
+    labelPropagationSynchronous(
+        s: GraphSnapshot,
+        options?: SynchronousLabelPropagationOptions,
+    ): Promise<LabelResultLike>;
+    triangleCount(s: GraphSnapshot): Promise<TriangleCountResult>;
     allPairsShortestPath(s: GraphSnapshot, options?: ApspOptions): Promise<ApspCycleResultLike>;
     betweennessCentrality(s: GraphSnapshot, options?: BetweennessOptions): Promise<ScoresResultLike>;
     edgeBetweennessCentrality(s: GraphSnapshot, options?: EdgeBetweennessOptions): Promise<EdgeScoresResultLike>;
@@ -674,6 +692,24 @@ function decorateSssp(s: GraphSnapshot, source: number, like: SsspResultLike): S
 }
 
 /**
+ * An accelerator's triangle counts with the clustering coefficient and the transitivity: its own when
+ * it returned them (webgpu-graph-algorithms does), computed from the counts and the distinct degrees
+ * when it returned only the seam's `{ perNode, total }`.
+ * @param s - The snapshot the counts are over
+ * @param like - The accelerator's result
+ * @returns The full result
+ */
+function finishTriangles(
+    s: GraphSnapshot,
+    like: { readonly perNode: U32; readonly total: number } & Partial<TriangleCountResult>,
+): TriangleCountResult {
+    const { perNode, total, coefficient, transitivity } = like;
+    return coefficient !== undefined && transitivity !== undefined
+        ? { perNode, total, coefficient, transitivity }
+        : { perNode, total, ...clusteringFrom(perNode, total, simpleUndirectedRows(s).rowPtr) };
+}
+
+/**
  * Build the dispatcher for an accelerator, or for none.
  * @param acc - The injected accelerator, or `null` / `undefined` for the CPU path
  * @returns A dispatcher whose methods delegate where they can and run the CPU port otherwise
@@ -779,6 +815,14 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.labelPropagation !== undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
+        labelPropagationSynchronous: (s, options) =>
+            acc?.labelPropagation !== undefined
+                ? acc.labelPropagation(s, { maxIterations: options?.maxIterations, weighted: options?.weighted })
+                : Promise.resolve(indexed.labelPropagationSynchronous(s, options)),
+        triangleCount: (s) =>
+            acc?.triangleCount !== undefined
+                ? acc.triangleCount(s).then((like) => finishTriangles(s, like))
+                : Promise.resolve(indexed.triangleCount(s)),
         depthFirstSearch: (g, start, options) => onCpu(() => indexed.depthFirstSearch(g, start, options)),
         degrees: (s) => onCpu(() => indexed.degrees(s)),
         stronglyConnectedComponents: (s, options) => onCpu(() => indexed.stronglyConnectedComponents(s, options)),

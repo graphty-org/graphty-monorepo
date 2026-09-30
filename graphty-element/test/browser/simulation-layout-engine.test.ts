@@ -1097,7 +1097,6 @@ describe("the simulation layout bridge", () => {
     });
 });
 
-
 describe("the default force arrangement, which has two drivers", () => {
     it("is ngraph with nothing attached, and a freeze does not disturb it", async () => {
         const graph = await pathGraph(5);
@@ -1137,7 +1136,11 @@ describe("the default force arrangement, which has two drivers", () => {
         // CAPABILITY DETECTION, not a fallback after a failure: nothing failed, the accelerator
         // left, and the arrangement carries on being computed by the driver that is still there.
         await until(() => graph.getLayoutManager().layoutEngine instanceof NGraphEngine);
-        assert.lengthOf(errors.filter((event) => event.context === "layout"), 0, "and nothing was reported");
+        assert.lengthOf(
+            errors.filter((event) => event.context === "layout"),
+            0,
+            "and nothing was reported",
+        );
     });
 
     it("is built on the accelerator by a setLayout that asks for it, with hardware already attached", async () => {

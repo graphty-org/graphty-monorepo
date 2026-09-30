@@ -246,9 +246,9 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
- * accelerator's result carries no `iterations` or `converged`; call `indexed.labelPropagation`
- * directly for those. webgpu-graph-algorithms does not implement `labelPropagation` yet, so with its
- * accelerator this method runs the CPU port.
+ * accelerator's result carries no `iterations` or `converged`; call `labelPropagation` directly for
+ * those. webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule, so its
+ * partition can differ from the CPU port's, which visits nodes in a seeded random order.
  *
  * `breadthFirstSearch` with a `target` or an `arcOrder` runs the CPU port: a GPU BFS expands whole
  * levels and has no early stop and no neighbour order, so it would give a different result.

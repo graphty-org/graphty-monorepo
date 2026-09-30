@@ -36,6 +36,7 @@ import {
     type BfsOptions,
     type ClosenessAcceleratorOptions,
     type GpuAccelerator,
+    type HitsOptionsLike,
     type SsspOptions,
 } from "./types/accelerator.js";
 import {

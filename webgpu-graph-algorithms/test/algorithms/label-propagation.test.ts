@@ -4,9 +4,12 @@
  * partition -- on every named fixture, weighted and not, directed and not, because the result is bitwise reproducible.
  * Plus the gate's item (the planted partitions recovered with an adjusted Rand index of at least 0.9 on ten seeds),
  * disjoint cliques, a complete graph, the two-node path the direction rule exists for, pass caps that end inside and
- * across a submit, run twice, and the run options.
+ * across a submit, run twice, and the run options. And a differential against the CPU package's own synchronous port
+ * (`labelPropagationSynchronous`), which moves up first and keeps a label that ties for the lead, so it is held to the
+ * same partition (adjusted Rand index) and the same modularity rather than to identical labels.
  */
 
+import { labelPropagationSynchronous } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
@@ -107,6 +110,23 @@ describe("labelPropagation (GPU, design 8.6)", () => {
             expect(adjustedRandIndex(r.labels, labels), `seed ${seed}`).toBeGreaterThanOrEqual(0.9);
             ctx.release(s);
         }
+    });
+
+    it("agrees with the CPU package's labelPropagationSynchronous: same planted partition, same karate modularity", async (t) => {
+        const ctx = await context(t);
+        for (let seed = 1; seed <= 10; seed++) {
+            const { edges } = plantedPartition(4, 50, 0.3, 0.005, seed);
+            const s = snapshotOf(edges, { nodeCount: 200 });
+            const gpu = await labelPropagation(ctx, s);
+            const cpu = labelPropagationSynchronous(s);
+            expect(adjustedRandIndex(gpu.labels, cpu.labels), `seed ${seed}`).toBeGreaterThanOrEqual(0.9);
+            ctx.release(s);
+        }
+        const karate = track(snapshotOf(KARATE_EDGES));
+        const csr = simpleSymmetricOracle(karate);
+        const gpu = modularityOf(csr, (await labelPropagation(ctx, karate)).labels);
+        const cpu = modularityOf(csr, labelPropagationSynchronous(karate).labels);
+        expect(Math.abs(gpu - cpu), `gpu ${gpu} cpu ${cpu}`).toBeLessThanOrEqual(0.05);
     });
 
     it("disjoint cliques are one community each, a complete graph is one, the two-node path converges; karate's modularity is above 0.35", async (t) => {

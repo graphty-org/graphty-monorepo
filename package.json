@@ -34,8 +34,6 @@
         "dev:webgpu-graph-algorithms": "cd webgpu-graph-algorithms && pnpm exec vite demo --host --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "storybook:graphty-element": "pnpm --filter @graphty/graphty-element run storybook",
         "storybook:graphty": "pnpm --filter @graphty/graphty run storybook",
-        "serve:algorithms": "pnpm --filter @graphty/algorithms run serve",
-        "examples:algorithms": "pnpm --filter @graphty/algorithms run examples:html",
         "docs:api": "npm run docs:api:graphty-element && npm run docs:api:algorithms && npm run docs:api:layout && node tools/sanitize-api-docs.js",
         "docs:api:graphty-element": "cd graphty-element && node scripts/build-api-docs.mjs --out ../docs/graphty-element/api/generated --docsRoot ../docs",
         "docs:api:algorithms": "cd algorithms && typedoc --out ../docs/algorithms/api/generated --docsRoot ../docs",
@@ -64,6 +62,7 @@
         }
     },
     "devDependencies": {
+        "@graphty/visual-review": "workspace:*",
         "@chromatic-com/storybook": "^4.0.0",
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",

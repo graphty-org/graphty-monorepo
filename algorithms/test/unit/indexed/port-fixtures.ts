@@ -9,7 +9,7 @@
  * behaviour there directly.
  */
 
-import { Graph } from "../../../src/core/graph.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 
 interface Fixture {
     readonly name: string;

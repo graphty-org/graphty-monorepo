@@ -57,7 +57,7 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -76,6 +76,7 @@ import {
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
+import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
@@ -111,6 +112,7 @@ import {
     type RendererRequest,
     type RendererStatus,
 } from "./managers/RenderManager";
+import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -140,6 +142,7 @@ import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
+import { toColorValue } from "./session/styles/channels";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
 
 /** The namespace every algorithm this package ships is registered under. */
@@ -299,6 +302,12 @@ export class Graph implements GraphContext {
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
     initialized = false;
+
+    /**
+     * The signal of the queued build of the opening layout: it fires when a layout the consumer
+     * asked for replaces the default before it is built. See {@link Graph.openingSignalFor}.
+     */
+    #openingSignal: AbortSignal | undefined;
     enableDetailedProfiling?: boolean;
     /** The view settings, as set; see {@link ViewSettings}. Written only through `writeViewSettings`. */
     private readonly viewSettings: ViewSettings = { graph: {}, behavior: {} };
@@ -524,6 +533,15 @@ export class Graph implements GraphContext {
         this.dataManager.bindSession(dispatcherOf(this.session), {
             rowsAdded: (after) => {
                 after?.("on-load", (dispatch) => {
+                    // A run of queued adds starts the list once, from the last of them: each
+                    // earlier start would run over a graph still arriving and freeze a snapshot
+                    // for nothing.
+                    // ponytail: a queued removal behind the adds also defers the start, and no
+                    // removal starts the list, so adds followed at once by a removal run nothing.
+                    if (dispatcherOf(this.session).graphWritesWaiting) {
+                        return;
+                    }
+
                     this.startOnLoadRuns(dispatch);
                 });
             },
@@ -710,6 +728,7 @@ export class Graph implements GraphContext {
             dispatcherOf(this.session).arrangement.rest();
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
+        this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -910,6 +929,7 @@ export class Graph implements GraphContext {
             .queueOperationAsync(
                 "layout-set",
                 async (context) => {
+                    this.#openingSignal = context.signal;
                     await this.buildOpeningLayout(context.signal);
                 },
                 { description: "Setting the default layout" },
@@ -1343,7 +1363,9 @@ export class Graph implements GraphContext {
             // it. Without this a layout built with a Z axis would keep one the orthographic camera
             // cannot show, and each flat 2D edge -- sized from the 3D distance -- would run past
             // its nodes into empty space.
-            await this.buildOpeningLayout();
+            // Under the queued build's signal, so a layout the consumer has already asked for still
+            // replaces the default before it is built. See `openingSignalFor`.
+            await this.buildOpeningLayout(this.#openingSignal);
 
             // Mark style-init as completed since styles are initialized in constructor
             // This satisfies cross-batch dependencies for operations like data-add
@@ -1359,8 +1381,8 @@ export class Graph implements GraphContext {
             });
 
             // Start the graph system (render loop, etc.)
-            this.lifecycleManager.startGraph(() => {
-                this.update();
+            this.lifecycleManager.startGraph((frameMs) => {
+                this.update(frameMs);
             });
 
             // Initialize XR (VR/AR) if enabled
@@ -1396,14 +1418,16 @@ export class Graph implements GraphContext {
     /**
      * Update method - kept for backward compatibility
      * All update logic is now handled by UpdateManager
+     * @param frameMs - How long the previous frame took, which sets how many layout steps this
+     *     frame owes; see `UpdateManager.update`. Omitted, the frame takes one step.
      */
-    update(): void {
+    update(frameMs = 0): void {
         // Start frame profiling (tracks operations for blocking detection)
         this.statsManager.startFrameProfiling();
 
         this.statsManager.measure("Graph.update", () => {
             this.statsManager.measure("Graph.updateManager", () => {
-                this.updateManager.update();
+                this.updateManager.update(frameMs);
             });
 
             this.statsManager.measure("Graph.settlementCheck", () => {
@@ -3557,6 +3581,14 @@ export class Graph implements GraphContext {
         choice: LayoutChoice,
         how: { readonly restoring: boolean; readonly signal?: AbortSignal; readonly explicitScope?: boolean },
     ): Promise<void> {
+        // The default nobody chose is built only until a layout the consumer asked for replaces
+        // it, and a build of it already under way stops when that happens. See `openingSignalFor`.
+        const opening = how.restoring ? undefined : this.openingSignalFor(choice);
+        const superseded = (): boolean => opening?.aborted === true;
+        if (superseded()) {
+            return;
+        }
+
         const twoD = choice.dimension === "2d";
         // VR and AR draw in 3D: an undo or redo that makes the scene flat ends the session first.
         if (twoD && this.viewSettings.graph.immersive !== undefined) {
@@ -3568,11 +3600,50 @@ export class Graph implements GraphContext {
             this.enterDimension(twoD);
         }
 
-        await layoutManagerInternals.apply(this.layoutManager, choice, how);
+        const signal =
+            opening === undefined || how.signal === undefined
+                ? (how.signal ?? opening)
+                : AbortSignal.any([how.signal, opening]);
+        try {
+            await layoutManagerInternals.apply(this.layoutManager, choice, {
+                ...how,
+                ...(signal === undefined ? {} : { signal }),
+            });
+        } catch (error) {
+            if (superseded() && isAbort(error)) {
+                return;
+            }
+
+            throw error;
+        }
 
         if (switching) {
             this.settleDimension(twoD, !how.restoring);
         }
+    }
+
+    /**
+     * The signal a build of a value of the `layout` slice stops on because the consumer chose a
+     * layout: the queued opening build's, while the value is still the default nobody chose.
+     *
+     * WHY. `viewMode = "2d"` assigned before the element is attached writes the dimension into
+     * the slice at once -- as the default layout, in 2D -- and builds it, while the consumer's
+     * `layout`, assigned in the same tick, waits its turn behind the data load. That default
+     * engine then held the data when it arrived and moved it for however many frames ran before
+     * the consumer's layout was built, and the consumer's layout starts from the arrangement it
+     * inherits: a seeded Fruchterman-Reingold drew one of two different graphs depending on
+     * whether a frame landed in between. In 3D nothing is built early, so the consumer's layout
+     * was the first to see the data. The consumer's layout reads the dimension from the slice
+     * when its turn comes, so the default loses nothing by never being built.
+     *
+     * A consumer's choice always carries options of its own (`layout.set` freezes a fresh
+     * object), so a value holding the default's own options object was never chosen by anyone.
+     * @param choice - The value.
+     * @returns The signal, or undefined when the value is a layout someone chose.
+     */
+    private openingSignalFor(choice: LayoutChoice): AbortSignal | undefined {
+        const unchosen = choice.engine === DEFAULT_LAYOUT.engine && choice.options === DEFAULT_LAYOUT.options;
+        return unchosen ? this.#openingSignal : undefined;
     }
 
     /**
@@ -5597,6 +5668,46 @@ export class Graph implements GraphContext {
             exported[name] = state;
         }
         return exported;
+    }
+
+    /**
+     * Write the graph in a file format.
+     *
+     * The export carries whatever the format can represent: every node and edge with its
+     * attributes, the current positions, every published algorithm result (as attributes named
+     * by the result's path, `results.<runId>.<field>`) and the colour, size and edge width each
+     * element is drawn with. What the format has no place for is listed in `lossNotes`, one note
+     * per kind of omission; nothing is dropped silently. The element's internal ids and columns
+     * are never written.
+     *
+     * Every built-in format can be written, and so can any format a writer was registered for
+     * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
+     * "neo4j" })`.
+     * @param format - The format id, as `session.catalog.formats()` lists it.
+     * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`.
+     * @returns The loss notes, and the document as text or as UTF-8 chunks.
+     * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
+     * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not
+     * accept, `E_UNSUPPORTED` when the writer's up-front check refuses this graph under these
+     * options. A refusal found only while writing rejects `text()` or `bytes` instead.
+     */
+    async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
+        await this.operationQueue.waitForCompletion();
+        const painter = this.getStylePainter();
+        return exportSession(this.session, format, options, {
+            nodeStyle: (row) => {
+                const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
+                return {
+                    color: paint.color ?? toColorValue(paint.style.texture?.color as string | undefined),
+                    size: paint.style.shape?.size,
+                    shape: paint.style.shape?.type,
+                };
+            },
+            edgeStyle: (row) => {
+                const { style } = painter.edgePaint(row) ?? bootstrapEdgePaint();
+                return { color: toColorValue(style.line?.color), width: style.line?.width };
+            },
+        });
     }
 
     /**

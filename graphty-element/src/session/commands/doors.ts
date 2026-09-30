@@ -590,6 +590,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
+            exportGraph: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -853,6 +854,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
+            exportGraph: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1016,7 +1018,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
-            // Whether an import is still streaming chunks, and the store's counts.
             isLoading: READ,
             heldCounts: READ,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
@@ -1118,6 +1119,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updatePositions: TRANSPORT,
             onRest: RENDER,
             restoring: RENDER,
+            replacing: RENDER,
             // The layout scope lives in the `layout` slice; these hand it to the engine and read
             // it back, and a set removed under it releases the hold without a step.
             setScopeSource: LIFECYCLE,
@@ -1219,6 +1221,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/OperationQueueManager.ts",
         half: "renderer",
         whole: QUEUE,
+    },
+    {
+        name: "ExportResult",
+        file: "src/data/export.ts",
+        half: "renderer",
+        whole: READ,
     },
     {
         name: "StylePainter",

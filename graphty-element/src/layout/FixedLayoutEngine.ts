@@ -1,10 +1,10 @@
-import { INVALID_INDEX } from "@graphty/graph-format";
+import type { F32 } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { readSeedPosition } from "../data/seedPosition";
 import type { Node } from "../Node";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Fixed Layout
@@ -36,13 +36,13 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
  * is placed at the origin.
  */
-export class FixedLayout extends SimpleLayoutEngine {
+export class FixedLayout extends SnapshotLayoutEngine {
     static type = "fixed";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = fixedLayoutOptionsSchema;
     config: FixedLayoutConfigType;
-    scalingFactor = 1;
-    #placedFromData = false;
+    /** Always three: a node's data carries a z, and a 2D view draws it flat. */
+    protected readonly dimensions = 3;
 
     /**
      * Create a fixed layout engine
@@ -74,38 +74,34 @@ export class FixedLayout extends SimpleLayoutEngine {
     }
 
     /**
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
+     */
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
      * Place every node at its data position on the first run; later, keep every placed row. An
      * unplaced row goes to the origin.
+     * @param input - the graph, the current coordinates and the data's own
+     * @returns the coordinates
      */
-    doLayout(): void {
-        this.stale = false;
-        const fromData = !this.#placedFromData;
-        this.#placedFromData = true;
-        const { graph } = this;
-        const positions = new Float32Array(3 * graph.nodeCount).fill(Number.NaN);
-        const at = { x: 0, y: 0, z: 0 };
-        for (const node of this._nodes) {
-            const row = this.rowOfId(node.id);
-            if (row === INVALID_INDEX) {
-                continue;
-            }
-
-            const seed = fromData ? readSeedPosition(node.data as Record<string, unknown>) : null;
-            if (seed !== null) {
-                const scale = node.parentGraph.getStyles().config.data.knownFields.positionScale;
-                positions.set(
-                    seed.map((c) => c * scale),
-                    3 * row,
-                );
-                continue;
-            }
-
+    protected compute(input: SnapshotLayoutInput): F32 {
+        const seeds = input.firstRun ? input.dataPositions() : null;
+        const { initial } = input;
+        const positions = new Float32Array(initial.length);
+        for (let i = 0; i < positions.length; i += 3) {
             // A placed row is written back unchanged, which is what keeps it from being mistaken
             // for an unplaced one by a reader of what this engine computed.
-            const placed = this.readNodePosition(node, at);
-            positions.set(placed ? [at.x, at.y, at.z] : [0, 0, 0], 3 * row);
+            let from: F32 | null = Number.isNaN(initial[i]) ? null : initial;
+            if (seeds !== null && !Number.isNaN(seeds[i])) {
+                from = seeds;
+            }
+
+            positions.set(from === null ? [0, 0, 0] : from.subarray(i, i + 3), i);
         }
 
-        this.result = { positions, dim: 3, n: graph.nodeCount };
+        return positions;
     }
 }

@@ -24,15 +24,10 @@
  * The legacy names are read from the algorithms and layout sources with the TypeScript compiler,
  * so a name that gains @deprecated is caught without editing this file.
  *
- * Uses that exist while the migration is under way are listed in tools/legacy-use-baseline.json,
- * as key -> count. A use not in the baseline, or more uses of a key than it records, fails. An
- * entry that no longer matches only prints a note, so a branch that removes a use does not have
- * to touch the baseline; `--update-baseline` rewrites it. The migration is finished when the
- * baseline is `{}`.
+ * The migration is finished, so there is no allow-list: any use fails.
  *
- * Usage: node tools/check-legacy-use.mjs                   (exit 1 on a use the baseline lacks)
- *        node tools/check-legacy-use.mjs --update-baseline (record the current uses)
- *        node tools/check-legacy-use.mjs --self-test       (prove each rule fires on a seeded fixture)
+ * Usage: node tools/check-legacy-use.mjs              (exit 1 on any use)
+ *        node tools/check-legacy-use.mjs --self-test  (prove each rule fires on a seeded fixture)
  */
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -69,6 +64,22 @@ function layoutLegacyFile(path) {
 }
 
 /**
+ * Whether an export is tagged @deprecated. The tag of `export * as ns from ...` sits on the export
+ * declaration, which neither the export symbol nor the module it names reports.
+ * @param symbols - the export symbol and the symbol it resolves to
+ * @returns true when either, or the export declaration of either, carries @deprecated
+ */
+export function isDeprecated(...symbols) {
+    return symbols.some(
+        (s) =>
+            s.getJsDocTags().some((t) => t.name === "deprecated") ||
+            (s.declarations ?? []).some(
+                (d) => ts.isNamespaceExport(d) && ts.getJSDocDeprecatedTag(d.parent) !== undefined,
+            ),
+    );
+}
+
+/**
  * The legacy exports of algorithms and layout, read from their src/index.ts.
  * @param rootDir - the workspace root
  * @returns package name -> export name -> { positional, graphClass }
@@ -98,7 +109,7 @@ function legacyExports(rootDir) {
                 continue;
             }
             const path = relative(srcDir, decl.getSourceFile().fileName).split(sep).join("/");
-            const deprecated = [exported, symbol].some((s) => s.getJsDocTags().some((t) => t.name === "deprecated"));
+            const deprecated = isDeprecated(exported, symbol);
             const legacy = pkg === ALGORITHMS ? algorithmsLegacyFile(path) : layoutLegacyFile(path);
             if (legacy || deprecated) {
                 names.set(exported.name, {
@@ -317,38 +328,8 @@ function check(rootDir) {
 }
 
 /**
- * Counts each key.
- * @param keys - the finding keys
- * @returns key -> count, keys sorted
- */
-function countKeys(keys) {
-    const counts = {};
-    for (const k of keys) {
-        counts[k] = (counts[k] ?? 0) + 1;
-    }
-    return counts;
-}
-
-/**
- * Compares the findings with a baseline.
- * @param keys - the finding keys
- * @param baseline - key -> count
- * @returns uses beyond the baseline, and baseline entries with fewer uses than recorded
- */
-function compare(keys, baseline) {
-    const counts = countKeys(keys);
-    const added = Object.entries(counts)
-        .filter(([k, n]) => n > (baseline[k] ?? 0))
-        .map(([k, n]) => `${k} (${n} use(s), baseline ${baseline[k] ?? 0})`);
-    const stale = Object.entries(baseline)
-        .filter(([k, n]) => (counts[k] ?? 0) < n)
-        .map(([k, n]) => `${k} (${counts[k] ?? 0} use(s), baseline ${n})`);
-    return { added, stale };
-}
-
-/**
- * Builds a small workspace with one seeded use per rule and checks each is reported, that the
- * replacement API is not, and that the baseline admits exactly what it records.
+ * Builds a small workspace with one seeded use per rule and checks each is reported and that the
+ * replacement API is not.
  */
 function selfTest() {
     const dir = mkdtempSync(join(tmpdir(), "legacy-use-"));
@@ -368,6 +349,8 @@ function selfTest() {
                 'export * from "./algorithms/index.js";',
                 'export * from "./data-structures/index.js";',
                 'export * as indexed from "./indexed/index.js";',
+                "/** @deprecated use the top-level names */",
+                'export * as oldIndexed from "./indexed/index.js";',
                 'export { toSnapshot } from "./indexed/to-snapshot.js";',
                 'export { graphToMap } from "./utils/graph-converters.js";',
             ].join("\n"),
@@ -407,7 +390,7 @@ function selfTest() {
         write(
             "app/src/uses.ts",
             [
-                'import { Graph as G, dijkstra, oldQueue } from "@graphty/algorithms";',
+                'import { Graph as G, dijkstra, oldIndexed, oldQueue } from "@graphty/algorithms";',
                 'import * as L from "@graphty/layout";',
                 'export { graphToMap } from "@graphty/algorithms";',
                 "new G();",
@@ -482,6 +465,7 @@ function selfTest() {
             "graphty-element/src/data/DOTDataSource.ts hand-written-parser tokenize",
             "graphty-element/src/data/DOTDataSource.ts hand-written-parser DotLexer",
             "app/src/uses.ts legacy-import graphToMap",
+            "app/src/uses.ts legacy-import oldIndexed",
             "app/src/uses.ts legacy-import oldQueue",
             "app/src/uses.ts positional-layout-call circularLayout",
             "graphty-element/src/data/CSVDataSource.ts data-source-without-graph-io @graphty/graph-io",
@@ -498,17 +482,6 @@ function selfTest() {
             const extra = found.filter((k) => !expected.includes(k));
             throw new Error(`self-test: missing ${JSON.stringify(missing)}, unexpected ${JSON.stringify(extra)}`);
         }
-        const baseline = countKeys(found);
-        if (compare(found, baseline).added.length !== 0) {
-            throw new Error("self-test: a use the baseline records was reported as new");
-        }
-        delete baseline[expected[0]];
-        if (compare(found, baseline).added.length !== 1) {
-            throw new Error("self-test: a use missing from the baseline was not reported");
-        }
-        if (compare([], countKeys(found)).stale.length !== new Set(expected).size) {
-            throw new Error("self-test: removed uses were not listed as stale");
-        }
         console.log(`check-legacy-use self-test: passed (${expected.length} seeded uses, 7 rules)`);
     } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -520,31 +493,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         selfTest();
         process.exit(0);
     }
-    const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-    const baselineFile = join(rootDir, "tools", "legacy-use-baseline.json");
-    const keys = check(rootDir);
-    if (process.argv.includes("--update-baseline")) {
-        writeFileSync(baselineFile, `${JSON.stringify(countKeys(keys), null, 4)}\n`);
-        console.log(`check-legacy-use: recorded ${keys.length} use(s) in tools/legacy-use-baseline.json`);
-        process.exit(0);
-    }
-    const baseline = existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, "utf8")) : {};
-    const { added, stale } = compare(keys, baseline);
-    if (stale.length > 0) {
-        console.log(`Baseline entries with fewer uses than recorded (run --update-baseline to drop them):`);
-        for (const s of stale) {
-            console.log(`  ${s}`);
-        }
-    }
-    if (added.length > 0) {
-        for (const a of added) {
-            console.error(a);
+    const keys = check(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
+    if (keys.length > 0) {
+        for (const k of keys) {
+            console.error(k);
         }
         console.error(
-            `\n${added.length} new use(s) of the legacy graph API. Use the graph-format replacement ` +
+            `\n${keys.length} use(s) of the legacy graph API. Use the graph-format replacement ` +
                 "(design/graph-format/migration-plan.md); see the rules at the top of tools/check-legacy-use.mjs.",
         );
         process.exit(1);
     }
-    console.log(`check-legacy-use: no new legacy use (${keys.length} recorded in the baseline still present)`);
+    console.log("check-legacy-use: no use of the legacy graph API");
 }

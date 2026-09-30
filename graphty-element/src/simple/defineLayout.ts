@@ -22,16 +22,17 @@
  *   refused instead of silently placing nothing.
  */
 
-// INTERNAL ADAPTER. The advanced contract this is meant to compile to -- the snapshot layout
-// registration of design/extensions/layout.md (`SnapshotLayoutRegistration`) -- is not built yet.
-// Until it is, the definition compiles to a `SimpleLayoutEngine` subclass that fills the
-// engine's own `positions` record, the one route every static engine publishes through. The class
-// is never exported; replace it with a `SnapshotLayoutRegistration` when that contract lands.
+// INTERNAL ADAPTER. The definition compiles to a subclass of `StaticLayoutEngine`, the element's
+// own base for one-pass engines (the one `SnapshotLayoutEngine` and the deprecated public
+// `SimpleLayoutEngine` both extend), and fills the engine's `positions` record. The class is never
+// exported. It does not compile to a `SnapshotLayoutRegistration` because `place` reads the
+// session's graph view by attribute name and draws its seed once per engine, and the snapshot
+// input carries neither.
 
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { LayoutEngine, SimpleLayoutEngine, type SimpleLayoutOpts } from "../layout/LayoutEngine";
+import { LayoutEngine, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
 import {
@@ -251,7 +252,7 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
 function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensions: 2 | 3): DefinedEngine {
     const { id } = plan;
 
-    return class DefinedLayout extends SimpleLayoutEngine {
+    return class DefinedLayout extends StaticLayoutEngine {
         static override type = id;
         static override maxDimensions = maxDimensions;
         static override scoped = true;
@@ -317,7 +318,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#changes++;
         }
 
-        override addEdge(...args: Parameters<SimpleLayoutEngine["addEdge"]>): void {
+        override addEdge(...args: Parameters<StaticLayoutEngine["addEdge"]>): void {
             super.addEdge(...args);
             this.#changes++;
         }
@@ -327,7 +328,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#changes++;
         }
 
-        override removeEdge(...args: Parameters<SimpleLayoutEngine["removeEdge"]>): void {
+        override removeEdge(...args: Parameters<StaticLayoutEngine["removeEdge"]>): void {
             super.removeEdge(...args);
             this.#changes++;
         }

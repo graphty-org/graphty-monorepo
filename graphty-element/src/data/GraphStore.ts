@@ -94,6 +94,14 @@ const SEED_COLUMN = "graphty.importPosition";
 const PINNED_COLUMN = "graphty.pinned";
 
 /**
+ * The edge column holding each edge's flow capacity, read from its record at ingest by
+ * `resolveEdgeCapacity`. A flow algorithm reads it at the edge's declared row and hands it to the
+ * port as a per-arc override (`expandEdges`), so the capacity is an exact f64 and never passes
+ * through the f32 weight array. Unset rows read 1, a record's missing capacity.
+ */
+export const CAPACITY_COLUMN = "graphty.capacity";
+
+/**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.
  *
  * `stage` is the NEXT callback to deliver, so a retry after a consumer threw resumes there instead
@@ -290,6 +298,7 @@ export class GraphStore {
     private current: GraphBuilder;
     private seedHandle: ColumnHandle;
     private edgeIdHandle: ColumnHandle;
+    private capacityHandle: ColumnHandle;
     /** Structural changes waiting to be applied, already folded to their net effect. */
     private structural: Structural[] = [];
     /** Every column of the last freeze, taken before the positions lane replaced the seed column. */
@@ -358,6 +367,7 @@ export class GraphStore {
         this.current = this.createBuilder(this.emptyDirected());
         this.seedHandle = this.current.nodeColumn(SEED_COLUMN);
         this.edgeIdHandle = this.current.edgeColumn(EDGE_ID_COLUMN);
+        this.capacityHandle = this.current.edgeColumn(CAPACITY_COLUMN);
         this.nodeHashColumn = this.current.nodeColumn(IDENTITY_COLUMNS.nodeHash);
         this.edgeHashColumn = this.current.edgeColumn(IDENTITY_COLUMNS.edgeHash);
         this.edgeOrdinalColumn = this.current.edgeColumn(IDENTITY_COLUMNS.edgeOrdinal);
@@ -394,6 +404,15 @@ export class GraphStore {
     get edgeIdColumn(): ColumnHandle {
         this.settle();
         return this.edgeIdHandle;
+    }
+
+    /**
+     * Handle of the edge capacity column ({@link CAPACITY_COLUMN}).
+     * @returns the handle of the current builder
+     */
+    get capacityColumn(): ColumnHandle {
+        this.settle();
+        return this.capacityHandle;
     }
 
     /**
@@ -460,6 +479,12 @@ export class GraphStore {
             dtype: "u32",
             role: "id",
             unique: true,
+        });
+        this.capacityHandle = builder.declareEdgeColumn({
+            name: CAPACITY_COLUMN,
+            dtype: "f64",
+            default: 1,
+            nullable: false,
         });
         // The stable-identity columns (design/sets/sets-design.md 12.2, 12.3), beside the counter
         // they are derived from, filled by the completion pass at freeze. 8 bytes per node, 16 per

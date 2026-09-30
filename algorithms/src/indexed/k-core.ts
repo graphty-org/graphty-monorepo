@@ -24,8 +24,11 @@ export interface CorenessResult {
  * queue and no per-node object.
  *
  * Core numbers are defined on a SIMPLE graph, so a parallel arc counts once (parallels are
- * adjacent within a row, invariant I4) and a self-loop does not count at all -- which is what the
- * legacy implementation's adjacency-of-sets also does, and what NetworkX requires of its input.
+ * adjacent within a row, invariant I4) and a self-loop does not count at all, as NetworkX defines
+ * it. The legacy implementation's adjacency-of-sets counts a self-loop as one neighbour, so there a
+ * node with a self-loop can sit higher, and so can a node without one whose core leaned on
+ * self-looped neighbours. The result equals the legacy function's on the graph with every
+ * self-loop removed.
  * @param s - An undirected snapshot
  * @returns The core numbers, the largest of them, and the lazy grouping
  * @public

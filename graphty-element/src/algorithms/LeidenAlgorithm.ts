@@ -1,4 +1,3 @@
-import { indexed } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -141,18 +140,19 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
 
         const { resolution, randomSeed, maxIterations, threshold } = this.schemaOptions;
 
-        // Undirected: modularity is defined over unordered pairs. The dispatcher has no Leiden
-        // member, so the index-based port runs over the run's input directly.
-        const { snapshot } = this.input("undirected").derived();
+        // Undirected: modularity is defined over unordered pairs.
+        const { snapshot, run } = this.accelerated("leiden", "undirected");
 
         context.report({ phase: "Refining communities", total: null });
 
-        const result = indexed.leiden(snapshot, {
-            resolution,
-            randomSeed,
-            maxIterations,
-            threshold,
-        });
+        const { value: result, precision } = await run((dispatch, s) =>
+            dispatch.leiden(s, {
+                resolution,
+                randomSeed,
+                maxIterations,
+                threshold,
+            }),
+        );
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
@@ -168,6 +168,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
                 method: "leiden",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
+                precision,
                 iterations: result.iterations,
                 notes: [`Resolution ${String(resolution)}.`],
             }),

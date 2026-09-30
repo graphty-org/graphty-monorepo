@@ -79,9 +79,8 @@ export type Query = string;
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
  * the built-in set without a catalogue instance.
  *
- * Two of these names are deprecated: `all-paths` and `clustering-coefficient` are reserved but
- * not implemented, and starting either fails with `E_UNSUPPORTED`. See
- * {@link DEPRECATED_ALGORITHMS}.
+ * One of these names is deprecated: `all-paths` is reserved but not implemented, and starting it
+ * fails with `E_UNSUPPORTED`. See {@link DEPRECATED_ALGORITHMS}.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -112,24 +111,21 @@ export const KNOWN_ALGORITHMS = [
 ] as const;
 
 /**
- * One of the built-in algorithms. `all-paths` and `clustering-coefficient` are deprecated and do
- * not run; see {@link DEPRECATED_ALGORITHMS}.
+ * One of the built-in algorithms. `all-paths` is deprecated and does not run; see
+ * {@link DEPRECATED_ALGORITHMS}.
  */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
 
 /**
  * The built-in algorithm names the element reserves but does not run.
  *
- * Nothing implements these two yet. The names stay in {@link KNOWN_ALGORITHMS}, so no plugin can
- * claim them and no code that names them stops compiling, but starting one fails with
- * `E_UNSUPPORTED` rather than `E_UNKNOWN_ALGORITHM`. Each is removed at the next major release
- * unless it is implemented first: `all-paths` is tracked by issue #329 and
- * `clustering-coefficient` by issue #330.
+ * Nothing implements this one yet. The name stays in {@link KNOWN_ALGORITHMS}, so no plugin can
+ * claim it and no code that names it stops compiling, but starting it fails with `E_UNSUPPORTED`
+ * rather than `E_UNKNOWN_ALGORITHM`. It is removed at the next major release unless it is
+ * implemented first; `all-paths` is tracked by issue #329. `clustering-coefficient`, reserved here
+ * until issue #330, now runs.
  */
-export const DEPRECATED_ALGORITHMS = [
-    "all-paths",
-    "clustering-coefficient",
-] as const satisfies readonly KnownAlgorithm[];
+export const DEPRECATED_ALGORITHMS = ["all-paths"] as const satisfies readonly KnownAlgorithm[];
 
 /** A built-in algorithm name the element reserves but does not run, and will remove. */
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
@@ -664,7 +660,14 @@ export interface FormatDescriptor {
     mimeTypes: readonly string[];
     canImport: boolean;
     canExport: boolean;
+    /** The options its reader accepts. */
     options: readonly OptionDescriptor[];
+    /**
+     * The options `exportGraph` accepts for it, graph-io's common `sanitizeIds` and
+     * `onMixedDirection` included. Absent when nothing writes the format; an option not listed
+     * here is refused with `E_UNKNOWN_OPTION`.
+     */
+    writerOptions?: readonly OptionDescriptor[];
 }
 
 /** One colour palette. */

@@ -106,6 +106,19 @@ the format's schema, `data-loading-error-summary` still reports why. A replacing
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 
+GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
+cannot be read at all -- a GML list or DOT brace still open when the text ends, a Pajek file with
+no `*Vertices` section -- fails with
+`E_PARSE_FAILED` instead of loading whatever came before the break. The `data-loading-error` event
+carries `context: "parsing"` and, when the reader can name one, the `line` where the problem
+starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
+malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
+
+GML is read as NetworkX reads it, so three things the element's 2.x reader accepted fail with
+`E_PARSE_FAILED` naming the line: an unquoted word as a value (`id A`; quote it, `id "A"`), a
+`directed` written as `true` or `false` (write `1` or `0`), and a string that runs onto the next
+line (write the line break as `&#10;`).
+
 When loads overlap, the one that STARTED last wins. Once a replacing load has started, every
 load started before it adds nothing more and rejects with `E_SUPERSEDED`, even if its source
 finishes later; it emits no `data-loading-error`, because nothing was wrong with its source.
@@ -121,15 +134,33 @@ If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 
-| Format  | Extension              | Description                           |
-| ------- | ---------------------- | ------------------------------------- |
-| JSON    | `.json`                | Native format with nodes/edges arrays |
-| GraphML | `.graphml`             | XML-based graph format                |
-| GEXF    | `.gexf`                | Gephi exchange format                 |
-| GML     | `.gml`                 | Graph Modeling Language               |
-| DOT     | `.dot`                 | Graphviz format                       |
-| CSV     | `.csv`, `.tsv`, `.tab` | Delimited edge or node list           |
-| Pajek   | `.net`                 | Pajek network format                  |
+| Format  | Extensions                                    | Description                                              |
+| ------- | --------------------------------------------- | -------------------------------------------------------- |
+| JSON    | `.json`                                       | Native format with nodes/edges arrays                    |
+| GraphML | `.graphml`, `.xml`                            | XML-based graph format                                   |
+| GEXF    | `.gexf`, `.xml`                               | Gephi exchange format                                    |
+| GML     | `.gml`                                        | Graph Modeling Language                                  |
+| DOT     | `.dot`, `.gv`                                 | Graphviz format                                          |
+| CSV     | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
+| Pajek   | `.net`, `.paj`                                | Pajek network format                                     |
+
+### How the format is chosen
+
+`loadFromFile` and `loadFromUrl` pick the format from the file name first. When two formats claim
+the extension (`.xml` is GraphML or GEXF), or the name has no extension the element knows, the
+first bytes decide, using the content checks of the matching
+`@graphty/graph-io` importers. Any table whose first line is split by a comma, tab, semicolon or
+pipe is read as CSV, whatever its column names. A space-separated table is not detected: name the
+format and pass `delimiter: " "`. When neither the name nor the bytes settle it, name the format
+explicitly.
+
+The same detection is published, so a drop target can ask before it loads anything:
+
+```ts
+import { detectFormat } from "@graphty/graphty-element/catalog";
+
+detectFormat({ filename: "graph.xml", sample: firstKilobytes }); // "graphml" or "gexf"
+```
 
 ## Directed or Undirected
 
@@ -137,15 +168,15 @@ Most graph formats state whether their edges point, and the importer reports wha
 A GML file with no `directed` key, a GEXF file with no `defaultedgetype`, is not silent: both
 formats define that omission as undirected, and so does graphty-element.
 
-| Format  | Where it states direction                                     | When it states nothing                                                          |
-| ------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge           | An absent attribute means undirected, unless the edges themselves say otherwise |
-| GraphML | `edgedefault` on `<graph>`, and `directed` per edge           | An absent attribute states nothing; GraphML requires it                         |
-| GML     | the `directed` key, 1 or 0                                    | An absent key means undirected                                                  |
-| DOT     | the opening `graph` or `digraph` keyword                      | --                                                                              |
-| Pajek   | `*Arcs` are directed, `*Edges` are not                        | --                                                                              |
-| CSV     | Gephi's `Type` column: `Directed` or `Undirected`             | Every other dialect states nothing                                              |
-| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it | Any document without that key states nothing                                    |
+| Format  | Where it states direction                                             | When it states nothing                                                                             |
+| ------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| GEXF    | `defaultedgetype` on `<graph>`, and `type` per edge                   | An absent attribute means undirected, unless the edges themselves say otherwise                    |
+| GraphML | `edgedefault` on `<graph>`, and `directed` per edge                   | An absent attribute states nothing; GraphML requires it                                            |
+| GML     | the `directed` key, 1 or 0 (a quoted `"1"` is read too)               | An absent key means undirected                                                                     |
+| DOT     | the opening `graph` or `digraph` keyword                              | A body with no keyword (`{ a -> b }`) states nothing; every edge, `->` or `--`, follows `directed` |
+| Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                                         |
+| CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                                                 |
+| JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                                       |
 
 Read it back from the session:
 
@@ -190,6 +221,65 @@ The GEXF `label=` attribute is overridden by a declared attribute titled `label`
 `viz:` position, colour and size override attributes titled `position`, `color` or `size`.
 Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
 loads nothing and reports a loading error.
+
+## CSV, JSON, GML, DOT and Pajek Records
+
+These are read by `@graphty/graph-io` too, and each record keeps the keys the file wrote:
+
+- a CSV cell is typed on its own, as before: `true` and `false` are booleans and a number is a
+  number, so one `NA` in a `weight` column leaves the other weights numbers. Node ids and
+  endpoints stay the text the file wrote;
+- a JSON record graph-io cannot read under the id and endpoint keys the element resolved -- a node
+  without the key or repeating an earlier id, an edge without both keys -- reaches the element as
+  the file wrote it, and the element reads it with its own keys;
+- a GML node declared twice keeps its first declaration, as the element keeps the first record
+  of a repeated id. A Pajek vertex written on two lines is one node: the first line's values win,
+  and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
+  0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
+  them, the later ones winning, as Graphviz draws it;
+- a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
+  wrote.
+
+### Changes in graphty-element 3.1
+
+Up to 3.0 the element read DOT, GML and Pajek with parsers of its own. From 3.1 graph-io reads
+them as Graphviz, NetworkX and Pajek define them, which fixes how some files load. Random graphs in
+all three formats load exactly as before; these are the edge cases that do not.
+
+DOT:
+
+- a text with no `graph` or `digraph` header, an unclosed brace or string, a malformed attribute
+  list, and a `#` comment that does not start its line fail with `E_PARSE_FAILED`;
+- a `strict` graph merges parallel edges, as Graphviz does (`strict digraph { a -> b; a -> b }` has
+  one edge; it had two);
+- `node [ ... ]` and `edge [ ... ]` defaults now reach the nodes and edges after them;
+- `"x" + "y"` is the one id `xy`, and a line ended by a backslash continues on the next;
+- nodes arrive in the order they are first named: `{a b} -> {c d}` gives a, b, c, d (it gave
+  a, c, d, b).
+
+GML:
+
+- the three refusals above (an unquoted word as a value, `directed true`, a string spanning lines);
+- a node whose `id` is not an integer or a string (`id 1.5`) is left out and reported;
+- character entities are decoded (`a&amp;b` is `a&b`), and a bare `NAN` or `INF` is a number, not
+  the text it was;
+- a quoted number stays a string, an integer beyond 2^53 becomes a string, and a key repeated in
+  one list becomes an array;
+- when a file holds a second top-level `graph` block the first one loads (before, nothing did).
+
+Pajek:
+
+- a file with no `*Vertices` section fails with `E_PARSE_FAILED`. `*Vertices 3` declares vertices
+  1 to 3 whether or not they have lines, so a vertex with no line is a node with no attributes,
+  and nodes arrive in vertex-number order whatever order the lines are in;
+- an edge is dropped and reported when it names a vertex outside that range, carries a weight that
+  is not a number (`1 2 abc`), or names its ends by label (`"a" "b"`); 2.x kept all three;
+- a vertex line with a single coordinate (`1 "a" 0.5`) is reported and keeps only its id, and an
+  unquoted word after the number (`1 5`) is the label, not x;
+- coordinates are stored as 32-bit floats, so a value with more than about seven significant
+  digits changes (`0.123456789` loads as `0.12345679`);
+- Pajek keywords after the coordinates (`ic Red`, `c Blue`, `l "x"`) are kept on the record under
+  those keys, and `*Matrix` and `*Edgeslist` sections are read.
 
 ## Dynamic GEXF
 
@@ -466,9 +556,59 @@ for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
 }
 ```
 
+## Exporting the Graph
+
+`exportGraph(format, options?)` writes the graph in any format the catalogue lists with
+`canExport: true` -- every built-in format, and any format a writer was registered for.
+
+```typescript
+const result = await element.exportGraph("gexf");
+for (const note of result.lossNotes) {
+    console.warn(`${note.code}: ${note.message}`);
+}
+const text = await result.text(); // or iterate result.bytes for a large file
+```
+
+An export carries whatever the format can represent: every node and edge with its attributes,
+the current positions, every published algorithm result (as attributes named
+`results.<runId>.<field>`, the element's rank and percentile included) and the colour, size and
+edge width and node shape each element is drawn with. Edge weights are the weights the element
+runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
+`repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
+reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
+colours in GraphML, node attributes in an edge-list CSV -- is listed in `lossNotes`, one note per
+kind of omission, naming the column. A value an algorithm did not measure is left absent, never
+written as zero. The element's own edge ids and internal columns are not written.
+
+| Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
+| ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GEXF       | yes           | yes             | yes             |                                                                                                                                                                                      |
+| GML        | yes           | no              | yes             | node ids must be integers; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                                    |
+| DOT, Pajek | yes           | no              | yes             |                                                                                                                                                                                      |
+| GraphML    | no            | no              | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
+| JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
+| CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
+
+A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
+`-`, `@`, a tab or a carriage return, so a spreadsheet does not run an imported value as a
+formula. Numbers, and texts that are numbers such as `-2.31`, are never touched. Pass
+`{ neutraliseFormulas: false }` for a pipeline that reads the file with a CSV parser.
+
+Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
+`sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with
+`E_UNKNOWN_OPTION`, and a value outside its choices with `E_OPTION_RANGE`.
+
+A writer that cannot represent the graph under the options given refuses with `E_UNSUPPORTED`,
+and `details.sourceCode` carries graph-io's own code (`E_INVALID_ID` for an id the format cannot
+hold). Where the refusal lands depends on when graph-io finds the problem: what the writer's
+`check()` finds up front (GML's integer ids, CSV's clashing ids) rejects `exportGraph` itself;
+what it finds only while writing (GraphML's id tokens) rejects `text()` or the iteration of
+`bytes`. Handle both. A format nothing writes is `E_UNKNOWN_FORMAT`, naming the ones that can be
+written.
+
 ## Custom Data Sources
 
-Read a format the element does not ship. See [Custom File Formats](./extending/custom-data-sources) for details.
+Read a format the element does not ship, or wrap a graph-io importer as one. See [Custom File Formats](./extending/custom-data-sources) for details.
 
 ## Interactive Examples
 

@@ -1,6 +1,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { CAPACITY_COLUMN } from "../../src/data/GraphStore";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import type { GraphEvent } from "../../src/events";
@@ -133,6 +134,19 @@ describe("DataManager owns the graph store", () => {
         const snapshot = dm.getSnapshot();
         assert.strictEqual(snapshot.edgeCount, 1, "one edge survives the merge");
         assert.strictEqual(snapshot.weights?.[snapshot.edgeToArc[0] ?? 0], 5, "carrying the group's total weight");
+    });
+
+    it("stores each record's capacity in the capacity column, and the replacing record's under last", () => {
+        const { dm } = makeManager();
+        dm.addEdges([
+            { src: "a", dst: "b", capacity: 2.5 },
+            { src: "b", dst: "c", value: 7 },
+        ]);
+        dm.addEdges([{ src: "a", dst: "b", capacity: 4 }], { repeated: "last" });
+        dm.addEdges([{ src: "b", dst: "c", capacity: 9 }], { repeated: "sum" });
+
+        const capacity = dm.getSnapshot().edges.requireTyped(CAPACITY_COLUMN, "f64");
+        assert.deepStrictEqual(Array.from(capacity.data), [4, 7], "sum keeps the first record, last takes the new one");
     });
 
     it("keeps the mirror of a directed pair, which is a different edge", () => {

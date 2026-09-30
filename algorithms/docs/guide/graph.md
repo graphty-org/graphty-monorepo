@@ -2,8 +2,8 @@
 
 Every algorithm in `@graphty/algorithms` runs over a `GraphSnapshot` from
 [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format): a frozen, read-only graph stored as typed
-arrays in compressed sparse row (CSR) form. You build one with a `GraphBuilder`, freeze it, and hand the snapshot to the
-algorithms in the `indexed` namespace.
+arrays in compressed sparse row (CSR) form. You build one with a `GraphBuilder`, freeze it, and hand the snapshot to any
+algorithm of this package.
 
 ## Building a Graph
 
@@ -123,23 +123,11 @@ const undirected = directed.toUndirected().snapshot;
 console.log(undirected.directed, undirected.edgeCount); // false 2
 ```
 
-## Graphs Built With the `Graph` Class
+## Coming From algorithms 2.x
 
-The id-keyed `Graph` class of this package is the previous API and is still exported. `toSnapshot` converts one of its
-graphs:
-
-<!-- doc-check -->
-
-```typescript
-import { Graph, indexed, toSnapshot } from "@graphty/algorithms";
-
-const legacy = new Graph({ directed: false });
-legacy.addEdge("a", "b");
-legacy.addEdge("b", "c");
-
-const graph = toSnapshot(legacy);
-console.log(indexed.connectedComponents(graph).count); // 1
-```
+The id-keyed `Graph` class of algorithms 2.x is gone. Its `addNode(id)` and `addEdge(source, target, weight)` calls map
+one to one onto `GraphBuilder`'s, and `freeze()` takes the place of passing the graph itself. The
+[migration guide](./migrating-to-3.md) lists the replacement for every 2.x function.
 
 ## Next Steps
 

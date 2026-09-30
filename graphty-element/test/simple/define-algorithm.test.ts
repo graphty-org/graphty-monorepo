@@ -82,7 +82,7 @@ describe("the algorithm guide and its examples", () => {
             GUIDE.split("\n")
                 .slice(1)
                 .find((line) => line.trim() !== ""),
-            "Available from graphty-element 2.7.",
+            "Available from graphty-element 3.0.",
         );
     });
 

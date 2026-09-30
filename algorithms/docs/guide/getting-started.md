@@ -1,13 +1,12 @@
 # Getting Started
 
-`@graphty/algorithms` is a comprehensive TypeScript library implementing 98+ graph algorithms optimized for browser environments and visualization applications.
+`@graphty/algorithms` is a comprehensive TypeScript library implementing 60+ graph algorithms optimized for browser environments and visualization applications.
 
 ## Features
 
-- **98+ algorithms** covering traversal, shortest path, centrality, community detection, and more
+- **60+ algorithms** covering traversal, shortest path, centrality, community detection, and more
 - **TypeScript-first** with full type safety and IntelliSense support
 - **Browser-optimized** with no Node.js dependencies
-- **Automatic optimization** based on graph size
 - **Zero configuration** - just import and use
 
 ## Installation
@@ -31,8 +30,8 @@ yarn add @graphty/algorithms
 ## Basic Usage
 
 Algorithms run over a frozen graph snapshot from [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format):
-compact typed arrays in compressed sparse row form. They are reached through the `indexed` namespace, take the
-snapshot first and an options object last, and return typed arrays indexed by node.
+compact typed arrays in compressed sparse row form. Every algorithm takes the snapshot first and an options object last,
+and returns typed arrays indexed by node.
 
 ### Creating a Graph
 
@@ -63,7 +62,7 @@ the two with `graph.ids.requireIndex(id)` and `graph.ids.idOf(index)`.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { breadthFirstSearch, dijkstra, pageRank } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b", 1);
@@ -74,42 +73,46 @@ const a = graph.ids.requireIndex("a");
 const c = graph.ids.requireIndex("c");
 
 // Breadth-First Search
-const bfs = indexed.breadthFirstSearch(graph, a);
+const bfs = breadthFirstSearch(graph, a);
 console.log(Array.from(bfs.order.subarray(0, bfs.visitedCount), (i) => graph.ids.idOf(i))); // ["a", "b", "c"]
 console.log(bfs.depth[c]); // 1: one hop from "a"
 
 // Shortest paths with Dijkstra
-const paths = indexed.dijkstra(graph, a);
+const paths = dijkstra(graph, a);
 console.log(paths.dist[c]); // 3
 console.log(Array.from(paths.pathTo(c), (i) => graph.ids.idOf(i))); // ["a", "b", "c"]
 
 // PageRank centrality
-const ranks = indexed.pageRank(graph);
+const ranks = pageRank(graph);
 const byId = graph.ids.toMap(ranks.scores); // a Map of node id -> rank
 console.log(byId.get("c")?.toFixed(3)); // 0.521
 ```
 
 ### Graphs You Already Have
 
-A graph built with the id-keyed `Graph` class of this package converts with `toSnapshot`:
+A graph held as parallel arrays of source and target node indices freezes in one call:
 
 <!-- doc-check -->
 
 ```typescript
-import { Graph, indexed, toSnapshot } from "@graphty/algorithms";
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { connectedComponents } from "@graphty/algorithms";
 
-const legacy = new Graph({ directed: false });
-legacy.addEdge("x", "y");
-legacy.addEdge("y", "z");
-
-const snapshot = toSnapshot(legacy);
-const components = indexed.connectedComponents(snapshot);
-console.log(components.count); // 1
+const snapshot = fromEdgeArrays({
+    directed: false,
+    ids: ["x", "y", "z"],
+    src: Uint32Array.of(0, 1),
+    dst: Uint32Array.of(1, 2),
+});
+console.log(connectedComponents(snapshot).count); // 1
 ```
+
+Moving from algorithms 2.x, where functions took the `Graph` class and returned id-keyed maps? The
+[migration guide](./migrating-to-3.md) lists the replacement for every 2.x function.
 
 ## Algorithm Categories
 
-Every function below is reached as `indexed.<name>`.
+Every function below is a top-level export of `@graphty/algorithms`.
 
 ### Traversal Algorithms
 

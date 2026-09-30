@@ -45,6 +45,18 @@ grids need more passes; raise the param and run it again:
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });
 ```
 
+`closeness` is exact by default: one breadth-first search from every node, which grows with the
+square of the node count. On a big graph, sample it. `k` draws that many source nodes (the same
+ones every time for the same graph), and each node is then scored from its distances to those
+sources only. The result says so: `caveats.exact` is `false` and
+`caveats.sampleSize` is the number of sources run. A sampled score is the reciprocal of the summed
+distance to the sources, unscaled, so the ranking is the estimate; multiply by `k / n` for an
+estimate of the exact score.
+
+```typescript
+await graph.runAlgorithm("graphty", "closeness", { algorithmOptions: { k: 100 } });
+```
+
 ### Community Detection
 
 Find clusters of related nodes:

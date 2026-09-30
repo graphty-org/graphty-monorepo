@@ -261,9 +261,17 @@ describe("what the package promises about side effects and size", () => {
 });
 
 describe("the sibling packages", () => {
-    it("takes graph-format as a dependency and a peer, so one copy is installed", () => {
+    it("takes graph-format as a regular dependency, not a peer, so installing the element never fails on the consumer's own graph-format", () => {
         assert.strictEqual(manifest.dependencies["@graphty/graph-format"], "workspace:^");
-        assert.isDefined(manifest.peerDependencies["@graphty/graph-format"]);
+        assert.isUndefined(manifest.peerDependencies["@graphty/graph-format"]);
+    });
+
+    it("declares no package as both a dependency and a peer", () => {
+        const peers = Object.keys(manifest.peerDependencies);
+        assert.deepEqual(
+            Object.keys(manifest.dependencies).filter((name) => peers.includes(name)),
+            [],
+        );
     });
 
     it("takes graph-io as a dependency, since the element's readers parse through it", () => {
@@ -274,7 +282,7 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
-        // A workspace reference, like the graph-format peer above: pnpm rewrites it on publish to a
+        // A workspace reference: pnpm rewrites it on publish to a
         // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
         // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
         // an older range would crash when the element attached an accelerator. The explicit

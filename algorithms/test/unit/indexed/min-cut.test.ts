@@ -1,12 +1,12 @@
 import { expandEdges, type GraphSnapshot, maskTest, type NodeMask } from "@graphty/graph-format";
 import { describe, expect, it, vi } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
-import { kargerMinCut as legacyKarger, stoerWagner as legacyStoerWagner } from "../../../src/flow/min-cut.js";
 import type { MinCutResult } from "../../../src/indexed/flow.js";
 import { mulberry32 } from "../../../src/indexed/label-propagation.js";
 import { kargerMinCut, stoerWagner } from "../../../src/indexed/min-cut.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
 function exactWeights(s: GraphSnapshot): Float64Array | undefined {
@@ -99,7 +99,7 @@ describe("indexed.stoerWagner against legacy", () => {
     for (const { name, graph } of fixtures()) {
         it(name, () => {
             const s = toSnapshot(graph, { checksum: true });
-            const expected = legacyStoerWagner(graph);
+            const expected = legacyResult() as MinCutResult;
             const r = stoerWagner(s, { weights: exactWeights(s) });
             expect(r.cutValue).toBe(expected.cutValue);
             expect(sideIds(s, r.side, true)).toEqual([...expected.partition1].sort());
@@ -171,7 +171,7 @@ describe("indexed.kargerMinCut", () => {
             // Legacy draws from Math.random; a seeded stand-in makes its run repeatable.
             const random = vi.spyOn(Math, "random").mockImplementation(mulberry32(1));
             try {
-                expect(legacyKarger(graph, 300).cutValue).toBe(r.cutValue);
+                expect((legacyResult() as MinCutResult).cutValue).toBe(r.cutValue);
             } finally {
                 random.mockRestore();
             }

@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
@@ -294,7 +293,8 @@ describe("Community Detection Algorithm Options", () => {
                 const schema = LabelPropagationAlgorithm.getOptionsSchema();
                 assert.isDefined(schema.randomSeed);
                 assert.strictEqual(schema.randomSeed.type, "integer");
-                assert.strictEqual(schema.randomSeed.default, 42);
+                // No seed by default: synchronous passes, the definition a GPU runs too.
+                assert.strictEqual(schema.randomSeed.default, null);
                 assert.isTrue(schema.randomSeed.advanced);
             });
         });

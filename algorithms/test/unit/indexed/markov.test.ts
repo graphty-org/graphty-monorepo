@@ -1,17 +1,12 @@
-import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { calculateModularity } from "../../../src/algorithms/community/modularity-utils.js";
-import {
-    calculateMCLModularity,
-    markovClustering as legacyMarkov,
-    type MCLOptions,
-} from "../../../src/clustering/mcl-legacy.js";
-import { Graph } from "../../../src/core/graph.js";
-import { exactArcWeights, labelsToGroups } from "../../../src/indexed/facade.js";
 import { markovClustering } from "../../../src/indexed/markov.js";
 import { modularity } from "../../../src/indexed/modularity.js";
-import type { NodeId } from "../../../src/types/index.js";
+import { exactArcWeights, labelsToGroups } from "../../helpers/facade.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { MCLOptions } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -37,10 +32,6 @@ const OPTION_SETS: MCLOptions[] = [
     { selfLoops: false },
     { pruningThreshold: 0.01, maxIterations: 7 },
 ];
-
-function partitionMap(s: GraphSnapshot, labels: Uint32Array): Map<NodeId, number> {
-    return new Map(Array.from(labels, (label, i) => [s.ids.idOf(i), label]));
-}
 
 describe("indexed.markovClustering", () => {
     it("separates two triangles joined by one edge", () => {
@@ -124,7 +115,7 @@ describe("indexed.markovClustering", () => {
         it(`equals legacy markovClustering with ${JSON.stringify(options)} on every fixture`, () => {
             for (const { name, graph } of fixtures()) {
                 const s = checksummedSnapshot(graph);
-                const legacy = legacyMarkov(graph, options);
+                const legacy = legacyResult() as MCLResult;
                 const port = markovClustering(s, { ...options, weights: exactArcWeights(s) });
                 expect(labelsToGroups(s.ids, port.labels, port.count), name).toEqual(legacy.communities);
                 expect(
@@ -147,7 +138,7 @@ describe("indexed.modularity", () => {
             const { labels } = markovClustering(s, { weights: exactArcWeights(s) });
             const weights = exactArcWeights(s);
             for (const resolution of [1, 0.5, 2]) {
-                const expected = calculateModularity(graph, partitionMap(s, labels), resolution);
+                const expected = legacyResult() as number;
                 expect(modularity(s, labels, { resolution, weights }), name).toBeCloseTo(expected, 12);
             }
             s.validate({ checksum: true });
@@ -172,13 +163,8 @@ describe("indexed.modularity", () => {
         expect(modularity(s, one)).toBeCloseTo(0, 15);
         expect(modularity(s, two)).toBeCloseTo(0.5, 15);
         // The legacy MCL modularity collects the null-model term over the edges only.
-        expect(calculateMCLModularity(g, [["a", "b", "c", "d", "e", "f"]])).toBeCloseTo(1 / 3, 15);
-        expect(
-            calculateMCLModularity(g, [
-                ["a", "b", "c"],
-                ["d", "e", "f"],
-            ]),
-        ).toBeCloseTo(1 / 3, 15);
+        expect(legacyResult() as number).toBeCloseTo(1 / 3, 15);
+        expect(legacyResult() as number).toBeCloseTo(1 / 3, 15);
     });
 
     it("reads edge weights by default, which calculateMCLModularity ignores", () => {

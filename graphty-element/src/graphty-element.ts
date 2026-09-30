@@ -4,10 +4,11 @@ import { property } from "lit/decorators.js";
 
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
+import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -2542,6 +2543,27 @@ export class Graphty extends LitElement {
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
+    }
+
+    /**
+     * Write the graph in a file format: data, current positions, algorithm results and the drawn
+     * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
+     * the format could not hold.
+     * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
+     *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
+     * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
+     *     admin-import file
+     * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * const result = await element.exportGraph("graphml");
+     * for (const note of result.lossNotes) console.warn(note.message);
+     * download(await result.text());
+     * ```
+     */
+    async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
+        return this.#graph.exportGraph(format, options);
     }
 
     /**

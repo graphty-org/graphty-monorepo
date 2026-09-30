@@ -37,8 +37,8 @@ const LAYOUT_MEMBERS = ["forceAtlas2", "fruchtermanReingold", "springElectrical"
  *
  * These are the dispatcher members an adapter routes through `accelerated()` AND whose device
  * crossover is known, each with its floor in `ACCELERATION_MIN_NODES_BY_CAPABILITY`. A member the
- * dispatcher has but this list lacks -- betweenness, closeness, label propagation and all-pairs
- * shortest paths among them (issue #558) -- is never offered to the accelerator:
+ * dispatcher has but this list lacks -- edge betweenness, which no element algorithm runs, and
+ * k-core and Louvain, which no shipped accelerator computes -- is never offered to the accelerator:
  * `Algorithm.accelerated` runs the CPU port for it without asking the controller, which is the
  * honest answer rather than a silent half-route. Add a name here once its crossover is measured,
  * with its floor beside it.
@@ -59,6 +59,11 @@ const ALGORITHM_MEMBERS = [
     "hits",
     "katzCentrality",
     "eigenvectorCentrality",
+    "closenessCentrality",
+    "betweennessCentrality",
+    "allPairsShortestPath",
+    "triangleCount",
+    "labelPropagation",
 ] as const;
 
 /**

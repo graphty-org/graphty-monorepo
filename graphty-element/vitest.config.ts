@@ -472,7 +472,10 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: playwright(),
+                        // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
+                        // before each timed step so the step is not charged for a collection that
+                        // the steps before it made due. Its header has the numbers.
+                        provider: playwright({ launchOptions: { args: ["--js-flags=--expose-gc"] } }),
                         instances: [{ browser: "chromium" }],
                     },
                 },

@@ -874,6 +874,7 @@ describe("graphmlImporter options and sniff", () => {
         expect(sniff(encode("<graphml><graph/></graphml>"))).toBe(0.9);
         expect(sniff(encode('<?xml version="1.0"?>\n<gexf/>'))).toBe(0.05);
         expect(sniff(encode("source,target\n1,2\n"))).toBe(0);
+        expect(sniff(encode('{ "label": "<graphml >" }'))).toBe(0);
         expect(sniff(encode(""))).toBe(0);
     });
 });

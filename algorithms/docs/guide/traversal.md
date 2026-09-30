@@ -12,7 +12,7 @@ BFS explores nodes level by level, visiting all neighbours of a node before movi
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b");
@@ -22,7 +22,7 @@ builder.addEdge("c", "d");
 const graph = builder.freeze();
 const name = (i: number) => graph.ids.idOf(i);
 
-const result = indexed.breadthFirstSearch(graph, graph.ids.requireIndex("a"));
+const result = breadthFirstSearch(graph, graph.ids.requireIndex("a"));
 
 // `order` holds the visited nodes first; `visitedCount` says how many
 console.log(Array.from(result.order.subarray(0, result.visitedCount), name)); // ["a", "b", "c", "d"]
@@ -39,7 +39,7 @@ not reach.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b");
@@ -49,17 +49,17 @@ const graph = builder.freeze();
 const a = graph.ids.requireIndex("a");
 
 // Explore at most two hops from the start
-const near = indexed.breadthFirstSearch(graph, a, { maxDepth: 2 });
+const near = breadthFirstSearch(graph, a, { maxDepth: 2 });
 console.log(near.visitedCount); // 3
 
 // Stop as soon as "c" is reached
-const toC = indexed.breadthFirstSearch(graph, a, { target: graph.ids.requireIndex("c") });
+const toC = breadthFirstSearch(graph, a, { target: graph.ids.requireIndex("c") });
 console.log(toC.visitedCount); // 3
 ```
 
-To search against the direction of the edges, pass the reverse view: `indexed.breadthFirstSearch(graph.reverse(), start)`.
+To search against the direction of the edges, pass the reverse view: `breadthFirstSearch(graph.reverse(), start)`.
 
-For very large, low-diameter graphs, `indexed.directionOptimizedBfs(graph, start)` returns the same kind of result and
+For very large, low-diameter graphs, `directionOptimizedBfs(graph, start)` returns the same kind of result and
 switches between top-down and bottom-up steps.
 
 ### Use Cases
@@ -77,7 +77,7 @@ DFS explores as far as possible along each branch before backtracking.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { depthFirstSearch } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b");
@@ -88,11 +88,11 @@ const graph = builder.freeze();
 const name = (i: number) => graph.ids.idOf(i);
 const a = graph.ids.requireIndex("a");
 
-const pre = indexed.depthFirstSearch(graph, a);
+const pre = depthFirstSearch(graph, a);
 console.log(Array.from(pre.order.subarray(0, pre.visitedCount), name)); // ["a", "b", "d", "c"]
 
 // Post-order lists a node once everything below it is done
-const post = indexed.depthFirstSearch(graph, a, { order: "post" });
+const post = depthFirstSearch(graph, a, { order: "post" });
 console.log(Array.from(post.order.subarray(0, post.visitedCount), name)); // ["d", "b", "c", "a"]
 ```
 
@@ -111,7 +111,7 @@ Orders the nodes of a directed acyclic graph (DAG) so that for every edge u -> v
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { topologicalSort } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("compile", "link");
@@ -120,7 +120,7 @@ builder.addEdge("link", "deploy");
 builder.addEdge("test", "deploy");
 const graph = builder.freeze();
 
-const order = indexed.topologicalSort(graph);
+const order = topologicalSort(graph);
 console.log(order === null ? null : Array.from(order, (i) => graph.ids.idOf(i))); // ["compile", "test", "link", "deploy"]
 ```
 
@@ -134,16 +134,16 @@ console.log(order === null ? null : Array.from(order, (i) => graph.ids.idOf(i)))
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { hasCycle } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b");
 builder.addEdge("b", "c");
 const graph = builder.freeze();
-console.log(indexed.hasCycle(graph)); // false
+console.log(hasCycle(graph)); // false
 
 builder.addEdge("c", "a"); // closes a cycle
-console.log(indexed.hasCycle(builder.freeze())); // true
+console.log(hasCycle(builder.freeze())); // true
 ```
 
 ## Connected Components
@@ -152,7 +152,7 @@ console.log(indexed.hasCycle(builder.freeze())); // true
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { connectedComponents, stronglyConnectedComponents, weaklyConnectedComponents } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -160,7 +160,7 @@ builder.addEdge("c", "d");
 builder.addNode("e");
 const graph = builder.freeze();
 
-const components = indexed.connectedComponents(graph);
+const components = connectedComponents(graph);
 console.log(components.count); // 3
 console.log(components.groups().map((g) => Array.from(g, (i) => graph.ids.idOf(i)))); // [["a", "b"], ["c", "d"], ["e"]]
 
@@ -170,8 +170,8 @@ cycle.addEdge("x", "y");
 cycle.addEdge("y", "x");
 cycle.addEdge("y", "z");
 const directed = cycle.freeze();
-console.log(indexed.weaklyConnectedComponents(directed).count); // 1
-console.log(indexed.stronglyConnectedComponents(directed).count); // 2
+console.log(weaklyConnectedComponents(directed).count); // 1
+console.log(stronglyConnectedComponents(directed).count); // 2
 ```
 
 ## Bipartite Test
@@ -180,14 +180,14 @@ console.log(indexed.stronglyConnectedComponents(directed).count); // 2
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { isBipartite } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
 builder.addEdge("b", "c");
 builder.addEdge("c", "d");
 builder.addEdge("d", "a");
-console.log(indexed.isBipartite(builder.freeze()).bipartite); // true
+console.log(isBipartite(builder.freeze()).bipartite); // true
 ```
 
 ## Performance Comparison

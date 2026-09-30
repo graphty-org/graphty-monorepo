@@ -1,32 +1,29 @@
 /**
  * @file Betweenness, closeness, eigenvector, Leiden and Girvan-Newman over the index-based ports.
  *
- * Each case runs the adapter and the legacy `@graphty/algorithms` function over the SAME
- * simplified graph the element built for it (`toAlgorithmGraph`), and compares what was
- * published. Scores agree to 1e-9 relative. On a graph without a self-loop Girvan-Newman's
- * partition is the same partition and its modularity agrees to 1e-9; with one, modularity counts
- * the self-loop twice in its node's degree where the legacy function counted it once, so the
- * published score is checked against the port's own modularity instead. Leiden is a randomised
- * heuristic whose port does not move nodes in the legacy order, so its partition is not compared:
- * its modularity is within 0.02 of the legacy one on the two fixtures, within 0.05 either way on
- * small random graphs without self-loops and no lower on average, and it is the modularity of the
- * partition it published.
+ * Each case runs the adapter and the `@graphty/algorithms` function over the SAME simplified
+ * snapshot the element built for it (`referenceSnapshot`), and compares what was published. Scores
+ * agree to 1e-9 relative, and Girvan-Newman publishes the same partition and modularity. With a
+ * self-loop, modularity counts it twice in its node's degree (algorithms 2.x counted it once). Leiden
+ * is a randomised heuristic, so its partition is not compared with anything: its modularity is
+ * within 0.02 of what algorithms 2.x's own Leiden reached on the two fixtures, within 0.05 either way
+ * on small random graphs without self-loops and no lower on average (the 2.x values are recorded
+ * below), and it is the modularity of the partition it published.
  *
- * Then the routing: eigenvector goes to the accelerator at its floor (28,000 nodes) and above and stays on the
+ * Then the routing: eigenvector goes to the accelerator at its floor (100,000 nodes) and above and stays on the
  * processor below, and a run the dispatcher answers on the processor says `f64` even when an
  * accelerator was attached.
  */
 
 import { readFileSync } from "node:fs";
 
+import * as algorithms from "@graphty/algorithms";
 import {
     betweennessCentrality,
     closenessCentrality,
     eigenvectorCentrality,
     girvanNewman,
-    indexed,
-    leiden,
-    toSnapshot,
+    modularity,
 } from "@graphty/algorithms";
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
@@ -42,12 +39,26 @@ import { GirvanNewmanAlgorithm } from "../../src/algorithms/GirvanNewmanAlgorith
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
 import type { MetricAlgorithm } from "../../src/algorithms/metrics/MetricAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
-import { toAlgorithmGraph } from "../../src/algorithms/utils/snapshotGraph";
 import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
+import { byId, idsOf, referenceSnapshot } from "../helpers/reference-snapshot";
+
+/**
+ * The node ids of each label of a label vector, labels in ascending order, members in node order.
+ * @param s - The snapshot.
+ * @param labels - One label per node index.
+ * @returns The members of each label.
+ */
+function groupMembers(s: GraphSnapshot, labels: ArrayLike<number>): unknown[][] {
+    const groups: number[][] = [];
+    for (let i = 0; i < s.nodeCount; i++) {
+        (groups[labels[i]] ??= []).push(i);
+    }
+    return groups.filter((members) => members !== undefined).map((members) => idsOf(s, members));
+}
 
 /** Two triangles joined by a path, with a parallel pair and a reciprocal pair, all weighted. */
 const WEIGHTED_MULTI: MockGraphOpts = {
@@ -68,6 +79,27 @@ const WEIGHTED_MULTI: MockGraphOpts = {
 
 /** Les Miserables co-appearances, the fixture the per-adapter tests already use. */
 const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
+
+/**
+ * The modularity algorithms 2.x's Leiden reached (resolution 1, seed 42, at most 100 iterations,
+ * threshold 1e-6) on each fixture and on each random graph of the small-graph case, in trial order.
+ */
+const LEGACY_LEIDEN = {
+    "a weighted multigraph": 0.46826171875,
+    "les miserables": 0.5658216835217132,
+    trials: [
+        0.1038062283737024, 0.5568114217727543, 0.3481262327416173, 0.33132812500000003, 0, 0.16666666666666663,
+        0.4454056132256825, 0.2106172839506172, 0, 0.2707299690249719, 0.4259259259259258, 0.36517361111111124, 0.21875,
+        0.27777777777777785, 0.40816326530612246, 0.3900226757369615, 0.40538194444444436, 0.2745740941049216,
+        0.39648931083942357, 0.36145404663923186, 0, 0.3909075028386759, 0.2775877453896489, 0.34996811224489804,
+        0.32013982063413593, 0, 0.28633130856811456, 0.567816775728733, 0.43999999999999995, 0, 0.440247055443838, 0,
+        0.6734764542936288, 0.5123456790123456, 0.3964412211165458, 0.4725765306122449, 0.18564432200795838,
+        0.3477238321799308, 0.41771604938271595, 0, 0.2729639889196676, 0, 0.3441403926234384, 0, 0.3911111111111111,
+        0.19882639841487582, 0.422607421875, 0.29169690811438526, 0.31999999999999984, 0.3241322314049587,
+        0.26372633295862813, 0.6544784580498866, 0.2541524227110582, 0, 0.65844838921762, 0.6855368882395909,
+        0.20976625944495442, 0.3476454293628809, 0.5123456790123456, 0,
+    ],
+} as const;
 
 const FIXTURES: readonly [string, MockGraphOpts][] = [
     ["a weighted multigraph", WEIGHTED_MULTI],
@@ -193,8 +225,11 @@ function oddRing(nodeCount: number): MockGraphOpts {
  * A fake accelerator with an eigenvector member that scores every node 0.5 and counts its calls.
  * @returns The fake and its call counter.
  */
-function eigenvectorFake(): { fake: FakeAccelerator; calls: { eigenvector: number; closeness: number } } {
-    const calls = { eigenvector: 0, closeness: 0 };
+function eigenvectorFake(): {
+    fake: FakeAccelerator;
+    calls: { eigenvector: number; closeness: number; betweenness: number };
+} {
+    const calls = { eigenvector: 0, closeness: 0, betweenness: 0 };
     const half = (s: GraphSnapshot): Float32Array => new Float32Array(s.nodeCount).fill(0.5);
     const fake = createFakeAccelerator({
         members: {
@@ -204,10 +239,10 @@ function eigenvectorFake(): { fake: FakeAccelerator; calls: { eigenvector: numbe
             },
             closenessCentrality: (s: GraphSnapshot) => {
                 calls.closeness += 1;
-                return Promise.resolve({ scores: half(s), iterations: 1, converged: true });
+                return Promise.resolve({ scores: half(s), iterations: 1, converged: true, sourcesUsed: s.nodeCount });
             },
             betweennessCentrality: (s: GraphSnapshot) => {
-                calls.closeness += 1;
+                calls.betweenness += 1;
                 return Promise.resolve({ scores: half(s), iterations: 1, converged: true });
             },
         },
@@ -216,13 +251,14 @@ function eigenvectorFake(): { fake: FakeAccelerator; calls: { eigenvector: numbe
 }
 
 describe("centrality and community adapters on the index-based ports", () => {
-    describe.each(FIXTURES)("equal the legacy route over %s", (_name, fixture) => {
+    describe.each(FIXTURES)("equal the algorithm over %s", (name, fixture) => {
         it("betweenness", async () => {
             const graph = await graphWith(fixture);
             const { values, precision } = await measured(graph, new BetweennessCentralityAlgorithm(graph));
-            const reference = betweennessCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+            const s = referenceSnapshot(graph.getDataManager(), "undirected");
+            const reference = byId(s, betweennessCentrality(s).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(values.get(id), reference[String(id)], `betweenness of ${String(id)}`);
+                close(values.get(id), reference.get(id) as number, `betweenness of ${String(id)}`);
             }
             assert.strictEqual(precision, "f64");
         });
@@ -230,9 +266,10 @@ describe("centrality and community adapters on the index-based ports", () => {
         it("closeness", async () => {
             const graph = await graphWith(fixture);
             const { values } = await measured(graph, new ClosenessCentralityAlgorithm(graph));
-            const reference = closenessCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+            const s = referenceSnapshot(graph.getDataManager(), "undirected");
+            const reference = byId(s, closenessCentrality(s).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(values.get(id), reference[String(id)], `closeness of ${String(id)}`);
+                close(values.get(id), reference.get(id) as number, `closeness of ${String(id)}`);
             }
         });
 
@@ -240,14 +277,14 @@ describe("centrality and community adapters on the index-based ports", () => {
             for (const normalized of [true, false]) {
                 const graph = await graphWith(fixture);
                 const { values } = await measured(graph, new EigenvectorCentralityAlgorithm(graph, { normalized }));
-                const reference = eigenvectorCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-                    normalized,
-                    maxIterations: 1000,
-                    tolerance: 1e-6,
-                    mode: "total",
-                });
+                const s = referenceSnapshot(graph.getDataManager(), "undirected");
+                const reference = byId(
+                    s,
+                    eigenvectorCentrality(s, { normalized, maxIterations: 1000, tolerance: 1e-6, mode: "total" })
+                        .scores,
+                );
                 for (const id of graph.getDataManager().nodes.keys()) {
-                    close(values.get(id), reference[String(id)], `eigenvector of ${String(id)}`);
+                    close(values.get(id), reference.get(id) as number, `eigenvector of ${String(id)}`);
                 }
             }
         });
@@ -257,11 +294,16 @@ describe("centrality and community adapters on the index-based ports", () => {
                 const graph = await graphWith(fixture);
                 const output = await computed(new GirvanNewmanAlgorithm(graph, { maxCommunities }));
 
-                // The legacy adapter's choice: the best-modularity level among those within the cap.
-                const dendrogram = girvanNewman(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
+                // The adapter's choice: the best-modularity level among those within the cap.
+                const s = referenceSnapshot(graph.getDataManager(), "undirected");
+                const run = girvanNewman(s, {
                     maxCommunities: maxCommunities > 0 ? maxCommunities : undefined,
                     maxIterations: 1000,
                 });
+                const dendrogram = run.levels.map((labels, level) => ({
+                    communities: groupMembers(s, labels),
+                    modularity: run.modularity[level],
+                }));
                 const within =
                     maxCommunities > 0
                         ? dendrogram.filter((level) => level.communities.length <= maxCommunities)
@@ -291,23 +333,17 @@ describe("centrality and community adapters on the index-based ports", () => {
         it("leiden", async () => {
             const graph = await graphWith(fixture);
             const output = await computed(new LeidenAlgorithm(graph));
-            const reference = leiden(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-                resolution: 1,
-                randomSeed: 42,
-                maxIterations: 100,
-                threshold: 1e-6,
-            });
             const published = output.graph?.modularity as number;
-            assert.approximately(published, reference.modularity, 0.02);
+            assert.approximately(published, LEGACY_LEIDEN[name as keyof typeof LEGACY_LEIDEN] as number, 0.02);
 
             // The modularity published is the modularity of the partition published.
-            const snapshot = toSnapshot(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+            const snapshot = referenceSnapshot(graph.getDataManager(), "undirected");
             const groups = groupsOf(output);
             const labels = Uint32Array.from({ length: snapshot.nodeCount }, (_, i) =>
                 Number(groups.get(snapshot.ids.idOf(i))),
             );
             // The snapshot's weight column is f32; the port reads the exact weights.
-            assert.approximately(indexed.modularity(snapshot, labels), published, 1e-6);
+            assert.approximately(modularity(snapshot, labels), published, 1e-6);
         });
     });
 
@@ -361,16 +397,16 @@ describe("centrality and community adapters on the index-based ports", () => {
             ],
         });
         const output = await computed(new GirvanNewmanAlgorithm(graph));
-        const snapshot = toSnapshot(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+        const snapshot = referenceSnapshot(graph.getDataManager(), "undirected");
         const groups = groupsOf(output);
         const labels = Uint32Array.from({ length: snapshot.nodeCount }, (_, i) =>
             Number(groups.get(snapshot.ids.idOf(i))),
         );
-        close(output.graph?.modularity as number, indexed.modularity(snapshot, labels), "modularity with self-loops");
+        close(output.graph?.modularity as number, modularity(snapshot, labels), "modularity with self-loops");
         assert.deepStrictEqual(partition(groups), ["A,B,C", "D,E,F"]);
     });
 
-    it("leiden stays within 0.05 of the legacy modularity on small random graphs, and no lower on average", async () => {
+    it("leiden stays within 0.05 of algorithms 2.x's modularity on small random graphs, and no lower on average", async () => {
         // Small graphs are where the port and the legacy function part ways most. Over 3,000 such
         // graphs the port scored between 0.046 below and 0.040 above the legacy function, and
         // 0.002 above it on average: a different partition, not a worse one.
@@ -395,34 +431,23 @@ describe("centrality and community adapters on the index-based ports", () => {
             }
             const graph = await graphWith({ nodes, edges });
             const output = await computed(new LeidenAlgorithm(graph));
-            const reference = leiden(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-                resolution: 1,
-                randomSeed: 42,
-                maxIterations: 100,
-                threshold: 1e-6,
-            });
+            const reference = LEGACY_LEIDEN.trials[trial];
             const published = output.graph?.modularity as number;
-            if (Number.isNaN(reference.modularity)) {
-                continue;
-            }
-            assert.approximately(published, reference.modularity, 0.05, `trial ${String(trial)}`);
+            assert.approximately(published, reference, 0.05, `trial ${String(trial)}`);
             publishedTotal += published;
-            referenceTotal += reference.modularity;
+            referenceTotal += reference;
         }
         assert.isAtLeast(publishedTotal, referenceTotal);
     });
 
-    it("eigenvector with mode in or out on a directed graph equals the legacy directed route", async () => {
+    it("eigenvector with mode in or out on a directed graph equals the algorithm over the directed snapshot", async () => {
         for (const mode of ["in", "out"] as const) {
             const graph = await graphWith({ ...WEIGHTED_MULTI, directed: true });
             const { values } = await measured(graph, new EigenvectorCentralityAlgorithm(graph, { mode }));
-            const reference = eigenvectorCentrality(toAlgorithmGraph(graph.getDataManager(), "directed"), {
-                maxIterations: 1000,
-                tolerance: 1e-6,
-                mode,
-            });
+            const s = referenceSnapshot(graph.getDataManager(), "directed");
+            const reference = byId(s, eigenvectorCentrality(s, { maxIterations: 1000, tolerance: 1e-6, mode }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(values.get(id), reference[String(id)], `eigenvector ${mode} of ${String(id)}`);
+                close(values.get(id), reference.get(id) as number, `eigenvector ${mode} of ${String(id)}`);
             }
         }
     });
@@ -437,29 +462,36 @@ describe("centrality and community adapters on the index-based ports", () => {
         // Programmatic only: the options schema does not carry a Map, so it is set on the options.
         (algorithm as unknown as { _schemaOptions: Record<string, unknown> })._schemaOptions.startVector = startVector;
         const { values } = await measured(graph, algorithm);
-        const reference = eigenvectorCentrality(toAlgorithmGraph(graph.getDataManager(), "undirected"), {
-            maxIterations: 1000,
-            tolerance: 1e-6,
-            mode: "total",
-            startVector,
-        });
+        const s = referenceSnapshot(graph.getDataManager(), "undirected");
+        const reference = byId(
+            s,
+            eigenvectorCentrality(s, {
+                maxIterations: 1000,
+                tolerance: 1e-6,
+                mode: "total",
+                startVector: Float64Array.from(
+                    { length: s.nodeCount },
+                    (_, i) => startVector.get(String(s.ids.idOf(i))) ?? 1,
+                ),
+            }).scores,
+        );
         for (const id of graph.getDataManager().nodes.keys()) {
-            close(values.get(id), reference[String(id)], `eigenvector of ${String(id)}`);
+            close(values.get(id), reference.get(id) as number, `eigenvector of ${String(id)}`);
         }
     });
 
     describe("routing", () => {
         const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY.eigenvectorCentrality;
 
-        it("eigenvector carries a 28,000-node floor and is forwarded to the accelerator", () => {
-            assert.strictEqual(floor, 28_000);
+        it("eigenvector carries a 100,000-node floor and is forwarded to the accelerator", () => {
+            assert.strictEqual(floor, 100_000);
             const { fake } = eigenvectorFake();
             assert.isFunction(narrowAlgorithms(fake).eigenvectorCentrality);
         });
 
         it("eigenvector at the floor runs on the accelerator and says f32", async () => {
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(28_001), fake, true);
+            const graph = await graphWith(oddRing(100_001), fake, true);
             const { values, precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 1);
             assert.strictEqual(precision, "f32");
@@ -469,7 +501,7 @@ describe("centrality and community adapters on the index-based ports", () => {
 
         it("eigenvector below the floor runs on the processor and says f64", async () => {
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(27_999), fake, true);
+            const graph = await graphWith(oddRing(99_999), fake, true);
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 0);
             assert.strictEqual(precision, "f64");
@@ -478,7 +510,7 @@ describe("centrality and community adapters on the index-based ports", () => {
         it("eigenvector above the floor on a graph the accelerator cannot answer says f64", async () => {
             // An even ring is bipartite, which the dispatcher keeps on the processor.
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(28_002), fake, true);
+            const graph = await graphWith(oddRing(100_002), fake, true);
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 0);
             assert.strictEqual(precision, "f64");
@@ -491,7 +523,7 @@ describe("centrality and community adapters on the index-based ports", () => {
                         Promise.resolve({ scores: new Float32Array(s.nodeCount), iterations: 1000, converged: false }),
                 },
             });
-            const graph = await graphWith(oddRing(28_001), fake, true);
+            const graph = await graphWith(oddRing(100_001), fake, true);
             let thrown: unknown;
             try {
                 await new EigenvectorCentralityAlgorithm(graph).publishResult(detachedRunContext(), "eigen_gpu");
@@ -502,32 +534,41 @@ describe("centrality and community adapters on the index-based ports", () => {
             assert.strictEqual((thrown as { code: string }).code, "E_NOT_CONVERGED");
         });
 
-        it("betweenness and closeness stay on the processor with an accelerator that has them", async () => {
+        it("betweenness and closeness are both forwarded to an accelerator that has them", async () => {
             const { fake, calls } = eigenvectorFake();
             const graph = await graphWith(WEIGHTED_MULTI, fake);
             const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
             const closeness = await measured(graph, new ClosenessCentralityAlgorithm(graph));
-            assert.strictEqual(calls.closeness, 0);
-            assert.strictEqual(betweenness.precision, "f64");
-            assert.strictEqual(closeness.precision, "f64");
+            // the mock's threshold is 0, so the floors do not apply and both reach the device
+            assert.strictEqual(calls.betweenness, 1);
+            assert.strictEqual(betweenness.precision, "f32");
+            assert.strictEqual(calls.closeness, 1);
+            assert.strictEqual(closeness.precision, "f32");
         });
 
-        it("betweenness and closeness run on the processor under required with an accelerator that lacks them", async () => {
-            // The element does not forward either, so the controller is never asked -- asked, it
-            // would refuse with E_NO_ACCELERATOR because this accelerator has no such member.
+        it("under required with an accelerator that lacks both, betweenness and closeness both refuse", async () => {
+            // The element forwards both, and this accelerator has neither member: E_NO_ACCELERATOR.
             const fake = createFakeAccelerator();
             assert.notProperty(fake, "betweennessCentrality");
             assert.notProperty(fake, "closenessCentrality");
             const graph = await graphWith(WEIGHTED_MULTI, fake, true, "required");
-            const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
-            const closeness = await measured(graph, new ClosenessCentralityAlgorithm(graph));
-            assert.strictEqual(betweenness.precision, "f64");
-            assert.strictEqual(closeness.precision, "f64");
-            assert.isAbove(betweenness.values.get("C") ?? 0, 0);
+            for (const algorithm of [
+                new BetweennessCentralityAlgorithm(graph),
+                new ClosenessCentralityAlgorithm(graph),
+            ]) {
+                let thrown: unknown;
+                try {
+                    await algorithm.run();
+                } catch (error) {
+                    thrown = error;
+                }
+                assert.isTrue(isGraphtyError(thrown));
+                assert.strictEqual((thrown as { code: string }).code, "E_NO_ACCELERATOR");
+            }
         });
     });
 
-    it("none of the five builds a legacy graph or imports a legacy function", () => {
+    it("none of the five builds an object graph, and each imports only what algorithms 3.x exports", () => {
         for (const name of [
             "BetweennessCentrality",
             "ClosenessCentrality",
@@ -544,7 +585,8 @@ describe("centrality and community adapters on the index-based ports", () => {
                     .map((part) => part.trim())
                     .filter((part) => part !== "" && !part.startsWith("type "));
                 for (const value of values) {
-                    assert.include(["accelerated", "indexed", "toSnapshot", "ConvergenceError"], value, name);
+                    assert.include(Object.keys(algorithms), value, name);
+                    assert.notInclude(["indexed"], value, name);
                 }
             }
         }

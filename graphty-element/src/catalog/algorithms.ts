@@ -20,10 +20,9 @@
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
- * - **The table only lists what ships.** Two members of `KNOWN_ALGORITHMS` -- `all-paths` and
- *   `clustering-coefficient`, listed in `DEPRECATED_ALGORITHMS` -- are not implemented and
- *   therefore have no descriptor here. A catalogue that advertised them would be lying about
- *   what the element can run.
+ * - **The table only lists what ships.** One member of `KNOWN_ALGORITHMS` -- `all-paths`, listed
+ *   in `DEPRECATED_ALGORITHMS` -- is not implemented and therefore has no descriptor here. A
+ *   catalogue that advertised it would be lying about what the element can run.
  *
  * Two conventions worth stating once:
  *
@@ -47,6 +46,7 @@ import { BetweennessCentralityAlgorithm } from "../algorithms/BetweennessCentral
 import { BFSAlgorithm } from "../algorithms/BFSAlgorithm";
 import { BipartiteMatchingAlgorithm } from "../algorithms/BipartiteMatchingAlgorithm";
 import { ClosenessCentralityAlgorithm } from "../algorithms/ClosenessCentralityAlgorithm";
+import { ClusteringCoefficientAlgorithm } from "../algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../algorithms/ConnectedComponentsAlgorithm";
 import { DegreeAlgorithm } from "../algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../algorithms/DFSAlgorithm";
@@ -839,6 +839,43 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "instant",
         complexity: "O(n + m)",
         legacyKeys: [{ key: "k-core" }],
+    },
+    {
+        key: "clustering-coefficient",
+        plainName: "How tightly knit",
+        technicalName: "Clustering coefficient",
+        description:
+            "Scores a node by how many of its neighbours are also neighbours of each other, and counts the triangles that makes.",
+        category: "structure",
+        shape: "node-metric",
+        fields: [
+            ...metricFields("node", { plainName: "How tightly knit", technicalName: "local clustering coefficient" }),
+            field({
+                name: "triangles",
+                plainName: "Triangles",
+                technicalName: "triangle count",
+                kind: "node",
+                type: "integer",
+            }),
+            field({
+                name: "transitivity",
+                plainName: "Share of closed triples",
+                technicalName: "transitivity",
+                kind: "graph",
+                type: "number",
+            }),
+            field({
+                name: "triangleCount",
+                plainName: "Triangles in the graph",
+                technicalName: "triangle count",
+                kind: "graph",
+                type: "integer",
+            }),
+        ],
+        options: optionsOf(ClusteringCoefficientAlgorithm),
+        costClass: "heavy",
+        complexity: "O(m^1.5)",
+        legacyKeys: [{ key: "clustering-coefficient" }],
     },
     {
         key: "link-prediction",

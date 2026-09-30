@@ -1,8 +1,10 @@
-import { arfLayout, Edge as LayoutEdge, Node as LayoutNode } from "@graphty/layout";
+import type { F32 } from "@graphty/graph-format";
+import { arf } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for ARF Layout
@@ -63,11 +65,13 @@ type ArfLayoutOpts = Partial<ArfLayoutConfigType>;
 /**
  * ARF (Attractive-Repulsive Force) layout engine for 2D graph visualization
  */
-export class ArfLayout extends SimpleLayoutEngine {
+export class ArfLayout extends SnapshotLayoutEngine {
     static type = "arf";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = arfLayoutOptionsSchema;
-    scalingFactor = 100;
+    /** Layout units to scene units. */
+    private static readonly scale = 100;
+    protected readonly dimensions: 2 | 3;
     config: ArfLayoutConfigType;
 
     /**
@@ -77,6 +81,7 @@ export class ArfLayout extends SimpleLayoutEngine {
     constructor(opts: ArfLayoutOpts) {
         super(opts);
         this.config = ArfLayoutConfig.parse(opts);
+        this.dimensions = 2;
     }
 
     /**
@@ -95,20 +100,28 @@ export class ArfLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions using the ARF algorithm
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = arfLayout(
-            { nodes, edges },
-            this.config.pos,
-            this.config.scaling,
-            this.config.a,
-            this.config.maxIter,
-            this.config.seed,
+    /**
+     * Compute node positions using the ARF algorithm
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            arf(input.graph, {
+                pos: startFrom(input, 2, ArfLayout.scale) ?? this.rowsOfRecord(this.config.pos, 2),
+                scaling: this.config.scaling,
+                a: this.config.a,
+                maxIter: this.config.maxIter,
+                seed: this.config.seed,
+            }),
+            ArfLayout.scale,
         );
     }
 }

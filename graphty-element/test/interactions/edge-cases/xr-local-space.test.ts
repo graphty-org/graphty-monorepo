@@ -9,7 +9,7 @@ import { Matrix, Quaternion, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -33,7 +33,7 @@ describe("XR Local Space Transformations", () => {
         await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 }, pinOnDrag: true });
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -181,7 +181,7 @@ describe("XR Local Space Transformations", () => {
     describe("Coordinate System Consistency", () => {
         test("2D mode uses correct coordinate plane", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             const node1 = graph.getNode("node1");

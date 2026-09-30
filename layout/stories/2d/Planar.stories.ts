@@ -4,20 +4,15 @@
  * Demonstrates planar layout where nodes are positioned without edge crossings.
  * Shows animation from random initial positions to final planar positions.
  *
- * IMPORTANT: This story uses the actual planarLayout implementation
+ * IMPORTANT: This story uses the actual planar implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { planarLayout } from "@graphty/layout";
+import { planar, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -47,10 +42,9 @@ function createPlanarStory(args: PlanarArgs): HTMLElement {
 
     // Generate graph - use tree or path for planar graphs
     // Complete graphs with >4 nodes are not planar
-    const safeGraphType =
-        graphType === "complete" && nodeCount > 4 ? "tree" : graphType;
+    const safeGraphType = graphType === "complete" && nodeCount > 4 ? "tree" : graphType;
     const generatedGraph = generateGraph(safeGraphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
@@ -64,10 +58,7 @@ function createPlanarStory(args: PlanarArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Planar Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Positions nodes to avoid edge crossings with scale ${scale}.`,
-    );
+    updateInfoPanel(infoPanel, `Positions nodes to avoid edge crossings with scale ${scale}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -75,11 +66,11 @@ function createPlanarStory(args: PlanarArgs): HTMLElement {
     updateStatus(statusPanel, "Showing random initial positions. Click 'Apply Layout' to see planar arrangement.");
 
     let isApplied = false;
-    let finalPositions: ReturnType<typeof planarLayout> | null = null;
+    let finalPositions: PositionMap | null = null;
 
     // Try to compute the planar layout
     try {
-        finalPositions = planarLayout(layoutGraph, scale, [0, 0], 2, seed);
+        finalPositions = toPositionMap(planar(snapshot, { scale, center: [0, 0], seed }), snapshot.ids);
     } catch {
         updateStatus(statusPanel, "Graph is not planar - cannot apply planar layout.");
     }
@@ -159,7 +150,7 @@ type Story = StoryObj<PlanarArgs>;
 /**
  * Planar layout story - positions nodes without edge crossings.
  *
- * This story uses the actual `planarLayout()` function from @graphty/layout.
+ * This story uses the actual `planar()` function from @graphty/layout.
  * The play function animates from random positions to the planar arrangement.
  */
 export const Planar: Story = {

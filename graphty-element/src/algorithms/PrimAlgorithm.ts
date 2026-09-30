@@ -9,13 +9,14 @@
  * from a starting node, which can be optionally configured.
  */
 
-import { primMST } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -25,7 +26,6 @@ import {
     setFieldSpecs,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Prim algorithm
@@ -57,6 +57,8 @@ interface PrimOptions extends Record<string, unknown> {
 export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
     static namespace = "graphty";
     static type = "prim";
+    /** Spans the run's scope: the edge list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
 
@@ -97,7 +99,8 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
      * @returns The edge set, or null when there are no edges to choose from.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const graphEdges = Array.from(this.graph.getDataManager().edges.values());
+        // The declared edges of the run's input: its scope's, or every edge of the graph.
+        const graphEdges = scopeEdges(this.input("undirected"));
 
         if (graphEdges.length === 0) {
             return null;
@@ -107,24 +110,25 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         // Legacy configure() takes precedence for backward compatibility
         const startNode = this.legacyOptions?.startNode ?? this._schemaOptions.startNode ?? undefined;
 
-        // Undirected: a spanning tree is a set of unordered pairs, and primMST refuses a directed input.
-        const graphData = this.algorithmGraph("undirected");
+        /* Undirected: a spanning tree is a set of unordered pairs, chosen over the undirected view,
+           whose edge space merged every reciprocal pair and parallel group into one edge. A scope
+           often cuts a component, so the tree is a forest: one tree per piece, the start node's
+           grown from it and every other piece's from its first node. No accelerator grows a Prim
+           tree, so this is the CPU port's decision. */
+        const { snapshot, edgeRemap, run } = this.accelerated("primMST", "undirected");
+        const start = startNode === undefined ? undefined : this.nodeIndex(snapshot, "startNode", startNode);
 
         context.report({ phase: "Choosing edges", total: null });
-        const tree = primMST(graphData, startNode);
+        const { value: tree, precision } = await run((dispatch, s) => dispatch.primMST(s, { start, forest: true }));
 
-        // Both directions, because the element's edge carries the direction it was declared in
-        // and the tree's does not.
-        const chosen = new Set<string>();
-        for (const edge of tree.edges) {
-            chosen.add(edgePairKey(edge.source, edge.target));
-            chosen.add(edgePairKey(edge.target, edge.source));
-        }
+        // Read the remap from the edge the reader declared to the edge the tree chose, which is
+        // what flags BOTH halves of a merged reciprocal pair and every edge of a parallel group.
+        const chosen = new Set<number>(tree.edges);
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the network", graphEdges, (edge) => {
-            // The pair key looks the tree's answer up; the element's own id is what is published.
-            edges.push({ id: edge.id, values: { in: chosen.has(edgePairKey(edge.srcId, edge.dstId)) } });
+            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
+            edges.push({ id: edge.id, values: { in: chosen.has(merged) } });
         });
 
         return {
@@ -136,6 +140,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
                 method: "prim",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
+                precision,
                 notes: [`The tree joins the graph with ${String(tree.edges.length)} edges.`],
             }),
         };

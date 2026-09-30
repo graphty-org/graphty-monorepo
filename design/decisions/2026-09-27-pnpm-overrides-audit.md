@@ -27,6 +27,7 @@ carries the reason beside each entry:
 | `ajv@>=7.0.0-alpha.0 <8.18.0` -> `^8.18.0`   | the same `api-extractor` -> `@microsoft/tsdoc-config`                               |
 | `ip-address@<10.3.1` -> `^10.3.1`            | graphty-element's `@jsonhero/schema-infer` -> `@jsonhero/json-infer-types` pins 8.x |
 | `undici@<6.28.0` -> `^6.28.0`                | graphty-element's `@ai-sdk/*` -> `@ai-sdk/provider-utils` 2.x pins 5.x              |
+| `undici@>=7.0.0 <7.29.1` -> `^7.29.1`        | the same `@module-federation/dts-plugin` asks for 7.x                               |
 | `vite@<6.4.3` -> `^6.4.3`                    | `vitepress` 1.x depends on vite 5, which the vite advisories patch only from 6.4.3  |
 
 To test whether an entry is still needed: delete it, run `pnpm install`, then

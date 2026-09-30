@@ -5,7 +5,7 @@
  * import { LayoutEngine, registerPalette } from "@graphty/graphty-element/extend";
  * ```
  *
- * SIX THINGS CAN BE BROUGHT TO THE ELEMENT FROM OUTSIDE, and the list is closed: a palette, a
+ * SIX THINGS CAN BE BROUGHT TO THE ELEMENT FROM OUTSIDE TODAY, and the list is closed: a palette, a
  * file format, a camera view, a layout, an algorithm and a log destination. Everything else that
  * looks registrable -- a scale, a node mesh shape, a lifecycle manager, a natural-language
  * command, a hardware accelerator -- is internal, and a consumer who finds one of those is not
@@ -79,8 +79,12 @@ export { isOptionType, OPTION_TYPES } from "./src/catalog/types";
  * author may write `oklch(...)` or a CSS colour name and the renderer, the legend and a saved
  * document all read the same hexes.
  */
-export { clearRegisteredPalettesForTesting, registeredPaletteDescriptors, registerPalette } from "./src/catalog/paletteRegistry";
-export type { PaletteDescriptor, PaletteId } from "./src/catalog/types";
+export {
+    clearRegisteredPalettesForTesting,
+    registeredPaletteDescriptors,
+    registerPalette,
+} from "./src/catalog/paletteRegistry";
+export type { PaletteDescriptor, PaletteId, PaletteRegistration } from "./src/catalog/types";
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -96,6 +100,11 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
  * Everything else is inherited and already works: fetching from a string, a `File` or a URL,
  * retries with backoff, chunking, per-record validation, error aggregation, and declaring the
  * direction the file states.
+ *
+ * A REMOTE OR STREAMING LOADER -- a service query, a paged API, a database -- is the seventh
+ * extension point, and it gets a contract of its own, separate from file readers, that is not
+ * published yet. Do not register one as a file format: a reader must claim a file extension and a
+ * media type, so a service would show up in file detection and file pickers.
  */
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
@@ -104,10 +113,48 @@ export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from ".
 export type { FormatDescriptor, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
 export type { AdHocData } from "./src/config/index";
-export type { BaseDataSourceConfig, DataSourceChunk, DeclaredDirection } from "./src/data/DataSource";
+export type {
+    BaseDataSourceConfig,
+    DataSourceChunk,
+    DeclaredDirection,
+    ImporterDataSourceClass,
+    ImporterSourceOptions,
+} from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
 export type { DataLoadingError, ErrorSummary } from "./src/data/ErrorAggregator";
 export { ErrorAggregator } from "./src/data/ErrorAggregator";
+
+/**
+ * A READER FROM A GRAPH-IO IMPORTER. `DataSource.fromImporter(importer, descriptor)` turns a
+ * graph-io `GraphImporter` into a reader class for `DataSource.register`. Take the importer's
+ * types, and above all `ImportError`, from here rather than from your own copy of graph-io: the
+ * element recognises a refused file by `instanceof ImportError`, which fails across copies.
+ * graph-io's report is published as `ImporterReport`, because `ImportReport` is the element's own
+ * report of a load (`@graphty/graphty-element/session`).
+ */
+export type { GraphSink } from "@graphty/graph-format";
+export type {
+    CommonImportOptions,
+    GraphImporter,
+    ImportReport as ImporterReport,
+    ImportInput,
+    ImportIssue,
+    IssueCategory,
+} from "@graphty/graph-io";
+export { ImportError } from "@graphty/graph-io";
+
+/**
+ * A FILE WRITER. `registerFormatWriter({ descriptor, exporter })` teaches the element to write a
+ * format: `exporter` is a graph-io `GraphExporter` (`check`, `export`, `exportToString`) and
+ * `descriptor` is the catalogue entry, with `canExport: true`. The format then appears in
+ * `session.catalog.formats()` and `exportGraph(id)` reaches it, with the same loss notes, option
+ * validation and error codes the built-in writers have. Take the writer's types from here, not
+ * from your own copy of graph-io, so the snapshot type is the one the element builds.
+ */
+export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
+export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
+export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------
 // Camera: a named view, computed from a bounding box
@@ -123,8 +170,19 @@ export { ErrorAggregator } from "./src/data/ErrorAggregator";
  * `bounds` is an input rather than something the view measures, which is what lets a view be
  * asked to frame a subset rather than the whole graph.
  */
-export type { CameraState, CameraViewInput, CameraViewRegistration, DrawingMode, GraphBounds, Vec3 } from "./src/camera/types";
-export { clearRegisteredCamerasForTesting, registerCameraView, registeredCameraDescriptors } from "./src/catalog/cameraRegistry";
+export type {
+    CameraState,
+    CameraViewInput,
+    CameraViewRegistration,
+    DrawingMode,
+    GraphBounds,
+    Vec3,
+} from "./src/camera/types";
+export {
+    clearRegisteredCamerasForTesting,
+    registerCameraView,
+    registeredCameraDescriptors,
+} from "./src/catalog/cameraRegistry";
 export type { CameraDescriptor, CameraId } from "./src/catalog/types";
 export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
 
@@ -133,6 +191,13 @@ export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 /*
+ * A SINGLE-PASS LAYOUT IS A FUNCTION, registered with `registerSnapshotLayout`: a descriptor and a
+ * `compute` from the graph-format snapshot (with the rows it may not move, an abort signal and a
+ * progress channel) to coordinates. The element's own single-pass layouts are built on the same
+ * contract, so a plugin reaches everything they do. `SimpleLayoutEngine`, the class that served
+ * this before, is deprecated in its favour and keeps working through 3.x. A LIVE SIMULATION stays
+ * a class extending `LayoutEngine`, registered with `LayoutEngine.register`.
+ *
  * `Node`, `Edge` and `NodeIdType` are published as TYPE-ONLY re-exports, which the emitter
  * erases, so a plugin's members can be typed without importing the renderer-laden root. Inside a
  * plugin's module `Node` shadows the DOM's `Node`, deliberately and normally: a second spelling
@@ -143,9 +208,10 @@ export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
  * twice and `layoutIdForEngine` answers a plugin's own id.
  *
  * A plugin's `static descriptor` is an `AuthoredLayoutDescriptor`, which is the published
- * `LayoutDescriptor` minus `honoursWeights`. That one fact is declared on the class instead, as
- * `static honoursWeights`, and `LayoutEngine.register` copies it onto what the catalogue
- * publishes -- so whether an engine reads edge weights is written once, where it is true.
+ * `LayoutDescriptor` minus `honoursWeights` and `scoped`. Those two facts are declared on the
+ * class instead, as `static honoursWeights` and `static scoped`, and `LayoutEngine.register`
+ * copies them onto what the catalogue publishes -- so whether an engine reads edge weights, and
+ * whether it can lay out a set while holding the rest still, is written once, where it is true.
  *
  * A REGISTERED LAYOUT IS NOT ACCELERATED. Its own code runs on the CPU even when an accelerator
  * is attached; only the element's built-in simulation layouts (`forceatlas2`, `spring`,
@@ -156,8 +222,23 @@ export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from ".
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
 export type { Edge } from "./src/Edge";
-export type { EdgePosition, LayoutEngineStatics, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
-export { LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine } from "./src/layout/LayoutEngine";
+export type {
+    EdgePosition,
+    LayoutEngineStatics,
+    Position,
+    SimpleLayoutConfigType,
+    SimpleLayoutOpts,
+} from "./src/layout/LayoutEngine";
+export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
+export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
+export type {
+    SnapshotLayoutAnswer,
+    SnapshotLayoutInput,
+    SnapshotLayoutProgress,
+    SnapshotLayoutRegistration,
+} from "./src/layout/SnapshotLayoutEngine";
+export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";
 
 // ---------------------------------------------------------------------------------------------
@@ -177,25 +258,57 @@ export type { Node, NodeIdType } from "./src/Node";
  * alternative is hand-writing every field descriptor including its `results.$.<name>` path
  * string, which is a path format a plugin should never have to know.
  *
- * There is deliberately no edge-id helper here any more. An edge result is keyed by the element's
- * own `Edge.id`, which a plugin reads off the edge it is measuring; the pair string that used to
- * be published names a PAIR, and a pair cannot name one of two parallel edges.
+ * An edge result is keyed by the element's own edge id, which a plugin reads from its input:
+ * `input.edgeId(row)` for a row of `graph`, and `input.subgraphEdgeIds(row)` for a row of
+ * `subgraph()`, which names every edge a merged row stands for. A pair of endpoints cannot name
+ * one of two parallel edges, so nothing here builds an id from one.
  */
 export type { AlgorithmStatics } from "./src/algorithms/Algorithm";
 export { Algorithm } from "./src/algorithms/Algorithm";
-export { metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
+export type {
+    AlgorithmGraphMode,
+    ScopedInput,
+    ScopedInputOptions,
+    ScopeInputDeclaration,
+} from "./src/algorithms/input/ScopedInput";
+export { communityFields, edgeMetricFields, metricField, nodeMetricFields } from "./src/algorithms/metrics/fields";
+/**
+ * The type `Algorithm.algorithmGraph()` returns.
+ * @deprecated Removed in graphty-element 4.0 with `algorithmGraph()`; read the graph through
+ * `context.input(orientation).subgraph()`, a `GraphSnapshot`.
+ */
+export type AlgorithmGraphView = import("./src/algorithms/utils/legacyGraph").Graph;
 export { DeclaredAlgorithm } from "./src/algorithms/results/DeclaredAlgorithm";
-export { communityFieldSpecs, LAYERED_GROUPING_FIELD_SPECS, metricFieldSpecs, PATH_FIELD_SPECS, setFieldSpecs } from "./src/algorithms/results/fields";
+export {
+    communityFieldSpecs,
+    LAYERED_GROUPING_FIELD_SPECS,
+    metricFieldSpecs,
+    PATH_FIELD_SPECS,
+    setFieldSpecs,
+} from "./src/algorithms/results/fields";
 export type { AlgorithmOutput, AlgorithmRunContext, ResultFieldSpec } from "./src/algorithms/results/types";
 export { declaredCaveats, forEachChunked } from "./src/algorithms/results/types";
-export type { AlgorithmGraphMode, AlgorithmGraphView } from "./src/algorithms/utils/snapshotGraph";
 export type { RegisteredAlgorithm } from "./src/catalog/registry";
 export { clearRegisteredAlgorithmsForTesting, registeredAlgorithmDescriptors } from "./src/catalog/registry";
 export type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, ResultShape } from "./src/catalog/types";
 export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
-export type { Caveats, Progress } from "./src/session/runs/types";
+export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
+
+/*
+ * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format
+ * snapshots and bitmaps: the full `GraphSnapshot`, the scope's `NodeMask` and `EdgeMask` over it,
+ * and the compact `subgraph()` of the scope for a class that declares `static scopeInput =
+ * "subgraph"`. Attributes, earlier results and weights arrive as columns of those snapshots:
+ * `input.column(option)` for a declared "attribute" or "partition" option, and the `weight` input
+ * option for the weights. The types and `maskTest`, which reads a mask, are graph-format's own,
+ * published here from the element's copy so a plugin never installs graph-format itself: the
+ * element depends on graph-format rather than peering it, so a plugin's own copy could be on
+ * another major than the snapshots it is handed.
+ */
+export type { Column, EdgeMask, GraphSnapshot, NodeMask } from "@graphty/graph-format";
+export { maskTest } from "@graphty/graph-format";
 
 /*
  * THE OLDER OPTION SCHEMA, KEPT FOR BACK-COMPAT AND DEPRECATED. It is a second vocabulary for the
@@ -204,7 +317,12 @@ export type { Caveats, Progress } from "./src/session/runs/types";
  * `descriptor.options` as `OptionDescriptor[]` and validate with `resolveOptionValues` instead.
  */
 export type { OptionDefinition, OptionsFromSchema, OptionsSchema } from "./src/algorithms/types/OptionSchema";
-export { defineOptionsSchema, OptionValidationError, resolveOptions, validateOption } from "./src/algorithms/types/OptionSchema";
+export {
+    defineOptionsSchema,
+    OptionValidationError,
+    resolveOptions,
+    validateOption,
+} from "./src/algorithms/types/OptionSchema";
 
 // ---------------------------------------------------------------------------------------------
 // Logging: a destination, as a live object or as a name a configuration can record
@@ -226,9 +344,63 @@ export { defineOptionsSchema, OptionValidationError, resolveOptions, validateOpt
  * registers it from this one.
  */
 export type { LogSinkRegistration } from "./src/catalog/logSinkRegistry";
-export { clearRegisteredLogSinksForTesting, registeredLogSinkDescriptors, registerLogSink } from "./src/catalog/logSinkRegistry";
+export {
+    clearRegisteredLogSinksForTesting,
+    registeredLogSinkDescriptors,
+    registerLogSink,
+} from "./src/catalog/logSinkRegistry";
 export type { LogSinkDescriptor, LogSinkId } from "./src/catalog/types";
 export { KNOWN_LOG_SINK_IDS } from "./src/catalog/types";
+
+// ---------------------------------------------------------------------------------------------
+// The simple tier: one plain definition object per point
+// ---------------------------------------------------------------------------------------------
+
+/*
+ * EASY THINGS EASY. Each `define*` verb takes one plain object -- an id and the one or two
+ * functions that are the author's own logic -- and builds the ordinary registration of the point
+ * from it, filed through the point's published verb above. There is no second registry: a
+ * simple-tier extension IS an advanced one once registered, so it reaches every route a built-in
+ * does, and it can graduate to the advanced form under the same id.
+ *
+ * An algorithm or a layout reads the graph as a `GraphView`: nodes and edges with their real ids,
+ * `neighbors()`, `edges()`, `edge.other(node)`, `attr(path)`, `number(path)`, `strength(path)`
+ * and `weight(path)`. `compareNodeIds` is the order the view iterates in.
+ */
+export type { OptionDescriptorDomain } from "./src/catalog/types";
+export type { DefaultPalettes } from "./src/session/styles";
+export { defineAlgorithm } from "./src/simple/defineAlgorithm";
+export { defineLayout } from "./src/simple/defineLayout";
+export { defineLogDestination } from "./src/simple/defineLogDestination";
+export { definePalette } from "./src/simple/definePalette";
+export type {
+    AlgorithmContext,
+    AlgorithmDefinition,
+    ColorVisionDeficiency,
+    DefaultPaletteControls,
+    DefinitionBase,
+    EdgeScoreDefinition,
+    EdgeView,
+    GraphView,
+    GroupingDefinition,
+    LayoutContext,
+    LayoutDefinition,
+    LogDestinationDefinition,
+    LogLevelName,
+    NodeId,
+    NodeScoreDefinition,
+    NodeView,
+    OptionShorthand,
+    OptionsShorthand,
+    OptionValuesOf,
+    PaletteDefinition,
+    PlainLogRecord,
+    Point,
+    Score,
+    ShorthandValue,
+    WholeGraphScoreDefinition,
+} from "./src/simple/types";
+export { compareNodeIds } from "./src/simple/view";
 
 // ---------------------------------------------------------------------------------------------
 // How a plugin reports a failure
@@ -251,4 +423,9 @@ export type {
     GraphAccelerator,
     RegisterAcceleratorOptions,
 } from "./src/acceleration";
-export { AcceleratorRegistry, acceleratorRegistry, DEFAULT_ACCELERATOR_PRECISION, registerAccelerator } from "./src/acceleration";
+export {
+    AcceleratorRegistry,
+    acceleratorRegistry,
+    DEFAULT_ACCELERATOR_PRECISION,
+    registerAccelerator,
+} from "./src/acceleration";

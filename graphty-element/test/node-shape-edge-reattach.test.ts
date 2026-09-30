@@ -21,10 +21,10 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { AdHocData, EdgeStyleConfig, NodeStyleConfig } from "../src/config";
 import { Edge } from "../src/Edge";
 import { SimpleLayoutEngine } from "../src/layout/LayoutEngine";
-import { DataManager } from "../src/managers/DataManager";
+import { DataManager, dataManagerInternals } from "../src/managers/DataManager";
 import { EventManager } from "../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphContext";
-import { LayoutManager } from "../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
 import type { EdgePaint, NodePaint } from "../src/managers/StylePainter";
 import { MeshCache } from "../src/meshes/MeshCache";
@@ -84,7 +84,7 @@ function createHarness(): Harness {
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     const layoutEngine = new FixedTestLayout();
-    layoutManager.layoutEngine = layoutEngine;
+    layoutManagerInternals.setEngine(layoutManager, layoutEngine);
 
     const context = new DefaultGraphContext(
         () => styles,
@@ -168,7 +168,7 @@ function edgePaintOf(style: EdgeStyleConfig): EdgePaint {
  */
 function addNode(harness: Harness, id: string, style: NodeStyleConfig): Node {
     const node = new Node(harness.context, id, nodePaintOf(style), { id } as unknown as AdHocData);
-    harness.dataManager.nodes.set(id, node);
+    dataManagerInternals.adoptNode(harness.dataManager, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
     node.update();
@@ -184,7 +184,7 @@ function addNode(harness: Harness, id: string, style: NodeStyleConfig): Node {
  */
 function addEdge(harness: Harness, style: EdgeStyleConfig): Edge {
     const edge = new Edge(harness.context, "src", "dst", 0, edgePaintOf(style), {} as unknown as AdHocData);
-    harness.dataManager.edges.set(edge.id, edge);
+    dataManagerInternals.adoptEdge(harness.dataManager, edge);
     harness.layoutEngine.addEdge(edge);
     edge.update();
     return edge;

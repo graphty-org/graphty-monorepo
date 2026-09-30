@@ -18,7 +18,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { recommendLayout } from "../../src/session/layout";
 
 /** How many nodes the fixture carries. */
@@ -56,7 +56,7 @@ describe("how many nodes the data placed", () => {
         graph = new Graph(container);
         await graph.init();
         await graph.addDataFromSource("gexf", { data: unplacedGexf() });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

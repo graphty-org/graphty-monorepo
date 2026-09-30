@@ -11,7 +11,7 @@
 import { type InstancedMesh, Matrix, Vector3 } from "@babylonjs/core";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 const WIDTH = 480;
@@ -42,7 +42,7 @@ describe("glow strength per style", () => {
         await graph.addNodes([{ id: "faint" }, { id: "strong" }]);
         // Circular, so the frame does not drift between reads.
         await graph.setLayout("circular", { scale: 0.2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 
     afterAll(() => {
@@ -51,7 +51,7 @@ describe("glow strength per style", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();
@@ -169,7 +169,7 @@ describe("glow strength per style", () => {
 
         await session.styles.remove(strong.id);
         await session.styles.remove(faint.id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         return { faintGlow, strongGlow, faintSource, strongSource };
     }

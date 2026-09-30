@@ -98,6 +98,8 @@ interface DrawnNode {
     readonly geometryDigest: string;
     /** Whether the source mesh's material is drawn as a wireframe. */
     readonly wireframe: boolean;
+    /** Whether its mesh is enabled: a node the visibility filter hides is disabled, not deleted. */
+    readonly enabled: boolean;
     /** What `mesh.visibility` is, which is where opacity lands. */
     readonly opacity: number;
     /** Half the drawn bounding box's width in world units, which is where size lands. */
@@ -541,11 +543,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         `${story}: no graph ever arrived, so the story's data never loaded`,
     );
 
-    await within(
-        graph.operationQueue.waitForCompletion(),
-        deadline,
-        `${story}: the element's operation queue never drained`,
-    );
+    await within(graph.waitForSettled(), deadline, `${story}: the element's operation queue never drained`);
 
     await within(
         session.styles.settled(),
@@ -608,6 +606,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
             geometryDigest: digestOf(source ?? (node.mesh as unknown as Parameters<typeof digestOf>[0])),
             wireframe: source?.material?.wireframe ?? false,
+            enabled: node.mesh.isEnabled(),
             opacity: node.mesh.visibility,
             radius: Number(box.x.toFixed(4)),
             hex: instanceHex(node.mesh),
@@ -840,6 +839,24 @@ export async function assertDrawnColour(
         wrong.length === 0,
         `${scene.story}: ${String(wrong.length)} nodes are drawn in a colour the story did not ask for ` +
             `-- ${listed(wrong)}`,
+    );
+}
+
+/**
+ * Exactly the named nodes are drawn; every other node is hidden.
+ * @param scene - What the story drew.
+ * @param expected - The ids of the nodes on screen.
+ */
+export async function assertNodesShown(scene: Drawn, expected: readonly string[]): Promise<void> {
+    const shown = scene.nodes
+        .filter((node) => node.enabled)
+        .map((node) => node.id)
+        .sort();
+    const want = [...expected].sort();
+
+    await holds(
+        shown.join(",") === want.join(","),
+        `${scene.story}: the nodes on screen are ${listed(shown)}, not ${listed(want)}`,
     );
 }
 

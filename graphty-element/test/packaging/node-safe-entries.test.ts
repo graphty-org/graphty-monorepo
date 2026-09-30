@@ -12,6 +12,7 @@ import { assert, describe, it } from "vitest";
 // depended on how busy the machine was. A static import is loaded while the file is collected,
 // which has no timeout, and a module that fails to load still fails this file.
 import * as catalog from "../../catalog";
+import * as commands from "../../commands";
 import * as extend from "../../extend";
 import * as format from "../../format";
 import * as logging from "../../logging";
@@ -22,7 +23,8 @@ const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /**
  * The entry points that must resolve with no renderer anywhere in their import graph, per the
- * table in design/element-api/element-api-design.md section 6.1.
+ * table in design/element-api/element-api-design.md section 6.1, and the modules a Node-safe entry
+ * point is about to reach.
  */
 const NODE_SAFE_ENTRIES = [
     "session.ts",
@@ -33,6 +35,9 @@ const NODE_SAFE_ENTRIES = [
     "format.ts",
     "logging.ts",
     "react.ts",
+    // Not an entry point yet, but the headless session's data write verbs will reach it, so it
+    // is held to the same rule now: ingest must never need a renderer.
+    "src/session/project/ingest.ts",
 ];
 
 /** What must never appear in a Node-safe entry point's import graph. */
@@ -79,8 +84,8 @@ function emit(file: string): string {
 function resolveRelative(specifier: string, importer: string): string | null {
     const base = resolve(dirname(importer), specifier);
     const candidates = [
-        `${base  }.ts`,
-        `${base  }.tsx`,
+        `${base}.ts`,
+        `${base}.tsx`,
         join(base, "index.ts"),
         base.replace(/\.js$/, ".ts"),
         join(base.replace(/\.js$/, ""), "index.ts"),
@@ -116,7 +121,9 @@ function importGraph(entry: string): Reached[] {
             break;
         }
 
-        for (const specifier of ts.preProcessFile(emit(file), true, true).importedFiles.map((found) => found.fileName)) {
+        for (const specifier of ts
+            .preProcessFile(emit(file), true, true)
+            .importedFiles.map((found) => found.fileName)) {
             if (specifier.startsWith(".")) {
                 const next = resolveRelative(specifier, file);
                 if (next !== null && !parent.has(next)) {
@@ -178,7 +185,10 @@ describe("the Node-safe entry points", () => {
     it.each(NODE_SAFE_ENTRIES)("%s reaches no renderer, no component framework and no LLM runtime", (entry) => {
         const offenders = graphOf(entry).filter((found) => FORBIDDEN.some((pattern) => pattern.test(found.specifier)));
 
-        assert.deepEqual(offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`), []);
+        assert.deepEqual(
+            offenders.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
+            [],
+        );
     });
 
     it("sees what is really there: the root entry point does reach Babylon.js and Lit", () => {
@@ -190,7 +200,7 @@ describe("the Node-safe entry points", () => {
     });
 
     it("loads in a plain Node import, which is the whole point of the entry points existing", () => {
-        const loaded = [session, schema, catalog, extend, format, logging];
+        const loaded = [session, schema, catalog, commands, extend, format, logging];
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));
     });

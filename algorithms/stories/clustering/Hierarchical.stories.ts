@@ -8,15 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, hierarchicalClustering, type LinkageMethod } from "@graphty/algorithms";
+import { hierarchicalClustering, type Linkage } from "@graphty/algorithms";
+import type { GraphSnapshot } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -34,23 +32,6 @@ interface HierarchicalArgs {
     numClusters: number;
     linkage: "single" | "complete" | "average";
     seed: number;
-}
-
-/**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
 }
 
 /**
@@ -72,14 +53,18 @@ const CLUSTER_COLORS = [
  * to the desired number of clusters.
  */
 function extractClusters(
+    graph: GraphSnapshot,
     result: ReturnType<typeof hierarchicalClustering>,
     numClusters: number,
 ): string[][] {
     // Find the height level that gives closest to numClusters
-    let bestClusters: Set<string>[] = [];
+    let bestClusters: Uint32Array[] = [];
     let bestDistance = Infinity;
 
-    for (const [_, clusters] of result.clusters) {
+    // Cut at every height, up to one above the tallest tree (where a forest stays one cluster per tree)
+    const tallest = result.height.reduce((a, b) => Math.max(a, b), 0);
+    for (let h = 0; h <= tallest + 1; h++) {
+        const clusters = result.cut(h);
         const distance = Math.abs(clusters.length - numClusters);
         if (distance < bestDistance) {
             bestDistance = distance;
@@ -87,8 +72,7 @@ function extractClusters(
         }
     }
 
-    // Convert Set<string>[] to string[][]
-    return bestClusters.map((set) => Array.from(set));
+    return bestClusters.map((members) => idsOf(graph, members).map(String));
 }
 
 /**
@@ -99,14 +83,14 @@ function createHierarchicalStory(args: HierarchicalArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
 
     // Run Hierarchical Clustering using actual algorithm
     // The second parameter is directly the LinkageMethod
-    const result = hierarchicalClustering(graph, linkage as LinkageMethod);
+    const result = hierarchicalClustering(graph, { linkage: linkage as Linkage });
 
     // Extract clusters
-    const clusters = extractClusters(result, numClusters);
+    const clusters = extractClusters(graph, result, numClusters);
 
     // Create container
     const { container, svg } = createStoryContainer();

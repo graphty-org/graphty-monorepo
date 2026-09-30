@@ -23,6 +23,8 @@
  * it; this one invoked it from 27 scripts and relied on hoisting.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,6 +52,17 @@ const XR_BROWSER_TESTS = [
 ];
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The package's published names, resolved to its own source. The docs' examples
+ * (docs/examples/) import `@graphty/graphty-element/extend` and `/logging` exactly as a reader
+ * copies them, and the tests that run those examples must run the code under test, not a stale
+ * dist/.
+ */
+const OWN_ENTRY_POINTS = {
+    "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts"),
+    "@graphty/graphty-element/logging": path.resolve(dirname, "logging.ts"),
+};
 
 /**
  * The Chromium flag sets that expose WebGPU to the `browser` project.
@@ -182,8 +195,26 @@ function browserInstance(): ChromiumInstance {
  */
 const FAILURE_SCREENSHOT_DIR = path.resolve(dirname, "tmp/vitest-screenshots");
 
+/**
+ * Append a `bench-browser` timing row to `benchmarks/results/browser-<host>.jsonl`. Every other
+ * console line is left to the reporter.
+ * @param log - one console line from a test
+ * @returns undefined, so the line is still printed
+ */
+function appendBenchRow(log: string): undefined {
+    const prefix = "bench-row ";
+    if (log.startsWith(prefix)) {
+        const dir = path.resolve(dirname, "benchmarks/results");
+        mkdirSync(dir, { recursive: true });
+        appendFileSync(path.join(dir, `browser-${hostname()}.jsonl`), `${log.slice(prefix.length).trim()}\n`);
+    }
+
+    return undefined;
+}
+
 export default defineConfig({
     test: {
+        onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
         attachmentsDir: path.resolve(dirname, "tmp/vitest-attachments"),
@@ -201,9 +232,15 @@ export default defineConfig({
                     name: "bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
+                    // One file at a time: a benchmark timed beside another measures the other.
+                    fileParallelism: false,
+                    // A browser benchmark needs a page, which this project has not got: it runs in
+                    // "browser-bench" below.
+                    exclude: ["test/browser/**", "**/node_modules/**"],
                 },
             },
             {
+                resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
                     setupFiles: ["./test/setup.ts"],
@@ -320,6 +357,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
@@ -361,6 +399,12 @@ export default defineConfig({
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
                         "test/browser/lit-node-is-shaded-not-flooded.test.ts",
+                        // The two history twins every undo phase grows: each door of the element,
+                        // Graph and managers called with a spy on the dispatcher, and every
+                        // renderer round-trip fixture checked against a scene digest. They lay
+                        // out in one pass, so they stay inside this lane's budget.
+                        "test/browser/doors.test.ts",
+                        "test/browser/history-round-trip.test.ts",
                     ],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -390,6 +434,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 // WebXR, in its own project so the pre-push gate can run it without the rest of the
@@ -413,17 +458,43 @@ export default defineConfig({
                 },
             },
             {
+                // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
+                // reason "bench" is kept out of "default": nothing here runs under coverage, which
+                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
+                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // sets timing rows' project below, which never runs in CI.
+                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                test: {
+                    name: "browser-bench",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/browser/**/*.bench.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
+                        // before each timed step so the step is not charged for a collection that
+                        // the steps before it made due. Its header has the numbers.
+                        provider: playwright({ launchOptions: { args: ["--js-flags=--expose-gc"] } }),
+                        instances: [{ browser: "chromium" }],
+                    },
+                },
+            },
+            {
                 // The env vars that cross into the page. The first is which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
                 // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
-                // CI shards never try to use a WebGPU that is not there.
+                // CI shards never try to use a WebGPU that is not there. GRAPHTY_FC_ carries a
+                // property test's reproduction seed and path (test/helpers/fc-params.ts).
                 // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
                 // baseline instead of checking against it.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_UPDATE_RENDER_BUDGET"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
                     setupFiles: ["./test/setup.ts"],
@@ -448,6 +519,8 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
+                        // And the timing benchmarks: see "browser-bench"
+                        "test/browser/**/*.bench.test.ts",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -467,6 +540,29 @@ export default defineConfig({
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
+                // the element's store, a DataManager or a run, which the Node runner in benchmarks/
+                // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
+                // no other project includes. Run with: npx vitest run --project=bench-browser, and
+                // GRAPHTY_BENCH_SCALE=large for the 1M and 10M rows. A row is a console line starting
+                // "bench-row ", appended to benchmarks/results/browser-<host>.jsonl by the root
+                // onConsoleLog below (vitest reads that hook from the root config only).
+                envPrefix: ["VITE_", "GRAPHTY_BENCH_SCALE"],
+                test: {
+                    name: "bench-browser",
+                    include: ["test/bench-browser/**/*.bench-browser.ts"],
+                    testTimeout: 0,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [{ browser: "chromium" }],
                     },
                 },
             },
@@ -515,6 +611,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 test: {
@@ -555,6 +652,7 @@ export default defineConfig({
             {
                 test: {
                     name: "llm-regression",
+                    setupFiles: ["./test/ai/llm-regression/setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~

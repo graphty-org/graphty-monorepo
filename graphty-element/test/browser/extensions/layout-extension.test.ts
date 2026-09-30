@@ -55,7 +55,8 @@
  * from.
  */
 
-import { afterAll, afterEach, assert, beforeEach, describe, it } from "vitest";
+import { maskTest } from "@graphty/graph-format";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG, LAYOUT_DESCRIPTORS, layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -69,11 +70,15 @@ import {
     LayoutEngine,
     type Node,
     type NodeIdType,
+    type NodeMask,
     type OptionDescriptor,
     type Position,
+    registerSnapshotLayout,
     SimpleLayoutEngine,
+    type SnapshotLayoutInput,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
+import { operationQueueOf } from "../../../src/Graph";
 // Not plugin code: the element's own deterministic stand-in for a device.
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
 
@@ -693,7 +698,37 @@ function refusalOf(act: () => void): GraphtyError {
     throw new Error("the registration was accepted when it should have been refused");
 }
 
+/**
+ * The ring, declared able to lay out a scope. It keeps the contract `static scoped` states: a held
+ * node is fixed in the engine's own state -- here, the ring's own pin list -- and not only kept
+ * from being written, so the ring never walks it anywhere.
+ */
+class ScopedRingLayout extends RingLayout {
+    static type = "test-scoped-ring";
+    static scoped = true;
+    static descriptor: AuthoredLayoutDescriptor = {
+        ...RingLayout.descriptor,
+        id: "test-scoped-ring",
+        engine: "test-scoped-ring",
+    };
+
+    /** The ids the element asked this engine to hold, at the last `setHoldMask`. */
+    heldIds: NodeIdType[] = [];
+
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.heldIds = [];
+        for (const node of this.nodes) {
+            if (this.isHeld(node.index)) {
+                this.heldIds.push(node.id);
+                this.pin(node);
+            }
+        }
+    }
+}
+
 LayoutEngine.register(RingLayout);
+LayoutEngine.register(ScopedRingLayout);
 LayoutEngine.register(GridLayout);
 LayoutEngine.register(RefusingLayout);
 LayoutEngine.register(LateFailureLayout);
@@ -774,7 +809,7 @@ describe("a third party's layout engine", () => {
      */
     async function useLayout<T extends LayoutEngine>(type: string, opts: object = {}): Promise<T> {
         await graph.setLayout(type, opts);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const manager = graph.getLayoutManager();
         const engine = manager.layoutEngine;
@@ -792,7 +827,7 @@ describe("a third party's layout engine", () => {
      * @param what - how to describe the wait if it fails
      */
     async function waitForRedraw(what: string): Promise<void> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const manager = graph.getLayoutManager();
         await waitFor(() => (manager.layoutEngine?.isSettled ?? false) && !manager.running, what);
@@ -891,7 +926,7 @@ describe("a third party's layout engine", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Park the element on a layout that finishes in one pass before any test begins. The
         // element starts every graph on its own force simulation, which is still running while
@@ -1031,7 +1066,7 @@ describe("a third party's layout engine", () => {
             const engine = await useLayout<RingLayout>("test-ring");
 
             await graph.removeNodes(["c"]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.deepStrictEqual(engine.removedNodeIds, ["c"], "the element named the node it removed");
             assert.strictEqual([...engine.nodes].length, NODES.length - 1, "and the engine is no longer holding it");
@@ -1296,10 +1331,13 @@ describe("a third party's layout engine", () => {
             const inThree = await useLayout<RingLayout>("test-ring", { radius: 250 });
             assert.strictEqual(inThree.radius, 250);
             assert.strictEqual(inThree.dimensions, 3);
-            assert.isUndefined(inThree.config, "this engine never filled the element's old `config` slot");
+            assert.isUndefined(
+                Reflect.get(inThree, "config"),
+                "this engine never filled the element's old `config` slot",
+            );
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // The helper refuses anything that is not the plugin's engine, so reaching this line
             // is itself the assertion that the element rebuilt the same plugin rather than falling
@@ -1342,6 +1380,31 @@ describe("a third party's layout engine", () => {
 
             assert.isAbove(engine.incrementalUpdates.length, 0, "the element used the engine's own method");
             assert.include(engine.incrementalUpdates.flat(), "f", "and named the node that had just arrived");
+        });
+    });
+
+    describe("a scope", () => {
+        it("is handed to an engine that declares `static scoped`, as the hold mask over every other node", async () => {
+            assert.isTrue(offeredLayout("test-scoped-ring").scoped, "the catalogue says it takes a scope");
+            assert.isFalse(offeredLayout("test-ring").scoped, "and an engine that says nothing does not");
+            const before = { c: { ...nodeById("c").getPosition() }, e: { ...nodeById("e").getPosition() } };
+
+            await graph.setLayout("test-scoped-ring", {}, { scope: { nodes: ["a", "b"] } });
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(engine, ScopedRingLayout);
+            await waitForRedraw("the scoped ring to settle");
+
+            assert.isNotNull(engine.holdMask, "the element handed the engine a hold mask");
+            assert.sameMembers(engine.heldIds, ["c", "d", "e"], "holding every node outside the scope");
+            assert.deepStrictEqual(nodeById("c").getPosition(), before.c, "a held node did not move");
+            assert.deepStrictEqual(nodeById("e").getPosition(), before.e);
+            assert.isFalse(nodeById("c").isPinned(), "and the hold is not a pin");
+        });
+
+        it("is refused by an engine that does not declare `static scoped`", async () => {
+            const error = await failureOf(() => graph.setLayout("test-ring", {}, { scope: { nodes: ["a"] } }));
+
+            assert.strictEqual(error.code, "E_UNSUPPORTED");
         });
     });
 
@@ -1415,7 +1478,7 @@ describe("a third party's layout engine", () => {
 
             // The same accelerator is live: a built-in simulation layout on this graph takes it.
             await graph.setLayout("forceatlas2");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.strictEqual(fake.calls.forceAtlas2, 1);
         });
     });
@@ -1483,5 +1546,425 @@ describe("what a layout registration refuses", () => {
             "ngraph",
             "and a saved document naming that arrangement still means what it meant",
         );
+    });
+});
+
+/** Scene units between two neighbours on the line. */
+const LINE_GAP = 10;
+
+/**
+ * A descriptor for a test layout.
+ * @param id - the layout's key
+ * @returns the descriptor
+ */
+function lineDescriptor(id: string): AuthoredLayoutDescriptor {
+    return {
+        id,
+        plainName: "Line",
+        technicalName: "Nodes on a line",
+        description: "Puts the nodes on the x axis in row order.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 2,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: id,
+        options: [
+            {
+                name: "gap",
+                plainName: "Gap",
+                description: "Scene units between neighbours.",
+                type: "number",
+                default: LINE_GAP,
+                min: 1,
+                max: 1000,
+            },
+        ],
+    };
+}
+
+/**
+ * Nodes on the x axis, `gap` apart, in row order.
+ * @param input - the run's input
+ * @returns the coordinates
+ */
+function line(input: SnapshotLayoutInput): Float32Array<ArrayBuffer> {
+    const gap = input.options.gap as number;
+    const out = new Float32Array(input.dimensions * input.graph.nodeCount);
+    for (let row = 0; row < input.graph.nodeCount; row++) {
+        out[input.dimensions * row] = row * gap;
+    }
+
+    return out;
+}
+
+/** Every input the layouts below were snapshotInputs, newest last. */
+const snapshotInputs: SnapshotLayoutInput[] = [];
+
+/** How the deferred layout's pending answers are settled from a test. */
+const deferred: { resolve: ((positions: Float32Array<ArrayBuffer>) => void) | null } = { resolve: null };
+
+/*
+ * A SINGLE-PASS LAYOUT ON THE SNAPSHOT CONTRACT: a descriptor and a function, registered with
+ * `registerSnapshotLayout`. The element hands the function the graph as a graph-format snapshot,
+ * the options, the rows it may not move, an abort signal and a progress channel, and the function
+ * answers with coordinates. The element's own single-pass layouts are built on the same contract.
+ */
+describe("a single-pass layout registered on the snapshot contract", () => {
+    // Registered here rather than when the file loads: the suites above clear the catalogue when
+    // they finish, which would take these layouts' descriptors with it.
+    beforeAll(() => {
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-line"),
+            compute: (input) => {
+                snapshotInputs.push(input);
+                return line(input);
+            },
+        });
+
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-async"),
+            compute: async (input) => {
+                snapshotInputs.push(input);
+                input.report({ fraction: 0.5, message: "half way" });
+                await new Promise((resolve) => setTimeout(resolve, 3 * FRAME_MS));
+                return line(input);
+            },
+        });
+
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-fails"),
+            compute: async () => {
+                await new Promise((resolve) => setTimeout(resolve, FRAME_MS));
+                throw new GraphtyError({ code: "E_UNSUPPORTED", message: "cannot arrange this", source: "layout" });
+            },
+        });
+
+        const scopedLine = lineDescriptor("test-snapshot-scoped");
+        registerSnapshotLayout({
+            descriptor: {
+                ...scopedLine,
+                scoped: true,
+                options: [
+                    ...scopedLine.options,
+                    { name: "by", plainName: "By", description: "The attribute to read.", type: "string", default: "" },
+                ],
+            },
+            compute: (input) => {
+                snapshotInputs.push(input);
+                return line(input);
+            },
+        });
+
+        registerSnapshotLayout({
+            descriptor: lineDescriptor("test-snapshot-deferred"),
+            compute: (input) => {
+                snapshotInputs.push(input);
+                return new Promise((resolve) => {
+                    deferred.resolve = resolve;
+                });
+            },
+        });
+    });
+
+    let container: HTMLDivElement;
+    let graph: Graph;
+
+    /**
+     * Where a node is drawn.
+     * @param id - the node's id
+     * @returns its coordinates
+     */
+    function at(id: string): { x: number; y: number; z: number } {
+        const node = graph.getNode(id);
+        if (!node) {
+            throw new Error(`the graph has no node "${id}"`);
+        }
+
+        return { ...node.getPosition() };
+    }
+
+    /**
+     * Choose a layout and wait until the element has drawn its answer.
+     * @param type - the layout's key
+     * @param opts - the consumer's options
+     */
+    async function useLayout(type: string, opts: object = {}): Promise<void> {
+        await graph.setLayout(type, opts);
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getLayoutManager();
+        await waitFor(() => (manager.layoutEngine?.isSettled ?? false) && !manager.running, `"${type}" to settle`);
+    }
+
+    beforeEach(async () => {
+        snapshotInputs.length = 0;
+        deferred.resolve = null;
+        container = document.createElement("div");
+        container.style.width = "400px";
+        container.style.height = "300px";
+        document.body.appendChild(container);
+
+        graph = new Graph(container);
+        await graph.init();
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await operationQueueOf(graph).waitForCompletion();
+        await useLayout("circular");
+    });
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    afterAll(() => {
+        clearRegisteredLayoutsForTesting();
+    });
+
+    it("is offered by the catalogue and lays the graph out with the consumer's options", async () => {
+        const offered = graph
+            .getSession()
+            .catalog.layouts()
+            .find((layout) => layout.id === "test-snapshot-line");
+        assert.isDefined(offered, "the session's catalogue offers it");
+
+        await useLayout("test-snapshot-line", { gap: 25 });
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.strictEqual(input.graph.nodeCount, NODES.length, "the layout was snapshotInputs the whole graph");
+        assert.strictEqual(input.stored.edgeCount, EDGES.length, "and the graph as stored");
+        assert.strictEqual(input.dimensions, 2);
+        assert.isTrue(input.firstRun, "the run that follows setLayout is the first");
+        for (const { id } of NODES) {
+            const row = input.graph.ids.indexOf(id);
+            assert.closeTo(at(id).x, row * 25, 1e-3, `node ${id} is where the layout put it, in scene units`);
+            assert.closeTo(at(id).y, 0, 1e-3);
+        }
+    });
+
+    it("leaves a pinned node where it is, and tells the layout which rows those are", async () => {
+        const before = at("b");
+        await graph.getSession().positions.pin(["b"]);
+
+        await useLayout("test-snapshot-line");
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        const row = input.graph.ids.indexOf("b");
+        assert.isTrue(maskTest(input.fixed.rows, row), "the pinned row is in the fixed rows");
+        assert.closeTo(input.fixed.positions[2 * row], before.x, 1e-3, "with its current coordinates");
+        assert.isFalse(maskTest(input.fixed.rows, input.graph.ids.indexOf("a")), "and nothing else is");
+        assert.deepStrictEqual(at("b"), before, "the pinned node did not move");
+        assert.closeTo(at("c").x, input.graph.ids.indexOf("c") * LINE_GAP, 1e-3, "the others did");
+    });
+
+    it("places nodes from an answer that arrives later, and reports its progress", async () => {
+        const reported: { layoutType: unknown; fraction: unknown; message: unknown }[] = [];
+        graph.addListener("layout-progress", (event) => {
+            reported.push({ layoutType: event.layoutType, fraction: event.fraction, message: event.message });
+        });
+
+        await useLayout("test-snapshot-async");
+
+        assert.deepStrictEqual(reported, [{ layoutType: "test-snapshot-async", fraction: 0.5, message: "half way" }]);
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        for (const { id } of NODES) {
+            assert.closeTo(at(id).x, input.graph.ids.indexOf(id) * LINE_GAP, 1e-3, `node ${id} is on the line`);
+        }
+    });
+
+    it("aborts an answer that is no longer wanted, and publishes nothing from it", async () => {
+        const circle = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+        await graph.setLayout("test-snapshot-deferred");
+        await operationQueueOf(graph).waitForCompletion();
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.isFalse(input.signal.aborted);
+        assert.isFalse(graph.getLayoutManager().isSettled, "the layout is unsettled while its answer is out");
+        const late = deferred.resolve;
+        assert.isNotNull(late);
+
+        await useLayout("circular");
+        assert.isTrue(input.signal.aborted, "replacing the layout aborted the answer");
+
+        late(new Float32Array(2 * NODES.length).fill(999));
+        await new Promise((resolve) => setTimeout(resolve, 5 * FRAME_MS));
+        for (const { id } of NODES) {
+            assert.deepStrictEqual(at(id), circle[id], `node ${id} is still on the circle`);
+        }
+    });
+
+    it("reports an answer that failed later with the code the layout threw, and settles", async () => {
+        const reported: Error[] = [];
+        graph.on("error", (event) => {
+            if (event.type === "error" && event.context === "layout") {
+                reported.push(event.error);
+            }
+        });
+
+        await graph.setLayout("test-snapshot-fails");
+        await operationQueueOf(graph).waitForCompletion();
+        await waitFor(() => reported.length > 0, "the failure to be reported");
+
+        assert.lengthOf(reported, 1, "reported once");
+        assert.isTrue(
+            isGraphtyError(reported[0]) && reported[0].code === "E_UNSUPPORTED",
+            "with the layout's own code",
+        );
+        assert.isTrue(graph.getLayoutManager().isSettled, "and the layout is no longer waiting");
+    });
+
+    it("is told which rows are new after an add, and the rest stay where they are", async () => {
+        await useLayout("test-snapshot-line");
+        const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+
+        await graph.addNodes([{ id: "f" }]);
+        await operationQueueOf(graph).waitForCompletion();
+        await waitFor(() => graph.getLayoutManager().isSettled, "the line to take in the new node");
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.isNotNull(input.added, "the run was told it follows an add");
+        assert.isFalse(input.firstRun, "and is not the layout's first");
+        assert.isTrue(maskTest(input.added, input.graph.ids.indexOf("f")), "the new node's row is marked");
+        assert.isFalse(maskTest(input.added, input.graph.ids.indexOf("a")), "an existing node's is not");
+        for (const { id } of NODES) {
+            assert.deepStrictEqual(at(id), before[id], `node ${id} stayed where it was`);
+        }
+
+        await newcomerDrawnAt("f", input.graph.ids.indexOf("f") * LINE_GAP);
+    });
+
+    /**
+     * Wait until a node added to a line is drawn on it.
+     * @param id - the node
+     * @param x - where on the line it belongs
+     */
+    async function newcomerDrawnAt(id: string, x: number): Promise<void> {
+        await waitFor(() => Math.abs(at(id).x - x) < 1e-3 && Math.abs(at(id).y) < 1e-3, `${id} to be drawn at x=${x}`);
+    }
+
+    /**
+     * Wait for the deferred layout's answer to be asked for, and return what it was handed.
+     * @param count - how many inputs the layouts have been handed by then
+     * @returns the newest input
+     */
+    async function deferredInput(count: number): Promise<SnapshotLayoutInput> {
+        await waitFor(() => snapshotInputs.length === count && deferred.resolve !== null, `compute call ${count}`);
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        return input;
+    }
+
+    /**
+     * Answer the deferred layout's pending run with a line, and wait until it is drawn.
+     * @param input - the pending run's input
+     * @param offset - scene units added to every x
+     */
+    async function answerDeferred(input: SnapshotLayoutInput, offset: number): Promise<void> {
+        const { resolve } = deferred;
+        assert.isNotNull(resolve);
+        deferred.resolve = null;
+        resolve(line(input).map((v, i) => (i % input.dimensions === 0 ? v + offset : v)));
+        const manager = graph.getLayoutManager();
+        await waitFor(() => manager.isSettled && !manager.running, "the answer to be drawn");
+    }
+
+    it("keeps drawn nodes still through two adds made while an answer is out", async () => {
+        await graph.setLayout("test-snapshot-deferred");
+        await answerDeferred(await deferredInput(1), 0);
+        const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+
+        await graph.addNodes([{ id: "f" }]);
+        const first = await deferredInput(2);
+        await graph.addNodes([{ id: "g" }]);
+        const second = await deferredInput(3);
+
+        assert.isTrue(first.signal.aborted, "the graph changing aborted the first add's answer");
+        assert.isNotNull(second.added, "the run after both adds is told it follows an add");
+        for (const id of ["f", "g"]) {
+            assert.isTrue(maskTest(second.added, second.graph.ids.indexOf(id)), `${id} is new`);
+        }
+
+        for (const { id } of NODES) {
+            const row = second.graph.ids.indexOf(id);
+            assert.isFalse(maskTest(second.added, row), `${id} is not new`);
+            assert.isTrue(maskTest(second.fixed.rows, row), `${id} is fixed`);
+        }
+
+        await answerDeferred(second, 1000);
+        for (const { id } of NODES) {
+            assert.deepStrictEqual(at(id), before[id], `node ${id} stayed where it was`);
+        }
+
+        // The answer is carried into the frame the held nodes are drawn in, which undoes the offset.
+        await newcomerDrawnAt("f", second.graph.ids.indexOf("f") * LINE_GAP);
+        await newcomerDrawnAt("g", second.graph.ids.indexOf("g") * LINE_GAP);
+    });
+
+    it("aborts an answer when the graph is emptied", async () => {
+        await graph.setLayout("test-snapshot-deferred");
+        const input = await deferredInput(1);
+
+        await graph.removeNodes(NODES.map(({ id }) => id));
+        await operationQueueOf(graph).waitForCompletion();
+        await waitFor(() => input.signal.aborted, "the answer to be aborted");
+        assert.isTrue(graph.getLayoutManager().isSettled, "and nothing is waiting");
+    });
+
+    it("aborts an answer when the element is disposed", async () => {
+        await graph.setLayout("test-snapshot-deferred");
+        const input = await deferredInput(1);
+
+        graph.dispose();
+
+        assert.isTrue(input.signal.aborted);
+    });
+
+    it("is handed a scope, and the rows outside it stay where they are", async () => {
+        const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
+        await graph.setLayout("test-snapshot-scoped", {}, { scope: { nodes: ["a", "b"] } });
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getLayoutManager();
+        await waitFor(() => manager.isSettled && !manager.running, "the scoped line to settle");
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        assert.isNotNull(input.scope);
+        for (const { id } of NODES) {
+            const row = input.graph.ids.indexOf(id);
+            const inside = id === "a" || id === "b";
+            assert.strictEqual(maskTest(input.scope, row), inside, `${id} is ${inside ? "in" : "outside"} the scope`);
+            assert.strictEqual(maskTest(input.fixed.rows, row), !inside, `${id} is ${inside ? "free" : "fixed"}`);
+            if (inside) {
+                assert.closeTo(at(id).x, row * LINE_GAP, 1e-3, `${id} was laid out`);
+            } else {
+                assert.deepStrictEqual(at(id), before[id], `${id} did not move`);
+            }
+        }
+    });
+
+    it("reads the node attribute an option names as a column", async () => {
+        await graph.addNodes([{ id: "f", geo: { lat: 7 } }]);
+        await operationQueueOf(graph).waitForCompletion();
+
+        await useLayout("test-snapshot-scoped", { by: "geo.lat" });
+
+        const input = snapshotInputs.at(-1);
+        assert.isDefined(input);
+        const column = input.column("by");
+        assert.isNotNull(column);
+        assert.lengthOf(column, input.graph.nodeCount);
+        assert.strictEqual(column[input.graph.ids.indexOf("f")], 7, "the value at the path");
+        assert.isUndefined(column[input.graph.ids.indexOf("a")], "undefined where a node has none");
+        assert.isNull(input.column("gap"), "an option that is not a path names no column");
+    });
+
+    it("is what the root entry publishes, so a page on the bundle can register one", async () => {
+        const root = await import("../../../index.js");
+
+        assert.strictEqual(root.registerSnapshotLayout, registerSnapshotLayout);
     });
 });

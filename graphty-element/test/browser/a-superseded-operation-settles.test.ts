@@ -42,6 +42,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
 
 /** How long the element needs to connect, drain its queue and draw. */
 const SETTLE_MS = 1500;
@@ -90,7 +91,7 @@ function mount(): Graphty {
  * @param element - the mounted element
  */
 async function settle(element: Graphty): Promise<void> {
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 
@@ -125,7 +126,7 @@ function blockTheQueue(element: Graphty): () => void {
         release = resolve;
     });
 
-    void element.graph.operationQueue.queueOperationAsync("data-update", () => held, {
+    void operationQueueOf(element.graph).queueOperationAsync("data-update", () => held, {
         description: "a slow operation, so the requests behind it have to wait",
     });
 
@@ -188,7 +189,7 @@ describe("a request the element supersedes", () => {
 
         // The reader closes the panel, the host tears the graph down, and the queue is emptied
         // with work still on it. The promise for that work is the caller's only handle on it.
-        element.graph.operationQueue.clear();
+        operationQueueOf(element.graph).clear();
         release();
 
         assert.notEqual(

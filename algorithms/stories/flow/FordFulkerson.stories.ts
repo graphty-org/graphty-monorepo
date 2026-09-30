@@ -4,19 +4,16 @@
  * Demonstrates Ford-Fulkerson max flow algorithm with step-by-step animation
  * showing augmenting paths being found and flow being increased.
  *
- * IMPORTANT: This story uses the actual fordFulkerson implementation
+ * IMPORTANT: This story uses the actual maxFlow implementation
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { fordFulkerson, Graph } from "@graphty/algorithms";
+import { maxFlow } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    type GraphNode,
-    SeededRandom,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, type GraphNode, SeededRandom } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
 import {
     COLORS,
     createAnimationControls,
@@ -130,23 +127,6 @@ function generateFlowNetwork(
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph with string node IDs.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: true });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(String(node.id));
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(String(edge.source), String(edge.target), edge.weight ?? 1);
-    }
-
-    return graph;
-}
-
-/**
  * Animation step for Ford-Fulkerson visualization.
  */
 interface FlowStep {
@@ -160,17 +140,15 @@ interface FlowStep {
 /**
  * Run Ford-Fulkerson and create animation steps.
  */
-function runFordFulkersonAndCreateSteps(
-    generatedGraph: GeneratedGraph,
-): FlowStep[] {
+function runFordFulkersonAndCreateSteps(generatedGraph: GeneratedGraph): FlowStep[] {
     const steps: FlowStep[] = [];
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { directed: true, weighted: true });
 
-    const source = "0";
-    const sink = String(generatedGraph.nodes.length - 1);
+    const source = graph.ids.requireIndex(0);
+    const sink = graph.ids.requireIndex(generatedGraph.nodes.length - 1);
 
-    // Run actual Ford-Fulkerson algorithm
-    const result = fordFulkerson(graph, source, sink);
+    // Run the actual maximum flow algorithm
+    const result = maxFlow(graph, source, sink);
 
     steps.push({
         type: "start",
@@ -443,7 +421,7 @@ type Story = StoryObj<FordFulkersonArgs>;
 /**
  * Ford-Fulkerson max flow algorithm story with step-by-step animation.
  *
- * This story uses the actual `fordFulkerson()` function from @graphty/algorithms.
+ * This story uses the actual `maxFlow()` function from @graphty/algorithms.
  * Watch as the algorithm finds augmenting paths and increases flow.
  */
 export const FordFulkerson: Story = {

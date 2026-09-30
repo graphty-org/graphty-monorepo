@@ -17,6 +17,11 @@ fix: resolve bug         → 1.1.0 → 1.1.1 (patch)
 feat!: breaking change   → 1.1.1 → 2.0.0 (major)
 ```
 
+Scope a breaking commit to the package it breaks, e.g. `feat(graph-format)!:` on a commit that
+touches a file under `graph-format/`. An unscoped `feat!:` gives every dependent package a major
+too, and every package when the commit also touches `pnpm-lock.yaml`. See section 13.5 of
+`design/graph-format/graph-format-design.md`.
+
 ### Basic Configuration
 
 ```json

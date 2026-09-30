@@ -24,7 +24,7 @@
 import { commands } from "@vitest/browser/context";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { type Graph, operationQueueOf } from "../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 import baseline from "./render-budget.baseline.json";
 
@@ -90,7 +90,7 @@ function graphOf(
  */
 async function load(graph: Graph, nodeCount: number, edgeCount: number): Promise<void> {
     graph.setData(graphOf(nodeCount, edgeCount));
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
     await graph.waitForStableFrame({ timeoutMs: LARGE_LOAD_TIMEOUT_MS });
     assert.strictEqual(graph.getDataManager().edges.size, edgeCount, "every edge loaded");
 }
@@ -198,7 +198,7 @@ describe("a load and a clear", () => {
             assert.isAbove(held(graph).sceneMeshes, start.sceneMeshes, "loading must add meshes");
 
             graph.clearData();
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.deepEqual(held(graph), start, `clear ${String(pass)} left the scene holding something`);
         }

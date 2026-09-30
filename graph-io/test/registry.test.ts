@@ -22,6 +22,7 @@ import {
     byteStream,
     CORPUS_FORMATS,
     corpusFiles,
+    corpusOptions,
     readCorpusBytes,
     textChunksOf,
 } from "./helpers/corpus.js";
@@ -40,18 +41,6 @@ function edges(s: GraphSnapshot): string[] {
         { length: s.edgeCount },
         (_, e) => `${String(s.ids.idOf(el.src[e]))}-${String(s.ids.idOf(el.dst[e]))}`,
     );
-}
-
-/**
- * A neo4j corpus manifest entry's importer options, when it has any.
- * @param format - the corpus format
- * @param path - the file
- * @returns the options or an empty object
- */
-function corpusOptions(format: string, path: string): Record<string, unknown> {
-    const entry = corpusFiles(format as (typeof CORPUS_FORMATS)[number]).find((f) => f.path === path) as
-        { options?: Record<string, unknown> } | undefined;
-    return entry?.options ?? {};
 }
 
 describe("FormatRegistry", () => {
@@ -292,13 +281,25 @@ describe("importAllGraphs", () => {
         ];
         for (const [format, text, nodes] of cases) {
             const all = await importAllGraphs(utf8(text), { format });
-            expect(all.map((r) => r.snapshot.nodeCount), format).toEqual(nodes);
-            expect(all.every((r) => r.format === format), format).toBe(true);
-            expect(all.flatMap((r) => r.report.issues.map((i) => i.code)), format).not.toContain("W_MULTIPLE_GRAPHS");
+            expect(
+                all.map((r) => r.snapshot.nodeCount),
+                format,
+            ).toEqual(nodes);
+            expect(
+                all.every((r) => r.format === format),
+                format,
+            ).toBe(true);
+            expect(
+                all.flatMap((r) => r.report.issues.map((i) => i.code)),
+                format,
+            ).not.toContain("W_MULTIPLE_GRAPHS");
             // import() keeps the first graph and says how many it skipped
             const one = await importGraph(utf8(text), { format });
             expect(one.snapshot.nodeCount, format).toBe(nodes[0]);
-            expect(one.report.issues.map((i) => i.code), format).toContain("W_MULTIPLE_GRAPHS");
+            expect(
+                one.report.issues.map((i) => i.code),
+                format,
+            ).toContain("W_MULTIPLE_GRAPHS");
         }
     });
 

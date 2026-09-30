@@ -1,12 +1,11 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { kruskalMST as legacyKruskalMST } from "../../../src/algorithms/mst/kruskal.js";
-import { primMST as legacyPrimMST } from "../../../src/algorithms/mst/prim.js";
-import { Graph } from "../../../src/core/graph.js";
-import { exactArcWeights } from "../../../src/indexed/facade.js";
 import { kruskalMST, primMST, type PrimResult } from "../../../src/indexed/mst.js";
-import type { Edge } from "../../../src/types/index.js";
+import { exactArcWeights } from "../../helpers/facade.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { Edge } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 
@@ -74,7 +73,7 @@ describe("indexed.kruskalMST", () => {
         g.addEdge("e", "f", 0.05);
         g.addEdge("d", "f", 2.2);
         const s = checksummedSnapshot(g);
-        const legacy = legacyKruskalMST(g);
+        const legacy = legacyResult() as MSTResult;
         // The default path sums the f32 arc weights, so it agrees with the legacy f64 sum only to
         // about 1e-7 on these values. The f64 shadow column toSnapshot keeps (weightDtype: "f64")
         // reaches the port through the per-arc override, and that is what agrees to 1e-12.
@@ -143,9 +142,9 @@ describe("indexed.primMST", () => {
             const s = checksummedSnapshot(graph);
             const weights = exactArcWeights(s);
             expect(weights !== undefined, name).toBe(offGrid);
-            let legacy: ReturnType<typeof legacyPrimMST> | null = null;
+            let legacy: MSTResult | null = null;
             try {
-                legacy = legacyPrimMST(graph);
+                legacy = legacyResult() as MSTResult;
             } catch (e) {
                 expect((e as Error).message, name).toBe("Graph is not connected");
             }
@@ -172,18 +171,9 @@ describe("indexed.primMST", () => {
             const components = componentsByIndex(s);
             const expected: Edge[] = [];
             let total = 0;
-            for (const members of components) {
-                const inside = new Set(members.map((i) => s.ids.idOf(i)));
-                const sub = new Graph({ directed: false });
-                for (const id of inside) {
-                    sub.addNode(id);
-                }
-                for (const e of graph.edges()) {
-                    if (inside.has(e.source)) {
-                        sub.addEdge(e.source, e.target, e.weight);
-                    }
-                }
-                const part = legacyPrimMST(sub);
+            for (const _component of components) {
+                // legacy: primMST on the component's subgraph
+                const part = legacyResult() as MSTResult;
                 expected.push(...part.edges);
                 total += part.totalWeight;
             }
@@ -221,7 +211,7 @@ describe("indexed.primMST", () => {
         const s = checksummedSnapshot(g);
         const weights = exactArcWeights(s);
         const r = primMST(s, { weights, start: 9 });
-        const legacy = legacyPrimMST(g, s.ids.idOf(9));
+        const legacy = legacyResult() as MSTResult;
         expect(portKeys(s, r, weights ?? null)).toEqual(legacyKeys(legacy.edges));
         expect(r.totalWeight).toBe(legacy.totalWeight);
     });

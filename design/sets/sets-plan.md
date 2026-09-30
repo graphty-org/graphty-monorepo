@@ -1470,11 +1470,9 @@ passes.
 
 - `scopeEdges` also gives each edge's source and target ids (declared orientation), so an adapter
   that matches an `@graphty/algorithms` answer back by node pair needs no second read.
-- Max flow's capacity is an attribute of the edge record, which the snapshot does not carry. It is
-  read through `Algorithm.edgeRecord(id)`, one by-id record read in the permanent seam file, with ids
-  taken from the input; the registry test's recording passes `getEdge` through unrecorded, since a
-  by-id attribute read is not topology. Test fakes of the data manager gained `getEdge`. It goes
-  away when the store carries attribute columns.
+- Max flow's capacity was first read from the edge record by id, since the snapshot did not carry
+  it. The store now keeps it in an edge column written at ingestion, so the adapter reads no
+  record and the by-id read is gone.
 - Min cut now reads its weights from the input (the element's edge weight, reciprocal pairs one
   edge, parallel edges summed), where it read the record's `value` key alone and kept the last of
   a group of parallel edges. Its caveat already named the `weight` attribute.
@@ -1509,8 +1507,9 @@ allowlist holds only its permanent entries, and the registry test passes.
   shapes are still told apart by element values alone, because a graph-level summary such as a
   range differs between the two runs whatever the values do.
 - `utils/graphUtils.ts`'s `buildAdjacencyList` and `buildWeightedAdjacencyList` had no caller in
-  `src/`, so they were deleted with their tests rather than ported; the file keeps `edgePairKey`
-  and `requireNodeOption`. The `utils/index.ts` barrel, imported only by that test and not in the
+  `src/`, so they were deleted with their tests rather than ported; the file kept `edgePairKey`
+  and `requireNodeOption`. `edgePairKey` was deleted later, when its last callers (max flow, min
+  cut, bipartite matching) moved onto the indexed ports. The `utils/index.ts` barrel, imported only by that test and not in the
   exports map, went with it.
 - With every file migrated, the static guard's to-migrate list and its "only shrinks" test are
   gone; the guard holds only its three permanent entries. Both "declared off" and "declared on"

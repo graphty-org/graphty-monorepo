@@ -9,7 +9,6 @@
  * from a starting node, which can be optionally configured.
  */
 
-import { indexed } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
@@ -120,9 +119,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
         const start = startNode === undefined ? undefined : this.nodeIndex(snapshot, "startNode", startNode);
 
         context.report({ phase: "Choosing edges", total: null });
-        const { value: tree, precision } = await run((_dispatch, s) =>
-            Promise.resolve(indexed.primMST(s, { start, forest: true })),
-        );
+        const { value: tree, precision } = await run((dispatch, s) => dispatch.primMST(s, { start, forest: true }));
 
         // Read the remap from the edge the reader declared to the edge the tree chose, which is
         // what flags BOTH halves of a merged reciprocal pair and every edge of a parallel group.

@@ -53,6 +53,17 @@ const XR_BROWSER_TESTS = [
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * The package's published names, resolved to its own source. The docs' examples
+ * (docs/examples/) import `@graphty/graphty-element/extend` and `/logging` exactly as a reader
+ * copies them, and the tests that run those examples must run the code under test, not a stale
+ * dist/.
+ */
+const OWN_ENTRY_POINTS = {
+    "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts"),
+    "@graphty/graphty-element/logging": path.resolve(dirname, "logging.ts"),
+};
+
+/**
  * The Chromium flag sets that expose WebGPU to the `browser` project.
  *
  * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
@@ -228,6 +239,7 @@ export default defineConfig({
                 },
             },
             {
+                resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
                     setupFiles: ["./test/setup.ts"],
@@ -344,6 +356,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
@@ -420,6 +433,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 // WebXR, in its own project so the pre-push gate can run it without the rest of the
@@ -458,7 +472,10 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: playwright(),
+                        // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
+                        // before each timed step so the step is not charged for a collection that
+                        // the steps before it made due. Its header has the numbers.
+                        provider: playwright({ launchOptions: { args: ["--js-flags=--expose-gc"] } }),
                         instances: [{ browser: "chromium" }],
                     },
                 },
@@ -476,6 +493,7 @@ export default defineConfig({
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
                     setupFiles: ["./test/setup.ts"],
@@ -592,6 +610,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 test: {

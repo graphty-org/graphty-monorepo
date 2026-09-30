@@ -64,6 +64,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNSUPPORTED",
     "E_READONLY",
     "E_DISPOSED",
+    "E_EXTENSION_FAILED",
     "E_TRANSACTION_CLOSED",
     "E_HELD_BY_TRANSACTION",
     "E_INTERNAL",
@@ -131,6 +132,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSUPPORTED":
         case "E_INTERNAL":
             return "refused";
+        case "E_EXTENSION_FAILED":
+            return "extension";
         default: {
             const unreachable: never = code;
             return unreachable;

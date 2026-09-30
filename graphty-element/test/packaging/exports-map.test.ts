@@ -188,6 +188,16 @@ describe("the exports map", () => {
         assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts")));
     });
 
+    it("builds ./bundle from an entry that adds GraphtyLogger, so a page with no build step can switch logging on", () => {
+        // The simple tier's logging example ends with GraphtyLogger.configure({ enabled: true }).
+        // A bundle-only page has no second address to import the logger from.
+        const config = readFileSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts"), "utf8");
+        assert.match(config, /entry: `\$\{here\}bundle\.ts`/);
+        const entry = readFileSync(resolve(PACKAGE_ROOT, "bundle.ts"), "utf8");
+        assert.include(entry, 'export * from "./index";');
+        assert.include(entry, 'export { GraphtyLogger } from "./logging";');
+    });
+
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
         assert.strictEqual(manifest.exports["./custom-elements.json"], "./dist/custom-elements.json");
         assert.strictEqual(manifest.customElements, "./dist/custom-elements.json");
@@ -251,9 +261,17 @@ describe("what the package promises about side effects and size", () => {
 });
 
 describe("the sibling packages", () => {
-    it("takes graph-format as a dependency and a peer, so one copy is installed", () => {
+    it("takes graph-format as a regular dependency, not a peer, so installing the element never fails on the consumer's own graph-format", () => {
         assert.strictEqual(manifest.dependencies["@graphty/graph-format"], "workspace:^");
-        assert.isDefined(manifest.peerDependencies["@graphty/graph-format"]);
+        assert.isUndefined(manifest.peerDependencies["@graphty/graph-format"]);
+    });
+
+    it("declares no package as both a dependency and a peer", () => {
+        const peers = Object.keys(manifest.peerDependencies);
+        assert.deepEqual(
+            Object.keys(manifest.dependencies).filter((name) => peers.includes(name)),
+            [],
+        );
     });
 
     it("takes graph-io as a dependency, since the element's readers parse through it", () => {
@@ -264,7 +282,7 @@ describe("the sibling packages", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
-        // A workspace reference, like the graph-format peer above: pnpm rewrites it on publish to a
+        // A workspace reference: pnpm rewrites it on publish to a
         // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
         // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
         // an older range would crash when the element attached an accelerator. The explicit

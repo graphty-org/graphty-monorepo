@@ -1,5 +1,5 @@
 /**
- * Differential tests against the legacy `Graph` class of `@graphty/algorithms` (design section 16.2;
+ * Differential tests against the `Graph` class of `@graphty/algorithms` 2.x (design section 16.2;
  * the correspondences of sections 2, 3.3, 3.4, 3.5, 3.9, 4 and 14.2). Random directed and undirected
  * graphs -- with and without self-loops and parallel edges, numeric / string / mixed ids, 0 to 2000
  * nodes -- are fed to a copy of the legacy class (test/helpers/legacy-graph.ts) and to GraphBuilder,
@@ -37,7 +37,15 @@ const RUNS = Number(process.env.FC_RUNS ?? "60");
 
 /** The id pools: each exercises one storage kind of design section 4.2 or a documented edge case. */
 type IdKind =
-    "identity" | "oneBased" | "hugeOffset" | "negOffset" | "sparseInts" | "floats" | "strings" | "unicode" | "mixed";
+    | "identity"
+    | "oneBased"
+    | "hugeOffset"
+    | "negOffset"
+    | "sparseInts"
+    | "floats"
+    | "strings"
+    | "unicode"
+    | "mixed";
 
 const ID_KINDS: readonly IdKind[] = [
     "identity",

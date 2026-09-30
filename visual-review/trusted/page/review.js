@@ -37,7 +37,10 @@ const state = {
     data: null, // GET /api/pr/:id/:project
     filter: "undecided", // the grid opens on what still needs a decision
     text: "", // the grid's text filter
-    index: 0,
+    index: 0, // the item shown, in `sequence`
+    // The files of this pass through the stories, frozen when a story is opened from the grid:
+    // deciding one never drops it, so Previous goes back to it and its Undo.
+    sequence: [],
     lastFile: null, // the item last opened, highlighted when the grid comes back
     view: "side", // side | flash | highlight | spotlight
     zoom: "fit",
@@ -45,8 +48,13 @@ const state = {
     held: null, // the view to return to when Space is released
     pending: "reject", // what Enter in the reason box does
     screen: "targets",
+    job: null, // the newest Finish, from GET /api/finish-status
     armed: null, // the bulk Undo button pressed once: its second press undoes
 };
+const running = () => state.job?.running === true;
+const VIEWS = ["side", "flash", "highlight", "spotlight"];
+const FILTERS = ["undecided", "all", ...REVIEWABLE, UNSEEDED, ...Object.keys(DECISIONS)];
+let routing = false; // true while the page follows the address (a link opened, Back, Forward)
 const images = new Map();
 const diffs = new Map();
 let flashTimer = null;
@@ -82,8 +90,10 @@ function render(...children) {
     app.replaceChildren(...children.filter((c) => c !== null && c !== undefined && c !== false));
 }
 
+// Clearing the status line during a Finish shows the Finish's step instead, so a screen that
+// opens while it runs (a reload, Visual review, a link) never blanks its progress.
 function say(text, isError = false) {
-    statusLine.textContent = text;
+    statusLine.textContent = text === "" && running() ? finishing() : text;
     statusLine.className = isError ? "error" : "";
 }
 
@@ -181,6 +191,14 @@ function visibleItems() {
     return ordered(text ? items.filter((i) => i.file.includes(text)) : items);
 }
 
+// The items of the frozen pass, in its order; an item gone from a reloaded project is left out.
+function passItems() {
+    const byFile = new Map(state.data.items.map((i) => [i.file, i]));
+    return state.sequence.map((f) => byFile.get(f)).filter(Boolean);
+}
+
+const current = () => passItems()[state.index];
+
 function progress() {
     const items = state.data.items.filter((i) => REVIEWABLE.includes(i.status));
     return `${items.filter(decisionOf).length} / ${items.length} reviewed`;
@@ -197,24 +215,39 @@ function stopFlash() {
 
 // ---------------------------------------------------------------- screen: targets
 
-async function showTargets() {
+async function loadTargets() {
+    say("Loading pull requests and captures...");
+    try {
+        const [prs, status] = await Promise.all([api("/api/prs"), api("/api/finish-status")]);
+        state.targets = prs.targets;
+        state.job = status.job;
+        say("");
+        if (running()) {
+            // A reload during a Finish, on any screen: follow the running one, never offer a second.
+            watchFinish();
+        }
+        return true;
+    } catch (err) {
+        say(err.message, true);
+        return false;
+    }
+}
+
+async function showTargets(notice = "") {
     stopFlash();
     state.screen = "targets";
     setCrumbs();
-    say("Loading pull requests and captures...");
-    try {
-        state.targets = (await api("/api/prs")).targets;
-        say("");
-    } catch (err) {
-        say(err.message, true);
+    if (!(await loadTargets())) {
         return;
     }
+    remember();
+    say(notice);
     if (state.targets.length === 0) {
-        render(el("p", {}, "No open pull request has a CI run, and no master run was given."));
+        render(finishOutcome(), el("p", {}, "No open pull request has a CI run, and no master run was given."));
         return;
     }
     const finishable = state.targets.find((t) => !t.local);
-    render(finishable ? signerBlock(finishable) : null, ...state.targets.map(targetCard));
+    render(finishOutcome(), finishable ? signerBlock(finishable) : null, ...state.targets.map(targetCard));
 }
 
 // The key Finish signs with comes from the server's environment, which is an agent's when an
@@ -329,15 +362,22 @@ function targetCard(t) {
         ),
         t.local
             ? null
-            : el(
-                  "p",
-                  {},
-                  el(
-                      "button",
-                      { type: "button", class: "primary", disabled: decided === 0, onclick: () => finishTarget(t) },
-                      `Finish ${t.pr === null ? "seed" : `#${t.pr}`} (${decided} decisions)`,
-                  ),
-              ),
+            : running() && state.job.target === t.id
+              ? el("p", { class: "finish-running" }, `Finish is running: ${state.job.step}...`)
+              : el(
+                    "p",
+                    {},
+                    el(
+                        "button",
+                        {
+                            type: "button",
+                            class: "primary",
+                            disabled: decided === 0 || running(),
+                            onclick: () => finishTarget(t),
+                        },
+                        `Finish ${t.pr === null ? "seed" : `#${t.pr}`} (${decided} decisions)`,
+                    ),
+                ),
     );
 }
 
@@ -349,6 +389,7 @@ async function openProject(target, project) {
     state.filter = "undecided";
     state.text = "";
     state.lastFile = null;
+    state.sequence = [];
     say("Loading...");
     try {
         await reload();
@@ -385,8 +426,11 @@ const thumbs = new IntersectionObserver((entries) => {
     }
 });
 
+// Opens item `index` of the grid, and freezes what the grid shows as the pass Next and Previous
+// walk through.
 function openItem(index) {
     say("");
+    state.sequence = visibleItems().map((i) => i.file);
     state.index = index;
     state.box = 0;
     showStory();
@@ -716,6 +760,7 @@ function showGrid() {
     );
     // An armed bulk Undo lasts until the next redraw: this render showed it, the next one does not.
     state.armed = null;
+    remember();
     // Back from a story: show where it is in the grid.
     const current = app.querySelector(".current");
     current?.scrollIntoView({ block: "center" });
@@ -767,7 +812,7 @@ function singleImageNote(item) {
 function showStory() {
     stopFlash();
     state.screen = "story";
-    const items = visibleItems();
+    const items = passItems();
     if (items.length === 0) {
         showGrid();
         return;
@@ -975,6 +1020,7 @@ function showStory() {
         ),
     );
     renderStage(item, view, keep);
+    remember();
 }
 
 // The changed pixels of an item, padded top-left to the larger size, grown by GROW pixels, and the
@@ -1239,8 +1285,7 @@ function showBox(stage, boxes, jump) {
 }
 
 async function nextBox() {
-    const items = visibleItems();
-    const item = items[state.index];
+    const item = current();
     if (!item?.baseline || !item?.capture) {
         return;
     }
@@ -1315,7 +1360,7 @@ async function acceptAll(component) {
 
 function move(step) {
     say("");
-    const count = visibleItems().length;
+    const count = passItems().length;
     state.index = (state.index + step + count) % count;
     state.box = 0;
     showStory();
@@ -1326,7 +1371,7 @@ async function decide(decision) {
         say("A local preview is only looked at: nothing is decided on it.", true);
         return;
     }
-    const items = visibleItems();
+    const items = passItems();
     const item = items[state.index];
     const before = decisionOf(item);
     if (decision === null && !before) {
@@ -1374,16 +1419,10 @@ async function decide(decision) {
     }
     state.pending = "reject";
     say(`${itemName(item)}: ${decision ?? "undone, undecided again"}`);
-    // With the "undecided" filter the decided item drops out, so the same index is the next one.
-    if (decision !== null && state.filter !== "undecided") {
+    // The pass is frozen, so a decided item stays in it: a decision moves on to the next one, and
+    // Previous comes back to it. Undo stays on the item.
+    if (decision !== null) {
         state.index = Math.min(state.index + 1, items.length - 1);
-    }
-    // Undo under the "undecided" filter brings the item back; stay on it.
-    if (decision === null && state.filter === "undecided") {
-        state.index = Math.max(
-            0,
-            visibleItems().findIndex((i) => i.file === item.file),
-        );
     }
     state.box = 0;
     showStory();
@@ -1397,7 +1436,7 @@ function finishButton() {
     }
     return el(
         "button",
-        { type: "button", class: "primary", onclick: () => finishTarget(state.target) },
+        { type: "button", class: "primary", disabled: running(), onclick: () => finishTarget(state.target) },
         `Finish ${targetLabel()}`,
     );
 }
@@ -1435,24 +1474,191 @@ async function finishTarget(target) {
     if (!confirm(lines.join("\n\n"))) {
         return;
     }
-    say("Finishing: committing, pushing, commenting...");
+    // Finish runs on the server and can take minutes; the page only starts it and then asks how it
+    // is going, so a dropped connection or a reload loses nothing.
+    say("Starting Finish...");
     try {
-        const out = await api("/api/finish", { id: target.id });
-        const parts = [
-            out.commit ? `Committed ${short(out.commit)} to ${out.branch}.` : "No commit (nothing accepted).",
-        ];
-        if (out.rejects > 0) {
-            parts.push(`${out.rejects} rejects posted.`);
-        }
-        if (out.pullRequest) {
-            parts.push(`Pull request: ${out.pullRequest}`);
-        }
-        parts.push(out.statusError ? `The commit status failed: ${out.statusError}` : `Status: ${out.status}.`);
-        await showTargets();
-        say(parts.join(" "), Boolean(out.statusError));
+        state.job = (await api("/api/finish", { id: target.id })).job;
     } catch (err) {
-        say("Finish failed; your decisions are kept. Fix the cause and press Finish again.", true);
-        app.prepend(el("pre", { class: "error" }, err.message));
+        // The request may have been lost after the server started it: ask before calling it failed.
+        state.job = await api("/api/finish-status")
+            .then((s) => s.job)
+            .catch(() => null);
+        if (!running() || state.job.target !== target.id) {
+            say("Finish failed; your decisions are kept. Fix the cause and press Finish again.", true);
+            app.prepend(el("pre", { class: "error" }, err.message));
+            return;
+        }
+    }
+    await watchFinish();
+}
+
+const finishing = () =>
+    `Finishing ${state.job.pr === null ? "the master seed" : `#${state.job.pr}`}: ${state.job.step}...`;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let watching = false;
+
+// Follows the running Finish to its end, then shows the targets with its outcome.
+async function watchFinish() {
+    if (watching) {
+        return;
+    }
+    watching = true;
+    try {
+        while (running()) {
+            say(finishing());
+            await sleep(1000);
+            try {
+                state.job = (await api("/api/finish-status")).job;
+            } catch (err) {
+                say(`Lost contact with the server (${err.message}); Finish goes on there. Retrying...`, true);
+                await sleep(2000);
+            }
+        }
+    } finally {
+        watching = false;
+    }
+    await showTargets();
+}
+
+// What the newest Finish did, shown above the targets until the server restarts.
+function finishOutcome() {
+    const job = state.job;
+    if (!job || job.running) {
+        return null;
+    }
+    const label = job.pr === null ? "the master seed" : `#${job.pr}`;
+    if (job.error !== null) {
+        return el(
+            "section",
+            { class: "card finish-outcome" },
+            el(
+                "p",
+                { class: "error" },
+                `Finish of ${label} failed; your decisions are kept. Fix the cause and press Finish again.`,
+            ),
+            el("pre", { class: "error" }, job.error),
+        );
+    }
+    const out = job.result;
+    const parts = [out.commit ? `Committed ${short(out.commit)} to ${out.branch}.` : "No commit (nothing accepted)."];
+    if (out.rejects > 0) {
+        parts.push(`${out.rejects} rejects posted.`);
+    }
+    if (out.issue) {
+        parts.push(`Issue: ${out.issue}`);
+    }
+    if (out.pullRequest) {
+        parts.push(`Pull request: ${out.pullRequest}`);
+    }
+    parts.push(out.statusError ? `The commit status failed: ${out.statusError}` : `Status: ${out.status}.`);
+    return el(
+        "section",
+        { class: "card finish-outcome" },
+        el("p", { class: out.statusError ? "error" : "" }, `Finish of ${label} done. `, parts.join(" ")),
+    );
+}
+
+// ---------------------------------------------------------------- the address
+
+// Every screen is in the address, after the session token, so a copied link opens it again:
+// #token=...&target=123&project=p&filter=undecided&q=text&item=file.png&view=side&zoom=fit
+// Only the fragment holds it: a browser never sends a fragment to a server or in a Referer.
+function hashFor() {
+    const p = new URLSearchParams({ token });
+    if (state.screen !== "targets") {
+        p.set("target", state.target.id);
+        p.set("project", state.project);
+        p.set("filter", state.filter);
+        if (state.text) {
+            p.set("q", state.text);
+        }
+    }
+    if (state.screen === "story") {
+        p.set("item", current().file);
+        p.set("view", state.held ?? state.view);
+        p.set("zoom", String(state.zoom));
+    }
+    return `#${p}`;
+}
+
+// Writes the screen into the address: a new history entry when the screen changes (so Back
+// returns to the one before), in place when only the item, view, zoom or filter does.
+function remember() {
+    const hash = hashFor();
+    if (hash === location.hash) {
+        return;
+    }
+    const was = new URLSearchParams(location.hash.slice(1));
+    const screen = was.has("item") ? "story" : was.has("target") ? "grid" : "targets";
+    const moved =
+        screen !== state.screen ||
+        (screen !== "targets" &&
+            (was.get("target") !== String(state.target.id) || was.get("project") !== state.project));
+    const push = !routing && moved;
+    history[push ? "pushState" : "replaceState"](null, "", hash);
+}
+
+// Shows the screen the address names; what no longer exists (a closed pull request, a story gone
+// from a new CI run) lands on the nearest screen that does, with a line saying so.
+async function route() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    routing = true;
+    try {
+        const id = p.get("target");
+        if (!id) {
+            await showTargets();
+            return;
+        }
+        if (!(await loadTargets())) {
+            return;
+        }
+        const target = state.targets.find((t) => String(t.id) === id);
+        const project = p.get("project");
+        if (!target || !target.projects.some((x) => x.project === project)) {
+            const what = target ? `${project} is not a project of ${id}` : `${id} is no longer listed`;
+            await showTargets(`${what}: showing every target.`);
+            return;
+        }
+        if (state.data === null || state.target?.id !== target.id || state.project !== project) {
+            state.sequence = [];
+            state.target = target;
+            state.project = project;
+            try {
+                await reload();
+            } catch (err) {
+                say(err.message, true);
+                return;
+            }
+        }
+        state.target = target;
+        state.filter = FILTERS.includes(p.get("filter")) ? p.get("filter") : "undecided";
+        state.text = p.get("q") ?? "";
+        const file = p.get("item");
+        if (!file) {
+            showGrid();
+            return;
+        }
+        const item = state.data.items.find((i) => i.file === file);
+        if (!item) {
+            showGrid();
+            say(`${file} is not in this CI run any more: showing the grid.`);
+            return;
+        }
+        // Back into the pass it came from keeps that pass; otherwise the grid's items, with this one.
+        if (!state.sequence.includes(file)) {
+            const shown = visibleItems();
+            state.sequence = (shown.includes(item) ? shown : ordered([...shown, item])).map((i) => i.file);
+        }
+        state.index = state.sequence.indexOf(file);
+        state.view = VIEWS.includes(p.get("view")) ? p.get("view") : "side";
+        const zoom = p.get("zoom") === "fit" ? "fit" : Number(p.get("zoom"));
+        state.zoom = ZOOMS.includes(zoom) ? zoom : "fit";
+        state.box = 0;
+        say("");
+        showStory();
+    } finally {
+        routing = false;
     }
 }
 
@@ -1497,7 +1703,7 @@ document.addEventListener("keydown", (e) => {
     if (key === " ") {
         // Held: flash until released, then back to the view it came from.
         e.preventDefault();
-        const item = visibleItems()[state.index];
+        const item = current();
         if (!e.repeat && state.held === null && item?.baseline && item?.capture) {
             state.held = state.view;
             state.view = "flash";
@@ -1537,10 +1743,20 @@ document.addEventListener("keyup", (e) => {
         }
     }
 });
-document.getElementById("home").addEventListener("click", showTargets);
+document.getElementById("home").addEventListener("click", () => showTargets());
+document.getElementById("copy-link").addEventListener("click", async () => {
+    try {
+        await navigator.clipboard.writeText(location.href);
+        say("Link copied. It carries your session token: it opens this screen on any device.");
+    } catch {
+        // No clipboard (a page served over plain http to another device): the browser's own box.
+        prompt("Copy this link:", location.href);
+    }
+});
+window.addEventListener("popstate", () => route());
 
 if (token === "") {
     render(el("p", { class: "error" }, "No session token: open the URL that visual-review serve printed."));
 } else {
-    showTargets();
+    route();
 }

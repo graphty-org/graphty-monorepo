@@ -194,10 +194,15 @@ losses and format rules, in addition to the table:
   numbers inside them (GML cannot keep int versus real inside a record). The spec's node ids are
   integers; a string id is imported under the `ids` rule with one `W_GML_STRING_ID` per file, and
   the exporter writes integers only (`sanitizeIds: "mangle"` renumbers and keeps the original in `graphty_originalId`); column names
-  outside `[A-Za-z][0-9A-Za-z_]*` are refused or mangled (`sanitizeKeys`).
+  outside `[A-Za-z][0-9A-Za-z_]*` are refused or mangled (`sanitizeKeys`). A `directed` or
+  `multigraph` flag written as a quoted integer (`directed "1"`) is read as that integer with a
+  `W_GML_FLAG_VALUE` warning. The `directed` key's value as the file wrote it is kept in
+  `meta.extra.gml.directed` (absent when the file has no `directed` key), so a reader can tell
+  `directed 0` from a file that relies on the specification's default.
 - **DOT**: a Graphviz-faithful parser (grammar violations are fatal, as in Graphviz); clusters are
   container nodes with the `parent` role; ports are kept; HTML strings keep their brackets; `pos`
-  maps to the position role. Mixed direction is folded per `onMixedDirection`; a text with a
+  maps to the position role (and a trailing `!` to `pin`) unless `positions: false` keeps it as the
+  text the file wrote, like any other attribute. Mixed direction is folded per `onMixedDirection`; a text with a
   backslash before a quote or a line break, or at its end, cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
   scanner consumes backslash pairs, so such a text has no quoted spelling).
 - **Pajek**: `*Vertices N` bounds the id space (ids 1..N; a 0-based file is detected and reported;

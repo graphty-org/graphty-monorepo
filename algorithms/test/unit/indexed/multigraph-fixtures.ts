@@ -7,7 +7,7 @@
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 
-import { Graph } from "../../../src/core/graph.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 
 interface MultigraphFixture {
     readonly name: string;

@@ -1,7 +1,6 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import {
     accelerated,
     type AcceleratedAlgorithms,
@@ -16,8 +15,9 @@ import {
     type PageRankResultLike,
     type ScoresResultLike,
     type SsspResultLike,
-    toSnapshot,
 } from "../../../src/index.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { gnm } from "./port-fixtures.js";
 
 function pathGraph(): Graph {
@@ -552,6 +552,7 @@ describe("accelerated(acc)", () => {
             converged: true,
         };
         const edgeScores = { scores: Float32Array.of(9) };
+        const closeness = { ...scores, sourcesUsed: 6 };
 
         function stub(calls: unknown[][]): AlgorithmAccelerator {
             return {
@@ -561,7 +562,7 @@ describe("accelerated(acc)", () => {
                     calls.push(["edgeBetweennessCentrality", ...a]),
                     Promise.resolve(edgeScores)
                 ),
-                closenessCentrality: (...a) => (calls.push(["closenessCentrality", ...a]), Promise.resolve(scores)),
+                closenessCentrality: (...a) => (calls.push(["closenessCentrality", ...a]), Promise.resolve(closeness)),
             };
         }
 
@@ -601,12 +602,41 @@ describe("accelerated(acc)", () => {
             const s = sixNodes();
             const calls: unknown[][] = [];
             const dispatcher = accelerated(stub(calls));
-            expect(await dispatcher.closenessCentrality(s)).toBe(scores);
-            expect(await dispatcher.closenessCentrality(s, { weighted: true })).toBe(scores);
+            expect(await dispatcher.closenessCentrality(s)).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { weighted: true })).toBe(closeness);
             expect(calls).toEqual([
                 ["closenessCentrality", s, { weighted: false }],
                 ["closenessCentrality", s, { weighted: true }],
             ]);
+        });
+
+        it("hands a sampled closeness the sources the port would run, undirected only", async () => {
+            const s = sixNodes();
+            const calls: unknown[][] = [];
+            const dispatcher = accelerated(stub(calls));
+            expect(await dispatcher.closenessCentrality(s, { sources: [0, 3, 3] })).toBe(closeness);
+            expect(await dispatcher.closenessCentrality(s, { k: 2, weighted: true })).toBe(closeness);
+            expect(calls).toEqual([
+                ["closenessCentrality", s, { weighted: false, sources: [0, 3, 3] }],
+                // k is drawn here, the same draw indexed.closenessCentrality and betweenness make
+                ["closenessCentrality", s, { weighted: true, sources: [2, 1] }],
+            ]);
+            // directed: the accelerator measures distance FROM the sources, the port TO them, so the port runs
+            const b = new GraphBuilder({ directed: true });
+            b.addEdge("a", "b");
+            b.addEdge("b", "c");
+            const d = b.freeze();
+            calls.length = 0;
+            const r = await dispatcher.closenessCentrality(d, { sources: [2] });
+            expect([...r.scores]).toEqual([1 / 2, 1, 0]);
+            expect(r.sourcesUsed).toBe(1);
+            // the exact directed run still goes: every node is its own source
+            await dispatcher.closenessCentrality(d);
+            expect(calls).toEqual([["closenessCentrality", d, { weighted: false }]]);
+            // a bad sample is refused before the accelerator is reached, synchronously as betweenness refuses one
+            expect(() => dispatcher.closenessCentrality(s, { k: 7 })).toThrow(RangeError);
+            expect(() => dispatcher.betweennessCentrality(s, { k: 7 })).toThrow(RangeError);
+            expect(calls).toEqual([["closenessCentrality", d, { weighted: false }]]);
         });
 
         it("runs the CPU port for every call the accelerator would answer differently", async () => {
@@ -661,6 +691,7 @@ describe("accelerated(acc)", () => {
             "closenessCentrality",
             "commonNeighborsPrediction",
             "connectedComponents",
+            "degrees",
             "depthFirstSearch",
             "edgeBetweennessCentrality",
             "eigenvectorCentrality",
@@ -932,6 +963,22 @@ describe("accelerated(acc) CPU routes for the traversal, community, flow and lin
             expect(got.visitedCount).toBeGreaterThan(1);
         });
 
+        it("depthFirstSearch walks any adjacency view, not only a snapshot", async () => {
+            const view = directed.reverse();
+            const got = await d.depthFirstSearch(view, 0);
+            expect(got).toEqual(indexed.depthFirstSearch(view, 0));
+            expect(got).not.toEqual(indexed.depthFirstSearch(directed, 0));
+        });
+
+        it("degrees equals the port on both kinds of graph", async () => {
+            for (const s of [directed, undirected]) {
+                const got = await d.degrees(s);
+                const want = indexed.degrees(s);
+                expect([...got.inDegree]).toEqual([...want.inDegree]);
+                expect([...got.outDegree]).toEqual([...want.outDegree]);
+            }
+        });
+
         it("stronglyConnectedComponents equals the port", async () => {
             const got = await d.stronglyConnectedComponents(directed);
             const want = indexed.stronglyConnectedComponents(directed);
@@ -1160,6 +1207,37 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
         const r = await dispatcher.katzCentrality(s, { weighted: true });
         expect(calls).toHaveLength(1);
         expectClose(r.scores, indexed.katzCentrality(s, { weighted: true }).scores);
+    });
+
+    it("keeps Katz on the port when its series may diverge: alpha times the spectral-radius bound reaches 1", async () => {
+        // A hub joined both ways to sixteen leaves has spectral radius sqrt(16) = 4, and the bound
+        // is that exactly: at alpha 0.25 the series may diverge, where an f32 iteration with no
+        // normaliser can overflow, so the port answers. Just below it the accelerator is asked.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 16; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+            g.addEdge("hub", `leaf${String(i)}`);
+        }
+        const s = toSnapshot(g);
+        const calls: unknown[][] = [];
+        const dispatcher = accelerated(deviceLike(calls));
+        const onPort = await dispatcher.katzCentrality(s, { alpha: 0.25 });
+        expect(calls).toEqual([]);
+        expect([...onPort.scores]).toEqual([...indexed.katzCentrality(s, { alpha: 0.25 }).scores]);
+        await dispatcher.katzCentrality(s, { alpha: 0.24 });
+        expect(calls).toHaveLength(1);
+    });
+
+    it("sends Katz to the accelerator at the default alpha past a hub of ten or more in-arcs", async () => {
+        // The largest in-arc count (16) would bound the radius above 1 / 0.1; the radius is 4.
+        const g = new Graph({ directed: true });
+        for (let i = 0; i < 16; i++) {
+            g.addEdge(`leaf${String(i)}`, "hub");
+            g.addEdge("hub", `leaf${String(i)}`);
+        }
+        const calls: unknown[][] = [];
+        await accelerated(deviceLike(calls)).katzCentrality(toSnapshot(g), { alpha: 0.1 });
+        expect(calls).toHaveLength(1);
     });
 
     it("hands HITS the iteration options unweighted and rescales both vectors to unit length like the port", async () => {

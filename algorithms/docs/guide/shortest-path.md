@@ -22,7 +22,7 @@ The standard algorithm for weighted graphs with non-negative edge weights.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { dijkstra } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b", 4);
@@ -33,7 +33,7 @@ builder.addEdge("c", "d", 8);
 const graph = builder.freeze();
 const d = graph.ids.requireIndex("d");
 
-const result = indexed.dijkstra(graph, graph.ids.requireIndex("a"));
+const result = dijkstra(graph, graph.ids.requireIndex("a"));
 
 console.log(result.dist[d]); // 9
 console.log(Array.from(result.pathTo(d), (i) => graph.ids.idOf(i))); // ["a", "b", "d"]
@@ -53,7 +53,7 @@ When only one target matters, `bidirectionalDijkstra` searches from both ends an
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { bidirectionalDijkstra } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b", 4);
@@ -62,7 +62,7 @@ builder.addEdge("b", "d", 5);
 builder.addEdge("c", "d", 8);
 const graph = builder.freeze();
 
-const trip = indexed.bidirectionalDijkstra(graph, graph.ids.requireIndex("a"), graph.ids.requireIndex("d"));
+const trip = bidirectionalDijkstra(graph, graph.ids.requireIndex("a"), graph.ids.requireIndex("d"));
 console.log(trip.distance); // 9
 console.log(Array.from(trip.path, (i) => graph.ids.idOf(i))); // ["a", "b", "d"]
 ```
@@ -79,7 +79,7 @@ Handles graphs with negative edge weights and detects negative cycles.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { bellmanFord } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b", 4);
@@ -87,20 +87,20 @@ builder.addEdge("b", "c", -2);
 builder.addEdge("a", "c", 5);
 const graph = builder.freeze();
 
-const result = indexed.bellmanFord(graph, graph.ids.requireIndex("a"));
+const result = bellmanFord(graph, graph.ids.requireIndex("a"));
 console.log(result.hasNegativeCycle); // false
 console.log(result.dist[graph.ids.requireIndex("c")]); // 2
 
 // A cycle whose weights sum below zero
 builder.addEdge("c", "a", -3);
-console.log(indexed.bellmanFord(builder.freeze(), 0).hasNegativeCycle); // true
+console.log(bellmanFord(builder.freeze(), 0).hasNegativeCycle); // true
 ```
 
 On an undirected graph every edge can be walked both ways, so a single negative edge is already a negative cycle.
 
 ## All-Pairs Shortest Paths
 
-`indexed.allPairsShortestPath` returns the distance between every pair of nodes as a dense row-major `Float64Array`. It
+`allPairsShortestPath` returns the distance between every pair of nodes as a dense row-major `Float64Array`. It
 picks the fastest strategy for the graph: one breadth-first search per source when unweighted, Floyd-Warshall when a
 weight is negative or the graph is dense, and one Dijkstra per source otherwise.
 
@@ -108,7 +108,7 @@ weight is negative or the graph is dense, and one Dijkstra per source otherwise.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { allPairsShortestPath } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b", 3);
@@ -120,7 +120,7 @@ const a = graph.ids.requireIndex("a");
 const b = graph.ids.requireIndex("b");
 const c = graph.ids.requireIndex("c");
 
-const result = indexed.allPairsShortestPath(graph, { paths: true });
+const result = allPairsShortestPath(graph, { paths: true });
 console.log(result.dist[a * result.n + c]); // 4
 console.log(result.dist[c * result.n + b]); // 5
 console.log(Array.from(result.pathTo(a, c), (i) => graph.ids.idOf(i))); // ["a", "b", "c"]
@@ -144,7 +144,7 @@ column as well; pass them as the `weights` option:
 
 ```typescript
 import { expandEdges, GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { allPairsShortestPath } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false, weightDtype: "f64" });
 builder.addEdge("a", "b", 0.1);
@@ -154,11 +154,11 @@ const graph = builder.freeze();
 
 const shadow = graph.edges.byRole("weight");
 const exact = shadow !== null && shadow.dtype === "f64" ? expandEdges(graph, shadow.data) : graph.weights;
-const result = indexed.allPairsShortestPath(graph, { weights: exact ?? undefined, paths: true });
+const result = allPairsShortestPath(graph, { weights: exact ?? undefined, paths: true });
 console.log(result.pathTo(0, 2).length); // 2: the direct edge a-c
 
 // With the rounded weights the detour through b is shorter
-console.log(indexed.allPairsShortestPath(graph, { paths: true }).pathTo(0, 2).length); // 3: a, b, c
+console.log(allPairsShortestPath(graph, { paths: true }).pathTo(0, 2).length); // 3: a, b, c
 ```
 
 ## A\* Search
@@ -169,7 +169,7 @@ A heuristic-guided search that can be faster than Dijkstra when a good heuristic
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { astar } from "@graphty/algorithms";
 
 // Graph with 2D coordinates
 const positions: Record<string, [number, number]> = {
@@ -192,7 +192,7 @@ const heuristic = (node: number, goal: number) => {
     return Math.hypot(x1 - x2, y1 - y2);
 };
 
-const result = indexed.astar(graph, graph.ids.requireIndex("a"), graph.ids.requireIndex("d"), heuristic);
+const result = astar(graph, graph.ids.requireIndex("a"), graph.ids.requireIndex("d"), heuristic);
 console.log(Array.from(result.path, (i) => graph.ids.idOf(i))); // ["a", "b", "c", "d"]
 console.log(result.distance); // 3.5
 console.log(result.visited.length); // 3
@@ -220,7 +220,7 @@ In an unweighted graph the BFS depth is the number of hops:
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("Alice", "Bob");
@@ -228,6 +228,6 @@ builder.addEdge("Bob", "Carol");
 builder.addEdge("Alice", "Dave");
 const social = builder.freeze();
 
-const result = indexed.breadthFirstSearch(social, social.ids.requireIndex("Alice"));
+const result = breadthFirstSearch(social, social.ids.requireIndex("Alice"));
 console.log(`Carol is ${String(result.depth[social.ids.requireIndex("Carol")])} connections away`); // Carol is 2 connections away
 ```

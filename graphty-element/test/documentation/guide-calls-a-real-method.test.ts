@@ -149,13 +149,14 @@ function callsOn(file: string, receiver: string): { name: string; line: number }
 /**
  * Guides that rebind one of the two names to something else, and are skipped for that name.
  *
- * `custom-algorithms.md` writes `const graph = this.algorithmGraph("undirected")` -- the
- * algorithm's own read-only view of the data, which is a different object with a different API.
- * Every `graph.` on that page is about that object, so checking it against the renderer's class
- * would be checking the wrong class.
+ * `custom-algorithms.md` reads `input.graph` -- the run's graph-format snapshot, which is a
+ * different object with a different API. Every `graph.` on that page is about that object, so
+ * checking it against the renderer's class would be checking the wrong class. The simple tier on
+ * that page and on `custom-layouts.md` hands its callback a graph view (`graph.nodes()`,
+ * `graph.groupBy()`), not the renderer, and is skipped for the same reason.
  */
 const REBOUND: Record<string, readonly string[]> = {
-    graph: ["docs/guide/extending/custom-algorithms.md"],
+    graph: ["docs/guide/extending/custom-algorithms.md", "docs/guide/extending/custom-layouts.md"],
 };
 
 const GUIDES = markdownUnder("docs/guide");

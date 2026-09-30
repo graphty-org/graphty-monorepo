@@ -6,6 +6,7 @@ import { Graph } from "../../src/Graph";
 import { LayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, EventManager, LayoutManager } from "../../src/managers";
 import { layoutManagerInternals } from "../../src/managers/LayoutManager";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("LayoutManager", () => {
@@ -511,6 +512,36 @@ describe("LayoutManager", () => {
                 (globalThis as { __GRAPHTY_CAUGHT__?: (error: unknown) => void }).__GRAPHTY_CAUGHT__ = report;
                 layoutManager.restoring = restoring;
             }
+        });
+    });
+
+    describe("while a new layout waits its turn", () => {
+        // The new engine starts from the arrangement it finds, so a frame that stepped the old
+        // one first would make where the new layout ends depend on when frames fell.
+        it("a frame does not step the engine it will replace", async () => {
+            const dataManager = graph.getDataManager();
+            dataManager.addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            dataManager.addEdges([{ src: "a", dst: "b" }] as Record<string, unknown>[]);
+            await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
+            layoutManager.running = true;
+            const at = (): string => JSON.stringify(layoutManager.getNodePosition(dataManager.getNode("a")!));
+            const { replacing } = layoutManager;
+            layoutManager.replacing = () => true;
+            try {
+                const before = at();
+                layoutManager.step();
+                assert.strictEqual(at(), before);
+            } finally {
+                layoutManager.replacing = replacing;
+            }
+        });
+
+        it("is what the element asks while a layout.set is pending", async () => {
+            const dispatcher = dispatcherOf(graph.getSession());
+            const done = dispatcher.dispatch({ op: "layout.set", id: "circular", engine: "circular", options: {} });
+            assert.isTrue(layoutManager.replacing(), "pending");
+            await done;
+            assert.isFalse(layoutManager.replacing(), "done");
         });
     });
 

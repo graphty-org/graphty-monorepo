@@ -278,6 +278,9 @@ const EXECUTE = exempt(
     "Runs a command; every op declares itself in COMMANDS, and the verb it reaches has its own row.",
 );
 const TOOLS = exempt("Registers or lists assistant tools; it runs none of them.");
+const PALETTE_DEFAULTS = exempt(
+    "Chooses the palette a layer written later takes when it names none; a project file saves the layer's resolved palette, and a reapply rewrites layers through style.patch.",
+);
 const QUEUE = exempt("Schedules work; the doors that queue work have their own rows.");
 const EVENTS = exempt("Publishes and subscribes to events; it changes no state.");
 const KEYS = exempt("API keys are secrets of this machine, never saved in a project file.");
@@ -464,6 +467,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ op: "style.template", document: { version: 1, layers: [] } }],
     ),
     toDocument: READ,
+    setDefaultPalettes: PALETTE_DEFAULTS,
 };
 
 /**
@@ -484,6 +488,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "renderer",
         doors: {
             session: READ,
+            setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,
@@ -585,6 +590,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
+            exportGraph: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -843,6 +849,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadCameraPreset: CAMERA,
             getCameraPresets: READ,
             exportCameraPresets: READ,
+            exportGraph: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1006,7 +1013,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
-            // Whether an import is still streaming chunks, and the store's counts.
             isLoading: READ,
             heldCounts: READ,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
@@ -1108,6 +1114,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updatePositions: TRANSPORT,
             onRest: RENDER,
             restoring: RENDER,
+            replacing: RENDER,
             // The layout scope lives in the `layout` slice; these hand it to the engine and read
             // it back, and a set removed under it releases the hold without a step.
             setScopeSource: LIFECYCLE,
@@ -1209,6 +1216,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/OperationQueueManager.ts",
         half: "renderer",
         whole: QUEUE,
+    },
+    {
+        name: "ExportResult",
+        file: "src/data/export.ts",
+        half: "renderer",
+        whole: READ,
     },
     {
         name: "StylePainter",

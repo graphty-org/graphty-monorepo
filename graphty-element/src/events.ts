@@ -205,6 +205,9 @@ export interface GraphGenericEvent {
         | "operation-start"
         | "operation-complete"
         | "operation-progress"
+        // How far a layout on the snapshot contract has got: `layoutType`, `fraction` (0 to 1, or
+        // null when the layout cannot say) and an optional `message`, as the layout reported them.
+        | "layout-progress"
         | "operation-obsoleted"
         | "animation-progress"
         | "animation-cancelled"

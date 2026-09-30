@@ -5,7 +5,8 @@
  * or the global minimum cut of a graph. Uses the max-flow min-cut theorem.
  */
 
-import { Graph as AlgorithmGraph, kargerMinCut, minSTCut, stoerWagner } from "@graphty/algorithms";
+import type { AcceleratedAlgorithms, MinCutResult } from "@graphty/algorithms";
+import { type GraphSnapshot, INVALID_INDEX, maskTest } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
@@ -22,7 +23,7 @@ import {
     setFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey, requireNodeOption } from "./utils/graphUtils";
+import { requireDistinctEnds, requireNodeOption } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Min Cut algorithm
@@ -184,32 +185,6 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             return null;
         }
 
-        // The weights are the element's edge weights, read off the input: a reciprocal pair is one
-        // edge and parallel edges are one edge carrying their summed weight, because cutting a
-        // pair of nodes apart costs every edge between them.
-        const cutInput = input.subgraph();
-        const { ids } = cutInput;
-        const { src, dst, weights } = cutInput.edgeList();
-
-        // Map format for stoerWagner and kargerMinCut, and a Graph for minSTCut, both keyed by
-        // string id as their answers are.
-        const weightedGraphMap = new Map<string, Map<string, number>>();
-        const weightedGraph = new AlgorithmGraph({ directed: false });
-        for (const nodeId of nodeIds) {
-            weightedGraphMap.set(String(nodeId), new Map());
-            weightedGraph.addNode(String(nodeId));
-        }
-
-        for (let edge = 0; edge < cutInput.edgeCount; edge++) {
-            const srcId = String(ids.idOf(src[edge]));
-            const dstId = String(ids.idOf(dst[edge]));
-            const weight = weights === null ? 1 : weights[edge];
-
-            weightedGraphMap.get(srcId)?.set(dstId, weight);
-            weightedGraphMap.get(dstId)?.set(srcId, weight);
-            weightedGraph.addEdge(srcId, dstId, weight);
-        }
-
         // Get options from legacy or schema options
         // Legacy configure() takes precedence for backward compatibility
         const useGlobalMinCut = this.legacyOptions?.useGlobalMinCut ?? this._schemaOptions.useGlobalMinCut;
@@ -217,61 +192,67 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
         const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
         const { useKarger, kargerIterations } = this._schemaOptions;
 
-        let partition1: Set<string>;
-        let partition2: Set<string>;
-        let cutEdges: { from: string; to: string; weight: number }[];
-        let cutValue: number;
+        let work: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<MinCutResult>;
+        let member: "kargerMinCut" | "stoerWagner" | "minSTCut";
         let method: string;
         let autoEndNote: string | undefined;
-
-        context.report({ phase: "Finding the cut", total: null });
 
         if (useGlobalMinCut || (sourceOption === null && sinkOption === null)) {
             if (useKarger) {
                 method = "karger";
-                ({ partition1, partition2, cutEdges, cutValue } = kargerMinCut(weightedGraphMap, kargerIterations));
+                member = "kargerMinCut";
+                work = (dispatch, s) => dispatch.kargerMinCut(s, { iterations: kargerIterations });
             } else {
                 method = "stoer-wagner";
-                ({ partition1, partition2, cutEdges, cutValue } = stoerWagner(weightedGraphMap));
+                member = "stoerWagner";
+                work = (dispatch, s) => dispatch.stoerWagner(s);
             }
         } else {
             method = "min-st-cut";
+            member = "minSTCut";
             const source =
-                sourceOption === null
-                    ? String(nodeIds[0])
-                    : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
+                sourceOption === null ? nodeIds[0] : requireNodeOption("min-cut", "source", sourceOption, nodeIds);
             const sink =
                 sinkOption === null
-                    ? String(nodeIds[nodeIds.length - 1])
+                    ? nodeIds[nodeIds.length - 1]
                     : requireNodeOption("min-cut", "sink", sinkOption, nodeIds);
+            requireDistinctEnds("min-cut", source, sink);
             if (sourceOption === null || sinkOption === null) {
                 autoEndNote =
-                    `Only one end was set, so the other was chosen automatically (cut between ${source} and ${sink}); ` +
+                    `Only one end was set, so the other was chosen automatically (cut between ${String(source)} and ${String(sink)}); ` +
                     "set both source and sink to cut between the nodes you mean.";
             }
 
-            ({ partition1, partition2, cutEdges, cutValue } = minSTCut(weightedGraph, source, sink));
+            work = (dispatch, s) => dispatch.minSTCut(s, s.ids.indexOf(source), s.ids.indexOf(sink));
         }
 
-        // Both directions, because the element's edge carries the direction it was declared in
-        // and the cut's does not.
-        const cutWeightOf = new Map<string, number>();
-        for (const edge of cutEdges) {
-            cutWeightOf.set(edgePairKey(edge.from, edge.to), edge.weight);
-            cutWeightOf.set(edgePairKey(edge.to, edge.from), edge.weight);
+        // The weights are the element's edge weights, read off the input: a reciprocal pair is one
+        // edge and parallel edges are one edge carrying their summed weight, because cutting a
+        // pair of nodes apart costs every edge between them.
+        const { snapshot: cutInput, edgeRemap, run } = this.accelerated(member, "undirected");
+
+        context.report({ phase: "Finding the cut", total: null });
+        const { value: cut, precision } = await run(work);
+
+        // Every declared edge maps onto the input edge it was merged into, so both edges of a
+        // reciprocal pair and every member of a parallel group are in the cut together.
+        const inCut = new Uint8Array(cutInput.edgeCount);
+        for (const edge of cut.cutEdges) {
+            inCut[edge] = 1;
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the cut", graphEdges, (edge) => {
-            // The pair key looks the cut up; the element's own id is what is published.
-            const weight = cutWeightOf.get(edgePairKey(edge.source, edge.target));
+            const merged = edgeRemap === null ? edge.row : edgeRemap[edge.row];
 
-            edges.push({ id: edge.id, values: { in: weight !== undefined } });
+            edges.push({ id: edge.id, values: { in: merged !== INVALID_INDEX && inCut[merged] === 1 } });
         });
 
+        let firstSide = 0;
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Marking the sides", nodeIds, (nodeId) => {
-            const onFirstSide = partition1.has(String(nodeId));
+            const onFirstSide = maskTest(cut.side, cutInput.ids.indexOf(nodeId));
+            firstSide += onFirstSide ? 1 : 0;
 
             nodes.push({ id: nodeId, values: { side: onFirstSide ? "1" : "2" } });
         });
@@ -284,17 +265,18 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
             ],
             nodes,
             edges,
-            graph: { cutValue },
+            graph: { cutValue: cut.cutValue },
             caveats: declaredCaveats({
                 method,
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
+                precision,
                 exact: method !== "karger",
                 iterations: method === "karger" ? kargerIterations : undefined,
                 notes: [
                     method === "karger"
                         ? "Karger's method is randomised: it finds the cheapest cut with high probability, not certainty."
-                        : `The cut separates ${String(partition1.size)} nodes from ${String(partition2.size)}.`,
+                        : `The cut separates ${String(firstSide)} nodes from ${String(nodeIds.length - firstSide)}.`,
                     ...(autoEndNote === undefined ? [] : [autoEndNote]),
                 ],
             }),

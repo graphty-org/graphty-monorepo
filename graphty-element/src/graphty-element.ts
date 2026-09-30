@@ -4,10 +4,11 @@ import { property } from "lit/decorators.js";
 
 import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
+import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
 import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -26,6 +27,7 @@ import { dispatcherOf } from "./session/GraphSession";
 import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
@@ -190,6 +192,29 @@ export class Graphty extends LitElement {
      */
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.#graph.select(target, op);
+    }
+
+    /**
+     * Choose the palette a colour binding uses when it names none, one per palette kind.
+     *
+     * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
+     * layer is written, so a saved document always names a concrete palette: call it before
+     * loading data or adding layers. A later call warns and names the layers that keep the
+     * previous default, or with `reapply: true` repaints them with the new one.
+     * @param palettes - A palette id per kind: `categorical`, `sequential` and `diverging`.
+     * @param options - How a late call treats the layers already written.
+     * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @since 2.7.0
+     * @example
+     * ```ts
+     * import { definePalette } from "@graphty/graphty-element/extend";
+     *
+     * definePalette({ id: "acme-brand", kind: "categorical", colors: ["#0B1D51", "#1B7F79"] });
+     * element.setDefaultPalettes({ categorical: "acme-brand" });
+     * ```
+     */
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
+        this.session.styles.setDefaultPalettes(palettes, options);
     }
 
     /**
@@ -2517,6 +2542,27 @@ export class Graphty extends LitElement {
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
+    }
+
+    /**
+     * Write the graph in a file format: data, current positions, algorithm results and the drawn
+     * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
+     * the format could not hold.
+     * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
+     *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
+     * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
+     *     admin-import file
+     * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * const result = await element.exportGraph("graphml");
+     * for (const note of result.lossNotes) console.warn(note.message);
+     * download(await result.text());
+     * ```
+     */
+    async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
+        return this.#graph.exportGraph(format, options);
     }
 
     /**

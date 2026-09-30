@@ -109,8 +109,11 @@ export const REPEATED_KEY_CODE = "E_GML_REPEATED_KEY";
 export const ELEMENT_TYPE_CODE = "E_GML_ELEMENT_TYPE";
 /** Issue code: a `directed` or `multigraph` flag that is not an integer. */
 export const FLAG_TYPE_CODE = "E_GML_FLAG_TYPE";
-/** Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), or one repeated. */
+/** Issue code: a `directed` / `multigraph` flag that is not 0 or 1 (read as its truth value), one written as a quoted integer, or one repeated. */
 export const FLAG_VALUE_CODE = "W_GML_FLAG_VALUE";
+
+/** A flag written as a quoted integer, surrounding spaces allowed. */
+const QUOTED_INT = /^\s*[+-]?[0-9]+\s*$/;
 /** Issue code: a named entity in a string that is neither an XML nor an ISO-8859-1 HTML entity; it is kept as written. */
 export const UNKNOWN_ENTITY_CODE = "W_GML_UNKNOWN_ENTITY";
 /** Issue code: an integer beyond 2^53 stored as the nearest f64 (design section 5.1). */
@@ -713,6 +716,9 @@ class GmlImport {
                           namespace: null,
                       }
                     : undefined,
+            // The header as written, so a reader can say which words set the direction and tell
+            // `directed 0` from a file that relies on the specification's default.
+            extra: this.directedToken >= 0 ? { gml: { directed: textOf(this.directedToken) } } : undefined,
         });
     }
 
@@ -727,7 +733,16 @@ class GmlImport {
             return null;
         }
         const t = this.requireTokens();
-        if (t.kind[v] !== TOKEN_INT) {
+        // Files in the wild write the flag as a quoted integer (`directed "1"`); read it, with a warning.
+        const quoted = t.kind[v] === TOKEN_STRING && QUOTED_INT.test(t.stringOf(v));
+        if (quoted) {
+            this.report.warning(
+                "validation-error",
+                FLAG_VALUE_CODE,
+                `flag "${name}" is written as the string ${describeValue(t, v)}; read as an integer`,
+                { line: t.line[v], element: name },
+            );
+        } else if (t.kind[v] !== TOKEN_INT) {
             this.report.error(
                 "validation-error",
                 FLAG_TYPE_CODE,
@@ -736,7 +751,7 @@ class GmlImport {
             );
             return null;
         }
-        const n = Number(t.textOf(v));
+        const n = Number(quoted ? t.stringOf(v) : t.textOf(v));
         if (n !== 0 && n !== 1) {
             this.report.warning(
                 "validation-error",

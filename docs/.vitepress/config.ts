@@ -52,6 +52,7 @@ export default defineConfig({
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
                     { text: "layout", link: "/layout/api/generated/" },
+                    { text: "visual-review", link: "/visual-review/" },
                 ],
             },
         ],
@@ -64,6 +65,7 @@ export default defineConfig({
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
                         { text: "layout", link: "/layout/api/generated/" },
+                        { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
                 {
@@ -139,6 +141,7 @@ export default defineConfig({
                     text: "Core Concepts",
                     items: [
                         { text: "Graph Data Structure", link: "/algorithms/guide/graph" },
+                        { text: "Migrating to 3.0", link: "/algorithms/guide/migrating-to-3" },
                         { text: "Traversal Algorithms", link: "/algorithms/guide/traversal" },
                         { text: "Shortest Path", link: "/algorithms/guide/shortest-path" },
                         { text: "Centrality", link: "/algorithms/guide/centrality" },

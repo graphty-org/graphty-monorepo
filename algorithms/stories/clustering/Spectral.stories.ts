@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, spectralClustering } from "@graphty/algorithms";
+import { spectralClustering } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -33,23 +30,6 @@ interface SpectralArgs {
     graphType: GraphType;
     numClusters: number;
     seed: number;
-}
-
-/**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
 }
 
 /**
@@ -74,10 +54,11 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
 
     // Run Spectral Clustering using actual algorithm (with seed for reproducibility)
-    const result = spectralClustering(graph, { k: numClusters, seed });
+    const spectral = spectralClustering(graph, { k: numClusters, seed });
+    const result = { communities: spectral.groups().map((members) => idsOf(graph, members)) };
 
     // Create container
     const { container, svg } = createStoryContainer();

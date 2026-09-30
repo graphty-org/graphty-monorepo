@@ -54,7 +54,7 @@ cost no more than the graph itself.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { allPairsShortestPath, bidirectionalDijkstra, dijkstra } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 for (let i = 0; i < 100; i++) {
@@ -63,13 +63,13 @@ for (let i = 0; i < 100; i++) {
 const graph = builder.freeze();
 
 // One source, one target: search from both ends
-const one = indexed.bidirectionalDijkstra(graph, 0, 50);
+const one = bidirectionalDijkstra(graph, 0, 50);
 
 // One source, every target: Dijkstra
-const all = indexed.dijkstra(graph, 0);
+const all = dijkstra(graph, 0);
 
 // Every pair: compute the whole table once
-const table = indexed.allPairsShortestPath(graph);
+const table = allPairsShortestPath(graph);
 
 console.log(one.distance, all.dist[50], table.dist[0 * table.n + 50]); // 50 50 50
 ```
@@ -80,7 +80,7 @@ console.log(one.distance, all.dist[50], table.dist[0 * table.n + 50]); // 50 50 
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { breadthFirstSearch, dijkstra } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 for (let i = 0; i < 1000; i++) {
@@ -89,14 +89,14 @@ for (let i = 0; i < 1000; i++) {
 const graph = builder.freeze();
 
 // Stop once the target is reached
-const toTen = indexed.breadthFirstSearch(graph, 0, { target: 10 });
+const toTen = breadthFirstSearch(graph, 0, { target: 10 });
 console.log(toTen.visitedCount); // 11
 
 // Limit the depth
-console.log(indexed.breadthFirstSearch(graph, 0, { maxDepth: 5 }).visitedCount); // 6
+console.log(breadthFirstSearch(graph, 0, { maxDepth: 5 }).visitedCount); // 6
 
 // Skip everything farther than a distance
-const near = indexed.dijkstra(graph, 0, { cutoff: 3 });
+const near = dijkstra(graph, 0, { cutoff: 3 });
 console.log(near.dist[4]); // Infinity: beyond the cutoff
 ```
 
@@ -106,7 +106,7 @@ console.log(near.dist[4]); // Infinity: beyond the cutoff
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { betweennessCentrality, pageRank } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 for (let i = 0; i < 500; i++) {
@@ -116,10 +116,10 @@ for (let i = 0; i < 500; i++) {
 const graph = builder.freeze();
 
 // Betweenness from 100 sampled sources instead of all 500
-const betweenness = indexed.betweennessCentrality(graph, { k: 100 });
+const betweenness = betweennessCentrality(graph, { k: 100 });
 
 // Fewer PageRank iterations and a looser tolerance
-const ranks = indexed.pageRank(graph, { maxIterations: 50, tolerance: 1e-4 });
+const ranks = pageRank(graph, { maxIterations: 50, tolerance: 1e-4 });
 
 console.log(betweenness.scores.length, ranks.scores.length); // 500 500
 ```
@@ -132,14 +132,14 @@ Compute once and read the result many times. Every per-node result is a typed ar
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { dijkstra } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("source", "a", 2);
 builder.addEdge("a", "b", 3);
 const graph = builder.freeze();
 
-const paths = indexed.dijkstra(graph, graph.ids.requireIndex("source"));
+const paths = dijkstra(graph, graph.ids.requireIndex("source"));
 for (const id of ["a", "b"]) {
     console.log(`${id}: ${String(paths.dist[graph.ids.requireIndex(id)])}`);
 }
@@ -158,7 +158,7 @@ trip, in one thread:
 
 ```typescript
 import { fromWire, GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { connectedComponents } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -171,7 +171,7 @@ const wire = graph.toWire();
 
 // worker: const copy = fromWire(event.data)
 const copy = fromWire(wire);
-console.log(indexed.connectedComponents(copy).count); // 2
+console.log(connectedComponents(copy).count); // 2
 ```
 
 ## Profiling
@@ -180,7 +180,7 @@ console.log(indexed.connectedComponents(copy).count); // 2
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { dijkstra } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 for (let i = 0; i < 10000; i++) {
@@ -189,7 +189,7 @@ for (let i = 0; i < 10000; i++) {
 const graph = builder.freeze();
 
 const started = performance.now();
-const result = indexed.dijkstra(graph, 0);
+const result = dijkstra(graph, 0);
 const elapsed = performance.now() - started;
 console.log(`dijkstra over ${String(graph.nodeCount)} nodes took ${elapsed.toFixed(1)} ms`);
 console.log(result.dist[5000]); // 5000

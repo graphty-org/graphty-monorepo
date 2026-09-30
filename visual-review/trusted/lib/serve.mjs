@@ -7,6 +7,10 @@
  * hash to the hash results.json gives, so the page shows exactly what CI compared. Decisions
  * are kept in `<tmp>/state/<target>.json` until Finish, each with the hash of the image it was
  * taken on, so a restart resumes them and a new CI run keeps only those whose image is unchanged.
+ *
+ * Finish runs in the background: a large seed takes minutes, longer than a browser (Safari on an
+ * iPad) keeps one request open. POST /api/finish starts it and GET /api/finish-status reports its
+ * step, then its result or error, so a reload finds the running Finish.
  */
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
@@ -56,15 +60,16 @@ const imageHash = (item) => item.capture ?? item.baseline ?? null;
  * @param {string} repo the repository
  * @param {string | null} head the captured head
  * @param {number | null} pr the pull request
+ * @param {string} baselines the baselines directory
  * @returns {Promise<Map<string, string | null>>} `to` by baseline path
  */
-async function earlierAccepts(repo, head, pr) {
+async function earlierAccepts(repo, head, pr, baselines) {
     const out = new Map();
     if (pr === null || !head) {
         return out;
     }
     const git = (args) => exec("git", args, { cwd: repo });
-    const names = await git(["ls-tree", "--name-only", head, "visual-baselines/reviews/"]).catch(() => "");
+    const names = await git(["ls-tree", "--name-only", head, `${baselines}/reviews/`]).catch(() => "");
     // Record names start with their UTC time, so sorting by name applies the newest last.
     for (const name of names
         .split("\n")
@@ -151,11 +156,13 @@ async function loadResults(dir) {
  * @param {object} options the server's settings
  * @param {string} options.repo the repository accepts are committed in
  * @param {Function} options.gh the gh runner
- * @param {Record<string, { seedFromMaster: boolean }>} options.projects projects.json
+ * @param {ReturnType<typeof import("./config.mjs").normalizeConfig>} options.config the
+ *     repository's settings (visual-review.config.json)
  * @param {string} options.tmp where artifacts are downloaded
  * @param {string} options.token the session token
  * @param {string} options.origin the origin the page is served from
- * @param {number} [options.masterRun] the master CI run to seed from
+ * @param {number} [options.masterRun] the default branch's CI run to seed from (the target the
+ *     page calls "master")
  * @param {string} [options.results] a local directory of `<project>/results.json` instead of CI:
  *     a preview to look at, with no decisions and no Finish
  * @param {string} [options.startCommand] the shell command that starts this server, shown so the
@@ -163,8 +170,9 @@ async function loadResults(dir) {
  * @returns {(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void}
  *     the handler, for node:https in the CLI and node:http in the tests
  */
-export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, results, startCommand = null }) {
+export function createApp({ repo, gh, config, tmp, token, origin, masterRun, results, startCommand = null }) {
     const stateDir = join(tmp, "state");
+    const { projects, defaultBranch } = config;
     const names = Object.keys(projects);
     /** @type {Map<string, object>} targets by id: a pull request number, or "master" */
     let targets = new Map();
@@ -176,7 +184,15 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
      */
     const decisions = new Map();
     let finishing = false;
+    /**
+     * The newest Finish, kept after it ends so a reload still shows its result.
+     * @type {{ id: number, target: string, pr: number | null, running: boolean, step: string | null,
+     *     result: object | null, error: string | null } | null}
+     */
+    let job = null;
     let signer = null;
+    const busy = (t) => finishing && job?.target === t.id;
+    const BUSY = "a Finish is running on this target: wait for it to end";
 
     const itemOf = (t, key) => {
         const at = key.indexOf("/");
@@ -267,16 +283,17 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
             }
         } else {
             const prs = await openPullRequests(gh);
-            // Best effort: master and the branches, so the badge below sees what accept will see.
-            // A fork's branch is not on origin and fails its fetch, so master is fetched alone first.
+            // Best effort: the default branch and the pull requests' branches, so the badge below
+            // sees what accept will see. A fork's branch is not on origin and fails its fetch, so
+            // the default branch is fetched alone first.
             const fetch = (refs) => exec("git", ["fetch", "-q", "origin", ...refs], { cwd: repo }).catch(() => {});
-            const fetched = fetch(["+refs/heads/master:refs/remotes/origin/master"]).then(() =>
+            const fetched = fetch([`+refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`]).then(() =>
                 fetch(prs.map((p) => `+refs/heads/${p.branch}:refs/remotes/origin/${p.branch}`)),
             );
             // Every pull request at once: one after another took about 40 s for 18 of them.
             const built = await Promise.all(
                 prs.map(async (pr) => {
-                    const run = await newestCiRun(gh, pr.headSha);
+                    const run = await newestCiRun(gh, pr.headSha, config);
                     const id = String(pr.number);
                     return run
                         ? build({ id, pr: pr.number, title: pr.title, url: pr.url, branch: pr.branch }, run)
@@ -289,7 +306,7 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
                 const run = await getRun(gh, masterRun);
                 next.set(
                     "master",
-                    await build({ id: "master", pr: null, title: "master", url: null, branch: null }, run),
+                    await build({ id: "master", pr: null, title: defaultBranch, url: null, branch: null }, run),
                 );
             }
         }
@@ -298,10 +315,15 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
             t.commit = first?.commit ?? null;
             t.headSha = first?.headSha ?? null;
             const base = t.pr === null ? t.commit : t.headSha;
-            t.earlier = await earlierAccepts(repo, t.headSha, t.pr);
+            t.earlier = await earlierAccepts(repo, t.headSha, t.pr, config.baselines);
             t.mergeMasterFirst = false;
             for (const p of t.projects) {
-                if (!t.local && p.results && base && (await behindMaster(repo, base, p.project).catch(() => true))) {
+                if (
+                    !t.local &&
+                    p.results &&
+                    base &&
+                    (await behindMaster(repo, base, p.project, config).catch(() => true))
+                ) {
                     t.mergeMasterFirst = true;
                 }
             }
@@ -355,7 +377,8 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
     // taken on it and it has no Finish, since Finish accepts only CI captures.
     const isLocal = (t, name) =>
         t.local === true || Boolean(t.projects.find((x) => x.project === name)?.results?.local);
-    const acceptable = (t, name) => !isLocal(t, name) && (t.pr !== null || projects[name].seedFromMaster === true);
+    const acceptable = (t, name) =>
+        !isLocal(t, name) && (t.pr !== null || projects[name].seedFromDefaultBranch === true);
     const LOCAL = "is a local preview: nothing is decided on it; only CI captures of a pushed commit are";
 
     async function targetOf(id) {
@@ -397,7 +420,7 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
                     acceptable: acceptable(t, name),
                     results: meta,
                     items: items.map((i) => {
-                        const to = t.earlier.get(`visual-baselines/${name}/${i.file}`);
+                        const to = t.earlier.get(`${config.baselines}/${name}/${i.file}`);
                         return to !== undefined && to !== i.baseline ? { ...i, reReview: true } : i;
                     }),
                     decisions: Object.fromEntries(mine.map(([k, v]) => [k.slice(prefix.length), v])),
@@ -426,6 +449,9 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
                 return [404, { error: "no such item" }];
             }
             const key = `${body.project}/${body.file}`;
+            if (busy(t)) {
+                return [409, { error: BUSY }];
+            }
             if (isLocal(t, body.project)) {
                 return [403, { error: `${body.project} ${LOCAL}` }];
             }
@@ -437,7 +463,9 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
             if (body.decision !== "reject" && !acceptable(t, body.project)) {
                 return [
                     403,
-                    { error: `${body.project} is not seeded from master; its first review is on a pull request` },
+                    {
+                        error: `${body.project} is not seeded from ${defaultBranch}; its first review is on a pull request`,
+                    },
                 ];
             }
             const reason = cleanReason(body.reason);
@@ -461,10 +489,15 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
             if (!p) {
                 return [404, { error: "no such capture" }];
             }
+            if (busy(t)) {
+                return [409, { error: BUSY }];
+            }
             if (!acceptable(t, body.project)) {
                 return [
                     403,
-                    { error: `${body.project} cannot be accepted here (a local preview, or not seeded from master)` },
+                    {
+                        error: `${body.project} cannot be accepted here (a local preview, or not seeded from ${defaultBranch})`,
+                    },
                 ];
             }
             // With `component`, only that component's stories: the story id before "--".
@@ -505,42 +538,66 @@ export function createApp({ repo, gh, projects, tmp, token, origin, masterRun, r
             );
             const undecided = summary(t).projects.reduce((n, p) => n + p.undecided, 0);
             finishing = true;
-            try {
-                const out = await finish({
-                    repo,
-                    gh,
-                    target: { pr: t.pr, branch: t.branch },
-                    projects: captures,
-                    decisions: list,
-                    undecided,
-                });
-                // Rejects stay, keyed by image hash, so an unchanged rejected capture on the next
-                // CI run still reads as rejected rather than undecided.
+            job = {
+                id: (job?.id ?? 0) + 1,
+                target: t.id,
+                pr: t.pr,
+                running: true,
+                step: "starting",
+                result: null,
+                error: null,
+            };
+            runFinish(job, t, mine, {
+                repo,
+                gh,
+                target: { pr: t.pr, branch: t.branch },
+                projects: captures,
+                decisions: list,
+                undecided,
+                config,
+            });
+            return [202, { job }];
+        },
+        "GET /api/finish-status": async () => [200, { job }],
+    };
+
+    /**
+     * Runs one Finish to its end, recording its steps and outcome on `j`.
+     * @param {object} j the job
+     * @param {object} t the target
+     * @param {Map<string, object>} mine the target's decisions
+     * @param {object} input finish's input
+     */
+    async function runFinish(j, t, mine, input) {
+        try {
+            j.result = await finish({ ...input, progress: (step) => (j.step = step) });
+            // Rejects stay, keyed by image hash, so an unchanged rejected capture on the next
+            // CI run still reads as rejected rather than undecided.
+            for (const [k, v] of mine) {
+                if (v.decision === "reject") {
+                    v.posted = true;
+                } else {
+                    mine.delete(k);
+                }
+            }
+            save(t);
+        } catch (err) {
+            if (err instanceof AcceptError && err.committed) {
+                // The accepts are on the branch; keep only the rejects, so Finish again only comments.
                 for (const [k, v] of mine) {
-                    if (v.decision === "reject") {
-                        v.posted = true;
-                    } else {
+                    if (v.decision !== "reject") {
                         mine.delete(k);
                     }
                 }
                 save(t);
-                return [200, out];
-            } catch (err) {
-                if (err instanceof AcceptError && err.committed) {
-                    // The accepts are on the branch; keep only the rejects, so Finish again only comments.
-                    for (const [k, v] of mine) {
-                        if (v.decision !== "reject") {
-                            mine.delete(k);
-                        }
-                    }
-                    save(t);
-                }
-                return [err instanceof AcceptError ? 409 : 500, { error: err.message }];
-            } finally {
-                finishing = false;
             }
-        },
-    };
+            j.error = err.message;
+        } finally {
+            j.running = false;
+            j.step = null;
+            finishing = false;
+        }
+    }
 
     const tokenOk = (given) => {
         const a = Buffer.from(String(given ?? ""));

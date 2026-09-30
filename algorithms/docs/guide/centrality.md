@@ -24,7 +24,7 @@ The simplest measure: the number of distinct neighbours of a node.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { degreeCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -33,10 +33,10 @@ builder.addEdge("a", "d");
 builder.addEdge("b", "c");
 const graph = builder.freeze();
 
-console.log(indexed.degreeCentrality(graph)); // [3, 2, 2, 1]
+console.log(degreeCentrality(graph)); // [3, 2, 2, 1]
 
 // Divided by n - 1, the most neighbours a node can have
-const normalized = indexed.degreeCentrality(graph, { normalized: true });
+const normalized = degreeCentrality(graph, { normalized: true });
 console.log(Array.from(normalized, (x) => x.toFixed(2))); // ["1.00", "0.67", "0.67", "0.33"]
 ```
 
@@ -46,7 +46,7 @@ console.log(Array.from(normalized, (x) => x.toFixed(2))); // ["1.00", "0.67", "0
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { degreeCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b");
@@ -54,8 +54,8 @@ builder.addEdge("a", "c");
 builder.addEdge("b", "c");
 const graph = builder.freeze();
 
-console.log(indexed.degreeCentrality(graph, { mode: "in" })); // [0, 1, 2]
-console.log(indexed.degreeCentrality(graph, { mode: "out" })); // [2, 1, 0]
+console.log(degreeCentrality(graph, { mode: "in" })); // [0, 1, 2]
+console.log(degreeCentrality(graph, { mode: "out" })); // [2, 1, 0]
 ```
 
 ## Betweenness Centrality
@@ -67,7 +67,7 @@ information flow.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { betweennessCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -77,7 +77,7 @@ builder.addEdge("c", "e");
 builder.addEdge("d", "e");
 const graph = builder.freeze();
 
-const { scores } = indexed.betweennessCentrality(graph);
+const { scores } = betweennessCentrality(graph);
 console.log(scores[graph.ids.requireIndex("b")]); // 3.5: a bridge node
 console.log(scores[graph.ids.requireIndex("a")]); // 0: a peripheral node
 ```
@@ -88,14 +88,14 @@ console.log(scores[graph.ids.requireIndex("a")]); // 0: a peripheral node
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { betweennessCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
 builder.addEdge("b", "c");
 const graph = builder.freeze();
 
-const result = indexed.betweennessCentrality(graph, {
+const result = betweennessCentrality(graph, {
     normalized: true, // divide by the number of pairs
     endpoints: false, // do not count a path's own ends
     k: 2, // sample only 2 source nodes, an approximation that is faster on big graphs
@@ -103,7 +103,7 @@ const result = indexed.betweennessCentrality(graph, {
 console.log(result.scores.length); // 3
 ```
 
-`indexed.edgeBetweennessCentrality(graph)` gives the same measure per edge.
+`edgeBetweennessCentrality(graph)` gives the same measure per edge.
 
 ## Closeness Centrality
 
@@ -113,7 +113,7 @@ Measures how close a node is to all other nodes. Nodes with high closeness can r
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { closenessCentrality } from "@graphty/algorithms";
 
 // A star
 const builder = new GraphBuilder({ directed: false });
@@ -123,14 +123,36 @@ builder.addEdge("center", "c");
 builder.addEdge("center", "d");
 const graph = builder.freeze();
 
-const { scores } = indexed.closenessCentrality(graph);
+const { scores } = closenessCentrality(graph);
 console.log(scores[graph.ids.requireIndex("center")]); // 0.25: 1 / (1 + 1 + 1 + 1)
 console.log(scores[graph.ids.requireIndex("a")].toFixed(3)); // 0.143: 1 / (1 + 2 + 2 + 2)
 ```
 
 Closeness is 1 over the sum of the distances to the other nodes. Pass `normalized: true` to scale it by the fraction of
 other nodes reached, `harmonic: true` for harmonic closeness, which handles disconnected graphs, and `weighted: true` to read edge
-weights as distances. `indexed.nodeClosenessCentrality(graph, node)` scores one node.
+weights as distances. `nodeClosenessCentrality(graph, node)` scores one node.
+
+On a big graph, sample: `k` draws that many sources (the same ones every time) and `sources` names them. Each node is
+then scored from its distances to those sources alone, unscaled, and `sourcesUsed` says how many ran. To estimate the exact
+score, multiply a plain sampled score by `k / n`, a `harmonic` one (normalized or not) by `n / k`, and leave a
+`normalized` one as it is (it already divides by the sources reached); a sample of every node gives the exact score.
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { closenessCentrality } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+
+const sampled = closenessCentrality(graph, { sources: [graph.ids.requireIndex("a")] });
+console.log(sampled.sourcesUsed); // 1
+console.log(sampled.scores[graph.ids.requireIndex("d")].toFixed(3)); // 0.333: d is 3 from a
+```
 
 ## Eigenvector Centrality
 
@@ -140,7 +162,7 @@ A node is important if it is connected to other important nodes.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { eigenvectorCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -150,7 +172,7 @@ builder.addEdge("b", "d");
 builder.addEdge("c", "d");
 const graph = builder.freeze();
 
-const result = indexed.eigenvectorCentrality(graph, { maxIterations: 100, tolerance: 1e-6 });
+const result = eigenvectorCentrality(graph, { maxIterations: 100, tolerance: 1e-6 });
 // By default the scores are rescaled so the lowest is 0 and the highest 1; `normalized: false` keeps the unit vector
 console.log(Array.from(result.scores, (x) => x.toFixed(3))); // ["0.000", "1.000", "1.000", "0.000"]
 ```
@@ -164,7 +186,7 @@ error carries `algorithm`, `iterations` and `tolerance`. Long paths and large gr
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { ConvergenceError, indexed } from "@graphty/algorithms";
+import { ConvergenceError, eigenvectorCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 for (let i = 0; i < 50; i++) {
@@ -174,13 +196,13 @@ const graph = builder.freeze();
 
 let result;
 try {
-    result = indexed.eigenvectorCentrality(graph, { maxIterations: 20 });
+    result = eigenvectorCentrality(graph, { maxIterations: 20 });
 } catch (error) {
     if (!(error instanceof ConvergenceError)) {
         throw error;
     }
     console.log(error.algorithm); // eigenvectorCentrality
-    result = indexed.eigenvectorCentrality(graph, { maxIterations: 10000 });
+    result = eigenvectorCentrality(graph, { maxIterations: 10000 });
 }
 console.log(result.converged); // true
 ```
@@ -196,7 +218,7 @@ dangling nodes.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { pageRank } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("page1", "page2");
@@ -205,7 +227,7 @@ builder.addEdge("page2", "page3");
 builder.addEdge("page3", "page1");
 const web = builder.freeze();
 
-const ranks = indexed.pageRank(web, {
+const ranks = pageRank(web, {
     dampingFactor: 0.85, // probability of following a link
     maxIterations: 100,
     tolerance: 1e-6,
@@ -215,7 +237,7 @@ console.log(ranks.converged); // true
 ```
 
 Unlike eigenvector centrality, PageRank does not throw when it runs out of iterations: it returns the scores it has with
-`converged: false`. `indexed.personalizedPageRank(web, personalization)` restarts at the nodes a per-node weight vector
+`converged: false`. `personalizedPageRank(web, personalization)` restarts at the nodes a per-node weight vector
 favours.
 
 ## HITS (Hubs and Authorities)
@@ -226,7 +248,7 @@ Distinguishes hubs (pages that link to many authorities) from authorities (pages
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { hits } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("hub1", "auth1");
@@ -235,7 +257,7 @@ builder.addEdge("hub2", "auth1");
 builder.addEdge("hub2", "auth3");
 const web = builder.freeze();
 
-const { hubs, authorities } = indexed.hits(web);
+const { hubs, authorities } = hits(web);
 const top = (scores: Float64Array) => web.ids.idOf(scores.indexOf(Math.max(...scores)));
 console.log(top(hubs), top(authorities)); // hub1 auth1
 ```
@@ -248,7 +270,7 @@ Similar to eigenvector centrality, but every node also gets a base score.
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { katzCentrality } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: true });
 builder.addEdge("a", "b");
@@ -256,7 +278,7 @@ builder.addEdge("b", "c");
 builder.addEdge("a", "c");
 const graph = builder.freeze();
 
-const result = indexed.katzCentrality(graph, {
+const result = katzCentrality(graph, {
     alpha: 0.1, // attenuation factor
     beta: 1.0, // base score
 });
@@ -270,7 +292,7 @@ console.log(Array.from(result.scores, (x) => x.toFixed(3))); // ["0.000", "0.476
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { betweennessCentrality, degreeCentrality, pageRank } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("Alice", "Bob");
@@ -283,9 +305,9 @@ builder.addEdge("Eve", "Frank");
 const social = builder.freeze();
 
 // Different perspectives on importance
-const degree = indexed.degreeCentrality(social, { normalized: true });
-const betweenness = indexed.betweennessCentrality(social, { normalized: true }).scores;
-const pr = indexed.pageRank(social).scores;
+const degree = degreeCentrality(social, { normalized: true });
+const betweenness = betweennessCentrality(social, { normalized: true }).scores;
+const pr = pageRank(social).scores;
 
 for (let i = 0; i < social.nodeCount; i++) {
     console.log(

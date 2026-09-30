@@ -1,8 +1,9 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { Algorithm } from "../algorithms/Algorithm";
 import type { SimplifyPolicy } from "../algorithms/input/derivedInputs";
 import { checkNodeOptions } from "../algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
-import { mergedParallelEdges } from "../algorithms/utils/snapshotGraph";
 import type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey } from "../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../catalog/registry";
 import type { AlgorithmDescriptor } from "../catalog/types";
@@ -19,6 +20,26 @@ import { resolutionBehind } from "../session/scope/ScopeApi";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
+
+/**
+ * How many parallel edges an algorithm run over this graph merges before it can run.
+ *
+ * A run says so in its caveats: the numbers an algorithm produces over a multigraph are the
+ * numbers for the SIMPLIFIED graph, and a reader looking at a result card has no other way to
+ * learn that. It counts repeats in the graph AS DECLARED, which is the same number
+ * `statistics().repeatedEdgeCount` reports, so the caveat and the graph summary agree.
+ * @param data - the element's data manager
+ * @param data.getSnapshot - the declared snapshot
+ * @returns how many edges the simplification removes; zero for a graph with no parallel edges
+ */
+function mergedParallelEdges(data: { getSnapshot(): GraphSnapshot }): number {
+    const declared = data.getSnapshot();
+    if (!declared.flags.multigraph) {
+        return 0;
+    }
+
+    return declared.edgeCount - declared.simplified({ weights: "sum" }).snapshot.edgeCount;
+}
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_NAMESPACE = "graphty";
@@ -179,8 +200,8 @@ export class AlgorithmManager implements Manager {
         // stack's work, scheduled from the run finishing: the `algorithm-run` trigger Graph
         // registers repaints from the session's stack once the run leaves the queue.
 
-        // A run over a multigraph is a run over the SIMPLIFIED graph -- `@graphty/algorithms`
-        // cannot hold two edges between one pair -- and a reader has no other way to learn that.
+        // A run over a multigraph is a run over the SIMPLIFIED graph unless its class keeps parallel
+        // edges apart, and a reader has no other way to learn that.
         // The note is appended here rather than in each algorithm because the merge is the
         // element's doing, not any one algorithm's.
         const { caveats } = result.summary();

@@ -503,6 +503,7 @@ export class EventManager implements Manager {
             case "operation-start":
             case "operation-complete":
             case "operation-progress":
+            case "layout-progress":
             case "operation-obsoleted":
             case "animation-progress":
             case "animation-cancelled":

@@ -1,8 +1,10 @@
+import type { F32 } from "@graphty/graph-format";
 import { spectral } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Spectral Layout
@@ -44,11 +46,13 @@ type SpectralLayoutOpts = Partial<SpectralLayoutConfigType>;
 /**
  * Spectral layout engine using graph Laplacian eigenvectors
  */
-export class SpectralLayout extends SimpleLayoutEngine {
+export class SpectralLayout extends SnapshotLayoutEngine {
     static type = "spectral";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = spectralLayoutOptionsSchema;
-    scalingFactor = 100;
+    /** Layout units to scene units. */
+    private static readonly scale = 100;
+    protected readonly dimensions: 2 | 3;
     config: SpectralLayoutConfigType;
 
     /**
@@ -58,6 +62,7 @@ export class SpectralLayout extends SimpleLayoutEngine {
     constructor(opts: SpectralLayoutOpts) {
         super(opts);
         this.config = SpectralLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -75,14 +80,26 @@ export class SpectralLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions using spectral graph theory
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        this.result = spectral(this.graph, {
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim: layoutDim(this.config.dim),
-        });
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
+     * Compute node positions using spectral graph theory
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            spectral(input.graph, {
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+            }),
+            SpectralLayout.scale,
+        );
     }
 }

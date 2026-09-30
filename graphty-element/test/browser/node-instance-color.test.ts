@@ -12,15 +12,7 @@
  * So this reads pixels. There is no unit-testable proxy for "the shader recompiled".
  */
 
-import {
-    ArcRotateCamera,
-    Color4,
-    Engine,
-    HemisphericLight,
-    type InstancedMesh,
-    Scene,
-    Vector3,
-} from "@babylonjs/core";
+import { ArcRotateCamera, Color4, Engine, HemisphericLight, type InstancedMesh, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";

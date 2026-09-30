@@ -5,6 +5,7 @@ import { expect, userEvent, within } from "@storybook/test";
 import { UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
+import { settleFocusTooltip } from "../../helpers/settled";
 
 /**
  * Mantine's `ActionIcon`, themed as Figma's icon buttons: a 24 x 24 ghost button by default, and
@@ -173,6 +174,8 @@ export const JoinedGroup: Story = {
         await userEvent.tab();
         await expect(first).toHaveFocus();
         await expect(getComputedStyle(first).outlineOffset).toBe("-1px");
+        // Its tooltip opens after the cold delay; end once it has.
+        await settleFocusTooltip(canvasElement);
     },
 };
 

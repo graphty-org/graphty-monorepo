@@ -1,3 +1,5 @@
+import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
+
 /**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,
  * and the boxes of every element matching `selector` (none is fine) are the same on two
@@ -26,4 +28,16 @@ export async function waitForSettledLayout(root: HTMLElement, selector: string):
         last = now;
     }
     throw new Error(`${selector} kept moving for 120 frames`);
+}
+
+/**
+ * Ends a play function that leaves keyboard focus on a control: focus opens the control's
+ * tooltip, if it has one, only after the theme's open delay, so a screenshot taken inside that
+ * delay shows the tooltip or not depending on how long the capture took. Wait the delay out and
+ * let any tooltip settle, so every capture shows the same thing. Harmless without a tooltip.
+ * @param root - the story's canvas element
+ */
+export async function settleFocusTooltip(root: HTMLElement): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, TOOLTIP_OPEN_DELAY + 100));
+    await waitForSettledLayout(root, ".mantine-Tooltip-tooltip");
 }

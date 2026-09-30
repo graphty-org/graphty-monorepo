@@ -7,6 +7,7 @@ import { AlignmentMatrix, type AlignmentMatrixValue, ComboInput, UiGlyph } from 
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 import { focusMarked, StateGrid } from "../../helpers/selection-states";
+import { settleFocusTooltip } from "../../helpers/settled";
 
 /**
  * A 3 x 3 picker for where the children of a frame sit, the size of one panel field.
@@ -147,5 +148,7 @@ export const Keyboard: Story = {
         await expect(canvas.getByTestId("value")).toHaveTextContent("middle-right");
         await userEvent.keyboard("{ArrowDown}");
         await expect(canvas.getByTestId("value")).toHaveTextContent("bottom-right");
+        // The focused cell's tooltip opens after the cold delay; end once it has.
+        await settleFocusTooltip(canvasElement);
     },
 };

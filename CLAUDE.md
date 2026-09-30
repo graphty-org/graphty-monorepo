@@ -424,25 +424,15 @@ package has no guide pages, so its documentation link is the generated API refer
 `https://graphty.app/docs/layout/api/generated/`. graphty-element's Storybook is at
 `/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
-### Release versioning (temporary: graphty-element by version plan)
+### Release versioning
 
 `release.yml` runs `nx release`, which bumps each package from the conventional commits since its
 last `{projectName}@{version}` tag. A commit with `!` or a `BREAKING CHANGE:` footer always means a
 major bump for the package in its scope; nothing lowers it afterwards (not a revert, not a commit
-type setting). graphty-element 3.1.0 is released as a MINOR although six already-pushed commits
-scoped to it are marked breaking, so `nx.json` currently splits the release into two groups:
-
-- `graphty-element-by-version-plan` holds only graphty-element and has `versionPlans: true`. Its
-  bump and its CHANGELOG entry come from `.nx/version-plans/graphty-element-3-1.md` (`minor`),
-  which `nx release` deletes when it releases 3.1.0. Without a plan file graphty-element gets NO
-  bump at all.
-- `packages` holds everything else on conventional commits as before, so algorithms still gets
-  its 3.0.0 major and layout a 2.x patch.
-
-After graphty-element 3.1.0 is released, put `nx.json` back to the single `"projects": ["*"]`
-setting (delete `release.groups`) in the next PR, so graphty-element returns to conventional
-commits from its 3.1.0 tag. Until that PR lands, `release.yml` refuses to release: it fails when
-the group is still in `nx.json` and no version plan is left. Check any change here with
+type setting), so decide a package's next major before the first breaking commit for it lands
+(see "Breaking changes and major releases"). graphty-element 3.1.0 was released as a minor from a
+version plan in a temporary release group for exactly this reason; the group is gone, and every
+package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
 
 Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:

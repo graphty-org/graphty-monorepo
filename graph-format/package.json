@@ -17,6 +17,8 @@
     "files": [
         "dist/",
         "!dist/*.tsbuildinfo",
+        "!dist/src/**/*.js",
+        "!dist/src/**/*.js.map",
         "src/",
         "README.md",
         "LICENSE"

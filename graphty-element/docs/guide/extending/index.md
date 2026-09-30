@@ -1,16 +1,19 @@
 # Extension points
 
-Six things can be brought to graphty-element from outside. The list is closed: it is what a third
+Six things can be brought to graphty-element from outside today. The list is closed: it is what a third
 party may build against, and what the element promises not to break.
 
-| Extension point | What you bring                                                  | Guide                                                |
-| --------------- | --------------------------------------------------------------- | ---------------------------------------------------- |
-| Palette         | A named set of colour anchors a style layer ramps through       | [Custom palettes](./custom-palettes)                 |
-| File format     | A reader for a graph file the element does not ship             | [Custom file formats](./custom-data-sources)         |
-| Camera          | A way of deciding where the viewer stands and what they look at | [Custom camera views](./custom-cameras)              |
-| Layout          | An engine that decides where nodes sit                          | [Custom layouts](./custom-layouts)                   |
-| Algorithm       | Something computed over the graph that publishes a result       | [Custom algorithms](./custom-algorithms)             |
-| Logging         | A destination the element's log records are delivered to        | [Custom log destinations](./custom-log-destinations) |
+| Extension point | What you bring                                                                             | Guide                                                |
+| --------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Palette         | A named set of colour anchors a style layer ramps through                                  | [Custom palettes](./custom-palettes)                 |
+| File format     | A reader for a graph file the element does not ship, or a graph-io importer wrapped as one | [Custom file formats](./custom-data-sources)         |
+| Camera          | A way of deciding where the viewer stands and what they look at                            | [Custom camera views](./custom-cameras)              |
+| Layout          | An engine that decides where nodes sit                                                     | [Custom layouts](./custom-layouts)                   |
+| Algorithm       | Something computed over the graph that publishes a result                                  | [Custom algorithms](./custom-algorithms)             |
+| Logging         | A destination the element's log records are delivered to                                   | [Custom log destinations](./custom-log-destinations) |
+
+A seventh, the remote or streaming loader -- a service query, a paged API, a database -- will get a
+contract of its own, separate from file readers. It is not published yet.
 
 ## The promise
 
@@ -28,7 +31,7 @@ same route and with types you can import. Concretely, every one of the six:
 
 ## Two tiers: start simple
 
-Available from graphty-element 2.7.
+Available from graphty-element 3.0.
 
 Every extension point has two tiers. **The simple tier** is one function per point that takes a
 plain object: an id and the one or two functions that are your own logic. The element fills in
@@ -49,7 +52,7 @@ A whole working page, with no build step:
 ```html
 <graphty-element id="graph" sample="karate"></graphty-element>
 <script type="module">
-    import { defineAlgorithm } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js";
+    import { defineAlgorithm } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js";
 
     defineAlgorithm({ id: "acme-degree", node: (node) => node.degree });
     document.getElementById("graph").run("acme-degree", {}, { as: "degree" });
@@ -169,8 +172,10 @@ All three resolve in Node with no Babylon.js, no Lit and no DOM in their import 
 can be written, type-checked and published without a browser anywhere in the loop.
 
 A page that loads the self-contained `@graphty/graphty-element/bundle` with no build step can
-import the four `define*` verbs, `GraphtyLogger` (to switch logging on), `registerPalette`, `registerCameraView`, `registerLogSink`, `Algorithm`, `LayoutEngine` and
-`DataSource` from the bundle itself. Registrations are kept once per page rather than once per
+import the four `define*` verbs, `GraphtyLogger` (to switch logging on), `registerPalette`,
+`registerCameraView`, `registerLogSink`, `registerSnapshotLayout`, `registerFormatWriter`,
+`Algorithm`, `LayoutEngine` and `DataSource` from the bundle itself. Registrations are kept once
+per page rather than once per
 copy of the package, so a plugin registered through `./extend` also reaches an element that the
 bundle, or any other copy of graphty-element on the same page, defined.
 
@@ -178,14 +183,23 @@ bundle, or any other copy of graphty-element on the same page, defined.
 
 > Does the element construct the thing?
 
-**It does** for an algorithm, a layout and a file format's reader: the element builds one per run,
-per `setLayout`, per load. Those are classes, and they register through a static `register` on the
-base class you extend.
+**It does** for an algorithm, a live layout and a file format's reader: the element builds one per
+run, per `setLayout`, per load. Those are classes, and they register through a static `register`
+on the base class you extend.
 
 ```ts
 Algorithm.register(MyAlgorithm);
-LayoutEngine.register(MyLayout);
+LayoutEngine.register(MyLiveLayout);
 DataSource.register(MyReader);
+```
+
+A layout computed in one pass is the exception: it is a descriptor and a function from the graph
+to coordinates, registered with `registerSnapshotLayout`, and the element builds the engine around
+it. The element's own one-pass layouts are built the same way. A live layout, stepped frame by
+frame, is still a class extending `LayoutEngine`. See [Custom layouts](./custom-layouts).
+
+```ts
+registerSnapshotLayout({ descriptor, compute });
 ```
 
 **It does not** for a palette, a camera view or a log destination: a palette has no code to run, a

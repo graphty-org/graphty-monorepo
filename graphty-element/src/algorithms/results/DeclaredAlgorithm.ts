@@ -10,6 +10,7 @@
 import { resolveOptionValues } from "../../catalog/options";
 import type { AlgorithmDescriptor, FieldDescriptor, RunId } from "../../catalog/types";
 import { createRunResult, resultPath, type RunResult } from "../../session/results";
+import type { Caveats } from "../../session/runs/types";
 import { Algorithm } from "../Algorithm";
 import { maskBack } from "../input/maskBack";
 import { nodeLabelReader } from "./labels";
@@ -188,6 +189,9 @@ export abstract class DeclaredAlgorithm<
         declared?: readonly FieldDescriptor[],
     ): Promise<RunResult | undefined> {
         const startedAt = Date.now();
+        // The weight the run asked its input for, if any: the element states it in the caveats,
+        // so a plugin cannot read one weight and report another.
+        let weight: Caveats["weight"];
         // The input is bound here, to this algorithm, so whoever started the run never has to know
         // which scope a class declares it computes over.
         const bound: AlgorithmRunContext = {
@@ -196,7 +200,14 @@ export abstract class DeclaredAlgorithm<
                 context.report(progress);
             },
             yieldNow: () => context.yieldNow(),
-            input: (orientation, options) => this.input(orientation, options),
+            input: (orientation, options) => {
+                const asked = options?.weight;
+                if (asked !== undefined) {
+                    weight = asked;
+                }
+
+                return this.input(orientation, options);
+            },
         };
         const output = await this.compute(bound);
 
@@ -223,7 +234,7 @@ export abstract class DeclaredAlgorithm<
                 graph: output.graph,
                 nodes: output.nodes,
                 edges: output.edges,
-                caveats: output.caveats,
+                caveats: weight === undefined ? output.caveats : { ...output.caveats, weight },
                 durationMs: Date.now() - startedAt,
             }),
         );

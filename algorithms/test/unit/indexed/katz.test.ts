@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { katzCentrality as legacyKatz } from "../../../src/algorithms/centrality/katz.js";
-import { Graph } from "../../../src/core/graph.js";
 import { katzCentrality } from "../../../src/indexed/katz.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -82,7 +82,7 @@ describe("indexed.katzCentrality", () => {
             // index. That is a floating-point difference, not an algorithmic one.
             for (const options of [{}, { alpha: 0.05, beta: 0.5, normalized: false }, { maxIterations: 3 }]) {
                 const ported = katzCentrality(s, options);
-                const legacy = legacyKatz(graph, options);
+                const legacy = legacyResult() as CentralityResult;
                 for (let u = 0; u < s.nodeCount; u++) {
                     expect(ported.scores[u]).toBeCloseTo(legacy[String(s.ids.idOf(u))], 9);
                 }

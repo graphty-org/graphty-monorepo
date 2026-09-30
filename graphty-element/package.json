@@ -215,7 +215,6 @@
         "@ai-sdk/google": "^2.0.44",
         "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
-        "@graphty/graph-format": "^1.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@mlc-ai/web-llm": ">=0.2.0",
         "ai": "^5.0.104",

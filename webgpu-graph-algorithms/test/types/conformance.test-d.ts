@@ -4,7 +4,8 @@ import type {
     BellmanFordResultLike,
     BfsOptions,
     BfsResultLike,
-    HitsOptionsLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -119,8 +120,10 @@ expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator>();
 expectTypeOf<BfsOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["breadthFirstSearch"]>[2]>();
 expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["sssp"]>[2]>();
 expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["bellmanFord"]>[2]>();
-expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["closenessCentrality"]>[1]>();
+expectTypeOf<ClosenessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["closenessCentrality"]>[1]
+>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatchTypeOf<BfsResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
-expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ClosenessResultLike>();

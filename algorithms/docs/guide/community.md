@@ -15,7 +15,7 @@ The Louvain algorithm is a fast, greedy method that optimizes modularity. It is 
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { louvain } from "@graphty/algorithms";
 
 // A social network with two friend groups
 const builder = new GraphBuilder({ directed: false });
@@ -28,7 +28,7 @@ builder.addEdge("eve", "frank");
 builder.addEdge("carol", "dave"); // the bridge between the groups
 const graph = builder.freeze();
 
-const result = indexed.louvain(graph, {
+const result = louvain(graph, {
     resolution: 1.0, // higher gives smaller communities
     maxIterations: 100,
 });
@@ -38,7 +38,7 @@ console.log(result.groups().map((g) => Array.from(g, (i) => graph.ids.idOf(i))))
 console.log(result.modularity.toFixed(3)); // 0.357
 ```
 
-`indexed.leiden(graph, { resolution, randomSeed })` is a refinement of Louvain that guarantees every community is
+`leiden(graph, { resolution, randomSeed })` is a refinement of Louvain that guarantees every community is
 connected.
 
 ## Girvan-Newman Algorithm
@@ -50,7 +50,7 @@ resulting hierarchy, the uncut graph first, with each level's modularity. It nee
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { girvanNewman } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -63,7 +63,7 @@ builder.addEdge("c", "d");
 const graph = builder.freeze();
 
 // Stop once a level has 2 communities
-const result = indexed.girvanNewman(graph, { maxCommunities: 2 });
+const result = girvanNewman(graph, { maxCommunities: 2 });
 console.log(result.levels.length); // 2
 console.log(Array.from(result.levels[1])); // [0, 0, 0, 1, 1, 1]
 console.log(result.modularity[1].toFixed(3)); // 0.357
@@ -83,7 +83,7 @@ revisited, so it stops once every node's label is the most common among its neig
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { labelPropagation } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -94,7 +94,7 @@ builder.addEdge("d", "f");
 builder.addEdge("e", "f");
 const graph = builder.freeze();
 
-const result = indexed.labelPropagation(graph, {
+const result = labelPropagation(graph, {
     maxIterations: 100, // work cap, in full-sweep equivalents
     randomSeed: 42, // visit order and tie draws; one seed gives one result
     weighted: true, // false: each distinct neighbour votes once
@@ -107,7 +107,7 @@ console.log(result.converged); // true
 Self-loops are ignored and parallel edges are summed. On a directed snapshot a node's neighbours are its out- and
 in-neighbours. A negative, NaN or infinite weight throws a `RangeError`.
 
-To hold some nodes at a known community, pass one seed per node to `indexed.labelPropagationSemiSupervised`: a label for
+To hold some nodes at a known community, pass one seed per node to `labelPropagationSemiSupervised`: a label for
 a fixed node, `INVALID_INDEX` for a free one. Seeded nodes never move, seeds with the same label share a community, and
 seeds with different labels never do. The result is renumbered like every partition here, so read a seed's community
 through `labels[seedNode]`.
@@ -116,7 +116,7 @@ through `labels[seedNode]`.
 
 ```typescript
 import { GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { labelPropagationSemiSupervised } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("alice", "carol");
@@ -128,11 +128,11 @@ const bob = graph.ids.requireIndex("bob");
 const seeds = new Uint32Array(graph.nodeCount).fill(INVALID_INDEX);
 seeds[alice] = 0;
 seeds[bob] = 1;
-const held = indexed.labelPropagationSemiSupervised(graph, seeds, { randomSeed: 42 });
+const held = labelPropagationSemiSupervised(graph, seeds, { randomSeed: 42 });
 console.log(held.labels[alice] === held.labels[bob]); // false
 ```
 
-`indexed.labelPropagationSynchronous(graph, { maxIterations, weighted })` updates every node at once from the previous
+`labelPropagationSynchronous(graph, { maxIterations, weighted })` updates every node at once from the previous
 pass and uses no random numbers, so it gives one answer per graph. Passes alternate between allowing only moves to a
 higher label and only to a lower one, which stops two neighbours trading labels for ever; it ends after one quiet pass
 of each kind. Some weighted graphs still cycle, and then it stops with `converged: false`.
@@ -145,7 +145,7 @@ Modularity measures the quality of a community partition. Higher values indicate
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { modularity } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
@@ -155,7 +155,7 @@ const graph = builder.freeze();
 
 // Your community assignments, one per node index: a and b in 0, c and d in 1
 const labels = Uint32Array.of(0, 0, 1, 1);
-console.log(indexed.modularity(graph, labels).toFixed(4)); // 0.1667
+console.log(modularity(graph, labels).toFixed(4)); // 0.1667
 ```
 
 Typically Q below 0.3 is weak structure, 0.3 to 0.7 moderate, and above 0.7 strong.
@@ -166,7 +166,7 @@ Typically Q below 0.3 is weak structure, 0.3 to 0.7 moderate, and above 0.7 stro
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { louvain } from "@graphty/algorithms";
 
 // A similarity graph: edge weight = similarity between two documents
 const builder = new GraphBuilder({ directed: false });
@@ -179,7 +179,7 @@ builder.addEdge("doc4", "doc6", 0.75);
 const docs = builder.freeze();
 
 // Detect topic clusters and list each one's documents
-const topics = indexed.louvain(docs).groups();
+const topics = louvain(docs).groups();
 for (const [topic, members] of topics.entries()) {
     console.log(`Topic ${String(topic)}: ${Array.from(members, (i) => String(docs.ids.idOf(i))).join(", ")}`);
 }

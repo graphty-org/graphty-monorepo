@@ -173,10 +173,9 @@ jobs:
             - name: Migration count script
               run: pnpm run check:migration-counts
 
-            # Reads source only. A new use of the legacy graph API (a legacy algorithms or layout
-            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails;
-            # the uses the graph-format migration has not removed yet are in
-            # tools/legacy-use-baseline.json. The same check runs in tools/prepush.sh.
+            # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
+            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
+            # The same check runs in tools/prepush.sh.
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
@@ -803,9 +802,9 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Performance regression tests (algorithms only, master branch)
+    # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare
     performance:
-        name: Performance Tests
+        name: Performance Benchmarks
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         runs-on: ubuntu-latest
@@ -833,26 +832,11 @@ jobs:
                   name: build-packages
                   path: .
 
-            - name: Download performance baseline
-              uses: actions/download-artifact@v4
-              with:
-                  name: performance-baseline
-                  path: algorithms/test/
-              continue-on-error: true
-
-            - name: Run performance regression tests
+            - name: Run the algorithms benchmarks
               run: pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
-
-            - name: Upload performance baseline
-              uses: actions/upload-artifact@v4
-              with:
-                  name: performance-baseline
-                  path: algorithms/test/performance-baseline.json
-                  retention-days: 90
-                  if-no-files-found: ignore
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the

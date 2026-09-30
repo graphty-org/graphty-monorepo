@@ -1,15 +1,10 @@
 /**
- * Index-based implementations over `@graphty/graph-format` snapshots (graph-format design 14.1
- * rule 2): every function takes a `GraphSnapshot` or an `AdjacencyView` first and an options object
- * last, and returns typed arrays plus scalars. Reached as the `indexed` namespace of
- * `@graphty/algorithms`.
+ * The algorithms over `@graphty/graph-format` snapshots: every function takes a `GraphSnapshot` or an
+ * `AdjacencyView` first and an options object last, and returns typed arrays plus scalars. The package
+ * barrel re-exports all of them at the top level, and as the deprecated `indexed` namespace of 2.x.
  *
- * NOT re-exported here, deliberately (plan decision PD-9):
- * - `./accelerator.js`, which imports this barrel -- re-exporting it would make a cycle, and its
- *   symbols are exported FLAT from the package barrel because the GPU package must write
- *   `import type { AlgorithmAccelerator } from "@graphty/algorithms"`.
- * - `./to-snapshot.js`, whose parameter is a legacy `Graph`, which is not what this namespace
- *   promises. It is exported flat too.
+ * `./accelerator.js` is not re-exported here: it imports this barrel, so re-exporting it would make a
+ * cycle. The package barrel exports it.
  * @module
  */
 
@@ -32,10 +27,15 @@ export {
     type DirectionOptimizedBfsOptions,
 } from "./bfs.js";
 export { type BipartiteOptions, type BipartiteResult, isBipartite } from "./bipartite.js";
-export { closenessCentrality, type ClosenessOptions, nodeClosenessCentrality } from "./closeness.js";
+export {
+    closenessCentrality,
+    type ClosenessOptions,
+    type ClosenessResult,
+    nodeClosenessCentrality,
+} from "./closeness.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
-export { degreeCentrality, type DegreeCentralityOptions } from "./degree.js";
+export { degreeCentrality, type DegreeCentralityOptions, degrees, type DegreesResult } from "./degree.js";
 export {
     DeltaPageRank,
     type DeltaPageRankComputeOptions,

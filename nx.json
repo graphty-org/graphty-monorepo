@@ -2,8 +2,18 @@
     "$schema": "./node_modules/nx/schemas/nx-schema.json",
     "defaultBase": "master",
     "release": {
-        "projects": ["*"],
         "projectsRelationship": "independent",
+        "groups": {
+            "graphty-element-by-version-plan": {
+                "projects": ["graphty-element"],
+                "projectsRelationship": "independent",
+                "versionPlans": true
+            },
+            "packages": {
+                "projects": ["*", "!graphty-element"],
+                "projectsRelationship": "independent"
+            }
+        },
         "releaseTagPattern": "{projectName}@{version}",
         "version": {
             "conventionalCommits": true,
@@ -21,7 +31,8 @@
                     "authors": true,
                     "commitReferences": true,
                     "versionTitleDate": true
-                }
+                },
+                "renderer": "{workspaceRoot}/tools/changelog-renderer.cjs"
             }
         },
         "git": {

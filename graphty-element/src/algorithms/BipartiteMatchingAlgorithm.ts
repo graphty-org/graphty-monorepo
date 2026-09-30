@@ -6,12 +6,13 @@
  * Maximum matching has the largest possible number of edges.
  */
 
-import { bipartitePartition, maximumBipartiteMatching } from "@graphty/algorithms";
+import { isBipartite } from "@graphty/algorithms";
+import { INVALID_INDEX, maskTest } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
-import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -21,7 +22,6 @@ import {
     type ResultFieldSpec,
     setFieldSpecs,
 } from "./results";
-import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Bipartite Matching algorithm for finding maximum matchings
@@ -47,14 +47,15 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         // The declared edges of the run's input: its scope's, or every edge of the graph.
-        const graphEdges = scopeEdges(this.input("undirected"));
+        // Undirected: a matching is a set of unordered pairs.
+        const input = this.input("undirected");
+        const graphEdges = scopeEdges(input);
 
         if (graphEdges.length === 0) {
             return null;
         }
 
-        // Undirected: a matching is a set of unordered pairs.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, edgeRemap, run } = this.accelerated("maximumBipartiteMatching", "undirected");
 
         const fields: ResultFieldSpec[] = [
             ...setFieldSpecs("edge", { name: "bipartite", type: "boolean" }),
@@ -63,7 +64,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
         ];
 
         context.report({ phase: "Checking for two sides", total: null });
-        const sides = bipartitePartition(graphData);
+        const { sides } = isBipartite(snapshot);
 
         if (sides === null) {
             const unpaired: ResultElementValues<EdgeId>[] = [];
@@ -86,32 +87,39 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
         }
 
         context.report({ phase: "Pairing nodes", total: null });
-        const matching = maximumBipartiteMatching(graphData, {
-            leftNodes: sides.left,
-            rightNodes: sides.right,
-        });
-
-        const paired = new Set<string>();
-        for (const [left, right] of matching.matching) {
-            paired.add(edgePairKey(left, right));
-            paired.add(edgePairKey(right, left));
+        // The left side is the one `isBipartite` leaves clear, as the matching infers it.
+        const { value: matching, precision } = await run((dispatch, s) => dispatch.maximumBipartiteMatching(s));
+        const partnered = new Uint8Array(snapshot.nodeCount);
+        for (let left = 0; left < snapshot.nodeCount; left++) {
+            if (matching.matching[left] !== INVALID_INDEX) {
+                partnered[left] = 1;
+                partnered[matching.matching[left]] = 1;
+            }
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
+        const { src, dst } = snapshot.edgeList();
         await forEachChunked(context, "Marking the pairing", graphEdges, (edge) => {
-            // The pair key looks the matching up; the element's own id is what is published.
-            edges.push({ id: edge.id, values: { in: paired.has(edgePairKey(edge.source, edge.target)) } });
+            // Every declared edge maps onto the input edge it was merged into, so a reciprocal pair
+            // and a parallel group are in the pairing together.
+            const merged = edgeRemap === null ? edge.row : edgeRemap[edge.row];
+            const paired =
+                merged !== INVALID_INDEX &&
+                (matching.matching[src[merged]] === dst[merged] || matching.matching[dst[merged]] === src[merged]);
+
+            edges.push({ id: edge.id, values: { in: paired } });
         });
 
         // A right-hand node is matched when it is somebody's partner, which is what makes the
         // two halves of the pairing readable the same way.
-        const partners = new Set(matching.matching.values());
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Marking sides", Array.from(sides.left), (nodeId) => {
-            nodes.push({ id: nodeId, values: { side: "left", matched: matching.matching.has(nodeId) } });
-        });
-        await forEachChunked(context, "Marking sides", Array.from(sides.right), (nodeId) => {
-            nodes.push({ id: nodeId, values: { side: "right", matched: partners.has(nodeId) } });
+        await forEachChunked(context, "Marking sides", scopeNodeIds(input), (nodeId) => {
+            const row = snapshot.ids.indexOf(nodeId);
+
+            nodes.push({
+                id: nodeId,
+                values: { side: maskTest(sides, row) ? "right" : "left", matched: partnered[row] === 1 },
+            });
         });
 
         return {
@@ -124,6 +132,7 @@ export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
                 method: "bipartite-matching",
                 direction: "undirected",
                 weight: null,
+                precision,
                 notes: [`${String(matching.size)} of the two sides' nodes found a partner.`],
             }),
         };

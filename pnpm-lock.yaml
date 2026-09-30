@@ -196,9 +196,6 @@ importers:
       '@graphty/graph-format':
         specifier: workspace:^
         version: link:../graph-format
-      typedfastbitset:
-        specifier: ^0.6.1
-        version: 0.6.1
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^4.0.0
@@ -9489,9 +9486,6 @@ packages:
   typed-array-length@1.0.7:
     resolution: {integrity: sha512-3KS2b+kL7fsuk/eJZ7EQdnEmQoaho/r6KUef7hxvltNA5DR8NAUM+8wJMbJyZ4G9/7i3v5zPBIMN5aybAh2/Jg==}
     engines: {node: '>= 0.4'}
-
-  typedfastbitset@0.6.1:
-    resolution: {integrity: sha512-+RP2jdehXs774+lqiuqg/g9DcmPeCdWS8atagWb/iZf+pY6BDG2mH5WwBES6nqKXh3QSt4dJjmwoOsJq3iSWRA==}
 
   typedoc-plugin-markdown@4.9.0:
     resolution: {integrity: sha512-9Uu4WR9L7ZBgAl60N/h+jqmPxxvnC9nQAlnnO/OujtG2ubjnKTVUFY1XDhcMY+pCqlX3N2HsQM2QTYZIU9tJuw==}
@@ -20186,8 +20180,6 @@ snapshots:
       is-typed-array: 1.1.15
       possible-typed-array-names: 1.1.0
       reflect.getprototypeof: 1.0.10
-
-  typedfastbitset@0.6.1: {}
 
   typedoc-plugin-markdown@4.9.0(typedoc@0.28.15(typescript@5.9.3)):
     dependencies:

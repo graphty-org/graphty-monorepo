@@ -19,7 +19,7 @@ features:
       link: /graphty-element/
       linkText: Documentation
     - title: algorithms
-      details: 98+ graph algorithms including traversal, shortest paths, centrality, community detection, and link prediction.
+      details: 60+ graph algorithms including traversal, shortest paths, centrality, community detection, and link prediction.
       link: /algorithms/
       linkText: Documentation
     - title: layout

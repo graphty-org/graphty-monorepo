@@ -87,7 +87,7 @@ source file of the same name at the package root:
 | `.`          | `index.ts`                             | The custom element; defines the tag; pulls in Babylon.js and Lit                                                                                                       | No          |
 | `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes         |
 | `./catalog`  | `catalog.ts`                           | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types                                     | Yes         |
-| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError`                                                             | Yes         |
+| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `registerSnapshotLayout`, `DataSource`, `registerFormatWriter`, `registerAccelerator`, `GraphtyError`           | Yes         |
 | `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
 | `./session`  | `session.ts`                           | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model                                                                                | Yes         |
 | `./logging`  | `logging.ts`                           | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes         |
@@ -128,14 +128,14 @@ Six things can be brought to the element from outside. This list is the SUPPORTE
 closed: it is what a third party may build against, what the element promises not to break, and
 what every change here is measured against.
 
-| Extension point | What a third party brings                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------- |
-| Palette         | A named set of colour anchors a style layer ramps through                                                |
-| File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are |
-| Camera          | A way of deciding where the viewer is and what they are looking at                                       |
-| Layout          | An engine that decides where nodes sit, live or in a single pass                                         |
-| Algorithm       | Something computed over the graph that publishes a result                                                |
-| Logging         | A destination the element's log records are delivered to                                                 |
+| Extension point | What a third party brings                                                                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Palette         | A named set of colour anchors a style layer ramps through                                                                                                                        |
+| File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are, and a writer for it (`registerFormatWriter`), reached by `exportGraph` |
+| Camera          | A way of deciding where the viewer is and what they are looking at                                                                                                               |
+| Layout          | An engine that decides where nodes sit, live or in a single pass                                                                                                                 |
+| Algorithm       | Something computed over the graph that publishes a result                                                                                                                        |
+| Logging         | A destination the element's log records are delivered to                                                                                                                         |
 
 **The rule: an extension must be able to do everything its built-in peer can.** Whatever the
 element's own palettes, importers, cameras, layouts, algorithms and log sinks can do, a third
@@ -179,9 +179,10 @@ plugin author who expected otherwise would be misled.
 
 - **Progress and cancellation.** A palette does no work over time; a camera view computes
   synchronously; a log destination's `write` is fire-and-forget. None of those has progress or
-  cancellation to be at parity about. An import cannot be cancelled and a layout reports no
-  progress, for a built-in as much as for a plugin. Only the algorithm point has both, and it has
-  them fully.
+  cancellation to be at parity about. An import cannot be cancelled and a live layout reports no
+  progress, for a built-in as much as for a plugin. The algorithm point has both fully; a
+  single-pass layout registered with `registerSnapshotLayout` has both (`report` and `signal`),
+  the same contract the element's own single-pass layouts are built on.
 - **A saved document.** A palette travels in one (`toDocument` writes the descriptor of every
   non-built-in palette its layers name), a format id and an algorithm run are recorded in one, and
   a logging configuration round-trips by name. A camera view is recorded in no saved document at
@@ -194,9 +195,9 @@ plugin author who expected otherwise would be misled.
   closing one.
 - **`scope`, `seed`, `exact`, `sample` and `timeBox`** are resolved by a run and not forwarded to
   `compute`, so no algorithm receives them: not a plugin's, and not one of the element's own.
-- **The element's own importers still throw plain `Error`s.** A registered format reports
-  `E_PARSE_FAILED` and `E_FETCH_FAILED`; the seven built-in readers do not yet. A plugin is ahead
-  of the built-ins here rather than behind them.
+- **The CSV and JSON readers still throw plain `Error`s.** A registered format reports
+  `E_PARSE_FAILED` and `E_FETCH_FAILED`; of the seven built-in readers GEXF, GraphML, GML, DOT
+  and Pajek do too. A plugin is ahead of those two here rather than behind them.
 - **An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
   renderer-backed `Graph`. `./extend` resolving in Node buys type-checking, not a headless test.
 
@@ -298,11 +299,12 @@ arrives only through the `./webgpu` entry point.
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
 accelerator when the controller planned one and the CPU simulation when it did not; the
-algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector,
-betweenness and closeness route through
-`@graphty/algorithms`' `accelerated()` and label the result's `caveats.precision` with the
-arithmetic that produced it. Only the members listed in `src/acceleration/narrow.ts` are ever
-offered to the device; betweenness and closeness are not yet, so they always take the CPU port.
+algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector, HITS,
+Katz, betweenness, closeness, k-core and Louvain route through `@graphty/algorithms`'
+`accelerated()` and label the result's `caveats.precision` with the arithmetic that produced it.
+Only the members listed in `src/acceleration/narrow.ts` are ever offered to the device;
+betweenness, closeness, k-core and Louvain are not, so they always take the CPU port and
+`acceleration="required"` does not refuse them.
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
 frame-count-independent, and it is shared by the tests and the stories -- write no second one.
 

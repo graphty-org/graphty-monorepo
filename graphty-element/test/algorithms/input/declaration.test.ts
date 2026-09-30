@@ -27,7 +27,7 @@ import {
 
 /** What the two seams handed one algorithm. */
 interface Seen {
-    readonly objectGraph: number;
+    readonly subgraph: number;
     readonly accelerated: readonly string[];
 }
 
@@ -42,11 +42,11 @@ class WholeReader extends Algorithm {
 
     /**
      * What both seams hand over.
-     * @returns The node count of the object graph and the ids of the accelerated snapshot.
+     * @returns The node count of the input subgraph and the ids of the accelerated snapshot.
      */
     seams(): Seen {
         return {
-            objectGraph: this.algorithmGraph("directed").nodeCount,
+            subgraph: this.input("declared").subgraph().nodeCount,
             accelerated: idsOf(this.accelerated("pageRank", "undirected").snapshot),
         };
     }
@@ -81,7 +81,7 @@ describe("the declaration decides what both seams hand over", () => {
             () => Promise.resolve(algorithm.seams()),
         );
 
-        assert.deepStrictEqual(seen, { objectGraph: 3, accelerated: ["a", "b", "c"] });
+        assert.deepStrictEqual(seen, { subgraph: 3, accelerated: ["a", "b", "c"] });
     });
 
     it("the same algorithm without the declaration reads the whole snapshot under the same scoped run", async () => {
@@ -96,13 +96,13 @@ describe("the declaration decides what both seams hand over", () => {
             () => Promise.resolve(algorithm.seams()),
         );
 
-        assert.deepStrictEqual(seen, { objectGraph: 6, accelerated: ["a", "b", "c", "d", "e", "f"] });
+        assert.deepStrictEqual(seen, { subgraph: 6, accelerated: ["a", "b", "c", "d", "e", "f"] });
     });
 
     it("a declaring algorithm outside a run reads the whole graph, and so does one after its run", async () => {
         const graph = ring();
         const algorithm = new ScopedReader(graph.asGraph());
-        assert.strictEqual(algorithm.seams().objectGraph, 6);
+        assert.strictEqual(algorithm.seams().subgraph, 6);
 
         await withRunInput(
             algorithm,
@@ -111,7 +111,7 @@ describe("the declaration decides what both seams hand over", () => {
             undefined,
             () => Promise.resolve(),
         );
-        assert.strictEqual(algorithm.seams().objectGraph, 6, "the binding ends with the run");
+        assert.strictEqual(algorithm.seams().subgraph, 6, "the binding ends with the run");
     });
 });
 

@@ -2,7 +2,8 @@
 node_modules/
 
 # Nx cache
-.nx/
+.nx/*
+!.nx/version-plans/
 
 # Build outputs
 dist/

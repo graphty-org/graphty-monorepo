@@ -1,10 +1,11 @@
-import { type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
 import { kamadaKawai } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
-import { layoutDim, SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom } from "./SnapshotLayoutEngine";
 
 const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
@@ -32,27 +33,41 @@ function edgeWeights(g: GraphSnapshot): NumericVector | null {
 
 /**
  * The graph with one distance per edge, `1 / w` where `w` is the SUM of the weights of every edge
- * between the same two nodes, or null when every weight is 1 and there is nothing to read.
+ * between the same two nodes, or null when every such sum is 1 and there is nothing to read.
  *
  * Summed first because Kamada-Kawai keeps one distance per pair of nodes: left to itself it would
  * take the shortest of two parallel edges, so the order a file listed them in -- or which of the
  * two was heavier -- would decide the picture instead of the connection they make together.
- * @param g - the undirected graph
+ *
+ * The sum is taken over `source`, the graph as stored, and not over `g`: turning a directed graph
+ * undirected has already collapsed a reciprocal pair (a->b and b->a) into one edge carrying only
+ * the first edge's weight, so summing after that would drop the other half.
+ * @param g - the undirected graph the layout reads
+ * @param source - the graph `g` was derived from, with the same node rows; `g` itself when undirected
  * @returns the graph with the distance column, or null
  */
-function withDistances(g: GraphSnapshot): GraphSnapshot | null {
-    const weights = edgeWeights(g);
-    if (weights === null || weights.every((w) => w === 1)) {
+function withDistances(g: GraphSnapshot, source: GraphSnapshot): GraphSnapshot | null {
+    const weights = edgeWeights(source);
+    if (weights === null) {
+        return null;
+    }
+
+    const n = g.nodeCount;
+    const pairKey = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
+    const summed = new Map<number, number>();
+    const stored = source.edgeList();
+    for (let e = 0; e < source.edgeCount; e++) {
+        const key = pairKey(stored.src[e], stored.dst[e]);
+        summed.set(key, (summed.get(key) ?? 0) + weights[e]);
+    }
+
+    // Decided on the sums, not on the stored weights: a reciprocal pair of weight 1 sums to 2 and
+    // must read as distance 1/2 whether or not some other edge of the graph happens to weigh more.
+    if ([...summed.values()].every((w) => w === 1)) {
         return null;
     }
 
     const { src, dst } = g.edgeList();
-    const n = g.nodeCount;
-    const pairKey = (e: number): number => Math.min(src[e], dst[e]) * n + Math.max(src[e], dst[e]);
-    const summed = new Map<number, number>();
-    for (let e = 0; e < g.edgeCount; e++) {
-        summed.set(pairKey(e), (summed.get(pairKey(e)) ?? 0) + weights[e]);
-    }
 
     let clamped = 0;
     for (const w of summed.values()) {
@@ -73,7 +88,7 @@ function withDistances(g: GraphSnapshot): GraphSnapshot | null {
 
     const distance = new Float64Array(g.edgeCount);
     for (let e = 0; e < g.edgeCount; e++) {
-        distance[e] = 1 / Math.max(summed.get(pairKey(e)) ?? 1, WEIGHT_EPSILON);
+        distance[e] = 1 / Math.max(summed.get(pairKey(src[e], dst[e])) ?? 1, WEIGHT_EPSILON);
     }
 
     return g.withColumns(undefined, { [DISTANCE_COLUMN]: distance });
@@ -129,12 +144,14 @@ type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
 /**
  * Kamada-Kawai layout engine using spring-embedder energy minimization
  */
-export class KamadaKawaiLayout extends SimpleLayoutEngine {
+export class KamadaKawaiLayout extends SnapshotLayoutEngine {
     static type = "kamada-kawai";
     static maxDimensions = 3;
     static override honoursWeights = true;
     static zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
-    scalingFactor = 50;
+    /** Layout units to scene units. */
+    private static readonly scale = 50;
+    protected readonly dimensions: 2 | 3;
     config: KamadaKawaiLayoutConfigType;
 
     /**
@@ -144,6 +161,7 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     constructor(opts: KamadaKawaiLayoutOpts) {
         super(opts);
         this.config = KamadaKawaiLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -156,6 +174,14 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
     }
 
     /**
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
+     */
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
      * Compute node positions using Kamada-Kawai algorithm
      *
      * A WEIGHT IS INVERTED ON THE WAY IN, and that is the one thing about this engine a reader
@@ -165,19 +191,23 @@ export class KamadaKawaiLayout extends SimpleLayoutEngine {
      * larger number is a stronger connection. Nothing on screen would say which convention was in
      * force. So the element hands this solver `1 / weight` and the whole package keeps one
      * reading: heavier means more strongly connected, means drawn closer together.
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
      */
-    doLayout(): void {
-        this.stale = false;
+    protected compute(input: SnapshotLayoutInput): F32 {
         const dim = layoutDim(this.config.dim);
-        const weighted = this.config.weighted ? withDistances(this.graph) : null;
-        this.result = kamadaKawai(weighted ?? this.graph, {
-            dist: this.distances(),
-            pos: this.startPositions(dim) ?? this.rowsOfRecord(this.config.pos, dim),
-            weight: weighted === null ? false : DISTANCE_COLUMN,
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-            dim,
-        });
+        const weighted = this.config.weighted ? withDistances(input.graph, input.stored) : null;
+        return sceneUnits(
+            kamadaKawai(weighted ?? input.graph, {
+                dist: this.distances(),
+                pos: startFrom(input, dim, KamadaKawaiLayout.scale) ?? this.rowsOfRecord(this.config.pos, dim),
+                weight: weighted === null ? false : DISTANCE_COLUMN,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim,
+            }),
+            KamadaKawaiLayout.scale,
+        );
     }
 
     /**

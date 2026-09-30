@@ -111,6 +111,7 @@ describe("gexfImporter: identity", () => {
         expect(gexfImporter.sniff?.(enc.encode('<x xmlns="http://www.gexf.net/1.2draft"'))).toBe(0.8);
         expect(gexfImporter.sniff?.(readCorpusBytes("gexf", "lesmiserables.gexf").subarray(0, 200))).toBe(1);
         expect(gexfImporter.sniff?.(new Uint8Array([0xff, 0xfe, 0x00]))).toBe(0);
+        expect(gexfImporter.sniff?.(enc.encode('{ "nodes": [{ "id": "a", "label": "<gexf >" }] }'))).toBe(0);
     });
 });
 

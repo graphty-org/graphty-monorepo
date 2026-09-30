@@ -3,8 +3,8 @@
  *
  * Every other cost test checks the estimate's arithmetic. This one checks that the arithmetic
  * describes the real work: it runs the algorithm the element runs, with the options the element
- * passes, over a graph built by the element's own conversion (`toAlgorithmGraph`, which every run
- * pays for), times it, and compares that to `estimateCost`.
+ * passes, over the snapshot read through the element's own input accessor, times it, and compares
+ * that to `estimateCost`.
  *
  * It replaces the graphty app's `metricCost.test.ts`, deleted with the app's cost model when the
  * element took estimation over. That test pinned six hand-recorded PageRank timings (2,000 to
@@ -44,12 +44,11 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 
-import { accelerated, type Graph as AlgorithmGraph, louvain } from "@graphty/algorithms";
+import { accelerated } from "@graphty/algorithms";
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { createScopedInput, orientationOf } from "../../../src/algorithms/input/ScopedInput";
-import { toAlgorithmGraph } from "../../../src/algorithms/utils/snapshotGraph";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import type { AlgorithmKey } from "../../../src/catalog/types";
 import type { DataManager } from "../../../src/managers/DataManager";
@@ -84,8 +83,7 @@ interface Row {
     readonly shapeName?: string;
     /**
      * The work the element's wrapper does, from the graph as the element stores it, with its
-     * default options: `onObjectGraph` for a wrapper that still builds an `@graphty/algorithms`
-     * Graph, `onSnapshot` for one that runs the dispatcher's CPU port over the snapshot.
+     * default options: `onSnapshot` runs the dispatcher's CPU port over the snapshot.
      */
     readonly run: (data: DataManager, nodes: number) => unknown;
     /**
@@ -234,17 +232,6 @@ const cliqueRing: Shape = (nodes) =>
         }
     });
 
-/**
- * A wrapper that builds an `@graphty/algorithms` Graph (`algorithmGraph`), which every run pays for.
- * @param mode - The orientation the wrapper asks for.
- * @param work - What it runs on the graph.
- * @returns The row's run.
- */
-const onObjectGraph =
-    (mode: "directed" | "undirected", work: (graph: AlgorithmGraph, nodes: number) => unknown) =>
-    (data: DataManager, nodes: number): unknown =>
-        work(toAlgorithmGraph(data, mode), nodes);
-
 /** The dispatcher with no accelerator: the CPU port the element runs when none is attached. */
 const cpu = accelerated(null);
 
@@ -276,24 +263,33 @@ const pageRankRun = onSnapshot("directed", (s) =>
 );
 
 /** Louvain with the element's default options. */
-const louvainRun = onObjectGraph("undirected", (graph) =>
-    louvain(graph, { resolution: 1, maxIterations: 100, tolerance: 1e-6, useOptimized: true }),
+const louvainRun = onSnapshot("undirected", (s) =>
+    cpu.louvain(s, { resolution: 1, maxIterations: 100, tolerance: 1e-6 }),
 );
 
 const ROWS: readonly Row[] = [
     {
         key: "degree",
         sizes: [50_000, 100_000],
-        run: onObjectGraph("directed", (graph, nodes) => {
+        run: (data, nodes) => {
+            // Each edge's source and target counted off the snapshot's edge list, as the degree
+            // adapter does.
+            const graph = data.getSnapshot();
+            const inDegrees = new Uint32Array(nodes);
+            const outDegrees = new Uint32Array(nodes);
+            const { src, dst } = graph.edgeList();
+            for (let edge = 0; edge < graph.edgeCount; edge++) {
+                outDegrees[src[edge]]++;
+                inDegrees[dst[edge]]++;
+            }
             const out: object[] = [];
-            for (let id = 0; id < nodes; id++) {
-                const inDegree = graph.inDegree(id);
-                const outDegree = graph.outDegree(id);
-                out.push({ id, values: { value: inDegree + outDegree, inDegree, outDegree } });
+            for (let node = 0; node < nodes; node++) {
+                const [inDegree, outDegree] = [inDegrees[node], outDegrees[node]];
+                out.push({ id: graph.ids.idOf(node), values: { value: inDegree + outDegree, inDegree, outDegree } });
             }
 
             return out;
-        }),
+        },
     },
     // The estimate prices the whole iteration bound, so the row held to both bounds is one that
     // runs most of it: 1e-10 is the smallest tolerance the element's schema accepts, and on a
@@ -416,7 +412,7 @@ const ROWS: readonly Row[] = [
 ];
 
 /**
- * The two methods of the data manager `toAlgorithmGraph` reads, over a fixed snapshot. The
+ * The two methods of the data manager the input accessor reads, over a fixed snapshot. The
  * undirected view is derived once, as the element's store caches it once per snapshot.
  * @param snapshot - The graph.
  * @returns A stand-in data manager.

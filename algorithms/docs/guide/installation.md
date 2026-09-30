@@ -28,13 +28,13 @@ You can also use the library directly in the browser via a CDN:
 ```html
 <script type="module">
     import { GraphBuilder } from "https://esm.sh/@graphty/graph-format";
-    import { indexed } from "https://esm.sh/@graphty/algorithms";
+    import { breadthFirstSearch } from "https://esm.sh/@graphty/algorithms";
 
     const builder = new GraphBuilder({ directed: false });
     builder.addEdge("a", "b");
     const graph = builder.freeze();
 
-    console.log(indexed.breadthFirstSearch(graph, 0).visitedCount);
+    console.log(breadthFirstSearch(graph, 0).visitedCount);
 </script>
 ```
 
@@ -46,11 +46,11 @@ The library is written in TypeScript and includes full type definitions. No addi
 
 ```typescript
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { pageRank, type PageRankResult } from "@graphty/algorithms";
 
 // Full IntelliSense support: every option and result is typed
-function rank(graph: GraphSnapshot): indexed.PageRankResult {
-    return indexed.pageRank(graph, { dampingFactor: 0.85 });
+function rank(graph: GraphSnapshot): PageRankResult {
+    return pageRank(graph, { dampingFactor: 0.85 });
 }
 console.log(typeof rank); // function
 ```
@@ -74,12 +74,12 @@ The library is distributed as ES modules. It works with:
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { indexed } from "@graphty/algorithms";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("a", "b");
 const graph = builder.freeze();
 
-const result = indexed.breadthFirstSearch(graph, graph.ids.requireIndex("a"));
+const result = breadthFirstSearch(graph, graph.ids.requireIndex("a"));
 console.log("Installation successful!", result.visitedCount); // Installation successful! 2
 ```

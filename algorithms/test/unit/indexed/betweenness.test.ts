@@ -1,14 +1,11 @@
 import { GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    betweennessCentrality as legacyBetweenness,
-    edgeBetweennessCentrality as legacyEdgeBetweenness,
-} from "../../../src/algorithms/centrality/betweenness.js";
-import type { Graph } from "../../../src/core/graph.js";
 import { betweennessCentrality, edgeBetweennessCentrality, resolveSources } from "../../../src/indexed/betweenness.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
+import { legacyResult } from "../../helpers/golden.js";
+import type { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 
@@ -82,7 +79,7 @@ describe("indexed.betweennessCentrality", () => {
         const g = numericIdsFromZero();
         const s = checksummedSnapshot(g);
         const ported = betweennessCentrality(s).scores;
-        expectNodesMatch(s, ported, legacyBetweenness(g));
+        expectNodesMatch(s, ported, legacyResult() as Record<string, number>);
         expect(ported[s.ids.requireIndex(0)]).toBeGreaterThan(0);
         s.validate({ checksum: true });
     });
@@ -167,19 +164,19 @@ describe("indexed.betweennessCentrality", () => {
         it(`equals the legacy betweennessCentrality on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             for (const options of OPTION_SETS) {
-                expectNodesMatch(s, betweennessCentrality(s, options).scores, legacyBetweenness(graph, options));
+                expectNodesMatch(s, betweennessCentrality(s, options).scores, legacyResult() as Record<string, number>);
             }
             s.validate({ checksum: true });
         });
     }
 
-    for (const { name, snapshot, legacy } of multigraphFixtures()) {
+    for (const { name, snapshot } of multigraphFixtures()) {
         it(`counts parallel edges as one path on the ${name}, equal to legacy on the merged graph`, () => {
             for (const options of OPTION_SETS) {
                 expectNodesMatch(
                     snapshot,
                     betweennessCentrality(snapshot, options).scores,
-                    legacyBetweenness(legacy, options),
+                    legacyResult() as Record<string, number>,
                 );
             }
             snapshot.validate({ checksum: true });
@@ -213,17 +210,17 @@ describe("indexed.edgeBetweennessCentrality", () => {
                 expectEdgesMatch(
                     s,
                     edgeBetweennessCentrality(s, options).scores,
-                    legacyEdgeBetweenness(graph, options),
+                    legacyResult() as Map<string, number>,
                 );
             }
             s.validate({ checksum: true });
         });
     }
 
-    for (const { name, snapshot, legacy } of multigraphFixtures()) {
+    for (const { name, snapshot } of multigraphFixtures()) {
         it(`puts a pair's whole score on one parallel edge on the ${name}`, () => {
             const { scores } = edgeBetweennessCentrality(snapshot);
-            expectEdgesMatch(snapshot, scores, legacyEdgeBetweenness(legacy));
+            expectEdgesMatch(snapshot, scores, legacyResult() as Map<string, number>);
             // a and b are joined by three parallel edges; exactly one carries the pair
             const { src, dst } = snapshot.edgeList();
             const a = snapshot.ids.requireIndex("a");

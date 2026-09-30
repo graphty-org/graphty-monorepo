@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, kruskalMST } from "@graphty/algorithms";
+import { kruskalMST } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { edgeEnds, toSnapshot } from "../utils/snapshot.js";
 import {
     COLORS,
     createAnimationControls,
@@ -40,23 +37,6 @@ interface KruskalArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph with weights.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
-}
-
-/**
  * Animation step for Kruskal visualization.
  */
 interface KruskalStep {
@@ -71,11 +51,12 @@ interface KruskalStep {
  * Run Kruskal's algorithm and create animation steps.
  */
 function runKruskalAndCreateSteps(generatedGraph: GeneratedGraph): KruskalStep[] {
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
     const steps: KruskalStep[] = [];
 
     // Run actual Kruskal's algorithm
-    const result = kruskalMST(graph);
+    const mst = kruskalMST(graph);
+    const result = { edges: edgeEnds(graph, mst.edges), totalWeight: mst.totalWeight };
 
     // Sort edges by weight for animation (same order as Kruskal's)
     const sortedEdges = [...generatedGraph.edges].sort((a, b) => (a.weight ?? 1) - (b.weight ?? 1));
@@ -118,8 +99,8 @@ function runKruskalAndCreateSteps(generatedGraph: GeneratedGraph): KruskalStep[]
 
     // Simulate Kruskal's algorithm for animation
     for (const edge of sortedEdges) {
-        const {source} = edge;
-        const {target} = edge;
+        const { source } = edge;
+        const { target } = edge;
         const weight = edge.weight ?? 1;
 
         steps.push({
@@ -311,8 +292,10 @@ function createKruskalStory(args: KruskalArgs): HTMLElement {
                     // Reset nodes if not already in MST
                     const inMst = mstEdges.some(
                         (e) =>
-                            (e.source === step.source || e.target === step.source) ||
-                            (e.source === step.target || e.target === step.target),
+                            e.source === step.source ||
+                            e.target === step.source ||
+                            e.source === step.target ||
+                            e.target === step.target,
                     );
                     if (!inMst) {
                         highlightNode(svg, step.source, "default");

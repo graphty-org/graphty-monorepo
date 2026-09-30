@@ -497,6 +497,13 @@ export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chro
  * the same power iteration for both, and has no re-derivation of its own. All three are inside
  * what the element can hold; a sweep through the element is what would sharpen them.
  *
+ * CLOSENESS IS FLOORED FROM THE SAME RECORD, AT ITS CONSERVATIVE FIGURE. Sampled closeness from
+ * 100 sources crosses 1x at about 100 nodes on the record's loaded medians and at about 5,800 on
+ * the minimum of N, which that record says is the figure to ship on; the floor is 5,800. One
+ * floor covers both forms because the seam has one member: exact closeness crosses lower (1,000 to
+ * 2,800 on the minimum of N), so 5,800 is conservative for it as well, and the closeness adapter
+ * never sends an exact run above 30,000 nodes, where the record drops it as too slow to wait for.
+ *
  * A floor is the smallest measured size at which the device's median was at or below the CPU
  * port's IN EVERY RUN, so a size that won under one load and lost under another is below it. A
  * capability that is not listed has no floor and follows {@link ACCELERATION_MIN_NODES_DEFAULT}.
@@ -537,5 +544,12 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         // Likewise, between Katz's 0.36x and 3.66x; eigenvector centrality is costed as the same row.
         katzCentrality: 28_000,
         eigenvectorCentrality: 28_000,
+        // Sampled closeness (100 sources), from the same record: its crossover is ~100 nodes on
+        // the loaded medians and ~5,800 on the minimum of N, and this takes the CONSERVATIVE
+        // 5,800, the figure that record says to ship on. It is above the exact run's own
+        // minimum-of-N crossover (1,000 to 2,800), so it is conservative for an exact run too,
+        // which the closeness adapter never sends above 30,000 nodes (see
+        // EXACT_CLOSENESS_MAX_ACCELERATED_NODES).
+        closenessCentrality: 5_800,
     },
 );

@@ -7,7 +7,7 @@ client, an assertion collector in a test.
 
 ## Start here: one function
 
-Available from graphty-element 2.7.
+Available from graphty-element 3.0.
 
 Send the element's errors to your telemetry endpoint:
 
@@ -123,7 +123,7 @@ On a page with no build step, import both from the self-contained bundle:
     import {
         defineLogDestination,
         GraphtyLogger,
-    } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js";
+    } from "https://cdn.jsdelivr.net/npm/@graphty/graphty-element@3/dist/graphty.bundle.js";
 
     defineLogDestination({ id: "acme-page-log", write: (record) => console.log(record.message) });
     await GraphtyLogger.configure({ enabled: true });

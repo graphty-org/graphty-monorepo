@@ -6,9 +6,9 @@
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 
-import { Graph } from "../../../src/core/graph.js";
-import type { NodeId } from "../../../src/types/index.js";
 import type { FacadeFixture } from "../../helpers/facade-differential.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 
 /** A seeded directed acyclic graph whose topological order is NOT the node-insertion order. */

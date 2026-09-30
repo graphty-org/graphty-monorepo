@@ -10,6 +10,7 @@
 
 import { assert, describe, it, vi } from "vitest";
 
+import { CAPACITY_COLUMN } from "../../../src/data/GraphStore";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
 import { Ingest } from "../../../src/session/project/ingest";
@@ -186,6 +187,32 @@ describe("editing attributes as steps", () => {
 
         await session.undo();
         assert.notProperty(session.data.edge("1"), "kind");
+        session.dispose();
+    });
+
+    it("keeps the capacity column in step with the edge record through edits, undo and redo", async () => {
+        const session = await fixtureSession();
+        /**
+         * Edge 1's capacity as the snapshot's capacity column holds it.
+         * @returns The capacity.
+         */
+        const capacity = (): unknown => {
+            const snapshot = session.snapshot();
+            const row = Array.from({ length: snapshot.edgeCount }, (_, at) => at).find(
+                (at) => snapshot.edges.value("graphty.edgeId", at) === 1,
+            );
+            return snapshot.edges.value(CAPACITY_COLUMN, row ?? -1);
+        };
+        const before = capacity();
+
+        await session.data.updateEdges([{ id: "1", values: { capacity: 6.5 } }]);
+        assert.strictEqual(capacity(), 6.5);
+
+        await session.undo();
+        assert.strictEqual(capacity(), before);
+
+        await session.redo();
+        assert.strictEqual(capacity(), 6.5);
         session.dispose();
     });
 

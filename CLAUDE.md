@@ -135,42 +135,47 @@ workarounds available to them and no way to know they are not alone.
 
 | Package | Location | Version | Description |
 |---------|----------|---------|-------------|
-| `@graphty/graph-format` | `graph-format/` | 1.0.0 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
-| `@graphty/graph-io` | `graph-io/` | 0.2.1 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
-| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.2.0 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
-| `@graphty/graph-samples` | `graph-samples/` | 0.1.0 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
-| `@graphty/algorithms` | `algorithms/` | 1.4.0 | 98+ graph algorithms (traversal, pathfinding, centrality, clustering, flow, link prediction) |
-| `@graphty/layout` | `layout/` | 1.3.0 | Graph layout algorithms (NetworkX TypeScript port) |
-| `@graphty/graphty-element` | `graphty-element/` | 1.5.0 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.1.0 | React wrapper application (private, Mantine UI) |
+| `@graphty/graph-format` | `graph-format/` | 1.1.2 | Frozen CSR graph snapshot over typed arrays (builder, id map, attribute columns, views, wire form); zero dependencies |
+| `@graphty/graph-io` | `graph-io/` | 0.3.9 | Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the graph-format snapshot; subpath exports per format |
+| `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
+| `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
+| `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
+| `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
+| `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
+| `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (private, Mantine UI) |
+| `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
+| `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
 
 ## Monorepo Structure
 
 ```
 graphty-monorepo/
-├── graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
-├── graph-io/             # @graphty/graph-io package (depends on graph-format)
-├── webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
+|-- graph-format/         # @graphty/graph-format package (bottom of the dependency chain)
+|-- graph-io/             # @graphty/graph-io package (depends on graph-format)
+|-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
-├── algorithms/           # @graphty/algorithms package
-├── layout/               # @graphty/layout package (depends on graph-format, graph-samples)
-├── graphty-element/      # @graphty/graphty-element package
-├── graphty/              # @graphty/graphty React app
-├── tools/                # Build scripts
-│   ├── merge-coverage.sh # Coverage report merging
-│   ├── run-tests.sh      # Runs one CI test shard locally, with CI's command
-│   ├── prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
-│   ├── commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
-│   └── validate-outputs.cjs  # Build output validation
-├── design/               # Architecture and design documents
-├── .github/workflows/    # CI/CD workflows
-├── nx.json               # Nx configuration
-├── pnpm-workspace.yaml   # pnpm workspace config
-├── tsconfig.base.json    # Shared TypeScript config (project references)
-├── vite.shared.config.ts # Shared Vite config factory
-├── vitest.shared.config.ts # Shared Vitest config factory
-└── eslint.config.js      # Shared ESLint config
+|-- algorithms/           # @graphty/algorithms package
+|-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
+|-- graphty-element/      # @graphty/graphty-element package
+|-- graphty/              # @graphty/graphty React app
+|-- compact-mantine/      # @graphty/compact-mantine: the shared Mantine theme and components
+|-- remote-logger/        # @graphty/remote-logger: browser console logs to a server and MCP
+|-- visual-review/        # @graphty/visual-review: Storybook capture and baseline review
+|-- tools/                # Build scripts
+|   |-- merge-coverage.sh # Coverage report merging
+|   |-- run-tests.sh      # Runs one CI test shard locally, with CI's command
+|   |-- prepush.sh        # Pre-push gate (build, lint, knip, fast tests)
+|   |-- commit-changes.sh # Conventional-commit runner (--dry-run stages nothing)
+|   `-- validate-outputs.cjs  # Build output validation
+|-- design/               # Architecture and design documents
+|-- .github/workflows/    # CI/CD workflows
+|-- nx.json               # Nx configuration
+|-- pnpm-workspace.yaml   # pnpm workspace config
+|-- tsconfig.base.json    # Shared TypeScript config (project references)
+|-- vite.shared.config.ts # Shared Vite config factory
+|-- vitest.shared.config.ts # Shared Vitest config factory
+`-- eslint.config.js      # Shared ESLint config
 ```
 
 ## Development Commands
@@ -208,7 +213,6 @@ pnpm run dev:graphty
 pnpm run dev:webgpu-graph-algorithms      # the WebGPU demo page
 pnpm run storybook:graphty-element
 pnpm run storybook:graphty                # HTTPS only
-pnpm run examples:algorithms              # Algorithm demos
 pnpm run docs:dev                         # VitePress docs
 ```
 
@@ -264,14 +268,14 @@ The `tools/` directory contains build scripts:
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` via `pnpm run prepush:fast` |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
-| `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Its `PENDING` list holds the problems not yet fixed and may only shrink. CI and pre-push |
+| `check-data-source-migration.mjs` | Fails when a graphty-element data source parses files itself instead of importing from graph-io (papaparse, fast-xml-parser, hand-written tokenisers). Any problem fails. CI and pre-push |
 | `check-links.sh` | Dead-link check (see "Dead Links" under CI/CD). `--offline` for the fast half |
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 | `chromatic.sh`, `chromatic-api.sh` | Run Chromatic for one package; read a build's totals with the project token (see `.env.example`) |
 | `chromatic-capture.mjs` | Lists the stories of a Chromatic build and downloads their baseline, head and diff images, using your login cookie `CHROMATIC_SESSION_COOKIE`. Read-only: it never accepts or approves |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
-| `check-legacy-use.mjs` | Fails on a new use of the legacy graph API the graph-format migration replaces (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). Uses not yet migrated are in `legacy-use-baseline.json`; `--update-baseline` rewrites it, `--self-test` seeds one use per rule |
+| `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `worktree-new.sh` | `<branch> [base]`: a worktree in `.worktrees/` with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
 
@@ -420,6 +424,33 @@ package has no guide pages, so its documentation link is the generated API refer
 `https://graphty.app/docs/layout/api/generated/`. graphty-element's Storybook is at
 `/storybook/graphty-element/`; `/storybook/element/` only redirects there, for old links.
 
+### Release versioning (temporary: graphty-element by version plan)
+
+`release.yml` runs `nx release`, which bumps each package from the conventional commits since its
+last `{projectName}@{version}` tag. A commit with `!` or a `BREAKING CHANGE:` footer always means a
+major bump for the package in its scope; nothing lowers it afterwards (not a revert, not a commit
+type setting). graphty-element 3.1.0 is released as a MINOR although six already-pushed commits
+scoped to it are marked breaking, so `nx.json` currently splits the release into two groups:
+
+- `graphty-element-by-version-plan` holds only graphty-element and has `versionPlans: true`. Its
+  bump and its CHANGELOG entry come from `.nx/version-plans/graphty-element-3-1.md` (`minor`),
+  which `nx release` deletes when it releases 3.1.0. Without a plan file graphty-element gets NO
+  bump at all.
+- `packages` holds everything else on conventional commits as before, so algorithms still gets
+  its 3.0.0 major and layout a 2.x patch.
+
+After graphty-element 3.1.0 is released, put `nx.json` back to the single `"projects": ["*"]`
+setting (delete `release.groups`) in the next PR, so graphty-element returns to conventional
+commits from its 3.1.0 tag. Until that PR lands, `release.yml` refuses to release: it fails when
+the group is still in `nx.json` and no version plan is left. Check any change here with
+`pnpm exec nx release --dry-run --skip-publish`.
+
+Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:
+a commit is listed under a package's "Breaking Changes" only when its scope names that package (or
+it has no scope), the same rule nx uses for the version bump. Without it, a `feat(algorithms)!`
+commit that touched one line of layout put the algorithms breaking changes into layout's patch
+changelog.
+
 ### CI Test Shards
 
 The CI runs 22 parallel test jobs on a push to master or a manual dispatch:
@@ -476,11 +507,23 @@ type Layout = (snapshot: GraphSnapshot, options?: CommonLayoutOptions) => Layout
 
 ### Plugin System
 
+Every extension point is exported from `@graphty/graphty-element/extend`:
+
 ```typescript
-// Register custom implementations
-LayoutRegistry.register("custom-layout", customLayoutFunction);
-DataSourceRegistry.register("custom-source", CustomDataSource);
-AlgorithmRegistry.register("custom-algo", customAlgorithm);
+import {
+    Algorithm,
+    DataSource,
+    LayoutEngine,
+    registerFormatWriter,
+    registerSnapshotLayout,
+} from "@graphty/graphty-element/extend";
+
+Algorithm.register(MyAlgorithm);                  // a DeclaredAlgorithm subclass
+registerSnapshotLayout({ descriptor, compute });  // a static layout over the snapshot
+LayoutEngine.register(MyIterativeEngine);         // an iterative (step-by-step) layout engine
+DataSource.register(MyDataSource);                // a reader that parses a file itself
+DataSource.register(DataSource.fromImporter(myGraphIoImporter, formatDescriptor)); // a graph-io importer as a reader
+registerFormatWriter({ descriptor, exporter });   // a graph-io exporter as a file writer
 ```
 
 ## Key Files to Understand
@@ -515,7 +558,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - `graph-io/CLAUDE.md` - Importer / exporter contract, adding a format
 - `graph-samples/CLAUDE.md` - The determinism contract, adding a generator or a dataset
 - `webgpu-graph-algorithms/CLAUDE.md` - The GPU context and adapter policy, the kernel layers, the lanes and their environment variables, verified platform facts
-- `algorithms/CLAUDE.md` - The snapshot-based ports, the legacy facades and how they are tested
+- `algorithms/CLAUDE.md` - The package layout, the recorded 2.x results the algorithms are tested against, adding an algorithm
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
 - `graphty/CLAUDE.md` - React app specifics

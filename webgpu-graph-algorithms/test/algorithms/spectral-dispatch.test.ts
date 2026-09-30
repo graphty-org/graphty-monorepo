@@ -7,7 +7,7 @@
  * of their answers against the CPU ports.
  */
 
-import { accelerated, indexed } from "@graphty/algorithms";
+import { accelerated, hits, katzCentrality } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { onTestFinished, type TestContext } from "vitest";
 
@@ -58,13 +58,13 @@ describe("HITS and Katz through the dispatcher match the CPU ports", () => {
             const katz = { alpha: 0.05, maxIterations: 300, tolerance: 1e-7 };
             expectClose(
                 (await dispatch.katzCentrality(s, katz)).scores,
-                indexed.katzCentrality(s, katz).scores,
+                katzCentrality(s, katz).scores,
                 `${name} katz`,
             );
             const iter = { maxIterations: 300, tolerance: 1e-8 };
             for (const normalized of [true, false]) {
                 const device = await dispatch.hits(s, { ...iter, normalized });
-                const port = indexed.hits(s, { ...iter, normalized });
+                const port = hits(s, { ...iter, normalized });
                 expectClose(device.hubs, port.hubs, `${name} hubs, normalized ${String(normalized)}`);
                 expectClose(
                     device.authorities,
@@ -83,10 +83,10 @@ describe("HITS and Katz through the dispatcher match the CPU ports", () => {
             acc.release(s);
         });
         const katz = { alpha: 0.005, maxIterations: 300, tolerance: 1e-7, weighted: true };
-        expectClose((await dispatch.katzCentrality(s, katz)).scores, indexed.katzCentrality(s, katz).scores, "katz");
+        expectClose((await dispatch.katzCentrality(s, katz)).scores, katzCentrality(s, katz).scores, "katz");
         const iter = { maxIterations: 300, tolerance: 1e-8, weighted: true };
         const device = await dispatch.hits(s, iter);
-        const port = indexed.hits(s, iter);
+        const port = hits(s, iter);
         expectClose(device.hubs, port.hubs, "hubs");
         expectClose(device.authorities, port.authorities, "authorities");
     });

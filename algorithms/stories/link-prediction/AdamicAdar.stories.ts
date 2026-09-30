@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { adamicAdarPrediction, Graph } from "@graphty/algorithms";
+import { adamicAdarPrediction } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { scoredPairs, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -36,23 +33,6 @@ interface AdamicAdarArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Create the Adamic-Adar visualization story.
  */
 function createAdamicAdarStory(args: AdamicAdarArgs): HTMLElement {
@@ -60,10 +40,10 @@ function createAdamicAdarStory(args: AdamicAdarArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Run Adamic-Adar prediction
-    const predictions = adamicAdarPrediction(graph, { topK, includeExisting: false });
+    const predictions = scoredPairs(graph, adamicAdarPrediction(graph, { topK, includeExisting: false }));
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -217,7 +197,10 @@ function createAdamicAdarStory(args: AdamicAdarArgs): HTMLElement {
         });
 
         updatePredictionsDisplay();
-        updateStatus(statusPanel, `Found ${predictions.length} potential link${predictions.length !== 1 ? "s" : ""} using Adamic-Adar`);
+        updateStatus(
+            statusPanel,
+            `Found ${predictions.length} potential link${predictions.length !== 1 ? "s" : ""} using Adamic-Adar`,
+        );
     }
 
     /**
@@ -228,10 +211,14 @@ function createAdamicAdarStory(args: AdamicAdarArgs): HTMLElement {
 
         // Remove predicted edges
         const predictedEdges = svg.querySelectorAll("[data-predicted]");
-        predictedEdges.forEach((edge) => { edge.remove(); });
+        predictedEdges.forEach((edge) => {
+            edge.remove();
+        });
 
         const predictedLabels = svg.querySelectorAll("[data-predicted-label]");
-        predictedLabels.forEach((label) => { label.remove(); });
+        predictedLabels.forEach((label) => {
+            label.remove();
+        });
 
         // Reset node styling
         const nodes = svg.querySelectorAll("[data-node-id]");

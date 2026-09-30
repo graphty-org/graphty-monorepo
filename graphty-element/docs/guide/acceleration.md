@@ -132,8 +132,9 @@ That is the label to show beside a value a reader might compare against a saved 
 | `connected-components`                 | Yes                     | The CPU implementation                           |
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
 | `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
+| `closeness`                            | Yes, with one exception | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
-| `betweenness`, `closeness`             | No                      | The CPU implementation                           |
+| `betweenness`                          | No                      | The CPU implementation                           |
 | `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
 | `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
@@ -145,8 +146,8 @@ the member exists, with no change to your page.
 The algorithms in the last three rows are never handed to an accelerator, even one that implements
 them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
-An algorithm is accelerated only above a measured node count: `hits` from 15,000 nodes, `katz`
-and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
+An algorithm is accelerated only above a measured node count: `closeness` from 5,800 nodes, `hits`
+from 15,000, `katz` and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
 `connected-components` from 132,000 and `bfs` from 141,000. An algorithm
 is one call, and on the device that call costs several round trips whatever the size, so below
 those counts the CPU has finished before the device has started -- and a traversal, which is one
@@ -178,15 +179,27 @@ say how many were. A `bfs` with a `targetNode` is the same: it stops early, whic
 cannot, so it runs on the CPU and throws under `required`.
 
 `hits`, `katz` and `eigenvector` have exceptions of the same kind. A `katz` run with `normalized`
-switched off, or over a graph where every node has the same number of neighbours, takes the CPU
-implementation, and so does an `eigenvector` run that follows edge direction or runs over a graph
+switched off, over a graph where every node has the same number of neighbours, or with an `alpha`
+too large for its series to be certain to converge on that graph, takes the CPU implementation.
+That last one is checked against a bound on the graph's largest eigenvalue: a hub with d
+neighbours raises it to about the square root of d, so at the default `alpha` of 0.1 a graph stays
+on the CPU once its busiest region is roughly as dense as a hub of 100 neighbours, or a hub of 10
+whose neighbours have 10 each. So does an `eigenvector` run that follows edge direction or runs over a graph
 with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 
-An algorithm the element does not route to the device at all (`betweenness`, `closeness`,
-`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim` and `scc` today) runs on the
-CPU and says `"f64"` under `acceleration="required"` too, rather than throwing.
+`closeness` has one exception: an exact run (no `k`) over more than 30,000 nodes
+takes the CPU implementation, and throws `E_NO_ACCELERATOR` under `acceleration="required"`. The
+device computes it, but the time grows with the square of the node count and is tens of seconds at
+100,000 nodes, so above that size ask for a sampled run instead. A sampled run has no cap. Its
+floor, 5,800 nodes, is the conservative of the two crossovers measured for sampled closeness (about
+100 nodes on a busy machine's medians, about 5,800 on the minimum of repeated runs).
+
+An algorithm the element does not route to the device at all (`betweenness`,
+`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim`, `scc`, `k-core` and
+`louvain` today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather
+than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 

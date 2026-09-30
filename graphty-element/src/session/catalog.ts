@@ -36,7 +36,6 @@
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
-import { registeredFormatDescriptors } from "../catalog/formatRegistry";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { registeredLayoutDescriptors } from "../catalog/layoutRegistry";
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
@@ -47,6 +46,7 @@ import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import type { AlgorithmDescriptor } from "../catalog/types";
+import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import type { SessionCatalogApi } from "./types";
 
@@ -106,10 +106,10 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      */
     cameras: () => composeCameras(registeredCameraDescriptors()),
     /**
-     * Every file format the element can read, plus whatever was registered.
+     * Every file format the element can read or write, plus every registered reader and writer.
      * @returns the format descriptors, the element's own first
      */
-    formats: () => composeFormats(registeredFormatDescriptors()),
+    formats: () => composeFormats(catalogFormatDescriptors()),
     /**
      * Every layout a graph can be arranged with: the element's own, plus whatever was registered.
      * @returns the layout descriptors, the element's own first

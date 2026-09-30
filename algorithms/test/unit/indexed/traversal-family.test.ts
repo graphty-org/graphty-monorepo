@@ -1,9 +1,9 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, maskToIndices } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { accelerated, type AlgorithmAccelerator, type BfsResultLike, indexed } from "../../../src/index.js";
-import { legacyArcOrder } from "../../../src/indexed/to-snapshot.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import { legacyArcOrder } from "../../helpers/to-snapshot.js";
 
 /** A snapshot from an edge list over numeric ids 0..n-1, frozen with checksums. */
 function snap(directed: boolean, n: number, edges: [number, number][]): GraphSnapshot {

@@ -1,14 +1,11 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    closenessCentrality as legacyCloseness,
-    nodeClosenessCentrality as legacyNodeCloseness,
-    weightedClosenessCentrality as legacyWeightedCloseness,
-} from "../../../src/algorithms/centrality/closeness.js";
-import { Graph } from "../../../src/core/graph.js";
+import { resolveSources } from "../../../src/indexed/betweenness.js";
 import { closenessCentrality, nodeClosenessCentrality } from "../../../src/indexed/closeness.js";
-import { exactArcWeights } from "../../../src/indexed/facade.js";
+import { exactArcWeights } from "../../helpers/facade.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
@@ -107,7 +104,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true }).scores,
-                    legacyWeightedCloseness(g, options),
+                    legacyResult() as Record<string, number>,
                 );
             }
         }
@@ -145,7 +142,7 @@ describe("indexed.closenessCentrality", () => {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true }).scores,
-                    legacyWeightedCloseness(g, options),
+                    legacyResult() as Record<string, number>,
                 );
             }
         }
@@ -167,7 +164,7 @@ describe("indexed.closenessCentrality", () => {
             expectMatches(
                 s,
                 closenessCentrality(s, { ...options, weighted: true }).scores,
-                legacyWeightedCloseness(g, options),
+                legacyResult() as Record<string, number>,
             );
         }
     });
@@ -185,13 +182,13 @@ describe("indexed.closenessCentrality", () => {
             const s = checksummedSnapshot(graph);
             const weights = exactArcWeights(s);
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1, normalized: true }]) {
-                expectMatches(s, closenessCentrality(s, options).scores, legacyCloseness(graph, options));
+                expectMatches(s, closenessCentrality(s, options).scores, legacyResult() as Record<string, number>);
             }
             for (const options of [...OPTION_SETS, { cutoff: 2 }, { cutoff: 1.5, harmonic: true }]) {
                 expectMatches(
                     s,
                     closenessCentrality(s, { ...options, weighted: true, weights }).scores,
-                    legacyWeightedCloseness(graph, options),
+                    legacyResult() as Record<string, number>,
                 );
             }
             s.validate({ checksum: true });
@@ -207,19 +204,19 @@ describe("indexed.closenessCentrality", () => {
             expectMatches(
                 s,
                 closenessCentrality(s, { ...options, weighted: true, weights }).scores,
-                legacyWeightedCloseness(g, options),
+                legacyResult() as Record<string, number>,
             );
         }
         s.validate({ checksum: true });
     });
 
-    for (const { name, snapshot, legacy } of multigraphFixtures()) {
+    for (const { name, snapshot } of multigraphFixtures()) {
         it(`equals legacy on the merged graph for the ${name}`, () => {
             for (const options of [...OPTION_SETS, { cutoff: 1 }]) {
                 expectMatches(
                     snapshot,
                     closenessCentrality(snapshot, options).scores,
-                    legacyCloseness(legacy, options),
+                    legacyResult() as Record<string, number>,
                 );
             }
             snapshot.validate({ checksum: true });
@@ -238,7 +235,7 @@ describe("indexed.nodeClosenessCentrality", () => {
                 expect(nodeClosenessCentrality(s, v, options)).toBe(all[v]);
             }
         }
-        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyNodeCloseness(g, "b"));
+        expect(nodeClosenessCentrality(s, s.ids.requireIndex("b"))).toBe(legacyResult() as number);
         s.validate({ checksum: true });
     });
 
@@ -249,3 +246,120 @@ describe("indexed.nodeClosenessCentrality", () => {
         expect(() => nodeClosenessCentrality(s, 0.5)).toThrow(RangeError);
     });
 });
+
+describe("indexed.closenessCentrality, sampled", () => {
+    /** Equal, or within TOLERANCE where the sums are floating-point and a sample adds them in another order. */
+    function expectClose(got: Float64Array, want: Float64Array, exact: boolean): void {
+        expect(got).toHaveLength(want.length);
+        if (exact) {
+            expect([...got]).toEqual([...want]);
+            return;
+        }
+        for (let v = 0; v < want.length; v++) {
+            expect(Math.abs(got[v] - want[v]), `${v}: ${got[v]} vs ${want[v]}`).toBeLessThanOrEqual(
+                TOLERANCE * Math.max(1, Math.abs(want[v])),
+            );
+        }
+    }
+
+    const fixtures = [
+        ...undirectedFixtures().map(({ name, graph }) => ({ name, snapshot: checksummedSnapshot(graph) })),
+        ...directedFixtures().map(({ name, graph }) => ({ name, snapshot: checksummedSnapshot(graph) })),
+        ...multigraphFixtures(),
+    ];
+
+    for (const { name, snapshot: s } of fixtures) {
+        it(`equals the exact scores when the sample is every node, on ${name}`, () => {
+            const n = s.nodeCount;
+            const every = Array.from({ length: n }, (_, i) => i);
+            // hop sums are integers, so any order adds them exactly; harmonic and weighted sums are floating-point
+            const hops: [object, boolean][] = [
+                [{}, true],
+                [{ normalized: true }, true],
+                [{ cutoff: 2 }, true],
+                [{ harmonic: true }, false],
+                [{ harmonic: true, normalized: true }, false],
+            ];
+            const weighted: [object, boolean][] = [
+                [{ weighted: true }, false],
+                [{ weighted: true, normalized: true }, false],
+                [{ weighted: true, weights: exactArcWeights(s) }, false],
+            ];
+            for (const [options, exact] of [...hops, ...weighted]) {
+                const want = closenessCentrality(s, options).scores;
+                for (const sample of [{ sources: every }, { k: n }, { sources: every, k: n }]) {
+                    const r = closenessCentrality(s, { ...options, ...sample });
+                    expectClose(r.scores, want, exact);
+                    expect(r.sourcesUsed).toBe(n);
+                    expect(r.iterations).toBe(n);
+                }
+            }
+        });
+    }
+
+    it("measures each node's distance TO the sources on a directed graph", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        // only c is a source: a is 2 from it, b is 1, and c reaches no other source
+        expect([...closenessCentrality(s, { sources: [2] }).scores]).toEqual([1 / 2, 1, 0]);
+        // a is a source nothing reaches; the others do not reach it either
+        expect([...closenessCentrality(s, { sources: [0] }).scores]).toEqual([0, 0, 0]);
+    });
+
+    it("sums over the sources run, unscaled, and runs a duplicate twice", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        b.addEdge("c", "d");
+        const s = b.freeze();
+        expect([...closenessCentrality(s, { sources: [0] }).scores]).toEqual([0, 1, 1 / 2, 1 / 3]);
+        const twice = closenessCentrality(s, { sources: [0, 0] });
+        expect([...twice.scores]).toEqual([0, 1 / 2, 1 / 4, 1 / 6]);
+        expect(twice.sourcesUsed).toBe(2);
+        expect(twice.iterations).toBe(2);
+        // a node sums the sources other than itself: b is 1 from a and 1 from c
+        expect(closenessCentrality(s, { sources: [0, 1, 2] }).scores[1]).toBe(1 / 2);
+    });
+
+    it("draws the same k sources as betweenness, the same way every time", () => {
+        const s = checksummedSnapshot(gnmLike());
+        for (const k of [0, 1, 7, 20]) {
+            const drawn = resolveSources(s.nodeCount, undefined, k);
+            const first = closenessCentrality(s, { k });
+            expect(first.sourcesUsed).toBe(k);
+            expect([...first.scores]).toEqual([...closenessCentrality(s, { k }).scores]);
+            expect([...first.scores]).toEqual([...closenessCentrality(s, { sources: drawn }).scores]);
+        }
+        // a sample of 0 sources scores every node 0
+        expect([...closenessCentrality(s, { k: 0 }).scores].every((x) => x === 0)).toBe(true);
+    });
+
+    it("refuses a bad sources list or k", () => {
+        const s = checksummedSnapshot(gnmLike());
+        const n = s.nodeCount;
+        for (const options of [
+            { k: n + 1 },
+            { k: -1 },
+            { k: 1.5 },
+            { sources: [n] },
+            { sources: [-1] },
+            { sources: [0.5] },
+            { sources: [0, 1], k: 1 },
+        ]) {
+            expect(() => closenessCentrality(s, options), JSON.stringify(options)).toThrow(RangeError);
+        }
+        expect(() => closenessCentrality(s, { k: n + 1 })).toThrow(/closenessCentrality/);
+    });
+
+    it("reports every node as a source on the exact run", () => {
+        const s = checksummedSnapshot(gnmLike());
+        expect(closenessCentrality(s).sourcesUsed).toBe(s.nodeCount);
+    });
+});
+
+/** A small fixed graph for the sampling tests. */
+function gnmLike(): Graph {
+    return undirectedFixtures()[5].graph;
+}

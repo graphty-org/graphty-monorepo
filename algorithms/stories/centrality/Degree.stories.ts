@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { degreeCentrality, Graph } from "@graphty/algorithms";
+import { degreeCentrality } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
     createHeatMapLegend,
@@ -38,23 +35,6 @@ interface DegreeArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Create the Degree centrality visualization story.
  */
 function createDegreeStory(args: DegreeArgs): HTMLElement {
@@ -62,10 +42,10 @@ function createDegreeStory(args: DegreeArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Calculate degree centrality using actual algorithm
-    const scores = degreeCentrality(graph, { normalized });
+    const scores = byId(graph, degreeCentrality(graph, { normalized }));
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -104,7 +84,9 @@ function createDegreeStory(args: DegreeArgs): HTMLElement {
      */
     function updateScoresDisplay(): void {
         const scoresEl = scoresPanel.querySelector("[data-scores]");
-        if (!scoresEl) {return;}
+        if (!scoresEl) {
+            return;
+        }
 
         scoresEl.innerHTML = "";
 
@@ -134,7 +116,9 @@ function createDegreeStory(args: DegreeArgs): HTMLElement {
      * Apply centrality visualization.
      */
     function apply(): void {
-        if (isApplied) {return;}
+        if (isApplied) {
+            return;
+        }
         isApplied = true;
 
         // Apply heat map coloring

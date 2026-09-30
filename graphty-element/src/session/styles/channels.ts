@@ -392,7 +392,7 @@ const EDGE_ANIMATION_CAVEAT =
 
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
-    "none: a tail caption needs `edge.arrowTail` set to something other than \"none\". The words " +
+    'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
     "are what switch a caption on, so a layer that writes only the caption's appearance and no " +
     "words draws nothing, exactly as `node.labelStyle` draws nothing without `node.label`.";
 
@@ -785,7 +785,5 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
  * @returns Every channel for that target, in table order.
  */
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
-    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter(
-        (descriptor) => descriptor.target === target,
-    );
+    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
 }

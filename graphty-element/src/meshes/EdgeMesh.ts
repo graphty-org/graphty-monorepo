@@ -499,11 +499,11 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-         
+
         _cache: MeshCache,
     ): Mesh {
         // Use custom line renderer if flag is enabled
-         
+
         if (this.USE_CUSTOM_RENDERER) {
             const points = [
                 new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),

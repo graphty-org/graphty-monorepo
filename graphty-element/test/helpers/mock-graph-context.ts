@@ -218,7 +218,19 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         },
     });
 
-    const mockSession = { styles: mockSessionStyles } as unknown as GraphSession;
+    // Its layout verbs are the mock graph's, and a transaction runs its body with this same
+    // session as `tx`, which is what a command is handed as `ctx.tx`.
+    const mockSession = {
+        styles: mockSessionStyles,
+        layout: {
+            set: async (id: string, options?: { engine?: string }) => {
+                await mockGraph.setLayout(options?.engine ?? id);
+            },
+            setDimension: (dimension: "2d" | "3d") => mockGraph.setViewMode(dimension),
+        },
+        transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
+            Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
+    } as unknown as GraphSession;
 
     // The renderer's door onto that stack. A test that wants to know what a command actually
     // painted asks this rather than reading the layer back, because the layer says "red" and the

@@ -9,15 +9,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, hits } from "@graphty/algorithms";
+import { hits } from "@graphty/algorithms";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { byId } from "../utils/snapshot.js";
 import {
     createHeatMapLegend,
     createStatusPanel,
@@ -39,10 +37,10 @@ interface HITSArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms directed Graph.
+ * Freeze GeneratedGraph as a directed snapshot.
  */
-function toDirectedGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: true });
+function toDirectedGraph(generatedGraph: GeneratedGraph): GraphSnapshot {
+    const graph = new GraphBuilder({ directed: true });
 
     for (const node of generatedGraph.nodes) {
         graph.addNode(node.id);
@@ -57,7 +55,7 @@ function toDirectedGraph(generatedGraph: GeneratedGraph): Graph {
         }
     }
 
-    return graph;
+    return graph.freeze();
 }
 
 /**
@@ -71,7 +69,8 @@ function createHITSStory(args: HITSArgs): HTMLElement {
     const graph = toDirectedGraph(generatedGraph);
 
     // Calculate HITS using actual algorithm
-    const result = hits(graph, { maxIterations });
+    const h = hits(graph, { maxIterations });
+    const result = { hubs: byId(graph, h.hubs), authorities: byId(graph, h.authorities) };
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -123,9 +122,9 @@ function createHITSStory(args: HITSArgs): HTMLElement {
             currentMode = mode;
             // Update button styles
             modePanel.querySelectorAll("button").forEach((b) => {
-                const isActive = (b).dataset.mode === mode;
-                (b).style.background = isActive ? "#6366f1" : "white";
-                (b).style.color = isActive ? "white" : "#1e293b";
+                const isActive = b.dataset.mode === mode;
+                b.style.background = isActive ? "#6366f1" : "white";
+                b.style.color = isActive ? "white" : "#1e293b";
             });
             // Re-apply visualization if already applied
             if (isApplied) {
@@ -236,7 +235,9 @@ function createHITSStory(args: HITSArgs): HTMLElement {
 
         nodes.forEach((node) => {
             const nodeId = node.getAttribute("data-node-id");
-            if (nodeId === null) {return;}
+            if (nodeId === null) {
+                return;
+            }
 
             const hubScore = result.hubs[nodeId] ?? 0;
             const authScore = result.authorities[nodeId] ?? 0;
@@ -277,7 +278,9 @@ function createHITSStory(args: HITSArgs): HTMLElement {
      * Apply centrality visualization.
      */
     function apply(): void {
-        if (isApplied) {return;}
+        if (isApplied) {
+            return;
+        }
         isApplied = true;
 
         applyVisualization();
@@ -305,7 +308,8 @@ function createHITSStory(args: HITSArgs): HTMLElement {
             hubsEl.innerHTML = '<span style="color: #94a3b8; font-style: italic; font-size: 11px;">Not computed</span>';
         }
         if (authoritiesEl) {
-            authoritiesEl.innerHTML = '<span style="color: #94a3b8; font-style: italic; font-size: 11px;">Not computed</span>';
+            authoritiesEl.innerHTML =
+                '<span style="color: #94a3b8; font-style: italic; font-size: 11px;">Not computed</span>';
         }
 
         updateStatus(statusPanel, "Click 'Calculate' to compute HITS scores");
@@ -318,7 +322,8 @@ function createHITSStory(args: HITSArgs): HTMLElement {
         hubsEl.innerHTML = '<span style="color: #94a3b8; font-style: italic; font-size: 11px;">Not computed</span>';
     }
     if (authoritiesEl) {
-        authoritiesEl.innerHTML = '<span style="color: #94a3b8; font-style: italic; font-size: 11px;">Not computed</span>';
+        authoritiesEl.innerHTML =
+            '<span style="color: #94a3b8; font-style: italic; font-size: 11px;">Not computed</span>';
     }
 
     // Add controls

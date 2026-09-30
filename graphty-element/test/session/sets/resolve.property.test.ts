@@ -16,7 +16,6 @@ import { parseSetDefinition } from "../../../src/catalog/sets/parse";
 import type { EdgeId, EdgeMember, NodeId, Scope, SetDefinition } from "../../../src/catalog/types";
 import { pairsOrdered } from "../../../src/data/edgeIdentity";
 import { GraphStore } from "../../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../../src/data/ingest";
 import {
     createScopeApi,
     edgeSpaceOf,
@@ -34,6 +33,7 @@ import {
     resolveFixed,
 } from "../../../src/session/sets/resolve";
 import { fcParams } from "../../helpers/fc-params";
+import { ingestEdge, ingestNode } from "../../helpers/rawIngest";
 import { stepMembers, verdict } from "./refreeze-model";
 
 /** A generated case: the graph, and the membership inputs every scope form reads. */

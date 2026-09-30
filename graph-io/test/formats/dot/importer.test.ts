@@ -514,6 +514,15 @@ describe("dot importer: the grammar", () => {
         expect(cell(snapshot, "edges", "pos", 0)).toBe("e,1,2 3,4");
     });
 
+    it("keeps a node pos as written text with positions false", async () => {
+        const { snapshot, report } = await load('digraph { a [pos="1,2!"]; b [pos="nope"] }', { positions: false });
+        expect(codes(report)).toEqual([]);
+        expect(snapshot.nodes.byRole("position")).toBeNull();
+        expect(nodeCell(snapshot, "a", "pos")).toBe("1,2!");
+        expect(nodeCell(snapshot, "b", "pos")).toBe("nope");
+        expect(snapshot.nodes.get("pin")).toBeNull();
+    });
+
     it("takes the weight from the weight attribute, explicit only", async () => {
         const { snapshot } = await load('digraph { a -> b [weight=2.5]; b -> c; c -> a [weight=""] }');
         expect(snapshot.flags.weighted).toBe(true);
@@ -843,8 +852,15 @@ describe("dot importer: sniff and metadata", () => {
         expect(dotImporter.sniff?.(encode("digraph {"))).toBe(0.95);
         expect(dotImporter.sniff?.(encode("source,target\na,b\n"))).toBe(0);
         expect(dotImporter.sniff?.(encode("graphml"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph,id,name\ng1,1,x\n"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph\n{ a }"))).toBe(0.95);
+        expect(dotImporter.sniff?.(encode('digraph"G"{a->b}'))).toBe(0.95);
+        expect(dotImporter.sniff?.(encode("digraph/* c */G{a->b}"))).toBe(0.95);
         expect(dotImporter.sniff?.(encode("/* unterminated"))).toBe(0);
         expect(dotImporter.sniff?.(encode("// only"))).toBe(0);
+        // a GML list, whatever the keyword's case: DOT never has "[" after the header keyword
+        expect(dotImporter.sniff?.(encode("Graph [ node [ id 1 ] ]"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph\n[ node [ id 1 ] ]"))).toBe(0);
     });
 
     it("declares its format, extensions and mime types", () => {

@@ -1,6 +1,6 @@
 /**
- * @file max-flow over a scope: a listed scope, a multigraph, and capacities read from the records
- * of the scope's edges (design/sets/sets-design.md 10.1).
+ * @file max-flow over a scope: a listed scope, a multigraph, and capacities read from the store's
+ * capacity column at the scope's edges (design/sets/sets-design.md 10.1).
  */
 
 import { assert, describe, it } from "vitest";
@@ -13,15 +13,16 @@ import { describeScopedAdapter, runScoped, runWhole } from "./harness";
 describeScopedAdapter("max-flow", (graph: Graph) => new MaxFlowAlgorithm(graph));
 
 /**
- * A graph whose edges carry capacities in their records, as a loaded edge does.
+ * A graph whose edges carry capacities in the store's capacity column, as a loaded edge does.
  * @param capacities - One per edge, in order.
  * @param graph - The graph.
  * @returns It.
  */
 function withCapacities(capacities: readonly number[], graph: InputGraph): InputGraph {
     [...graph.edges.values()].forEach((edge, index) => {
-        edge.data = { capacity: capacities[index] };
+        graph.store.builder.setEdgeValue(graph.store.capacityColumn, edge.index, capacities[index]);
     });
+    graph.store.touch();
 
     return graph;
 }

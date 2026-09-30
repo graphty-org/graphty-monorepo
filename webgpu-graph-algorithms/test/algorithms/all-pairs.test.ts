@@ -1,5 +1,6 @@
 /**
- * All-pairs shortest paths (design 8.7, 3.3 line 813, 9.7, 11.3) against the two CPU references of
+ * All-pairs shortest paths (design 8.7, 3.3 line 813, 9.7, 11.3) against the shipped CPU port
+ * (`allPairsShortestPath` of @graphty/algorithms: exact unweighted, `1e-5` weighted) and the two CPU references of
  * test/oracle/all-pairs.ts: the unweighted matrix EXACTLY equal to one breadth-first search per source (integers are
  * exact in f32), the weighted matrix BITWISE equal to Floyd-Warshall in the blocked order with f32 rounding (the
  * device's own order of additions) and within design 9.7's `1e-5` of the textbook f64 Floyd-Warshall; the triangle
@@ -13,6 +14,7 @@
  * device's ceiling), the submit split, and the ceiling arithmetic.
  */
 
+import { allPairsShortestPath as cpuAllPairsShortestPath } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
@@ -136,9 +138,16 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
                     const spread = relSpread(first.dist, f64);
                     console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);
                     expect(spread, `${fixture.name}: dist vs the f64 reference`).toBeLessThanOrEqual(WEIGHTED_REL);
+                    const cpu = cpuAllPairsShortestPath(s).dist;
+                    expect(relSpread(first.dist, cpu), `${fixture.name}: dist vs the CPU port`).toBeLessThanOrEqual(
+                        WEIGHTED_REL,
+                    );
                 } else {
                     expect(Array.from(first.dist), `${fixture.name}: dist vs one BFS per source`).toEqual(
                         Array.from(apspRowsOracle(s)),
+                    );
+                    expect(Array.from(first.dist), `${fixture.name}: dist vs the CPU port`).toEqual(
+                        Array.from(cpuAllPairsShortestPath(s).dist),
                     );
                 }
                 expectMatrixTriangleInequality(first.dist, s, weighted, weighted ? WEIGHTED_REL : 0);

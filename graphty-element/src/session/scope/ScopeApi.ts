@@ -24,15 +24,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import {
-    type GraphSnapshot,
-    INVALID_INDEX,
-    makeMask,
-    maskCount,
-    maskTest,
-    maskToIndices,
-    type U32,
-} from "@graphty/graph-format";
+import { type GraphSnapshot, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
 import { parseScope, readingOfScope, stabiliseEdgeRefs } from "../../catalog/sets/parse";
 import type {
@@ -51,10 +43,11 @@ import type {
     SetDefinition,
     SetDefinitionInput,
 } from "../../catalog/types";
-import { canonicalEdgeEnds, edgeCounterOf, edgeIdOf, pairsOrdered } from "../../data/edgeIdentity";
+import { canonicalEdgeEnds, pairsOrdered } from "../../data/edgeIdentity";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
+import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
 import { assertIssued, referentReading } from "../sets/dependencies";
@@ -73,7 +66,8 @@ import {
 import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
 import type { ElementSet, SetsApi } from "../sets/types";
 import type { FilterSources, FilterValueSource, ScopeLeaf } from "../visibility/filter";
-import type { ElementMask, MaskIdSpace } from "./ElementMask";
+import type { ElementMask } from "./ElementMask";
+import { edgeSpaceOf, nodeSpaceOf } from "./spaces";
 
 export type { ComponentLabels } from "../sets/resolve";
 
@@ -84,46 +78,8 @@ export const DEFAULT_SCOPE_SAMPLE = 10_000;
 // The identity spaces
 // ---------------------------------------------------------------------------------------------
 
-/**
- * One snapshot's node identity space, for a mask over its nodes.
- * @param snapshot - The snapshot to read.
- * @returns The space, which is the snapshot's own id map.
- */
-export function nodeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<NodeId> {
-    return {
-        indexOf: (id: NodeId): number => snapshot.ids.indexOf(id),
-        idOf: (index: number): NodeId => snapshot.ids.idOf(index),
-    };
-}
-
-/**
- * One snapshot's edge identity space, for a mask over its edges.
- *
- * It READS the element-assigned counter the store stamped into every edge's `graphty.edgeId`
- * column rather than minting an id out of the endpoints, and that is the whole difference. A
- * minted pair string could not name two edges between one pair -- so under parallel edges only the
- * last of a repeated pair was addressable at all -- and it collided for any node id containing a
- * colon.
- *
- * The reverse lookup is `snapshot.edgeIndexOf`, a lazily built index graph-format already owns
- * over the same column, so there is no hand-built map here to fall out of step with it.
- * @param snapshot - The snapshot to read.
- * @returns The space.
- */
-export function edgeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<EdgeId> {
-    const column = snapshot.edges.byRole("id");
-
-    return {
-        indexOf: (id: EdgeId): number => {
-            const counter = edgeCounterOf(id);
-            return counter === INVALID_INDEX ? INVALID_INDEX : snapshot.edgeIndexOf(counter);
-        },
-        idOf: (edge: number): EdgeId => {
-            const counter = column !== null && column.isSet(edge) ? column.value(edge) : undefined;
-            return edgeIdOf(typeof counter === "number" ? counter : INVALID_INDEX);
-        },
-    };
-}
+// In their own module, so a caller that needs only these does not load the resolver.
+export { edgeSpaceOf, nodeSpaceOf };
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver needs from the rest of the session
@@ -417,13 +373,19 @@ function assertScope(spec: Scope): void {
  */
 function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): ReadonlySet<TId> {
     resolveCounters.idSetBuilds++;
-    const ids = new Set<TId>();
-    for (const index of maskToIndices(mask, length)) {
-        ids.add(idOf(index));
-    }
-
-    return ids;
+    // Sealed: a resolved scope is an answer, and a write into it would change nothing it answers.
+    return sealedSet(
+        (function* ids(): Generator<TId> {
+            for (const index of maskToIndices(mask, length)) {
+                yield idOf(index);
+            }
+        })(),
+        SCOPE_HINT,
+    );
 }
+
+/** What a caller writing into a resolved scope is told to do instead. */
+const SCOPE_HINT = "A resolved scope is an answer; call sets.redefine() to change what a kept set holds.";
 
 /** A resolution and the snapshot it covers. */
 interface Membership {

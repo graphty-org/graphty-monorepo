@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { bellmanFord, Graph } from "@graphty/algorithms";
+import { bellmanFord } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     COLORS,
     createAnimationControls,
@@ -41,26 +38,6 @@ interface BellmanFordArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph with weights.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    // Use directed graph for Bellman-Ford
-    const graph = new Graph({ directed: true });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    // Add edges in both directions for undirected behavior
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-        graph.addEdge(edge.target, edge.source, edge.weight ?? 1);
-    }
-
-    return graph;
-}
-
-/**
  * Animation step for Bellman-Ford visualization.
  */
 interface BellmanFordStep {
@@ -75,15 +52,23 @@ interface BellmanFordStep {
 /**
  * Run Bellman-Ford and create animation steps.
  */
-function runBellmanFordAndCreateSteps(
-    generatedGraph: GeneratedGraph,
-    startNode: number,
-): BellmanFordStep[] {
-    const graph = toAlgorithmGraph(generatedGraph);
+function runBellmanFordAndCreateSteps(generatedGraph: GeneratedGraph, startNode: number): BellmanFordStep[] {
+    const graph = toSnapshot(generatedGraph, { directed: true, weighted: true, bothWays: true });
     const steps: BellmanFordStep[] = [];
 
     // Run actual algorithm
-    const result = bellmanFord(graph, startNode);
+    const bf = bellmanFord(graph, graph.ids.requireIndex(startNode));
+    const result = {
+        distances: new Map<number, number>(),
+        predecessors: new Map<number, number | null>(),
+        hasNegativeCycle: bf.hasNegativeCycle,
+    };
+    for (let i = 0; i < graph.nodeCount; i++) {
+        const id = Number(graph.ids.idOf(i));
+        const path = bf.dist[i] === Infinity ? null : idsOf(graph, bf.pathTo(i));
+        result.distances.set(id, bf.dist[i]);
+        result.predecessors.set(id, path !== null && path.length >= 2 ? path[path.length - 2] : null);
+    }
 
     // Simulate the algorithm for animation
     const distances = new Map<number, number>();
@@ -274,7 +259,9 @@ function createBellmanFordStory(args: BellmanFordArgs): HTMLElement {
             iterationEl.textContent = `Iteration: ${currentIteration}`;
         }
 
-        if (!distancesEl) {return;}
+        if (!distancesEl) {
+            return;
+        }
 
         distancesEl.innerHTML = "";
         for (const node of generatedGraph.nodes) {
@@ -361,11 +348,15 @@ function createBellmanFordStory(args: BellmanFordArgs): HTMLElement {
      * Play animation continuously.
      */
     function play(): void {
-        if (isPlaying) {return;}
+        if (isPlaying) {
+            return;
+        }
         isPlaying = true;
 
         function tick(): void {
-            if (!isPlaying) {return;}
+            if (!isPlaying) {
+                return;
+            }
 
             const hasMore = executeStep();
             if (hasMore) {

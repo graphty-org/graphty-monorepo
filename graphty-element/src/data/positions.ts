@@ -123,6 +123,8 @@ export class ElementPositions {
 
     private rows = 0;
 
+    private moves = 0;
+
     /**
      * Allocate the backing array, every row unplaced and unpinned.
      * @param capacity - rows to reserve before the first growth; a non-negative integer
@@ -144,6 +146,24 @@ export class ElementPositions {
      */
     get capacity(): number {
         return this.array.length / POSITION_COMPONENTS;
+    }
+
+    /**
+     * Moves whenever coordinates are written on purpose: by {@link ElementPositions.write}, which
+     * every layout, drag and placement goes through, and by {@link ElementPositions.moved}, which a
+     * writer that fills the array {@link ElementPositions.view} lends (a GPU readback, a restore)
+     * calls once per batch. Seeding a new row and renumbering rows do not move it: those follow
+     * the graph, not the arrangement. The undo history compares it with the generation of its
+     * last capture to tell whether the lane has moved since (design/undo/undo-design.md 6.4).
+     * @returns the generation
+     */
+    get generation(): number {
+        return this.moves;
+    }
+
+    /** Say that coordinates were written straight into the lent array. */
+    moved(): void {
+        this.moves++;
     }
 
     /**
@@ -425,6 +445,7 @@ export class ElementPositions {
         this.array[base] = x;
         this.array[base + 1] = y;
         this.array[base + 2] = z;
+        this.moves++;
     }
 
     /**
@@ -450,6 +471,8 @@ export class ElementPositions {
         }
 
         this.write(index, x, y, z);
+        // A seed follows the graph rather than moving the arrangement.
+        this.moves--;
         return true;
     }
 

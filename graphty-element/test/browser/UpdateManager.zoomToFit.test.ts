@@ -12,7 +12,7 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LabelStyle } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { framingBox, nodeFramingBox } from "../../src/managers/UpdateManager";
 
 /** Three nodes at fixed places, so the only thing that can change the framing is the labels. */
@@ -83,7 +83,7 @@ describe("zoom-to-fit framing", () => {
         if (viewMode) {
             await graph.setViewMode(viewMode);
         }
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }
 
     afterEach(() => {
@@ -109,7 +109,7 @@ describe("zoom-to-fit framing", () => {
      * @returns The box it framed.
      */
     async function frame(): Promise<Box> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const box = await new Promise<Box>((done, fail) => {
             const timer = setTimeout(() => {
@@ -163,7 +163,7 @@ describe("zoom-to-fit framing", () => {
             });
         }
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // A label is built by the frame that next updates its node.
         await draw();
@@ -188,7 +188,7 @@ describe("zoom-to-fit framing", () => {
                 "edge.arrowTailText": text,
             },
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await draw();
     }
 
@@ -325,7 +325,6 @@ describe("zoom-to-fit framing", () => {
                 assert.closeTo(box.max[axis], measured.max[axis], 1e-6, `max ${axis}`);
             }
         });
-
     });
 
     for (const viewMode of [undefined, "2d"] as const) {

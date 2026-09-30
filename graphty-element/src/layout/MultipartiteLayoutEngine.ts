@@ -1,8 +1,10 @@
-import { Edge as LayoutEdge, multipartiteLayout, Node as LayoutNode } from "@graphty/layout";
+import { type F32, INVALID_INDEX } from "@graphty/graph-format";
+import { multipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Multipartite Layout
@@ -46,11 +48,13 @@ type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;
 /**
  * Multipartite layout engine for graphs with multiple node partitions
  */
-export class MultipartiteLayout extends SimpleLayoutEngine {
+export class MultipartiteLayout extends SnapshotLayoutEngine {
     static type = "multipartite";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = multipartiteLayoutOptionsSchema;
-    scalingFactor = 40;
+    /** Layout units to scene units. */
+    private static readonly scale = 40;
+    protected readonly dimensions: 2 | 3;
     config: MultipartiteLayoutConfigType;
 
     /**
@@ -60,6 +64,7 @@ export class MultipartiteLayout extends SimpleLayoutEngine {
     constructor(opts: MultipartiteLayoutOpts) {
         super(opts);
         this.config = MultipartiteLayoutConfig.parse(opts);
+        this.dimensions = 2;
     }
 
     /**
@@ -78,19 +83,30 @@ export class MultipartiteLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions for multipartite graph
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = multipartiteLayout(
-            { nodes, edges },
-            this.config.subsetKey,
-            this.config.align,
-            this.config.scale,
-            this.config.center,
+    /**
+     * Compute node positions for multipartite graph
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            multipartite(input.graph, {
+                // A node a layer names that the graph does not hold has nowhere to be drawn.
+                subsets: Object.values(this.config.subsetKey).map((layer) =>
+                    layer.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
+                ),
+                align: this.config.align,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
+            MultipartiteLayout.scale,
         );
     }
 }

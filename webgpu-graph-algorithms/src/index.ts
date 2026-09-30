@@ -83,6 +83,8 @@ export type {
     BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     CommunityResultLike,
     CorenessResultLike,
     EdgeScoresResultLike,
@@ -110,6 +112,7 @@ export type { ApspOptions, GpuApspResult } from "./types/all-pairs.js";
 export type {
     ComponentsOptions,
     EigenvectorOptions,
+    GpuClosenessResult,
     GpuHitsResult,
     GpuLabelResult,
     GpuPageRankResult,

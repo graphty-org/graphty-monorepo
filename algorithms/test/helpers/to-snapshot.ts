@@ -1,0 +1,175 @@
+/**
+ * Freezes a fixture built with `./legacy-graph.ts` into a graph-format snapshot, in the node and edge
+ * order the 2.x functions iterated. TEST-ONLY: algorithms 3.0.0 exports no such bridge.
+ * @module
+ */
+
+import { GraphBuilder, GraphFormatError, type GraphSnapshot, type U32 } from "@graphty/graph-format";
+
+import type { Graph } from "./legacy-graph.js";
+
+/** Options of {@link toSnapshot}. @public */
+export interface ToSnapshotOptions {
+    /**
+     * Record FNV-1a checksums at freeze so a caller can assert `snapshot.validate({ checksum: true })`
+     * (graph-format design 14.2's first port rule: views are shared, so a port that writes into one
+     * has to fail a test rather than corrupt the next call). Default false; the test suites set it.
+     */
+    readonly checksum?: boolean | undefined;
+}
+
+interface CacheEntry {
+    readonly mutationCount: number;
+    readonly checksum: boolean;
+    readonly snapshot: GraphSnapshot;
+    /** Every edge's weight in `graph.edges()` order, as frozen. */
+    readonly weights: readonly (number | undefined)[];
+}
+
+/**
+ * Whether every edge still carries the weight it was frozen with. `mutationCount` counts topology
+ * changes only, and `graph.getEdge(u, v)` hands out the live edge, so a weight can change in place
+ * without moving the counter.
+ * @param graph - The legacy graph
+ * @param weights - The weights recorded at freeze
+ * @returns True when no weight changed
+ */
+function sameWeights(graph: Graph, weights: readonly (number | undefined)[]): boolean {
+    let i = 0;
+    for (const edge of graph.edges()) {
+        // Object.is, so a NaN weight (kept in the topology cache) matches itself.
+        if (!Object.is(edge.weight, weights[i++])) {
+            return false;
+        }
+    }
+    return i === weights.length;
+}
+
+/**
+ * One entry per graph, REPLACED rather than appended to on a mutation. The entry holds the
+ * mutationCount it was built at, which is what makes a stale hit impossible -- the bug the old
+ * `WeakMap<Graph, CSRGraph>` cache had (graph-format design 14.1 rule 4).
+ */
+const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
+
+/**
+ * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount` and its
+ * edge weights (a weight set in place does not move the counter, so a hit re-reads the weights).
+ *
+ * The builder is created with `weightDtype: "f64"` so a legacy graph's double weights survive
+ * exactly: at freeze, graph-format keeps the original values in an f64 edge column with role
+ * `weight` (the "shadow") whenever at least one of them is not f32-exact, and costs nothing when
+ * they all are (graph-format design section 3.7, `graph-format/src/builder/freeze.ts:332-360`).
+ * A weighted `indexed.*` port reproduces legacy f64 results by passing
+ * `expandEdges(s, shadow.data)` as its per-arc `weights` override.
+ *
+ * Every legacy edge carries a weight (`Graph.addEdge` defaults it to 1), so the builder's
+ * `weighted: "auto"` always allocates the arc weight array -- 4 bytes per arc. That is truthful
+ * rather than wasteful: the legacy graph really does store the value.
+ * @param graph - The legacy graph to convert
+ * @param options - Conversion options
+ * @returns A frozen snapshot of the graph's current topology and weights
+ * @public
+ */
+export function toSnapshot(graph: Graph, options: ToSnapshotOptions = {}): GraphSnapshot {
+    const checksum = options.checksum === true;
+    return cachedFreeze(SNAPSHOT_CACHE, graph, checksum, true);
+}
+
+/**
+ * Freeze `graph` through `cache`, reusing the entry while the graph is unchanged.
+ * @param cache - The cache to read and replace the entry in
+ * @param graph - The legacy graph
+ * @param checksum - Whether to record checksums
+ * @param weighted - Whether to keep the edge weights
+ * @returns The snapshot
+ */
+function cachedFreeze(
+    cache: WeakMap<Graph, CacheEntry>,
+    graph: Graph,
+    checksum: boolean,
+    weighted: boolean,
+): GraphSnapshot {
+    const cached = cache.get(graph);
+    // A checksummed snapshot answers a plain request; a plain one cannot answer a checksummed
+    // request -- validate({ checksum: true }) throws E_INVALID_SNAPSHOT ("no-checksum") when none
+    // were recorded (graph-format/src/types/snapshot.ts:401-405).
+    if (
+        cached !== undefined &&
+        cached.mutationCount === graph.mutationCount &&
+        (cached.checksum || !checksum) &&
+        sameWeights(graph, cached.weights)
+    ) {
+        return cached.snapshot;
+    }
+    const builder = new GraphBuilder({
+        directed: graph.isDirected,
+        weightDtype: "f64",
+        expectedNodes: graph.nodeCount,
+        expectedEdges: graph.totalEdgeCount,
+    });
+    for (const node of graph.nodes()) {
+        builder.addNode(node.id);
+    }
+    const weights: (number | undefined)[] = [];
+    for (const edge of graph.edges()) {
+        builder.addEdge(edge.source, edge.target, weighted ? edge.weight : undefined);
+        weights.push(edge.weight);
+    }
+    const snapshot = builder.freeze({ label: "algorithms.toSnapshot", checksum });
+    cache.set(graph, { mutationCount: graph.mutationCount, checksum, snapshot, weights });
+    return snapshot;
+}
+
+/**
+ * {@link toSnapshot}, or null when an edge weight is NaN: a legacy `Graph` accepts one, a snapshot
+ * does not. A facade whose legacy answer depends on how NaN compares keeps its legacy code for such
+ * a graph.
+ * @param graph - The legacy graph
+ * @param options - Conversion options
+ * @returns The snapshot, or null
+ */
+export function toSnapshotOrNull(graph: Graph, options: ToSnapshotOptions = {}): GraphSnapshot | null {
+    try {
+        return toSnapshot(graph, options);
+    } catch (error) {
+        if (error instanceof GraphFormatError && error.code === "E_INVALID_WEIGHT") {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * The order a legacy `Graph` hands out each node's neighbours in, as the `arcOrder` option of the
+ * order-sensitive traversals (`depthFirstSearch`, `topologicalSort`, `stronglyConnectedComponents`,
+ * `condensation`, `breadthFirstSearch`). A snapshot row is sorted by neighbour index, while the
+ * legacy adjacency Map is in insertion order, so a traversal that must visit nodes in the legacy
+ * order -- a facade keeping its published result -- passes this.
+ * @param graph - The legacy graph
+ * @param s - A snapshot with the graph's nodes in the same order and its neighbour pairs, such as
+ *   `toSnapshot(graph)`; parallel arcs of one pair are kept together in row order
+ * @returns For every row, its arcs in legacy neighbour order
+ */
+export function legacyArcOrder(graph: Graph, s: GraphSnapshot): U32 {
+    const order = new Uint32Array(s.arcCount);
+    let next = 0;
+    for (const node of graph.nodes()) {
+        const u = s.ids.requireIndex(node.id);
+        if (next !== s.rowPtr[u]) {
+            throw new Error("legacyArcOrder: the snapshot does not hold this graph's nodes and neighbours");
+        }
+        for (const neighbor of graph.neighbors(node.id)) {
+            // Every arc to this neighbour, in row order: the legacy graph holds one edge per pair,
+            // but a multigraph snapshot of it may hold several.
+            const [lo, hi] = s.arcsBetween(u, s.ids.requireIndex(neighbor));
+            for (let a = lo; a < hi; a++) {
+                order[next++] = a;
+            }
+        }
+        if (next !== s.rowPtr[u + 1]) {
+            throw new Error("legacyArcOrder: the snapshot does not hold this graph's nodes and neighbours");
+        }
+    }
+    return order;
+}

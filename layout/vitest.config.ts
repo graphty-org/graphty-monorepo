@@ -20,6 +20,12 @@ export default defineConfig({
         },
         include: ["test/**/*.test.ts", "test/**/*.test.js"],
         reporters: ["verbose"],
+        // test/types/*.test-d.ts are compile-only: tsc checks them as part of every run
+        typecheck: {
+            enabled: true,
+            include: ["test/types/**/*.test-d.ts"],
+            tsconfig: "./tsconfig.types.json",
+        },
     },
     resolve: {
         alias: {

@@ -12,7 +12,12 @@ import { sssp } from "../src/algorithms/sssp.js";
 import { FA2_DEFAULTS, FR_DEFAULTS, LAYOUT_TUNING_DEFAULTS, SE_DEFAULTS } from "../src/constants.js";
 import { isWebGpuGraphError } from "../src/errors.js";
 import { ForceSimulation } from "../src/layouts/force-simulation.js";
-import { type AcceleratorOptions, type AlgorithmAccelerator, type GpuAccelerator } from "../src/types/accelerator.js";
+import {
+    type AcceleratorOptions,
+    type AlgorithmAccelerator,
+    type ClosenessAcceleratorOptions,
+    type GpuAccelerator,
+} from "../src/types/accelerator.js";
 import {
     type ForceAtlas2Stats,
     type FruchtermanReingoldStats,
@@ -509,8 +514,10 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expectBitwiseEqual(closeness.scores, closenessDirect.scores, "closenessCentrality");
         expect(closeness.iterations).toBe(closenessDirect.iterations);
         expect(closeness.precision).toBe("f32");
-        // PD-25: an option the exact traversal cannot honour is refused through the member, never dropped
-        await expect(acc.closenessCentrality(snapshot, { maxIterations: 3 })).rejects.toMatchObject({
+        // PD-25: an option the exact traversal cannot honour is refused through the member, never dropped (the seam's
+        // closeness options no longer carry it, so this is a JavaScript caller's object)
+        const legacy = { maxIterations: 3 } as unknown as ClosenessAcceleratorOptions;
+        await expect(acc.closenessCentrality(snapshot, legacy)).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
             details: { option: "maxIterations" },
         });

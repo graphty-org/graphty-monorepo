@@ -14,7 +14,7 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { DataManager } from "../../src/managers/DataManager";
 
 // Type helper to access private Graph members in tests
@@ -66,14 +66,14 @@ describe("ViewMode Switching Regression Tests", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we're in 2D mode
             assert.strictEqual(graph.getViewMode(), "2d");
 
             // Switch to 3D mode
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we're in 3D mode
             assert.strictEqual(graph.getViewMode(), "3d");
@@ -120,13 +120,13 @@ describe("ViewMode Switching Regression Tests", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Multiple round trips
             for (let cycle = 0; cycle < 3; cycle++) {
                 // Switch to 2D
                 await graph.setViewMode("2d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // Verify edges exist and have valid connections
                 const edges2D = getEdges(graph);
@@ -134,7 +134,7 @@ describe("ViewMode Switching Regression Tests", () => {
 
                 // Switch back to 3D
                 await graph.setViewMode("3d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // Verify edges still exist and are connected
                 const edges3D = getEdges(graph);
@@ -154,7 +154,7 @@ describe("ViewMode Switching Regression Tests", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify initial state in 3D
             const edges3D = getEdges(graph);
@@ -162,7 +162,7 @@ describe("ViewMode Switching Regression Tests", () => {
 
             // Switch to 2D
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify edges are preserved in 2D mode
             const edges2D = getEdges(graph);
@@ -185,7 +185,7 @@ describe("ViewMode Switching Regression Tests", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const initialEdgeCount = getEdges(graph).length;
             assert.strictEqual(initialEdgeCount, TEST_EDGES.length, "Initial edge count should match");
@@ -196,7 +196,7 @@ describe("ViewMode Switching Regression Tests", () => {
             void graph.setViewMode("3d");
             await new Promise((resolve) => setTimeout(resolve, 50));
             void graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify edges are preserved
             const finalEdges = getEdges(graph);
@@ -208,14 +208,14 @@ describe("ViewMode Switching Regression Tests", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const initialEdgeCount = getEdges(graph).length;
 
             // Multiple complete round trips
             for (let i = 0; i < 5; i++) {
                 await graph.setViewMode("2d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // Check edges exist in 2D
                 assert.strictEqual(
@@ -225,7 +225,7 @@ describe("ViewMode Switching Regression Tests", () => {
                 );
 
                 await graph.setViewMode("3d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 // Check edges exist in 3D
                 assert.strictEqual(
@@ -243,13 +243,13 @@ describe("ViewMode Switching Regression Tests", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "3d");
 
             // Switch to 2D mode
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "2d");
 
@@ -274,19 +274,19 @@ describe("ViewMode Switching Regression Tests", () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Multiple switches
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Verify camera controller is active
@@ -305,14 +305,14 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should fall back to 3D when VR is not supported", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Check VR support first
             const vrSupported = await graph.isVRSupported();
 
             // Try to switch to VR
             await graph.setViewMode("vr");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             if (!vrSupported) {
                 // Should fall back to 3D
@@ -324,14 +324,14 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should fall back to 3D when AR is not supported", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Check AR support first
             const arSupported = await graph.isARSupported();
 
             // Try to switch to AR
             await graph.setViewMode("ar");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             if (!arSupported) {
                 // Should fall back to 3D
@@ -343,13 +343,13 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should not throw when switching to VR without WebXR", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // This should not throw
             let errorThrown = false;
             try {
                 await graph.setViewMode("vr");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
             } catch {
                 errorThrown = true;
             }
@@ -360,13 +360,13 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should not throw when switching to AR without WebXR", async () => {
             // Setup
             await graph.addNodes(TEST_NODES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // This should not throw
             let errorThrown = false;
             try {
                 await graph.setViewMode("ar");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
             } catch {
                 errorThrown = true;
             }
@@ -395,12 +395,12 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should handle setViewMode before addNodes", async () => {
             // Set mode before adding any data
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Then add nodes
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify nodes work
             assert.strictEqual(graph.getViewMode(), "2d");
@@ -410,14 +410,14 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should handle setViewMode during layout animation", async () => {
             // Start with nodes
             await graph.addNodes(TEST_NODES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Start a layout (don't wait for completion)
             void graph.setLayout("ngraph");
 
             // Immediately switch view mode
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should complete without errors
             assert.strictEqual(graph.getViewMode(), "2d");
@@ -428,13 +428,13 @@ describe("ViewMode Switching Regression Tests", () => {
             // Setup
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Rapid view mode switches
             void graph.setViewMode("2d");
             void graph.setViewMode("3d");
             void graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Final state should be 2D
             assert.strictEqual(graph.getViewMode(), "2d");
@@ -444,19 +444,19 @@ describe("ViewMode Switching Regression Tests", () => {
         it("should handle interleaved node operations and mode switches", async () => {
             // Sequential operations with proper awaiting
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             await graph.addNodes(TEST_NODES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Final state should be consistent
             assert.strictEqual(graph.getViewMode(), "2d");

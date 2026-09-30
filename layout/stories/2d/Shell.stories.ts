@@ -4,20 +4,15 @@
  * Demonstrates shell layout where nodes are positioned in concentric circles.
  * Shows animation from random initial positions to final shell positions.
  *
- * IMPORTANT: This story uses the actual shellLayout implementation
+ * IMPORTANT: This story uses the actual shell implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { shellLayout } from "@graphty/layout";
+import { shell, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -80,7 +75,7 @@ function createShellStory(args: ShellArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
@@ -89,7 +84,7 @@ function createShellStory(args: ShellArgs): HTMLElement {
     const shellLists = createShellLists(nodeCount, shells);
 
     // Compute final shell layout using actual algorithm
-    const finalPositions = shellLayout(layoutGraph, shellLists, scale, [0, 0], 2);
+    const finalPositions = toPositionMap(shell(snapshot, { nlist: shellLists, scale, center: [0, 0] }), snapshot.ids);
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -100,10 +95,7 @@ function createShellStory(args: ShellArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Shell Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Positions ${nodeCount} nodes in ${shells} concentric circles with scale ${scale}.`,
-    );
+    updateInfoPanel(infoPanel, `Positions ${nodeCount} nodes in ${shells} concentric circles with scale ${scale}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -153,15 +145,7 @@ const meta: Meta<ShellArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         shells: {
@@ -193,7 +177,7 @@ type Story = StoryObj<ShellArgs>;
 /**
  * Shell layout story - positions nodes in concentric circles.
  *
- * This story uses the actual `shellLayout()` function from @graphty/layout.
+ * This story uses the actual `shell()` function from @graphty/layout.
  * The play function animates from random positions to the final shell arrangement.
  */
 export const Shell: Story = {

@@ -77,7 +77,7 @@ trap 'rm -f "$INPUTS"' EXIT
 git ls-files \
     | grep -E '\.(md|mdx|html)$|(^|/)package\.json$' \
     | grep -vE '(^|/)CHANGELOG\.md$' \
-    | grep -vE '^algorithms/(gh-pages-src/|benchmark-results/|examples/html-legacy/)' \
+    | grep -vE '^algorithms/(gh-pages-src/|benchmark-results/)' \
     | grep -vE '^[^/]+/index\.html$' \
     > "$INPUTS"
 

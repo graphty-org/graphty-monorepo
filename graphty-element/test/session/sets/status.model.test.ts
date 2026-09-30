@@ -16,6 +16,7 @@ import type { SetId } from "../../../src/catalog/types";
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import { createSetAs, setsStoreOf } from "../../../src/session/sets/SetsApi";
 import type { SetStatus } from "../../../src/session/sets/types";
+import { guardedAsyncProperty } from "../../helpers/caught-errors";
 import { fcParams } from "../../helpers/fc-params";
 import { type Harness, makeSession } from "../helpers";
 import { type Published, publishing } from "../visibility/results";
@@ -337,7 +338,7 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
 describe("status follows a plain model through runs, re-runs and restores", () => {
     it("matches the model after every step", async () => {
         await fc.assert(
-            fc.asyncProperty(fc.array(OP, { maxLength: 24 }), async (ops) => {
+            guardedAsyncProperty(fc.array(OP, { maxLength: 24 }), async (ops) => {
                 const model = new Model();
                 const real = realSession();
                 for (const op of ops) {

@@ -2,7 +2,8 @@
 node_modules/
 
 # Nx cache
-.nx/
+.nx/*
+!.nx/version-plans/
 
 # Build outputs
 dist/
@@ -126,6 +127,7 @@ gh-pages/
 docs/graphty-element/
 docs/algorithms/
 docs/layout/
+docs/visual-review/
 
 # Layout package specific
 layout/examples/layout.js

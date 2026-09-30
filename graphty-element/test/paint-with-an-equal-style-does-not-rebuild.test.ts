@@ -15,10 +15,10 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { AdHocData } from "../src/config";
 import { Edge } from "../src/Edge";
 import { SimpleLayoutEngine } from "../src/layout/LayoutEngine";
-import { DataManager } from "../src/managers/DataManager";
+import { DataManager, dataManagerInternals } from "../src/managers/DataManager";
 import { EventManager } from "../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphContext";
-import { LayoutManager } from "../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "../src/managers/StylePainter";
 import { MeshCache } from "../src/meshes/MeshCache";
@@ -52,7 +52,7 @@ function createHarness(): Harness {
     const dataManager = new DataManager(eventManager, styles);
     const layoutManager = new LayoutManager(eventManager, dataManager, styles);
     const layoutEngine = new FixedTestLayout();
-    layoutManager.layoutEngine = layoutEngine;
+    layoutManagerInternals.setEngine(layoutManager, layoutEngine);
     const context = new DefaultGraphContext(
         () => styles,
         dataManager,
@@ -82,7 +82,7 @@ function keyOf(element: Node | Edge): string {
 
 function addNode(harness: Harness, id: string): Node {
     const node = new Node(harness.context, id, bootstrapNodePaint(), { id } as unknown as AdHocData);
-    harness.dataManager.nodes.set(id, node);
+    dataManagerInternals.adoptNode(harness.dataManager, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
     node.update();
@@ -134,7 +134,7 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         addNode(harness, "src");
         addNode(harness, "dst");
         const edge = new Edge(harness.context, "src", "dst", 0, bootstrapEdgePaint(), {} as unknown as AdHocData);
-        harness.dataManager.edges.set(edge.id, edge);
+        dataManagerInternals.adoptEdge(harness.dataManager, edge);
         harness.layoutEngine.addEdge(edge);
         edge.update();
         const line = edge.mesh;
@@ -155,7 +155,7 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         addNode(harness, "src");
         addNode(harness, "dst");
         const edge = new Edge(harness.context, "src", "dst", 0, bootstrapEdgePaint(), {} as unknown as AdHocData);
-        harness.dataManager.edges.set(edge.id, edge);
+        dataManagerInternals.adoptEdge(harness.dataManager, edge);
         harness.layoutEngine.addEdge(edge);
         edge.update();
         const line = edge.mesh;

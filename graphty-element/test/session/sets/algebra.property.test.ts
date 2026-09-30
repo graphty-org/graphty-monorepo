@@ -13,10 +13,10 @@ import { assert, describe, it } from "vitest";
 import type { RuleTree, Scope, SetCombine } from "../../../src/catalog/types";
 import { stableEdgeMember } from "../../../src/data/edgeIdentity";
 import { GraphStore } from "../../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../../src/data/ingest";
 import { type AlgebraOperand, combineMasks } from "../../../src/session/sets/algebra";
 import { resolveScope } from "../../../src/session/sets/resolve";
 import { fcParams } from "../../helpers/fc-params";
+import { ingestEdge, ingestNode } from "../../helpers/rawIngest";
 
 /** A plain-`Set` operand: node and edge indices, and whether it reads induced. */
 interface Plain {

@@ -154,22 +154,22 @@ the most likely reason to write a camera view at all.
 ```ts
 import { cameraDescriptor, camerasForMode } from "@graphty/graphty-element/catalog";
 
-cameraDescriptor("acme-corner")?.plainName;   // "From the corner"
-camerasForMode("2d");                          // only the views that work flat
-session.catalog.cameras();                     // every view a menu may offer
+cameraDescriptor("acme-corner")?.plainName; // "From the corner"
+camerasForMode("2d"); // only the views that work flat
+session.catalog.cameras(); // every view a menu may offer
 ```
 
 ## How it is refused
 
-| What is wrong | Code |
-| --- | --- |
-| No descriptor, an empty `modes`, no `options` list, or a `compute` that is not a function | `E_BAD_COMMAND`, `details.field` naming it |
-| A view id the element itself ships | `E_DUPLICATE_PLUGIN` |
-| A name nothing answers to | `E_UNKNOWN_CAMERA`, with `details.available` |
-| A view asked for in a drawing mode it does not declare | `E_UNSUPPORTED`, with `details.modes` |
-| An option the descriptor does not declare | `E_UNKNOWN_OPTION`, with `details.candidates` |
-| An option value outside the declared range | `E_OPTION_RANGE` |
-| `saveCameraPreset` given a name a registered view holds | `E_PROTECTED` |
+| What is wrong                                                                             | Code                                          |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------- |
+| No descriptor, an empty `modes`, no `options` list, or a `compute` that is not a function | `E_BAD_COMMAND`, `details.field` naming it    |
+| A view id the element itself ships                                                        | `E_DUPLICATE_PLUGIN`                          |
+| A name nothing answers to                                                                 | `E_UNKNOWN_CAMERA`, with `details.available`  |
+| A view asked for in a drawing mode it does not declare                                    | `E_UNSUPPORTED`, with `details.modes`         |
+| An option the descriptor does not declare                                                 | `E_UNKNOWN_OPTION`, with `details.candidates` |
+| An option value outside the declared range                                                | `E_OPTION_RANGE`                              |
+| `saveCameraPreset` given a name a registered view holds                                   | `E_PROTECTED`                                 |
 
 ## Deliberate limits
 

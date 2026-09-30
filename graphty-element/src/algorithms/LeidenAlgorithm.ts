@@ -1,4 +1,3 @@
-import { leiden } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -123,6 +122,11 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
      * Publishes the community shape's uniform fields: a group per node, and the modularity the
      * method reported. How many passes it took qualifies those numbers rather than being one of
      * them, so it travels in the caveats.
+     *
+     * The modularity counts a self-loop twice in its node's degree, the standard (NetworkX)
+     * reading; the object-graph route this replaced counted it once. The partition is a
+     * randomised heuristic's and not the replaced route's: on small graphs without self-loops its
+     * modularity lands within about 0.05 of that route's either way, and no lower on average.
      * @param context - What the element gave the run.
      * @returns The community result, or null when there are no nodes to group.
      */
@@ -137,23 +141,22 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
         const { resolution, randomSeed, maxIterations, threshold } = this.schemaOptions;
 
         // Undirected: modularity is defined over unordered pairs.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("leiden", "undirected");
 
         context.report({ phase: "Refining communities", total: null });
 
-        // `randomSeed` is forwarded because it is offered: it is declared in both schemas and
-        // shown as a control, and the library does take one. It was not passed, so turning the
-        // knob changed nothing at all and every run was the library's own default seed.
-        const result = leiden(graphData, {
-            resolution,
-            randomSeed,
-            maxIterations,
-            threshold,
-        });
+        const { value: result, precision } = await run((dispatch, s) =>
+            dispatch.leiden(s, {
+                resolution,
+                randomSeed,
+                maxIterations,
+                threshold,
+            }),
+        );
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: result.communities.get(String(nodeId)) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: result.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {
@@ -165,6 +168,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
                 method: "leiden",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
+                precision,
                 iterations: result.iterations,
                 notes: [`Resolution ${String(resolution)}.`],
             }),

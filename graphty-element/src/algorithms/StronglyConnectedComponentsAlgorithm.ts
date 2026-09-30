@@ -1,4 +1,4 @@
-import { stronglyConnectedComponents } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -11,9 +11,10 @@ import {
     declaredCaveats,
     forEachChunked,
 } from "./results";
+import { declarationArcOrder } from "./utils/graphUtils";
 
 /**
- *
+ * Strongly connected components: the pieces a directed path can cross both ways.
  */
 export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
@@ -38,22 +39,27 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
             return null;
         }
 
-        // Directed: strong connectivity is a directed notion and has no undirected meaning.
-        const graphData = this.algorithmGraph("directed");
+        /* The declared orientation: strong connectivity is a directed notion. On an undirected graph
+           every edge can be crossed both ways, so the strong pieces ARE the connected ones, and
+           that is the question asked of it.
+
+           Components are numbered in the order Tarjan's walk completes them, trying each node's
+           neighbours in the order their edges were declared -- the numbering the element has
+           always published, which is what a palette keyed on the group reads. No accelerator
+           computes strong components, so this is the CPU port's decision. */
+        const { snapshot, run } = this.accelerated("stronglyConnectedComponents", "directed");
 
         context.report({ phase: "Finding pieces", total: null });
-        const components = stronglyConnectedComponents(graphData);
-
-        const groupOf = new Map<number | string, number>();
-        for (let index = 0; index < components.length; index++) {
-            for (const nodeId of components[index]) {
-                groupOf.set(nodeId, index);
-            }
-        }
+        const { value, precision } = await run((dispatch, s) =>
+            s.directed
+                ? dispatch.stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
+                : dispatch.connectedComponents(s),
+        );
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+            const index = snapshot.ids.indexOf(nodeId);
+            nodes.push({ id: nodeId, values: { group: index === INVALID_INDEX ? 0 : value.labels[index] } });
         });
 
         return {
@@ -62,9 +68,17 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
             nodes,
             caveats: declaredCaveats({
                 method: "strongly-connected-components",
-                direction: "directed",
+                direction: snapshot.directed ? "directed" : "undirected",
                 weight: null,
-                notes: ["Strength: strong. Two nodes share a piece only when a directed path runs each way."],
+                precision,
+                notes: [
+                    "Strength: strong. Two nodes share a piece only when a directed path runs each way.",
+                    ...(snapshot.directed
+                        ? []
+                        : [
+                              "The graph is undirected: every edge runs both ways, so the pieces are its connected ones.",
+                          ]),
+                ],
             }),
         };
     }

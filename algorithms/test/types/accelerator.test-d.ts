@@ -1,25 +1,33 @@
 // Compiled by `tsc -p tsconfig.typecheck.json` inside `npm run lint`, never executed. Imports go
 // through the package barrel, as the GPU package's equivalent files do, so what is pinned here is
 // the PUBLIC surface rather than a source path.
-import type { GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
+import type { AdjacencyView, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 import { expectTypeOf } from "vitest";
 
 import {
     accelerated,
     type AcceleratedAlgorithms,
     type AlgorithmAccelerator,
+    allPairsShortestPath,
+    type ApspCycleResultLike,
     type BfsResultLike,
     type CommunityResultLike,
+    connectedComponents,
     type CorenessResultLike,
+    dijkstra,
+    hits,
     type HitsResultLike,
-    indexed,
+    katzCentrality,
+    kCoreDecomposition,
+    kruskalMST,
+    labelPropagation,
     type LabelResultLike,
+    louvain,
     type MstResultLike,
     type PageRankResultLike,
     type ScoresResultLike,
     type SsspResult,
     type SsspResultLike,
-    toSnapshot,
 } from "../../src/index.js";
 
 declare const s: GraphSnapshot;
@@ -53,13 +61,21 @@ expectTypeOf<SsspResult["pathEdges"]>().returns.toEqualTypeOf<U32>();
 expectTypeOf(accelerated(null).pageRank(s)).resolves.toMatchTypeOf<ScoresResultLike>();
 
 // ---- the CPU port's own result satisfies the shared shape, with no adapter
-expectTypeOf(indexed.connectedComponents(s)).toMatchTypeOf<LabelResultLike>();
-expectTypeOf(indexed.kruskalMST(s)).toMatchTypeOf<MstResultLike>();
-expectTypeOf(indexed.dijkstra(s, 0)).toMatchTypeOf<SsspResultLike>();
-expectTypeOf(indexed.kCoreDecomposition(s)).toMatchTypeOf<CorenessResultLike>();
-expectTypeOf(indexed.katzCentrality(s)).toMatchTypeOf<ScoresResultLike>();
-expectTypeOf(indexed.hits(s)).toMatchTypeOf<HitsResultLike>();
-expectTypeOf(indexed.louvain(s)).toMatchTypeOf<CommunityResultLike>();
+expectTypeOf(connectedComponents(s)).toMatchTypeOf<LabelResultLike>();
+expectTypeOf(kruskalMST(s)).toMatchTypeOf<MstResultLike>();
+expectTypeOf(dijkstra(s, 0)).toMatchTypeOf<SsspResultLike>();
+expectTypeOf(kCoreDecomposition(s)).toMatchTypeOf<CorenessResultLike>();
+expectTypeOf(katzCentrality(s)).toMatchTypeOf<ScoresResultLike>();
+expectTypeOf(hits(s)).toMatchTypeOf<HitsResultLike>();
+expectTypeOf(louvain(s)).toMatchTypeOf<CommunityResultLike>();
+expectTypeOf(allPairsShortestPath(s)).toMatchTypeOf<ApspCycleResultLike>();
+expectTypeOf(accelerated(null).allPairsShortestPath(s)).resolves.toMatchTypeOf<ApspCycleResultLike>();
+expectTypeOf(labelPropagation(s)).toMatchTypeOf<LabelResultLike>();
+expectTypeOf(accelerated(acc).labelPropagation(s)).resolves.toEqualTypeOf<LabelResultLike>();
 
-// ---- the bridge keeps its legacy parameter and is NOT in the namespace
-expectTypeOf(toSnapshot).returns.toEqualTypeOf<GraphSnapshot>();
+// ---- depth-first search walks any adjacency view, as its port does; degrees are the declared halves
+expectTypeOf<AcceleratedAlgorithms["depthFirstSearch"]>().parameter(0).toEqualTypeOf<AdjacencyView>();
+expectTypeOf(accelerated(null).degrees(s)).resolves.toEqualTypeOf<{
+    readonly inDegree: U32;
+    readonly outDegree: U32;
+}>();

@@ -88,16 +88,6 @@ jobs:
             # global to the host, so this has to run on the host, never inside a job container. Issue #273.
             - name: Write core dumps to a file so the shard's ulimit -c 0 holds
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
-            - name: SCRATCH verify a crash writes no core dump
-              working-directory: ${{ runner.temp }}
-              run: |
-                  crash() { sh -c "ulimit -c $1; exec node -e 'process.kill(process.pid, \"SIGSEGV\")'" && rc=0 || rc=$?; }
-                  crash unlimited; echo "control, ulimit unlimited: exit=$rc"; ls -la core* || true
-                  test -n "$(ls core* 2>/dev/null)" || { echo "::error::control wrote no core file; the pattern did not take"; exit 1; }
-                  rm -f core*
-                  start=$(date +%s); crash 0; end=$(date +%s)
-                  echo "ulimit 0: exit=$rc in $((end - start)) s"; ls -la core* || true
-                  test "$rc" = 139 && test -z "$(ls core* 2>/dev/null)"
             # Every node project goes through scripts/run-node-shard.js: it forwards every argument, exits with
             # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
             # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).
@@ -133,7 +123,7 @@ jobs:
             - name: graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
-              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. @graphty/remote-logger is the sibling nothing else in this job builds -- the element's runtime graph reaches it (src/Graph.ts -> src/logging/sinks/RemoteSink.ts) and its exports map has no src fallback; algorithms already builds through the ^build edge of the step above, so that half is a cache hit kept only in case the edge goes away
+              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
             - run: pnpm run bench # tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
             # The paired check (issue #276): the base commit and this pull request alternated on the same card, so

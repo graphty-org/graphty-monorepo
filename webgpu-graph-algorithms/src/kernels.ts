@@ -441,7 +441,8 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
  * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
  * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
- * `sssp-pred` hop pass, P8-T9), `pad1` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * `sssp-pred` hop pass, P8-T9), `perNode` @72 (`closeness-sweep`: 1 also folds every claim into the per-node
+ * distance sums of a sampled run), `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
  * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
@@ -463,7 +464,7 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["stride", "u32"],
     ["firstOfSubmit", "u32"],
     ["iteration", "u32"],
-    ["pad1", "u32"],
+    ["perNode", "u32"],
     ["pad2", "u32"],
 ]);
 
@@ -1358,7 +1359,7 @@ const CLOSENESS_SWEEP: KernelEntry = {
     phase: "P8",
 };
 
-/** `closeness-reduce` (design 8.4, 9.7; P8-T11, PD-13): the one-lane bookkeeping of the sweep -- role 0 the level boundary (`done` from the previous level's compacted count, `newCount` folded into `reached` and the 64-bit `sum` at `level + 1` with the 16-bit split product and the carry, `level` advanced), role 1 the seed of a batch (the sources' bits into `visited` and the level-0 frontier region, their flags, `counters[0] = k`, `level = U32_MAX`); 3 storage bindings (`counters` and `perSource` as `array<atomic<u32>>`, `bits` plain: one lane writes the seed). */
+/** `closeness-reduce` (design 8.4, 9.7; P8-T11, PD-13): the one-lane bookkeeping of the sweep -- role 0 the level boundary (`done` from the previous level's compacted count, `newCount` folded into `reached` and the 64-bit `sum` at `level + 1` with the 16-bit split product and the carry, `level` advanced), role 1 the seed of a batch (the sources' bits into `visited` and the level-0 frontier region, their flags, `counters[0] = k`, `level = U32_MAX`), role 2 the same seed from a sampled run's source list; 3 storage bindings (`counters` and `perSource` as `array<atomic<u32>>`, `bits` plain: one lane writes the seed). */
 const CLOSENESS_REDUCE: KernelEntry = {
     id: "closeness-reduce",
     body: closenessReduceWgsl,

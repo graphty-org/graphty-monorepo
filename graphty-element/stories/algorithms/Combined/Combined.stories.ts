@@ -68,7 +68,7 @@ export const DegreeAndPageRank: Story = {
 
         const { graph } = element;
 
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:degree"]);
 
@@ -146,7 +146,7 @@ export const CentralityVsCommunity: Story = {
 
         const { graph } = element;
 
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
 
@@ -201,7 +201,7 @@ export const CommunityStructureWithPath: Story = {
 
         const { graph } = element;
 
-        await graph.operationQueue.waitForCompletion();
+        await graph.waitForSettled();
 
         // Order matters: the last algorithm named wins every channel it writes.
         const applied = graph.applySuggestedStyles([
@@ -327,7 +327,9 @@ export const LinkPrediction: Story = {
 
         await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
 
-        const painted = scene.nodes.filter((node) => node.hex?.toLowerCase() === PREDICTED_COLOUR).map((node) => node.id);
+        const painted = scene.nodes
+            .filter((node) => node.hex?.toLowerCase() === PREDICTED_COLOUR)
+            .map((node) => node.id);
 
         await holds(
             [...painted].sort().join(",") === [best.source, best.target].sort().join(","),

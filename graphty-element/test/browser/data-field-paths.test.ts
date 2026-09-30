@@ -13,7 +13,7 @@
  *   (`src/managers/DataManager.ts`);
  * - `positionScale` converts a record's own coordinates into scene units (`src/data/GraphStore.ts`);
  * - `directed` overrules a file's header, and is the one setting a file cannot argue with
- *   (`src/data/ingest.ts`).
+ *   (`src/session/project/ingest.ts`).
  *
  * A consumer holding an element had no way to say any of the four. That is what this file pins.
  */
@@ -67,7 +67,9 @@ afterEach(() => {
 
 describe("the four data-shape settings a consumer could not reach", () => {
     test("nodeLabelPath says what to call a node", async () => {
-        const element = await mountMarkup(`<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`);
+        const element = await mountMarkup(
+            `<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`,
+        );
 
         element.nodeLabelPath = "name";
 
@@ -84,7 +86,9 @@ describe("the four data-shape settings a consumer could not reach", () => {
     });
 
     test("edgeWeightPath says which record key carries the weight", async () => {
-        const element = await mountMarkup(`<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`);
+        const element = await mountMarkup(
+            `<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`,
+        );
 
         element.edgeWeightPath = "cost";
 
@@ -93,7 +97,9 @@ describe("the four data-shape settings a consumer could not reach", () => {
     });
 
     test("positionScale converts a record's coordinates into scene units", async () => {
-        const element = await mountMarkup(`<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`);
+        const element = await mountMarkup(
+            `<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`,
+        );
 
         element.positionScale = 10;
 
@@ -110,7 +116,9 @@ describe("the four data-shape settings a consumer could not reach", () => {
     });
 
     test("a positionScale the schema refuses is reported and dropped", async () => {
-        const element = await mountMarkup(`<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`);
+        const element = await mountMarkup(
+            `<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`,
+        );
 
         element.positionScale = 0;
 
@@ -118,7 +126,9 @@ describe("the four data-shape settings a consumer could not reach", () => {
     });
 
     test("directed overrules what a file's header says", async () => {
-        const element = await mountMarkup(`<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`);
+        const element = await mountMarkup(
+            `<graphty-element style="width:100%;height:100%;display:block"></graphty-element>`,
+        );
 
         element.directed = false;
 
@@ -126,7 +136,7 @@ describe("the four data-shape settings a consumer could not reach", () => {
         assert.strictEqual(dataConfig(element).directed, false);
     });
 
-    test("directed=\"auto\" from markup leaves the file to decide", async () => {
+    test('directed="auto" from markup leaves the file to decide', async () => {
         const element = await mountMarkup(
             `<graphty-element style="width:100%;height:100%;display:block" directed="auto"></graphty-element>`,
         );
@@ -134,7 +144,7 @@ describe("the four data-shape settings a consumer could not reach", () => {
         assert.strictEqual(dataConfig(element).directed, "auto");
     });
 
-    test("directed=\"true\" from markup settles it as a digraph", async () => {
+    test('directed="true" from markup settles it as a digraph', async () => {
         const element = await mountMarkup(
             `<graphty-element style="width:100%;height:100%;display:block" directed="true"></graphty-element>`,
         );

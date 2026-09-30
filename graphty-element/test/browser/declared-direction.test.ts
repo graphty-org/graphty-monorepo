@@ -13,7 +13,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import fsmDot from "../helpers/corpus/dot/fsm.gv?raw";
 import karateGml from "../helpers/corpus/gml/karate.gml?raw";
 
@@ -37,7 +37,7 @@ describe("the direction the element reports for a loaded file", () => {
 
     it("reads the karate club sample as the undirected graph its format says it is", async () => {
         await graph.addDataFromSource("gml", { data: karateGml });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const stats = graph.getSession().data.statistics();
         assert.strictEqual(stats.nodeCount, 34);
@@ -51,7 +51,7 @@ describe("the direction the element reports for a loaded file", () => {
 
     it("reads a digraph as directed", async () => {
         await graph.addDataFromSource("dot", { data: fsmDot });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(graph.getSession().data.statistics().directedness, "directed");
     });
@@ -60,11 +60,11 @@ describe("the direction the element reports for a loaded file", () => {
         // The store locks its direction when `data.directed` is a boolean, and it reads that
         // setting once, when it is built. So the setting is written and the store rebuilt here
         // before the file arrives; `clear()` is what rebuilds it.
-        graph.styles.config.data.directed = true;
+        await graph.getSession().config.set({ data: { directed: true } });
         graph.getDataManager().clear();
 
         await graph.addDataFromSource("gml", { data: karateGml });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const stats = graph.getSession().data.statistics();
         assert.strictEqual(stats.edgeCount, 78, "the import succeeded rather than throwing E_DIRECTED");

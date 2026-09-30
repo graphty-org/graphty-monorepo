@@ -1,26 +1,88 @@
 /**
  * @file `@graphty/graphty-element/commands`: the serialisable form of every verb.
  *
- * The plan is that every method on a session is also a command, and every command is also a
- * method: autocomplete is how a stranger and a coding agent both discover an API, and
- * serialisation is what a recipe, a journal, an undo stack, a console and a tool call all need.
- * This entry point is where the serialisable half is published -- the `Command` union, the typed
- * builders that produce one, `parsePattern` and `formatCommand`, and the JSON Schema generated
- * from the union at build time -- so that an agent can be handed the element's whole vocabulary
- * as data rather than as prose.
+ * Every change a session makes is a command: plain data with an `op`, which `session.execute`
+ * runs, a transaction groups into one undoable step, and a recipe, a journal or an agent's tool
+ * call can carry. This entry point publishes the vocabulary as data:
  *
- * **Nothing of that exists yet**, so this module exports nothing. It is a real module with a
- * real name reserved in the exports map, and it is deliberately empty rather than filled with
- * functions that throw: a stub that compiles and then fails at run time costs a consumer an
- * afternoon, where an empty module costs them one autocomplete.
+ * - `SessionCommand`, the union of every command, the same type `./session` publishes;
+ * - `COMMANDS`, one entry per op saying whether it is undoable, or exempt from the history and
+ *   why;
+ * - `isSessionCommand`, which tells a value that names a known op from anything else.
  *
- * What the element can do today is published as data by
- * `@graphty/graphty-element/catalog`, which an agent can read for the algorithms, layouts,
- * formats, palettes and scales that exist, with every option each one accepts.
- * @deprecated This entry point exports nothing and is kept only so an existing import keeps
- * resolving. It will be removed at the next major release unless the command vocabulary ships
- * here first (issue #337). Use `@graphty/graphty-element/catalog` for the element's vocabulary
- * as data.
+ * The typed builders, `parsePattern`, `formatCommand` and the JSON Schema generated from the
+ * union are still to come (GitHub issue #337).
+ *
+ * What the element can do today is published as data by `@graphty/graphty-element/catalog`: the
+ * algorithms, layouts, formats, palettes and scales that exist, with every option each accepts.
  */
 
-export {};
+import type { SessionCommand } from "./src/session/planning";
+
+export type { SessionCommand };
+
+/** How one op behaves under undo: a step in the history, or exempt from it and why. */
+export type CommandMeta =
+    | { readonly undo: "undoable" }
+    | {
+          readonly undo: "exempt";
+          /** Why it changes nothing a project file saves. */
+          readonly reason: string;
+      };
+
+/**
+ * Every op in the vocabulary, and how it behaves under undo. An op missing here, or declaring
+ * neither, is a compile error.
+ */
+export const COMMANDS = Object.freeze({
+    "algo.run": { undo: "undoable" },
+    "algo.legacy": { undo: "undoable" },
+    "algo.remove": { undo: "undoable" },
+    batch: { undo: "undoable" },
+    "data.apply": { undo: "undoable" },
+    "data.import": { undo: "undoable" },
+    "data.expand": { undo: "undoable" },
+    "style.patch": { undo: "undoable" },
+    "style.encode": { undo: "undoable" },
+    "style.template": { undo: "undoable" },
+    "visibility.set": { undo: "undoable" },
+    "visibility.window": { undo: "undoable" },
+    "visibility.context": { undo: "undoable" },
+    "set.create": { undo: "undoable" },
+    "set.rename": { undo: "undoable" },
+    "set.redefine": { undo: "undoable" },
+    "set.members": { undo: "undoable" },
+    "set.remove": { undo: "undoable" },
+    "set.restore": { undo: "undoable" },
+    "view.save": { undo: "undoable" },
+    "view.remove": { undo: "undoable" },
+    "view.camera": {
+        undo: "exempt",
+        reason: "Where the camera is looking is view state, not saved in a project file.",
+    },
+    "config.set": { undo: "undoable" },
+    "positions.set": { undo: "undoable" },
+    "positions.pin": { undo: "undoable" },
+    "layout.set": { undo: "undoable" },
+    "layout.scope": { undo: "undoable" },
+    "view.dimension": { undo: "undoable" },
+    "layout.transport": {
+        undo: "exempt",
+        reason: "A moving layout is in-flight computation; where it comes to rest is sealed into the step on top.",
+    },
+    "view.immersive": {
+        undo: "exempt",
+        reason: "Entering or leaving VR or AR is a device session, not the document.",
+    },
+} as const satisfies { readonly [Op in SessionCommand["op"]]: CommandMeta });
+
+/**
+ * Whether a value is a command: an object whose `op` names an op in {@link COMMANDS}. The
+ * arguments are checked when the command runs.
+ * @param value - Anything.
+ * @returns True when it names a known op.
+ */
+export function isSessionCommand(value: unknown): value is SessionCommand {
+    const op = (value as { op?: unknown } | null)?.op;
+    return typeof value === "object" && typeof op === "string" && Object.hasOwn(COMMANDS, op);
+}

@@ -12,11 +12,8 @@ import { astar } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { idsOf, toSnapshot } from "../utils/snapshot.js";
 import {
     createAnimationControls,
     createStatusPanel,
@@ -74,11 +71,7 @@ interface AStarStep {
 /**
  * Run A* and create animation steps.
  */
-function runAStarAndCreateSteps(
-    generatedGraph: GeneratedGraph,
-    startNode: number,
-    goalNode: number,
-): AStarStep[] {
+function runAStarAndCreateSteps(generatedGraph: GeneratedGraph, startNode: number, goalNode: number): AStarStep[] {
     const steps: AStarStep[] = [];
     const adjacency = toAdjacencyMap(generatedGraph);
 
@@ -100,7 +93,11 @@ function runAStarAndCreateSteps(
     }
 
     // Run actual A* algorithm
-    const result = astar(adjacency, startNode, goalNode, heuristic);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
+    const found = astar(graph, graph.ids.requireIndex(startNode), graph.ids.requireIndex(goalNode), (i, t) =>
+        heuristic(Number(graph.ids.idOf(i)), Number(graph.ids.idOf(t))),
+    );
+    const result = found.path.length === 0 ? null : { path: idsOf(graph, found.path), cost: found.distance };
 
     // Simulate A* for animation
     const openSet = new Set<number>([startNode]);

@@ -49,6 +49,8 @@
  *   details.found, details.supported).
  * - E_DETACHED: a core accessor after a consuming transfer.
  * - E_BUILDER_DISPOSED: any call on a disposed builder.
+ * - E_FROZEN: set() / remove() / rename() on an attribute table of a sealed snapshot
+ *   (details.domain, details.column).
  * - E_UNSUPPORTED: big-endian host (details.reason); unknown wire dtype (details.dtype) or id-map
  *   kind (details.kind).
  * - E_IMPORT: reserved for @graphty/graph-io's ImportError.
@@ -81,6 +83,7 @@ export type GraphFormatErrorCode =
     | "E_UNSUPPORTED_VERSION"
     | "E_DETACHED"
     | "E_BUILDER_DISPOSED"
+    | "E_FROZEN"
     | "E_UNSUPPORTED"
     | "E_IMPORT";
 

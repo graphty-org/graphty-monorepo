@@ -21,6 +21,9 @@
  * with no barrier and no workgroup memory anywhere. The rest are PRINTED and not asserted, so this file stays
  * green on the platforms where everything works and still reports, on the platform where it does not, the one
  * construct that moved.
+ *
+ * run-twice exempt: a diagnostic probe of single shader constructs, built straight on the device rather than from a
+ * package kernel; test/primitives/scan.test.ts runs the scan it diagnoses twice and compares the outputs bitwise.
  */
 
 import { type U32 } from "@graphty/graph-format";

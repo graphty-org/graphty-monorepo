@@ -49,9 +49,8 @@ describe("removing a node", () => {
         await graph.removeNodes(["a"], { skipQueue: true });
 
         assert.strictEqual(data.edges.size, 2, "the two edges at a went; the two that never touched it stayed");
-        assert.strictEqual(data.edgeCache.size, 2, "the pair cache agrees");
         assert.strictEqual(graph.getSession().data.snapshot().edgeCount, 2, "and so does the store");
-        assert.deepStrictEqual([...data.edgeCache.get("a", "b")], [], "no edge is reachable by a removed pair");
+        assert.deepStrictEqual([...data.getEdgesBetween("a", "b")], [], "no edge is reachable by a removed pair");
         graph.dispose();
     });
 

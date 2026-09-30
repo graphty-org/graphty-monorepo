@@ -375,8 +375,7 @@ export const PalettePicker: Story = {
 
         await holds(
             swatches.length === 223,
-            `Algorithms/Palette Picker: draws 17 ramps totalling 223 swatches and rendered ` +
-                `${String(swatches.length)}`,
+            `Algorithms/Palette Picker: draws 17 ramps totalling 223 swatches and rendered ${String(swatches.length)}`,
         );
 
         const uncoloured = [...swatches].filter(

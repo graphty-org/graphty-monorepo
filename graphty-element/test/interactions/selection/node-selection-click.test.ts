@@ -4,7 +4,8 @@
  * These tests verify that clicking on nodes selects them correctly,
  * and clicking on the background deselects the current selection.
  */
- 
+
+import { PointerEventTypes } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
@@ -13,10 +14,39 @@ import {
     clickOnNode,
     DEFAULT_TEST_EDGES,
     DEFAULT_TEST_NODES,
+    getNodeScreenPosition,
     setupTestGraph,
     teardownTestGraph,
     waitForGraphReady,
 } from "../helpers/interaction-helpers";
+
+/**
+ * Press on a node, carry the pointer well past the click tolerance, and let go.
+ * @param graph - The graph.
+ * @param nodeId - The node to drag.
+ */
+async function dragOnNode(graph: Graph, nodeId: string): Promise<void> {
+    const at = getNodeScreenPosition(graph, nodeId);
+    assert.isNotNull(at, `node ${nodeId} should be on screen`);
+    const { scene } = graph;
+    const send = (type: number, x: number, y: number, buttons: number): void => {
+        scene.pointerX = x;
+        scene.pointerY = y;
+        scene.onPrePointerObservable.notifyObservers({
+            type,
+            event: { clientX: x, clientY: y, buttons, button: 0 } as PointerEvent,
+        } as unknown as Parameters<typeof scene.onPrePointerObservable.notifyObservers>[0]);
+    };
+
+    send(PointerEventTypes.POINTERDOWN, at.x, at.y, 1);
+    for (let step = 1; step <= 4; step++) {
+        await new Promise((resolve) => setTimeout(resolve, 16));
+        send(PointerEventTypes.POINTERMOVE, at.x + step * 10, at.y, 1);
+    }
+
+    send(PointerEventTypes.POINTERUP, at.x + 40, at.y, 0);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+}
 
 describe("Node Selection - Click Interactions", () => {
     let graph: Graph;
@@ -49,6 +79,21 @@ describe("Node Selection - Click Interactions", () => {
             const selected = graph.getSelectedNode();
             assert.isNotNull(selected);
             assert.equal(selected?.id, "node1");
+        });
+
+        it("a click selects a node without pinning it", async () => {
+            // pinOnDrag is on (the default): a node is fixed because the reader PLACED it, and a
+            // click places nothing. A click that pinned left every inspected node stuck.
+            await clickOnNode(graph, "node1");
+
+            assert.equal(graph.getSelectedNode()?.id, "node1");
+            assert.isFalse(graph.getNode("node1")?.isPinned(), "a click must not pin the node");
+        });
+
+        it("a drag pins the node it placed", async () => {
+            await dragOnNode(graph, "node1");
+
+            assert.isTrue(graph.getNode("node1")?.isPinned(), "a drag with pinOnDrag pins the node");
         });
 
         it("clicking on a different node changes selection", async () => {

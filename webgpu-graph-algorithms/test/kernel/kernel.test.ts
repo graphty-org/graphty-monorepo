@@ -11,7 +11,7 @@
 import { GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError, type WebGpuGraphError } from "../../src/errors.js";
 import { type DispatchPlan, plan1d } from "../../src/kernel/dispatch.js";
-import { type BoundKernel, Kernel } from "../../src/kernel/kernel.js";
+import { BIND_GROUP_CACHE_LIMIT, type BoundKernel, Kernel } from "../../src/kernel/kernel.js";
 import { UniformBlock } from "../../src/kernel/struct-block.js";
 import { type WgslModuleSpec } from "../../src/kernel/wgsl.js";
 import { type Binding } from "../../src/types/memory.js";
@@ -143,6 +143,39 @@ describe("Kernel.bind", () => {
         expect(again.bindGroups[1]).not.toBe(first.bindGroups[1]);
         src.destroy();
         dst.destroy();
+        params.destroy();
+    });
+
+    it("keeps at most BIND_GROUP_CACHE_LIMIT buffer sets, dropping the least recently bound (issue #162)", async (t) => {
+        // A kernel is cached for the life of the context, so an unbounded bind-group cache kept every simulation's
+        // bind groups -- and the native memory behind them -- after the simulation was disposed.
+        requireGpu(t);
+        const ctx = await acquire();
+        const kernel = await ctx.pipelines.kernel(ADD);
+        const src = uploadBuffer(ctx, iota(N), "src");
+        const params = ctx.device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            label: "params",
+        });
+        const dsts = Array.from({ length: BIND_GROUP_CACHE_LIMIT + 1 }, (_, i) => scratchBuffer(ctx, N * 4, `dst${i}`));
+        const bindTo = (dst: GPUBuffer): BoundKernel =>
+            kernel.bind({ src: bindingOf(src), dst: bindingOf(dst), P: range(params, 0, 16) });
+        kernel.invalidate();
+        const kept = bindTo(dsts[0]);
+        const dropped = bindTo(dsts[1]);
+        for (let i = 2; i < BIND_GROUP_CACHE_LIMIT; i++) {
+            bindTo(dsts[i]);
+        }
+        expect(bindTo(dsts[0])).toBe(kept); // a hit makes dsts[0] the most recent
+        const last = bindTo(dsts[BIND_GROUP_CACHE_LIMIT]); // one over the limit: dsts[1] is the oldest
+        expect(bindTo(dsts[BIND_GROUP_CACHE_LIMIT])).toBe(last);
+        expect(bindTo(dsts[0])).toBe(kept);
+        expect(bindTo(dsts[1])).not.toBe(dropped);
+        for (const dst of dsts) {
+            dst.destroy();
+        }
+        src.destroy();
         params.destroy();
     });
 

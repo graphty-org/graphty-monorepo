@@ -79,6 +79,39 @@ declare const gc: (() => void) | undefined;
 let defaultRuns = 5;
 
 /**
+ * The timed samples of one benchmark, every measured run in order (the warm-up excluded).
+ * @public the file shape of run.ts --samples-out, read by scripts/bench-ab.js
+ */
+export interface BenchSamples {
+    readonly group: string;
+    readonly name: string;
+    /** Wall time of each measured run, milliseconds. */
+    readonly samples: readonly number[];
+}
+
+/** Every benchmark this process has measured, in order; run.ts --samples-out writes it. Never appended to a session. */
+const recorded: BenchSamples[] = [];
+
+/**
+ * Records the timed samples of one row for run.ts --samples-out; bench() calls it, and so does a group that builds its
+ * row from other numbers (the profiler rows of layout-exact.bench.ts's reportedRow).
+ * @param group - the benchmark group
+ * @param name - the row name
+ * @param samples - the measured samples, milliseconds, the warm-up excluded
+ */
+export function recordSamples(group: string, name: string, samples: readonly number[]): void {
+    recorded.push({ group, name, samples });
+}
+
+/**
+ * The timed samples of every benchmark this process has measured so far.
+ * @returns the samples, in measurement order
+ */
+export function recordedSamples(): readonly BenchSamples[] {
+    return recorded;
+}
+
+/**
  * The "no run happened yet" sentinel of bench()'s keep-alive slot. A timed body may legally resolve to undefined (contract
  * 6.1: `run: (input: T) => Promise<unknown> | unknown`; the upload group's body is one), so `undefined` cannot be the
  * unreached marker the way it is in graph-format's copy.
@@ -165,6 +198,7 @@ export async function bench<T>(
     if (keepAlive === NEVER) {
         throw new Error("unreachable: runs >= 1 always assigns keepAlive (the read keeps the result live)");
     }
+    recordSamples(group, name, times);
     const medianMs = median(times);
     const items = options.items ?? null;
     return {

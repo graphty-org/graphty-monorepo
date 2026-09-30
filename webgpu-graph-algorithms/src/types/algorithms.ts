@@ -6,7 +6,7 @@
  * Types only: this file imports nothing at runtime.
  *
  * The CPU counterparts, in `@graphty/algorithms`' `indexed/accelerator.ts` since the seam landed:
- * `PageRankOptions` here is `IndexedPageRankOptions` there (`{ dampingFactor?, maxIterations?, tolerance?,
+ * `PageRankOptions` here is `PageRankOptionsLike` there (`{ dampingFactor?, maxIterations?, tolerance?,
  * weighted? }`); `HitsOptions`, `EigenvectorOptions` and `KatzOptions` here all correspond to the ONE
  * `HitsOptionsLike` there (`{ maxIterations?, tolerance?, weighted? }`), which is why every one of them carries
  * those three members and `KatzOptions` adds `alpha` / `beta` on top; `ComponentsOptions` has no CPU counterpart at
@@ -23,6 +23,11 @@ export interface GpuScoresResult {
     readonly iterations: number;
     readonly converged: boolean;
     readonly precision: "f32";
+}
+
+/** Closeness scores with the number of sources run: `n` for the exact score, the sample's length for a sampled one. */
+export interface GpuClosenessResult extends GpuScoresResult {
+    readonly sourcesUsed: number;
 }
 
 /** Spec 3.3 line 816: `iterations` is the first iteration whose L1 delta fell below the tolerance (8.2), not the batch boundary. */
@@ -46,7 +51,7 @@ export interface GpuLabelResult {
     groups(): U32[];
 }
 
-/** The CPU seam's IndexedPageRankOptions, member for member (M8a Task M8a-T8; graph-format design 14.2 :3892). */
+/** The CPU seam's PageRankOptionsLike, member for member (M8a Task M8a-T8; graph-format design 14.2 :3892). */
 export interface PageRankOptions {
     readonly dampingFactor?: number | undefined;
     readonly maxIterations?: number | undefined;

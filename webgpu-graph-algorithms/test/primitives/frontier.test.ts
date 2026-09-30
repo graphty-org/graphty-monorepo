@@ -53,11 +53,14 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         return ctx;
     }
 
-    it("FRONTIER_COUNTERS is a 112-byte storage block of 26 u32 words (the nextDegreeSum word last, rounded to 16 bytes) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields; PATH names the path word's values", () => {
+    it("FRONTIER_COUNTERS is a 112-byte storage block of 28 u32 words (nextDegreeSum, then the two appended betweenness words stackTop and sigmaOverflow) indexed by W at 4 x word; FRONTIER_PARAMS an 80-byte uniform of twenty u32 fields; PATH names the path word's values", () => {
         expect(FRONTIER_COUNTERS.name).toBe("FrontierCounters");
         expect(FRONTIER_COUNTERS.layout).toBe("storage");
         expect(FRONTIER_COUNTERS.byteLength).toBe(112);
-        expect(WORDS).toHaveLength(26);
+        expect(WORDS).toHaveLength(28);
+        expect(W.nextDegreeSum).toBe(25);
+        expect(W.stackTop).toBe(26);
+        expect(W.sigmaOverflow).toBe(27);
         expect(FRONTIER_COUNTERS.fields.map((f) => f[0])).toEqual(WORDS);
         for (const name of WORDS) {
             expect(FRONTIER_COUNTERS.offsetOf(name), name).toBe(4 * W[name]);
@@ -91,7 +94,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             "stride",
             "firstOfSubmit",
             "iteration",
-            "pad1",
+            "perNode",
             "pad2",
         ];
         expect(FRONTIER_PARAMS.fields.map((f) => f[0])).toEqual(params);

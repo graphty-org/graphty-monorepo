@@ -34,8 +34,32 @@
  * door. And a name that says nothing about a channel -- `Styles/Edge::Bezier`, whose subject is
  * `edge.curvature` under another word -- claims nothing and is not checked; this gate makes a
  * name that DOES name a channel binding, it does not invent subjects.
+ *
+ * THE OTHER TREES are checked by {@link checkTreeSubjects}, against a registry key rather than a
+ * channel. The rule is the same one: a story whose export name spells a key from its tree's
+ * registry must write that key somewhere in its own declaration or its meta's args -- as the
+ * `layout` it sets, the `dataSource` it loads, or the algorithm it runs or is built for. What
+ * each tree is checked for, and where its keys come from, is {@link SUBJECT_TREES}:
+ *
+ * - `Layout/` -- the layout engine: every engine name the layout catalogue lists, so
+ *   `Layout/2D::KamadaKawai` must name `"kamada-kawai"`.
+ * - `Data` -- the format: every format id the format catalogue lists, so `Data::CsvNeo4j` must
+ *   name `"csv"`.
+ * - `Algorithms/` -- the algorithm: every catalogue key and every older address the catalogue
+ *   still answers to, so `Algorithms/Shortest Path::Dijkstra` must name `"dijkstra"` or
+ *   `"graphty:dijkstra"`.
+ *
+ * WHAT IS NOT CHECKED, and why. `Camera Controls`, `ViewMode` and `Selection` name a view mode
+ * as `TwoD`, `Mode2D` or `ModeVR`, and set it in a render function or a decorator rather than in
+ * args, so nothing a parser can read ties the mode to the name. `Camera Controls` asserts its
+ * mode at run time with `assertViewMode` from `stories/assertions.ts`; the Selection stories do
+ * not yet. The remaining trees -- `AI Control`, `Graphty`, `Logging`, `Performance`,
+ * `Screenshot`, `XR` -- have no registry whose keys their story names spell.
  */
 
+import { BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
+import { FORMAT_DESCRIPTORS } from "../../src/catalog/formats";
+import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
 import { CHANNELS } from "../../src/session/styles/channels";
 import type { StoryDeclaration, StoryFileReading } from "./story-source";
 
@@ -207,4 +231,124 @@ export function checkSubjects(readings: readonly StoryFileReading[]): SubjectRep
     }
 
     return { findings, checked, readLoosely };
+}
+
+/** A story tree whose subject is a key in one of the element's registries. */
+export interface SubjectTree {
+    /** The title prefix of the stories in the tree. */
+    readonly tree: string;
+    /** What a key in this tree is, in a failure message. */
+    readonly subject: string;
+    /** Every key, read from the element's own catalogue. */
+    readonly keys: () => readonly string[];
+    /** Every string that counts as writing a key: the key, and any address it is also run by. */
+    readonly spellings: (key: string) => readonly string[];
+}
+
+/** The trees checked by {@link checkTreeSubjects}. */
+export const SUBJECT_TREES: readonly SubjectTree[] = [
+    {
+        tree: "Layout/",
+        subject: "layout engine",
+        keys: () => [...new Set(LAYOUT_CATALOG.flatMap((entry) => entry.implementations.map((impl) => impl.engine)))],
+        spellings: (key) => [key],
+    },
+    {
+        tree: "Data",
+        subject: "format",
+        keys: () => FORMAT_DESCRIPTORS.map((format) => format.id),
+        spellings: (key) => [key],
+    },
+    {
+        tree: "Algorithms/",
+        subject: "algorithm",
+        keys: () => [
+            ...new Set(
+                BUILT_IN_ALGORITHMS.flatMap((algorithm) => [
+                    algorithm.key,
+                    ...(algorithm.legacyKeys ?? []).map((legacy) => legacy.key),
+                ]),
+            ),
+        ],
+        spellings: (key) => [key, `graphty:${key}`],
+    },
+];
+
+/** What {@link checkTreeSubjects} found in one tree. */
+export interface TreeReport {
+    /** The tree's title prefix. */
+    readonly tree: string;
+    /** Every story whose name spells a key it never writes. */
+    readonly findings: readonly SubjectFinding[];
+    /** How many stories in the tree spelled a key at all. */
+    readonly checked: number;
+}
+
+/**
+ * Lower case with everything but letters and digits removed, so `kamada-kawai` and
+ * `KamadaKawaiWeighted` can be compared.
+ * @param text - The text.
+ * @returns Its letters and digits, lower case.
+ */
+function compact(text: string): string {
+    return text.toLowerCase().replace(/[^a-z\d]/g, "");
+}
+
+/**
+ * The keys a story's export name spells, less any key that is only part of a longer one it also
+ * spells: `ConnectedComponents` claims `connected-components`, not `components` as well.
+ * @param exportName - The story's export name.
+ * @param keys - The tree's keys.
+ * @returns The keys the name claims.
+ */
+function claimedKeys(exportName: string, keys: readonly string[]): string[] {
+    const name = compact(exportName);
+    const spelled = keys.filter((key) => name.includes(compact(key)));
+
+    return spelled.filter(
+        (key) => !spelled.some((other) => other !== key && compact(other).includes(compact(key))),
+    );
+}
+
+/**
+ * Check every tree in {@link SUBJECT_TREES} against its stories' names.
+ * @param readings - The story files, as read by `story-source`.
+ * @returns One report per tree, in table order.
+ */
+export function checkTreeSubjects(readings: readonly StoryFileReading[]): TreeReport[] {
+    return SUBJECT_TREES.map(({ tree, subject, keys, spellings }) => {
+        const vocabulary = keys();
+        const findings: SubjectFinding[] = [];
+        let checked = 0;
+
+        for (const reading of readings) {
+            if (!reading.title.startsWith(tree)) {
+                continue;
+            }
+
+            for (const story of reading.stories) {
+                const claimed = claimedKeys(story.exportName, vocabulary);
+
+                if (claimed.length === 0) {
+                    continue;
+                }
+
+                checked += 1;
+
+                const strings = new Set(story.strings);
+                const missing = claimed.filter((key) => !spellings(key).some((spelling) => strings.has(spelling)));
+
+                if (missing.length > 0) {
+                    findings.push({
+                        id: story.id,
+                        file: story.file,
+                        missing: missing.map((key) => `${subject} "${key}"`).sort(),
+                        writes: story.configPaths.filter((configPath) => !configPath.includes(".")),
+                    });
+                }
+            }
+        }
+
+        return { tree, findings, checked };
+    });
 }

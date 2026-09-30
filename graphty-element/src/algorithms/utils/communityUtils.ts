@@ -2,26 +2,6 @@
  * @file Shared utilities for community detection algorithms
  */
 
-import type { GraphLike } from "./graphUtils";
-
-/**
- * Options for community utilities
- */
-interface CommunityOptions {
-    /** Weight attribute name on edges (default: "value") */
-    weightAttribute?: string;
-}
-
-/**
- * Options for degree calculation
- */
-interface DegreeOptions {
-    /** Whether to treat the graph as directed (default: false for undirected) */
-    directed?: boolean;
-    /** For directed graphs, count "in", "out", or "both" edges (default: "both") */
-    countType?: "in" | "out" | "both";
-}
-
 /**
  * Convert a community assignment map to an array of arrays.
  *
@@ -51,87 +31,6 @@ export function extractCommunities(communities: Map<number | string, number>): (
     }
 
     return Array.from(communityArrays.values());
-}
-
-/**
- * Get the total weight of all edges in the graph.
- * @param graph - The graphty-element Graph instance
- * @param options - Configuration options
- * @returns Total edge weight
- * @example
- * ```typescript
- * const totalWeight = getTotalEdgeWeight(graph);
- * ```
- */
-export function getTotalEdgeWeight(graph: GraphLike, options: CommunityOptions = {}): number {
-    const { weightAttribute = "value" } = options;
-    const { edges } = graph.getDataManager();
-
-    let totalWeight = 0;
-
-    for (const edge of edges.values()) {
-        const edgeData = edge.data;
-        let rawWeight = edgeData?.[weightAttribute];
-
-        if (rawWeight === undefined) {
-            rawWeight = edge[weightAttribute];
-        }
-
-        const weight: number = typeof rawWeight === "number" ? rawWeight : 1;
-        totalWeight += weight;
-    }
-
-    return totalWeight;
-}
-
-/**
- * Get the degree of a specific node.
- *
- * In undirected mode (default), counts all edges incident to the node.
- * In directed mode, can count incoming, outgoing, or both edges.
- * @param graph - The graphty-element Graph instance
- * @param nodeId - The ID of the node
- * @param options - Configuration options
- * @returns The degree of the node
- * @example
- * ```typescript
- * // Undirected degree
- * const degree = getNodeDegree(graph, "A");
- *
- * // Directed out-degree
- * const outDegree = getNodeDegree(graph, "A", { directed: true, countType: "out" });
- * ```
- */
-export function getNodeDegree(graph: GraphLike, nodeId: number | string, options: DegreeOptions = {}): number {
-    const { directed = false, countType = "both" } = options;
-    const { edges } = graph.getDataManager();
-
-    let degree = 0;
-    const nodeIdStr = String(nodeId);
-
-    for (const edge of edges.values()) {
-        const srcIdStr = String(edge.srcId);
-        const dstIdStr = String(edge.dstId);
-
-        if (directed) {
-            if (countType === "out" && srcIdStr === nodeIdStr) {
-                degree++;
-            } else if (countType === "in" && dstIdStr === nodeIdStr) {
-                degree++;
-            } else if (countType === "both") {
-                if (srcIdStr === nodeIdStr || dstIdStr === nodeIdStr) {
-                    degree++;
-                }
-            }
-        } else {
-            // Undirected: count if node is either source or destination
-            if (srcIdStr === nodeIdStr || dstIdStr === nodeIdStr) {
-                degree++;
-            }
-        }
-    }
-
-    return degree;
 }
 
 /**

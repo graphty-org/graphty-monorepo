@@ -24,160 +24,62 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, makeMask, maskCount, maskTest, maskToIndices, type U32 } from "@graphty/graph-format";
 
-import type { EdgeId, NodeId, Query, Scope, ScopeId } from "../../catalog/types";
-import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
-import { GraphtyError } from "../../errors";
-import { canonicalize } from "../runs/runId";
+import { parseScope, readingOfScope, stabiliseEdgeRefs } from "../../catalog/sets/parse";
+import type {
+    EdgeId,
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
+    NodeId,
+    Path,
+    Query,
+    ResultItem,
+    RunId,
+    Scope,
+    ScopeId,
+    ScopeInput,
+    SetDefinition,
+    SetDefinitionInput,
+} from "../../catalog/types";
+import { canonicalEdgeEnds, pairsOrdered } from "../../data/edgeIdentity";
+import { GraphtyError, isGraphtyError } from "../../errors";
+import type { AttributeRevisions, InputTick } from "../attributes";
 import type { ResolvedScope } from "../runs/types";
-import { ElementMask, type MaskIdSpace } from "./ElementMask";
+import { sealedSet } from "../sealed";
+import { resolveSet, SetsCache } from "../sets/cache";
+import { type Capture, capturedHalves } from "../sets/captures";
+import { assertIssued, referentReading } from "../sets/dependencies";
+import {
+    type ComponentLabels,
+    deriveEdges,
+    digestOf,
+    type NodeHalf,
+    type Resolution,
+    type ResolveContext,
+    resolveCounters,
+    resolveNodeHalf,
+    resolveScope,
+    scopeLeafIn,
+} from "../sets/resolve";
+import { createSetsApi, sessionEdgeMember, setsStoreOf } from "../sets/SetsApi";
+import type { ElementSet, SetsApi } from "../sets/types";
+import type { FilterSources, FilterValueSource, ScopeLeaf } from "../visibility/filter";
+import type { ElementMask } from "./ElementMask";
+import { edgeSpaceOf, nodeSpaceOf } from "./spaces";
+
+export type { ComponentLabels } from "../sets/resolve";
 
 /** How many edges {@link ScopeApi.count} looks at when it is allowed to answer approximately. */
 export const DEFAULT_SCOPE_SAMPLE = 10_000;
 
 // ---------------------------------------------------------------------------------------------
-// The membership digest
-// ---------------------------------------------------------------------------------------------
-
-/** The FNV-1a prime, for the 32-bit variant. */
-const FNV_PRIME = 0x01000193;
-
-/** The seed the node ids fold with. */
-const NODE_SEED = 0x1b873593;
-
-/** The seed the edge ids fold with, so a node id and an edge id never fold the same way. */
-const EDGE_SEED = 0xcc9e2d51;
-
-/** The offset basis the two digest lanes start from. */
-const DIGEST_SEED_A = 0x811c9dc5;
-
-/** The second lane's multiplier, unrelated to the first so the lanes do not share collisions. */
-const DIGEST_MULTIPLIER_B = 0x85ebca6b;
-
-/** How wide one 32-bit lane of the digest is once written in hexadecimal. */
-const DIGEST_LANE_WIDTH = 8;
-
-/** An order-independent summary of one set of ids. */
-interface MembershipFold {
-    /** How many ids there were. */
-    readonly count: number;
-    /** The exclusive-or of their hashes. */
-    readonly xor: number;
-    /** The wrapping sum of their hashes, which catches the pairs an exclusive-or cancels out. */
-    readonly sum: number;
-}
-
-/**
- * The 32-bit hash of one id.
- * @param id - The node or edge id.
- * @param seed - The offset basis to start from.
- * @returns The hash.
- */
-function hashId(id: NodeId | EdgeId, seed: number): number {
-    // The tag is what keeps the number 1 and the string "1" from hashing the same way, which
-    // they must not: the element treats them as two different nodes everywhere else.
-    const text = typeof id === "number" ? `#${id}` : `$${id}`;
-    let hash = seed >>> 0;
-
-    for (let at = 0; at < text.length; at++) {
-        hash ^= text.charCodeAt(at);
-        hash = Math.imul(hash, FNV_PRIME) >>> 0;
-    }
-
-    return hash >>> 0;
-}
-
-/**
- * Fold one set of ids into a summary that does not depend on the order they arrived in.
- *
- * Order independence is not a nicety. A freeze can renumber the dense indices, and a scope walked
- * in index order would then fold differently for the same set of elements -- reporting every run
- * over it stale because a node was removed somewhere else entirely.
- * @param ids - The ids in the set.
- * @param seed - The hash seed for this kind of id.
- * @returns The fold.
- */
-function foldIds(ids: readonly (NodeId | EdgeId)[], seed: number): MembershipFold {
-    let xor = 0;
-    let sum = 0;
-
-    for (const id of ids) {
-        const hashed = hashId(id, seed);
-        xor = (xor ^ hashed) >>> 0;
-        sum = (sum + hashed) >>> 0;
-    }
-
-    return { count: ids.length, xor, sum };
-}
-
-/**
- * The digest a resolved scope carries: equal digests mean the same elements.
- *
- * Two 32-bit lanes rather than one, because a single 32-bit digest starts colliding at a few
- * tens of thousands of distinct scopes, and a collision here reports a stale run as fresh.
- * @param nodes - The node ids in the scope, in any order.
- * @param edges - The edge ids in the scope, in any order.
- * @returns The digest: sixteen lower-case hexadecimal characters.
- */
-export function membershipDigest(nodes: readonly NodeId[], edges: readonly EdgeId[]): string {
-    const nodeFold = foldIds(nodes, NODE_SEED);
-    const edgeFold = foldIds(edges, EDGE_SEED);
-    let laneA = DIGEST_SEED_A;
-    let laneB = FNV_PRIME;
-
-    for (const value of [nodeFold.count, nodeFold.xor, nodeFold.sum, edgeFold.count, edgeFold.xor, edgeFold.sum]) {
-        laneA = Math.imul(laneA ^ (value >>> 0), FNV_PRIME) >>> 0;
-        laneB = Math.imul(laneB ^ (laneA + value), DIGEST_MULTIPLIER_B) >>> 0;
-    }
-
-    return laneA.toString(16).padStart(DIGEST_LANE_WIDTH, "0") + laneB.toString(16).padStart(DIGEST_LANE_WIDTH, "0");
-}
-
-// ---------------------------------------------------------------------------------------------
 // The identity spaces
 // ---------------------------------------------------------------------------------------------
 
-/**
- * One snapshot's node identity space, for a mask over its nodes.
- * @param snapshot - The snapshot to read.
- * @returns The space, which is the snapshot's own id map.
- */
-export function nodeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<NodeId> {
-    return {
-        indexOf: (id: NodeId): number => snapshot.ids.indexOf(id),
-        idOf: (index: number): NodeId => snapshot.ids.idOf(index),
-    };
-}
-
-/**
- * One snapshot's edge identity space, for a mask over its edges.
- *
- * It READS the element-assigned counter the store stamped into every edge's `graphty.edgeId`
- * column rather than minting an id out of the endpoints, and that is the whole difference. A
- * minted pair string could not name two edges between one pair -- so under parallel edges only the
- * last of a repeated pair was addressable at all -- and it collided for any node id containing a
- * colon.
- *
- * The reverse lookup is `snapshot.edgeIndexOf`, a lazily built index graph-format already owns
- * over the same column, so there is no hand-built map here to fall out of step with it.
- * @param snapshot - The snapshot to read.
- * @returns The space.
- */
-export function edgeSpaceOf(snapshot: GraphSnapshot): MaskIdSpace<EdgeId> {
-    const column = snapshot.edges.byRole("id");
-
-    return {
-        indexOf: (id: EdgeId): number => {
-            const counter = edgeCounterOf(id);
-            return counter === INVALID_INDEX ? INVALID_INDEX : snapshot.edgeIndexOf(counter);
-        },
-        idOf: (edge: number): EdgeId => {
-            const counter = column !== null && column.isSet(edge) ? column.value(edge) : undefined;
-            return edgeIdOf(typeof counter === "number" ? counter : INVALID_INDEX);
-        },
-    };
-}
+// In their own module, so a caller that needs only these does not load the resolver.
+export { edgeSpaceOf, nodeSpaceOf };
 
 // ---------------------------------------------------------------------------------------------
 // What the resolver needs from the rest of the session
@@ -208,14 +110,6 @@ export interface ScopeSelectionSource {
     nodes(): ElementMask<NodeId>;
 }
 
-/** Which connected component each node belongs to. */
-export interface ComponentLabels {
-    /** One component number per dense node index. */
-    readonly labels: ArrayLike<number>;
-    /** How many components there are, so the labels are `[0, count)`. */
-    readonly count: number;
-}
-
 /**
  * Where the resolver reads everything it does not compute itself.
  *
@@ -230,6 +124,8 @@ export interface ScopeSources {
      * @returns The current snapshot.
      */
     snapshot(): GraphSnapshot;
+    /** The store instance every resolution is tagged with. Absent tags them with null. */
+    readonly store?: object;
     /** What is visible. Absent means nothing hides anything, so `visible` is the whole graph. */
     readonly visibility?: ScopeVisibilitySource;
     /** What is selected. Absent refuses the `selection` scope. */
@@ -248,6 +144,57 @@ export interface ScopeSources {
      * @returns The matching node ids; ones the graph no longer holds are ignored.
      */
     readonly match?: (where: Query) => Iterable<NodeId>;
+    /**
+     * The paths a predicate's compiled expression reads. With {@link revisions} and
+     * {@link executionOf}, what lets a `{ where }` answer be cached: absent, it is resolved on
+     * every read.
+     * @param where - The predicate.
+     * @returns The paths.
+     */
+    readonly pathsOf?: (where: Query) => readonly Path[];
+    /** The node attribute revisions a predicate's cached answer is keyed on. */
+    readonly revisions?: AttributeRevisions;
+    /** The edge attribute revisions a rule's `edges` leaf is keyed on. */
+    readonly edgeRevisions?: AttributeRevisions;
+    /**
+     * The execution token of a run's current result, which a predicate over its results is keyed
+     * on.
+     * @param run - The run.
+     * @returns The token, or undefined when the run has no result.
+     */
+    readonly executionOf?: (run: RunId) => string | undefined;
+    /** The session input tick; saving or removing a scope advances it. */
+    readonly tick?: InputTick;
+    /** The resolution cache. A private one when absent. */
+    readonly cache?: SetsCache;
+    /** The kept sets `{ set }` and a rule's `member` leaf may name, beside the saved scopes. */
+    readonly sets?: SetsApi;
+    /** The edges a predicate matches. Absent refuses a rule's `edges` leaf. */
+    readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
+    /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
+    readonly values?: FilterValueSource;
+    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
+    readonly result?: FilterSources["result"];
+    /**
+     * What a held item's re-run captured (design/sets 5.2). Absent: nothing was captured.
+     * @param item - The item, with its execution.
+     * @returns The capture, or undefined.
+     */
+    readonly captured?: (item: ResultItem) => Capture | undefined;
+    /**
+     * A session edge's stable identity, so an inline `{ define }` may name edges by session id.
+     * Absent refuses a session edge id inside `{ define }`.
+     * @param id - The session edge id.
+     * @returns The member, or undefined when the graph holds no such edge.
+     */
+    readonly edgeMember?: (id: EdgeId) => EdgeMember | undefined;
+    /**
+     * Which halves carry a value path, so an `induced` rule over an edge field resolves to nothing
+     * as its status says. Absent: such a leaf is not known to speak edges.
+     * @param path - The path.
+     * @returns `"node"`, `"edge"`, or both.
+     */
+    readonly fieldKinds?: (path: Path) => readonly string[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -280,6 +227,10 @@ export interface ScopeCount {
     readonly exact: boolean;
     /** How many edges were looked at, when the answer was estimated from a sample. */
     readonly sampled?: number;
+    /** For a kept fixed or path set: the node ids it names that the graph does not hold. */
+    readonly missingNodes?: number;
+    /** For a kept fixed or path set: the edge members (a path's steps) no edge of the graph matches. */
+    readonly missingEdges?: number;
 }
 
 /** What {@link ScopeApi.count} accepts. */
@@ -297,29 +248,36 @@ export interface ScopeApi {
      * @param spec - What to resolve.
      * @returns The resolved scope.
      */
-    resolve(spec: Scope): Promise<ResolvedScope>;
+    resolve(spec: ScopeInput): Promise<ResolvedScope>;
     /**
      * How many elements a specification covers, without materialising them.
      * @param spec - What to count.
      * @param options - Whether an estimate is acceptable, and how big a sample to take.
      * @returns The counts, saying whether the edge count was exact.
      */
-    count(spec: Scope, options?: ScopeCountOptions): Promise<ScopeCount>;
+    count(spec: ScopeInput, options?: ScopeCountOptions): Promise<ScopeCount>;
     /**
      * Keep a specification under a name, so `{ set: id }` can name it later.
-     * @param name - The name, unique within the session.
+     *
+     * It is kept as a set, created from `user`: `{ where }` as a rule, `{ nodes }` as a fixed
+     * set, `{ define }` as its definition, `"graph"`, `"largest-component"` and `{ set }` as a
+     * rule naming them. `"selection"` and `"visible"` are kept as their current members.
+     * @deprecated Use {@link SetsApi.create | session.sets.create}, which takes a definition.
+     * @param name - The name, unique among kept sets.
      * @param spec - The specification to keep.
-     * @returns The minted id.
+     * @returns The minted id, never one issued before.
      */
     save(name: string, spec: Scope): ScopeId;
     /**
-     * Every saved scope, with whether it still refers to anything.
-     * @returns The saved scopes, in the order they were saved.
+     * Every kept set, as the specification it holds and whether it still refers to anything.
+     * @deprecated Use {@link SetsApi.list | session.sets.list}, which returns the definitions.
+     * @returns The kept sets, in the order they were created.
      */
     list(): readonly SavedScope[];
     /**
-     * Forget a saved scope. Anything that named it becomes unbound rather than silently empty.
-     * @param id - The id to forget.
+     * Remove a kept set. Anything that named it becomes unbound rather than silently empty.
+     * @deprecated Use {@link SetsApi.remove | session.sets.remove}.
+     * @param id - The id to remove.
      */
     remove(id: ScopeId): void;
 }
@@ -333,11 +291,60 @@ export interface ScopeApi {
  */
 export interface ScopeResolver extends ScopeApi {
     /**
+     * A write position's scope in canonical form: session edge ids inside `{ define }` replaced by
+     * their stable members, the definition validated.
+     * @param spec - The scope as given.
+     * @returns The canonical scope.
+     * @throws `E_BAD_COMMAND` when it is not a scope.
+     */
+    canonical(spec: ScopeInput): Scope;
+    /**
+     * What a write door stores, before it validates it: session edge ids inside any nested inline
+     * definition replaced by their stable members, and every `{ set }` it names checked as issued
+     * in this session (a removed set's id is accepted and reads as detached).
+     * @param value - A scope, a rule tree or a set definition, as given.
+     * @returns The value, stable; the same object when it held no session edge id.
+     * @throws `E_BAD_COMMAND` for a session edge id the graph lacks, or a set id never issued.
+     */
+    admit<T>(value: T): T;
+    /**
      * The elements a specification covers, answered without a promise.
      * @param spec - What to resolve.
      * @returns The resolved scope.
      */
     resolveNow(spec: Scope): ResolvedScope;
+    /**
+     * The node ids a specification covers, read from its node bitmap: no id `Set` is built.
+     * @param spec - What to resolve.
+     * @returns The ids, in dense index order.
+     */
+    nodeIdsOf(spec: Scope): readonly NodeId[];
+    /**
+     * What a rule's `member` leaf speaks, for a pass: never throws, and a reference that cannot be
+     * resolved (a cycle, a missing set) speaks nothing.
+     * @param spec - The referenced set.
+     * @returns The leaf.
+     */
+    leafOf(spec: Scope): ScopeLeaf;
+    /**
+     * A specification's bitmaps, through the resolution cache, with the snapshot they cover.
+     * @param spec - What to resolve.
+     * @returns The resolution and its snapshot.
+     */
+    resolutionOf(spec: Scope): { readonly resolution: Resolution; readonly graph: GraphSnapshot };
+    /**
+     * How a specification reads, following a `{ set }` to its definition.
+     * @param spec - The specification.
+     * @returns The reading.
+     */
+    readingOf(spec: Scope): EdgeReading;
+    /** The kept sets `save`, `list` and `remove` delegate to. */
+    readonly sets: SetsApi;
+    /**
+     * What a resolution reads now, for an internal reader that resolves through the cache itself.
+     * @returns The context over the current snapshot.
+     */
+    contextNow(): ResolveContext;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -345,544 +352,441 @@ export interface ScopeResolver extends ScopeApi {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The refusal a scope the session cannot honour yet gets, naming what would honour it.
- * @param spec - What was asked for.
- * @param needs - The capability whose absence is the reason.
- * @returns The error to throw.
- */
-function unsupported(spec: Scope, needs: string): GraphtyError {
-    return new GraphtyError({
-        code: "E_UNSUPPORTED",
-        message:
-            `This session cannot resolve the ${canonicalize(spec)} scope, because ${needs} is not ` +
-            "attached to it. Resolving it anyway would label a result as covering a subset while it " +
-            "covered the whole graph.",
-        source: "run",
-        details: { scope: spec, needs },
-    });
-}
-
-/**
- * The refusal a value that is not a scope at all gets.
- * @param spec - What was passed.
- * @returns The error to throw.
- */
-function notAScope(spec: unknown): GraphtyError {
-    return new GraphtyError({
-        code: "E_BAD_COMMAND",
-        message:
-            "A scope is \"visible\", \"graph\", \"selection\", \"largest-component\", { set }, " +
-            "{ where } or { nodes }.",
-        source: "run",
-        details: { scope: spec },
-    });
-}
-
-/**
- * Whether a specification is a predicate, whose answer is never cached.
- *
- * A predicate can read a run's results, and those change without the snapshot or any other input
- * the resolver's frame tracks moving. A cached answer would go on naming the elements the
- * expression matched before the run finished.
- * @param spec - The specification.
- * @returns True for `{ where }`.
- */
-// ponytail: a saved set wrapping a predicate is still cached; key the frame on a results
-// revision if that ever matters.
-function isPredicate(spec: Scope): boolean {
-    return typeof spec === "object" && "where" in spec;
-}
-
-/**
- * Tell whether a value is one of the scope specifications.
- * @param value - The value to test.
- * @returns True when it is a scope.
- */
-function isScope(value: unknown): value is Scope {
-    if (typeof value === "string") {
-        return value === "visible" || value === "graph" || value === "selection" || value === "largest-component";
-    }
-
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-
-    if ("set" in value) {
-        return typeof value.set === "string";
-    }
-
-    if ("where" in value) {
-        return typeof value.where === "string";
-    }
-
-    return "nodes" in value && Array.isArray(value.nodes);
-}
-
-/**
  * Check a value is a scope before anything tries to resolve it.
  * @param spec - The value to check.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when it is not.
  */
 function assertScope(spec: Scope): void {
-    if (!isScope(spec)) {
-        throw notAScope(spec);
-    }
+    parseScope(spec);
 }
 
 // ---------------------------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------------------------
 
-/** What one specification resolved to, before it was dressed up as a {@link ResolvedScope}. */
-interface ScopeMembership {
-    /** The node ids. */
-    readonly nodes: ReadonlySet<NodeId>;
-    /** The edge ids. */
-    readonly edges: ReadonlySet<EdgeId>;
-    /** The membership digest. */
-    readonly digest: string;
-}
-
-/** The node half of a resolution, and the edge constraint the specification carried with it. */
-interface ScopeNodes {
-    /** The nodes in scope. */
-    readonly mask: ElementMask<NodeId>;
-    /** The edges the specification allows, or null when its edges are purely induced. */
-    readonly edgeConstraint: ElementMask<EdgeId> | null;
-}
-
 /**
- * Everything one set of inputs resolves against: the snapshot, its two identity spaces, and the
- * answers already walked from them.
- *
- * It is one object rather than five variables so that replacing it is atomic. A resolver holding
- * the new snapshot and the previous snapshot's edge index would address edges by endpoints that
- * have moved, and would do it silently.
+ * The ids a bitmap holds, as a frozen `Set`.
+ * @param mask - The bitmap.
+ * @param length - How many indices it covers.
+ * @param idOf - The id at an index.
+ * @returns The set.
  */
-interface ScopeFrame {
-    /** The snapshot every answer in this frame was walked from. */
+function idSetOf<TId>(mask: U32, length: number, idOf: (index: number) => TId): ReadonlySet<TId> {
+    resolveCounters.idSetBuilds++;
+    // Sealed: a resolved scope is an answer, and a write into it would change nothing it answers.
+    return sealedSet(
+        (function* ids(): Generator<TId> {
+            for (const index of maskToIndices(mask, length)) {
+                yield idOf(index);
+            }
+        })(),
+        SCOPE_HINT,
+    );
+}
+
+/** What a caller writing into a resolved scope is told to do instead. */
+const SCOPE_HINT = "A resolved scope is an answer; call sets.redefine() to change what a kept set holds.";
+
+/** A resolution and the snapshot it covers. */
+interface Membership {
+    readonly resolution: Resolution;
     readonly graph: GraphSnapshot;
-    /** The node identity space, one object for the life of the frame. */
-    readonly nodeSpace: MaskIdSpace<NodeId>;
-    /** The edge identity space, one object for the life of the frame. */
-    readonly edgeSpace: MaskIdSpace<EdgeId>;
-    /** The node half of each specification already resolved, by canonical specification. */
-    readonly nodes: Map<string, ScopeNodes>;
-    /** Each specification already resolved in full, by canonical specification. */
-    readonly resolved: Map<string, ScopeMembership>;
 }
 
-/** A saved scope as the resolver holds it, before `bound` is worked out. */
-interface SavedRecord {
-    /** The minted id. */
-    readonly id: ScopeId;
-    /** The name it was saved under. */
-    readonly name: string;
-    /** The specification. */
-    readonly spec: Scope;
+/** What stands behind a resolved scope: its bitmaps, and how to resolve the same spec again now. */
+interface ScopeBehind extends Membership {
+    /** How the scope reads its edges. */
+    readonly reading: EdgeReading;
+    /**
+     * The same specification resolved against the graph as it stands now.
+     * @returns The resolution and its snapshot.
+     */
+    now(): Membership;
+}
+
+/** The resolution behind each resolved scope a resolver dressed, for the internal readers of its bitmaps. */
+const resolutionsBehind = new WeakMap<ResolvedScope, ScopeBehind>();
+
+/**
+ * The bitmaps behind a resolved scope, and the snapshot they cover. Internal: a run hands its
+ * algorithm these rather than the id sets.
+ * @param scope - A resolved scope.
+ * @returns What stands behind it, or undefined for a scope no resolver dressed.
+ */
+export function resolutionBehind(scope: ResolvedScope): ScopeBehind | undefined {
+    return resolutionsBehind.get(scope);
 }
 
 /**
- * The name a minted scope id is built from.
- * @param name - The name the caller saved under.
- * @returns A slug of lower-case letters, digits and hyphens.
+ * Dress a resolution as the published {@link ResolvedScope}. `nodes`, `edges` and `digest` are
+ * lazy: each is built on its first read and kept by this object; the digest is memoised on the
+ * resolution, so every object dressing one resolution shares one digest computation.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it was resolved against.
+ * @param spec - What was asked for.
+ * @returns The resolved scope, frozen.
  */
-function slugOf(name: string): string {
-    const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+/, "")
-        .replace(/-+$/, "");
+function resolvedScopeOf(resolution: Resolution, graph: GraphSnapshot, spec: Scope): ResolvedScope {
+    // ponytail: the object keeps its snapshot so a late read of `nodes` still answers for the
+    // membership it describes; keep only the id map and the id column if retention matters.
+    let nodes: ReadonlySet<NodeId> | null = null;
+    let edges: ReadonlySet<EdgeId> | null = null;
+    const scope = {};
 
-    return slug === "" ? "set" : slug;
+    Object.defineProperties(scope, {
+        nodes: {
+            enumerable: true,
+            get: (): ReadonlySet<NodeId> => {
+                nodes ??= idSetOf(resolution.nodes, graph.nodeCount, (index) => graph.ids.idOf(index));
+                return nodes;
+            },
+        },
+        edges: {
+            enumerable: true,
+            get: (): ReadonlySet<EdgeId> => {
+                if (edges === null) {
+                    const space = edgeSpaceOf(graph);
+                    edges = idSetOf(resolution.edges, graph.edgeCount, (index) => space.idOf(index));
+                }
+
+                return edges;
+            },
+        },
+        nodeCount: { enumerable: true, value: resolution.nodeCount },
+        edgeCount: { enumerable: true, value: resolution.edgeCount },
+        digest: { enumerable: true, get: (): string => digestOf(resolution, graph) },
+        spec: { enumerable: true, value: spec },
+        // A fresh object per call, so `resolvedAt` is when it was asked rather than when the
+        // resolution behind it happened to be cached.
+        resolvedAt: { enumerable: true, value: new Date().toISOString() },
+    });
+
+    return Object.freeze(scope) as ResolvedScope;
+}
+
+/**
+ * A resolution's current members as a fixed definition: its nodes read `induced` when its edges
+ * are exactly the ones its nodes induce, else its nodes and its edges read `listed`, which holds
+ * the same members (design/sets 4.1). Edges are named by session id; the door that keeps the
+ * definition turns them into stable members.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it was resolved against.
+ * @returns The definition.
+ */
+function frozenDefinition(
+    resolution: Resolution,
+    graph: GraphSnapshot,
+): Extract<SetDefinitionInput, { kind: "fixed" }> {
+    const nodes = Array.from(maskToIndices(resolution.nodes, graph.nodeCount), (index) => graph.ids.idOf(index));
+    const induced = deriveEdges({ nodes: resolution.nodes, constraint: null, all: false, missingNodes: 0 }, graph);
+    if (maskCount(induced, graph.edgeCount) === resolution.edgeCount) {
+        return { kind: "fixed", nodes, reading: "induced" };
+    }
+
+    const space = edgeSpaceOf(graph);
+
+    return {
+        kind: "fixed",
+        nodes,
+        edges: Array.from(maskToIndices(resolution.edges, graph.edgeCount), (edge) => space.idOf(edge)),
+        reading: "listed",
+    };
+}
+
+/**
+ * An exact count of a resolution, with the missing members of a fixed or path set.
+ * @param resolution - The resolution.
+ * @param kind - The kind of set it resolved, when it resolved one.
+ * @returns The count.
+ */
+function countOf(resolution: Resolution, kind: string | undefined): ScopeCount {
+    const count = { nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true };
+
+    return kind === "fixed" || kind === "path"
+        ? { ...count, missingNodes: resolution.missingNodes, missingEdges: resolution.missingEdges }
+        : count;
 }
 
 /**
  * Build the scope resolver one session uses.
  *
- * Membership is walked once per specification and cached against the inputs it was walked from
- * -- the snapshot, the visibility and selection masks, and the saved list -- because the reader
- * that asks most often is the staleness check on a finished run, and that is read by every
- * progress event. Nothing is cached across a change to any of those.
+ * Each specification is resolved through the session's resolution cache
+ * (`session/sets/cache.ts`), keyed by its input signature: exactly the inputs it reads -- the
+ * snapshot, a mask version, a saved scope's record, the attribute revisions and run results a
+ * predicate reads. The reader that asks most often is the staleness check on a finished run, and
+ * the digest is memoised on the resolution, so a staleness read over unchanged inputs sums nothing.
  * @param sources - Where to read the graph and the capabilities a narrowing scope needs.
  * @returns The resolver.
  */
 export function createScopeApi(sources: ScopeSources): ScopeResolver {
-    const saved = new Map<ScopeId, SavedRecord>();
-    let savedRevision = 0;
-    let frame: ScopeFrame | null = null;
-    let signature = "";
+    const cache = sources.cache ?? new SetsCache();
+    // A resolver built on its own keeps its own sets, reading edges off the snapshot alone.
+    const sets =
+        sources.sets ??
+        createSetsApi({
+            edgeMember: (id: EdgeId) =>
+                sources.edgeMember === undefined
+                    ? sessionEdgeMember(sources.snapshot(), id, () => undefined, null)
+                    : sources.edgeMember(id),
+        });
+    const kept = setsStoreOf(sets);
 
     /**
-     * What the caches are valid for: the snapshot, plus every producer that can move without the
-     * snapshot moving.
-     * @returns The signature.
+     * What a resolution reads now.
+     * @returns The context over the current snapshot.
      */
-    const inputSignature = (): string => {
-        const parts = [`saved:${savedRevision}`];
+    const context = (): ResolveContext => {
+        const active: ResolveContext = {
+            ...base(),
+            ...(sources.captured === undefined
+                ? {}
+                : {
+                      captured: (item: ResultItem) => {
+                          const capture = sources.captured?.(item);
+                          return capture === undefined ? undefined : capturedHalves(capture, active);
+                      },
+                  }),
+        };
 
-        if (sources.visibility !== undefined) {
-            parts.push(`visible:${sources.visibility.nodes().version}.${sources.visibility.edges().version}`);
-        }
-
-        if (sources.selection !== undefined) {
-            parts.push(`selected:${sources.selection.nodes().version}`);
-        }
-
-        return parts.join("|");
+        return active;
     };
 
     /**
-     * The frame to resolve against, rebuilt when the snapshot or any producer behind it moved.
-     * @returns The current frame.
+     * What a resolution reads now, but the captures.
+     * @returns The context over the current snapshot.
      */
-    const current = (): ScopeFrame => {
-        const graph = sources.snapshot();
-        const nextSignature = inputSignature();
+    const base = (): ResolveContext => ({
+        snapshot: sources.snapshot(),
+        store: sources.store ?? null,
+        cache,
+        ...(sources.visibility === undefined ? {} : { visibility: sources.visibility }),
+        ...(sources.selection === undefined ? {} : { selection: sources.selection }),
+        ...(sources.components === undefined ? {} : { components: sources.components }),
+        ...(sources.match === undefined ? {} : { match: sources.match }),
+        ...(sources.pathsOf === undefined ? {} : { pathsOf: sources.pathsOf }),
+        ...(sources.revisions === undefined ? {} : { revisions: sources.revisions }),
+        ...(sources.edgeRevisions === undefined ? {} : { edgeRevisions: sources.edgeRevisions }),
+        ...(sources.executionOf === undefined ? {} : { executionOf: sources.executionOf }),
+        ...(sources.tick === undefined ? {} : { tick: sources.tick }),
+        sets: kept,
+        ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
+        ...(sources.values === undefined ? {} : { values: sources.values }),
+        ...(sources.result === undefined ? {} : { result: sources.result }),
+        ...(sources.fieldKinds === undefined ? {} : { fieldKinds: sources.fieldKinds }),
+    });
 
-        if (frame === null || frame.graph !== graph || nextSignature !== signature) {
-            signature = nextSignature;
-            frame = {
-                graph,
-                nodeSpace: nodeSpaceOf(graph),
-                edgeSpace: edgeSpaceOf(graph),
-                nodes: new Map<string, ScopeNodes>(),
-                resolved: new Map<string, ScopeMembership>(),
-            };
+    /**
+     * An edge reference in stable form.
+     * @param ref - A session edge id or a member.
+     * @returns The member.
+     * @throws `E_BAD_COMMAND` for a session edge id the graph does not hold.
+     */
+    const stable = (ref: EdgeRef): EdgeMember => {
+        if (typeof ref !== "string") {
+            return canonicalEdgeEnds(ref, pairsOrdered(sources.snapshot()));
         }
 
-        return frame;
+        // A resolver built without the session's reader reads the snapshot alone: no file ids.
+        const member =
+            sources.edgeMember === undefined
+                ? sessionEdgeMember(sources.snapshot(), ref, () => undefined, null)
+                : sources.edgeMember(ref);
+        if (member === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The graph holds no edge "${ref}". An edge member needs its stable identity, which only a held edge has.`,
+                source: "run",
+                details: { edge: ref },
+            });
+        }
+
+        return member;
     };
 
     /**
-     * Put every id a producer named into the mask, ignoring the ones the graph no longer holds.
-     *
-     * Silently, and on purpose: a saved set outliving some of its members is ordinary, and a
-     * consumer sees it through `bound` on the saved scope and through the counts, rather than
-     * through an exception that makes the whole set unusable because one node was deleted.
-     * @param mask - The mask to fill.
-     * @param ids - The ids to put in it.
+     * A write position's scope, canonical: session edge ids inside `{ define }`, at any depth,
+     * replaced by their stable members, the definition validated and canonicalised.
+     * @param spec - The scope as given.
+     * @returns The scope.
+     * @throws `E_BAD_COMMAND` when it is not a scope.
      */
-    const addIds = (mask: ElementMask<NodeId>, ids: Iterable<NodeId>): void => {
-        for (const id of ids) {
-            const index = mask.indexOf(id);
-
-            if (index !== INVALID_INDEX) {
-                mask.add(index);
-            }
-        }
-    };
+    const scopeOf = (spec: ScopeInput): Scope => parseScope(stabiliseEdgeRefs(spec, stable));
 
     /**
-     * Put the largest connected component into the mask.
-     *
-     * A tie goes to the lowest-numbered component, which is the one whose first node comes first
-     * in index order -- so two resolutions of one graph always answer with the same component
-     * rather than whichever the loop happened to see last.
-     * @param mask - The mask to fill.
-     * @param labels - One component number per node index.
-     */
-    const addLargestComponent = (mask: ElementMask<NodeId>, labels: ComponentLabels): void => {
-        const sizes = new Uint32Array(labels.count);
-
-        for (let index = 0; index < mask.count; index++) {
-            sizes[labels.labels[index]] += 1;
-        }
-
-        let largest = -1;
-        let largestSize = 0;
-
-        for (let component = 0; component < labels.count; component++) {
-            if (sizes[component] > largestSize) {
-                largestSize = sizes[component];
-                largest = component;
-            }
-        }
-
-        for (let index = 0; index < mask.count; index++) {
-            if (labels.labels[index] === largest) {
-                mask.add(index);
-            }
-        }
-    };
-
-    /**
-     * Fill the node mask from one specification, following a saved set to what it holds.
-     * @param spec - The specification.
-     * @param mask - The mask to fill, sized to the snapshot and empty.
-     * @param seen - The saved ids already followed, which is how a cycle is caught.
-     * @returns The edge constraint the specification carries, or null when it carries none.
-     * @throws A `GraphtyError` when the specification names a capability this session lacks, an
-     *     unknown saved set, or a cycle of saved sets.
-     */
-    const fillNodes = (spec: Scope, mask: ElementMask<NodeId>, seen: Set<ScopeId>): ElementMask<EdgeId> | null => {
-        if (spec === "graph") {
-            mask.fill();
-
-            return null;
-        }
-
-        if (spec === "visible") {
-            if (sources.visibility === undefined) {
-                mask.fill();
-
-                return null;
-            }
-
-            mask.union(sources.visibility.nodes());
-
-            return sources.visibility.edges();
-        }
-
-        if (spec === "selection") {
-            if (sources.selection === undefined) {
-                throw unsupported(spec, "a selection");
-            }
-
-            mask.union(sources.selection.nodes());
-
-            return null;
-        }
-
-        if (spec === "largest-component") {
-            if (sources.components === undefined) {
-                throw unsupported(spec, "the connected components");
-            }
-
-            addLargestComponent(mask, sources.components());
-
-            return null;
-        }
-
-        if ("set" in spec) {
-            const record = saved.get(spec.set);
-
-            if (record === undefined) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `No saved scope is called "${spec.set}".`,
-                    source: "run",
-                    target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, available: [...saved.keys()] },
-                });
-            }
-
-            if (seen.has(spec.set)) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `The saved scope "${spec.set}" contains itself, so it names no elements.`,
-                    source: "run",
-                    target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, chain: [...seen, spec.set] },
-                });
-            }
-
-            seen.add(spec.set);
-
-            return fillNodes(record.spec, mask, seen);
-        }
-
-        if ("where" in spec) {
-            if (sources.match === undefined) {
-                throw unsupported(spec, "a query engine");
-            }
-
-            addIds(mask, sources.match(spec.where));
-
-            return null;
-        }
-
-        addIds(mask, spec.nodes);
-
-        return null;
-    };
-
-    /**
-     * The nodes one specification covers, and the edge constraint it came with.
+     * The nodes one specification covers, and the edge constraint it came with. Uncached: only an
+     * approximate count reads it, and it costs a node pass, not an edge pass.
      * @param spec - The specification.
      * @returns The node half of the resolution.
      */
-    const nodesOf = (spec: Scope): ScopeNodes => {
-        // A literal node list pays a canonical key as long as the list, which is the price of a
-        // cache that cannot confuse two different lists for one another.
-        const key = canonicalize(spec);
-        const active = current();
-        const cached = active.nodes.get(key);
+    const nodesOf = (spec: Scope): NodeHalf => resolveNodeHalf(spec, context());
 
-        if (cached !== undefined) {
-            return cached;
+    /**
+     * Everything one specification resolves to, through the cache.
+     * @param spec - The specification.
+     * @returns The resolution, and the snapshot it was resolved against.
+     */
+    const membershipOf = (spec: Scope): { resolution: Resolution; graph: GraphSnapshot } => {
+        const active = context();
+        const record = keptRecordOf(spec);
+        if (record === undefined) {
+            return { resolution: resolveScope(spec, active), graph: active.snapshot };
         }
 
-        const { nodeSpace } = active;
-        const mask = new ElementMask<NodeId>(() => nodeSpace, Math.max(1, active.graph.nodeCount));
-        mask.grow(active.graph.nodeCount);
-        const edgeConstraint = fillNodes(spec, mask, new Set<ScopeId>());
-        const computed: ScopeNodes = { mask, edgeConstraint };
-
-        if (!isPredicate(spec)) {
-            active.nodes.set(key, computed);
+        // A kept set resolves through its own entry, which records the pass's outcome for status.
+        const resolution = resolveSet(record, active);
+        if (resolution.problem !== undefined) {
+            throw resolution.problem;
         }
 
-        return computed;
+        return { resolution, graph: active.snapshot };
     };
 
     /**
-     * Whether one edge is in scope: both endpoints in the node set, and allowed by the
+     * The live kept set a `{ set }` scope names.
+     * @param spec - The scope.
+     * @returns The record, or undefined for any other scope.
+     */
+    const keptRecordOf = (spec: Scope): ElementSet | undefined =>
+        typeof spec === "object" && "set" in spec ? kept.get(spec.set) : undefined;
+
+    /**
+     * Whether one edge is in scope: both endpoints in the node half, and allowed by the
      * constraint where there is one.
-     * @param nodes - The node half of the resolution.
+     * @param half - The node half of the resolution.
      * @param edge - The logical edge index.
      * @param source - The edge's source node index.
      * @param target - The edge's target node index.
      * @returns True when the edge is in scope.
      */
-    const edgeInScope = (nodes: ScopeNodes, edge: number, source: number, target: number): boolean => {
-        if (!nodes.mask.has(source) || !nodes.mask.has(target)) {
-            return false;
-        }
-
-        return nodes.edgeConstraint === null || nodes.edgeConstraint.has(edge);
-    };
-
-    /**
-     * The edges one resolution covers.
-     * @param nodes - The node half of the resolution.
-     * @param active - The frame being resolved against.
-     * @returns The edge mask.
-     */
-    const edgesOf = (nodes: ScopeNodes, active: ScopeFrame): ElementMask<EdgeId> => {
-        const { edgeSpace, graph } = active;
-        const mask = new ElementMask<EdgeId>(() => edgeSpace, Math.max(1, graph.edgeCount));
-        mask.grow(graph.edgeCount);
-        const list = graph.edgeList();
-
-        for (let edge = 0; edge < graph.edgeCount; edge++) {
-            if (edgeInScope(nodes, edge, list.src[edge], list.dst[edge])) {
-                mask.add(edge);
-            }
-        }
-
-        return mask;
-    };
-
-    /**
-     * Everything one specification resolves to, walked once per set of inputs.
-     * @param spec - The specification.
-     * @returns The membership.
-     */
-    const membershipOf = (spec: Scope): ScopeMembership => {
-        const key = canonicalize(spec);
-        const active = current();
-        const cached = active.resolved.get(key);
-
-        if (cached !== undefined) {
-            return cached;
-        }
-
-        const nodes = nodesOf(spec);
-        const edges = edgesOf(nodes, active);
-        const nodeIds = nodes.mask.ids();
-        const edgeIds = edges.ids();
-        const computed: ScopeMembership = {
-            nodes: new Set(nodeIds),
-            edges: new Set(edgeIds),
-            digest: membershipDigest(nodeIds, edgeIds),
-        };
-        if (!isPredicate(spec)) {
-            active.resolved.set(key, computed);
-        }
-
-        return computed;
-    };
-
-    /**
-     * Count the edges in scope by walking every one of them.
-     * @param nodes - The node half of the resolution.
-     * @param graph - The snapshot.
-     * @returns The edge count.
-     */
-    const countEdges = (nodes: ScopeNodes, graph: GraphSnapshot): number => {
-        const list = graph.edgeList();
-        let found = 0;
-
-        for (let edge = 0; edge < graph.edgeCount; edge++) {
-            if (edgeInScope(nodes, edge, list.src[edge], list.dst[edge])) {
-                found += 1;
-            }
-        }
-
-        return found;
-    };
+    const edgeInScope = (half: NodeHalf, edge: number, source: number, target: number): boolean =>
+        maskTest(half.nodes, source) &&
+        maskTest(half.nodes, target) &&
+        (half.constraint === null || maskTest(half.constraint, edge));
 
     /**
      * Estimate the edges in scope from an evenly spaced sample.
      *
      * Systematic rather than random, so two counts of one graph agree: a reader who sees 1,203
      * and then 1,198 for a graph nothing touched learns to distrust both numbers.
-     * @param nodes - The node half of the resolution.
+     * @param spec - The specification.
      * @param graph - The snapshot.
      * @param sample - How many edges to look at.
      * @returns The estimate, and how many edges it was taken from.
      */
-    const estimateEdges = (nodes: ScopeNodes, graph: GraphSnapshot, sample: number): ScopeCount => {
+    const estimateEdges = (spec: Scope, graph: GraphSnapshot, sample: number): ScopeCount => {
         const total = graph.edgeCount;
         const take = Math.min(sample, total);
 
         if (take === total) {
-            return { nodes: nodes.mask.size, edges: countEdges(nodes, graph), exact: true };
+            const { resolution } = membershipOf(spec);
+
+            return { nodes: resolution.nodeCount, edges: resolution.edgeCount, exact: true };
         }
 
+        const half = nodesOf(spec);
         const list = graph.edgeList();
         let found = 0;
 
         for (let step = 0; step < take; step++) {
             const edge = Math.floor((step * total) / take);
 
-            if (edgeInScope(nodes, edge, list.src[edge], list.dst[edge])) {
+            if (edgeInScope(half, edge, list.src[edge], list.dst[edge])) {
                 found += 1;
             }
         }
 
-        return { nodes: nodes.mask.size, edges: Math.round((found / take) * total), exact: false, sampled: take };
+        return {
+            nodes: maskCount(half.nodes, graph.nodeCount),
+            edges: Math.round((found / take) * total),
+            exact: false,
+            sampled: take,
+        };
     };
 
     /**
-     * Whether a saved specification still refers to anything this session can resolve.
-     * @param spec - The specification.
-     * @param seen - The saved ids already followed.
+     * Whether a kept set still refers to anything: it resolves without a problem, and a fixed or
+     * path set still has at least one member in the graph.
+     * @param record - The set.
      * @returns True when resolving it would answer rather than throw or come back empty.
      */
-    const canBind = (spec: Scope, seen: Set<ScopeId>): boolean => {
-        if (spec === "graph" || spec === "visible") {
-            return true;
-        }
+    const bound = (record: ElementSet): boolean => {
+        const resolution = resolveSet(record, context());
 
-        if (spec === "selection") {
-            return sources.selection !== undefined;
-        }
+        return resolution.problem === undefined && (record.definition.kind === "rule" || resolution.nodeCount > 0);
+    };
 
-        if (spec === "largest-component") {
-            return sources.components !== undefined;
-        }
+    /**
+     * How a scope reads, following the set it names.
+     * @param spec - The scope.
+     * @returns The reading.
+     */
+    const readingOf = (spec: Scope): EdgeReading =>
+        readingOfScope(spec, referentReading({ referent: (id) => kept.get(id)?.definition })) as EdgeReading;
 
-        if ("set" in spec) {
-            const record = saved.get(spec.set);
-
-            if (record === undefined || seen.has(spec.set)) {
-                return false;
+    /**
+     * The definition `save` keeps a specification as (design/sets 16). The live keywords are
+     * frozen into their current members: a kept set that followed the selection would change on
+     * every click.
+     * @param spec - A checked specification.
+     * @returns The definition.
+     */
+    const definitionOf = (spec: Scope): SetDefinitionInput => {
+        if (spec === "selection" || spec === "visible") {
+            const { resolution, graph } = membershipOf(spec);
+            // The same refusal as createFrom: a save freezes the members, so an empty one would be
+            // a set that stays empty, not one that follows later clicks as it did in 2.x.
+            if (resolution.nodeCount === 0 && resolution.edgeCount === 0) {
+                throw new GraphtyError({
+                    code: "E_SCOPE_EMPTY",
+                    message: `The ${spec} holds no nodes and no edges, so there is nothing to save. A saved "${spec}" keeps the members it has now.`,
+                    source: "run",
+                    details: { scope: spec },
+                });
             }
 
-            seen.add(spec.set);
+            return frozenDefinition(resolution, graph);
+        }
 
-            return canBind(record.spec, seen);
+        if (spec === "graph" || spec === "largest-component" || "set" in spec) {
+            return { kind: "rule", where: { kind: "member", of: spec }, reading: readingOf(spec) };
         }
 
         if ("where" in spec) {
-            return sources.match !== undefined;
+            return { kind: "rule", where: spec.where, reading: "induced" };
         }
 
-        const { graph } = current();
+        if ("define" in spec) {
+            return spec.define;
+        }
 
-        return spec.nodes.some((id) => graph.ids.indexOf(id) !== INVALID_INDEX);
+        return { kind: "fixed", nodes: spec.nodes, reading: "induced" };
+    };
+
+    /**
+     * The specification `list` shows for a definition: the form `save` keeps it as, else
+     * `{ define }`.
+     * @param definition - A kept definition.
+     * @returns The specification.
+     */
+    const projectionOf = (definition: SetDefinition): Scope => {
+        if (definition.kind === "fixed" && definition.reading === "induced" && definition.edges === undefined) {
+            return { nodes: definition.nodes };
+        }
+
+        if (definition.kind === "rule" && definition.reading === "induced" && typeof definition.where === "string") {
+            return { where: definition.where };
+        }
+
+        if (definition.kind === "rule" && typeof definition.where === "object" && definition.where.kind === "member") {
+            const { of: scope } = definition.where;
+            const named =
+                scope === "graph" || scope === "largest-component" || (typeof scope === "object" && "set" in scope);
+            if (named && definition.reading === readingOf(scope)) {
+                return scope;
+            }
+        }
+
+        return { define: definition };
     };
 
     /**
@@ -892,30 +796,64 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      */
     const resolveNow = (spec: Scope): ResolvedScope => {
         assertScope(spec);
-        const members = membershipOf(spec);
+        const { resolution, graph } = membershipOf(spec);
+        const resolved = resolvedScopeOf(resolution, graph, spec);
+        resolutionsBehind.set(resolved, { resolution, graph, reading: readingOf(spec), now: () => membershipOf(spec) });
 
-        // A fresh object per call, so `resolvedAt` is when it was asked rather than when the walk
-        // behind it happened to be cached.
-        return Object.freeze({
-            nodes: members.nodes,
-            edges: members.edges,
-            nodeCount: members.nodes.size,
-            edgeCount: members.edges.size,
-            digest: members.digest,
-            spec,
-            resolvedAt: new Date().toISOString(),
-        });
+        return resolved;
     };
 
     return {
         resolveNow,
 
-        resolve(spec: Scope): Promise<ResolvedScope> {
-            return Promise.resolve(resolveNow(spec));
+        canonical: scopeOf,
+
+        admit<T>(value: T): T {
+            const admitted = stabiliseEdgeRefs(value, stable);
+            assertIssued(admitted as Scope, kept);
+
+            return admitted;
         },
 
-        count(spec: Scope, options: ScopeCountOptions = {}): Promise<ScopeCount> {
+        sets,
+
+        resolutionOf(spec: Scope): { resolution: Resolution; graph: GraphSnapshot } {
             assertScope(spec);
+
+            return membershipOf(spec);
+        },
+
+        readingOf,
+
+        contextNow: context,
+
+        leafOf(spec: Scope): ScopeLeaf {
+            const active = context();
+            try {
+                return scopeLeafIn(spec, active);
+            } catch (error) {
+                if (!isGraphtyError(error)) {
+                    throw error;
+                }
+
+                // Nothing throws in a pass: a reference that cannot be resolved speaks nothing.
+                return { nodes: makeMask(active.snapshot.nodeCount), edges: null };
+            }
+        },
+
+        nodeIdsOf(spec: Scope): readonly NodeId[] {
+            assertScope(spec);
+            const { resolution, graph } = membershipOf(spec);
+
+            return Array.from(maskToIndices(resolution.nodes, graph.nodeCount), (index) => graph.ids.idOf(index));
+        },
+
+        resolve(input: ScopeInput): Promise<ResolvedScope> {
+            return Promise.resolve(resolveNow(scopeOf(input)));
+        },
+
+        count(input: ScopeInput, options: ScopeCountOptions = {}): Promise<ScopeCount> {
+            const spec = scopeOf(input);
             const sample = options.sample ?? DEFAULT_SCOPE_SAMPLE;
 
             if (!Number.isInteger(sample) || sample <= 0) {
@@ -927,21 +865,36 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 });
             }
 
-            const { graph } = current();
+            // A kept set is counted from its resolution, which says what it names that is gone. A
+            // removed set counts from its kept record; one whose record was dropped, or whose
+            // definition cannot be evaluated, counts nothing rather than throwing, so a panel
+            // counting every row never throws; an id never issued refuses.
+            if (typeof spec === "object" && "set" in spec) {
+                const record = kept.get(spec.set);
+                if (record !== undefined) {
+                    return Promise.resolve(countOf(resolveSet(record, context()), record.definition.kind));
+                }
 
-            // The whole graph is two numbers the snapshot already holds, so it never walks, and
-            // a session with nothing hidden reaches the same two numbers through "visible".
+                if (kept.register().has(spec.set) && kept.tombstone(spec.set)?.record === undefined) {
+                    return Promise.resolve({ nodes: 0, edges: 0, exact: true });
+                }
+            }
+
+            const graph = sources.snapshot();
+
+            // The whole graph is two numbers the snapshot already holds, and a session with
+            // nothing hidden reaches the same two numbers through "visible".
             if (spec === "graph" || (spec === "visible" && sources.visibility === undefined)) {
                 return Promise.resolve({ nodes: graph.nodeCount, edges: graph.edgeCount, exact: true });
             }
 
-            const nodes = nodesOf(spec);
-
             if (options.approximate === true) {
-                return Promise.resolve(estimateEdges(nodes, graph, sample));
+                return Promise.resolve(estimateEdges(spec, graph, sample));
             }
 
-            return Promise.resolve({ nodes: nodes.mask.size, edges: countEdges(nodes, graph), exact: true });
+            const { resolution } = membershipOf(spec);
+
+            return Promise.resolve(countOf(resolution, undefined));
         },
 
         save(name: string, spec: Scope): ScopeId {
@@ -957,7 +910,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 });
             }
 
-            for (const record of saved.values()) {
+            for (const record of kept.values()) {
                 if (record.name === trimmed) {
                     throw new GraphtyError({
                         code: "E_DUPLICATE_ID",
@@ -971,56 +924,34 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
             // A saved set that names a set nothing holds can only be a mistake, and it is one the
             // caller can still fix at this point.
-            if (typeof spec === "object" && "set" in spec && !saved.has(spec.set)) {
+            if (typeof spec === "object" && "set" in spec && kept.get(spec.set) === undefined) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
                     message: `No saved scope is called "${spec.set}".`,
                     source: "run",
                     target: { kind: "scope", id: spec.set },
-                    details: { scope: spec, available: [...saved.keys()] },
+                    details: { scope: spec, available: kept.list().map((record) => record.id) },
                 });
             }
 
-            const base = `set_${slugOf(trimmed)}`;
-            let id = base;
-            let suffix = 2;
-
-            while (saved.has(id)) {
-                id = `${base}_${suffix}`;
-                suffix += 1;
-            }
-
-            saved.set(id, { id, name: trimmed, spec });
-            savedRevision += 1;
-
-            return id;
+            return sets.create(definitionOf(spec), { name: trimmed });
         },
 
         list(): readonly SavedScope[] {
             return Object.freeze(
-                [...saved.values()].map((record) =>
+                kept.list().map((record) =>
                     Object.freeze({
                         id: record.id,
                         name: record.name,
-                        spec: record.spec,
-                        bound: canBind(record.spec, new Set<ScopeId>()),
+                        spec: projectionOf(record.definition),
+                        bound: bound(record),
                     }),
                 ),
             );
         },
 
         remove(id: ScopeId): void {
-            if (!saved.delete(id)) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `No saved scope is called "${id}", so there is nothing to remove.`,
-                    source: "run",
-                    target: { kind: "scope", id },
-                    details: { available: [...saved.keys()] },
-                });
-            }
-
-            savedRevision += 1;
+            sets.remove(id);
         },
     };
 }

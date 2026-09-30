@@ -52,7 +52,7 @@ import {
     type LossNote,
 } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
-import { CORPUS_FORMATS, CORPUS_ROOT, corpusFiles, type CorpusFormat } from "../helpers/corpus.js";
+import { CORPUS_FORMATS, CORPUS_ROOT, corpusFiles, type CorpusFormat, corpusOptions } from "../helpers/corpus.js";
 import { compareSnapshots, describeDiffs, type SnapshotDiff, valuesEqual } from "../helpers/roundtrip.js";
 
 // ============================================================ the format pairs
@@ -129,6 +129,8 @@ interface Input {
     readonly importOptions: AnyImportOptions;
     /** Whether the file is a node table (CSV) with no edge rows. */
     readonly nodeTable: boolean;
+    /** Whether the file is a CSV adjacency table. */
+    readonly adjacency?: boolean;
 }
 
 /** Files under the corpus directories that are not graphs at all (a saved HTTP error page). */
@@ -148,7 +150,7 @@ function importOptionsFor(format: CorpusFormat, name: string): AnyImportOptions 
     if (format === "csv" && name === "got-edges.csv") {
         return { nodes: corpusText("csv", "got-nodes.csv") };
     }
-    return {};
+    return { ...corpusOptions(format, name) };
 }
 
 function allInputs(): Input[] {
@@ -171,7 +173,9 @@ function allInputs(): Input[] {
                 format,
                 text: corpusText(format, name),
                 importOptions: importOptionsFor(format, name),
-                nodeTable: format === "csv" && name === "got-nodes.csv",
+                nodeTable:
+                    format === "csv" && (name === "got-nodes.csv" || corpusOptions(format, name).table === "nodes"),
+                adjacency: format === "csv" && corpusOptions(format, name).table === "adjacency",
             });
         }
     }
@@ -228,7 +232,8 @@ const META_KEYS = [
 
 /**
  * Differences in graph meta (design 5.9). sourceVersion is exempt (an exporter writes its own
- * version); idType / mode / graphId may be added by an exporter that always writes a header value.
+ * version); idType / mode / graphId and gml's directed key may be added by an exporter that always
+ * writes a header value.
  */
 function metaDiffs(expected: GraphSnapshot, actual: GraphSnapshot): SnapshotDiff[] {
     const diffs: SnapshotDiff[] = [];
@@ -247,6 +252,11 @@ function metaDiffs(expected: GraphSnapshot, actual: GraphSnapshot): SnapshotDiff
                 if (egr.graphId === null && agr.graphId === "G") {
                     aa.graphml = { ...agr, graphId: null };
                 }
+            }
+            // the gml exporter always writes a directed key, so a source that relied on the
+            // default comes back with the key the exporter wrote for its direction
+            if (ee.gml === undefined && valuesEqual(aa.gml, { directed: expected.directed ? "1" : "0" }, 0)) {
+                delete aa.gml;
             }
             if (!valuesEqual(ee, aa, 0)) {
                 diffs.push({
@@ -731,6 +741,9 @@ function sameFormatExportOptions(input: Input, snapshot: GraphSnapshot): AnyExpo
     if (input.nodeTable) {
         options.table = "nodes";
     }
+    if (input.adjacency === true) {
+        options.table = "adjacency";
+    }
     if (input.format === "graphml") {
         options.sanitizeIds = "mangle";
     }
@@ -761,6 +774,9 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
             }
             if (input.nodeTable) {
                 importOptions.table = "nodes";
+            }
+            if (input.adjacency === true) {
+                importOptions.table = "adjacency";
             }
             const builder = new GraphBuilder({ directed: snapshot.directed, weightDtype: "f64" });
             const again = await importer.import(text, builder, importOptions);
@@ -804,6 +820,9 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
             const text = await exporter.exportToString(snapshot, exportOptions);
             const builder = new GraphBuilder({ directed: snapshot.directed, weightDtype: "f64" });
             const importOptions: AnyImportOptions = input.nodeTable ? { table: "nodes" } : {};
+            if (input.adjacency === true) {
+                importOptions.table = "adjacency";
+            }
             await importer.import(text, builder, importOptions);
             const result = builder.freeze();
             const diffs = metaDiffs(snapshot, result);

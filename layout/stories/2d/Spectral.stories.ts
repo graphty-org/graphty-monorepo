@@ -4,20 +4,15 @@
  * Demonstrates spectral layout using eigenvectors of the graph Laplacian.
  * Shows animation from random initial positions to final spectral positions.
  *
- * IMPORTANT: This story uses the actual spectralLayout implementation
+ * IMPORTANT: This story uses the actual spectral implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { spectralLayout } from "@graphty/layout";
+import { spectral, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -47,13 +42,13 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final spectral layout using actual algorithm
-    const finalPositions = spectralLayout(layoutGraph, scale, [0, 0], 2, seed);
+    const finalPositions = toPositionMap(spectral(snapshot, { scale, center: [0, 0], seed }), snapshot.ids);
 
     // Create container
     const { container, svg } = createStoryContainer();
@@ -64,10 +59,7 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
     // Create info panel
     const infoPanel = createInfoPanel("Spectral Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(
-        infoPanel,
-        `Uses eigenvectors of the graph Laplacian with scale ${scale}.`,
-    );
+    updateInfoPanel(infoPanel, `Uses eigenvectors of the graph Laplacian with scale ${scale}.`);
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -117,15 +109,7 @@ const meta: Meta<SpectralArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         scale: {
@@ -152,7 +136,7 @@ type Story = StoryObj<SpectralArgs>;
 /**
  * Spectral layout story - positions nodes using eigenvectors of the Laplacian.
  *
- * This story uses the actual `spectralLayout()` function from @graphty/layout.
+ * This story uses the actual `spectral()` function from @graphty/layout.
  * The play function animates from random positions to the spectral arrangement.
  */
 export const Spectral: Story = {

@@ -134,14 +134,18 @@ function symmetric(positions: F32): F32 {
  * A fixture's snapshot and scene start: random20k at the adapter's scale with its positions made symmetric, or
  * karate under the one-cell placement.
  * @param name - a LAW_FIXTURES entry
+ * @param scale - the random20k scale (default: the adapter's)
  * @returns the snapshot and the scene start (a copy)
  */
-export function lawFixture(name: string): { readonly snapshot: GraphSnapshot; readonly start: F32 } {
+export function lawFixture(
+    name: string,
+    scale = isSoftware() ? LAW_SOFTWARE_SCALE : 1,
+): { readonly snapshot: GraphSnapshot; readonly start: F32 } {
     if (name === "onecell34") {
         const { snapshot } = fixture("karate");
         return { snapshot, start: oneCellStart(snapshot.nodeCount) };
     }
-    const f = fixture(name, isSoftware() ? LAW_SOFTWARE_SCALE : 1);
+    const f = fixture(name, scale);
     if (f.positions === null) {
         throw new Error(`fixture ${name} supplies no positions`);
     }

@@ -30,7 +30,7 @@ export default defineConfig({
         // The library build owns dist/. This one adds a file to it rather than replacing it.
         emptyOutDir: false,
         lib: {
-            entry: `${here}index.ts`,
+            entry: `${here}bundle.ts`,
             fileName: (): string => "graphty.bundle.js",
             formats: ["es"],
         },

@@ -117,13 +117,16 @@ export * from "./src/config/palettes/index";
 // Layout Engine
 // =============================================================================
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
-export { LayoutEngine, SimpleLayoutConfig, SimpleLayoutEngine } from "./src/layout/LayoutEngine";
+export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
+export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 
 // =============================================================================
 // Data Sources
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
+export type { ExportGraphOptions, ExportResult } from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -142,6 +145,20 @@ export { Algorithm } from "./src/algorithms/Algorithm";
 export { registerCameraView } from "./src/catalog/cameraRegistry";
 export { registerLogSink } from "./src/catalog/logSinkRegistry";
 export { registerPalette } from "./src/catalog/paletteRegistry";
+export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
+export { registerFormatWriter } from "./src/catalog/writerRegistry";
+export type {
+    SnapshotLayoutAnswer,
+    SnapshotLayoutInput,
+    SnapshotLayoutProgress,
+    SnapshotLayoutRegistration,
+} from "./src/layout/SnapshotLayoutEngine";
+export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
+// The simple tier's verbs, so a page with no build step reaches them from the bundle too.
+export { defineAlgorithm } from "./src/simple/defineAlgorithm";
+export { defineLayout } from "./src/simple/defineLayout";
+export { defineLogDestination } from "./src/simple/defineLogDestination";
+export { definePalette } from "./src/simple/definePalette";
 
 // =============================================================================
 // Events
@@ -159,6 +176,7 @@ export type {
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
+    GraphDataClearedEvent,
     GraphDataLoadedEvent,
     GraphErrorEvent,
     GraphEvent,
@@ -177,6 +195,7 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    StyleChangedEvent,
 } from "./src/events";
 
 // =============================================================================
@@ -204,7 +223,7 @@ export type { GraphContext, GraphContextConfig } from "./src/managers/index";
 // =============================================================================
 // Operation Queue Types
 // =============================================================================
-export type { QueueableOptions, RunAlgorithmOptions } from "./src/utils/queue-migration";
+export type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./src/utils/queue-migration";
 
 // =============================================================================
 // Constants

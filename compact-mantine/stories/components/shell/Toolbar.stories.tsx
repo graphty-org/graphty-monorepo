@@ -217,6 +217,17 @@ export const PickFromFlyout: Story = {
         // The picked tool is now the toolbar's Tab stop (spec 11.1).
         await waitFor(() => expect(face).toHaveFocus());
         await expect(face).toHaveAttribute("tabindex", "0");
+        // Focus shows the face's tooltip after the 1000 ms cold delay (spec 8.3). Wait for it, so the
+        // story ends settled: a screenshot taken while that timer runs shows the tooltip or not
+        // depending on how long the capture took.
+        await waitFor(
+            () => {
+                const tip = within(document.body).getByRole("tooltip");
+                expect(tip).toHaveTextContent(/Ellipse/);
+                expect(tip).toBeVisible();
+            },
+            { timeout: 2000 },
+        );
     },
 };
 

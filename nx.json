@@ -31,7 +31,8 @@
                     "authors": true,
                     "commitReferences": true,
                     "versionTitleDate": true
-                }
+                },
+                "renderer": "{workspaceRoot}/tools/changelog-renderer.cjs"
             }
         },
         "git": {

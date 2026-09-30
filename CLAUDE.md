@@ -441,8 +441,15 @@ scoped to it are marked breaking, so `nx.json` currently splits the release into
 
 After graphty-element 3.1.0 is released, put `nx.json` back to the single `"projects": ["*"]`
 setting (delete `release.groups`) in the next PR, so graphty-element returns to conventional
-commits from its 3.1.0 tag. Check any change here with
+commits from its 3.1.0 tag. Until that PR lands, `release.yml` refuses to release: it fails when
+the group is still in `nx.json` and no version plan is left. Check any change here with
 `pnpm exec nx release --dry-run --skip-publish`.
+
+Changelogs are rendered by `tools/changelog-renderer.cjs`, nx's default renderer with one change:
+a commit is listed under a package's "Breaking Changes" only when its scope names that package (or
+it has no scope), the same rule nx uses for the version bump. Without it, a `feat(algorithms)!`
+commit that touched one line of layout put the algorithms breaking changes into layout's patch
+changelog.
 
 ### CI Test Shards
 

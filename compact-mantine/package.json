@@ -1,6 +1,6 @@
 {
     "name": "@graphty/compact-mantine",
-    "version": "0.8.8",
+    "version": "0.8.14",
     "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
     "type": "module",
     "main": "dist/index.cjs",
@@ -71,7 +71,7 @@
         "build-storybook": "storybook build",
         "lint": "eslint && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace compact-mantine"
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace compact-mantine"
     },
     "keywords": [
         "mantine",

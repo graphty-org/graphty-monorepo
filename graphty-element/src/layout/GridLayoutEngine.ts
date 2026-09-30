@@ -1,8 +1,10 @@
-import { Edge as LayoutEdge, gridLayout, Node as LayoutNode } from "@graphty/layout";
+import type { F32 } from "@graphty/graph-format";
+import { grid } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Grid Layout
@@ -44,11 +46,13 @@ type GridLayoutOpts = Partial<GridLayoutConfigType>;
 /**
  * Grid layout engine that places nodes in rows and columns on an evenly spaced lattice
  */
-export class GridLayout extends SimpleLayoutEngine {
+export class GridLayout extends SnapshotLayoutEngine {
     static type = "grid";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = gridLayoutOptionsSchema;
-    scalingFactor = 100;
+    /** Layout units to scene units. */
+    private static readonly scale = 100;
+    protected readonly dimensions: 2 | 3;
     config: GridLayoutConfigType;
 
     /**
@@ -58,6 +62,7 @@ export class GridLayout extends SimpleLayoutEngine {
     constructor(opts: GridLayoutOpts) {
         super(opts);
         this.config = GridLayoutConfig.parse(opts);
+        this.dimensions = 2;
     }
 
     /**
@@ -74,13 +79,26 @@ export class GridLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions on the lattice
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = gridLayout({ nodes, edges }, this.config.columns, this.config.scale, this.config.center);
+    /**
+     * Compute node positions on the lattice
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            grid(input.graph, {
+                columns: this.config.columns,
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
+            GridLayout.scale,
+        );
     }
 }

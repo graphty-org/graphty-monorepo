@@ -19,7 +19,7 @@
 import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { isDisposed, styleEveryEdge, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
@@ -423,7 +423,7 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify nodes and edges
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -443,7 +443,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await applyFinalStyle(graph);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify nodes and edges
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -482,7 +482,7 @@ describe("Property Order Independence", () => {
             await delay(5);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -516,7 +516,7 @@ describe("Property Order Independence", () => {
             await delay(30);
             await applyFinalStyle(graph);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -568,7 +568,7 @@ describe("Property Order Independence", () => {
             await delay(5);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -622,7 +622,7 @@ describe("Property Order Independence", () => {
             await delay(5);
             await applyFinalStyle(graph);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -665,7 +665,7 @@ describe("Property Order Independence", () => {
             await delay(5);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -696,7 +696,7 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -723,7 +723,7 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES);
             await applyFinalStyle(graph);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -754,7 +754,7 @@ describe("Property Order Independence", () => {
             await graph.setEdges(TEST_EDGES);
             await graph.runAlgorithm("graphty", "pagerank");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -777,7 +777,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -829,7 +829,7 @@ describe("Property Order Independence", () => {
             await delay(5);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -861,7 +861,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -895,7 +895,7 @@ describe("Property Order Independence", () => {
             await delay(20);
             await applyFinalStyle(graph);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -918,7 +918,7 @@ describe("Property Order Independence", () => {
             await delay(20);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -947,7 +947,7 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -988,7 +988,7 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1024,7 +1024,7 @@ describe("Property Order Independence", () => {
             await delay(2);
             await graph.setLayout("circular");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1050,7 +1050,7 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1072,7 +1072,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1112,7 +1112,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1143,7 +1143,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1172,7 +1172,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1208,7 +1208,7 @@ describe("Property Order Independence", () => {
             await delay(10);
             await applyFinalStyle(graph);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1236,7 +1236,7 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we switched to 2D mode
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode after switch");
@@ -1257,7 +1257,7 @@ describe("Property Order Independence", () => {
 
             // Initial 3D style
             await applyFinalStyle(graph);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // The mesh positions are synced from the layout engine on the frame loop, so they
             // are asked for explicitly here: a Z read before the sync is 0, and a test that
@@ -1275,7 +1275,7 @@ describe("Property Order Independence", () => {
             // Switch to 2D
             await delay(5);
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are flattened
             verify2DModePositions();
@@ -1283,7 +1283,7 @@ describe("Property Order Independence", () => {
             // Switch back to 3D
             await delay(5);
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are restored
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode after switch back");
@@ -1304,7 +1304,7 @@ describe("Property Order Independence", () => {
             // Switch to 2D again
             await delay(5);
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are flattened again
             verify2DModePositions();
@@ -1312,7 +1312,7 @@ describe("Property Order Independence", () => {
             // Final: back to 3D
             await delay(5);
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1357,7 +1357,7 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1381,7 +1381,7 @@ describe("Property Order Independence", () => {
             await delay(20);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1414,7 +1414,7 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1456,7 +1456,7 @@ describe("Property Order Independence", () => {
             await applyFinalStyle(graph);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1504,7 +1504,7 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1548,7 +1548,7 @@ describe("Property Order Independence", () => {
             await graph.addNodes(TEST_NODES);
             await graph.setEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
@@ -1581,13 +1581,12 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
-
         });
 
         it("Variant 34: Cancel algorithm + camera", async () => {
@@ -1611,13 +1610,12 @@ describe("Property Order Independence", () => {
             await delay(10);
             await graph.setViewMode("3d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify final state
             assert.equal(graph.getNodeCount(), 6, "Should have 6 nodes");
             assert.equal(graph.getEdgeCount(), 6, "Should have 6 edges");
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode");
-
         });
     });
 });

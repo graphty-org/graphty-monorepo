@@ -5,9 +5,6 @@ import type { Graph, Node } from "../types";
 /** One undirected copy per directed snapshot, never two (graph-format design 14.3). */
 const undirectedCache = new WeakMap<GraphSnapshot, GraphSnapshot>();
 
-/** One snapshot per (duck-typed graph or node list, weightAttr): the same object read through another attribute is another graph. */
-const walkCache = new WeakMap<object, Map<string | null, GraphSnapshot>>();
-
 /**
  * The weight a legacy getEdgeData result stands for: null and undefined leave the edge unweighted (the same as no
  * getEdgeData at all), a string is coerced with Number() so a non-numeric string is NaN and the builder's own
@@ -27,9 +24,9 @@ function legacyWeight(raw: unknown): number | undefined {
 
 /**
  * The undirected snapshot of a layout input (graph-format design 14.3): a snapshot is returned as its undirected
- * derived graph (the input itself when already undirected); a legacy duck-typed graph is walked once per
- * (object, weightAttr) and cached, so the same object laid out unweighted and then through "w" yields two
- * snapshots; a node list becomes an edgeless snapshot. A getEdgeData result of null or undefined leaves that edge
+ * derived graph (the input itself when already undirected); a legacy duck-typed graph is walked on every call,
+ * never cached by object identity, because nothing tells a mutated object from an unchanged one; a node list
+ * becomes an edgeless snapshot. A getEdgeData result of null or undefined leaves that edge
  * unweighted and a string is coerced with Number() (a non-numeric string is NaN, which the builder rejects).
  * @param G - the input
  * @param weightAttr - the edge attribute read through getEdgeData, or null for unweighted
@@ -49,15 +46,6 @@ export function toLayoutSnapshot(G: Graph | Node[] | GraphSnapshot, weightAttr: 
         undirectedCache.set(G, undirected);
         return undirected;
     }
-    let perAttr = walkCache.get(G);
-    if (perAttr === undefined) {
-        perAttr = new Map();
-        walkCache.set(G, perAttr);
-    }
-    const hit = perAttr.get(weightAttr);
-    if (hit !== undefined) {
-        return hit;
-    }
     // weighted "auto": the snapshot carries weights only when getEdgeData supplied some (an explicit 1 would
     // mark every edge weighted); addMissingNodes defaults to true
     const builder = new GraphBuilder({ directed: false, weighted: "auto" });
@@ -73,7 +61,5 @@ export function toLayoutSnapshot(G: Graph | Node[] | GraphSnapshot, weightAttr: 
             builder.addEdge(source, target, legacyWeight(raw));
         }
     }
-    const snapshot = builder.freeze();
-    perAttr.set(weightAttr, snapshot);
-    return snapshot;
+    return builder.freeze();
 }

@@ -1,217 +1,177 @@
 # Link Prediction
 
-Link prediction algorithms estimate the likelihood that two nodes will be connected in the future. These are useful for recommendation systems, knowledge graph completion, and social network analysis.
+Link prediction algorithms estimate the likelihood that two nodes will be connected in the future. They are useful for
+recommendation systems, knowledge graph completion, and social network analysis.
+
+Each function takes a graph snapshot (see [Graph Data Structure](./graph.md)) and node indices. A neighbour reached by
+parallel edges counts once.
 
 ## Overview
 
-Link prediction measures typically use the local neighborhood of two nodes to estimate connection probability.
-
-| Method | Based On | Best For |
-|--------|----------|----------|
-| Common Neighbors | Shared connections | Social networks |
-| Jaccard Coefficient | Relative overlap | Sparse networks |
-| Adamic-Adar | Weighted shared connections | General use |
-| Preferential Attachment | Degree product | Growing networks |
-| Resource Allocation | Resource distribution | Dense networks |
+| Method           | Based On                                 | Best For        |
+| ---------------- | ---------------------------------------- | --------------- |
+| Common Neighbors | Shared connections                       | Social networks |
+| Adamic-Adar      | Shared connections, rare ones weigh more | General use     |
 
 ## Common Neighbors
 
-The simplest approach: count shared neighbors.
+The simplest approach: count shared neighbours.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, commonNeighbors } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { commonNeighborsScore } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-graph.addEdge("alice", "bob");
-graph.addEdge("alice", "carol");
-graph.addEdge("bob", "carol");
-graph.addEdge("bob", "dave");
-graph.addEdge("carol", "dave");
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob");
+builder.addEdge("alice", "carol");
+builder.addEdge("bob", "carol");
+builder.addEdge("bob", "dave");
+builder.addEdge("carol", "dave");
+const graph = builder.freeze();
 
-// How many common friends do alice and dave share?
-const cn = commonNeighbors(graph, "alice", "dave");
-console.log(`Common neighbors: ${cn}`); // 2 (bob and carol)
+// How many friends do alice and dave share?
+const score = commonNeighborsScore(graph, graph.ids.requireIndex("alice"), graph.ids.requireIndex("dave"));
+console.log(score); // 2
 ```
 
-### Batch Prediction
-
-```typescript
-import { Graph, predictLinks } from "@graphty/algorithms";
-
-const graph = new Graph<string>({ directed: false });
-// ... add edges
-
-// Get top predictions for a specific node
-const predictions = predictLinks(graph, "alice", {
-  method: "common-neighbors",
-  limit: 5,
-});
-
-for (const { node, score } of predictions) {
-  console.log(`${node}: ${score} common neighbors`);
-}
-```
-
-## Jaccard Coefficient
-
-Normalizes common neighbors by total neighborhood size.
-
-```typescript
-import { Graph, jaccardCoefficient } from "@graphty/algorithms";
-
-const graph = new Graph<string>({ directed: false });
-// ... add edges
-
-const score = jaccardCoefficient(graph, "alice", "dave");
-// |neighbors(alice) ∩ neighbors(dave)| / |neighbors(alice) ∪ neighbors(dave)|
-console.log(`Jaccard similarity: ${score.toFixed(3)}`);
-```
+On a directed graph, pass `{ directed: true }` to count the nodes on a path u -> z -> v; without it the out-neighbours
+of both nodes are compared.
 
 ## Adamic-Adar Index
 
-Weighs common neighbors by their inverse log degree. Nodes with fewer connections contribute more to the score.
+Weighs each common neighbour by the inverse logarithm of its degree, so neighbours with fewer connections contribute
+more to the score.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, adamicAdar } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { adamicAdarScore } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob");
+builder.addEdge("alice", "carol");
+builder.addEdge("bob", "carol");
+builder.addEdge("bob", "dave");
+builder.addEdge("carol", "dave");
+const graph = builder.freeze();
 
-const score = adamicAdar(graph, "alice", "dave");
-// Sum of 1/log(degree) for each common neighbor
-console.log(`Adamic-Adar score: ${score.toFixed(3)}`);
+// The sum of 1 / log(degree) over the common neighbours
+const score = adamicAdarScore(graph, graph.ids.requireIndex("alice"), graph.ids.requireIndex("dave"));
+console.log(score.toFixed(3)); // 1.820
 ```
 
 ::: tip
-Adamic-Adar often outperforms simpler methods because it down-weights common neighbors that are connected to everyone (high-degree hubs).
+Adamic-Adar often outperforms plain common neighbours because it down-weights neighbours that are connected to everyone
+(high-degree hubs).
 :::
 
-## Preferential Attachment
+## Scoring Many Pairs
 
-Based on the observation that well-connected nodes tend to attract more connections.
+`commonNeighborsForPairs` and `adamicAdarForPairs` score a list of pairs, given as two parallel index lists, and return
+one score per pair:
 
-```typescript
-import { Graph, preferentialAttachment } from "@graphty/algorithms";
-
-const graph = new Graph<string>({ directed: false });
-// ... add edges
-
-const score = preferentialAttachment(graph, "alice", "dave");
-// degree(alice) × degree(dave)
-console.log(`Preferential attachment: ${score}`);
-```
-
-## Resource Allocation Index
-
-Similar to Adamic-Adar but uses 1/degree instead of 1/log(degree).
+<!-- doc-check -->
 
 ```typescript
-import { Graph, resourceAllocation } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { commonNeighborsForPairs } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "d");
+builder.addEdge("a", "c");
+const graph = builder.freeze();
+const [a, b, c, d] = ["a", "b", "c", "d"].map((id) => graph.ids.requireIndex(id));
 
-const score = resourceAllocation(graph, "alice", "dave");
-// Sum of 1/degree for each common neighbor
-console.log(`Resource allocation: ${score.toFixed(3)}`);
+const scores = commonNeighborsForPairs(graph, { sources: [a, b], targets: [d, d] });
+console.log(scores); // [1, 1]
 ```
 
 ## All-Pairs Prediction
 
-Predict links for all non-connected node pairs.
+Rank every pair of nodes not yet joined by an edge, highest score first:
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, allLinkPredictions } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { adamicAdarPrediction } from "@graphty/algorithms";
 
-const graph = new Graph<string>({ directed: false });
-// ... add edges
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob");
+builder.addEdge("alice", "carol");
+builder.addEdge("bob", "dave");
+builder.addEdge("carol", "dave");
+builder.addEdge("dave", "eve");
+const graph = builder.freeze();
+const name = (i: number) => String(graph.ids.idOf(i));
 
-const predictions = allLinkPredictions(graph, {
-  method: "adamic-adar",
-  limit: 100, // Top 100 predictions
-  minScore: 0.1, // Minimum score threshold
-});
-
-for (const { source, target, score } of predictions) {
-  console.log(`${source} - ${target}: ${score.toFixed(3)}`);
+const top = adamicAdarPrediction(graph, { topK: 3 });
+for (let k = 0; k < top.scores.length; k++) {
+    console.log(`${name(top.sources[k])} - ${name(top.targets[k])}: ${top.scores[k].toFixed(3)}`);
 }
+console.log(`${name(top.sources[0])} - ${name(top.targets[0])}`); // alice - dave
 ```
+
+`commonNeighborsPrediction(graph, { topK })` ranks by common neighbours instead, and `includeExisting: true`
+also scores pairs that are already joined.
 
 ## Practical Example: Friend Recommendations
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph, predictLinks } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { getTopAdamicAdarCandidatesForNode } from "@graphty/algorithms";
 
-// Social network
-const social = new Graph<string>({ directed: false });
-social.addEdge("alice", "bob");
-social.addEdge("alice", "carol");
-social.addEdge("bob", "carol");
-social.addEdge("bob", "dave");
-social.addEdge("carol", "dave");
-social.addEdge("carol", "eve");
-social.addEdge("dave", "eve");
-social.addEdge("dave", "frank");
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob");
+builder.addEdge("alice", "carol");
+builder.addEdge("bob", "carol");
+builder.addEdge("bob", "dave");
+builder.addEdge("carol", "dave");
+builder.addEdge("carol", "eve");
+builder.addEdge("dave", "eve");
+builder.addEdge("dave", "frank");
+const social = builder.freeze();
 
-// Get friend recommendations for alice
-const recommendations = predictLinks(social, "alice", {
-  method: "adamic-adar",
-  limit: 3,
+// The best candidates for alice, among the people she does not know yet
+const recommendations = getTopAdamicAdarCandidatesForNode(social, social.ids.requireIndex("alice"), {
+    topK: 3,
 });
-
-console.log("Friend recommendations for Alice:");
-for (const { node, score } of recommendations) {
-  console.log(`  ${node} (score: ${score.toFixed(2)})`);
-}
-// Likely: dave (connected through bob and carol)
+console.log(Array.from(recommendations.targets, (i) => social.ids.idOf(i))); // ["dave", "eve"]
 ```
 
-## Knowledge Graph Completion
+`getTopCandidatesForNode` does the same by common neighbours.
+
+## Evaluating a Predictor
+
+Hold some edges out of the graph, then ask how well each method ranks them above pairs that are not edges:
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, predictLinks } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { compareAdamicAdarWithCommonNeighbors } from "@graphty/algorithms";
 
-// Entity relationship graph
-const kg = new Graph<string>({ directed: true });
-kg.addEdge("Python", "uses", { target: "object-oriented" });
-kg.addEdge("Java", "uses", { target: "object-oriented" });
-kg.addEdge("Python", "used_for", { target: "data-science" });
-kg.addEdge("R", "used_for", { target: "data-science" });
-// ... more relationships
+// The training graph, without the held-out edge a-d
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("a", "c");
+builder.addEdge("b", "d");
+builder.addEdge("c", "d");
+builder.addEdge("d", "e");
+const graph = builder.freeze();
+const [a, b, c, d, e] = ["a", "b", "c", "d", "e"].map((id) => graph.ids.requireIndex(id));
 
-// What concepts might Python be related to?
-const predictions = predictLinks(kg, "Python", {
-  method: "common-neighbors",
-  limit: 5,
-});
-
-console.log("Predicted relationships for Python:");
-for (const { node, score } of predictions) {
-  console.log(`  ${node}`);
-}
+const heldOut = { sources: [a], targets: [d] };
+const nonEdges = { sources: [a, b], targets: [e, c] };
+const { adamicAdar, commonNeighbors } = compareAdamicAdarWithCommonNeighbors(graph, heldOut, nonEdges);
+console.log(adamicAdar.auc, commonNeighbors.auc); // 1 1
 ```
 
-## Method Comparison
-
-```typescript
-import {
-  Graph,
-  commonNeighbors,
-  jaccardCoefficient,
-  adamicAdar,
-  preferentialAttachment
-} from "@graphty/algorithms";
-
-const graph = new Graph<string>({ directed: false });
-// ... add edges
-
-// Compare methods for a specific pair
-const nodeA = "alice";
-const nodeB = "frank";
-
-console.log(`Link prediction scores for ${nodeA} - ${nodeB}:`);
-console.log(`  Common Neighbors: ${commonNeighbors(graph, nodeA, nodeB)}`);
-console.log(`  Jaccard: ${jaccardCoefficient(graph, nodeA, nodeB).toFixed(3)}`);
-console.log(`  Adamic-Adar: ${adamicAdar(graph, nodeA, nodeB).toFixed(3)}`);
-console.log(`  Preferential: ${preferentialAttachment(graph, nodeA, nodeB)}`);
-```
+Each result carries the `precision`, `recall` and `f1Score` of the best threshold and the ranking `auc`.

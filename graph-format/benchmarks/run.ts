@@ -1,5 +1,5 @@
 /**
- * Benchmark runner for @graphty/graph-format (design section 15.5). Runs the freeze, id-map and
+ * Benchmark runner for @graphty/graph-format (design section 15.5). Runs the freeze, id-map, mask and
  * view benchmarks, prints one table per group and appends the session to
  * `benchmarks/results/<host>-<node>.json`.
  *
@@ -14,11 +14,13 @@
 import { runFreezeBenchmarks } from "./freeze.bench.js";
 import { appendSession, type BenchResult, printTable } from "./harness.js";
 import { runIdBenchmarks } from "./ids.bench.js";
+import { runMaskBenchmarks } from "./masks.bench.js";
 import { runViewBenchmarks } from "./views.bench.js";
 
 const GROUPS: Readonly<Record<string, () => BenchResult[]>> = {
     freeze: runFreezeBenchmarks,
     ids: runIdBenchmarks,
+    masks: runMaskBenchmarks,
     views: runViewBenchmarks,
 };
 

@@ -39,7 +39,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
 import type { Edge } from "../../src/Edge";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import type { GraphSession } from "../../src/session";
 
@@ -143,7 +143,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         // sixteen barely-tinted pixels, which no threshold can tell from the paper. At a
         // twentieth of that the same word is some seven hundred solidly black pixels.
         await graph.setLayout("circular", { scale: 0.05 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -353,18 +353,14 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         );
 
         await session.styles.add(wordsOnNodes);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const after = await readFrame();
         const { label } = nodeObject("alpha");
 
         assert.isDefined(label, "a layer that writes words onto a node builds that node a label");
         assert.isNotNull(label.labelMesh, "and the label has a mesh in the scene");
-        assert.isAbove(
-            inkNearNode(after, "alpha"),
-            LEGIBLE,
-            "and the words are actually drawn where the node is",
-        );
+        assert.isAbove(inkNearNode(after, "alpha"), LEGIBLE, "and the words are actually drawn where the node is");
     });
 
     it("draws the words on an edge when a layer adds only edge.label", async () => {
@@ -378,7 +374,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         assert.isBelow(inkBefore, LEGIBLE, "and nothing that looks like text is on the edge");
 
         await session.styles.add(wordsOnEdges);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const after = await readFrame();
 
@@ -392,7 +388,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
     it("redraws the glyphs when a layer changes only node.labelStyle", async () => {
         const added = await session.styles.add(wordsOnNodes);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const black = await readFrame();
 
@@ -403,7 +399,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         await session.styles.update(added.id, {
             set: { "node.label": "HELLO", "node.labelStyle": { color: "#ff0000" } },
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const red = await readFrame();
 
@@ -421,7 +417,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
     it("leaves the label alone when a repaint changes something else", async () => {
         await session.styles.add(wordsOnNodes);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Rendered before the label is read, not only after: a repaint announces a dirty set and
         // `UpdateManager.syncStyles` hands it to the elements on the NEXT frame, so a paint that
@@ -440,7 +436,7 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
             selector: { match: "everything" },
             set: { "node.color": "#118844" },
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const after = await readFrame();
 
@@ -462,14 +458,14 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
 
     it("takes the label away when the layer that asked for it is removed", async () => {
         const added = await session.styles.add(wordsOnNodes);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const drawn = await readFrame();
 
         assert.isAbove(inkNearNode(drawn, "alpha"), LEGIBLE, "the words are on screen to begin with");
 
         await session.styles.remove(added.id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const gone = await readFrame();
 

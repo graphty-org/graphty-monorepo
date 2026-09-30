@@ -23,6 +23,11 @@
  * seam's placeholder keys and an exact traversal has neither, so a defined value is REFUSED before any device work
  * (`E_UNSUPPORTED { option }`, the package's rule for an option it does not implement, PD-25); `undefined` is legal.
  * `iterations` reports the source batches run (the sources, on the weighted route), `converged` is always true.
+ * A SAMPLED run (`sources`, issue #426; undirected snapshots only) seeds its batches from the listed sources (the
+ * reduce's role 2 reads the list the host wrote after the per-node sums in `perSource`), and the sweep also adds each
+ * claim's distance into a per-node sum (`perNode`), read back with every submit and folded on the host in f64 into
+ * `1 / sum` per NODE, where the exact run folds per SOURCE: on an undirected graph the distance from a source to a node
+ * is the distance from the node to the source, which is what the CPU port's sampled closeness sums.
  *
  * Cost, stated so nobody is surprised: closeness is O(n x m) on any device -- at 1M nodes it is 31,250 batches of a
  * full multi-source traversal, minutes on the card, and no target in design 10.4 asks for less. `compact.record`
@@ -54,8 +59,8 @@ import { assertWholeCore } from "../primitives/core-shape.js";
 import { W } from "../primitives/frontier.js";
 import { type ReduceScope } from "../primitives/reduce.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
-import { type HitsOptionsLike } from "../types/accelerator.js";
-import { type GpuScoresResult } from "../types/algorithms.js";
+import { type ClosenessAcceleratorOptions, type HitsOptionsLike } from "../types/accelerator.js";
+import { type GpuClosenessResult } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
 import { algorithmScope } from "./scope.js";
@@ -116,10 +121,12 @@ function reusingScratch(scope: ReduceScope): ReduceScope {
 }
 
 /**
- * The weighted route: one `sssp` per source, the sums reduced on the host.
+ * The weighted route: one `sssp` per source, the sums reduced on the host. With `sources` (a sampled run on an
+ * undirected snapshot) each search adds its distances into the sums of the nodes it reaches instead of its own.
  * @param ctx - the context
  * @param s - the snapshot
  * @param scores - the destination
+ * @param sources - a sampled run's sources, or null for every node
  * @param options - the run options
  * @returns the result
  */
@@ -127,25 +134,40 @@ async function weightedRoute(
     ctx: GpuContext,
     s: GraphSnapshot,
     scores: F32,
+    sources: readonly number[] | null,
     options: GpuRunOptions | undefined,
-): Promise<GpuScoresResult> {
+): Promise<GpuClosenessResult> {
     const n = s.nodeCount;
-    for (let source = 0; source < n; source++) {
+    const count = sources?.length ?? n;
+    const totals = sources === null ? null : new Float64Array(n);
+    for (let i = 0; i < count; i++) {
         if (options?.signal?.aborted) {
             throw aborted(ALGORITHM);
         }
+        const source = sources === null ? i : sources[i];
         const { dist } = await sssp(ctx, s, source, { signal: options?.signal });
         let sum = 0;
         for (let v = 0; v < n; v++) {
             const d = dist[v];
             if (v !== source && d !== Infinity) {
-                sum += d;
+                if (totals === null) {
+                    sum += d;
+                } else {
+                    totals[v] += d;
+                }
             }
         }
-        scores[source] = sum === 0 ? 0 : 1 / sum;
-        options?.onProgress?.(source + 1, n);
+        if (totals === null) {
+            scores[source] = sum === 0 ? 0 : 1 / sum;
+        }
+        options?.onProgress?.(i + 1, count);
     }
-    return { scores, iterations: n, converged: true, precision: "f32" };
+    if (totals !== null) {
+        totals.forEach((sum, v) => {
+            scores[v] = sum === 0 ? 0 : 1 / sum;
+        });
+    }
+    return { scores, iterations: count, converged: true, precision: "f32", sourcesUsed: count };
 }
 
 /**
@@ -153,6 +175,7 @@ async function weightedRoute(
  * @param ctx - the context
  * @param s - the snapshot
  * @param scores - the destination
+ * @param sources - a sampled run's sources, or null for every node
  * @param levelsPerSubmit - the submit cadence
  * @param options - the run options
  * @param tuning - the knobs
@@ -162,13 +185,15 @@ async function sweepRoute(
     ctx: GpuContext,
     s: GraphSnapshot,
     scores: F32,
+    sources: readonly number[] | null,
     levelsPerSubmit: number,
     options: GpuRunOptions | undefined,
     tuning: ClosenessTuning,
-): Promise<GpuScoresResult> {
+): Promise<GpuClosenessResult> {
     const n = s.nodeCount;
-    if (n === 0) {
-        return { scores, iterations: 0, converged: true, precision: "f32" };
+    const seedCount = sources?.length ?? n;
+    if (seedCount === 0) {
+        return { scores, iterations: 0, converged: true, precision: "f32", sourcesUsed: 0 };
     }
     const core = ctx.residency.core(s);
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
@@ -195,7 +220,18 @@ async function sweepRoute(
             FRONTIER_COUNTERS.byteLength,
         );
         const perSourceBytes = 4 * PER_SOURCE_WORDS;
-        const perSource = bindingOf(scope.scratch(perSourceBytes, "per-source"), perSourceBytes);
+        // a sampled run appends the per-node distance sums (bitsBase words) and then its source list
+        const zeroedWords = PER_SOURCE_WORDS + (sources === null ? 0 : bitsBase);
+        const perSourceAll = 4 * (zeroedWords + (sources === null ? 0 : sources.length));
+        const perSource = bindingOf(scope.scratch(perSourceAll, "per-source"), perSourceAll);
+        if (sources !== null) {
+            ctx.device.queue.writeBuffer(
+                perSource.buffer,
+                perSource.offset + 4 * zeroedWords,
+                Uint32Array.from(sources),
+            );
+        }
+        const totals = sources === null ? null : new Float64Array(n);
         await ctx.allocator.check();
         const compact = await prepareCompact(reusingScratch(scope));
         const sweep = await ctx.pipelines.kernel(kernelSpec("closeness-sweep", graphOverrides(core, null)));
@@ -222,7 +258,7 @@ async function sweepRoute(
         ctx.assertReady();
 
         let batches = 0;
-        for (let batchStart = 0; batchStart < n; batchStart += SOURCES_PER_BATCH) {
+        for (let batchStart = 0; batchStart < seedCount; batchStart += SOURCES_PER_BATCH) {
             let level = 0;
             for (let first = true; ; first = false) {
                 const batch = new CommandBatch(ctx, `${ALGORITHM}/levels`);
@@ -231,8 +267,13 @@ async function sweepRoute(
                     // the batch's seed: the four regions and the block zeroed, then role 1 (the sources' bits, their
                     // flags, counters[0] = k, level = U32_MAX)
                     recordFill(pass, bits, 4 * bitsBase, 0);
-                    recordFill(pass, perSource, PER_SOURCE_WORDS, 0);
-                    const seed = scope.params(FRONTIER_PARAMS, { role: 1, n, bitsBase, source: batchStart });
+                    recordFill(pass, perSource, zeroedWords, 0);
+                    const seed = scope.params(FRONTIER_PARAMS, {
+                        role: sources === null ? 1 : 2,
+                        n: seedCount,
+                        bitsBase,
+                        source: batchStart,
+                    });
                     reduce.dispatch(pass, reduce.bind({ counters, perSource, bits, P: seed.binding }), onePlan, [
                         seed.offset,
                     ]);
@@ -253,6 +294,7 @@ async function sweepRoute(
                         arcEnd: s.arcCount,
                         mode,
                         stride: sweepPlan.stride ?? wg,
+                        perNode: sources === null ? 0 : 1,
                     });
                     return {
                         bound: sweep.bind({ ...graph, frontierList, counters, bits, perSource, P: params.binding }),
@@ -277,6 +319,8 @@ async function sweepRoute(
                 batch.endPass();
                 const doneRequest = batch.readback(counters.buffer, counters.offset + 4 * W.done, 4);
                 const blockRequest = batch.readback(perSource.buffer, perSource.offset, perSourceBytes);
+                const nodeRequest =
+                    totals === null ? null : batch.readback(perSource.buffer, perSource.offset + perSourceBytes, 4 * n);
                 const submitted = submit(batch);
                 const back = await submitted.readback;
                 ctx.assertReady();
@@ -285,10 +329,18 @@ async function sweepRoute(
                 }
                 if (new Uint32Array(back, doneRequest.offset, 1)[0] !== 0) {
                     const block = new Uint32Array(back, blockRequest.offset, PER_SOURCE_WORDS);
-                    const count = Math.min(SOURCES_PER_BATCH, n - batchStart);
-                    for (let i = 0; i < count; i++) {
-                        const sum = block[3 * SOURCES_PER_BATCH + i] * 2 ** 32 + block[2 * SOURCES_PER_BATCH + i];
-                        scores[batchStart + i] = sum === 0 ? 0 : 1 / sum;
+                    if (totals === null || nodeRequest === null) {
+                        const count = Math.min(SOURCES_PER_BATCH, n - batchStart);
+                        for (let i = 0; i < count; i++) {
+                            const sum = block[3 * SOURCES_PER_BATCH + i] * 2 ** 32 + block[2 * SOURCES_PER_BATCH + i];
+                            scores[batchStart + i] = sum === 0 ? 0 : 1 / sum;
+                        }
+                    } else {
+                        // at most 32 (n - 1) per node per batch, so a u32 word never wraps below 134M nodes
+                        const sums = new Uint32Array(back, nodeRequest.offset, n);
+                        for (let v = 0; v < n; v++) {
+                            totals[v] += sums[v];
+                        }
                     }
                     tuning.onBatch?.(batchStart, block.slice());
                     break;
@@ -303,12 +355,46 @@ async function sweepRoute(
                 }
             }
             batches += 1;
-            options?.onProgress?.(Math.min(batchStart + SOURCES_PER_BATCH, n), n);
+            options?.onProgress?.(Math.min(batchStart + SOURCES_PER_BATCH, seedCount), seedCount);
         }
-        return { scores, iterations: batches, converged: true, precision: "f32" };
+        totals?.forEach((sum, v) => {
+            scores[v] = sum === 0 ? 0 : 1 / sum;
+        });
+        return { scores, iterations: batches, converged: true, precision: "f32", sourcesUsed: seedCount };
     } finally {
         scope.dispose();
     }
+}
+
+/**
+ * A sampled run's sources, checked: node indices of `s`, on an undirected snapshot only.
+ * @param s - the snapshot
+ * @param sources - the caller's list, or undefined for every node
+ * @returns the list, or null for every node
+ * @throws WebGpuGraphError E_INVALID_ARGUMENT for an index outside the snapshot, E_UNSUPPORTED on a directed snapshot
+ */
+function checkSources(s: GraphSnapshot, sources: readonly number[] | undefined): readonly number[] | null {
+    if (sources === undefined) {
+        return null;
+    }
+    if (s.directed) {
+        // a search FROM a source measures distance to the nodes it reaches, which is the distance FROM them to the
+        // source only when every edge runs both ways
+        throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: sampled sources need an undirected snapshot`, {
+            feature: "closenessCentrality.directedSources",
+            hint: "run the CPU port, which searches the in-arcs",
+        });
+    }
+    for (const v of sources) {
+        if (!Number.isInteger(v) || v < 0 || v >= s.nodeCount) {
+            throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: a source is not a node index`, {
+                argument: "sources",
+                value: v,
+                expected: `an integer in [0, ${s.nodeCount})`,
+            });
+        }
+    }
+    return sources;
 }
 
 /**
@@ -316,16 +402,16 @@ async function sweepRoute(
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - the seam's `HitsOptionsLike` (`weighted` honoured, the other two refused when defined), plus dest / signal / onProgress
+ * @param options - `weighted` and a sampled run's `sources` honoured, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
  * @param tuning - the knobs
- * @returns the scores, the batches run, `converged: true` and `precision: "f32"`
+ * @returns the scores, the batches run, `converged: true`, `precision: "f32"` and `sourcesUsed`
  */
 export async function closenessWithTuning(
     ctx: GpuContext,
     s: GraphSnapshot,
-    options: (HitsOptionsLike & GpuRunOptions) | undefined,
+    options: (ClosenessAcceleratorOptions & HitsOptionsLike & GpuRunOptions) | undefined,
     tuning: ClosenessTuning,
-): Promise<GpuScoresResult> {
+): Promise<GpuClosenessResult> {
     ctx.assertReady();
     await assertDeviceComputes(ctx);
     for (const key of ["maxIterations", "tolerance"] as const) {
@@ -337,6 +423,7 @@ export async function closenessWithTuning(
         }
     }
     const n = s.nodeCount;
+    const sources = checkSources(s, options?.sources);
     const levelsPerSubmit = tuning.levelsPerSubmit ?? MAX_LEVELS_PER_SUBMIT;
     if (!Number.isInteger(levelsPerSubmit) || levelsPerSubmit < 1 || levelsPerSubmit > MAX_LEVELS_PER_SUBMIT) {
         throw new WebGpuGraphError(
@@ -370,9 +457,9 @@ export async function closenessWithTuning(
                 feature: "closenessCentrality.nonFiniteWeights",
             });
         }
-        return weightedRoute(ctx, s, scores, options);
+        return weightedRoute(ctx, s, scores, sources, options);
     }
-    return sweepRoute(ctx, s, scores, levelsPerSubmit, options, tuning);
+    return sweepRoute(ctx, s, scores, sources, levelsPerSubmit, options, tuning);
 }
 
 /**
@@ -381,15 +468,20 @@ export async function closenessWithTuning(
  * `closenessCentrality`, unweighted by one bit-parallel multi-source search per 32 sources, weighted by one `sssp`
  * per source; `weighted` defaults to the snapshot's flag, `maxIterations` / `tolerance` are refused when defined
  * (PD-25). `iterations` is the source batches run and `converged` is always true.
+ *
+ * SAMPLED (`sources`, node indices, duplicates run twice; undirected snapshots only, E_UNSUPPORTED
+ * `closenessCentrality.directedSources` otherwise): the batches seed the listed sources instead of every node, and
+ * each node's score is `1 / sum` of its distances to the sources that reach it (itself excluded), `0` when none does:
+ * the sampled score of the CPU port, unscaled. `sourcesUsed` is the list's length (`n` exact).
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - the seam's `HitsOptionsLike`, plus dest (a Float32Array of length n for `scores`) / signal / onProgress
- * @returns the scores, the batches run, `converged: true` and `precision: "f32"`
+ * @param options - `weighted`, `sources`, plus dest (a Float32Array of length n for `scores`) / signal / onProgress
+ * @returns the scores, the batches run, `converged: true`, `precision: "f32"` and `sourcesUsed`
  */
 export function closenessCentrality(
     ctx: GpuContext,
     s: GraphSnapshot,
-    options?: HitsOptionsLike & GpuRunOptions,
-): Promise<GpuScoresResult> {
+    options?: ClosenessAcceleratorOptions & HitsOptionsLike & GpuRunOptions,
+): Promise<GpuClosenessResult> {
     return closenessWithTuning(ctx, s, options, {});
 }

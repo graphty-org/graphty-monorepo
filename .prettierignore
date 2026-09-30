@@ -24,8 +24,15 @@ tmp/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 
+# Visual-review baselines: PNGs and the JSON records written with them, byte-exact
+visual-baselines/
+
 # Other
 gh-pages/
+
+# The root CLAUDE.md is hand-formatted: prettier re-indents its nested lists and folds the
+# paragraph after a list into the last item, which changes what the rules say.
+/CLAUDE.md
 
 # Conformance fixtures are byte-exact test data; the report is generated
 graph-io/test/conformance/fixtures/
@@ -37,3 +44,17 @@ algorithms/benchmark-results/
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/
+
+# Signed gate records of webgpu-graph-algorithms: history, kept word for word. Prettier rewrites
+# some of their text (a `.*` glob becomes `._`, blank signature lines become bold), not just spacing
+webgpu-graph-algorithms/docs/decisions/G[0-9]*.md
+
+# Third-party source vendored unchanged
+visual-review/trusted/vendor/
+
+# The UI design framework is hand-formatted and checked by its own script
+# (design/ui/framework/research/scripts/check-framework.mjs): prettier's rewrite of its tables,
+# lists and escapes breaks that check's cross-document pointers. The object-first rounds are
+# the frozen design record the framework cites.
+design/ui/framework/
+design/ui/object-first-ux/

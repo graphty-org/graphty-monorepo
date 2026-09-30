@@ -1,0 +1,256 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/drafts/graphty-view/v1.json",
+    "title": "graphty view document, version 1",
+    "description": "Normative for what a conforming writer produces. A reader validates camera and framing separately and keeps a view that fails (view-preset.md); only a failure of the top level refuses the document.",
+    "type": "object",
+    "required": ["kind", "version", "views"],
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "kind": {
+            "const": "graphty-view"
+        },
+        "version": {
+            "const": 1
+        },
+        "name": {
+            "type": "string"
+        },
+        "fingerprint": {
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/fingerprint"
+        },
+        "generator": {
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/generator"
+        },
+        "initial": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The id of the view to apply when the document is opened."
+        },
+        "views": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/view"
+            }
+        },
+        "extensions": {
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/extensions"
+        }
+    },
+    "$defs": {
+        "vec3": {
+            "type": "array",
+            "items": {
+                "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 3
+        },
+        "vec2": {
+            "type": "array",
+            "items": {
+                "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+        },
+        "view": {
+            "type": "object",
+            "required": ["id", "name"],
+            "anyOf": [
+                {
+                    "required": ["camera"]
+                },
+                {
+                    "required": ["framing"]
+                }
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "name": {
+                    "type": "string"
+                },
+                "caption": {
+                    "type": "string"
+                },
+                "mode": {
+                    "enum": ["2d", "3d", "vr", "ar"]
+                },
+                "camera": {
+                    "$ref": "#/$defs/camera"
+                },
+                "framing": {
+                    "$ref": "#/$defs/framing"
+                },
+                "extensions": {
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/extensions"
+                },
+                "notes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "features": {
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/features"
+                },
+                "prefer": {
+                    "enum": ["camera", "framing"]
+                },
+                "filter": {
+                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/filter"
+                },
+                "layers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "export": {
+                    "type": "object",
+                    "description": "How this view is exported as a figure (view-preset.md, Figures).",
+                    "properties": {
+                        "width": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 32768
+                        },
+                        "height": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 32768
+                        },
+                        "pixelRatio": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 16
+                        },
+                        "dpi": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        "legend": {
+                            "type": "object",
+                            "properties": {
+                                "include": {
+                                    "type": "boolean"
+                                },
+                                "placement": {
+                                    "enum": [
+                                        "top-left",
+                                        "top-right",
+                                        "bottom-left",
+                                        "bottom-right",
+                                        "outside-right",
+                                        "outside-bottom"
+                                    ]
+                                }
+                            }
+                        },
+                        "notes": {
+                            "type": "boolean",
+                            "description": "Append the view's notes as a numbered caption list; default true for a view with notes."
+                        }
+                    }
+                }
+            }
+        },
+        "camera": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["projection", "position", "target"],
+                    "properties": {
+                        "projection": {
+                            "const": "perspective"
+                        },
+                        "position": {
+                            "$ref": "#/$defs/vec3"
+                        },
+                        "target": {
+                            "$ref": "#/$defs/vec3"
+                        },
+                        "up": {
+                            "$ref": "#/$defs/vec3"
+                        },
+                        "fovDeg": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "exclusiveMaximum": 180
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "required": ["projection", "center", "height"],
+                    "properties": {
+                        "projection": {
+                            "const": "orthographic"
+                        },
+                        "center": {
+                            "$ref": "#/$defs/vec2"
+                        },
+                        "height": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        "rotationDeg": {
+                            "type": "number"
+                        }
+                    }
+                }
+            ]
+        },
+        "framing": {
+            "type": "object",
+            "required": ["cameraView"],
+            "properties": {
+                "cameraView": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "fit": {
+                    "oneOf": [
+                        {
+                            "enum": ["visible", "graph", "selection", "largest-component"]
+                        },
+                        {
+                            "type": "object",
+                            "required": ["set"],
+                            "properties": {
+                                "set": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "required": ["where"],
+                            "properties": {
+                                "where": {
+                                    "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/expression"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "params": {
+                    "type": "object"
+                }
+            }
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "https://graphty.app/schema/documents/drafts/common/v1.json#/$defs/metadata"
+        }
+    ]
+}

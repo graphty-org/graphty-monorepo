@@ -383,11 +383,15 @@ describe("GML quirks from GMLDataSource, NetworkX gml.py and research note 07", 
         expect(noId.snapshot.nodeCount).toBe(1);
         const dup = await parse('graph [ node [ id 1 label "a" ] node [ id 1 label "b" ] ]');
         expect(dup.report.issues.map((i) => i.code)).toContain("W_DUPLICATE_NODE");
-        // NetworkX accepts string-convertible ids; the importer follows the GML spec (C int) and
-        // refuses them with an explicit issue rather than silently coercing.
+        // NetworkX and Gephi write string ids; the GML spec types them as integers, so they are
+        // kept under the ids rule with one explicit warning rather than silently.
         const strings = await parse('graph [ node [ id "a" ] node [ id "b" ] edge [ source "a" target "b" ] ]');
-        expect(strings.report.issues.map((i) => i.code)).toContain("E_GML_ID_TYPE");
-        expect(strings.snapshot.nodeCount).toBe(0);
+        expect(strings.report.issues.map((i) => i.code)).toEqual(["W_GML_STRING_ID"]);
+        expect(strings.snapshot.nodeCount).toBe(2);
+        expect(strings.snapshot.edgeCount).toBe(1);
+        const reals = await parse("graph [ node [ id 1.5 ] node [ id 2 ] ]");
+        expect(reals.report.issues.map((i) => i.code)).toContain("E_GML_ID_TYPE");
+        expect(reals.snapshot.nodeCount).toBe(1);
     });
 
     it("refuses a string spanning lines (NetworkX joins them) with an explicit parse error", async () => {

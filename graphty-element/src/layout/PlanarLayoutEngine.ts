@@ -1,8 +1,10 @@
-import { Edge as LayoutEdge, Node as LayoutNode, planarLayout } from "@graphty/layout";
+import type { F32 } from "@graphty/graph-format";
+import { planar } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Planar Layout
@@ -53,11 +55,13 @@ type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
 /**
  * Planar layout engine for planar graphs (no edge crossings)
  */
-export class PlanarLayout extends SimpleLayoutEngine {
+export class PlanarLayout extends SnapshotLayoutEngine {
     static type = "planar";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
-    scalingFactor = 70;
+    /** Layout units to scene units. */
+    private static readonly scale = 70;
+    protected readonly dimensions: 2 | 3;
     config: PlanarLayoutConfigType;
 
     /**
@@ -67,6 +71,7 @@ export class PlanarLayout extends SimpleLayoutEngine {
     constructor(opts: PlanarLayoutOpts) {
         super(opts);
         this.config = PlanarLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -84,19 +89,27 @@ export class PlanarLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute planar node positions with no edge crossings
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = planarLayout(
-            { nodes, edges },
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
-            this.config.seed,
+    /**
+     * Compute planar node positions with no edge crossings
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            planar(input.graph, {
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+                seed: this.config.seed,
+            }),
+            PlanarLayout.scale,
         );
     }
 }

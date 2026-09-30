@@ -86,28 +86,6 @@ describe("types/ai", () => {
         });
     });
 
-    describe("getCreateAiManager", () => {
-        it("returns the createAiManager function", async () => {
-            const { getCreateAiManager } = await import("../ai");
-            const createAiManager = await getCreateAiManager();
-
-            expect(typeof createAiManager).toBe("function");
-        });
-
-        it("can create manager instances", async () => {
-            const { getCreateAiManager } = await import("../ai");
-            const createAiManager = await getCreateAiManager();
-            const manager = createAiManager();
-
-            expect(manager).toBeDefined();
-            expect(typeof manager.init).toBe("function");
-            expect(typeof manager.execute).toBe("function");
-            expect(typeof manager.cancel).toBe("function");
-            expect(typeof manager.dispose).toBe("function");
-            expect(typeof manager.onStatusChange).toBe("function");
-        });
-    });
-
     describe("getCreateProvider", () => {
         it("returns the createProvider function", async () => {
             const { getCreateProvider } = await import("../ai");
@@ -164,7 +142,6 @@ describe("types/ai type definitions", () => {
 
         expect(mod.getGraphtyElement).toBeDefined();
         expect(mod.getApiKeyManager).toBeDefined();
-        expect(mod.getCreateAiManager).toBeDefined();
         expect(mod.getCreateProvider).toBeDefined();
     });
 });

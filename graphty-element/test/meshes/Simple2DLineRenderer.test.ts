@@ -1,7 +1,7 @@
 import { Matrix, NullEngine, Quaternion, Scene, Vector3 } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
-import { segmentMatrixToRef } from "../../src/meshes/EdgeLineBatch";
+import { EdgeLineBatch, segmentMatrixToRef } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
 /**
@@ -68,6 +68,41 @@ describe("Simple2DLineRenderer", () => {
             );
 
             for (const corner of perEdgeCorners(start, end, width)) {
+                assert.isTrue(
+                    drawn.some((point) => point.equalsWithEpsilon(corner, 1e-5)),
+                    `corner ${corner.toString()} is drawn; the slot drew ${drawn.map(String).join(" ")}`,
+                );
+            }
+        });
+    }
+
+    // The quad lies in XY and the camera looks down Z, so a Z on an endpoint must neither stretch
+    // the line past its nodes nor tilt the slot: tilted, a line running along Y collapses to nothing.
+    for (const [name, end] of [
+        ["diagonal", new Vector3(4, 5, 20)],
+        ["along Y", new Vector3(1, 4, 20)],
+    ] as const) {
+        test(`a Z on an endpoint leaves a ${name} line flat, as long as the XY distance`, () => {
+            const start = new Vector3(1, 1, 0);
+            const width = 0.2;
+            const batch = new EdgeLineBatch(Simple2DLineRenderer.createBatchMesh(width, "#ff0000", 1, scene), scene);
+            const slot = batch.acquire();
+            batch.place(slot, start, end);
+
+            assert.closeTo(batch.lengthOf(slot), Math.hypot(end.x - start.x, end.y - start.y), 1e-6);
+
+            const positions = batch.mesh.getVerticesData("position");
+            assert.isNotNull(positions);
+            const matrix = batch.mesh.thinInstanceGetWorldMatrices()[slot];
+            const drawn = [0, 1, 2, 3].map((i) =>
+                Vector3.TransformCoordinates(Vector3.FromArray(positions, i * 3), matrix),
+            );
+            const z = (start.z + end.z) / 2;
+            for (const corner of perEdgeCorners(
+                new Vector3(start.x, start.y, z),
+                new Vector3(end.x, end.y, z),
+                width,
+            )) {
                 assert.isTrue(
                     drawn.some((point) => point.equalsWithEpsilon(corner, 1e-5)),
                     `corner ${corner.toString()} is drawn; the slot drew ${drawn.map(String).join(" ")}`,

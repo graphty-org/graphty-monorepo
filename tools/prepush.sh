@@ -92,12 +92,14 @@ echo ""
 # It is also what CI runs (.github/workflows/ci.yml), which is the parity CLAUDE.md asks for.
 # Knip and the published-dependency check resolve every package's imports through its dist/, so
 # an unaffected package with no dist yet (a fresh worktree) is built too. A package that has one
-# is left alone: nothing in this push changed it.
-BUILD_LIST="$PROJECT_LIST"
-for p in $(NX_DAEMON=false pnpm exec nx show projects --json 2>/dev/null | tr -d "[]\"" | tr "," " "); do
-    [ -d "${p#@graphty/}/dist" ] || affected "$p" || BUILD_LIST="$BUILD_LIST,$p"
+# is left alone: nothing in this push changed it. Only projects with a build target are listed
+# (visual-review has none), so nx does not warn about the rest.
+BUILD_LIST=""
+for p in $(NX_DAEMON=false pnpm exec nx show projects --with-target build --json 2>/dev/null | tr -d "[]\"" | tr "," " "); do
+    { affected "$p" || [ ! -d "${p#@graphty/}/dist" ]; } && BUILD_LIST="$BUILD_LIST,$p"
 done
-run_step "Build" "pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
+BUILD_LIST="${BUILD_LIST#,}"
+[ -n "$BUILD_LIST" ] && run_step "Build" "pnpm exec nx run-many -t build --projects=$BUILD_LIST --parallel=3"
 
 # webgpu-graph-algorithms: its lint runs the strict-consumer compile against the d.ts shims that only
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint
@@ -142,6 +144,19 @@ fi
 # Every tool a package's scripts run or its *.config.* files import is declared by that package,
 # not only by the root, where hoisting hides the gap until the package builds somewhere else.
 run_step "Declared build tools" "pnpm run check:declared-tools"
+
+# graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
+# fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.
+run_step "Element data sources on graph-io" "pnpm run check:data-source-migration"
+
+# The import reader of tools/count-migration-state.mjs, which prints the counts in
+# design/graph-format/STATUS.md. Reads nothing from the repository.
+run_step "Migration count script" "pnpm run check:migration-counts"
+
+# No use of the legacy graph API that the graph-format migration replaced (a legacy algorithms or
+# layout name, the legacy Graph, a positional layout call, an element parser not on graph-io). Reads
+# source only, every push.
+run_step "Legacy graph API use" "pnpm run check:legacy-use"
 
 # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
 # files on GitHub, resolved against the working tree. Offline: the network half of the check
@@ -237,6 +252,10 @@ affected graphty-element && { (cd graphty-element && npm run test:prepush) || { 
 # remote-logger - has multiple projects, run default and ui-unit
 echo "  Testing remote-logger..."
 affected @graphty/remote-logger && { (cd remote-logger && npm run test:run -- --project=default --project=ui-unit) || { FAILED=1; TESTS_FAILED=1; }; }
+
+# visual-review - Node.js unit tests of the results format and the comparison
+echo "  Testing visual-review..."
+affected visual-review && { (cd visual-review && npm run test:run) || { FAILED=1; TESTS_FAILED=1; }; }
 
 # compact-mantine - run only default project
 echo "  Testing compact-mantine..."

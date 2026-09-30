@@ -9,6 +9,7 @@ packages:
     - "graphty"
     - "remote-logger"
     - "compact-mantine"
+    - "visual-review"
 
 # Hold back any version published less than a day ago (in minutes). A compromised release is
 # usually found and pulled within hours; this keeps an install from picking it up in that window.
@@ -28,9 +29,14 @@ catalog:
 # past the floor (remove it, `pnpm install`, then `pnpm audit --audit-level=moderate` and
 # `pnpm why <name>`). The audit behind this list: design/decisions/2026-09-27-pnpm-overrides-audit.md.
 overrides:
-    # nx 22.7.12 pins brace-expansion 5.0.8 and smol-toml 1.6.1.
-    "brace-expansion@>=4.0.0 <5.0.9": ^5.0.9
+    # nx 22.7.12 pins brace-expansion 5.0.8 (nx 23.2.1 still pins 5.0.9) and smol-toml 1.6.1.
+    # Floor 5.0.11 covers GHSA-6j4f-fj2g-mc7p and GHSA-qhr7-859c-m2p7 on the chain
+    # @nx/eslint > @nx/devkit > minimatch 10 > brace-expansion 5.
+    "brace-expansion@>=4.0.0 <5.0.11": ^5.0.11
     "smol-toml@<1.7.1": ^1.7.1
+    # nx 22.7.12 also asks for axios ^1 and was locked to 1.18.1. Floor 1.20.0 covers
+    # GHSA-3pq3-5fj3-cg6v, GHSA-542g-h47m-68v8, GHSA-m8m8-qj5v-23w3 and GHSA-r4gj-5m52-g5wh.
+    "axios@<1.20.0": ^1.20.0
     # @nx/react -> @nx/module-federation -> @module-federation/dts-plugin pins adm-zip, koa and ws.
     "adm-zip@<0.6.1": ^0.6.1
     "koa@>=3.0.0 <3.1.2": ^3.1.2

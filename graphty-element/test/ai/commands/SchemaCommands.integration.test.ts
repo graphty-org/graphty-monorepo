@@ -7,6 +7,7 @@ import { assert, describe, it } from "vitest";
 
 import { CommandRegistry } from "../../../src/ai/commands/CommandRegistry";
 import { describeProperty, sampleData } from "../../../src/ai/commands/SchemaCommands";
+import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import { createMockGraphWithCustomData } from "../../helpers/mock-graph-custom-data";
 
@@ -146,6 +147,7 @@ describe("SchemaCommands integration", () => {
                 { target: "nodes", count: 3 },
                 {
                     graph,
+                    tx: {} as CommandContext["tx"],
                     abortSignal: new AbortController().signal,
                     emitEvent: noop,
                     updateStatus: noop,
@@ -174,6 +176,7 @@ describe("SchemaCommands integration", () => {
                 { property: "type", target: "nodes" },
                 {
                     graph,
+                    tx: {} as CommandContext["tx"],
                     abortSignal: new AbortController().signal,
                     emitEvent: noop,
                     updateStatus: noop,
@@ -194,6 +197,7 @@ describe("SchemaCommands integration", () => {
             };
             const context = {
                 graph,
+                tx: {} as CommandContext["tx"],
                 abortSignal: new AbortController().signal,
                 emitEvent: noop,
                 updateStatus: noop,

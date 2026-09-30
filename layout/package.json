@@ -1,6 +1,6 @@
 {
     "name": "@graphty/layout",
-    "version": "1.10.2",
+    "version": "2.0.2",
     "description": "graph layout algorithms based on networkx",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/layout.js",
@@ -21,9 +21,6 @@
         "README.md",
         "LICENSE"
     ],
-    "directories": {
-        "example": "examples"
-    },
     "publishConfig": {
         "access": "public",
         "provenance": true
@@ -37,16 +34,14 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && tsc --noEmit",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace layout",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace layout",
         "typecheck": "tsc --noEmit",
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "build:gh-pages": "npm run build:bundle && node scripts/build-gh-pages.js",
+        "build:gh-pages": "node scripts/build-gh-pages.js",
         "watch": "tsc --watch",
         "dev": "tsc --watch",
-        "serve": "npm run build:bundle && vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "examples": "npm run build:bundle && vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "ready:commit": "npm run build && npm run lint && npm run test:run",
         "docs:api": "typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
         "docs:api:watch": "typedoc --watch",
@@ -79,14 +74,14 @@
         }
     },
     "dependencies": {
-        "@graphty/graph-format": "workspace:^",
-        "@graphty/graph-samples": "workspace:^"
+        "@graphty/graph-format": "workspace:^"
     },
     "peerDependencies": {
         "@graphty/graph-format": "^1.0.0"
     },
     "devDependencies": {
         "@chromatic-com/storybook": "^4.0.0",
+        "@graphty/graph-samples": "workspace:^",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
         "@storybook/addon-docs": "^9.0.11",

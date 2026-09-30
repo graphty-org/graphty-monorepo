@@ -728,6 +728,15 @@ export interface GraphSnapshotContract extends AdjacencyView {
      */
     relabel(perm: U32): DerivedGraph;
     /**
+     * Make the column SET of every attribute table (nodes, edges, graph and each extension table)
+     * read-only: from then on set(), remove() and rename() on those tables throw E_FROZEN. Reads are
+     * unchanged, and so is the CONTENT of columns declared mutable. A table object shared with
+     * another snapshot (a derived graph shares tables; withColumns() shares the extension tables) is
+     * sealed for that snapshot too; withColumns() on a sealed snapshot returns writable node, edge
+     * and graph tables. Idempotent; there is no unseal.
+     */
+    seal(): void;
+    /**
      * A new snapshot object sharing the core, the id map and the serial with a CLONED column set plus the given columns
      * (the only operation that clones the column set).
      * @param nodes - node columns to add, keyed by name

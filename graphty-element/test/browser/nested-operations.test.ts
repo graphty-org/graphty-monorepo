@@ -11,7 +11,7 @@
 import { Color3, InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
@@ -327,16 +327,16 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we're in 3D mode initially
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
 
-            // Switch to 2D - internally calls updateLayoutDimension()
+            // Switch to 2D - internally rebuilds the layout for two dimensions
             await delay(10);
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should render correctly in 2D
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode after style change");
@@ -358,7 +358,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we're in 3D mode
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
@@ -367,7 +367,7 @@ describe("Nested Operations", () => {
             await delay(10);
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify we switched to 2D - this proves the dimension change was processed
             assert.isTrue(graph.getViewMode() === "2d", "Should have switched to 2D mode");
@@ -380,7 +380,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const initialNodeCount = graph.getNodeCount();
             const initialEdgeCount = graph.getEdgeCount();
@@ -388,7 +388,7 @@ describe("Nested Operations", () => {
             // Switch to 2D
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Nodes and edges should be preserved
             assert.equal(graph.getNodeCount(), initialNodeCount, "Node count should be preserved");
@@ -407,7 +407,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should apply circular layout correctly
             assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
@@ -427,7 +427,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // The layout behavior depends on implementation - the key is no errors
             assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
@@ -440,7 +440,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should work without errors
             assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
@@ -470,7 +470,7 @@ describe("Nested Operations", () => {
             await delay(5);
             await styleEveryNode(graph, NODE_STYLE);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should render correctly in final state (3D)
             assert.isFalse(graph.getViewMode() === "2d", "Should be in 3D mode after rapid toggling");
@@ -494,7 +494,7 @@ describe("Nested Operations", () => {
             // Final: 2D
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should be in 2D mode
             assert.isTrue(graph.getViewMode() === "2d", "Should settle to 2D mode");
@@ -525,7 +525,7 @@ describe("Nested Operations", () => {
             await graph.setViewMode("3d");
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             clearInterval(interval);
 
@@ -549,7 +549,7 @@ describe("Nested Operations", () => {
             // reading that run's column gets painted.
             await graph.runAlgorithm("graphty", "pagerank");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should complete without errors
             assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
@@ -575,7 +575,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Layout-update should have been triggered
             assert.isTrue(layoutUpdateTriggered, "data-add should trigger layout-update");
@@ -589,7 +589,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify 3D mode
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D mode");
@@ -597,7 +597,7 @@ describe("Nested Operations", () => {
             // Switch to 2D - should update camera and layout appropriately
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify the mode switch completed successfully
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode after switch");
@@ -620,7 +620,7 @@ describe("Nested Operations", () => {
             await styleEveryNode(graph, NODE_STYLE);
             await graph.runAlgorithm("graphty", "pagerank");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should complete without deadlock or errors
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode");
@@ -653,9 +653,11 @@ describe("Nested Operations", () => {
                 }, 5000);
             });
 
-            const completionPromise = graph.operationQueue.waitForCompletion().then(() => {
-                return true;
-            });
+            const completionPromise = operationQueueOf(graph)
+                .waitForCompletion()
+                .then(() => {
+                    return true;
+                });
 
             const completed = await Promise.race([completionPromise, timeoutPromise]);
 
@@ -675,7 +677,7 @@ describe("Nested Operations", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // The graph should still be functional after completion
             assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
@@ -692,7 +694,7 @@ describe("Nested Operations", () => {
             // Add more data (should work even if there were issues)
             await graph.addNodes([{ id: "4", label: "Node 4" }]);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should have all nodes
             assert.equal(graph.getNodeCount(), 4, "Should have 4 nodes");
@@ -718,13 +720,16 @@ describe("Nested Operations", () => {
             await graph.setViewMode("2d");
             await styleEveryNode(graph, NODE_STYLE);
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
-            // The load spawns a style pass of its own, which is the child operation this is
-            // about: nothing queued it directly, and it has to have finished by the time the
-            // queue is idle.
+            // The load used to spawn a style pass of its own on the queue. It is painted by the
+            // derivation pass that derives it now, so it spawns nothing the queue could run out
+            // of order, and it is painted by the time the queue is idle.
             assert.isTrue(operationOrder.includes("data-add"), "data-add should be in operation order");
-            assert.isTrue(operationOrder.includes("style-apply"), "and the repaint it spawned should be too");
+            assert.isFalse(operationOrder.includes("style-apply"), "and it spawns no repaint on the queue");
+            for (const node of graph.getNodes()) {
+                assert.isNotNull(graph.getStylePainter().nodePaint(node.index), `node ${node.id} is painted`);
+            }
         });
 
         it("should not block parent on child completion", async () => {
@@ -738,7 +743,7 @@ describe("Nested Operations", () => {
             // A 2D switch triggers a nested camera-update
             await graph.setViewMode("2d");
 
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // State should be correct
             assert.isTrue(graph.getViewMode() === "2d", "Should be in 2D mode");

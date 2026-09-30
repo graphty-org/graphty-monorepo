@@ -810,12 +810,6 @@ export const STATUS_BAR_NEVER_DROP: readonly StatusBarSlotId[] = ["counts", "run
 /* -------------------------------------------------------------------------- */
 
 /**
- * Undo depth. One history store for the whole application; a new action clears the
- * redo stack. Spec 01 section 1 (SPEC:296); spec 02 section 3.3.
- */
-export const UNDO_DEPTH = 50;
-
-/**
  * Dwell, in milliseconds, before a tooltip or an info circle opens. Never suppressed
  * in Performance mode. Spec 04 sections 8.2 and 8.4.
  */

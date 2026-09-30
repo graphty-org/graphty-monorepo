@@ -68,7 +68,7 @@ const GraphKnownFields = z.strictObject({
     // graph-format design 14.4 rule 10: the element default is "weight", which is what the io
     // importers write. DataManager reads this path first and falls back to the literal "value"
     // key, because "value" is what every weighted dataset, fixture and story in this repository
-    // carries; `resolveEdgeWeight` in src/data/ingest.ts is the one place both probes live.
+    // carries; `resolveEdgeWeight` in src/session/project/ingest.ts is the one place both probes live.
     // Without that fallback every weighted dataset here would silently read as unweighted, so the
     // fallback goes away only once nothing ships a "value" key.
     edgeWeightPath: z.string().or(z.null()).default("weight"),
@@ -139,7 +139,9 @@ export function parseAlgorithmsOnLoad(value: unknown): AlgorithmOnLoad[] {
         // Parsed against the one form it is trying to be, so the issue names the bad option rather
         // than "matched neither form".
         const parsed =
-            typeof entry === "object" && entry !== null ? AlgorithmWithOptions.safeParse(entry) : AlgorithmName.safeParse(entry);
+            typeof entry === "object" && entry !== null
+                ? AlgorithmWithOptions.safeParse(entry)
+                : AlgorithmName.safeParse(entry);
 
         if (!parsed.success) {
             const issue = parsed.error.issues[0];

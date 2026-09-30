@@ -15,6 +15,7 @@ import { EdgeMesh } from "./meshes/EdgeMesh";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Node, NodeIdType } from "./Node";
+import { frozenRecord } from "./session/project/draft";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -114,6 +115,33 @@ interface EdgeOpts {
     metadata?: object;
 }
 
+/** Writes an edge's row; see {@link placeEdgeRow}. */
+let writeEdgeRow: (edge: Edge, row: number) => void;
+
+/**
+ * Move an edge to a row of the current snapshot. Only the data manager calls it, as an edge is
+ * added, removed or renumbered by a compacting freeze.
+ * @param edge - The edge.
+ * @param row - Its logical edge index, or INVALID_INDEX.
+ */
+export function placeEdgeRow(edge: Edge, row: number): void {
+    writeEdgeRow(edge, row);
+}
+
+/** Writes an edge's record; see {@link adoptEdgeRecord}. */
+let writeRecord: (edge: Edge, record: AdHocData) => void;
+
+/**
+ * Hand an edge the record the graph now holds for it. Only the data manager calls it, from the
+ * render half of the graph's derivation, when a command, an undo or a redo changed the record;
+ * no entry point exports it, so `edge.data` is always the graph's record.
+ * @param edge - The edge.
+ * @param record - The record.
+ */
+export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
+    writeRecord(edge, record);
+}
+
 /**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
@@ -121,8 +149,8 @@ interface EdgeOpts {
 export class Edge {
     parentGraph: Graph | GraphContext;
     opts: EdgeOpts;
-    srcId: NodeIdType;
-    dstId: NodeIdType;
+    readonly srcId: NodeIdType;
+    readonly dstId: NodeIdType;
 
     /**
      * This edge's identity: the element-assigned counter the store stamped into its
@@ -142,11 +170,39 @@ export class Edge {
      * Every Edge has one. An edge whose endpoint ids graph-format will not store is REJECTED
      * before a render object is built for it, so there is no such thing as an Edge with no row --
      * which is what makes `index` safe to read without a guard everywhere downstream.
+     * @returns The row.
      */
-    index: number = INVALID_INDEX;
+    get index(): number {
+        return this.row;
+    }
+
+    private set index(row: number) {
+        this.row = row;
+    }
+
+    private row: number = INVALID_INDEX;
+
+    static {
+        writeEdgeRow = (edge, row) => {
+            edge.index = row;
+        };
+        writeRecord = (edge, record) => {
+            edge.#record = frozenRecord(record);
+        };
+    }
     dstNode: Node;
     srcNode: Node;
-    data: AdHocData;
+    /**
+     * The record this edge carries, as the graph holds it: deep-frozen, so a write to it throws. A
+     * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * @returns The record.
+     */
+    get data(): AdHocData {
+        return this.#record;
+    }
+
+    /** The record, as the graph last handed it over. */
+    #record: AdHocData;
     /**
      * The mesh this edge's line is drawn by.
      *
@@ -297,14 +353,14 @@ export class Edge {
     /**
      * Where this edge sits among the edges sharing its ordered endpoint pair, counting from zero.
      *
-     * Derived on every read from the data manager's edge cache rather than stored, so a removal
-     * cannot leave it stale. Nothing draws with it yet -- two parallel edges still render as two
+     * Derived on every read from the graph store rather than stored, so a removal cannot leave it
+     * stale. Nothing draws with it yet -- two parallel edges still render as two
      * coincident lines -- but a style layer can read it, and the geometry work that eventually
      * separates parallel edges needs exactly this number.
-     * @returns the rank, or -1 for an edge the cache no longer holds
+     * @returns the rank, or -1 for an edge the store no longer holds
      */
     get parallelRank(): number {
-        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).indexOf(this);
+        return this.context.getDataManager().getEdgesBetween(this.srcId, this.dstId).indexOf(this);
     }
 
     /**
@@ -423,7 +479,7 @@ export class Edge {
      * @returns the count
      */
     get parallelCount(): number {
-        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).length;
+        return this.context.getDataManager().getEdgesBetween(this.srcId, this.dstId).length;
     }
 
     /**
@@ -455,7 +511,7 @@ export class Edge {
         this.dstId = dstNodeId;
         this.id = edgeIdOf(edgeId);
         this.opts = opts;
-        this.data = data;
+        this.#record = frozenRecord(data);
 
         // make sure both srcNode and dstNode already exist
         const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
@@ -1638,136 +1694,5 @@ export class Edge {
             offset: placement.attachOffset,
             attachPosition: placement.attachPosition,
         };
-    }
-}
-
-/** The one empty array every miss answers with, so a lookup for an absent pair allocates nothing. */
-const EMPTY_EDGES: readonly Edge[] = Object.freeze([]);
-
-/**
- * Every edge the graph holds, indexed by its ordered endpoint pair.
- *
- * The inner value is an ARRAY, not one edge: two edges between the same ordered pair are two
- * edges. This class used to throw `"Attempting to create duplicate Edge"` on the second one, which
- * is why the data manager carried two separate guards that dropped a repeated record before it
- * could reach here -- and those drops are what pinned `statistics().repeatedEdgeCount` at zero for
- * every multigraph the element has ever loaded.
- *
- * Ask {@link EdgeMap.first} when the question genuinely has one answer, and {@link EdgeMap.get}
- * otherwise. Neither ever returns undefined for the pair itself: an absent pair is an empty array.
- */
-export class EdgeMap {
-    map = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
-
-    /**
-     * Whether any edge runs between the specified source and destination nodes.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns True when at least one edge exists, false otherwise
-     */
-    has(srcId: NodeIdType, dstId: NodeIdType): boolean {
-        return this.get(srcId, dstId).length > 0;
-    }
-
-    /**
-     * Adds an edge to the map, alongside any edges already running between the same pair.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @param e - The edge instance to store
-     */
-    set(srcId: NodeIdType, dstId: NodeIdType, e: Edge): void {
-        let dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            dstMap = new Map();
-            this.map.set(srcId, dstMap);
-        }
-
-        const parallel = dstMap.get(dstId);
-        if (parallel) {
-            parallel.push(e);
-            return;
-        }
-
-        dstMap.set(dstId, [e]);
-    }
-
-    /**
-     * Every edge running from one node to another, in the order they were added.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns The edges, which is an empty array when there are none
-     */
-    get(srcId: NodeIdType, dstId: NodeIdType): readonly Edge[] {
-        return this.map.get(srcId)?.get(dstId) ?? EMPTY_EDGES;
-    }
-
-    /**
-     * The first edge running from one node to another, for a caller whose question has one answer.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns The oldest edge between the pair, or undefined when there is none
-     */
-    first(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined {
-        return this.get(srcId, dstId)[0];
-    }
-
-    /**
-     * How many EDGES the map holds, which under parallel edges is more than the number of pairs.
-     * @returns The total count of all edges
-     */
-    get size(): number {
-        let sz = 0;
-        for (const dstMap of this.map.values()) {
-            for (const parallel of dstMap.values()) {
-                sz += parallel.length;
-            }
-        }
-
-        return sz;
-    }
-
-    /**
-     * Removes ONE edge from the map, leaving any other edges between the same pair alone.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @param e - The edge to remove
-     * @returns True if that edge was removed, false if the map did not hold it
-     */
-    delete(srcId: NodeIdType, dstId: NodeIdType, e: Edge): boolean {
-        const dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            return false;
-        }
-
-        const parallel = dstMap.get(dstId);
-        if (!parallel) {
-            return false;
-        }
-
-        const at = parallel.indexOf(e);
-        if (at === -1) {
-            return false;
-        }
-
-        parallel.splice(at, 1);
-
-        // Clean up empty levels, so `map.size` keeps meaning "pairs with an edge between them"
-        // and an iteration over the map never visits an empty array.
-        if (parallel.length === 0) {
-            dstMap.delete(dstId);
-        }
-
-        if (dstMap.size === 0) {
-            this.map.delete(srcId);
-        }
-
-        return true;
-    }
-
-    /**
-     * Removes all edges from the map.
-     */
-    clear(): void {
-        this.map.clear();
     }
 }

@@ -7,7 +7,8 @@
  * P5's `fruchtermanReingold` and `springElectrical` (the two other layout members of spec 9.3, landed together once
  * both models were green, P5 PD-19), P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and P8's four
  * traversal members (spec 8.4; P8-T13 PD-16, PD-19: `breadthFirstSearch`, `sssp`, `bellmanFord`,
- * `closenessCentrality`, each taking the seam's own option type) and nothing else: the CPU-side dispatchers
+ * `closenessCentrality`, each taking the seam's own option type), `allPairsShortestPath` (design 8.7), P11's
+ * `triangleCount` and `labelPropagation`, and nothing else: the CPU-side dispatchers
  * (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined` /
  * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
  * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
@@ -16,20 +17,27 @@
 
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
+import { allPairsShortestPath } from "./algorithms/all-pairs.js";
 import { bellmanFord } from "./algorithms/bellman-ford.js";
+import { betweennessCentrality, edgeBetweennessCentrality } from "./algorithms/betweenness.js";
 import { breadthFirstSearch } from "./algorithms/bfs.js";
 import { closenessCentrality } from "./algorithms/closeness.js";
 import { connectedComponents } from "./algorithms/components.js";
+import { labelPropagation } from "./algorithms/label-propagation.js";
 import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 import { sssp } from "./algorithms/sssp.js";
+import { triangleCount } from "./algorithms/triangles.js";
 import { type GpuContext } from "./context.js";
+import { WebGpuGraphError } from "./errors.js";
 import { createForceAtlas2 } from "./layouts/forceatlas2.js";
 import { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "./layouts/spring-electrical.js";
 import {
     type AcceleratorOptions,
+    type BetweennessAcceleratorOptions,
     type BfsOptions,
+    type ClosenessAcceleratorOptions,
     type GpuAccelerator,
     type HitsOptionsLike,
     type SsspOptions,
@@ -37,6 +45,7 @@ import {
 import {
     type ComponentsOptions,
     type EigenvectorOptions,
+    type GpuClosenessResult,
     type GpuHitsResult,
     type GpuLabelResult,
     type GpuPageRankResult,
@@ -45,6 +54,8 @@ import {
     type KatzOptions,
     type PageRankOptions,
 } from "./types/algorithms.js";
+import { type GpuApspResult } from "./types/all-pairs.js";
+import { type GpuBetweennessResult, type GpuEdgeScoresResult } from "./types/betweenness.js";
 import {
     type ForceAtlas2Stats,
     type FruchtermanReingoldStats,
@@ -57,6 +68,7 @@ import {
     type FruchtermanReingoldOptions,
     type SpringElectricalOptions,
 } from "./types/options.js";
+import { type GpuTriangleResult } from "./types/structure.js";
 import { type GpuBellmanFordResult, type GpuBfsResult, type GpuSsspResult } from "./types/traversal.js";
 
 /** The `algorithms` record of AcceleratorOptions (spec 3.3), named for the copy helpers. */
@@ -77,6 +89,30 @@ function copyBetweenness(defaults: BetweennessDefaults): BetweennessDefaults {
         copy.sources = Object.freeze([...defaults.sources]);
     }
     return Object.freeze(copy);
+}
+
+/**
+ * A betweenness call's options with the accelerator's `algorithms.betweenness` defaults applied: the defaults supply
+ * `sources` / `k` only when the call names neither, so a call's own sampling always wins whole. The defaults serve
+ * graphs of every size, so they are fitted to this one: a default `sources` list keeps only the indices below
+ * `nodeCount` (and then wins over a default `k`), and a default `k` of `nodeCount` or more runs every vertex.
+ * @param defaults - the frozen defaults, if any
+ * @param options - the call's options
+ * @param nodeCount - the snapshot's vertex count
+ * @returns the options the driver runs with
+ */
+function withBetweennessDefaults(
+    defaults: BetweennessDefaults | undefined,
+    options: BetweennessAcceleratorOptions | undefined,
+    nodeCount: number,
+): BetweennessAcceleratorOptions | undefined {
+    if (defaults === undefined || options?.sources !== undefined || options?.k !== undefined) {
+        return options;
+    }
+    if (defaults.sources !== undefined) {
+        return { ...options, sources: defaults.sources.filter((v) => v < nodeCount) };
+    }
+    return { ...options, k: defaults.k !== undefined && defaults.k < nodeCount ? defaults.k : undefined };
 }
 
 /**
@@ -118,8 +154,9 @@ function freezeOptions(options: AcceleratorOptions | undefined): Readonly<Accele
  * Spec 3.3 createAccelerator, verbatim: the object implementing AlgorithmAccelerator & LayoutAccelerator
  * structurally; P3's forceAtlas2, release and dispose, P5's fruchtermanReingold and springElectrical (the same
  * `{ ...o, ...options.layout }` shape as forceAtlas2) plus P7's seven algorithm members and P8's four traversal
- * members, each a delegation to its algorithm with `ctx.assertReady()` first. The accelerator's algorithm defaults are not consulted by any of
- * them: only `betweenness` has any, and it belongs to P9. One per call (the app creates one and injects
+ * members and the two betweenness members, each a delegation to its algorithm with `ctx.assertReady()` first. Only
+ * the betweenness members consult the accelerator's algorithm defaults (`algorithms.betweenness` supplies `sources` /
+ * `k` when a call names neither). One per call (the app creates one and injects
  * it, spec 2.4); `kind` is "webgpu"; `options` is a frozen deep copy; `forceAtlas2(o)` is
  * `createForceAtlas2(ctx, { ...o, ...options.layout })`, so the GPU tuning given here wins over anything the
  * CPU-typed option object carries (spec 3.3: tuning never comes from the caller of the accelerator method);
@@ -163,7 +200,9 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * @param o - the CPU option type (spec 9.3 SpringElectricalOptions, ngraph's names)
          * @returns a fresh simulation in state "created"
          */
-        springElectrical(o?: SpringElectricalOptions): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
+        springElectrical(
+            o?: SpringElectricalOptions,
+        ): GpuLayoutSimulation<SpringElectricalOptions, SpringElectricalStats> {
             ctx.assertReady();
             return createSpringElectrical(ctx, { ...o, ...frozen.layout });
         },
@@ -279,15 +318,99 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await bellmanFord(ctx, gs, source, o);
         },
         /**
+         * Betweenness centrality on the device (spec 8.4): exact, or sampled through `sources` / `k` (the call's own,
+         * else the accelerator's `algorithms.betweenness` defaults), the unscaled sum over the sources run.
+         * `endpoints: true` is refused.
+         * @param gs - the snapshot
+         * @param o - the seam's `BetweennessAcceleratorOptions`
+         * @returns the f32 scores with `sourcesUsed` and `sigmaOverflow`
+         */
+        async betweennessCentrality(
+            gs: GraphSnapshot,
+            o?: BetweennessAcceleratorOptions,
+        ): Promise<GpuBetweennessResult> {
+            ctx.assertReady();
+            return await betweennessCentrality(
+                ctx,
+                gs,
+                withBetweennessDefaults(frozen.algorithms?.betweenness, o, gs.nodeCount),
+            );
+        },
+        /**
+         * Edge betweenness on the device (spec 8.4): one score per edge, arcs summed and halved when undirected; sampling
+         * and defaults as `betweennessCentrality`.
+         * @param gs - the snapshot
+         * @param o - the seam's `BetweennessAcceleratorOptions`
+         * @returns the f32 per-edge scores with `sourcesUsed` and `sigmaOverflow`
+         */
+        async edgeBetweennessCentrality(
+            gs: GraphSnapshot,
+            o?: BetweennessAcceleratorOptions,
+        ): Promise<GpuEdgeScoresResult> {
+            ctx.assertReady();
+            return await edgeBetweennessCentrality(
+                ctx,
+                gs,
+                withBetweennessDefaults(frozen.algorithms?.betweenness, o, gs.nodeCount),
+            );
+        },
+        /**
          * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`
          * per source when `weighted`. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
          * @param gs - the snapshot
-         * @param o - the seam's placeholder `HitsOptionsLike` (`weighted`)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         * @param o - `weighted`, and a sampled run's `sources` (undirected snapshots only)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7) and `sourcesUsed`
          */
-        async closenessCentrality(gs: GraphSnapshot, o?: HitsOptionsLike): Promise<GpuScoresResult> {
+        async closenessCentrality(gs: GraphSnapshot, o?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult> {
             ctx.assertReady();
             return await closenessCentrality(ctx, gs, o);
+        },
+        /**
+         * All-pairs shortest paths on the device (design 8.7): blocked Floyd-Warshall, `E_TOO_LARGE` above the device's
+         * storage-binding ceiling. The seam passes `SsspOptions`; neither of its keys has an all-pairs meaning, so a
+         * defined `cutoff` (it would change what `+Infinity` means) or `weights` (a per-arc override is a different
+         * matrix from the snapshot's resident column) is `E_UNSUPPORTED { option }`, never silently dropped.
+         * @param gs - the snapshot
+         * @param o - the seam's `SsspOptions`; both keys refused when defined
+         * @returns the row-major `n x n` distances and `n` (spec 3.3 line 835)
+         */
+        async allPairsShortestPath(gs: GraphSnapshot, o?: SsspOptions): Promise<GpuApspResult> {
+            ctx.assertReady();
+            for (const key of ["cutoff", "weights"] as const) {
+                if (o?.[key] !== undefined) {
+                    throw new WebGpuGraphError("E_UNSUPPORTED", `allPairsShortestPath: ${key} is not supported`, {
+                        option: key,
+                        hint: "all-pairs shortest paths runs over the snapshot's own weights with no cutoff",
+                    });
+                }
+            }
+            return await allPairsShortestPath(ctx, gs);
+        },
+        /**
+         * Triangle counting with the clustering coefficient and the transitivity (design 8.5; P11).
+         * @param gs - the snapshot
+         * @returns perNode, total, coefficient and transitivity
+         */
+        async triangleCount(gs: GraphSnapshot): Promise<GpuTriangleResult> {
+            ctx.assertReady();
+            return await triangleCount(ctx, gs);
+        },
+        /**
+         * Label propagation (design 8.6; P11): `maxIterations` and `weighted` are honoured, `tolerance` is refused when
+         * defined (a label propagation stops at a fixed point, not below a tolerance).
+         * @param gs - the snapshot
+         * @param o - the seam's placeholder `HitsOptionsLike`
+         * @returns the labels dense in first-seen order, the community count and groups()
+         */
+        async labelPropagation(gs: GraphSnapshot, o?: HitsOptionsLike): Promise<GpuLabelResult> {
+            ctx.assertReady();
+            if (o?.tolerance !== undefined) {
+                throw new WebGpuGraphError("E_UNSUPPORTED", "labelPropagation: tolerance has no meaning here", {
+                    option: "tolerance",
+                    hint: "label propagation stops at a fixed point or after maxIterations passes",
+                });
+            }
+            return await labelPropagation(ctx, gs, { maxIterations: o?.maxIterations, weighted: o?.weighted });
         },
         /**
          * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.

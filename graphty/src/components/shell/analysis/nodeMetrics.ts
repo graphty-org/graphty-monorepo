@@ -52,10 +52,9 @@
  * App shell progressive disclosure design, section 6.3 (capability names), 2307 (the Node
  * metric shape) and 7.5 (readings built from these statistics).
  */
-import type { Histogram, RunId, RunResult } from "@graphty/graphty-element/session";
+import type { GraphSession, Histogram, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
-import type { ElementGraph } from "./elementBridge";
 
 /**
  * The three node metrics this slice runs, by the id the Suggested card and the command
@@ -430,16 +429,13 @@ function rankingFromResult(metric: NodeMetricId, result: RunResult): NodeMetricR
  * walking the graph: the most recent succeeded run of that algorithm, which is the one whose
  * numbers the picture was painted from. A metric nobody has run yet reports an empty ranking
  * rather than zeros, so a card can say "not run" instead of "measured nothing".
- * @param graph - the element graph whose session holds the runs.
+ * @param session - the element's session, which holds the runs.
  * @param metric - which metric to read.
  * @returns the ranking, highest value first, empty when that metric has not run.
  * @public
  */
-export function readNodeMetricResults(graph: ElementGraph, metric: NodeMetricId): NodeMetricRanking {
-    const finished = graph
-        .getSession()
-        .runs.list()
-        .filter((run) => run.algorithm === metric && run.status === "succeeded");
+export function readNodeMetricResults(session: Pick<GraphSession, "runs">, metric: NodeMetricId): NodeMetricRanking {
+    const finished = session.runs.list().filter((run) => run.algorithm === metric && run.status === "succeeded");
     const latest = finished.at(-1);
 
     if (latest?.result === undefined) {
@@ -462,16 +458,19 @@ export function readNodeMetricResults(graph: ElementGraph, metric: NodeMetricId)
  * own policy decides whether its suggested encoding stands or a layer somebody wrote by hand
  * keeps the channel. Starting the same metric twice on an unchanged graph returns the run that
  * already exists rather than recomputing it.
- * @param graph - the element graph to run on.
+ * @param session - the element's session, or a transaction's `tx`, to run through.
  * @param metric - which metric to run.
  * @returns the ranking, highest value first.
  * @public
  */
-export async function runNodeMetric(graph: ElementGraph, metric: NodeMetricId): Promise<NodeMetricRanking> {
+export async function runNodeMetric(
+    session: Pick<GraphSession, "runs">,
+    metric: NodeMetricId,
+): Promise<NodeMetricRanking> {
     /* Through the session rather than the 1.10 address, so the run's id comes back with it: a
        style layer scopes itself to the run whose column it reads, and the card's "Remove result"
        verb names that run too. */
-    const run = graph.getSession().runs.start(metric);
+    const run = session.runs.start(metric);
     const result = await run;
 
     return { ...rankingFromResult(metric, result), runId: run.id };

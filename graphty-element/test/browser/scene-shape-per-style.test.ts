@@ -24,7 +24,8 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
 import type { Edge } from "../../src/Edge";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { addStyleLayer, styleEveryEdge } from "../helpers/testSetup";
 
 /** How many nodes sit on the circle. */
@@ -72,7 +73,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         await graph.addNodes(nodes);
         await graph.addEdges(edges);
         await graph.setLayout("circular", { scale: 0.5 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 
     afterEach(() => {
@@ -84,7 +85,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
      * Let the last repaint land and run a frame through the whole update-then-render path.
      */
     async function frame(): Promise<void> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.update();
         graph.scene.render();
     }
@@ -192,7 +193,9 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isDefined(moved, `node ${node} exists`);
         const to = moved.mesh.position.add(new Vector3(0, 0, 5));
         moved.mesh.position.copyFrom(to);
-        graph.getLayoutManager().layoutEngine?.setNodePosition(moved, { x: to.x, y: to.y, z: to.z });
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine, "a layout engine is running");
+        layoutEngineInternals.setNodePosition(engine, moved, { x: to.x, y: to.y, z: to.z });
         graph.update();
         graph.scene.render();
 

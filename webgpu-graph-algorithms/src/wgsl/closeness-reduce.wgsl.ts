@@ -10,6 +10,9 @@
  * level 0's parity is 0), `flags[source_s] = 1` (level 0's `compact` turns the flags into the list; a seeded list
  * would be overwritten by a compaction of all-zero flags), `counters[0] = k` (not done) and `level = U32_MAX` (so
  * level 0's boundary accumulates nothing and brings the word to 0, and level 1's counts the distance-1 claims at 1).
+ * Role 2 is role 1 for a sampled run: source `s` of the batch is word `P.source + s` of the source list the host
+ * wrote after the per-node sums (`perSource[128 + P.bitsBase + ...]`), `P.n` is the list's length, and a node listed
+ * twice in one batch carries both bits (the seed ORs, so a duplicate runs twice).
  * No barrier follows the early return of the other lanes (3.5 rule 1). Body only (spec 3.5, D9); the text is
  * normative: the sabotage rows of test/helpers/sabotage.ts are textual edits of it.
  */
@@ -17,13 +20,14 @@ export const closenessReduceWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
 fn closeness_reduce(@builtin(local_invocation_id) lid: vec3<u32>) {
     if (lid.x != 0u) { return; }                                     // one lane; no barrier follows (3.5 rule 1)
-    if (P.role == 1u) {                                              // the seed of a batch: P.source is its first source
+    if (P.role != 0u) {                                              // the seed of a batch: P.source is its first source
         let k = min(32u, P.n - P.source);
         for (var s = 0u; s < k; s = s + 1u) {
-            let v = P.source + s;
+            var v = P.source + s;
+            if (P.role == 2u) { v = atomicLoad(&perSource[128u + P.bitsBase + P.source + s]); }   // a sampled run's list
             let bit = 1u << s;
-            bits[v] = bit;                                           // visited
-            bits[P.bitsBase + v] = bit;                              // the frontier level 0 reads (region 1: level 0's parity is 0)
+            bits[v] = bits[v] | bit;                                 // visited
+            bits[P.bitsBase + v] = bits[P.bitsBase + v] | bit;       // the frontier level 0 reads (region 1: level 0's parity is 0)
             bits[3u * P.bitsBase + v] = 1u;                          // flags: level 0's compact turns them into the list
         }
         atomicStore(&counters[0], k);                                // not done

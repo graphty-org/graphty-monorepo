@@ -183,6 +183,26 @@ export function completeEdges(n: number): EdgeSpec[] {
 }
 
 /**
+ * `layers` groups of `width` vertices, every vertex of group i joined to every vertex of group i + 1: a vertex of the
+ * first group reaches a vertex of the last by `width^(layers - 2)` shortest paths, so `layeredEdges(4, 18)` overflows a
+ * u32 path count (4^16) on 72 vertices and `layeredEdges(4, 16)` (4^14, about 2.7e8) does not.
+ * @param width - vertices per group
+ * @param layers - groups
+ * @returns the edges
+ */
+export function layeredEdges(width: number, layers: number): EdgeSpec[] {
+    const edges: EdgeSpec[] = [];
+    for (let layer = 0; layer + 1 < layers; layer++) {
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < width; j++) {
+                edges.push([layer * width + i, (layer + 1) * width + j]);
+            }
+        }
+    }
+    return edges;
+}
+
+/**
  * The graph-format benchmark xorshift32 generator (harness.ts makeRandom; bitwise on the generator state only,
  * never on an index). Used by every random generator here: the gpu-upload.test.ts LCG (state * 1103515245 + 12345
  * mod 2^32) has low bits of tiny period, so when n is a power of two `state % n` depends on those low bits alone

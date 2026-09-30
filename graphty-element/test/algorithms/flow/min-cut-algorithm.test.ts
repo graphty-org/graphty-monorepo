@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
@@ -36,7 +35,6 @@ describe("MinCutAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "min-cut");
             assert.strictEqual(AlgClass, MinCutAlgorithm);
         });
-
     });
 
     describe("Configuration", () => {
@@ -62,6 +60,31 @@ describe("MinCutAlgorithm", () => {
                 assert.strictEqual(error.details.option, option);
             });
         }
+
+        it("rejects a source and sink that are one node with E_OPTION_RANGE", async () => {
+            const graph = await createMockGraph(PATH);
+            const algo = new MinCutAlgorithm(graph, { source: "B", sink: "B" });
+
+            const error = await algo.compute(detachedRunContext()).then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            assert.instanceOf(error, GraphtyError);
+            assert.strictEqual(error.code, "E_OPTION_RANGE");
+            assert.strictEqual(error.details.option, "sink");
+        });
+
+        it("says how many nodes the cut puts on each side", async () => {
+            const graph = await createMockGraph(PATH);
+            const output = await new MinCutAlgorithm(graph, { source: "A", sink: "C" }).compute(detachedRunContext());
+
+            assert.ok(output);
+            const first = (output.nodes ?? []).filter((node) => node.values.side === "1").length;
+            assert.isAbove(first, 0);
+            assert.isBelow(first, 3);
+            assert.include(output.caveats.notes, `The cut separates ${String(first)} nodes from ${String(3 - first)}.`);
+        });
 
         it("says when one end was chosen automatically", async () => {
             const graph = await createMockGraph(PATH);

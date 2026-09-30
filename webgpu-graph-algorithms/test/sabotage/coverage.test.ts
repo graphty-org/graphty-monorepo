@@ -24,7 +24,7 @@ function tabledIds(): KernelId[] {
 }
 
 describe("sabotage coverage (spec 11.9 item 1, 13 rule f)", () => {
-    it("lists P1, P2, P3, P7, P4 (P4-T12), P8 (P8-T15) and P9 (betweenness) and exempts exactly fill, fa2-to-scene and wcc-sample", () => {
+    it("lists P1, P2, P3, P7, P4 (P4-T12), P8 (P8-T15) and P9 (betweenness, all-pairs) and exempts exactly fill, fa2-to-scene and wcc-sample", () => {
         expect([...SABOTAGE_PHASES]).toEqual(["P1", "P2", "P3", "P7", "P4", "P8", "P9"]);
         expect([...SABOTAGE_EXEMPT].sort()).toEqual(["fa2-to-scene", "fill", "wcc-sample"]);
     });

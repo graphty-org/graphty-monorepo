@@ -5,6 +5,8 @@ import {
     type AdapterInfoLike,
     type AdapterSummary,
     type AlgorithmAccelerator,
+    allPairsShortestPath,
+    type ApspOptions,
     type ApspResultLike,
     ARC_WINDOW_ALIGN,
     bellmanFord,
@@ -39,6 +41,7 @@ import {
     type FruchtermanReingoldStats,
     type FruchtermanReingoldTraceRecord,
     type GpuAccelerator,
+    type GpuApspResult,
     type GpuBellmanFordResult,
     type GpuBfsResult,
     type GpuCalibration,
@@ -352,6 +355,19 @@ expectTypeOf<GpuAccelerator["closenessCentrality"]>()
     .parameter(1)
     .toEqualTypeOf<ClosenessAcceleratorOptions | undefined>();
 expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuClosenessResult>();
+
+// ---- all-pairs shortest paths (design 3.3 lines 813 and 835, 8.7, 9.7)
+expectTypeOf(allPairsShortestPath).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(allPairsShortestPath).parameter(2).toEqualTypeOf<(ApspOptions & GpuRunOptions) | undefined>();
+expectTypeOf(allPairsShortestPath).returns.resolves.toEqualTypeOf<GpuApspResult>();
+expectTypeOf<keyof GpuApspResult>().toEqualTypeOf<"dist" | "n">();
+expectTypeOf<GpuApspResult["dist"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuApspResult["n"]>().toBeNumber();
+expectTypeOf<keyof ApspOptions>().toEqualTypeOf<"weighted">();
+expectTypeOf<ApspOptions["weighted"]>().toEqualTypeOf<boolean | undefined>();
+expectTypeOf<GpuApspResult>().toMatchTypeOf<ApspResultLike>();
+expectTypeOf<GpuAccelerator["allPairsShortestPath"]>().parameter(1).toEqualTypeOf<SsspOptions | undefined>();
+expectTypeOf<GpuAccelerator["allPairsShortestPath"]>().returns.resolves.toEqualTypeOf<GpuApspResult>();
 
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();

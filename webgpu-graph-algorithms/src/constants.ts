@@ -267,3 +267,17 @@ export const BC_MAX_BATCH = 64;
 export const BC_EDGE_PARALLEL_GAMMA = 2;
 /** Backward-pass levels recorded per submit: each level is one dispatch with its own parameter record, so this bounds the uniform ring. */
 export const BC_BACKWARD_LEVELS_PER_SUBMIT = 64;
+/**
+ * Design 8.7: all-pairs shortest paths is a blocked Floyd-Warshall over `APSP_TILE x APSP_TILE` tiles. One tile of
+ * f32 is 4 KiB of workgroup memory and a workgroup stages at most two (8 KiB), inside the 16 KiB
+ * `maxComputeWorkgroupStorageSize` every WebGPU device reports. Interpolated into the prelude as `APSP_TILE`.
+ */
+export const APSP_TILE = 32;
+/**
+ * The blocked sweep records `3 x ceil(n / APSP_TILE)` dispatches (543 at the 5,792-node ceiling of a 128 MiB binding,
+ * 2,175 at a 2 GiB binding's 23,170, 3,072 at a 4 GiB binding's 32,767); above this many the driver splits the sweep
+ * into further submits. No binding offered today reaches it, so every sweep is one submit; the cap only stops a
+ * device with a binding above 4 GiB (`maxStorageBufferBindingSize` is a GPUSize64) from building one unbounded
+ * command buffer.
+ */
+export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;

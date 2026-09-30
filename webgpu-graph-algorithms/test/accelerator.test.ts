@@ -1,6 +1,7 @@
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { createAccelerator } from "../src/accelerator.js";
+import { allPairsShortestPath } from "../src/algorithms/all-pairs.js";
 import { bellmanFord } from "../src/algorithms/bellman-ford.js";
 import { betweennessCentrality, edgeBetweennessCentrality } from "../src/algorithms/betweenness.js";
 import { breadthFirstSearch } from "../src/algorithms/bfs.js";
@@ -37,8 +38,8 @@ import { expectBitwiseEqual } from "./helpers/matchers.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
 /**
- * The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14) and the four P8 traversal members (P8-T13 PD-16), in the
- * order AlgorithmAccelerator declares them.
+ * The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14), the four P8 traversal members (P8-T13 PD-16) and
+ * all-pairs shortest paths, in the order AlgorithmAccelerator declares them.
  */
 const ALGORITHM_MEMBERS = [
     "pageRank",
@@ -54,6 +55,7 @@ const ALGORITHM_MEMBERS = [
     "closenessCentrality",
     "betweennessCentrality",
     "edgeBetweennessCentrality",
+    "allPairsShortestPath",
 ] as const;
 
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
@@ -565,6 +567,36 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         });
         plain.dispose();
         await expect(plain.betweennessCentrality(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });
+    });
+
+    it("carries allPairsShortestPath, delegating to its driver and refusing the seam's cutoff and weights (design 8.7)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-all-pairs" });
+        const acc = createAccelerator(ctx);
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const injected: AlgorithmAccelerator = acc;
+        expect(typeof acc.allPairsShortestPath).toBe("function");
+        expect(injected.allPairsShortestPath).toBe(acc.allPairsShortestPath);
+        const viaMember = await acc.allPairsShortestPath(snapshot);
+        const direct = await allPairsShortestPath(ctx, snapshot);
+        expectBitwiseEqual(viaMember.dist, direct.dist, "allPairsShortestPath.dist");
+        expect(viaMember.n).toBe(snapshot.nodeCount);
+        // neither SsspOptions key has an all-pairs meaning: refused through the member, never dropped
+        await expect(acc.allPairsShortestPath(snapshot, { cutoff: 2 })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "cutoff" },
+        });
+        const weights = new Float32Array(snapshot.arcCount).fill(2);
+        await expect(acc.allPairsShortestPath(snapshot, { weights })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "weights" },
+        });
+        // undefined for both runs
+        const plain = await acc.allPairsShortestPath(snapshot, { cutoff: undefined, weights: undefined });
+        expectBitwiseEqual(plain.dist, direct.dist, "allPairsShortestPath with undefined options");
+        acc.release(snapshot);
+        acc.dispose();
+        await expect(acc.allPairsShortestPath(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });
     });
 
     it("release and dispose delegate to the context", async (t) => {

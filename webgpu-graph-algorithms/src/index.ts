@@ -9,7 +9,8 @@
  * (Lease, CommandBatch, UniformRing are internal). P3 adds the layout factory, the accelerator, the two default
  * tables, the seeder and the layout / accelerator types. P5 adds the two factories, the two default tables and the
  * two stats records. P4 adds calibrateLayout and its two records. P8 adds the four traversals and their three result
- * records. test/index.test.ts pins the value list and
+ * records. All-pairs shortest paths (design 8.7) adds allPairsShortestPath and its result and option records.
+ * test/index.test.ts pins the value list and
  * test/types/public-api.test-d.ts the type list. This comment must never spell the internal
  * JSDoc tag: it is the leading comment of the first export statement, and stripInternal would drop that statement
  * from the emitted declarations.
@@ -62,6 +63,9 @@ export { breadthFirstSearch } from "./algorithms/bfs.js";
 export { closenessCentrality } from "./algorithms/closeness.js";
 export { sssp } from "./algorithms/sssp.js";
 
+// ==================== algorithms (all-pairs shortest paths, design 3.3 line 813, 8.7)
+export { allPairsShortestPath } from "./algorithms/all-pairs.js";
+
 // ==================== layouts and the accelerator (P3; the two P5 factories; P4's calibrateLayout, spec 2.2)
 export { createAccelerator } from "./accelerator.js";
 export { calibrateLayout } from "./layouts/calibrate.js";
@@ -105,6 +109,8 @@ export type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./types/
 // ==================== types: the betweenness results (spec 3.3 lines 833-834); the option type is the seam's
 // BetweennessAcceleratorOptions above
 export type { GpuBetweennessResult, GpuEdgeScoresResult } from "./types/betweenness.js";
+// ==================== types: all-pairs shortest paths (design 3.3 line 835)
+export type { ApspOptions, GpuApspResult } from "./types/all-pairs.js";
 
 // ==================== types: the P7 algorithm results and option records (spec 3.3 lines 815-828, 9.7)
 export type {

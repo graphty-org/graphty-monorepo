@@ -63,6 +63,7 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
     APPLY: [0, 1, 2],
     STATS_MODE: [0, 1, 2],
     MODE: [0, 1],
+    PHASE: [0, 1, 2],
 });
 
 /**
@@ -85,7 +86,7 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * the defaults plus the UNDIRECTED axis, no group 0) + closeness-sweep 5 (P8-T11: the graph pair, no declared
  * override) + closeness-reduce 1 (P8-T11); P9 = bc-finalize 1 + bc-forward 1 + bc-backward 1 + bc-edge-gather 1 (their
  * rowPtr / colIdx are group-1 state, not the graph group) + bc-gather 1 + bc-forward-edge 3 (the defaults plus the
- * UNDIRECTED axis). The
+ * UNDIRECTED axis) + apsp-init 5 (the graph pair, no declared override) + apsp-fw 4 (1 + 3 PHASE). The
  * LAW != 0 x LINLOG / DISTRIBUTED combinations compile
  * and no factory emits them: the matrix is a superset by design.
  */
@@ -97,7 +98,7 @@ export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" 
         P4: 40,
         P7: 69,
         P8: 46,
-        P9: 8,
+        P9: 17,
     });
 
 /** The standard overrides the composer fills from the device; never part of a variant's identity. */

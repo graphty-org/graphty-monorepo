@@ -1,6 +1,7 @@
 import type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    ApspResultLike,
     BellmanFordResultLike,
     BetweennessAcceleratorOptions,
     BfsOptions,
@@ -139,3 +140,7 @@ expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
 >();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["betweennessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["edgeBetweennessCentrality"]>>>().toMatchTypeOf<EdgeScoresResultLike>();
+// ---- all-pairs shortest paths: the seam's own option type in (both keys refused at run time), a result that
+// satisfies `ApspResultLike` out.
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["allPairsShortestPath"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["allPairsShortestPath"]>>>().toMatchTypeOf<ApspResultLike>();

@@ -62,6 +62,7 @@ const SSSP_TEST = "test/algorithms/sssp.test.ts";
 const BF_TEST = "test/algorithms/bellman-ford.test.ts";
 const CLOSENESS_TEST = "test/algorithms/closeness.test.ts";
 const BETWEENNESS_TEST = "test/algorithms/betweenness.test.ts";
+const ALL_PAIRS_TEST = "test/algorithms/all-pairs.test.ts";
 
 /** At least three mutations per kernel that has rows (spec 13 rule f); PARTIAL so a phase's kernels can land before its rows (the coverage test below gates by phase). */
 export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
@@ -1606,6 +1607,97 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: BETWEENNESS_TEST,
         },
     ]),
+    "apsp-init": Object.freeze([
+        {
+            // the diagonal keeps the fill's +Infinity: a node's distance to itself becomes its shortest cycle, or
+            // stays unreachable
+            name: "diagonal-not-zeroed",
+            find: "dist[rowBase + u] = 0.0;",
+            replace: "// diagonal left as filled",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // the last of parallel arcs wins instead of the cheapest (the parallel fixture lists the cheaper arc
+            // first on one pair)
+            name: "parallel-arcs-last-wins",
+            find: "dist[rowBase + v] = min(dist[rowBase + v], w);",
+            replace: "dist[rowBase + v] = w;",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // every arc costs 1: the weighted matrix becomes hop counts
+            name: "weight-ignored",
+            find: "select(1.0, weights[a], HAS_WEIGHTS)",
+            replace: "1.0",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+    ]),
+    "apsp-fw": Object.freeze([
+        {
+            // the pivot tile is loaded from block (k, k + 1): phase 0 writes that block's relaxed copy over the
+            // pivot, and phase 1 reads it as the pivot
+            name: "pivot-tile-shifted",
+            find: "var a = vec2<u32>(r, r);",
+            replace: "var a = vec2<u32>(r, r + 1u);",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // phase 2 stops one pivot short of the block: paths through the last node of every block are lost off
+            // the pivot row and column
+            name: "inner-loop-31",
+            find: "kr < APSP_TILE;",
+            replace: "kr < APSP_TILE - 1u;",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // no barrier after staging: a lane reads tile cells another lane has not loaded yet (workgroup memory
+            // starts zeroed, so the stale reads are 0-length paths)
+            name: "barrier-after-stage-removed",
+            find: "workgroupBarrier();                                               // every staged cell is visible",
+            replace: "// the staging barrier removed",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // no barrier between the pivot steps of phases 0 and 1: a lane reads row or column k + 1 of the tile
+            // before another lane has written its step-k relaxation there, and the path through k is lost. Caught
+            // only where the lanes of a workgroup run out of step: lavapipe runs them one SIMD group at a time, so
+            // it fails deterministically; NVIDIA keeps its warps close enough that the race never shows, and
+            // test/sabotage/all-pairs.test.ts skips this row on hardware
+            name: "step-barrier-removed",
+            find: "workgroupBarrier();                                           // step k is complete before step k + 1 reads",
+            replace: "// the step barrier removed",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        {
+            // an edge tile stores its out-of-range columns into the next row (row i, column n + c is entry
+            // (i + 1, c)): the 33-node fixture's last block column is a one-column tile
+            name: "edge-store-guard-dropped",
+            find: "if (i >= P.n || j >= P.n) { return; }",
+            replace: "if (i >= P.n) { return; }",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+        // No row drops the ROW half of the store guard (`if (j >= P.n) { return; }`): a row i >= n puts the index at
+        // i * n + j >= n * n, past the end of the exactly n x n binding, so its only effect is an out-of-bounds
+        // write, which Dawn discards on both adapters (measured: the mutant matches the reference bitwise on NVIDIA
+        // and on lavapipe). The column half above is the one an in-bounds check can see.
+        {
+            // phase 2 stages the pivot block (k, k) in place of the pivot-column block (i, k): block row k and block
+            // column k stay right and every other block is wrong (the 30 x 30 grid: 29 blocks per side)
+            name: "phase2-stages-pivot",
+            find: "a = vec2<u32>(own.x, r);",
+            replace: "a = vec2<u32>(r, r);",
+            minFactor: 10,
+            test: ALL_PAIRS_TEST,
+        },
+    ]),
 });
 
 /**
@@ -2132,7 +2224,7 @@ export const SABOTAGE_P4_LAW: Readonly<Partial<Record<KernelId, readonly Mutatio
     ]),
 });
 
-/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
+/** The phases whose kernels ALL have their rows: ["P1"] at P1-T5, + "P2" at P2-T2, + "P3" at P3-T5, + "P7" at M8b-T10, + "P4" at P4-T12 (PD-1: when the last P4 kernel has its rows), + "P8" at P8-T15 (the frontier-family kernels, 58 rows written by the tasks that wrote the kernels over fifteen of them, plus `bfs-next-degree`'s 3 for issue #391: sixteen kernels, 61 rows), + "P9" with the six betweenness kernels (19 rows) and all-pairs shortest paths (apsp-init 3 rows, apsp-fw 6); test/sabotage/coverage.test.ts asserts every KERNELS entry whose `phase` is listed here has >= 3 rows, except SABOTAGE_EXEMPT. */
 export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
     "P1",
     "P2",

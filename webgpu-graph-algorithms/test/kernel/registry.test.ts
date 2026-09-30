@@ -15,6 +15,7 @@ import { PRELUDE_WGSL } from "../../src/kernel/prelude.js";
 import { type UniformBlock } from "../../src/kernel/struct-block.js";
 import { composeWgsl, entryPointOf, STANDARD_OVERRIDES } from "../../src/kernel/wgsl.js";
 import {
+    APSP_PARAMS,
     BC_PARAMS,
     BF_PARAMS,
     COMPACT_PARAMS,
@@ -917,6 +918,32 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P9",
         storageCount: 7,
+    },
+    "apsp-init": {
+        entryPoint: "apsp_init",
+        bindings: withGraph([
+            [1, 0, "dist", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "ApspParams"],
+        ]),
+        overrideDecls: [],
+        uniforms: [APSP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 5,
+    },
+    "apsp-fw": {
+        entryPoint: "apsp_fw",
+        bindings: [
+            [1, 0, "dist", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "ApspParams"],
+        ],
+        overrideDecls: [["PHASE", "u32", 0]],
+        uniforms: [APSP_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 1,
     },
 };
 

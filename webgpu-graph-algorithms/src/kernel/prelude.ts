@@ -12,6 +12,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import {
+    APSP_TILE,
     EXACT_TILES_PER_PASS,
     F32_INF_BITS,
     FA2_COINCIDENT_SQ,
@@ -68,6 +69,7 @@ const GRID_EXTENT_FLOOR: f32 = ${wgslF32Literal(GRID_EXTENT_FLOOR)};
 const GRID_BBOX_MARGIN: f32 = ${wgslF32Literal(GRID_BBOX_MARGIN)};
 const RADIX_BINS: u32 = ${RADIX_BINS}u;
 const RADIX_DIGIT_MASK: u32 = ${RADIX_BINS - 1}u;
+const APSP_TILE: u32 = ${APSP_TILE}u;
 const F32_MAX: f32 = 0x1.fffffep+127;
 override WG: u32 = ${WORKGROUP_SIZE}u;
 override USE_PERM: bool = false;

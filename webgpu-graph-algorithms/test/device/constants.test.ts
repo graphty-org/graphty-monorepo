@@ -6,6 +6,8 @@
 
 import { bfsRingSlots } from "../../src/algorithms/bfs.js";
 import {
+    APSP_MAX_DISPATCHES_PER_SUBMIT,
+    APSP_TILE,
     ARC_WINDOW_ALIGN,
     BC_BACKWARD_LEVELS_PER_SUBMIT,
     BC_BATCH_BUDGET_FRACTION,
@@ -278,6 +280,14 @@ describe("constants.ts (contract 3.2)", () => {
                 }
             }
         }
+    });
+
+    it("pins the all-pairs constants (design 8.7): 32 x 32 tiles, two of which fit 16 KiB of workgroup memory, and the dispatch cap of one submit", () => {
+        expect(APSP_TILE).toBe(32);
+        expect(2 * APSP_TILE * APSP_TILE * 4).toBeLessThanOrEqual(16 * 1024);
+        expect(APSP_MAX_DISPATCHES_PER_SUBMIT).toBe(4096);
+        // the whole sweep of a 32,767-node matrix (Chromium's 4 GiB binding) is 3 x 1,024 dispatches: one submit
+        expect(3 * Math.ceil(32767 / APSP_TILE)).toBeLessThanOrEqual(APSP_MAX_DISPATCHES_PER_SUBMIT);
     });
 
     it("F32_INF_BITS is the bit pattern of +Infinity, derived rather than remembered", () => {

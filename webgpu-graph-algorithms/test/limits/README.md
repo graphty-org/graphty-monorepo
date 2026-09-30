@@ -43,6 +43,9 @@ Files, planned and landed, and the gate that lands each:
   inequality, `reachedCount`.
 - `apsp-bound.test.ts` (G9): APSP exact / weighted inside the binding-size bound
   of spec 8.7 and `E_TOO_LARGE` above it.
+- `betweenness-1m.test.ts` (betweenness, landed): 64 sampled sources on the 1M / 10M RMAT rung --
+  the planned batch count, the scores against the Brandes reference within 1e-4, and bitwise the
+  same scores when a faked `maxBufferSize` forces eight sources per batch.
 
 The six G4 files are the P4 phase's (`design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md`,
 Task P4-T15); their measured numbers are in the G4 record, `docs/decisions/G4.md`.

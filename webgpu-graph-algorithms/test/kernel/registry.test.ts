@@ -15,6 +15,7 @@ import { PRELUDE_WGSL } from "../../src/kernel/prelude.js";
 import { type UniformBlock } from "../../src/kernel/struct-block.js";
 import { composeWgsl, entryPointOf, STANDARD_OVERRIDES } from "../../src/kernel/wgsl.js";
 import {
+    BC_PARAMS,
     BF_PARAMS,
     COMPACT_PARAMS,
     FA2_PARAMS,
@@ -59,7 +60,7 @@ interface ExpectedEntry {
     readonly uniforms: readonly UniformBlock[];
     readonly needs: readonly "subgroups"[];
     readonly snippetSlots: readonly string[];
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9";
     /** Storage-buffer count per stage (3.10.1: "degree 5, reduce 2, fill 1, segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2"; design 8.10: spmvPull 8, pr-scale 5, pr-finalize 1, Afforest link 3 / compress 1, sample 2; wcc-link-sample 5 = the graph slots + comp). */
     readonly storageCount: number;
 }
@@ -811,6 +812,111 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P8",
         storageCount: 3,
+    },
+    "bc-finalize": {
+        entryPoint: "bc_finalize",
+        bindings: [
+            [1, 0, "counters", "storage", "array<atomic<u32>>"],
+            [1, 1, "ends", "storage", "array<u32>"],
+            [1, 2, "S", "storage-ro", "array<u32>"],
+            [1, 3, "depthK", "storage", "array<u32>"],
+            [1, 4, "sigmaK", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 5,
+    },
+    "bc-forward": {
+        entryPoint: "bc_forward",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "S", "storage", "array<u32>"],
+            [1, 3, "ends", "storage-ro", "array<u32>"],
+            [1, 4, "counters", "storage", "array<atomic<u32>>"],
+            [1, 5, "depthK", "storage", "array<atomic<u32>>"],
+            [1, 6, "sigmaK", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 7,
+    },
+    "bc-backward": {
+        entryPoint: "bc_backward",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "S", "storage-ro", "array<u32>"],
+            [1, 3, "depthK", "storage-ro", "array<u32>"],
+            [1, 4, "sigmaK", "storage-ro", "array<u32>"],
+            [1, 5, "deltaK", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 6,
+    },
+    "bc-gather": {
+        entryPoint: "bc_gather",
+        bindings: [
+            [1, 0, "deltaK", "storage-ro", "array<f32>"],
+            [1, 1, "bc", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 2,
+    },
+    "bc-edge-gather": {
+        entryPoint: "bc_edge_gather",
+        bindings: [
+            [1, 0, "rowPtr", "storage-ro", "array<u32>"],
+            [1, 1, "colIdx", "storage-ro", "array<u32>"],
+            [1, 2, "depthK", "storage-ro", "array<u32>"],
+            [1, 3, "sigmaK", "storage-ro", "array<u32>"],
+            [1, 4, "deltaK", "storage-ro", "array<f32>"],
+            [1, 5, "arcScores", "storage", "array<f32>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 6,
+    },
+    "bc-forward-edge": {
+        entryPoint: "bc_forward_edge",
+        bindings: [
+            [1, 0, "edgeSrc", "storage-ro", "array<u32>"],
+            [1, 1, "edgeDst", "storage-ro", "array<u32>"],
+            [1, 2, "S", "storage", "array<u32>"],
+            [1, 3, "ends", "storage-ro", "array<u32>"],
+            [1, 4, "counters", "storage", "array<atomic<u32>>"],
+            [1, 5, "depthK", "storage", "array<atomic<u32>>"],
+            [1, 6, "sigmaK", "storage", "array<atomic<u32>>"],
+            [2, 0, "P", "uniform", "BcParams"],
+        ],
+        overrideDecls: [["UNDIRECTED", "bool", false]],
+        uniforms: [BC_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P9",
+        storageCount: 7,
     },
 };
 

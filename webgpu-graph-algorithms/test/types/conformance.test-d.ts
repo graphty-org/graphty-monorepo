@@ -2,10 +2,12 @@ import type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
     BellmanFordResultLike,
+    BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
     ClosenessAcceleratorOptions,
     ClosenessResultLike,
+    EdgeScoresResultLike,
     PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -127,3 +129,13 @@ expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatc
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ClosenessResultLike>();
+
+// ---- betweenness: the seam's option type in, the design's result records out, which satisfy the seam's shapes
+expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["betweennessCentrality"]>[1]
+>();
+expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["edgeBetweennessCentrality"]>[1]
+>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["betweennessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["edgeBetweennessCentrality"]>>>().toMatchTypeOf<EdgeScoresResultLike>();

@@ -83,20 +83,22 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * pair of the reverse core, no declared override; the subgroup twin is not a matrix axis) + bfs-bitset-build 1 +
  * bfs-unvisited-flags 1 (P8-T8) + bfs-next-degree 1 (issue #391) + sssp-relax 5 (P8-T9: the graph pair, no declared override) + bf-relax 3 (P8-T10:
  * the defaults plus the UNDIRECTED axis, no group 0) + closeness-sweep 5 (P8-T11: the graph pair, no declared
- * override) + closeness-reduce 1 (P8-T11). The
+ * override) + closeness-reduce 1 (P8-T11); P9 = bc-finalize 1 + bc-forward 1 + bc-backward 1 + bc-edge-gather 1 (their
+ * rowPtr / colIdx are group-1 state, not the graph group) + bc-gather 1 + bc-forward-edge 3 (the defaults plus the
+ * UNDIRECTED axis). The
  * LAW != 0 x LINLOG / DISTRIBUTED combinations compile
  * and no factory emits them: the matrix is a superset by design.
  */
-export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" | "P7" | "P8", number>> = Object.freeze(
-    {
+export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9", number>> =
+    Object.freeze({
         P1: 53,
         P2: 148,
         P3: 157,
         P4: 40,
         P7: 69,
         P8: 46,
-    },
-);
+        P9: 8,
+    });
 
 /** The standard overrides the composer fills from the device; never part of a variant's identity. */
 const DEVICE_DERIVED: ReadonlySet<string> = new Set(["WG", "SUBGROUP_MIN", "SUBGROUP_MAX"]);

@@ -42,6 +42,7 @@ import type {
     KatzOptions,
     PageRankOptions,
 } from "./algorithms.js";
+import type { GpuBetweennessResult, GpuEdgeScoresResult } from "./betweenness.js";
 import type {
     ForceAtlas2Stats,
     FruchtermanReingoldStats,
@@ -113,8 +114,9 @@ export interface AcceleratorOptions {
  * the mirror declares none and an extra REQUIRED parameter would stop the member satisfying it. The four traversals
  * take the seam's OWN option types (PD-19: `BfsOptions`, `SsspOptions` for both `sssp` and `bellmanFord`,
  * `ClosenessAcceleratorOptions` for `closenessCentrality`), so a key the CPU dispatcher forwards is exactly a key the GPU reads;
- * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. Later phases add
- * one member per shipped algorithm.
+ * `test/types/conformance.test-d.ts` holds each parameter EQUAL to the seam's, not merely assignable. The two
+ * betweenness members take the seam's `BetweennessAcceleratorOptions`. Later phases add one member per shipped
+ * algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
  * @public
  */
@@ -144,6 +146,8 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     sssp(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuSsspResult>;
     bellmanFord(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<GpuBellmanFordResult>;
     closenessCentrality(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult>;
+    betweennessCentrality(s: GraphSnapshot, options?: BetweennessAcceleratorOptions): Promise<GpuBetweennessResult>;
+    edgeBetweennessCentrality(s: GraphSnapshot, options?: BetweennessAcceleratorOptions): Promise<GpuEdgeScoresResult>;
     release(s: GraphSnapshot): void;
     dispose(): void;
 }

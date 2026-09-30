@@ -1,9 +1,9 @@
-/* Bottom toolbar: Select (pointer tools), Path, Analyze, Quick actions, View mode.
-   The flyouts render into the overlay region (this section is also named there by `frame`), so
-   the shell dims nothing and an outside click closes them. The XR hand menu is the same controls,
-   in the same order, plus a Rows page. Plain ASCII. */
+/* Bottom toolbar, version 2: four controls -- Select, Analyze, Quick actions, View mode.
+   Path and Hand are gone (Path lives on the selection bar and Analyze > Find paths; a plain drag
+   already pans or orbits). Flyouts render into the overlay region, so an outside click closes
+   them. The XR hand menu mirrors the same controls plus a Rows page. Labels and keys come from
+   AB.COMMANDS. Plain ASCII. */
 (function () {
-    // Section-local styles (not in the shared kit).
     document.head.append(h("style", null,
         ".tb-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}" +
         ".tb-annot{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}" +
@@ -11,6 +11,8 @@
         ".tb-face{min-width:44px}" +
         ".tb-hand{width:320px;max-height:calc(100vh - 140px);overflow:auto;padding:12px;border-radius:13px;background:#1e1e1e;color:#fff;color-scheme:dark;box-shadow:var(--cm-elevation-400)}" +
         ".tb-hand-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:600}" +
+        ".tb-hand-needs{margin:0 0 8px;padding:6px 8px;border:1px dashed #ffffff4d;border-radius:8px;font-size:11px;color:#ffffffb2}" +
+        ".tb-hand-needs .ab-needs{color:#ffffffcc}" +
         ".tb-hand .k-tab{color:#ffffffb2}.tb-hand .k-tab[aria-selected=true]{color:#fff}" +
         ".tb-hand-tools{display:grid;grid-template-columns:1fr;gap:4px}" +
         ".tb-hand-btn{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:8px;background:#2c2c2c}" +
@@ -24,32 +26,24 @@
         ".tb-hand-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;color:#fff}" +
         ".tb-hand-icon:hover,.tb-hand-icon:focus-visible{background:#383838}" +
         ".tb-hand-icon[aria-pressed=true]{background:var(--cm-bg-brand)}" +
-        ".tb-hand-foot{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #383838}" +
         ".tb-hand .k-secondary{color:#ffffff99}"));
 
-    const POINTERS = {
-        Select: { icon: "mouse-pointer-2", key: "V" },
-        Lasso: { icon: "lasso", key: "Q" },
-        Hand: { icon: "hand", key: "H" },
-    };
-    let pointer = "Select"; // the Select control's face shows the last pointer tool
-    let dim = "2D";         // what the View mode control shows
-    let rowsPage = true;    // the hand menu's page
+    const C = AB.COMMANDS;
+    const clean = (label) => label.replace(/\.+$/, "");
+    // The mode the last desktop state showed; a flyout opened from 2D keeps 2D under it.
+    let lastMode = "3d";
+    const restOf = (mode) => (mode === "2d" ? "2d" : "at-rest");
+    const curMode = () => (AB.route && AB.route.frame && AB.route.frame.mode) || lastMode;
+    let rowsPage = true; // the hand menu's page
 
     const oq = (text) => h("span", { class: "k-annot-tag", title: text }, "Open question: " + text);
     const annot = (text, id, state) => h("span", { class: "k-annot-tag" }, AB.link(id, state, text));
 
-    function setPointer(name) {
-        pointer = name;
-        const st = dim === "3D" ? "3d" : "at-rest";
-        if (location.hash === AB.href("toolbar", st)) AB.render(); else AB.go("toolbar", st);
-    }
-
     // One Tab stop: arrows move between buttons, Alt+Down opens the focused button's flyout.
     function roving(bar) {
-        const stops = [...bar.querySelectorAll(".tb-tool")];
+        // The View mode caret is a stop of its own, so arrows reach it as well as Alt+Down
+        const stops = [...bar.querySelectorAll(".tb-tool, .k-tool-caret")];
         stops.forEach((s, i) => s.setAttribute("tabindex", i === 0 ? "0" : "-1"));
-        bar.querySelectorAll(".k-tool-caret").forEach((c) => c.setAttribute("tabindex", "-1"));
         bar.addEventListener("keydown", (e) => {
             const i = stops.indexOf(document.activeElement);
             if (i < 0) return;
@@ -68,64 +62,66 @@
     }
 
     function toolbar(state) {
-        const tool = (ic, label, key, target, o) => h("span", Object.assign({
-            class: "k-tool k-tool-label tb-tool" + (o && o.face ? " tb-face" : ""), role: "button",
-            "data-tool": o && o.anchor || label, "data-flyout": o && o.flyout || null,
-            "aria-pressed": o && o.pressed ? "true" : "false",
-            "aria-haspopup": o && o.flyout ? "menu" : null,
-            "aria-keyshortcuts": key, title: label + " (" + key + ")" + (o && o.flyout ? ". Alt+Down for more" : ""),
-        }, AB.act({ go: target })), icon(ic, "lg"), h("span", { class: "ab-tlabel" }, label));
-        const caret = (label, target, open) => h("span", Object.assign({ class: "k-tool-caret", role: "button", "aria-label": label, "aria-haspopup": "menu", "aria-expanded": String(!!open) }, AB.act({ go: target })), icon("chevron-down", "sm"));
-        const p = POINTERS[pointer];
-        const flyToggle = (s) => state === s ? [ "toolbar", dim === "3D" ? "3d" : "at-rest" ] : ["toolbar", s];
+        const mode = curMode();
+        const rest = restOf(mode);
+        const tool = (ic, c, o) => {
+            o = o || {};
+            const label = o.face || clean(c.label);
+            const name = o.anchor || clean(c.label);
+            return h("span", Object.assign({
+                class: "k-tool k-tool-label tb-tool" + (o.face ? " tb-face" : ""), role: "button",
+                "data-tool": name, "data-flyout": o.flyout || null,
+                "aria-pressed": o.pressed ? "true" : "false",
+                "aria-haspopup": o.flyout ? "menu" : null,
+                "aria-label": o.face ? name + ", " + o.face : null,
+                "aria-keyshortcuts": c.shortcut || null,
+                title: name + (c.shortcut ? " (" + c.shortcut + ")" : "") + (o.flyout ? ". Alt+Down for more" : ""),
+            }, AB.act({ go: o.go || c.go })), icon(ic, "lg"), h("span", { class: "ab-tlabel" }, label));
+        };
+        const caret = (label, s) => {
+            const open = state === s;
+            return h("span", Object.assign({ class: "k-tool-caret", role: "button", "aria-label": label, "aria-haspopup": "menu", "aria-expanded": String(open) }, AB.act({ go: open ? ["toolbar", rest] : ["toolbar", s] })), icon("chevron-down", "sm"));
+        };
         const viewState = state === "view-mode-headset" ? "view-mode-headset" : "view-mode";
-        const bar = h("div", { class: "k-toolbar", role: "toolbar", "aria-label": "Tools" },
-            tool(p.icon, pointer, p.key, ["toolbar", dim === "3D" ? "3d" : "at-rest"], { pressed: true, anchor: "Select", flyout: "pointer-flyout" }),
-            caret("Pointer tools", flyToggle("pointer-flyout"), state === "pointer-flyout"),
-            tool("route", "Path", "P", ["path-tool", "armed"]),
-            tool("flask-conical", "Analyze", "A", ["analyze-popover", "open"]),
+        const bar = h("div", { class: "k-toolbar", role: "toolbar", "aria-label": "Tools", "aria-orientation": "horizontal" },
+            // No caret on Select until Lasso ships: a flyout with one live entry is not worth the width
+            tool("mouse-pointer-2", C.select, { pressed: true, anchor: "Select", go: ["toolbar", rest] }),
+            tool("flask-conical", C.analyze, { anchor: "Analyze" }),
             h("span", { class: "k-toolbar-sep" }),
-            tool("zap", "Quick actions", "Ctrl+K", ["commands-and-search", "quick-actions"]),
+            tool("zap", C["quick-actions"]),
             h("span", { class: "k-toolbar-sep" }),
-            tool(dim === "3D" ? "box" : "square", dim, "5", ["toolbar", dim === "3D" ? "at-rest" : "3d"], { anchor: "View mode", flyout: viewState, face: true }),
-            caret("View mode", flyToggle(viewState), state === viewState),
+            // The face click is the same toggle as key 5; the caret opens the flyout
+            tool(mode === "2d" ? "square" : "box", C["view-mode"], { anchor: "View mode", flyout: viewState, face: mode === "2d" ? "2D" : "3D", go: ["toolbar", mode === "2d" ? "at-rest" : "2d"] }),
+            caret("More view modes: VR and AR (Alt+Down)", viewState),
         );
         roving(bar);
         return bar;
     }
 
-    // Review annotations above the bar: where the neighbors of this section are.
+    // Review annotations above the bar, only on the toolbar's own states.
     function annotations(state) {
-        // Only on the toolbar's own states; framing another section, the toolbar carries no review notes
         if (!AB.route || AB.route.id !== "toolbar") return null;
         const a = [];
         if (state === "at-rest") a.push(annot("With something selected, the selection bar attaches here", "selection-bar", "two-nodes"));
-        if (state === "3d") a.push(annot("Camera presets (1, 3, 7) are in the zoom and view menu in 3D", "zoom-and-view-menu", "3d"));
-        if (state === "view-mode") a.push(oq("reason wording comes from graphty-element"));
+        if (state === "labels-hidden") a.push(annot("Settings > Appearance > Toolbar labels: Never", "settings", "appearance"));
+        if (state === "2d") a.push(annot("Fit, frame and zoom are in the Camera menu", "camera-menu", "2d"));
+        if (state === "view-mode") a.push(h("span", { class: "k-annot-tag", title: "The app shows a plain reason; the check is graphty-element's isVRSupported() and isARSupported()" }, "Design note: the disabled reasons come from the element's VR and AR checks"));
         return a.length ? h("div", { class: "tb-annot" }, a) : null;
     }
 
     function flyout(state) {
-        if (state === "pointer-flyout") {
-            return AB.menu({
-                anchor: "[data-tool=Select]", place: "above-start",
-                items: [
-                    ...Object.keys(POINTERS).map((n) => ({ label: n, shortcut: POINTERS[n].key, check: n === pointer, onClick: () => setPointer(n) })),
-                    { sep: true },
-                    { heading: "Hold Space to pan" },
-                ],
-            });
-        }
+        const rest = restOf(lastMode);
         const headset = state === "view-mode-headset";
-        const reason = "No headset found. Connect one and reload.";
+        const xr = ["toolbar", "xr-hand-menu"];
+        // Key 5 is one toggle, shown once: on the mode it would switch to
         return AB.menu({
             anchor: "[data-tool='View mode']", place: "above-start",
             items: [
-                { label: "2D", shortcut: "5", check: dim === "2D", go: ["toolbar", "at-rest"] },
-                { label: "3D", shortcut: "5", check: dim === "3D", go: ["toolbar", "3d"] },
+                { label: "2D", shortcut: lastMode === "2d" ? null : "5", check: lastMode === "2d", go: ["toolbar", "2d"] },
+                { label: "3D", shortcut: lastMode === "3d" ? null : "5", check: lastMode === "3d", go: ["toolbar", "at-rest"] },
                 { sep: true },
-                headset ? { label: "Enter VR", go: ["toolbar", "xr-hand-menu"] } : { label: "Enter VR", disabled: true, desc: reason },
-                headset ? { label: "Enter AR", go: ["toolbar", "xr-hand-menu"] } : { label: "Enter AR", disabled: true, desc: "This device cannot show AR." },
+                headset ? AB.cmd("enter-vr", { enabled: true, go: xr }) : AB.cmd("enter-vr"),
+                headset ? AB.cmd("enter-ar", { enabled: true, go: xr }) : AB.cmd("enter-ar"),
             ],
         });
     }
@@ -133,22 +129,23 @@
     // Esc closes a flyout and returns focus to its button.
     function escToClose(el) {
         el.addEventListener("keydown", (e) => {
-            if (e.key === "Escape") { e.stopPropagation(); AB.go("toolbar", dim === "3D" ? "3d" : "at-rest"); }
+            if (e.key === "Escape") { e.stopPropagation(); AB.go("toolbar", restOf(lastMode)); }
         });
     }
 
-    // ---------- the XR hand menu ----------
+    // ---------- the XR hand menu (a design target: the element has no in-headset menu) ----------
     function handMenu() {
         const L = AB.fx.datasets.lesmis;
-        // The graph tree's top-level rows that paint, in paint order (same rows as the Graph place at rest)
         const multi = (cs) => h("span", { class: "ab-multi" }, cs.map((c) => AB.chit(c, true)));
+        // The graph tree's top-level rows that have an eye, in paint order, Notes included
         const rows = [
+            { name: "Notes", swatch: icon("message-square"), count: "2 nodes", eye: true },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), eye: true },
             { name: "Louvain, resolution 1.0", swatch: multi(["#E69F00", "#56B4E9", "#009E73"]), count: "6 groups", eye: true },
             { name: "Shortest paths", swatch: AB.chit("#D55E00"), count: "2 paths", eye: true },
             { name: "Watchlist", swatch: AB.chit("#CC79A7", true), count: "5", eye: true },
             { name: "For the report", swatch: icon("folder-open"), count: "3 rows", eye: true },
-            { name: "Everything", swatch: AB.chit("#9e9e9e", true), eye: true },
+            { name: "Everything", swatch: icon("square-filled"), eye: true },
         ];
         let solo = null;
         const box = h("div", { class: "tb-hand", role: "menu", "aria-label": "Hand menu" });
@@ -156,12 +153,11 @@
 
         function tools() {
             return h("div", { class: "tb-hand-tools" },
-                hb("mouse-pointer-2", "Select", "Select, Hand", { onClick: () => AB.flash("Pointer tool chosen (not wired in the skeleton)") }),
-                hb("route", "Path", "last settings", { go: ["path-tool", "armed"] }),
-                hb("flask-conical", "Analyze", "last settings", { go: ["analyze-popover", "open"] }),
-                hb("zap", "Quick actions", null, { go: ["commands-and-search", "quick-actions"] }),
-                hb("box", "View mode", "Exit VR", { go: ["toolbar", "3d"] }),
-                h("div", { class: "k-secondary", style: "padding:6px 4px 0;font-size:11px" }, "Path and Analyze run with each entry's last settings, or its defaults. Settings and styling wait for the desktop."));
+                hb("mouse-pointer-2", "Select", null, { onClick: () => AB.flash("Select is the only pointer tool in a headset (not wired in the skeleton)") }),
+                hb("flask-conical", "Analyze", "last settings", { go: C.analyze.go }),
+                hb("zap", "Quick actions", null, { go: C["quick-actions"].go }),
+                hb("headset", "View mode", "Exit VR", { go: ["toolbar", "at-rest"] }),
+                h("div", { class: "k-secondary", style: "padding:6px 4px 0;font-size:11px" }, "Analyze runs each entry with its last settings, or its defaults, and names them before it runs. Option forms and styling wait for the desktop."));
         }
         function rowsList() {
             const list = h("div", { role: "list" });
@@ -174,39 +170,37 @@
                 }));
             };
             draw();
-            const markers = h("span", Object.assign({ class: "k-switch", role: "switch", "aria-checked": "true", "aria-label": "Note markers" }, AB.act({ onClick: (e) => { const t = e.currentTarget; t.setAttribute("aria-checked", String(t.getAttribute("aria-checked") !== "true")); } })));
-            return [list,
-                h("div", { class: "tb-hand-foot" }, markers, h("span", { class: "k-grow" }, "Note markers"), h("span", { class: "k-secondary" }, "Shift+N")),
-                h("div", { class: "k-secondary", style: "padding-top:8px;font-size:11px" }, "Top-level rows in paint order. Reorder and style them at the desktop.")];
+            return [list, h("div", { class: "k-secondary", style: "padding-top:8px;font-size:11px" }, "Top-level rows in paint order. Reorder and style them at the desktop.")];
         }
         const body = h("div");
         const page = (rp) => { rowsPage = rp; body.replaceChildren(...[].concat(rp ? rowsList() : tools())); };
         box.append(
             h("div", { class: "tb-hand-head" }, icon("hand"), h("span", { class: "k-grow" }, "Hand menu"), h("span", { class: "k-secondary" }, L.frame.project)),
+            h("div", { class: "tb-hand-needs" }, "Design target, not buildable yet: ", AB.needsElement("in-headset menu: page panels are not visible inside a headset, and graphty-element has no in-headset menu API; filed")),
             AB.tabs(["Tools", "Rows"], rowsPage ? "Rows" : "Tools", (n) => page(n === "Rows")),
             body);
         page(rowsPage);
         return box;
     }
 
-    // ---------- keys the toolbar owns (the shell keeps its own) ----------
-    document.addEventListener("keydown", (e) => {
+    // ---------- keys the toolbar owns ----------
+    // The shell owns Ctrl+K, Shift+A, P and ?; on the toolbar's own route, 5 toggles here instead
+    // of the shell's "not wired" flash (capture phase, so the shell's handler never sees it).
+    window.addEventListener("keydown", (e) => {
         const t = e.target;
         if (!AB.fx || document.body.dataset.page !== "app") return;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-        const mod = e.ctrlKey || e.metaKey;
-        if (mod && !e.shiftKey && !e.altKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); AB.go("commands-and-search", "quick-actions"); return; }
-        if (mod || e.altKey || e.shiftKey) return;
-        const k = e.key.toLowerCase();
-        if (k === "v") setPointer("Select");
-        else if (k === "q") setPointer("Lasso");
-        else if (k === "h") setPointer("Hand");
-        else if (k === "p") AB.go("path-tool", "armed");
-        else if (k === "a") AB.go("analyze-popover", "open");
-        else if (k === "5") AB.go("toolbar", dim === "3D" ? "at-rest" : "3d");
-    });
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+        if (AB.store && AB.store.get("singleKeys") === "off") return; // Settings > Accessibility (WCAG 2.1.4)
+        if (e.key === "v" || e.key === "V") AB.go("toolbar", restOf(curMode()));
+        else if (e.key === "5" && AB.route && AB.route.id === "toolbar") {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            AB.go("toolbar", curMode() === "2d" ? "at-rest" : "2d");
+        }
+    }, true);
 
-    const FLYOUTS = ["pointer-flyout", "view-mode", "view-mode-headset"];
+    const FLYOUTS = ["view-mode", "view-mode-headset"];
 
     registerSection({
         id: "toolbar",
@@ -214,33 +208,47 @@
         region: "toolbar",
         closeTo: "toolbar/at-rest",
         states: [
-            { id: "at-rest", label: "At rest" },
-            { id: "pointer-flyout", label: "Pointer tools open" },
+            { id: "at-rest", label: "At rest (3D)" },
+            { id: "labels-hidden", label: "Labels hidden" },
             { id: "view-mode", label: "View mode, no headset" },
             { id: "view-mode-headset", label: "View mode, headset present" },
-            { id: "3d", label: "3D active" },
+            { id: "2d", label: "2D active" },
             { id: "xr-hand-menu", label: "XR hand menu, Rows page" },
+            { id: "session-ended", label: "Headset session ended" },
         ],
         frame(state) {
-            if (FLYOUTS.includes(state)) return { overlay: "toolbar/" + state };
+            if (FLYOUTS.includes(state)) return { overlay: "toolbar/" + state, mode: lastMode };
             if (state === "xr-hand-menu") return { top: false, rail: false, left: false, right: false, dock: false };
+            if (state === "2d") return { mode: "2d" };
             return {};
         },
         render(el, state, ctx) {
-            if (state === "at-rest") dim = "2D";
-            if (state === "3d") dim = "3D";
+            // "3d" was this section's state in version 1; 3D is now at rest
+            if (state === "3d") state = "at-rest";
             if (ctx.region === "overlay") {
                 const m = flyout(state);
                 escToClose(m);
                 el.append(m);
                 return;
             }
+            if (AB.route && AB.route.id === "toolbar" && !FLYOUTS.includes(state)) lastMode = state === "2d" ? "2d" : "3d";
             if (state === "xr-hand-menu") {
                 if (ctx.region !== "toolbar") return;
-                el.append(h("div", { class: "tb-wrap" }, h("div", { class: "tb-annot" }, annot("In a headset the toolbar becomes this hand menu; Exit VR returns to 3D", "toolbar", "3d")), handMenu()));
+                el.append(h("div", { class: "tb-wrap" }, h("div", { class: "tb-annot" }, annot("In a headset the toolbar becomes this hand menu; Exit VR returns to 3D", "toolbar", "at-rest")), handMenu()));
                 return;
             }
-            el.append(h("div", { class: "tb-wrap" }, annotations(state), toolbar(state)));
+            if (state === "labels-hidden") {
+                const dock = document.getElementById("ab-toolbar");
+                if (dock) dock.dataset.labels = "never";
+            }
+            const wrap = h("div", { class: "tb-wrap" }, annotations(state));
+            if (state === "session-ended") {
+                wrap.append(
+                    h("div", { class: "tb-annot" }, oq("reason wording is graphty-element's")),
+                    AB.notice("The headset session ended unexpectedly. The graph is back in 3D.", { label: "Enter VR", go: ["toolbar", "view-mode-headset"] }));
+            }
+            wrap.append(toolbar(state));
+            el.append(wrap);
         },
     });
 })();

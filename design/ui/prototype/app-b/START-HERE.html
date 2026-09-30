@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refined B answers</title>
+<style>
+:root { --bg: #ffffff; --fg: #1d1f23; --muted: #5b616b; --line: #d9dce1; --link: #1f5fbf; --tag: #eef1f5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #16181c; --fg: #e6e8eb; --muted: #a0a6b0; --line: #30343b; --link: #7fb0ff; --tag: #23272e; } }
+:root[data-theme="dark"] { --bg: #16181c; --fg: #e6e8eb; --muted: #a0a6b0; --line: #30343b; --link: #7fb0ff; --tag: #23272e; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 system-ui, sans-serif; margin: 0; padding: 24px 16px 64px; }
+main { max-width: 760px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 0 0 8px; }
+h2 { font-size: 17px; margin: 32px 0 8px; border-top: 1px solid var(--line); padding-top: 16px; }
+h3 { font-size: 15px; margin: 20px 0 4px; }
+p, li { margin: 4px 0; }
+.q { color: var(--muted); font-style: italic; }
+a { color: var(--link); }
+.see { font-size: 13px; }
+.see a { background: var(--tag); padding: 1px 6px; border-radius: 4px; text-decoration: none; margin-right: 4px; white-space: nowrap; }
+.nav { font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main>
+<p class="nav"><a href="index.html#/map">Site map</a> | <a href="index.html#/graph-place">Open the app</a></p>
+<h1>Refined B, version 2: answers to your eleven questions</h1>
+<p>Each answer says what changed and where to click. "Owner decision" means owner-feedback.md records it as yours; everything else is a studio decision. Anything marked "needs graphty-element" is drawn disabled and listed once in spec section 19 (structure-b-refined.md).</p>
+
+<h2>The eleven questions</h2>
+
+<h3>1. The Everything layer shows only some styling options</h3>
+<p>Every row that paints gets one Style tab, generated from graphty-element's own list of 35 style properties (13 node, 22 edge) plus the label style, in fixed sections: Fill, Shape, Effects, Label, Tooltip for nodes; Line, Arrow head, Arrow tail, Label for edges. A row shows only what it sets; "+" adds any other property and a search icon finds one. That keeps rows short, and a property the element adds later appears with no app change.</p>
+<p class="see">See <a href="index.html#/inspector-selection-and-everything/everything">Everything</a><a href="index.html#/style-pickers/plus-menu-search">Add a property</a></p>
+
+<h3>2. Rename by double-click</h3>
+<p>Your direction, done as Figma does it: double-click the name, Enter or click away saves, Esc cancels, and Tab moves to the next row so twelve communities can be named in one pass. F2 renames from the keyboard. The same gesture renames graphs, folders, saved views and the project.</p>
+<p class="see">See <a href="index.html#/graph-place/rename">Renaming</a><a href="index.html#/graph-place/rename-chain">Tab to the next row</a></p>
+
+<h3>3. Add data and Paste data belong under Data; Tableau's Data Sources</h3>
+<p>Yes, within what graphty-element supports. Data &gt; Sources is the one place data enters a graph (file, URL, paste); File loses both items, and the load dialog ends with "Load into: this graph / replace this graph / a new graph". In Tableau a workbook holds many sources; in graphty a project holds many graphs, so "a new source" is usually a new graph. Joins, live connections and filter-at-import are drawn as needs graphty-element, because building them in the app would be a workaround.</p>
+<p class="see">See <a href="index.html#/data-place/sources-menu">Sources menu</a><a href="index.html#/load-step/load-into">Load into</a></p>
+
+<h3>4. Notes as a style layer; styling left to the user</h3>
+<p>Yes. How noted elements look is now a built-in Notes row under Selection, with the same Style tab as every row. Its default is an outline, and you can choose any look or none. The old callouts painted outside the layer system, so they are deleted. General rule: the app adds no look of its own; only the element's defaults and a run's suggested style (owner decision) arrive unasked.</p>
+<p class="see">See <a href="index.html#/inspector-selection-and-everything/notes-row">Notes row</a></p>
+
+<h3>5. "Why this look" takes too much room</h3>
+<p>It now lists one line per layer that wins at least one property, e.g. "PageRank -- color". Layers that match but lose collapse into one line. Valjean's section drops from about 20 lines to 4 or 5. The list comes from the element's explain(), so the app computes nothing.</p>
+<p class="see">See <a href="index.html#/inspector-node/why-this-look">Valjean</a></p>
+
+<h3>6. Toolbar on the left; Path under Select</h3>
+<p>The toolbar stays fixed at the bottom center. Toolbar labels are Auto, Always or Never in Settings; Auto drops them when the bar would pass about 60% of the canvas width. Space is not the limit: no element capability passes the test "changes what the next click does". Path leaves the toolbar but does not go into Select. With two nodes selected, the selection bar offers Path between, because a path is a one-shot query, not a mode. Hand is dropped, since a plain drag already pans.</p>
+<p class="see">See <a href="index.html#/toolbar/at-rest">Toolbar</a><a href="index.html#/selection-bar/path-between-open">Path between</a></p>
+
+<h3>7. All of graphty-element's functionality</h3>
+<p>Spec section 18 is a capability register. Every graphty-element capability gets one outcome: a home in the UI, a catalog generated from the element, plumbing with a stated reason, or a gap filed against the element. The biggest additions are camera views (question 8), Export &gt; Image and Export &gt; Video, an Analyze catalog generated from the element, and layout pause and resume.</p>
+<p class="see">See <a href="index.html#/export-image/image">Image</a><a href="index.html#/export-video/tour">Video tour</a><a href="index.html#/analyze-popover/all-algorithms">All algorithms</a></p>
+
+<h3>8. Views, Present or Export on the rail; cameras</h3>
+<p>Views returns to the rail: Graph, Data, Views, Notes, Assistant. It holds the built-in and saved views in one draggable order, which is also the presentation and tour order. Present and Export are verbs, not places, and jumping to a camera is not a tool. You were right that camera controls existed but were hidden: the "100%" chip is now a Camera menu named after the current view.</p>
+<p class="see">See <a href="index.html#/views-place/at-rest">Views</a><a href="index.html#/camera-menu/3d-moved">Camera menu</a><a href="index.html#/present-mode/presenting">Present</a></p>
+
+<h3>9. One home per feature</h3>
+<p>The rule is kept and made testable. Every object and every piece of state has one home. A command can have many doors (keys, Quick actions, context menus, the selection bar), but a door never holds state. The main menu shrinks to File, Edit, Settings, Help. View mode lives on the toolbar only, labels and arrows become style properties, and the minimap is dropped. Spec section 17 has the full table.</p>
+<p class="see">See <a href="index.html#/main-menu/file">Main menu</a></p>
+
+<h3>10. Preferences versus Settings</h3>
+<p>They are the same thing, so it is renamed Settings (Ctrl+,). It now holds only per-person settings: your name, privacy, appearance, accessibility, canvas input, GPU use, Assistant provider and keys, headset, keyboard and diagnostics. Anything the project carries lives on the object it configures.</p>
+<p class="see">See <a href="index.html#/settings/performance">Performance</a><a href="index.html#/settings/headset">Headset</a></p>
+
+<h3>11. Cluttered right sidebars</h3>
+<p>Every kind of selection now uses one frame: a header (name, kind, "..." menu), an optional state bar holding the only button (e.g. "Settings changed -- Rerun | Revert"), then Style and Data tabs in a fixed order. The rule: the sidebar shows properties, read and edited in place, and holds no verbs. Verbs move to "...". The layout method and its options are properties that re-lay the graph at once. Re-run layout lives in the canvas menu and Quick actions.</p>
+<p class="see">See <a href="index.html#/inspector-run-row/settings-changed">State bar</a><a href="index.html#/inspector-nothing-selected/canvas">Layout</a></p>
+
+<h2>What else changed</h2>
+<p>The app opens in 3D, which is the element's default. Edges are picked from the table, because the element cannot pick them on the canvas. A too-large graph is refused. Single-key shortcuts move off the element's camera keys (Analyze is now Shift+A).</p>
+
+<h2>graphty-element capabilities newly given a home</h2>
+<p>Saved camera views and tours; image and video export; Isometric and plugin views; Katz, HITS, Girvan-Newman, BFS, DFS, Prim, bipartite matching, min-cut and all-pairs distance; GML, DOT, Pajek and every CSV shape; all 7 repeated-edge policies; layout pause, resume, unpin all and pin on drag; GPU policy and live status; headset settings; the import report.</p>
+
+<h2>Open for you</h2>
+<ul>
+<li>Should notes become part of graphty-element's session API, so the Notes row can select the elements notes are about? This is new public element API, so it is yours to decide. Until then the app would use a temporary layer, with a tracking issue.</li>
+<li>Author name: the skeleton keeps your name per person in Settings and stamps it on each note and recipe, so one project can hold several authors. Confirm this, or the name moves into the project.</li>
+</ul>
+<p>The next study round will also check whether people find Path without a toolbar button. If fewer than about half of first clicks land on it, the button comes back.</p>
+</main>
+</body>
+</html>

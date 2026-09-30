@@ -71,6 +71,8 @@
     const EDGES = [["Cosette", "Valjean", 31], ["Marius", "Cosette", 21], ["Marius", "Valjean", 19], ["Courfeyrac", "Enjolras", 17], ["Javert", "Valjean", 17], ["Combeferre", "Enjolras", 15], ["Courfeyrac", "Combeferre", 13], ["Thenardier", "Mme.Thenardier", 13], ["Bossuet", "Courfeyrac", 12], ["Marius", "Gillenormand", 12], ["Thenardier", "Valjean", 12], ["Bossuet", "Enjolras", 10], ["Mme.Magloire", "Myriel", 10], ["Bossuet", "Combeferre", 9], ["Courfeyrac", "Marius", 9], ["Fantine", "Valjean", 9], ["Mlle.Gillenormand", "Gillenormand", 9], ["Fauchelevent", "Valjean", 8], ["Mlle.Baptistine", "Myriel", 8], ["Courfeyrac", "Gavroche", 7]];
     const PAIRS = [["Gavroche", "Eponine", 3.34, 8], ["Gavroche", "Claquesous", 3.2, 8], ["Prouvaire", "Mabeuf", 3.11, 8], ["Prouvaire", "Marius", 3.11, 8], ["Mabeuf", "Grantaire", 3.11, 8], ["Marius", "Grantaire", 3.11, 8], ["Valjean", "Eponine", 2.88, 7], ["Montparnasse", "Mme.Thenardier", 2.71, 7]];
     const NODE_NOTES = { Valjean: 2, Javert: 1, Napoleon: 1 };
+    const EDGE_NEED = "graphty-element has no edge update yet, so edge values cannot be edited in the table; an edge update API is filed.";
+    const edgeReadOnly = () => h("span", { class: "k-secondary" }, "Edge values are read-only. ", AB.needsElement(EDGE_NEED));
 
     const RUN = "Louvain, resolution 1.0";
     const ITEM_TAB = "Communities: Louvain";
@@ -98,11 +100,13 @@
                 return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
             }) : rows;
             tbody.replaceChildren(...sorted.map((r) => {
-                const tr = h("tr", { tabindex: "0", "aria-selected": r.selected ? "true" : null, "data-member": r.member ? "" : null }, cols.map((c) => h("td", { class: (c.n ? "k-n " : "") + (c.id ? "k-id" : "") }, c.cell ? c.cell(r) : String(r[c.key]))));
+                const tr = h("tr", { id: o.rowId ? "td-row-" + o.rowId(r) : null, tabindex: "0", "aria-selected": r.selected ? "true" : null, "data-member": r.member ? "" : null }, cols.map((c) => h("td", { class: (c.n ? "k-n " : "") + (c.id ? "k-id" : "") }, c.cell ? c.cell(r) : String(r[c.key]))));
                 if (o.onRow) {
                     tr.addEventListener("click", (e) => { if (!e.target.closest("[role=button],[role=link],a")) o.onRow(r, e); });
                     tr.addEventListener("keydown", (e) => e.key === "Enter" && o.onRow(r, e));
                 }
+                if (o.onRowMenu) tr.addEventListener("contextmenu", (e) => { e.preventDefault(); o.onRowMenu(r); });
+                if (o.onCellEdit) tr.addEventListener("dblclick", (e) => { e.stopPropagation(); o.onCellEdit(r); });
                 return tr;
             }));
             cols.forEach((c) => { if (heads[c.key]) heads[c.key].querySelector(".td-sort").replaceChildren(sortKey === c.key ? icon(dir < 0 ? "chevron-down" : "chevron-up", "sm") : ""); });
@@ -126,7 +130,7 @@
     }
 
     // ---------- the tab strip ----------
-    function tabStrip(state, tabsOpen, active, onPick) {
+    function tabStrip(state, tabsOpen, active, onPick, optionsState) {
         const list = h("span", { role: "tablist", class: "ab-tablist" });
         tabsOpen.forEach((t) => {
             const el = h("span", { class: "k-tab td-tab", role: "tab", tabindex: "0", "aria-selected": String(t.id === active), title: t.title || null }, t.icon ? icon(t.icon, "sm") : null, t.label,
@@ -142,7 +146,7 @@
             : AB.dockToggle();
         return h("div", { class: "k-dock-tabs td-tabs" }, list, h("span", { class: "k-grow" }),
             AB.iconButton("search", "Find in table", { go: ["commands-and-search", "find"] }),
-            AB.iconButton("ellipsis", "Table options", { go: ["table-dock", "table-options"] }),
+            AB.iconButton("ellipsis", "Table options", { go: ["table-dock", optionsState || "table-options"] }),
             toggle);
     }
 
@@ -163,7 +167,9 @@
             { key: "betweenness", label: "betweenness", type: "num", n: true, profile: "0 to 0.57" },
             { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes, r.notes ? ["notes-place", "all"] : null) },
         ];
-        return table(cols, rows, { sort: "degree", label: "Nodes", openMenu, onRow: openNode });
+        return table(cols, rows, { sort: "degree", label: "Nodes", openMenu, onRow: openNode, rowId: (r) => r.label.replace(/[^A-Za-z0-9]/g, ""),
+            onRowMenu: () => AB.go("table-dock", "row-menu"),
+            onCellEdit: (r) => AB.flash("Editing a value of " + r.label + " (not wired in the skeleton)") });
     }
 
     function edgesTable() {
@@ -174,7 +180,7 @@
             { key: "value", label: "value", type: "num", n: true, profile: "chapters shared" },
             { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
         ];
-        return table(cols, rows, { sort: "value", label: "Edges", onRow: () => AB.go("inspector-edge", "style") });
+        return table(cols, rows, { sort: "value", label: "Edges", onRow: () => AB.go("inspector-edge", "style"), onCellEdit: () => AB.flash("Edge values are read-only: " + EDGE_NEED) });
     }
 
     function communitiesTable(showMembers) {
@@ -186,9 +192,9 @@
             { key: "inside", label: "edges inside", type: "num", n: true },
             { key: "leaving", label: "edges leaving", type: "num", n: true },
             { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
-            { key: "act", label: "", cell: (r) => h("span", Object.assign({ class: "td-rowact", role: "button", title: "Set the Nodes tab to this community's members. Changes the view only." }, AB.act({ onClick: () => showMembers(r.c) })), icon("table", "sm"), "Show members in table") },
         ];
-        return table(cols, rows, { sort: "size", label: ITEM_TAB, onRow: () => AB.go("inspector-group-set-path-row", "style") });
+        // A row opens that community (and selects its members); "Show members in table" is in the row menu
+        return table(cols, rows, { sort: "size", label: ITEM_TAB, onRow: (r) => AB.go("inspector-group-set-path-row", "community-" + r.n), onRowMenu: () => AB.go("context-menus", "row") });
     }
 
     function pairsTable() {
@@ -217,7 +223,7 @@
             { key: "timestamp", label: "timestamp", type: "time", profile: "Mar 1 to Mar 31", cell: (r) => shortTime(r.timestamp) },
             { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
         ];
-        return table(cols, rows, { label: "Edges", onRow: (r) => AB.flash("Selects the transfer " + r.from + " to " + r.to + " (not wired in the skeleton)") });
+        return table(cols, rows, { label: "Edges", onRow: (r) => AB.flash("Selects the transfer " + r.from + " to " + r.to + " (not wired in the skeleton)"), onCellEdit: () => AB.flash("Edge values are read-only: " + EDGE_NEED) });
     }
     function transferNodes() {
         const Tx = T();
@@ -253,6 +259,9 @@
             AB.iconButton("x", "Hide the time slider (T)", { onClick: onHide }));
     }
 
+    // the transfers states and whether each shows the time slider
+    const TRANSFERS = { "time-slider": true, "slider-options": true, transfers: false, "transfers-options": false };
+
     // ---------- the dock ----------
     function dock(el, state) {
         const lesmisTabs = (extra) => [
@@ -268,12 +277,12 @@
         const root = h("div", { class: "td" });
         el.append(root);
 
-        if (state === "time-slider" || state === "transfers") return transfersDock(root, state === "time-slider");
+        if (TRANSFERS[state] !== undefined) return transfersDock(root, TRANSFERS[state]);
 
         let members = state === "members-of-row" ? COMMUNITIES[2] : null;
         const pairTab = { id: "pairs", label: PAIR_TAB, icon: "waypoints", title: "One row per pair from the likely-links run", close: () => AB.go("table-dock", "communities") };
         const tabsOpen = lesmisTabs(state === "pair-run" ? [pairTab] : null);
-        let active = { nodes: "nodes", closed: "nodes", "members-of-row": "nodes", "column-menu": "nodes", "table-options": "nodes", edges: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
+        let active = { nodes: "nodes", closed: "nodes", "members-of-row": "nodes", "column-menu": "nodes", "table-options": "nodes", "row-menu": "nodes", "remove-confirm": "nodes", edges: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
 
         const draw = () => {
             root.replaceChildren(tabStrip(state, tabsOpen, active, (t) => {
@@ -291,20 +300,17 @@
                         h("span", null, m.size + " of " + Lx.nodes + " nodes, members of Community " + m.n + " in ", AB.link("graph-place", "louvain-open", RUN), ". A view of the table: the graph and its filters are unchanged.")));
                     root.append(nodesTable(m.members));
                 } else {
-                    root.append(h("div", { class: "k-scope td-scope" }, h("span", null, "Full graph: " + Lx.nodes + " nodes. Sorted by degree."), h("span", { class: "k-secondary" }, "Shift-click adds to the selection.")));
+                    root.append(h("div", { class: "k-scope td-scope" }, h("span", null, "Full graph: " + Lx.nodes + " nodes. Sorted by degree."), h("span", { class: "k-secondary" }, "Shift-click adds to the selection. Double-click a value to edit it; right-click a row for its menu.")));
                     root.append(nodesTable(null, state === "column-menu" ? "degree" : null));
                 }
             } else if (active === "edges") {
-                root.append(h("div", { class: "k-scope td-scope" }, h("span", null, "Full graph: " + fmt(Lx.edges) + " edges, undirected. Sorted by value; the 20 heaviest shown here.")));
+                root.append(h("div", { class: "k-scope td-scope" }, h("span", null, "Full graph: " + fmt(Lx.edges) + " edges, undirected. Sorted by value; the 20 heaviest shown here."), edgeReadOnly()));
                 root.append(edgesTable());
             } else if (active === "communities") {
                 root.append(h("div", { class: "k-scope td-scope" },
                     h("span", null, COMMUNITIES.length + " communities from ", AB.link("inspector-run-row", "style", RUN), ", weighted by value. Modularity " + MODULARITY + "."),
                     h("span", { class: "k-secondary" }, "Colors are the ones the run paints; a row opens that community.")));
-                root.append(communitiesTable((c) => {
-                    if (current() && c.n === 3) { AB.go("table-dock", "members-of-row"); return; }
-                    members = c; active = "nodes"; draw();
-                }));
+                root.append(communitiesTable());
             } else if (active === "pairs") {
                 root.append(h("div", { class: "k-scope td-scope" },
                     h("span", null, "The " + PAIRS.length + " most likely links between characters who never share a chapter. A pair has nothing to paint; selecting one selects its two nodes."),
@@ -321,11 +327,12 @@
         let active = "edges", slider = withSlider;
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
         const draw = () => {
-            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }));
+            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, slider ? "slider-options" : "transfers-options"));
             if (slider) root.append(timeSlider(() => { slider = false; draw(); AB.flash("Time slider hidden. T shows it again."); }));
             if (active === "edges") {
                 root.append(h("div", { class: "k-scope td-scope" },
                     h("span", null, Tx.file + ": " + fmt(Tx.edges) + " transfers, directed." + (slider ? " Transfers inside the window are highlighted." : " The time slider (T) steps through them by date.")),
+                    edgeReadOnly(),
                     slider ? oq("Whether the table lists only the window's transfers") : null));
                 root.append(transferEdges(slider));
             } else {
@@ -337,6 +344,24 @@
     }
 
     // ---------- menus drawn in the overlay region ----------
+    const NEW_ATTR = "graphty-element has no computed attributes yet; an expression attribute is filed.";
+    const MERGE = "graphty-element has no merge API yet; merging two nodes into one is filed.";
+    function optionsMenu(el, time) {
+        // time: null (no time attribute), "off" or "on"
+        el.append(AB.menu({
+            anchor: "#ab-dock [aria-label='Table options']", place: "below-end",
+            items: [
+                { label: "New attribute...", disabled: true, desc: AB.needsElement(NEW_ATTR) },
+                { label: "Merge nodes...", disabled: true, desc: AB.needsElement(MERGE) },
+                { sep: true },
+                { label: "Show columns..." },
+                time ? { label: "Time slider", shortcut: "T", check: time === "on", desc: "Steps through timestamp by date", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
+                    : { label: "Time slider", shortcut: "T", disabled: true, desc: "This data has no time attribute" },
+                { sep: true },
+                { label: "Export table as CSV...", go: ["export-dialog", "table"] },
+            ],
+        }));
+    }
     function overlay(el, state) {
         if (state === "column-menu") {
             el.append(AB.menu({
@@ -349,22 +374,37 @@
                     { sep: true },
                     { label: "Filter to...", desc: "Adds a filter step in Data", go: ["data-place", "filters"] },
                     { label: "Show in Data", go: ["data-place", "attributes"] },
-                    { sep: true },
-                    { label: "Sort largest first", check: true, onClick: () => AB.go("table-dock", "nodes") },
-                    { label: "Hide column", onClick: flash("Hide column") },
                 ],
             }));
-        } else if (state === "table-options") {
+        } else if (state === "table-options") optionsMenu(el, null);
+        else if (state === "transfers-options") optionsMenu(el, "off");
+        else if (state === "slider-options") optionsMenu(el, "on");
+        else if (state === "row-menu") {
             el.append(AB.menu({
-                anchor: "#ab-dock [aria-label='Table options']", place: "below-end",
+                anchor: "#td-row-Valjean", place: "above-start",
                 items: [
-                    { label: "New column...", desc: "A column of values you type or compute", onClick: flash("New column") },
-                    { label: "Merge nodes...", desc: "Two rows that are one entity", onClick: flash("Merge nodes") },
+                    { heading: "Valjean" },
+                    { label: "Inspect", go: ["inspector-node", "why-this-look"] },
+                    AB.cmd("neighborhood"),
+                    AB.cmd("frame-selection"),
                     { sep: true },
-                    { label: "Show columns..." },
-                    { label: "Time slider", shortcut: "T", disabled: true, desc: "This data has no time attribute" },
+                    AB.cmd("hide-on-canvas"),
+                    AB.cmd("add-note"),
                     { sep: true },
-                    { label: "Export table as CSV...", go: ["export-dialog"] },
+                    { label: "Remove from data...", desc: "Deletes the node and its edges; Hide on canvas keeps them", go: ["table-dock", "remove-confirm"] },
+                ],
+            }));
+        } else if (state === "remove-confirm") {
+            const v = nodeRow("Valjean");
+            el.append(AB.modal({
+                title: "Remove Valjean from the data?",
+                body: h("div", { style: "padding:0 16px" },
+                    h("p", null, "This deletes Valjean and the " + v.degree + " edges that touch Valjean from the graph. Runs that read them go out of date and show Rerun."),
+                    h("p", { class: "k-secondary" }, "Valjean's 2 notes: ", oq("Whether notes on a removed node are kept, detached or deleted")),
+                    h("p", { class: "k-secondary" }, "To keep the data and only stop drawing Valjean, use Hide on canvas. You can undo this with Ctrl+Z.")),
+                foot: [
+                    AB.button("Cancel", { kind: "secondary", go: ["table-dock", "nodes"] }),
+                    AB.button("Remove from data", { onClick: () => { AB.go("table-dock", "nodes"); AB.flash("Valjean removed (not wired in the skeleton)"); } }),
                 ],
             }));
         }
@@ -376,10 +416,11 @@
         region: "dock",
         closeTo: "table-dock/nodes",
         frame(state) {
-            if (state === "time-slider" || state === "transfers") return { left: "data-place/at-rest" };
+            if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
+            if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
             if (state === "communities") return { left: "graph-place/louvain-open", right: "inspector-run-row/style" };
             if (state === "members-of-row") return { left: "graph-place/louvain-open" };
-            if (state === "column-menu" || state === "table-options") return { overlay: "table-dock/" + state };
+            if (state === "column-menu" || state === "table-options" || state === "row-menu" || state === "remove-confirm") return { overlay: "table-dock/" + state };
             return {};
         },
         states: [
@@ -389,9 +430,13 @@
             { id: "members-of-row", label: "Members of a row (chip shown)" },
             { id: "column-menu", label: "Column header menu open" },
             { id: "table-options", label: "Table options menu" },
+            { id: "row-menu", label: "Row menu (right-click a row)" },
+            { id: "remove-confirm", label: "Remove from data confirmation" },
             { id: "pair-run", label: "Item tab of a pair run" },
             { id: "time-slider", label: "Time slider (transfers)" },
             { id: "transfers", label: "Transfers table (Data place)" },
+            { id: "transfers-options", label: "Table options with a time attribute" },
+            { id: "slider-options", label: "Table options, time slider on" },
             { id: "closed", label: "Closed" },
         ],
         render(el, state, ctx) {

@@ -1,6 +1,9 @@
-/* Canvas and its states: the drawing with one legend (an entry selects the row that paints it),
-   note markers, the "not drawn" line with Show all, and the state cards (loading, empty graph,
-   too large to draw, GPU lost). Plain ASCII.
+/* Canvas and its states: the drawing with one legend (an entry selects the row that paints it; the
+   card closes to a Legend chip), the "not drawn" line with Show hidden elements, the Camera menu
+   face and the layout chip at the top right, and the state cards and one-line notices (loading,
+   empty graph, load refused as too large, less detail, waiting to settle, selection full, GPU
+   lost, headset session ended). Note markers are not drawn here: noted elements are painted by
+   the tree's Notes row, a style layer like any other. Plain ASCII.
 
    What paints: at rest the tree's top painting row is PageRank, which colors every node, so the
    drawing is recolored at runtime with each node's PageRank on the measure ramp (the rows below it
@@ -8,24 +11,20 @@
    measure inspector's: networkx les_miserables_graph, unweighted, damping 0.85, keyed by the node's
    position in the kit's drawings (every Les Miserables drawing places the 77 nodes identically).
 
-   Numbers: Les Miserables and Patent citations from kit/fixtures.json. Two drawings are derived
-   here at runtime from the kit's Les Miserables SVGs (nothing new is invented about the graph):
-   "hidden on canvas" drops the 4 group-0 nodes and their edges; "Everything hidden" keeps groups
-   2 and 8 painted and turns every other node into a faint outline. In the too-large state this
-   section also draws the table dock (the Patent citations nodes), since the shared table dock
-   shows Les Miserables. Styles are injected once from this file. */
+   Numbers: Les Miserables, transfers and Patent citations from kit/fixtures.json; the limits
+   (50,000 nodes, 100,000 edges, less detail above 10,000, selections up to 5,000) are
+   graphty-element's DEFAULT_LIMITS. Two drawings are derived here at runtime from the kit's Les
+   Miserables SVGs (nothing new is invented about the graph): "hidden on canvas" drops the 4
+   group-0 nodes and their edges; "Everything hidden" keeps groups 2 and 8 painted and draws every
+   other node as a plain gray stand-in for the element's unstyled node. The old state id
+   "too-large" is read as "refused-too-large". Styles are injected once from this file. */
 (function () {
     "use strict";
     const CSS = `
-.cs-marker { position: absolute; display: inline-flex; align-items: center; gap: 2px; height: 18px; padding: 0 5px 0 4px; border-radius: 9px 9px 2px 9px; transform: translate(calc(-100% - 6px), calc(-100% - 2px)); background: var(--cm-bg); color: var(--cm-text); box-shadow: var(--cm-elevation-200), inset 0 0 0 1px var(--cm-border); font-size: 11px; line-height: 16px; font-weight: 550; font-variant-numeric: tabular-nums; cursor: pointer; z-index: 2; }
-.cs-marker:hover, .cs-marker:focus-visible { background: var(--cm-bg-hover); }
-.cs-marker .k-i { color: var(--cm-icon-secondary); }
 .cs-edge { position: absolute; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%, -50%); }
 .cs-edge:hover, .cs-edge:focus-visible { box-shadow: 0 0 0 2px var(--k-mark-out), 0 0 0 4px var(--k-mark-in); }
 .cs-legend .k-lg-row[data-off] { color: var(--cm-text-tertiary); }
 .cs-legend .k-lg-row[data-off] .k-chit { opacity: .35; }
-.cs-outline { display: inline-block; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.3px var(--cm-icon-secondary); opacity: .7; flex: none; }
-.cs-lg-link { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .cs-lg-foot { border-top: 1px solid var(--cm-border); margin-top: 4px; padding-top: 4px; }
 .cs-card { width: 360px; max-width: calc(100% - 32px); }
 .cs-card .k-canvas-card-title .k-i { flex: none; }
@@ -41,8 +40,18 @@
 .cs-msg { padding: 6px 8px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text); }
 .cs-msg .k-secondary { display: block; }
 .cs-oq { align-self: start; justify-self: start; white-space: normal; }
-.cs-scope { display: flex; align-items: center; gap: 8px; }
 .cs-danger { color: var(--cm-text-danger); }
+.cs-lg-link { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.cs-unstyled { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--cs-gray); flex: none; }
+.cs-notdrawn .ab-needs { margin-inline-start: 4px; }
+.cs-toast { position: absolute; left: 50%; bottom: 80px; transform: translateX(-50%); z-index: 4; display: grid; justify-items: center; gap: 6px; max-width: calc(100% - 32px); }
+.cs-toast .k-toast { white-space: normal; }
+.cs-toast .k-toast-action { white-space: nowrap; cursor: pointer; }
+.cs-toast .k-progress.cs-indet { width: 80px; flex: none; }
+.cs-card .ab-needs { white-space: normal; }
+:root { --cs-gray: #9E9E9E; }
+:root[data-theme="dark"] { --cs-gray: #6E6E6E; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cs-gray: #6E6E6E; } }
 `;
     if (!document.getElementById("cs-css")) document.head.append(h("style", { id: "cs-css" }, CSS));
 
@@ -63,7 +72,8 @@
                 edit(doc, theme);
                 return URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: "image/svg+xml" }));
             }));
-            p.then((url) => { img.src = url; }).catch((e) => console.error(e));
+            // A fetch cut short by a navigation is dropped from the cache, so the next draw retries it
+            p.then((url) => { img.src = url; }).catch(() => { if (cache[id] === p) delete cache[id]; });
             return img;
         });
         return imgs;
@@ -87,19 +97,11 @@
         doc.querySelectorAll("line").forEach((l) => { if (at(+l.getAttribute("x1"), +l.getAttribute("y1")) || at(+l.getAttribute("x2"), +l.getAttribute("y2"))) l.remove(); });
         doc.querySelectorAll("text").forEach((t) => { const x = +t.getAttribute("x"), y = +t.getAttribute("y"); if (gone.some((p) => x - p.x > 0 && x - p.x < 30 && Math.abs(y - p.y - 4) < 3)) t.remove(); });
     }
+    // Nodes no row paints: a plain gray stand-in for however graphty-element draws an unstyled node
     function everythingHidden(doc, theme) {
         const keep = [groupColor("2"), groupColor("8")];
-        const faint = theme === "dark" ? "#6E6E6E" : "#9E9E9E";
-        nodePairs(doc).forEach((p) => {
-            if (keep.includes(p.fill)) return;
-            p.c.setAttribute("fill", "none");
-            p.c.setAttribute("stroke", faint);
-            p.c.setAttribute("stroke-width", "1.2");
-            p.c.setAttribute("stroke-opacity", "0.8");
-            if (p.ring) p.ring.remove();
-        });
-        const edges = doc.querySelector("g[stroke]");
-        if (edges) edges.setAttribute("stroke-opacity", "0.25");
+        const gray = theme === "dark" ? "#6E6E6E" : "#9E9E9E";
+        nodePairs(doc).forEach((p) => { if (!keep.includes(p.fill)) p.c.setAttribute("fill", gray); });
     }
     const groupColor = (g) => L().groupColors[g].toUpperCase();
 
@@ -129,8 +131,11 @@
     }
 
     // ---------- canvas furniture ----------
-    function zoomButton() {
-        return h("span", Object.assign({ id: "ab-zoom", class: "k-btn k-btn-ghost ab-zoom", role: "button", "aria-haspopup": "menu", title: "Zoom and view" }, AB.act({ go: ["zoom-and-view-menu", "2d"] })), "100%", icon("chevron-down", "sm"));
+    // The top right corner: the layout chip (only while a live layout runs, is paused, or has just
+    // settled) and the Camera menu face. o: { layout, view, moved } or null for no corner.
+    function corner(o) {
+        o = o || {};
+        return h("div", { class: "ab-canvas-corner" }, o.layout ? AB.layoutChip(o.layout) : null, AB.cameraFace({ view: o.view, moved: o.moved }));
     }
     function helpButton() {
         return h("span", Object.assign({ class: "k-help", role: "button", "aria-label": "Keyboard shortcuts", title: "Keyboard shortcuts (?)" }, AB.act({ go: ["commands-and-search", "shortcuts"] })), icon("circle-help"));
@@ -139,29 +144,40 @@
         const r = h("div", Object.assign({ class: "k-lg-row", title: go ? "Select the row that paints this" : null }, extra || {}), swatch, label, count != null ? h("span", { class: "k-value" }, count) : null);
         return go ? AB.nav(r, go[0], go[1]) : r;
     }
+    // Every legend card gets its close button; a closed card leaves the Legend chip
+    function legendCard(...children) {
+        const card = h("div", { class: "k-legend-card ab-legend cs-legend", role: "group", "aria-label": "Legend" });
+        card.append(h("span", { class: "ab-legend-x" }, AB.legendClose(card)), ...children.filter((c) => c != null));
+        return card;
+    }
+    // Draw the legend closed: press its own close button, so the chip is the shared one
+    function closeLegend(card) {
+        const x = card.querySelector(".ab-legend-x .k-icon-btn");
+        if (x) x.click();
+    }
+    // A one-line notice above the toolbar
+    function toast(...children) {
+        return h("div", { class: "cs-toast" }, h("div", { class: "k-toast", role: "status" }, ...children));
+    }
+    const toastAct = (label, a) => h("span", Object.assign({ class: "k-toast-action", role: "button" }, AB.act(a)), label);
+
+    const HIDE_REASON = "graphty-element has no draw-only hide: it needs a visible style property (or a hidden set it honors) that also hides incident edges. Filtering changes what is computed, which Hide on canvas must not.";
 
     // The legend for the drawing at rest: what wins color (PageRank), what the rows beneath it would
     // show, and size. opts.hidden0: group 0 is hidden on canvas.
     function pagerankLegend(opts) {
         const f = L().frame;
-        return h("div", { class: "k-legend-card ab-legend cs-legend", role: "group", "aria-label": "Legend" },
+        return legendCard(
             AB.nav(h("div", { class: "k-lg-title", title: "Select the row that paints this" }, "Color: PageRank"), "inspector-measure-row", "style"),
             AB.nav(h("div", { class: "k-lg-row", title: "Select the row that paints this" }, h("b", { class: "k-ramp k-ramp-measure" }), h("span", { class: "k-num" }, PR_DOMAIN[0] + " to " + PR_DOMAIN[1])), "inspector-measure-row", "style"),
-            h("div", { class: "k-lg-sub" }, "Covers Louvain, Watchlist and Groups 2 and 8 for color. Hide its eye to see them."),
             AB.nav(h("div", { class: "k-lg-title ab-lg-size", title: "Select the row that paints this" }, "Size: Degree ", f.sizeMarks.map((m) => h("span", { class: "ab-dot", style: `width:${m.px / 2}px;height:${m.px / 2}px`, title: "degree " + m.degree }))), "inspector-measure-row", "style"),
             opts.hidden0
-                ? h("div", { class: "k-notdrawn", role: "status" }, f.legend.rows.find((r) => r.label === "0").count + " nodes not drawn: hidden on canvas. ",
+                ? h("div", { class: "k-notdrawn cs-notdrawn", role: "status" }, f.legend.rows.find((r) => r.label === "0").count + " nodes not drawn: hidden on canvas. ",
                     h("a", Object.assign({ role: "button" }, AB.act({ onClick: () => AB.flash("Selects the 4 hidden nodes (not wired in the skeleton)") })), "Select hidden"), ", ",
-                    h("a", Object.assign({ role: "button" }, AB.act({ go: ["canvas-and-states", "drawn"] })), "Show all"))
-                : h("div", { class: "cs-lg-foot" }, h("span", Object.assign({ class: "cs-lg-link", role: "link" }, AB.act({ go: ["table-dock", "nodes"] })), "Show in table")),
+                    h("a", Object.assign({ role: "button" }, AB.act({ go: ["canvas-and-states", "drawn"] })), "Show hidden elements"),
+                    AB.needsElement(HIDE_REASON))
+                : null,
         );
-    }
-
-    // Note markers: notes about single elements, from the Notes place (Valjean 2, Javert 1).
-    function markers() {
-        const a = L().anchors;
-        const mk = (anchor, count, label, go) => h("span", Object.assign({ class: "cs-marker", style: `left:${anchor.x}%;top:${anchor.y}%`, role: "link", "aria-label": count + (count > 1 ? " notes" : " note") + " about " + label, title: count + (count > 1 ? " notes" : " note") + " about " + label }, AB.act({ go })), icon("message-square", "sm"), String(count));
-        return [mk(a.selected, 2, "Valjean", ["inspector-node", "data"]), mk(a.hover, 1, "Javert", ["notes-place", "all"])];
     }
 
     // Hot spots on the drawing: Valjean (node) and the Fantine to Valjean edge.
@@ -172,9 +188,12 @@
         AB.nav(node, "inspector-node", "why-this-look");
         node.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
         // midpoint of Fantine (626.4, 181) to Valjean (698.7, 394.3) in the 1200 x 800 drawing
-        const edge = h("span", { class: "cs-edge", style: "left:55.21%;top:35.96%", title: "Fantine to Valjean", "aria-label": "Edge Fantine to Valjean" });
-        AB.nav(edge, "inspector-edge", "style");
-        edge.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "edge"); });
+        // graphty-element cannot pick edges (Edge.ts: isPickable = false): a click here says so, and the
+        // edge inspector and menu open from the table
+        const EDGE_PICK = "Picking an edge on the canvas needs graphty-element (edge meshes are not pickable). Open edges from the table.";
+        const edge = h("span", { class: "cs-edge", role: "button", tabindex: "-1", style: "left:55.21%;top:35.96%", title: EDGE_PICK, "aria-label": "Edge Fantine to Valjean: " + EDGE_PICK });
+        edge.addEventListener("click", (e) => { e.stopPropagation(); AB.flash(EDGE_PICK); });
+        edge.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.flash(EDGE_PICK); });
         return [node, edge];
     }
 
@@ -186,6 +205,16 @@
     }
 
     // ---------- the states ----------
+    // What the corner shows per state of the Les Miserables drawing
+    const CORNER = {
+        "layout-running": { layout: "running" },
+        "layout-paused": { layout: "paused" },
+        "layout-settled": { layout: "settled" },
+        "waiting-to-settle": { layout: "running" },
+        "camera-moved": { moved: true },
+    };
+    // less-detail: no fixture graph lies between 10,000 and 50,000 nodes, so the notice is shown
+    // over Les Miserables for placement only.
     function drawn(el, state) {
         const f = L().frame;
         const stage = h("div", { class: "k-stage", tabindex: "0", "aria-label": f.altSized });
@@ -193,45 +222,63 @@
         const edited = AB.route && AB.route.frame.right === "inspector-node/edited";
         stage.append(...AB.lesmisDrawing("lesmis-groups-rest", alt, state === "hidden-on-canvas" ? hideGroup0 : null, edited ? valjeanOverride : null));
         stage.append(...hotspots());
-        if (state !== "markers-off") stage.append(...markers());
-        el.append(stage, pagerankLegend({ hidden0: state === "hidden-on-canvas" }), zoomButton(), helpButton());
+        const legend = pagerankLegend({ hidden0: state === "hidden-on-canvas" });
+        el.append(stage, legend, corner(CORNER[state]), helpButton());
+        // The legend starts as its chip once three or more rows paint (the tree at rest); L or the chip opens it.
+        // It stays open where it carries a state line (nodes not drawn) and in its own review state.
+        if (state !== "legend-open" && state !== "hidden-on-canvas") closeLegend(legend);
+        if (state === "less-detail") {
+            el.append(toast("More than 10,000 nodes: drawn with less detail.", toastAct("Limits", { go: ["settings", "performance"] })),
+                h("div", { class: "cs-toast", style: "bottom:136px" }, oq("which details graphty-element drops is not published")));
+        }
+        if (state === "waiting-to-settle") {
+            el.append(h("div", { class: "cs-toast" }, h("div", { class: "k-toast", role: "status" },
+                h("span", { class: "k-progress cs-indet", "aria-label": "Waiting for the layout to settle" }, h("i")),
+                "Waiting for the layout to settle before capturing the image.",
+                toastAct("Cancel", { go: ["export-image", "image"] }))));
+        }
     }
 
-    // The transfers data, for the places that work on it (Data, the many-groups run): the density
-    // drawing, or colored by the March Louvain run with its legend
+    // The transfers data, for the places that work on it (Data, the many-groups run, a full
+    // selection): the density drawing, or colored by the March Louvain run with its legend
     function transfers(el, state) {
         const T = AB.fx.datasets.transactions;
-        if (state === "transfers") {
-            el.append(h("div", { class: "k-stage", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), zoomButton(), helpButton());
+        if (state !== "transfers-communities") {
+            el.append(h("div", { class: "k-stage", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), corner(), helpButton());
+            if (state === "selection-full") {
+                el.append(toast(icon("triangle-alert", "sm"), "Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.",
+                    toastAct("Narrow the query", { go: ["select-where", "where-error"] }), toastAct("Limits", { go: ["settings", "performance"] })));
+                AB.announce("Selection is full: 5,000 of " + n(T.edges) + " matching transfers selected.");
+            }
             return;
         }
         const lg = AB.fx.datasets.transactionsApril.legends.march;
         const run = ["inspector-run-row", "many-groups"];
         el.append(
             h("div", { class: "k-stage", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community")),
-            h("div", { class: "k-legend-card ab-legend cs-legend", role: "group", "aria-label": "Legend" },
+            legendCard(
                 h("div", { class: "k-lg-title" }, "Louvain, weighted by amount"),
                 lg.rows.map((r) => legendRow(AB.chit(r.color), r.name, n(r.count), run)),
                 legendRow(AB.chit(AB.fx.canvas.otherGray), lg.other.communities + " more", n(lg.other.count), ["table-dock", "transfers"]),
                 h("div", { class: "k-lg-sub" }, lg.other.holds + " share one color")),
-            zoomButton(), helpButton());
+            corner(), helpButton());
     }
 
     function everything(el) {
         const f = L().frame;
         const g = (lab) => f.legend.rows.find((r) => r.label === lab);
         const painted = g("2").count + g("8").count;
-        const stage = h("div", { class: "k-stage", tabindex: "0", "aria-label": "Les Miserables with Everything hidden: groups 2 and 8 painted, every other node a faint outline" });
-        stage.append(...derived("lesmis-groups-onesize", "everything-hidden", everythingHidden));
-        stage.append(...markers());
+        const stage = h("div", { class: "k-stage", tabindex: "0", "aria-label": "Les Miserables with Everything hidden: groups 2 and 8 painted, every other node drawn unstyled" });
+        stage.append(...derived("lesmis-groups-onesize", "everything-hidden-v2", everythingHidden));
         el.append(stage,
-            h("div", { class: "k-legend-card ab-legend cs-legend", role: "group", "aria-label": "Legend" },
+            legendCard(
                 h("div", { class: "k-lg-title" }, "Group color ", h("span", { class: "k-secondary" }, "group")),
-                legendRow(AB.chit(g("2").color), "Group 2", g("2").count, ["inspector-group-set-path-row", "group-2"]),
-                legendRow(AB.chit(g("8").color), "Group 8", g("8").count, ["inspector-group-set-path-row", "group-8"]),
-                h("div", { class: "k-lg-row cs-lg-foot" }, h("span", { class: "cs-outline" }), "Painted by no row", h("span", { class: "k-value" }, String(L().nodes - painted))),
-                h("div", Object.assign({ class: "k-lg-sub" }), AB.link("inspector-selection-and-everything", "everything", "Show Everything"))),
-            zoomButton(), helpButton());
+                legendRow(AB.chit(g("2").color), "Group 2 (kept)", g("2").count, ["inspector-group-set-path-row", "kept-2"]),
+                legendRow(AB.chit(g("8").color), "Group 8 (kept)", g("8").count, ["inspector-group-set-path-row", "kept-8"]),
+                h("div", { class: "k-lg-row cs-lg-foot" }, h("span", { class: "cs-unstyled" }), "Painted by no row", h("span", { class: "k-value" }, String(L().nodes - painted))),
+                h("div", { class: "k-lg-sub" }, oq("how graphty-element draws an unstyled node")),
+                h("div", { class: "k-lg-sub" }, AB.link("inspector-selection-and-everything", "everything", "Show Everything"))),
+            corner(), helpButton());
     }
 
     function loading(el) {
@@ -247,32 +294,33 @@
                 oq("a drawing progress count needs an event from graphty-element"),
             ],
             acts: [AB.button("Cancel", { kind: "secondary", go: ["start-screen", "returning"] })],
-        }));
+        }), helpButton());
     }
 
     function empty(el) {
+        const add = AB.cmd("add-data");
         el.append(card({
             icon: icon("database"), title: "No nodes to draw",
-            body: [h("div", { class: "k-secondary" }, "This graph is empty. Add data to draw it: open a file, paste rows, or join a source in Data."), oq("what the inspector shows for a graph with no nodes")],
-            acts: [AB.button("Add data...", { go: ["load-step", "preview"] }), AB.button("Paste data", { kind: "secondary", onClick: () => AB.flash("Paste data, Ctrl+V (not wired in the skeleton)") })],
-        }), zoomButton(), helpButton());
+            body: [h("div", { class: "k-secondary" }, "This graph is empty. Add data in Data > Sources: open a file, paste rows, or load from an address."), oq("what the inspector shows for a graph with no nodes")],
+            acts: [AB.button(add.label, { go: add.go })],
+        }), helpButton());
     }
 
-    function tooLarge(el) {
+    function refused(el) {
         const c = C();
-        el.append(
-            card({
-                icon: icon("eye-off"), title: "Too large to draw",
-                body: [
-                    h("div", null, n(c.nodes) + " nodes is past the drawing limit of " + n(c.drawingLimit) + " nodes, so nothing is drawn."),
-                    h("div", { class: "k-secondary" }, "The tree, the table and the inspector still work: run measures, find groups, sort and select. To draw a part, add a filter step."),
-                ],
-                acts: [AB.button("Narrow the graph...", { go: ["data-place", "filters"] }), AB.button("Open the table", { kind: "secondary", onClick: () => { const d = document.querySelector(".ab-main[data-dock='closed']"); if (d) AB.toggleDock(); else AB.flash("The table is open below"); } })],
-            }),
-            h("div", { class: "k-legend-card ab-legend cs-legend", role: "group", "aria-label": "Legend" },
-                h("div", { class: "k-notdrawn", role: "status", style: "border-top:0;margin-top:0;padding-top:0" }, c.notDrawnLine + ". ", h("a", Object.assign({ role: "button" }, AB.act({ go: ["data-place", "filters"] })), "Narrow the graph..."))),
-            zoomButton(), helpButton(),
-        );
+        el.append(card({
+            role: "alert", icon: icon("triangle-alert"), title: "Load refused: too large to draw",
+            body: [
+                h("div", { class: "k-num" }, c.file + " has " + n(c.nodes) + " nodes and " + n(c.edges) + " edges. A graph draws up to " + n(c.drawingLimit) + " nodes and 100,000 edges, so graphty-element refused the load."),
+                h("div", { class: "k-secondary" }, "Nothing was loaded, so nothing needs undoing. Load a smaller file, or keep only part of this one as it is read."),
+                h("div", null, AB.needsElement("graphty-element cannot yet keep only part of a file while it reads it")),
+            ],
+            acts: [
+                AB.button("Filter at import...", { disabled: true, onClick: () => AB.flash("Filter at import needs graphty-element") }),
+                AB.button("Choose another file...", { kind: "secondary", go: ["data-place", "sources-menu"] }),
+                AB.button("Details", { kind: "ghost", go: ["load-step", "refused-too-large"] }),
+            ],
+        }), helpButton());
     }
 
     function gpuLost(el) {
@@ -286,26 +334,10 @@
                 h("div", { class: "k-secondary" }, "The Closeness row keeps its error, with Retry. ", AB.link("graph-place", "failed", "Show the row")),
             ],
             acts: [AB.button("Restart viewer", { onClick: () => AB.go("canvas-and-states", "drawn") }), AB.button("Details", { kind: "secondary", go: ["inspector-run-row", "failed"] })],
-        }), zoomButton(), helpButton());
+        }), helpButton());
     }
 
-    // The table dock in the too-large state: Patent citations, nothing drawn, every row works.
-    function citationsDock(el, tab) {
-        const c = C();
-        const t = (label, id) => h("span", Object.assign({ class: "k-tab", role: "tab", "aria-selected": String(tab === id) }, AB.act({ onClick: () => { el.replaceChildren(); citationsDock(el, id); } })), label);
-        const pick = (what) => () => AB.flash("Selects " + what + " (not wired in the skeleton)");
-        const table = tab === "edges"
-            ? h("table", { class: "k-table" }, h("thead", null, h("tr", null, h("th", null, "citing"), h("th", null, "cited"))),
-                h("tbody", null, c.firstRows.map((r) => h("tr", Object.assign({}, AB.act({ onClick: pick(r.citing + " to " + r.cited) })), h("td", { class: "k-id" }, r.citing), h("td", { class: "k-id" }, r.cited)))))
-            : h("table", { class: "k-table" }, h("thead", null, h("tr", null, h("th", null, "id"), h("th", { class: "k-n" }, "grantYear"), h("th", null, "category ", h("span", { class: "k-profile" }, c.profiles.category + " values")), h("th", { class: "k-n" }, "citationsReceived ", h("span", { class: "k-profile" }, c.profiles.citationsReceived.join(" to "))))),
-                h("tbody", null, c.rows.slice(0, 12).map((r) => h("tr", Object.assign({}, AB.act({ onClick: pick("patent " + r.id) })), h("td", { class: "k-id" }, r.id), h("td", { class: "k-n" }, String(r.grantYear)), h("td", null, r.category), h("td", { class: "k-n" }, n(r.citationsReceived))))));
-        el.append(
-            h("div", { class: "k-dock-tabs" }, h("span", { role: "tablist", class: "ab-tablist" }, t("Nodes", "nodes"), t("Edges", "edges")), h("span", { class: "k-grow" }), AB.iconButton("search", "Find in table", { go: ["commands-and-search", "find"] }), AB.dockToggle()),
-            h("div", { class: "k-scope cs-scope" }, tab === "edges" ? "Full graph: " + n(c.edges) + " edges, not drawn. First rows of " + c.file + "." : "Full graph: " + n(c.nodes) + " nodes, not drawn. Sorted by citationsReceived."),
-            h("div", { class: "k-table-wrap" }, table),
-        );
-    }
-
+    const TRANSFERS = ["transfers", "transfers-communities", "selection-full"];
     registerSection({
         id: "canvas-and-states",
         title: "Canvas and its states",
@@ -313,35 +345,45 @@
         rail: "graph",
         closeTo: "graph-place",
         frame(state) {
+            if (state === "too-large") state = "refused-too-large";
             if (state === "everything-hidden") return { left: "graph-place/everything-hidden" };
-            if (state === "empty") return { left: "graph-place/empty", right: false, dock: false };
+            if (state === "empty" || state === "refused-too-large") return { left: "graph-place/empty", right: false, dock: false };
             if (state === "loading") return { left: "graph-place/empty" };
-            if (state === "too-large") return { left: "graph-place/empty", right: "inspector-nothing-selected/large", dock: "canvas-and-states/too-large" };
             if (state === "gpu-lost") return { left: "graph-place/failed" };
+            if (state === "headset-ended") return { left: "graph-place/at-rest", toolbar: "toolbar/session-ended" };
             if (state === "transfers") return { left: "data-place/at-rest" };
             if (state === "transfers-communities") return { left: "graph-place/many-groups", right: "inspector-run-row/many-groups" };
+            if (state === "selection-full") return { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: "table-dock/transfers" };
             return { left: "graph-place/at-rest" };
         },
         states: [
             { id: "drawn", label: "Drawn (Les Miserables)" },
-            { id: "markers-off", label: "Note markers off" },
+            { id: "layout-running", label: "Layout running" },
+            { id: "layout-paused", label: "Layout paused" },
+            { id: "layout-settled", label: "Layout settled" },
+            { id: "legend-open", label: "Legend opened from its chip" },
+            { id: "camera-moved", label: "Camera moved" },
             { id: "hidden-on-canvas", label: "Nodes hidden on canvas" },
             { id: "everything-hidden", label: "Everything hidden" },
             { id: "loading", label: "Loading" },
             { id: "empty", label: "Empty graph" },
-            { id: "too-large", label: "Too large to draw" },
+            { id: "refused-too-large", label: "Load refused: too large" },
+            { id: "less-detail", label: "Less detail above 10,000 nodes" },
+            { id: "waiting-to-settle", label: "Waiting for the layout to settle" },
+            { id: "selection-full", label: "Selection is full (5,000)" },
             { id: "gpu-lost", label: "GPU lost" },
+            { id: "headset-ended", label: "Headset session ended" },
             { id: "transfers", label: "Transfers data (Data place)" },
             { id: "transfers-communities", label: "Transfers, colored by community" },
         ],
-        render(el, state, ctx) {
-            if (ctx.region === "dock") { citationsDock(el, "nodes"); return; }
+        render(el, state) {
+            if (state === "too-large") state = "refused-too-large";
             if (state === "everything-hidden") everything(el);
             else if (state === "loading") loading(el);
             else if (state === "empty") empty(el);
-            else if (state === "too-large") tooLarge(el);
+            else if (state === "refused-too-large") refused(el);
             else if (state === "gpu-lost") gpuLost(el);
-            else if (state.startsWith("transfers")) transfers(el, state);
+            else if (TRANSFERS.includes(state)) transfers(el, state);
             else drawn(el, state);
             el.oncontextmenu = (e) => { e.preventDefault(); AB.go("context-menus", "canvas"); };
         },

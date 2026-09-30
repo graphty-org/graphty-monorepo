@@ -1,6 +1,8 @@
 /* Graph place: the paint tree. The rail's default place, top to bottom: the Graphs switcher line,
    Find with the list menu, the tree in paint order (Selection pinned at the top, Everything at the
-   bottom), and Views (folded). Plain ASCII.
+   bottom, Overrides pinned under Selection once it holds something; Notes starts under Selection
+   and drags like any other row, so its place in the paint order is the reader's choice). Saved views have their own rail place.
+   Rename is a double-click on the name (or F2), with AB.renameInPlace. Plain ASCII.
 
    Numbers: Les Miserables from kit/fixtures.json (77 nodes, the "group" legend, density, the
    "Filter to degree >= 2" step: 77 to 60 nodes, Valjean's 36 neighbors). The Louvain communities
@@ -20,7 +22,7 @@
 .gp-find input::placeholder { color: var(--cm-text-tertiary); }
 .gp-tree .ab-trow { position: relative; }
 .gp-tree .ab-tname { min-width: 40px; }
-.gp-tree .ab-tcount { flex: 0 1 auto; }
+.gp-tree .ab-tcount { flex: none; }
 .gp-tree .ab-trow[data-struck] .ab-eye { color: var(--cm-icon-tertiary, var(--cm-icon-secondary)); opacity: 0.5; }
 .gp-tree .ab-trow[data-struck] .ab-eye::after { content: ""; position: absolute; width: 14px; height: 1.5px; background: currentColor; transform: rotate(-45deg); }
 .gp-tree .ab-trow[data-hidden-row] .ab-tname { color: var(--cm-text-tertiary); font-style: italic; }
@@ -33,7 +35,7 @@
 .gp-prompt .ab-tname { color: var(--cm-text-secondary); }
 .gp-tree .gp-prompt .ab-tname { white-space: normal; overflow: visible; text-overflow: clip; }
 .gp-tree .gp-prompt { height: auto; min-height: 28px; }
-.gp-mark { list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 0 8px 4px calc(var(--lvl) * 16px + 40px); font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
+.gp-mark { cursor: default; list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 0 8px 4px calc(var(--lvl) * 16px + 40px); font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
 .gp-mark .k-progress { flex: 1 1 60px; min-width: 40px; }
 .gp-mark .ab-link, .gp-act { color: var(--cm-text-brand, var(--cm-text-link, inherit)); text-decoration: none; cursor: pointer; font-weight: 550; }
 .gp-mark .ab-link:hover, .gp-act:hover { text-decoration: underline; }
@@ -58,14 +60,33 @@
 .gp-hit .gp-hit-sub { display: block; font-size: 11px; line-height: 15px; color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gp-hit mark { background: var(--cm-bg-warning, #fde68a); color: inherit; border-radius: 2px; }
 .gp-oq { display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border: 1px dashed var(--cm-border-strong); border-radius: 4px; font-size: 10px; line-height: 14px; color: var(--cm-text-secondary); white-space: nowrap; font-weight: 400; cursor: help; }
-.gp-views .ab-trow { padding-inline-start: 8px; }
-.gp-foot { flex: none; border-top: 1px solid var(--cm-border); }
-.gp-foot .k-section-head { cursor: pointer; }
+.gp-tree .ab-tprog { flex: 0 1 auto; }
+.gp-tree .ab-trow[data-partial] .ab-ramp { opacity: 0.6; }
+.gp-tree .ab-rename { flex: 1 1 0; min-width: 0; }
 body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
+.gp-offer { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 100; }
+.gp-stack { box-shadow: 3px -3px 0 -1px var(--gp-stack2), 3px -3px 0 0 var(--cm-bg); margin-inline-end: 3px; }
+.gp-foot { padding: 0 16px 8px 40px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); }
 `;
     if (!document.getElementById("gp-style")) document.head.append(h("style", { id: "gp-style" }, CSS));
 
     const oq = (text) => h("span", { class: "gp-oq", title: text, "aria-label": "Open question: " + text }, "Open question");
+    // Renames made this session, by row id, so a rename survives the redraw a navigation causes
+    const renamed = {};
+    // Same words as the lib's refusal, so the tree and the inspector header say the same thing.
+    // A run's group (Community 3) renumbers on every rerun, so it offers "Keep as set" instead (spec 3.10).
+    const refusal = (r) => (r.builtin ? "Built-in rows keep their names" : r.renameDisabled ? "Rename needs graphty-element: " + r.renameDisabled : r.runGroup ? r.name + " is renumbered when its run reruns. Keep it as a set to name it." : null);
+    // A dark notice with one action, above the toolbar, for the Keep-as-set offer
+    function offer(text, action) {
+        document.querySelectorAll(".gp-offer").forEach((x) => x.remove());
+        const n = AB.notice(text, { label: action.label, onClick: () => { n.remove(); action.run(); } });
+        n.classList.add("gp-offer");
+        n.setAttribute("role", "status");
+        document.body.append(n);
+        setTimeout(() => n.remove(), 6000);
+    }
+    const RUN_LABEL = "a run's name is its label, which graphty-element keeps read-only";
+    const EVERYTHING_EYE = "needs graphty-element: the default layers are locked, and addDefaultStyle is parsed but never read";
     const actLink = (label, o) => h("span", Object.assign({ class: "gp-act", role: "button" }, AB.act(o)), label);
 
     // Louvain on Les Miserables (see the header comment for how these were computed)
@@ -91,11 +112,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         if (!r || r.id === "graph-place" || !r.frame.right) return null;
         const [id, st = ""] = String(r.frame.right).split("/");
         const row = {
-            "inspector-measure-row": st === "edge-measure" ? null : "pagerank",
+            "inspector-measure-row": st === "edge-measure" ? null : st === "degree" ? "degree" : "pagerank",
             "inspector-run-row": st === "readings-only" ? "density" : "louvain",
             "inspector-folder": "folder",
-            "inspector-selection-and-everything": st === "selection" ? "selection" : "everything",
-            "inspector-group-set-path-row": { watchlist: "watchlist", "path-lesmis": "p1", "group-8": "g8", notes: "c3", "group-2": "g2", style: "g2", data: "g2", picker: "g2", "picker-libraries": "g2" }[st] || (st.startsWith("community-") ? "c" + st.slice(10) : null),
+            "inspector-selection-and-everything": { selection: "selection", notes: "notes", "notes-row": "notes", "notes-row-outlined": "notes", "notes-data": "notes", overrides: "overrides" }[st] || "everything",
+            "inspector-group-set-path-row": { watchlist: "watchlist", "path-lesmis": "p1", "path-lesmis-2": "p2", "kept-2": "g2", "kept-8": "g8", notes: "c3" }[st] || (st.startsWith("community-") ? "c" + st.slice(10) : st.startsWith("group-") || /^(other|overlap|rule-set|path|path-style|path-edge-set)$/.test(st) ? null : "c3"),
         }[id] || null;
         const sel = { "inspector-node": "1 node", "inspector-edge": "1 edge", "inspector-several-elements": st === "two-nodes" ? "2 nodes" : "5 nodes" }[id] || null;
         return { row, sel, edited: id === "inspector-node" && st === "edited" };
@@ -107,134 +128,172 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const g = (label) => L.frame.legend.rows.find((r) => r.label === label);
         const g2 = g("2"), g8 = g("8");
         const ins = fromInspector();
-        let selRow = state === "louvain-open" ? "louvain" : state === "failed" ? "failed" : state === "finished" ? "betweenness-new" : state === "empty" || state === "find" || state === "list-menu" ? null : "pagerank";
+        let selRow = /^rename(-chain)?$/.test(state) ? "g2" : state === "rename-run-group" ? "c3" : state === "rename-builtin" ? "everything" : state === "rename-run-disabled" ? "louvain" : state === "partial" ? "betweenness-new" : state === "louvain-open" ? "louvain" : state === "failed" ? "failed" : state === "finished" ? "betweenness-new" : state === "empty" || state === "find" || state === "list-menu" ? null : "pagerank";
         if (ins) selRow = ins.row;
         const selCount = state === "solo" ? "5 nodes" : ins && ins.sel;
-        const openLouvain = state === "louvain-open" || state === "find" || /^c\d$/.test(selRow || "");
+        const openLouvain = state === "louvain-open" || state === "find" || state === "rename-run-group" || /^c\d$/.test(selRow || "");
         const rows = [];
-        rows.push({ id: "selection", name: selCount ? "Selection" : "Nothing selected", kind: "scan", pinned: true, count: selCount || null, eye: true, go: ["inspector-selection-and-everything", "selection"], menu: ["context-menus", "row"] });
+        rows.push({ id: "selection", name: "Selection", kind: "scan", pinned: true, builtin: true, count: selCount || null, eye: true, go: ["inspector-selection-and-everything", "selection"], menu: ["context-menus", "row"] });
+        // Notes: a style layer over the nodes notes are about (Community 3's two notes); starts under Selection, not pinned
+        rows.push(notesRow(state === "empty" ? null : "2", state !== "notes-eye-off"));
         if (state === "empty") {
             rows.push({ id: "prompt", prompt: true });
             rows.push(everything(state));
             return rows;
         }
-        // Overrides appears just below Selection once it holds something: here, after Valjean's color is set by hand
-        if (ins && ins.edited) rows.push({ id: "overrides", name: "Overrides", kind: "pencil", pinned: true, swatch: AB.chit("#E41A1C", true), count: "1 node", eye: true, title: "Valjean's color, set by hand", go: ["inspector-node", "edited"], menu: ["context-menus", "row"] });
-        if (state === "running") rows.push({ id: "betweenness-new", name: "Betweenness", kind: "chart-column", eye: true, running: true, go: ["analyze-popover", "running"], menu: ["context-menus", "measure-row"] });
+        // Overrides appears just below Notes once it holds something: here, after Valjean's color is set by hand
+        if (ins && ins.edited) rows.push({ id: "overrides", name: "Overrides", kind: "pencil", pinned: true, builtin: true, swatch: AB.chit("#E41A1C", true), count: "1 node", eye: true, title: "Valjean's color, set by hand", go: ["inspector-node", "edited"], menu: ["context-menus", "row"] });
+        if (state === "running" || state === "queued") rows.push({ id: "betweenness-new", name: "Betweenness", kind: "chart-column", eye: true, running: true, renameDisabled: RUN_LABEL, go: ["analyze-popover", "running"], menu: ["context-menus", "measure-row"] });
+        if (state === "queued") rows.push({ id: "closeness-queued", name: "Closeness", kind: "chart-column", eye: null, queued: "Queued, 2nd", renameDisabled: RUN_LABEL, title: "Starts when Betweenness finishes", go: ["analyze-popover", "running"], menu: ["context-menus", "run-row"] });
         if (state === "finished") rows.push({ id: "betweenness-new", name: "Betweenness", kind: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, fresh: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] });
-        if (state === "failed") rows.push({ id: "failed", name: "Closeness", kind: "chart-column", eye: null, failed: true, go: ["inspector-run-row", "data"], menu: ["context-menus", "run-row"] });
+        if (state === "partial") rows.push({ id: "betweenness-new", name: "Betweenness", kind: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, partial: true, title: "Stopped before it finished: values only for the nodes it reached", go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] });
+        if (state === "failed") rows.push({ id: "failed", name: "Closeness", kind: "chart-column", eye: null, failed: true, renameDisabled: RUN_LABEL, go: ["inspector-run-row", "data"], menu: ["context-menus", "run-row"] });
         rows.push({ id: "pagerank", name: "PageRank", kind: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"], scope: state === "scope-mark", stale: state === "out-of-date" });
         rows.push({
-            id: "louvain", name: "Louvain, resolution 1.0", kind: "layers", swatch: h("span", { class: "ab-multi" }, LOUVAIN.slice(0, 3).map((c) => AB.chit(c.color, true))),
-            notes: 1, inside: 2, eye: true, open: openLouvain, toggle: openLouvain ? "at-rest" : "louvain-open",
+            id: "louvain", name: "Louvain, resolution 1.0", kind: "layers", swatch: stack(LOUVAIN[0].color, LOUVAIN[1].color),
+            notes: 1, inside: 2, eye: true, open: openLouvain, renameDisabled: RUN_LABEL, toggle: openLouvain ? "at-rest" : "louvain-open",
             go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"], scope: state === "scope-mark",
-            children: LOUVAIN.map((c) => ({ id: "c" + c.n, name: "Community " + c.n, kind: "circle-dot", swatch: AB.chit(c.color, true), count: String(c.size), notes: c.notes, eye: true, locked: false, go: ["inspector-group-set-path-row", "community-" + c.n], menu: ["context-menus", "row"] })),
-            tableLink: openLouvain,
+            children: LOUVAIN.map((c) => ({ id: "c" + c.n, name: "Community " + c.n, runGroup: true, kind: "circle-dot", swatch: AB.chit(c.color, true), count: String(c.size), notes: c.notes, eye: true, locked: false, go: ["inspector-group-set-path-row", "community-" + c.n], menu: ["context-menus", "row"] })),
         });
         rows.push({
-            id: "paths", name: "Shortest paths", kind: "route", swatch: AB.chit("#D55E00"), eye: true, open: true,
+            id: "paths", name: "Shortest paths", kind: "route", swatch: AB.chit("#D55E00"), eye: true, open: true, renameDisabled: RUN_LABEL,
             go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"],
             children: [
-                { id: "p1", name: "Valjean to Javert", kind: "route", swatch: AB.chit("#D55E00"), count: "2", eye: true, go: ["inspector-group-set-path-row", "path"], menu: ["context-menus", "row"], badDrop: state === "invalid-drop" },
-                { id: "p2", name: "Myriel to Javert", kind: "route", swatch: AB.chit("#0072B2"), count: "3", eye: true, go: ["inspector-group-set-path-row", "path"], menu: ["context-menus", "row"] },
+                { id: "p1", name: "Valjean to Javert", kind: "route", swatch: AB.chit("#D55E00"), count: "2", eye: true, go: ["inspector-group-set-path-row", "path-lesmis"], menu: ["context-menus", "row"], badDrop: state === "invalid-drop" },
+                { id: "p2", name: "Myriel to Javert", kind: "route", swatch: AB.chit("#0072B2"), count: "3", eye: true, go: ["inspector-group-set-path-row", "path-lesmis-2"], menu: ["context-menus", "row"] },
             ],
         });
-        rows.push({ id: "watchlist", name: "Watchlist", kind: "circle-check", swatch: AB.chit("#CC79A7", true), count: "5", eye: true, locked: true, title: "Valjean, Javert, Thenardier, Mme.Thenardier, Eponine", go: ["inspector-group-set-path-row", "style"], menu: ["context-menus", "row"] });
+        rows.push({ id: "watchlist", name: "Watchlist", kind: "circle-check", swatch: AB.chit("#CC79A7", true), count: "5", eye: true, locked: true, title: "Valjean, Javert, Thenardier, Mme.Thenardier, Eponine", go: ["inspector-group-set-path-row", "watchlist"], menu: ["context-menus", "row"] });
         if (state === "show-hidden") rows.push({ id: "degree", name: "Degree", kind: "hash", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, hiddenRow: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] });
         rows.push({
-            id: "folder", name: "For the report", kind: "folder-open", eye: true, open: true, go: ["inspector-folder", "style"], menu: ["context-menus", "folder"],
+            id: "folder", name: "For the report", kind: "folder-open", eye: true, open: true, go: ["inspector-folder", "folder"], menu: ["context-menus", "folder"],
             children: [
-                { id: "g2", name: "Group 2", kind: "circle-dot", swatch: AB.chit(g2.color, true), count: String(g2.count), eye: true, go: ["inspector-group-set-path-row", "group-2"], menu: ["context-menus", "row"] },
-                { id: "g8", name: "Group 8", kind: "circle-dot", swatch: AB.chit(g8.color, true), count: String(g8.count), eye: true, go: ["inspector-group-set-path-row", "group-8"], menu: ["context-menus", "row"] },
+                // Kept sets (Keep as set on two values of the group column): a group itself is locked to its parent row
+                { id: "g2", name: "Group 2 (kept)", kind: "circle-check", swatch: AB.chit(g2.color, true), count: String(g2.count), eye: true, go: ["inspector-group-set-path-row", "kept-2"], menu: ["context-menus", "row"] },
+                { id: "g8", name: "Group 8 (kept)", kind: "circle-check", swatch: AB.chit(g8.color, true), count: String(g8.count), eye: true, go: ["inspector-group-set-path-row", "kept-8"], menu: ["context-menus", "row"] },
                 { id: "bt", name: "Betweenness", kind: "chart-column", swatch: AB.ramp(), eye: false, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
             ],
         });
-        rows.push({ id: "density", name: "Density", kind: "gauge", eye: null, title: "Reading only: density " + L.stats.density + ". Nothing to paint.", go: ["inspector-run-row", "data"], menu: ["context-menus", "run-row"] });
         rows.push(everything(state));
         // Everything hidden: the rows above it are hidden too, so only Groups 2 and 8 paint (the canvas draws that)
         if (state === "everything-hidden") rows.forEach((r) => { if (["pagerank", "louvain", "paths", "watchlist"].includes(r.id)) r.eye = false; });
-        const mark = (list) => list.forEach((r) => { if (r.id === selRow) r.selected = true; if (r.children) mark(r.children); });
+        // rename-chain: Community 3 was just renamed (the name from its note), and Tab moved on
+        if (state === "rename-chain") renamed.g2 = renamed.g2 || "Valjean's family";
+        const mark = (list) => list.forEach((r) => { if (r.id === selRow) r.selected = true; if (renamed[r.id]) r.name = renamed[r.id]; if (r.children) mark(r.children); });
         mark(rows);
-        if (state === "rows-with-notes") return rows.filter((r) => r.pinned || r.notes || r.inside || r.id === "everything").map((r) => (r.id === "louvain" ? Object.assign(r, { open: true, children: r.children.filter((c) => c.notes), toggle: null }) : r));
+        if (state === "rows-with-notes") return rows.filter((r) => r.pinned || r.id === "notes" || r.notes || r.inside || r.id === "everything").map((r) => (r.id === "louvain" ? Object.assign(r, { open: true, children: r.children.filter((c) => c.notes), toggle: null }) : r));
         return rows;
     }
+    // One swatch for a run's shared palette: its first color, the second peeking behind
+    function stack(c1, c2) {
+        const s = AB.chit(c1, true);
+        s.classList.add("gp-stack");
+        s.style.setProperty("--gp-stack2", c2);
+        return s;
+    }
+    function notesRow(count, eye) {
+        return { id: "notes", name: "Notes", kind: "message-square", builtin: true, count, eye, title: "Paints only the nodes and edges notes are about", go: ["inspector-selection-and-everything", "notes"], menu: ["context-menus", "notes-row"] };
+    }
     function everything(state) {
-        return { id: "everything", name: "Everything", kind: "square", pinned: true, eye: state !== "everything-hidden", go: ["inspector-selection-and-everything", "everything"], menu: ["context-menus", "row"] };
+        return { id: "everything", name: "Everything", kind: "square-filled", swatch: AB.chit("#6366F1"), title: "graphty-element's defaults: fill #6366F1", pinned: true, builtin: true, eyeTitle: EVERYTHING_EYE, eye: state !== "everything-hidden", go: ["inspector-selection-and-everything", "everything"], menu: ["context-menus", "row"] };
     }
 
     // ---------- one row, left to right ----------
+    // A row's state, spoken with its name (the status line under it is drawn for sight only)
+    const stateWords = (r) => r.running ? ", running" : r.queued ? ", queued" : r.failed ? ", failed: the GPU device was lost" : r.partial ? ", stopped before it finished" : r.stale ? ", out of date" : r.scope ? ", computed before the filter" : r.hiddenRow ? ", hidden from the list, still painting" : "";
     function rowEl(r, level, env) {
         if (r.prompt) {
             const li = h("li", Object.assign({ class: "ab-trow gp-prompt", role: "treeitem", "aria-level": "1", style: "--lvl:0" }, AB.act({ go: ["analyze-popover", "open"] })), h("span", { class: "ab-disc" }), h("span", { class: "ab-kind" }, icon("flask-conical")), h("span", { class: "ab-sw-empty" }), h("span", { class: "ab-tname k-ellipsis" }, "Analyze to add results here"), h("span", { class: "ab-eye-slot" }));
+            li.tabIndex = -1;
             return [li];
         }
         const kids = r.children && r.children.length;
         const out = [];
-        const noteLabel = r.notes ? ", " + r.notes + (r.notes === 1 ? " note" : " notes") : "";
+        const noteLabel = (r.notes ? ", " + r.notes + (r.notes === 1 ? " note" : " notes") : "") + (r.inside ? ", " + r.inside + " notes on rows inside" : "");
         const li = h("li", {
-            class: "ab-trow", role: "treeitem", tabindex: "0", "aria-level": String(level), "aria-selected": r.selected ? "true" : "false",
-            "aria-expanded": kids ? String(!!r.open) : null, "aria-label": r.name + (r.count ? ", " + r.count : "") + noteLabel,
-            "data-pinned": r.pinned ? "" : null, "data-hidden-row": r.hiddenRow ? "" : null, "data-failed": r.failed ? "" : null,
-            "data-drop-bad": r.badDropTarget ? "" : null, "data-row": r.id, style: `--lvl:${level - 1}`, title: r.title || null,
+            class: "ab-trow", role: "treeitem", tabindex: "-1", "aria-level": String(level), "aria-selected": r.selected ? "true" : "false",
+            "aria-expanded": kids ? String(!!r.open) : null, "aria-label": r.name + (r.count ? ", " + r.count : "") + noteLabel + stateWords(r),
+            "data-pinned": r.pinned ? "" : null, "data-hidden-row": r.hiddenRow ? "" : null, "data-failed": r.failed ? "" : null, "data-partial": r.partial ? "" : null,
+            "data-drop-bad": r.badDropTarget ? "" : null, "data-row": r.id, "data-level": String(level), style: `--lvl:${level - 1}`, title: r.title || null,
         });
         const disc = h("span", { class: "ab-disc", "aria-hidden": "true" }, kids ? icon(r.open ? "chevron-down" : "chevron-right", "sm") : null);
         if (kids) disc.addEventListener("click", (e) => {
             e.stopPropagation();
+            if (e.detail > 1) return;
             if (r.toggle) { AB.go("graph-place", r.toggle); return; }
             r.open = !r.open;
-            env.redraw();
+            env.redraw(r.id);
         });
         const kind = r.failed ? h("span", { class: "ab-kind k-danger" }, icon("circle-x")) : r.running ? h("span", { class: "ab-kind" }, icon("loader-circle")) : h("span", { class: "ab-kind" }, icon(r.kind));
-        const notes = r.notes ? h("span", Object.assign({ class: "ab-tnotes k-num", title: r.id === "louvain" ? NOTES.louvain : r.id === "c3" ? NOTES.c3a : r.notes + " notes" }, AB.act({ go: [r.go[0], "data"] })), icon("message-square", "sm"), String(r.notes)) : null;
-        const inside = r.inside && !r.open ? h("span", { class: "ab-tinside k-num", title: r.inside + " notes on rows inside" }, r.inside + " inside") : null;
+        // The note count is a mark, not a Tab stop: the row's name already says it
+        const notes = r.notes ? h("span", { class: "ab-tnotes k-num", "aria-hidden": "true", title: (r.id === "louvain" ? NOTES.louvain : r.id === "c3" ? NOTES.c3a : r.notes + (r.notes === 1 ? " note" : " notes")) + (r.inside ? " (" + r.inside + " more on rows inside)" : "") }, icon("message-square", "sm"), String(r.notes)) : null;
+        if (notes) notes.addEventListener("click", (e) => { e.stopPropagation(); AB.go(r.go[0], "data"); });
         const lock = r.locked ? h("span", { class: "ab-kind", title: "Locked: position and style" }, icon("lock", "sm")) : null;
         let eye;
         if (r.eye == null) eye = h("span", { class: "ab-eye-slot", title: r.failed ? "" : "Nothing to paint" });
         else {
-            eye = h("span", { class: "ab-eye", role: "button", tabindex: "-1", "aria-pressed": String(!r.eye), "aria-label": (r.eye ? "Hide " : "Show ") + r.name + " on the canvas", title: "Show or hide this row's paint. Alt-click: only this row paints" }, icon(r.eye ? "eye" : "eye-off"));
+            eye = h("span", { class: "ab-eye", role: "button", tabindex: "-1", "aria-pressed": String(!!r.eye), "aria-label": "Show " + r.name + " on the canvas", title: r.eyeTitle || "Show or hide this row's paint. Alt-click or Alt+Space: only this row paints" }, icon(r.eye ? "eye" : "eye-off"));
             eye.addEventListener("click", (e) => {
                 e.stopPropagation();
+                if (e.detail > 1) return; // the second click of a double-click: one toggle only
                 if (e.altKey) { env.solo(r.id); return; }
                 if (r.id === "everything") { AB.go("graph-place", r.eye ? "everything-hidden" : "at-rest"); return; }
                 r.eye = !r.eye;
-                env.redraw();
+                env.redraw(r.id);
             });
         }
         if (r.solo) li.setAttribute("data-solo", "");
         if (r.struck) li.setAttribute("data-struck", "");
-        AB.append(li, [disc, kind, r.swatch || h("span", { class: "ab-sw-empty" }), h("span", { class: "ab-tname k-ellipsis" }, r.name), r.count != null ? h("span", { class: "ab-tcount k-num" }, r.count) : null, notes, inside, lock, eye]);
+        const nameEl = h("span", { class: "ab-tname k-ellipsis", title: refusal(r) ? null : "Double-click or F2 to rename" }, r.name);
+        const prog = r.queued || r.partial ? h("span", { class: "ab-tprog k-num" }, r.queued || "Partial") : null;
+        AB.append(li, [disc, kind, h("span", { class: "ab-sw-slot" }, r.swatch || null), nameEl, prog, r.count != null ? h("span", { class: "ab-tcount k-num" }, r.count) : null, notes, lock, eye]);
+        const entry = { li, r };
+        env.entries.push(entry);
+        // One click selects the row and shows its inspector. The tree stays in place (the shell keeps
+        // the left panel), so the second click of a double-click lands on the same name.
         li.addEventListener("click", (e) => {
+            if (e.detail > 1) return;
             if (e.shiftKey || e.metaKey || e.ctrlKey) { AB.go("inspector-several-rows", "style"); return; }
-            AB.go(r.go[0], r.go[1]);
+            env.open(entry);
         });
-        li.addEventListener("dblclick", (e) => { e.stopPropagation(); AB.flash("Rename (not wired in the skeleton)"); });
+        nameEl.addEventListener("dblclick", (e) => { e.stopPropagation(); env.rename(entry); });
         li.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") AB.go(r.go[0], r.go[1]);
+            if (e.target !== li) return;
+            const move = (to) => { if (to) { e.preventDefault(); env.focus(to); } };
+            const vis = () => [...li.closest(".ab-tree").querySelectorAll(".ab-trow[role='treeitem'][data-row]")];
+            if (e.key === "F2") { e.preventDefault(); env.rename(entry); }
+            else if (e.key === "Enter") env.open(entry);
+            else if (e.key === " " && e.altKey && r.eye != null) { e.preventDefault(); env.solo(r.id); }
             else if (e.key === " " && r.eye != null) { e.preventDefault(); eye.click(); }
             else if (e.key === "F10" && e.shiftKey) { e.preventDefault(); AB.go(r.menu[0], r.menu[1]); }
-            else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                e.preventDefault();
-                const all = [...li.closest(".ab-tree").querySelectorAll(".ab-trow[tabindex='0']")];
-                const i = all.indexOf(li) + (e.key === "ArrowDown" ? 1 : -1);
-                if (all[i]) all[i].focus();
-            } else if ((e.key === "ArrowRight" && kids && !r.open) || (e.key === "ArrowLeft" && kids && r.open)) disc.click();
+            else if (e.key === "ArrowDown" || e.key === "ArrowUp") { const all = vis(); move(all[all.indexOf(li) + (e.key === "ArrowDown" ? 1 : -1)]); }
+            else if (e.key === "Home") { move(vis()[0]); }
+            else if (e.key === "End") { const all = vis(); move(all[all.length - 1]); }
+            else if (e.key === "ArrowRight" && kids && !r.open) { e.preventDefault(); disc.click(); }
+            else if (e.key === "ArrowLeft" && kids && r.open) { e.preventDefault(); disc.click(); }
+            else if (e.key === "ArrowLeft" && level > 1) {
+                // to the parent: the nearest row above at a shallower level
+                const all = vis();
+                move(all.slice(0, all.indexOf(li)).reverse().find((x) => Number(x.dataset.level) < level));
+            }
         });
         if (r.menu) li.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go(r.menu[0], r.menu[1]); });
         out.push(li);
 
-        // marks under the row: progress, error, scope, freshness, hidden-from-list
-        const mark = (cls, ...k) => out.push(h("li", { class: "gp-mark " + (cls || ""), role: "none", style: `--lvl:${level - 1}` }, ...k));
-        if (r.running) mark("", h("span", { class: "k-progress gp-indeterminate", role: "progressbar", "aria-label": "Betweenness running" }, h("i")), h("span", null, "Running"), actLink("Cancel", { go: ["graph-place", "at-rest"] }));
-        if (r.failed) mark("gp-mark-danger", h("span", { class: "gp-msg" }, "The GPU device was lost during the run. Nothing was computed on the CPU. ", oq("The message is graphty-element's own error text; this wording is a stand-in.")), actLink("Retry", { go: ["graph-place", "running"] }), actLink("Remove", { go: ["graph-place", "at-rest"] }));
-        if (r.scope) mark("", h("span", { class: "gp-scope", title: "Computed before the filter step Filter to degree >= 2. Still correct for the graph it names." }, icon("funnel", "sm"), "on 77 nodes; now 60"), actLink("Rerun on current filter", { go: ["graph-place", "running"] }));
-        if (r.stale) mark("", h("span", { class: "gp-scope", title: "The data changed after this run. It keeps painting the earlier values until rerun." }, icon("triangle-alert", "sm"), "Out of date: values from the earlier data"), actLink("Rerun", { go: ["graph-place", "running"] }));
-        if (r.hiddenRow) mark("", "Hidden from the list; still painting.", actLink("Unhide", { go: ["graph-place", "at-rest"] }));
+        // Status under the row: text for sight (the row's name says it to a screen reader). Its verbs
+        // (Cancel, Retry, Remove, Rerun, Unhide) are in the row's menu and the inspector's state bar.
+        const mark = (cls, ...k) => out.push(h("li", { class: "gp-mark " + (cls || ""), role: "none", "aria-hidden": "true", style: `--lvl:${level - 1}` }, ...k));
+        if (r.running) mark("", h("span", { class: "k-progress gp-indeterminate" }, h("i")), h("span", null, "Running"));
+        if (r.failed) mark("gp-mark-danger", h("span", { class: "gp-msg" }, "The GPU device was lost during the run. Nothing was computed on the CPU. ", oq("The message is graphty-element's own error text; this wording is a stand-in.")));
+        if (r.scope) mark("", h("span", { class: "gp-scope", title: "Computed before the filter step Filter to degree >= 2. Still correct for the graph it names. Rerun on 60 is in the row's menu." }, icon("funnel", "sm"), "on 77 nodes; now 60"));
+        if (r.stale) mark("", h("span", { class: "gp-scope", title: "The data changed after this run. It keeps painting the earlier values until rerun." }, icon("triangle-alert", "sm"), "Out of date: values from the earlier data"));
+        if (r.partial) mark("", "Stopped before it finished. Painting the values it reached.");
+        if (r.hiddenRow) mark("", "Hidden from the list; still painting.");
 
         if (kids && r.open) {
             if (r.children.length > 20 || r.search) out.push(h("li", { class: "gp-runsearch", role: "none" }, h("label", { class: "gp-find" }, icon("search", "sm"), h("input", { type: "search", placeholder: "Find in " + r.name.split(",")[0] + " by name or member", "aria-label": "Find groups in " + r.name }))));
             r.children.forEach((c) => out.push(...rowEl(c, level + 1, env)));
             if (r.more) out.push(...rowEl(r.more, level + 1, env));
-            if (r.tableLink) mark("", AB.link("table-dock", r.tableLink === "transfers" ? "transfers" : "communities", "Show members in table"));
         }
         if (r.badDrop) {
             // the row being dragged, and the reason it cannot land where it hovers
@@ -259,13 +318,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             anchor: "#gp-list-btn", place: "below-end", items: [
                 { label: "New folder", shortcut: "Ctrl+G", onClick: () => AB.flash("New folder (not wired in the skeleton)") },
                 { sep: true },
-                { label: "Show hidden", go: ["graph-place", "show-hidden"], desc: "Rows hidden from the list, dimmed, with Unhide" },
+                { label: "Show hidden rows", go: ["graph-place", "show-hidden"], desc: "Rows hidden from the list, dimmed, with Unhide" },
                 { label: "Rows with notes", go: ["graph-place", "rows-with-notes"], desc: "Narrows the list; never changes the paint" },
                 { label: "Show kind", sub: true, onClick: () => AB.flash("Show kind: All, Runs, Groups and sets, Paths, Measures (not wired in the skeleton)") },
                 { label: "Sort inside a run", sub: true, onClick: () => AB.flash("Sort inside a run: paint order, size, name, date (not wired in the skeleton)") },
                 { label: "Collapse all", go: ["graph-place", "at-rest"] },
-                { sep: true },
-                { label: "Load set collection...", onClick: () => AB.flash("Load set collection... (not wired in the skeleton)") },
             ],
         }));
     }
@@ -301,8 +358,41 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         let rows = many ? manyModel() : model(state);
         let soloId = state === "solo" ? "pagerank" : null;
         const env = {
-            redraw() { draw(); },
-            solo(id) { soloId = soloId === id ? null : id; draw(); },
+            entries: [],
+            // Select a row in place (no redraw) and show its inspector
+            open(entry) {
+                env.entries.forEach((x) => x.li.setAttribute("aria-selected", String(x === entry)));
+                env.focus(entry.li, true);
+                const target = AB.href(entry.r.go[0], entry.r.go[1]);
+                if (location.hash !== target) { AB.keepLeft = true; location.hash = target; }
+            },
+            // Roving focus: only the current row is a Tab stop
+            focus(li, quiet) {
+                env.entries.forEach((x) => (x.li.tabIndex = x.li === li ? 0 : -1));
+                if (!quiet) li.focus();
+            },
+            rename(entry, prefix) {
+                const no = refusal(entry.r);
+                if (no) {
+                    if (entry.r.runGroup) return offer(no, { label: "Keep as set", run: () => AB.flash("Kept " + entry.r.name + " as a set on top of the tree (not wired in the skeleton)") });
+                    return AB.flash(no);
+                }
+                const nameEl = entry.li.querySelector(".ab-tname");
+                // The field announces itself ("Renaming X"); Enter, Tab and Esc are in its tooltip. Nothing is drawn above the tree.
+                AB.renameInPlace(nameEl, {
+                    focusAfter: entry.li,
+                    onSave: (name) => { entry.r.name = name; renamed[entry.r.id] = name; },
+                    onTab: (dir) => {
+                        const live = env.entries.filter((x) => x.li.isConnected && !refusal(x.r));
+                        const next = live[live.indexOf(entry) + dir];
+                        if (next) env.rename(next, "Renamed to " + entry.r.name + ". ");
+                        else entry.li.focus();
+                    },
+                });
+                if (prefix) AB.announce(prefix + "Renaming " + entry.r.name);
+            },
+            redraw(keepId) { draw(); const e = keepId && env.entries.find((x) => x.r.id === keepId); if (e) env.focus(e.li); },
+            solo(id) { soloId = soloId === id ? null : id; env.redraw(id); },
         };
         function applySolo(list) {
             list.forEach((r) => {
@@ -313,11 +403,20 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         }
         function draw() {
             applySolo(rows);
+            env.entries = [];
             body.replaceChildren();
             if (state === "find") return drawFind(body);
             if (state === "show-hidden") body.append(h("div", { class: "gp-banner" }, icon("eye", "sm"), h("span", { class: "k-grow" }, "Showing rows hidden from the list"), actLink("Done", { go: ["graph-place", "at-rest"] })));
             if (state === "rows-with-notes") body.append(h("div", { class: "gp-banner" }, icon("message-square", "sm"), h("span", { class: "k-grow" }, "Rows with notes"), actLink("Show all rows", { go: ["graph-place", "at-rest"] })));
             body.append(treeEl(rows, env));
+            // One Tab stop in the tree: the selected row, or the first
+            const cur = env.entries.find((x) => x.r.selected) || env.entries[0];
+            if (cur) cur.li.tabIndex = 0;
+            // A row hidden from the list still paints; say so, so every paint on the canvas has a row you can find (spec 16.5)
+            if (state !== "show-hidden" && state !== "empty" && !many) body.append(h("div", { class: "gp-foot" }, "1 hidden row still paints. ", AB.link("graph-place", "show-hidden", "Show hidden rows")));
+            const reason = (id, text) => { const r = body.querySelector(`[data-row='${id}']`); if (r) r.after(h("li", { class: "gp-drop-reason", role: "status" }, icon("info", "sm"), text)); };
+            if (state === "rename-builtin") reason("everything", "Built-in rows keep their names");
+            if (state === "rename-run-disabled") reason("louvain", refusal({ renameDisabled: RUN_LABEL }));
             if (state === "invalid-drop") {
                 const tgt = body.querySelector("[data-row='louvain']");
                 if (tgt) tgt.setAttribute("data-drop-bad", "");
@@ -340,24 +439,19 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         }
         draw();
 
-        // Views, folded at the foot
-        const viewsOpen = state === "views-open";
-        const viewsHead = h("div", Object.assign({ class: "k-section-head", role: "button", "aria-expanded": String(viewsOpen) }, AB.act({ go: ["graph-place", viewsOpen ? "at-rest" : "views-open"] })),
-            icon(viewsOpen ? "chevron-down" : "chevron-right", "sm"), "Views", h("span", { class: "k-count k-num" }, state === "empty" ? " 0" : " 2"), h("span", { class: "k-grow" }),
-            AB.iconButton("plus", "Save view...", { onClick: () => AB.flash("Save view... (not wired in the skeleton)") }));
-        const foot = h("section", { class: "k-section gp-foot" }, viewsHead);
-        if (viewsOpen) {
-            const vrow = (name, sub) => h("li", Object.assign({ class: "ab-trow", role: "treeitem", title: sub, style: "--lvl:0" }, AB.act({ go: ["zoom-and-view-menu", "2d"] })), h("span", { class: "ab-kind" }, icon("camera")), h("span", { class: "ab-tname k-ellipsis" }, name), h("span", { class: "ab-tcount" }, sub));
-            foot.append(h("ul", { class: "ab-tree gp-views", role: "tree", "aria-label": "Saved views" }, vrow("Communities, whole graph", "2D"), vrow("Valjean's paths", "2D")));
-        }
-
-        el.append(AB.placeHead("Graph"), switcher, treebar, scroll, foot);
+        el.append(AB.placeHead("Graph"), switcher, treebar, scroll);
         if (state === "invalid-drop") {
             document.body.classList.add("gp-nodrop");
             const off = () => { document.body.classList.remove("gp-nodrop"); window.removeEventListener("hashchange", off); };
             window.addEventListener("hashchange", off);
         }
         if (state === "list-menu") requestAnimationFrame(listMenu);
+        const byId = (id) => env.entries.find((x) => x.r.id === id);
+        if (state === "rename") requestAnimationFrame(() => env.rename(byId("g2")));
+        if (state === "rename-chain") requestAnimationFrame(() => env.rename(byId("g8"), "Renamed to Valjean's family. "));
+        if (state === "rename-run-group") requestAnimationFrame(() => env.rename(byId("c3")));
+        if (state === "rename-builtin") AB.flash("Built-in rows keep their names");
+        if (state === "rename-run-disabled") AB.flash(refusal({ renameDisabled: RUN_LABEL }));
     }
     // Many groups: the transfers March Louvain run (fixtures: 35 communities, largest first)
     function manyModel() {
@@ -366,14 +460,15 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const named = lv.largest.map((size, i) => ({ n: i + 1, size, color: colors["Community " + (i + 1)] })).filter((c) => c.color);
         const rest = lv.communities - named.length;
         return [
-            { id: "selection", name: "Nothing selected", kind: "scan", pinned: true, eye: true, go: ["inspector-selection-and-everything", "selection"], menu: ["context-menus", "row"] },
+            { id: "selection", name: "Selection", kind: "scan", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "selection"], menu: ["context-menus", "row"] },
+            notesRow(null, true),
             {
-                id: "louvain", name: "Louvain, weighted by amount", kind: "layers", selected: true, swatch: h("span", { class: "ab-multi" }, named.slice(0, 3).map((c) => AB.chit(c.color, true))),
-                eye: true, open: true, search: true, tableLink: "transfers", go: ["inspector-run-row", "many-groups"], menu: ["context-menus", "run-row"],
-                children: named.map((c) => ({ id: "m" + c.n, name: "Community " + c.n, kind: "circle-dot", swatch: AB.chit(c.color, true), count: String(c.size), eye: true, go: ["inspector-run-row", "many-groups"], menu: ["context-menus", "row"] })),
+                id: "louvain", name: "Louvain, weighted by amount", kind: "layers", selected: true, swatch: stack(named[0].color, named[1].color),
+                eye: true, open: true, search: true, renameDisabled: RUN_LABEL, go: ["inspector-run-row", "many-groups"], menu: ["context-menus", "run-row"],
+                children: named.map((c) => ({ id: "m" + c.n, name: "Community " + c.n, runGroup: true, kind: "circle-dot", swatch: AB.chit(c.color, true), count: String(c.size), eye: true, go: ["inspector-run-row", "many-groups"], menu: ["context-menus", "row"] })),
                 more: { id: "more", name: rest + " more groups", kind: "circle-dot", swatch: AB.chit("#BDBDBD", true), eye: true, title: "One shared color: the palette tells about ten apart", go: ["table-dock", "transfers"], menu: ["context-menus", "row"] },
             },
-            { id: "everything", name: "Everything", kind: "square", pinned: true, eye: true, go: ["inspector-selection-and-everything", "everything"], menu: ["context-menus", "row"] },
+            everything("many-groups"),
         ];
     }
 
@@ -388,7 +483,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             if (state === "many-groups") return { dataset: "transactions", canvas: "canvas-and-states/transfers-communities", right: "inspector-run-row/many-groups" };
             if (state === "scope-mark") return { right: "inspector-measure-row/scope-mark", chip: "Filtered: 60 of 77 nodes" };
             if (state === "failed") return { right: "inspector-run-row/data" };
-            if (state === "find" || state === "list-menu" || state === "views-open") return {};
+            if (state === "find" || state === "list-menu") return {};
+            if (state === "rename" || state === "rename-chain") return { right: "inspector-group-set-path-row/kept-2" };
+            if (state === "rename-run-group") return { right: "inspector-group-set-path-row/community-3" };
+            if (state === "rename-builtin") return { right: "inspector-selection-and-everything/everything" };
+            if (state === "rename-run-disabled") return { right: "inspector-run-row/style" };
             return { right: "inspector-measure-row/style" };
         },
         states: [
@@ -408,7 +507,14 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "invalid-drop", label: "Invalid drop" },
             { id: "find", label: "Find results" },
             { id: "list-menu", label: "List menu" },
-            { id: "views-open", label: "Views unfolded" },
+            { id: "rename", label: "Renaming Group 2" },
+            { id: "rename-chain", label: "Rename, Tab to the next row" },
+            { id: "rename-run-group", label: "Rename a run's group: Keep as set" },
+            { id: "rename-builtin", label: "Rename refused: built-in row" },
+            { id: "rename-run-disabled", label: "Rename refused: a run" },
+            { id: "queued", label: "Run queued" },
+            { id: "partial", label: "Run stopped, partial values" },
+            { id: "notes-eye-off", label: "Notes markers off" },
         ],
         render,
     });

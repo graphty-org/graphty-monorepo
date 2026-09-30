@@ -1,5 +1,5 @@
-/* Notes place: every note in the project, newest first, with its filter, Find, the Note markers
-   eye and Add note. Numbers and names come from kit/fixtures.json (Les Miserables). Plain ASCII.
+/* Notes place: every note in the project, newest first, with its filter, Find and Add note.
+   Whether notes show on the canvas is the Notes row's eye in the layer list, not a header control. Numbers and names come from kit/fixtures.json (Les Miserables). Plain ASCII.
    Styles are injected once from this file (the shell's CSS is not ours to edit). */
 (function () {
     "use strict";
@@ -33,7 +33,6 @@
 .np-editor textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
 .np-editor-foot { display: flex; align-items: center; gap: 8px; }
 .np-nohits { padding: 8px 16px; color: var(--cm-text-tertiary); }
-.np-off { padding: 4px 16px 0; color: var(--cm-text-tertiary); }
 `;
     if (!document.getElementById("np-css")) document.head.append(h("style", { id: "np-css" }, CSS));
 
@@ -142,12 +141,8 @@
         return { field: h("span", { class: "k-field" }, icon("search", "sm"), input), none };
     }
 
-    function head(state) {
-        const off = state === "markers-off";
-        return AB.placeHead("Notes", [
-            AB.iconButton(off ? "eye-off" : "eye", off ? "Show note markers on the canvas (Shift+N)" : "Hide note markers on the canvas (Shift+N)", { pressed: off, go: ["notes-place", off ? "all" : "markers-off"] }),
-            AB.iconButton("plus", "Add note (N)", { go: ["notes-place", "writing"] }),
-        ]);
+    function head() {
+        return AB.placeHead("Notes", [AB.iconButton("plus", "Add note (N)", { go: ["notes-place", "writing"] })]);
     }
 
     function editor() {
@@ -180,7 +175,6 @@
             { id: "about-graph", label: "About this graph" },
             { id: "writing", label: "Writing a note" },
             { id: "empty", label: "Empty" },
-            { id: "markers-off", label: "Markers eye off" },
             { id: "filter-step-on", label: "A filter step removes a target" },
         ],
         frame(state) {
@@ -188,7 +182,7 @@
             return {};
         },
         render(el, state) {
-            el.append(head(state));
+            el.append(head());
             if (state === "empty") {
                 el.append(h("div", { class: "np-empty" },
                     h("div", { class: "k-strong" }, "No notes yet."),
@@ -208,7 +202,6 @@
             const list = h("div", { class: "k-scroll" });
             const s = search(list);
             el.append(h("div", { class: "np-bar" }, s.field), filterRow(FILTERS.some((f) => f.id === state) ? state : "all"));
-            if (state === "markers-off") el.append(h("div", { class: "np-off" }, "Note markers are hidden on the canvas."));
             if (state === "writing") list.append(editor());
             list.append(h("ul", { class: "np-list", role: "list", "aria-label": "Notes, newest first" }, main.map(noteItem)));
             if (removed.length) {

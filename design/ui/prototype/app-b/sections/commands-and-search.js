@@ -2,7 +2,7 @@
    Quick actions lists every command by name, grouped, each with its key; typing filters by name and by alias
    ("field" and "calculated field" reach New attribute...). Find lives in the tree's search field, so its state
    draws the Graph place's own Find results (rows, then notes) underneath. The shortcuts panel groups the graph
-   view's keys (graphty-element) and the app's by region. This file also binds / and ? for the skeleton.
+   view's keys (graphty-element) and the app's by region. This file also binds / for the skeleton (the shell binds ?).
    Plain ASCII. */
 (function () {
     const CSS = `
@@ -27,7 +27,13 @@
 .qs-sheet { column-count: 2; column-gap: 32px; padding: 4px 16px 0; }
 .qs-group { break-inside: avoid; padding-bottom: 14px; }
 .qs-group h3 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; font-size: 12px; font-weight: 600; }
-.qs-group h3 .qs-src { font-size: 11px; font-weight: 400; color: var(--cm-text-secondary); }
+.qs-canvas { margin: 0 16px 12px; padding: 8px 12px 0; border: 1px solid var(--cm-border); border-radius: 6px; background: var(--cm-bg-secondary, transparent); }
+.qs-canvas h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; font-size: 12px; font-weight: 600; }
+.qs-fixed { gap: 4px; font-weight: 400; }
+.qs-note { margin: 0 0 6px; color: var(--cm-text-secondary); font-size: 11px; }
+.qs-canvas-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+.qs-canvas h4, .qs-apphead { margin: 0 0 4px; font-size: 11px; font-weight: 550; color: var(--cm-text-secondary); }
+.qs-apphead { padding: 0 16px 4px; font-size: 12px; }
 .qs-keys { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; align-items: baseline; margin: 0; }
 .qs-keys dt { margin: 0; white-space: nowrap; }
 .qs-keys dt .k-kbd + .k-kbd { margin-inline-start: 3px; }
@@ -41,53 +47,86 @@
     const openQ = (why) => h("span", { class: "k-annot-tag", title: why }, "Open question");
 
     // ---------- every command by name ----------
-    // g: group; key: its shortcut; go / run: what it does; aka: aliases that search also matches;
-    // off: why it is unavailable right now (nothing is selected at rest).
+    // Each entry names its home: the one place the command lives (Quick actions is a door, never a home).
+    // Entries with two or more doors come from AB.COMMANDS, so label, key, home and disabled reason match
+    // every other door. g: group; aka: aliases search also matches; off: why it is unavailable right now.
     const NEEDS_SEL = "Needs a selection";
+    const C = (id, g, ic, extra) => {
+        const c = AB.COMMANDS[id];
+        return Object.assign({ g, icon: ic, name: c.label, key: c.shortcut, home: c.home, go: c.go, run: c.onClick, off: c.disabledReason }, extra || {});
+    };
+    const L = (g, ic, name, home, extra) => Object.assign({ g, icon: ic, name, home }, extra || {});
+    const VIEWS = AB.SAVED_VIEWS;
+    const SETTINGS = [["you", "You"], ["privacy", "Privacy"], ["appearance", "Appearance"], ["accessibility", "Accessibility"], ["canvas-input", "Canvas input"],
+        ["performance", "Performance"], ["assistant", "Assistant"], ["headset", "Headset"], ["keyboard", "Keyboard"], ["projects", "Projects"]];
     const COMMANDS = [
-        // the rail places, and the sections of Data that people ask for by name
-        { g: "Go to", icon: "network", name: "Graph", why: "the tree: what paints the graph", go: ["graph-place", "at-rest"], aka: ["tree", "layers", "rows", "results", "styles"] },
-        { g: "Go to", icon: "database", name: "Data", why: "sources, filters, attributes, versions", go: ["data-place", "at-rest"], aka: ["sources", "import", "files", "datasets"] },
-        { g: "Go to", icon: "database", name: "Data: Attributes", why: "how each column is read", go: ["data-place", "attributes"], aka: ["field", "fields", "columns", "properties"] },
-        { g: "Go to", icon: "funnel", name: "Data: Filters", why: "the filter steps", go: ["data-place", "filters"], aka: ["filter"] },
-        { g: "Go to", icon: "history", name: "Data: Versions", go: ["data-place", "versions"], aka: ["refresh", "replace"] },
-        { g: "Go to", icon: "message-square", name: "Notes", why: "every note, newest first", go: ["notes-place", "all"], aka: ["comments", "annotations", "findings"] },
-        { g: "Go to", icon: "bot", name: "Assistant", go: ["assistant-place", "conversation"], aka: ["ai", "chat", "ask"] },
+        // places, and the parts of a place people ask for by name
+        L("Go to", "network", "Graph", "Rail > Graph", { go: ["graph-place", "at-rest"], aka: ["tree", "layers", "rows", "results", "styles"] }),
+        L("Go to", "database", "Data", "Rail > Data", { go: ["data-place", "at-rest"], aka: ["sources", "import", "files", "datasets"] }),
+        L("Go to", "database", "Data: Attributes", "Data > Attributes", { go: ["data-place", "attributes"], aka: ["field", "fields", "columns", "properties"] }),
+        L("Go to", "funnel", "Data: Filters", "Data > Filters", { go: ["data-place", "filters"], aka: ["filter"] }),
+        L("Go to", "history", "Data: Versions", "Data > Versions", { go: ["data-place", "versions"], aka: ["refresh", "replace"] }),
+        L("Go to", "bookmark", "Views", "Rail > Views", { go: ["views-place", "at-rest"], aka: ["saved views", "cameras", "bookmarks"] }),
+        ...VIEWS.map((v) => L("Go to", "camera", "Go to view: " + v, "Views > " + v, { go: ["inspector-saved-view", "view"], aka: ["view", "camera", "jump"] })),
+        L("Go to", "message-square", "Notes", "Rail > Notes", { go: ["notes-place", "all"], aka: ["comments", "annotations", "findings"] }),
+        L("Go to", "bot", "Assistant", "Rail > Assistant", { go: ["assistant-place", "conversation"], aka: ["ai", "chat", "ask"] }),
         // making things
-        { g: "Analyze", icon: "flask-conical", name: "Analyze...", key: "A", why: "the algorithm catalog", go: ["analyze-popover", "open"], aka: ["algorithm", "run", "statistics"] },
-        { g: "Analyze", icon: "chart-column", name: "PageRank", why: "Rank nodes and edges", go: ["analyze-popover", "essentials"], aka: ["importance", "influence"] },
-        { g: "Analyze", icon: "group", name: "Louvain", why: "Find groups", go: ["analyze-popover", "open"], aka: ["communities", "clusters", "modularity"] },
-        { g: "Analyze", icon: "chart-column", name: "Betweenness", why: "Rank nodes and edges", go: ["analyze-popover", "open"], aka: ["brokers", "bridges", "centrality"] },
-        { g: "Analyze", icon: "route", name: "Shortest path", key: "P", why: "pick From, then To", go: ["path-tool", "armed"], aka: ["path", "route", "connected"] },
-        { g: "Analyze", icon: "flask-conical", name: "All algorithms...", go: ["analyze-popover", "all-algorithms"] },
-        { g: "Analyze", icon: "plus", name: "New attribute...", why: "a value computed from other attributes", run: flash("New attribute..."), aka: ["calculated field", "field", "expression", "formula", "computed column"] },
-        // layout and view
-        { g: "Layout and view", icon: "refresh-cw", name: "Re-run layout", run: () => AB.flash("Layout running again (not wired in the skeleton)"), aka: ["untangle", "relayout", "arrange", "layout"] },
-        { g: "Layout and view", icon: "layers", name: "Lay out members...", off: NEEDS_SEL, aka: ["layout"] },
-        { g: "Layout and view", icon: "box", name: "Switch to 3D", key: "5", go: ["toolbar", "3d"], aka: ["2d", "3d", "dimension"] },
-        { g: "Layout and view", icon: "box", name: "Enter VR", go: ["toolbar", "view-mode-headset"], aka: ["headset", "immersive", "xr"] },
-        { g: "Layout and view", icon: "box", name: "Enter AR", go: ["toolbar", "view-mode-headset"], aka: ["headset", "immersive", "xr"] },
-        { g: "Layout and view", icon: "scan", name: "Zoom to fit", key: "0", run: flash("Zoom to fit"), aka: ["fit", "camera"] },
-        { g: "Layout and view", icon: "bookmark-plus", name: "Save view...", go: ["zoom-and-view-menu", "save-view"], aka: ["camera", "bookmark", "snapshot"] },
-        { g: "Layout and view", icon: "table", name: "Show table", key: "Shift+T", go: ["table-dock", "nodes"], aka: ["grid", "spreadsheet"] },
-        { g: "Layout and view", icon: "panel-left", name: "Toggle panels", key: "Ctrl+B", run: flash("Toggle panels") },
+        C("analyze", "Analyze", "flask-conical", { aka: ["algorithm", "run", "statistics"] }),
+        L("Analyze", "chart-column", "PageRank", "Toolbar > Analyze > Rank", { go: ["analyze-popover", "essentials"], aka: ["importance", "influence"] }),
+        L("Analyze", "group", "Louvain", "Toolbar > Analyze > Find groups", { go: ["analyze-popover", "open"], aka: ["communities", "clusters", "modularity"] }),
+        L("Analyze", "chart-column", "Betweenness", "Toolbar > Analyze > Rank", { go: ["analyze-popover", "open"], aka: ["brokers", "bridges", "centrality"] }),
+        L("Analyze", "flask-conical", "All algorithms...", "Toolbar > Analyze > All", { go: ["analyze-popover", "all-algorithms"] }),
+        C("find-paths", "Analyze", "route", { aka: ["path", "route", "shortest", "connected"] }),
+        L("Analyze", "plus", "New attribute...", "Data > Attributes +", { run: flash("New attribute..."), aka: ["calculated field", "field", "expression", "formula", "computed column"] }),
+        // camera and view
+        C("view-mode", "Camera and view", "box", { aka: ["2d", "3d", "dimension"] }),
+        C("enter-vr", "Camera and view", "headset", { aka: ["headset", "immersive", "xr"] }),
+        C("enter-ar", "Camera and view", "headset", { aka: ["headset", "immersive", "xr"] }),
+        C("fit", "Camera and view", "scan", { aka: ["zoom to fit", "camera"] }),
+        C("frame-selection", "Camera and view", "scan", { go: null, off: NEEDS_SEL, aka: ["zoom to selection", "camera"] }),
+        C("reset-camera", "Camera and view", "crosshair", { aka: ["camera", "home"] }),
+        L("Camera and view", "camera", "Front view", "Camera menu", { key: "1", go: ["camera-menu", "3d"], aka: ["camera", "built-in view"] }),
+        L("Camera and view", "camera", "Side view", "Camera menu", { key: "3", go: ["camera-menu", "3d"], aka: ["camera", "built-in view"] }),
+        L("Camera and view", "camera", "Top view", "Camera menu", { key: "7", go: ["camera-menu", "3d"], aka: ["camera", "built-in view"] }),
+        C("save-view", "Camera and view", "bookmark-plus", { aka: ["camera", "bookmark", "snapshot"] }),
+        C("present", "Camera and view", "play", { aka: ["slides", "slideshow", "presentation"] }),
+        C("record-tour", "Camera and view", "camera", { aka: ["fly-through", "animation", "movie"] }),
+        C("toggle-table", "Camera and view", "table", { aka: ["grid", "spreadsheet"] }),
+        C("legend", "Camera and view", "layers", { go: ["canvas-and-states", "drawn"], aka: ["key"] }),
+        L("Camera and view", "panel-left", "Toggle panels", "Keys only (no state to show)", { key: "Ctrl+B", run: flash("Toggle panels") }),
+        // layout
+        C("pause-layout", "Layout", "pause", { aka: ["stop", "freeze", "settle"] }),
+        L("Layout", "play", "Resume layout", "Layout chip", { go: ["canvas-and-states", "drawn"], aka: ["continue", "unfreeze", "start"] }),
+        C("rerun-layout", "Layout", "refresh-cw", { aka: ["untangle", "relayout", "arrange", "layout"] }),
+        L("Layout", "layers", "Lay out members...", "Selection menu", { off: NEEDS_SEL, aka: ["layout"] }),
         // selection and edit
-        { g: "Selection and edit", icon: "group", name: "Create set", key: "Ctrl+G", off: NEEDS_SEL, aka: ["group", "save selection"] },
-        { g: "Selection and edit", icon: "network", name: "Neighborhood", key: "G", off: NEEDS_SEL, aka: ["neighbors", "ego", "hops"] },
-        { g: "Selection and edit", icon: "funnel", name: "Filter to neighbors", off: NEEDS_SEL, aka: ["neighbors"] },
-        { g: "Selection and edit", icon: "eye-off", name: "Hide on canvas", key: "Ctrl+Shift+H", off: NEEDS_SEL },
-        { g: "Selection and edit", icon: "sticky-note", name: "Add note", key: "N", go: ["notes-place", "writing"], aka: ["comment", "annotate"] },
-        { g: "Selection and edit", icon: "scan", name: "Select all visible", key: "Ctrl+A", run: flash("Select all visible") },
-        { g: "Selection and edit", icon: "history", name: "Undo history", go: ["full-canvas-modes", "version-history"], aka: ["undo", "history"] },
+        C("create-set", "Selection and edit", "group", { go: null, off: NEEDS_SEL, aka: ["group", "save selection"] }),
+        C("neighborhood", "Selection and edit", "network", { go: null, off: NEEDS_SEL, aka: ["neighbors", "ego", "hops"] }),
+        L("Selection and edit", "funnel", "Filter to neighbors", "Node menu", { off: NEEDS_SEL, aka: ["neighbors"] }),
+        C("hide-on-canvas", "Selection and edit", "eye-off", { go: null, off: NEEDS_SEL }),
+        C("add-note", "Selection and edit", "sticky-note", { aka: ["comment", "annotate"] }),
+        L("Selection and edit", "scan", "Select all visible", "Main menu > Edit", { key: "Ctrl+A", run: flash("Select all visible") }),
+        L("Selection and edit", "scan", "Invert selection", "Main menu > Edit", { key: "I", run: flash("Invert selection") }),
+        L("Selection and edit", "search", "Select where...", "Main menu > Edit", { go: ["select-where", "where"], aka: ["query", "select by", "by ids"] }),
+        C("find", "Selection and edit", "search", { aka: ["search"] }),
+        C("rename", "Selection and edit", "pencil", { run: () => AB.go("graph-place", "rename") }),
+        C("undo", "Selection and edit", "undo-2", { run: flash("Undo") }),
+        C("redo", "Selection and edit", "redo-2", { run: flash("Redo") }),
         // file and project
-        { g: "File and project", icon: "folder-open", name: "Open...", key: "Ctrl+O", go: ["load-step", "preview"] },
-        { g: "File and project", icon: "file-plus", name: "Add data...", go: ["load-step", "join"], aka: ["join", "import", "source"] },
-        { g: "File and project", icon: "download", name: "Export...", go: ["export-dialog", "figure"], aka: ["save as", "svg", "report", "download", "graphml", "csv"] },
-        { g: "File and project", icon: "book-open", name: "Export findings report...", go: ["export-dialog", "findings-report"], aka: ["report", "case file"] },
-        { g: "File and project", icon: "sparkles", name: "Apply recipe...", go: ["recipe-apply", "binding"], aka: ["template", "style file"] },
-        { g: "File and project", icon: "menu", name: "Main menu", go: ["main-menu", "file"], aka: ["menu", "file", "edit", "view"] },
-        { g: "File and project", icon: "settings", name: "Preferences...", key: "Ctrl+,", go: ["preferences", "general"], aka: ["settings", "options", "theme"] },
-        { g: "File and project", icon: "keyboard", name: "Keyboard shortcuts", key: "?", go: ["commands-and-search", "shortcuts"], aka: ["keys", "hotkeys"] },
+        L("File and project", "folder-open", "Open...", "Main menu > File", { key: "Ctrl+O", go: ["load-step", "preview"] }),
+        L("File and project", "file", "Save", "Project menu", { key: "Ctrl+S", run: flash("Save") }),
+        C("add-data", "File and project", "file-plus", { aka: ["join", "import", "source", "paste data"] }),
+        C("export", "File and project", "download", { aka: ["save as", "svg", "download", "graphml", "csv"] }),
+        C("export-image", "File and project", "download", { aka: ["png", "screenshot", "picture"] }),
+        C("export-video", "File and project", "download", { aka: ["movie", "mp4", "webm", "recording"] }),
+        L("File and project", "book-open", "Export findings report...", "Export dialog > Findings report", { go: ["export-dialog", "findings-report"], aka: ["report", "case file"] }),
+        L("File and project", "sparkles", "Apply recipe or style file...", "Main menu > File", { go: ["recipe-apply", "binding"], aka: ["recipe", "template", "style file"] }),
+        C("version-history", "File and project", "history", { aka: ["undo history", "history", "revisions"] }),
+        // Settings and help
+        C("settings", "Settings and help", "settings", { aka: ["preferences", "options"] }),
+        ...SETTINGS.map(([id, n]) => L("Settings and help", "settings", "Settings: " + n, "Settings > " + n, { go: ["settings", id], aka: ["settings", "preferences"].concat(id === "appearance" ? ["theme", "dark mode", "toolbar labels"] : id === "performance" ? ["gpu", "webgpu"] : id === "accessibility" ? ["reduced motion", "single-key"] : []) })),
+        C("shortcuts", "Settings and help", "keyboard", { aka: ["keys", "hotkeys"] }),
+        L("Settings and help", "menu", "Main menu", "Rail > Main menu", { go: ["main-menu", "file"], aka: ["menu", "file", "edit", "help"] }),
     ];
     const RECENT = ["Re-run layout", "PageRank", "Data: Attributes"];
 
@@ -97,7 +136,7 @@
         const out = [];
         COMMANDS.forEach((c) => {
             const byName = c.name.toLowerCase().includes(s);
-            const alias = byName ? null : (c.aka || []).find((a) => a.includes(s) || s.includes(a) && a.length > 3);
+            const alias = byName ? null : (c.aka || []).find((a) => a.includes(s) || (s.includes(a) && a.length > 3));
             if (byName || alias) out.push({ c, alias, rank: c.name.toLowerCase().startsWith(s) ? 0 : byName ? 1 : 2 });
         });
         return out.sort((a, b) => a.rank - b.rank);
@@ -109,10 +148,10 @@
     }
 
     function resultRow(c, q, alias) {
-        const why = c.off ? c.off : alias ? "Also called " + alias : c.why;
+        const why = c.off ? c.off : (alias ? "Also called " + alias + ". " : "") + c.home;
         const attrs = { class: "k-result", role: "option", "aria-selected": "false", "aria-disabled": c.off ? "true" : null, title: c.off ? c.name + ": " + c.off : null };
         const el = h("div", attrs, icon(c.icon), h("span", { class: "qs-name" }, hl(c.name, q)), why ? h("span", { class: "qs-why" }, why) : null, c.key ? h("span", { class: "k-kbd qs-key" }, c.key) : null);
-        el._run = c.off ? () => AB.flash(c.name + ": " + c.off.toLowerCase()) : c.go ? () => AB.go(c.go[0], c.go[1]) : c.run;
+        el._run = c.off ? () => AB.flash(c.name + ": " + c.off) : c.go ? () => AB.go(c.go[0], c.go[1]) : c.run;
         el.addEventListener("click", () => el._run());
         return el;
     }
@@ -170,66 +209,74 @@
     }
 
     // ---------- the keyboard shortcuts panel ----------
-    const VIEW = "graph view", APP = "app";
+    // graphty-element's own canvas keys first, marked not changeable (the element publishes no keymap);
+    // then the app's keys by region. App keys never use W, A, S, D, Q, E, the arrows, = or -.
+    const ELEMENT = [
+        { title: "3D", keys: [["Arrows", "Orbit"], ["W, S", "Zoom in, zoom out"], ["A, D", "Spin"]] },
+        { title: "2D", keys: [["W, A, S, D", "Pan"], ["Arrows", "Pan"], ["Q, E", "Rotate"], ["+, -", "Zoom in, zoom out"]] },
+    ];
     const GROUPS = [
-        { title: "Everywhere", src: APP, keys: [
+        { title: "Everywhere", keys: [
             ["Ctrl+K", "Quick actions: every command by name"],
             ["/", "Find rows and notes"],
             ["?", "These shortcuts"],
             ["F6", "Next region: panels, canvas, toolbar, table"],
             ["Ctrl+Z", "Undo"], ["Ctrl+Shift+Z", "Redo"],
             ["Ctrl+B", "Show or hide the side panels"],
-            ["Ctrl+O", "Open..."], ["Ctrl+S", "Save"], ["Ctrl+,", "Preferences"],
+            ["Ctrl+O", "Open..."], ["Ctrl+S", "Save"], ["Ctrl+E", "Export..."], ["Ctrl+,", "Settings"],
             ["Esc", "Disarm a tool, then close a bar or menu. Never clears the selection"],
         ] },
-        { title: "Toolbar", src: APP, keys: [
-            ["V", "Select"], ["Q", "Lasso"], ["H", "Hand"], ["Space (hold)", "Pan while held"],
-            ["P", "Path: click From, then To"], ["A", "Analyze"], ["5", "Switch between 2D and 3D"],
+        { title: "Toolbar", keys: [
+            ["V", "Select"], ["Shift+A", "Analyze"], ["5", "Switch between 2D and 3D"],
             ["Left, Right", "Move between toolbar buttons"], ["Alt+Down", "Open a button's flyout"],
         ] },
-        { title: "Selection", src: APP, keys: [
-            ["Ctrl+G", "Create set"], ["E", "Expand"], ["G", "Neighborhood"], ["Ctrl+Shift+H", "Hide on canvas"],
+        { title: "Selection", keys: [
+            ["Ctrl+G", "Create set"], ["G", "Neighborhood"], ["Ctrl+Shift+H", "Hide on canvas"],
             ["N", "Add note"], ["Ctrl+A", "Select all visible"], ["I", "Invert selection"],
         ] },
-        { title: "Tree", src: APP, keys: [
-            ["Up, Down", "Move between rows"], ["Left, Right", "Collapse or expand"], ["Space", "Show or hide the row's paint"],
-            ["Alt+click eye", "Show only this row"], ["Enter", "Open the row in the inspector"], ["Shift+F10", "Row menu"],
-            ["Shift+click, Ctrl+click", "Select several rows"], ["Double-click", "Rename"],
+        { title: "Paths", keys: [
+            ["P", "Find paths: click From, then To"], ["Enter", "Run with the settings shown"], ["Esc", "Back one level; again, close"],
         ] },
-        { title: "Camera and display", src: VIEW, keys: [
-            ["0", "Fit the graph"], ["F", "Zoom to the selection"], ["Shift+0", "Reset the camera"], ["=, -", "Zoom in, zoom out"],
-            ["1, 3, 7", "Front, side and top (3D only)"], ["L", "Legend"], ["M", "Minimap"], ["Shift+N", "Note markers"],
+        { title: "Camera menu", keys: [
+            ["0", "Fit the graph"], ["F", "Frame the selection"], ["Shift+0", "Reset the camera"],
+            ["1, 3, 7", "Front, side and top (3D only)"], ["L", "Show or hide the legend"],
         ] },
-        { title: "Walking the graph", src: VIEW, open: "Whether these walk keys ship as the graph view's defaults", keys: [
-            ["Arrows", "Move the view"], ["Shift+Down", "Into this node's neighbors"], ["Shift+Left, Shift+Right", "Previous or next neighbor"],
-            ["Shift+Up", "Back one step"], ["Space", "Add this node to the selection, or remove it"], ["] [", "Next or previous member of this node's set"],
+        { title: "Walking the graph", open: "Whether graphty-element ships these walk keys as its own defaults, or the app binds them", keys: [
+            ["Shift+Down", "Into this node's neighbors"], ["Shift+Left, Shift+Right", "Previous or next neighbor"],
+            ["Shift+Up", "Back one step"], ["Space", "Add this node to the selection, or remove it"], ["], [", "Next or previous member of this node's set"],
         ] },
-        { title: "Analyze and Path", src: APP, keys: [
-            ["Enter", "Run with the settings shown"], ["Esc", "Back one level; again, close"],
+        { title: "Tree", keys: [
+            ["Up, Down", "Move between rows"], ["Home, End", "First or last row"], ["Left, Right", "Collapse or expand; Left from a child goes to its parent"], ["Space", "Show or hide the row's paint"],
+            ["Alt+click eye, Alt+Space", "Show only this row"], ["Enter", "Open the row in the inspector"], ["Shift+F10", "Row menu"],
+            ["Shift+click, Ctrl+click", "Select several rows"], ["Double-click, F2", "Rename"],
         ] },
-        { title: "Table and time", src: APP, keys: [
+        { title: "Table and time", keys: [
             ["Shift+T", "Show or hide the table"], ["T", "Time slider (a graph with a time attribute)"],
         ] },
-        { title: "Writing a note", src: APP, keys: [
+        { title: "Writing a note", keys: [
             ["Ctrl+Enter", "Save the note"], ["Esc", "Cancel"],
         ] },
     ];
 
     function kbd(k) {
-        // "Shift+click, Ctrl+click" -> two keycaps; "=, -" -> two keycaps
+        // "Shift+click, Ctrl+click" -> two keycaps; "], [" -> two keycaps
         return k.split(", ").map((p) => h("span", { class: "k-kbd" }, p));
     }
+    const keyList = (keys) => h("dl", { class: "qs-keys" }, keys.map(([k, what]) => [h("dt", null, kbd(k)), h("dd", null, what)]));
 
     function shortcuts(el) {
-        const body = h("div", { class: "qs-sheet" }, GROUPS.map((g) => h("section", { class: "qs-group", "aria-label": g.title },
-            h("h3", null, g.title, h("span", { class: "qs-src" }, g.src === VIEW ? "Graph view" : "App")),
-            h("dl", { class: "qs-keys" }, g.keys.map(([k, what]) => [h("dt", null, kbd(k)), h("dd", null, what)])),
-            g.open ? openQ(g.open) : null)));
+        const canvas = h("section", { class: "qs-canvas", "aria-label": "Canvas (graphty-element)" },
+            h("h3", null, "Canvas (graphty-element)", h("span", { class: "k-chip qs-fixed", title: "graphty-element owns these keys and publishes no keymap, so they cannot be changed here" }, icon("lock", "sm"), "Not changeable")),
+            h("p", { class: "qs-note" }, "Work when the canvas has focus. Plain drag orbits in 3D and pans in 2D; the wheel zooms."),
+            h("div", { class: "qs-canvas-cols" }, ELEMENT.map((g) => h("div", { class: "qs-group" }, h("h4", null, g.title), keyList(g.keys)))));
+        const app = h("div", { class: "qs-sheet" }, GROUPS.map((g) => h("section", { class: "qs-group", "aria-label": g.title },
+            h("h3", null, g.title), keyList(g.keys), g.open ? openQ(g.open) : null)));
+        const body = h("div", null, canvas, h("h2", { class: "qs-apphead" }, "App keys, by region"), app);
         const foot = [
-            h("span", { class: "k-secondary" }, "On a Mac, Ctrl is Cmd."),
+            h("span", { class: "k-secondary" }, "On a Mac, Ctrl is Cmd. Single-letter app keys can be turned off in ",
+                AB.link("settings", "accessibility", "Settings > Accessibility"), "."),
             h("span", { class: "k-grow" }),
-            openQ("Whether shortcuts can be changed, and where"),
-            AB.button("Preferences...", { kind: "secondary", go: ["preferences", "general"] }),
+            openQ("Whether the app's own keys can be remapped"),
             AB.button("Done", { onClick: () => AB.close() }),
         ];
         el.append(AB.modal({ title: "Keyboard shortcuts", body, foot, wide: true }));
@@ -250,7 +297,6 @@
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.key === "/") { e.preventDefault(); AB.go("commands-and-search", "find"); }
-        else if (e.key === "?") { e.preventDefault(); AB.go("commands-and-search", "shortcuts"); }
     });
 
     registerSection({
@@ -263,13 +309,16 @@
         states: [
             { id: "quick-actions", label: "Quick actions, empty" },
             { id: "quick-actions-results", label: "Quick actions, typed \"field\"" },
+            { id: "quick-actions-views", label: "Quick actions, typed \"view\"" },
+            { id: "quick-actions-layout", label: "Quick actions, typed \"layout\"" },
+            { id: "quick-actions-settings", label: "Quick actions, typed \"settings\"" },
             { id: "find", label: "Find, row and note results" },
             { id: "shortcuts", label: "Keyboard shortcuts panel" },
         ],
         render(el, state) {
             if (state === "shortcuts") shortcuts(el);
             else if (state === "find") find(el);
-            else quick(el, state === "quick-actions-results" ? "field" : "");
+            else quick(el, { "quick-actions-results": "field", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");
         },
     });
 })();

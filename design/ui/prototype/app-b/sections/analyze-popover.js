@@ -1,4 +1,5 @@
-/* Analyze popover: the algorithm catalog, opened from the toolbar's Analyze button (key A).
+/* Analyze popover: the algorithm catalog, opened from the toolbar's Analyze button (Shift+A, which
+   the shell binds; plain A is graphty-element's canvas key).
    Recent first, then the catalog grouped by what a run adds to the tree; picking an entry expands
    it in place to its essentials; All algorithms... widens it into a two-column sheet. Running
    closes it and adds the row at the top of the tree. Plain ASCII. Styles are injected below. */
@@ -60,14 +61,19 @@
     if (!document.getElementById("ap-style")) document.head.append(h("style", { id: "ap-style" }, CSS));
 
     const ANCHOR = "[data-tool=Analyze]";
+    // The row each entry adds, from the result shape the element's catalog declares.
     const MEASURE = { icon: "chart-column", adds: "a measure row", section: "inspector-measure-row" };
+    const TWO_MEASURES = { icon: "layers", adds: "a run with two measure rows", section: "inspector-run-row" };
     const RUN = { icon: "layers", adds: "a run with group rows", section: "inspector-run-row" };
-    const PATH = { icon: "waypoints", adds: "a path row", section: "inspector-run-row" };
-    const READ = { icon: "gauge", adds: "a reading", section: "inspector-run-row" };
+    const LEVELS = { icon: "layers", adds: "a run with one group row per level", section: "inspector-run-row" };
+    const EDGESET = { icon: "spline", adds: "a group row of edges", section: "inspector-group-set-path-row" };
+    const PATH = { icon: "waypoints", adds: "a path row", section: "inspector-group-set-path-row" };
     const PAIRS = { icon: "link", adds: "a run row of pairs, no paint", section: "inspector-run-row" };
 
-    // weight: "flow" (higher = stronger), "distance" (paths; higher = farther unless inverted), or null.
-    // key: the one option that changes the answer. cost: grows fast with size (a sampled variant exists).
+    // A stand-in for graphty-element's catalog.algorithms() and catalog.metrics(): family, the row it
+    // adds, marks (direction, needsWeight, cost), the one key option, and a disabled reason when a
+    // precondition fails on this graph. weight: "flow" (higher = stronger), "distance" (higher =
+    // farther), or null. input: "two" (From and To) or "one" (a start node) for canvas input.
     const GROUPS = [
         {
             title: "Rank nodes and edges", adds: "adds a measure row", entries: [
@@ -76,53 +82,56 @@
                 { id: "betweenness", name: "Betweenness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, key: ["Normalized", "Yes", "Scale so values run from 0 to 1"], aliases: ["brokers", "bridges", "gatekeepers", "bottlenecks"], answers: "Which nodes sit on the most shortest paths between other nodes." },
                 { id: "closeness", name: "Closeness", family: "Centrality", out: MEASURE, weight: "distance", cost: true, key: ["Variant", "Per component", "Measured inside each connected piece of the graph"], aliases: ["reach", "distance to everyone"], answers: "Which nodes can reach every other node in the fewest steps." },
                 { id: "eigenvector", name: "Eigenvector", family: "Centrality", out: MEASURE, weight: "flow", key: null, aliases: ["prestige", "well connected friends"], answers: "Which nodes are tied to other central nodes." },
-                { id: "edge-betweenness", name: "Edge betweenness", family: "Centrality, edges", out: MEASURE, weight: "distance", cost: true, key: ["Normalized", "Yes", "Scale so values run from 0 to 1"], aliases: ["bridges between groups", "bottleneck edges"], answers: "Which edges carry the most shortest paths." },
-                { id: "clustering", name: "Clustering coefficient", family: "Structure", out: MEASURE, weight: null, key: null, aliases: ["triangles", "cliquish"], answers: "How close each node's neighbors are to all knowing each other." },
+                { id: "katz", name: "Katz", family: "Centrality", out: MEASURE, weight: "flow", key: ["Attenuation", "0.1", "How much a longer walk counts compared with a direct tie"], aliases: ["influence", "reach through friends", "prestige"], answers: "Which nodes reach many others by short walks, counting longer walks for less." },
+                { id: "hits", name: "HITS", family: "Centrality", out: TWO_MEASURES, weight: "flow", direction: true, key: ["Iterations", "100", "The most rounds before it stops"], aliases: ["hubs", "authorities", "who points to whom"], answers: "Which nodes point to good sources (hubs) and which are pointed to (authorities).", disabled: "Needs direction: this graph is undirected" },
                 { id: "core", name: "Core number", family: "Structure", out: MEASURE, weight: null, key: null, aliases: ["k-core", "coreness"], answers: "How deep in the dense core of the graph each node sits." },
+                { id: "dfs", name: "Depth-first order", family: "Traversal", out: MEASURE, weight: null, input: "one", key: ["Start", "One selected node", "The node the walk starts from"], aliases: ["visit order", "traversal", "dfs", "explore"], answers: "The order a walk visits nodes when it goes as deep as it can before backing up." },
             ],
         },
         {
             title: "Find groups", adds: "adds a run with group rows", entries: [
-                { id: "louvain", name: "Louvain", family: "Communities", out: RUN, weight: "flow", key: ["Resolution", "1.0", "Higher finds more, smaller groups"], aliases: ["communities", "clusters", "modularity"], answers: "Which nodes form densely connected groups." },
-                { id: "leiden", name: "Leiden", family: "Communities", out: RUN, weight: "flow", key: ["Resolution", "1.0", "Higher finds more, smaller groups"], aliases: ["communities", "clusters"], answers: "Densely connected groups, each guaranteed to be connected inside." },
-                { id: "label-propagation", name: "Label propagation", family: "Communities", out: RUN, weight: "flow", key: ["Seed", "Random", "Fix a seed to get the same groups again"], aliases: ["communities", "fast clusters"], answers: "Groups found by letting neighbors vote on a label." },
+                { id: "louvain", name: "Louvain", family: "Community", out: RUN, weight: "flow", key: ["Resolution", "1.0", "Higher finds more, smaller groups"], aliases: ["communities", "clusters", "modularity"], answers: "Which nodes form densely connected groups." },
+                { id: "leiden", name: "Leiden", family: "Community", out: RUN, weight: "flow", key: ["Resolution", "1.0", "Higher finds more, smaller groups"], aliases: ["communities", "clusters"], answers: "Densely connected groups, each guaranteed to be connected inside." },
+                { id: "label-propagation", name: "Label propagation", family: "Community", out: RUN, weight: "flow", key: ["Seed", "Random", "Fix a seed to get the same groups again"], aliases: ["communities", "fast clusters"], answers: "Groups found by letting neighbors vote on a label." },
+                { id: "girvan-newman", name: "Girvan-Newman", family: "Community", out: RUN, weight: "distance", cost: true, key: ["Groups", "Best split", "Stop at the split that scores best, or at a number of groups"], aliases: ["communities", "divisive", "remove bridges", "dendrogram"], answers: "Groups found by cutting the edges that carry the most shortest paths, one at a time." },
                 { id: "components", name: "Connected components", family: "Components", out: RUN, weight: null, key: null, aliases: ["islands", "pieces", "disconnected"], answers: "Which parts of the graph are cut off from each other." },
                 { id: "scc", name: "Strongly connected components", family: "Components", out: RUN, weight: null, direction: true, key: null, aliases: ["cycles", "loops"], answers: "Groups in which every node can reach every other along edge directions.", disabled: "Needs direction: this graph is undirected" },
+                { id: "steps-away", name: "Steps away", family: "Traversal", out: LEVELS, weight: null, input: "one", key: ["Up to", "3 steps", "How many steps out from the start node"], aliases: ["breadth-first", "bfs", "hops", "degrees of separation", "neighborhood"], answers: "How many steps each node is from a start node, one group per step." },
+                { id: "matching", name: "Bipartite matching", family: "Matching", out: EDGESET, weight: null, key: null, aliases: ["pairing", "assignment", "two sides"], answers: "The most edges that pair nodes on one side with nodes on the other, each node used once.", disabled: "Needs two sides: this graph is not bipartite" },
             ],
         },
         {
-            title: "Find paths", adds: "adds a path row", entries: [
-                { id: "shortest-path", name: "Shortest path", family: "Paths", out: PATH, weight: "distance", key: ["From, to", "Two selected nodes", "With nothing selected, you pick them on the canvas"], aliases: ["route", "how are they connected", "degrees of separation"], answers: "The fewest steps, or the lightest route, between two nodes.", canvas: true },
-                { id: "all-shortest", name: "All shortest paths", family: "Paths", out: PATH, weight: "distance", cost: true, key: ["From, to", "Two selected nodes", "With nothing selected, you pick them on the canvas"], aliases: ["every route", "alternatives"], answers: "Every route of the shortest length between two nodes.", canvas: true },
-                { id: "mst", name: "Minimum spanning tree", family: "Paths", out: PATH, weight: "distance", needsWeight: true, key: null, aliases: ["backbone", "skeleton"], answers: "The lightest set of edges that still connects every node." },
+            title: "Find paths", adds: "adds a path row or a group row of edges", entries: [
+                { id: "shortest-path", name: "Shortest path", family: "Shortest path", out: PATH, weight: "distance", input: "two", key: ["From, to", "Two selected nodes", "The two ends of the path"], aliases: ["route", "how are they connected", "degrees of separation", "dijkstra"], answers: "The fewest steps, or the lightest route, between two nodes." },
+                { id: "min-cut", name: "Minimum cut", family: "Flow", out: EDGESET, weight: "flow", needsWeight: true, input: "two", key: ["From, to", "Two selected nodes", "The two sides to separate"], aliases: ["weakest cut", "bottleneck", "separate", "max flow"], answers: "The lightest set of edges whose removal cuts one node off from another." },
+                { id: "mst", name: "Minimum spanning tree", family: "Spanning tree", out: EDGESET, weight: "distance", needsWeight: true, key: ["Method", "Kruskal", "Kruskal or Prim give the same total; ties may differ"], aliases: ["backbone", "skeleton", "kruskal"], answers: "The lightest set of edges that still connects every node." },
+                { id: "prim", name: "Prim", family: "Spanning tree", out: EDGESET, weight: "distance", needsWeight: true, key: ["Start", "Any node", "Where the tree starts growing; the total is the same"], aliases: ["backbone", "spanning tree"], answers: "A lightest connecting tree, grown outward from one node." },
             ],
         },
         {
-            title: "Measure the graph", adds: "adds a reading, or a list of pairs", entries: [
-                { id: "stats", name: "Graph statistics", family: "Structure", out: READ, weight: null, key: null, aliases: ["density", "diameter", "summary", "overview"], answers: "Density, diameter, average path length and the degree spread." },
-                { id: "modularity", name: "Modularity of a grouping", family: "Communities", out: READ, weight: "flow", key: ["Grouping", "group", "Which group row or attribute to score"], aliases: ["how good are the groups"], answers: "How much denser the groups are inside than between." },
-                { id: "assortativity", name: "Assortativity", family: "Structure", out: READ, weight: null, key: ["By", "Degree", "Degree, or an attribute such as group"], aliases: ["homophily", "mixing", "birds of a feather"], answers: "Whether nodes tend to connect to nodes like themselves." },
-                { id: "link-prediction", name: "Link prediction", family: "Pairs", out: PAIRS, weight: null, key: ["Method", "Adamic-Adar", "How shared neighbors are scored"], aliases: ["missing links", "likely ties", "who should know whom"], answers: "Which unconnected pairs are most likely to be connected." },
-                { id: "similarity", name: "Node similarity", family: "Pairs", out: PAIRS, weight: null, cost: true, key: ["Method", "Jaccard", "Shared neighbors over all neighbors"], aliases: ["lookalikes", "jaccard", "similar nodes"], answers: "Which pairs of nodes have the most neighbors in common." },
+            title: "Measure the graph", adds: "adds a run with no paint; read it on its Data tab", entries: [
+                { id: "all-pairs", name: "All-pairs distance", family: "Shortest path", out: PAIRS, weight: "distance", cost: true, key: null, aliases: ["distance matrix", "floyd-warshall", "how far apart", "diameter"], answers: "The shortest distance between every pair of nodes." },
+                { id: "link-prediction", name: "Link prediction", family: "Link prediction", out: PAIRS, weight: null, key: ["Method", "Adamic-Adar", "How shared neighbors are scored"], aliases: ["missing links", "likely ties", "who should know whom"], answers: "Which unconnected pairs are most likely to be connected." },
             ],
         },
     ];
     const ALL = GROUPS.flatMap((g) => g.entries);
     const byId = (id) => ALL.find((e) => e.id === id);
-    const RECENT = [["pagerank", "damping 0.85, weight value"], ["louvain", "resolution 1.0, weight value"], ["shortest-path", "Myriel to Javert"], ["betweenness", "weight value, normalized"], ["stats", "density"]];
+    const RECENT = [["pagerank", "damping 0.85, weight value"], ["louvain", "resolution 1.0, weight value"], ["shortest-path", "Myriel to Javert"], ["betweenness", "weight value, normalized"], ["katz", "attenuation 0.1"]];
 
     // Rows the paint tree holds at rest (graph-place): analyzing with one of these revises that row.
-    const HAS_ROW = { pagerank: "PageRank", louvain: "Louvain, resolution 1.0", betweenness: "Betweenness", stats: "Density" };
+    const HAS_ROW = { pagerank: "PageRank", louvain: "Louvain, resolution 1.0" };
 
     let ui = null;
     let host = null;
 
     function reset(state) {
-        ui = { state, level: "list", query: "", picked: null, from: "list", weightOn: true, invert: false, scope: "full", key: null };
+        ui = { state, level: "list", query: "", picked: null, from: "list", weightOn: true, invert: false, scope: "full", key: null, stop: 0 };
         if (state === "search") ui.query = "brokers";
         if (state === "essentials") { ui.level = "pick"; ui.picked = "pagerank"; }
         if (state === "revise") { ui.level = "pick"; ui.picked = "louvain"; ui.key = "1.5"; }
         if (state === "all-algorithms") ui.level = "sheet";
+        if (state === "pick-mode") { ui.level = "pick"; ui.picked = "shortest-path"; }
     }
 
     function matches(e, q) {
@@ -155,6 +164,7 @@
         ui.weightOn = true;
         ui.invert = false;
         ui.key = null;
+        ui.stop = 0;
         draw();
     }
     function back() {
@@ -167,7 +177,7 @@
 
     function entryRow(e, sub) {
         const dis = !!e.disabled;
-        const el = h("div", Object.assign({ class: "ap-entry", role: "option", "aria-disabled": dis ? "true" : null, tabindex: "0" }, dis ? {} : AB.act({ onClick: () => pick(e.id) })),
+        const el = h("div", Object.assign({ class: "ap-entry", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0" }, dis ? {} : AB.act({ onClick: () => pick(e.id) })),
             typeIcon(e),
             h("span", { class: "ap-txt" }, h("span", { class: "ap-name k-ellipsis" }, e.name), dis ? h("span", { class: "ap-reason" }, e.disabled) : h("span", { class: "ap-sub k-ellipsis" }, sub || e.family)),
             marks(e));
@@ -175,17 +185,24 @@
     }
 
     function listBody() {
-        const body = h("div", { class: "ap-body", role: "listbox", "aria-label": "Algorithms" });
+        // Each category is a group named by its heading; an entry is a button, and a recent entry's
+        // Run again sits beside it in the same group (no control nested in another)
+        const body = h("div", { class: "ap-body", role: "region", "aria-label": "Algorithms" });
+        let gid = 0;
+        const group = (title, ...extra) => { const id = "ap-gh-" + ++gid; body.append(h("div", { class: "ap-gh", id }, title, ...extra)); const g = h("div", { role: "group", "aria-labelledby": id }); body.append(g); return g; };
         if (!ui.query) {
-            body.append(h("div", { class: "ap-gh" }, "Recent"));
+            const recent = group("Recent");
             RECENT.forEach(([id, how]) => {
                 const e = byId(id);
+                // The rerun button sits beside the option, never inside it (no nested controls)
                 const row = entryRow(e, e.family + ", last run with " + how);
-                row.append(AB.iconButton("refresh-cw", "Run " + e.name + " again with these settings", {
+                row.style.flex = "1 1 auto";
+                row.style.minWidth = "0";
+                const rerun = AB.iconButton("refresh-cw", "Run " + e.name + " again with these settings", {
                     onClick: () => (HAS_ROW[id] ? pick(id) : AB.flash(e.name + " " + how + ": run again with these settings (not wired in the skeleton)")),
-                }));
-                row.lastChild.classList.add("ap-rerun");
-                body.append(row);
+                });
+                rerun.classList.add("ap-rerun");
+                recent.append(h("div", { style: "display:flex;align-items:center;padding-inline-end:12px" }, row, rerun));
             });
         }
         let any = false;
@@ -193,18 +210,9 @@
             const hits = g.entries.map((e) => [e, matches(e, ui.query)]).filter(([, m]) => m.ok);
             if (!hits.length) return;
             any = true;
-            body.append(h("div", { class: "ap-gh" }, g.title, h("span", { class: "ap-adds" }, g.adds)));
-            hits.forEach(([e, m]) => body.append(entryRow(e, m.alias ? h("span", null, e.family + ", matches ", h("b", null, m.alias)) : HAS_ROW[e.id] ? e.family + ", updates its row" : null)));
+            const grp = group(g.title, h("span", { class: "ap-adds" }, g.adds));
+            hits.forEach(([e, m]) => grp.append(entryRow(e, m.alias ? h("span", null, e.family + ", matches ", h("b", null, m.alias)) : HAS_ROW[e.id] ? e.family + ", updates its row" : null)));
         });
-        const pointerHit = !ui.query || matches({ name: "New graph from", family: "", aliases: ["projection", "quotient", "null model", "bipartite", "sample"] }, ui.query).ok;
-        if (pointerHit) {
-            any = true;
-            body.append(h("div", { class: "ap-gh" }, "Make a new graph", h("span", { class: "ap-adds" }, "adds a graph, not a row")),
-                h("div", Object.assign({ class: "ap-entry", role: "option" }, AB.act({ go: ["graphs-switcher", "new-graph-from"] })),
-                    h("span", { class: "ap-type" }, icon("network", "sm")),
-                    h("span", { class: "ap-txt" }, h("span", { class: "ap-name" }, "New graph from..."), h("span", { class: "ap-sub" }, "Projection, quotient by groups, null-model sample: in the Graphs menu")),
-                    icon("arrow-right", "sm")));
-        }
         if (!any) body.append(h("div", { class: "ap-empty" }, "No algorithm matches \"" + ui.query + "\". Try what you want to find, such as brokers, communities or route."));
         return body;
     }
@@ -222,7 +230,7 @@
         const body = h("div", { class: "ap-body" });
         if (HAS_ROW[e.id]) {
             body.append(h("div", { class: "ap-notice", role: "note" }, icon("info", "sm"),
-                h("span", null, "Updates the " + HAS_ROW[e.id] + " row; its earlier result is kept under ", AB.link(e.out.section, "data", "Earlier results"), ".")));
+                h("span", null, "Updates the " + HAS_ROW[e.id] + " row in place; its current result is replaced. Use As a new row to keep both.")));
         }
         body.append(h("div", { class: "ap-answers" }, e.answers, " ", h("span", { class: "k-secondary" }, "Adds " + e.out.adds + ".")));
         body.append(opt("Scope", seg([
@@ -243,20 +251,42 @@
         } else {
             body.append(opt("Weight", h("span", { class: "ap-note", style: "line-height:24px" }, "Not used by " + e.name + ".")));
         }
-        if (e.key) body.append(opt(e.key[0], AB.field(ui.key || e.key[1], { caret: true, onClick: () => (e.canvas ? AB.go("path-tool", "armed") : AB.flash(e.key[0] + " choices (not wired in the skeleton)")) }), h("span", { class: "ap-note" }, ui.key ? e.key[2] + ". Was " + e.key[1] + " on the current row." : e.key[2])));
+        if (e.input) {
+            const two = e.input === "two";
+            body.append(opt(e.key[0],
+                AB.field("Pick on the canvas", { icon: "crosshair", onClick: () => pickOnCanvas(e) }),
+                h("span", { class: "ap-note" }, two
+                    ? "Nothing suitable is selected. Select two nodes first to use them, or pick From, then To, on the canvas."
+                    : "Nothing is selected. Select one node first to use it, or pick it on the canvas."),
+                two ? null : h("span", { class: "k-annot-tag", title: "Open question" }, "Open question: a one-click start pick, or the From/To bar with To hidden")));
+            if (e.id === "steps-away") body.append(opt("Up to", AB.field("3 steps", { caret: true, onClick: () => AB.flash("1 to 6 steps (not wired in the skeleton)") }), h("span", { class: "ap-note" }, "How many steps out from the start node.")));
+        } else if (e.key) body.append(opt(e.key[0], AB.field(ui.key || e.key[1], { caret: true, onClick: () => AB.flash(e.key[0] + " choices (not wired in the skeleton)") }), h("span", { class: "ap-note" }, ui.key ? e.key[2] + ". Was " + e.key[1] + " on the current row." : e.key[2])));
         else body.append(opt("Options", h("span", { class: "ap-note", style: "line-height:24px" }, "Nothing else changes the answer.")));
         body.append(opt("Cost",
-            h("span", { class: "ap-note", style: "line-height:24px;color:var(--cm-text)" }, "Under a second on " + L.nodes + " nodes and " + L.edges + " edges."),
-            seg([{ id: "exact", label: "Exact", on: true }, { id: "sampled", label: e.cost ? "Sampled" : "Approximate", disabled: true, title: "Not needed at this size" }], () => {}),
-            h("span", { class: "ap-note" }, (e.cost ? "Sampled" : "Approximate") + " is offered for large graphs; not needed at this size. A sampled run says so in its row's name.")));
-        body.append(opt("After", h("span", { class: "ap-note", style: "padding-top:4px" }, "The row appears at the top of the list and paints when the run finishes. Every setting is on its ", AB.link(e.out.section, "data", "Data tab"), ", with Rerun.")));
+            h("span", { class: "ap-note", style: "line-height:24px;color:var(--cm-text)" }, "Estimated under a second on " + L.nodes + " nodes and " + L.edges + " edges."),
+            e.cost ? seg([{ id: "exact", label: "Exact", on: true }, { id: "sampled", label: "Sampled", disabled: true, title: "Offered above 2,000 nodes" }], () => {}) : null,
+            h("span", { class: "ap-note" }, e.cost
+                ? "Grows fast with size. Sampled is offered above 2,000 nodes and is never swapped in on its own; a sampled run says so in its row's name."
+                : "Grows gently with size; there is no sampled variant.")));
+        const STOPS = ["No limit", "10 seconds", "1 minute", "10 minutes"];
+        body.append(opt("Stop after",
+            AB.field(STOPS[ui.stop], { caret: true, onClick: () => { ui.stop = (ui.stop + 1) % STOPS.length; draw(); } }),
+            h("span", { class: "ap-note" }, ui.stop ? "If it is still running then, it stops and keeps what it reached; the row is marked partial." : "Runs until it finishes. Cancel is on the row while it runs.")));
+        body.append(opt("After", h("span", { class: "ap-note", style: "padding-top:4px" }, "Adds " + e.out.adds + " at the top of the list; it paints when the run finishes. Every setting stays on the row's Data tab, with Rerun.")));
         return body;
+    }
+
+    // No suitable selection: a two-node entry arms the From-then-To pick mode (P's mode); a start-node
+    // entry is an open question in the spec, so it only flashes here.
+    function pickOnCanvas(e) {
+        if (e.input === "two") return AB.go("path-tool", "armed");
+        AB.flash("Click a node on the canvas to start " + e.name + " (not wired in the skeleton)");
     }
 
     // Betweenness as a new row is the run the tree's "Run in progress" state shows.
     function run(e, asNew) {
         if (e.id === "betweenness" && asNew) return AB.go("analyze-popover", "running");
-        if (e.canvas) return AB.go("path-tool", "armed");
+        if (e.input) return pickOnCanvas(e);
         if (HAS_ROW[e.id] && !asNew) return AB.go(e.out.section, "data");
         AB.flash(e.name + (asNew ? " added as a new row" : " added and running") + " (not wired in the skeleton)");
     }
@@ -272,7 +302,7 @@
             grid.append(h("div", { class: "ap-gh" }, g.title, h("span", { class: "ap-adds" }, g.adds)));
             hits.forEach((e) => {
                 const dis = !!e.disabled;
-                const inputs = [e.direction ? "direction (required)" : "direction if present", e.needsWeight ? "weight required (value)" : e.weight ? "weight optional (value)" : "no weight", e.canvas ? "two nodes" : null].filter(Boolean).join(", ");
+                const inputs = [e.direction ? "direction (required)" : "direction if present", e.needsWeight ? "weight required (value)" : e.weight ? "weight optional (value)" : "no weight", e.input === "two" ? "two nodes (From, To)" : e.input === "one" ? "a start node" : null].filter(Boolean).join(", ");
                 grid.append(h("div", Object.assign({ class: "ap-card", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0" }, dis ? {} : AB.act({ onClick: () => pick(e.id) })),
                     h("span", { class: "ap-card-head" }, typeIcon(e), h("span", { class: "ap-name k-ellipsis" }, e.name), h("span", { class: "k-secondary k-grow k-ellipsis" }, e.family), marks(e)),
                     h("span", null, e.answers),
@@ -282,10 +312,6 @@
                     h("span", { class: "ap-kv" }, h("b", null, "Adds: "), e.out.adds)));
             });
         });
-        grid.append(h("div", { class: "ap-gh" }, "Make a new graph", h("span", { class: "ap-adds" }, "adds a graph, not a row")),
-            h("div", Object.assign({ class: "ap-card", role: "button" }, AB.act({ go: ["graphs-switcher", "new-graph-from"] })),
-                h("span", { class: "ap-card-head" }, h("span", { class: "ap-type" }, icon("network", "sm")), h("span", { class: "ap-name" }, "New graph from...")),
-                h("span", null, "Bipartite projection, quotient by groups and null-model samples make a new graph in the Graphs menu, with its own rows.")));
         body.append(any || !ui.query ? grid : h("div", { class: "ap-empty" }, "No algorithm matches \"" + ui.query + "\"."));
         return body;
     }
@@ -310,9 +336,9 @@
             pop.append(
                 h("div", { class: "ap-head" }, AB.iconButton("chevron-left", "Back to the list", { onClick: back }), typeIcon(e), h("span", { class: "ap-title k-ellipsis" }, e.name), h("span", { class: "k-secondary k-grow k-ellipsis" }, e.family), AB.iconButton("x", "Close", { onClick: () => AB.go("graph-place", "at-rest") })),
                 essentialsBody(e),
-                h("div", { class: "ap-foot" }, h("span", { class: "ap-hint" }, h("span", { class: "k-kbd" }, "Enter"), "runs", h("span", { class: "k-kbd" }, "Esc"), "back"), h("span", { class: "k-grow" }),
+                h("div", { class: "ap-foot" }, h("span", { class: "ap-hint" }, h("span", { class: "k-kbd" }, "Enter"), e.input ? "picks" : "runs", h("span", { class: "k-kbd" }, "Esc"), "back"), h("span", { class: "k-grow" }),
                     HAS_ROW[e.id] ? AB.button("As a new row", { kind: "secondary", onClick: () => run(e, true) }) : null,
-                    h("span", { class: "ap-runbtn" }, AB.button("Run", { onClick: () => run(e, false) }))));
+                    h("span", { class: "ap-runbtn" }, AB.button(e.input === "two" ? "Pick From and To" : e.input ? "Pick start node" : "Run", { icon: e.input ? "crosshair" : null, onClick: () => run(e, false) }))));
             focus = ".ap-runbtn .k-btn";
             pop.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.target.closest(".k-seg, .k-field, .k-icon-btn, a, .k-btn-secondary, .k-btn-ghost")) { ev.preventDefault(); ev.stopPropagation(); run(e, false); } });
         } else if (ui.level === "sheet") {
@@ -333,20 +359,6 @@
         setTimeout(() => { el.dataset.active = "false"; }, 0);
     }
 
-    // A (the toolbar's key) opens the catalog from anywhere nothing is typed and no overlay is open.
-    if (!window.__apKey) {
-        window.__apKey = true;
-        document.addEventListener("keydown", (e) => {
-            const t = e.target;
-            if (e.key !== "a" || e.ctrlKey || e.metaKey || e.altKey || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable))) return;
-            const ov = document.getElementById("ab-overlay");
-            if (ov && ov.dataset.active === "true") return;
-            if (document.body.dataset.page !== "app") return;
-            e.preventDefault();
-            AB.go("analyze-popover", "open");
-        });
-    }
-
     registerSection({
         id: "analyze-popover",
         title: "Analyze popover",
@@ -355,10 +367,11 @@
         closeTo: "graph-place/at-rest",
         frame: (state) => (state === "running" ? { left: "graph-place/running" } : {}),
         states: [
-            { id: "open", label: "Open: Recent and groups (a disabled entry under Find groups)" },
+            { id: "open", label: "Open: Recent and groups (disabled entries with reasons)" },
             { id: "search", label: "Search: an alias match" },
             { id: "essentials", label: "PageRank essentials" },
-            { id: "revise", label: "Revises an existing row" },
+            { id: "revise", label: "Revises an existing row (As a new row beside Run)" },
+            { id: "pick-mode", label: "Find paths, nothing selected: arms the pick mode" },
             { id: "all-algorithms", label: "All algorithms sheet" },
             { id: "running", label: "After Run: row added, running" },
             { id: "closed", label: "Closed" },
@@ -368,7 +381,7 @@
             const tool = document.querySelector(ANCHOR);
             if (state === "closed") {
                 passThrough(el);
-                const tip = h("div", { class: "k-tooltip ap-tip", role: "tooltip" }, "Analyze ", h("span", { class: "k-kbd" }, "A"), h("div", { class: "k-secondary" }, "Rank, find groups, find paths, measure"));
+                const tip = h("div", { class: "k-tooltip ap-tip", role: "tooltip" }, "Analyze ", h("span", { class: "k-kbd" }, "Shift+A"), h("div", { class: "k-secondary" }, "Rank, find groups, find paths, measure"));
                 el.append(tip);
                 AB.position(tip, ANCHOR, "above");
                 return;

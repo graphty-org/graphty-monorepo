@@ -1,11 +1,13 @@
-/* Path tool armed: a one-shot pointer mode on the transfers graph (March 2026).
-   Click From, then To; the bar above the toolbar holds From, To, Direction, Weight with its
-   meaning, Scope and Run. The found path lands as a child of one path run row and paints, and
-   the tool returns to Select. Esc disarms.
-   Besides "path-tool" (the toolbar region) this file registers four helper sections that are
-   not in the manifest, so they stay off the site map: path-tool-canvas (the drawing with the
-   pick marks), path-tool-tree (the transfers graph's tree), path-tool-graph (its inspector with
-   nothing selected) and path-tool-flyout (the Path caret's menu). They exist only so the path states can draw the canvas, tree and inspector too.
+/* Path pick mode: a one-shot pointer mode on the transfers graph (March 2026). No toolbar button:
+   P or Analyze > Find paths arms it. A bar above the toolbar, in the selection bar's place, holds
+   From, To, Direction, Weight (the element reads it as distance), Scope, Run and the Esc
+   hint. Click From, then To; Run lands the path as a child of one path run row, it paints, and
+   the pointer returns to Select. Esc disarms.
+   Besides "path-tool" (the toolbar region) this file registers two helper sections that are not
+   in the manifest, so they stay off the site map: path-tool-canvas (the drawing with the pick
+   marks) and path-tool-tree (the transfers graph's tree). inspector-group-set-path-row draws
+   them too. path-tool-graph is kept only as an alias of inspector-nothing-selected/transfers
+   because recipe-apply still names it.
    Plain ASCII. */
 (function () {
     if (!document.getElementById("pt-style")) {
@@ -21,7 +23,6 @@
     // What each state has chosen so far
     const STEP = {
         armed: { active: "from" },
-        flyout: { active: "from" },
         "picking-from": { active: "from", hover: "from" },
         "from-picked": { from: true, active: "to" },
         "picking-to": { from: true, active: "to", hover: "to" },
@@ -52,12 +53,9 @@
     }
     function bar(state) {
         const s = STEP[state];
-        const ready = !!(s.from && s.to && s.meaning);
-        const invert = h("span", Object.assign({ class: "k-check", role: "checkbox", "aria-checked": "false", "aria-label": "Invert the weight" }, AB.act({ onClick: (e) => {
-            const c = e.currentTarget; c.setAttribute("aria-checked", String(c.getAttribute("aria-checked") !== "true"));
-        } })));
-        return h("div", { class: "k-secondary-bar pt-bar", role: "toolbar", "aria-label": "Path tool" },
-            h("span", Object.assign({ class: "pt-entry", role: "button", "aria-haspopup": "menu", title: "Path query (the Path flyout)" }, AB.act({ go: ["path-tool", "flyout"] })), icon("route", "sm"), "Shortest path", icon("chevron-down", "sm")),
+        const ready = !!(s.from && s.to);
+        return h("div", { class: "k-secondary-bar pt-bar", role: "toolbar", "aria-label": "Path pick mode" },
+            h("span", { class: "pt-entry" }, icon("route", "sm"), "Shortest path"),
             h("span", { class: "pt-sep" }),
             endpoint("From", "from", s),
             endpoint("To", "to", s),
@@ -66,45 +64,38 @@
             h("span", { class: "pt-group" },
                 h("span", { class: "pt-lbl" }, "Weight"),
                 AB.field("amount", { caret: true, onClick: () => AB.flash("Weight: None, amount (not wired in the skeleton)") }),
-                h("span", { class: "k-seg", role: "radiogroup", "aria-label": "What a higher amount means" },
-                    ["higher = farther", "higher = stronger"].map((t, i) => h("span", Object.assign({ role: "radio", "aria-checked": String(!!s.meaning && i === 0) }, AB.act({ onClick: (e) => {
-                        const g = e.currentTarget.parentNode;
-                        g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === e.currentTarget)));
-                    } })), t))),
-                h("label", { class: "pt-inv" }, invert, "Invert"),
-                s.meaning ? null : oq("A higher amount has no default meaning: each run asks. Does Run wait until one is chosen, or does the entry carry a default?")),
+                // The same options as the selection bar's Path between: graphty-element's option schema,
+                // which reads a weight only as distance. "Stronger" and Invert would be the app transforming weights.
+                h("span", { class: "k-secondary" }, "higher = farther"),
+                AB.needsElement("Reading a weight as strength (higher = closer) is not in graphty-element's path options; filed.")),
             h("span", { class: "pt-group" }, h("span", { class: "pt-lbl" }, "Scope"), AB.field("Full graph, " + T().nodes.toLocaleString("en-US") + " nodes", { caret: true, go: ["data-place", "filters"] })),
             h("span", { class: "pt-sep" }),
             AB.button("Run", { icon: "play", disabled: !ready, go: ready ? ["path-tool", "found"] : null, onClick: ready ? null : () => AB.flash("Pick From and To first") }),
-            AB.iconButton("x", "Cancel (Esc)", { go: ["toolbar", "at-rest"] }),
+            h("span", Object.assign({ class: "pt-esc", role: "button", title: "Leave the path pick mode" }, AB.act({ go: ["toolbar", "at-rest"] })), h("span", { class: "k-kbd" }, "Esc"), h("span", { class: "k-secondary" }, "cancels")),
         );
     }
 
-    // The toolbar under the bar, with Path pressed (or Select, once the result has landed)
-    function toolbarUnder(el, ctx, pathOn) {
+    // The toolbar under the bar. The pick mode has no button of its own: while it is armed no pointer
+    // tool is pressed; once the result lands, Select is again.
+    function toolbarUnder(el, ctx, armed) {
         const wrap = h("div");
         ctx.renderSection("toolbar/at-rest", wrap);
         const tb = wrap.querySelector(".k-toolbar") || wrap;
-        const sel = tb.querySelector("[data-tool=Select]"), path = tb.querySelector("[data-tool=Path]");
-        if (sel) sel.setAttribute("aria-pressed", String(!pathOn));
-        if (path) {
-            path.setAttribute("aria-pressed", String(pathOn));
-            if (!path.nextElementSibling || !path.nextElementSibling.classList.contains("k-tool-caret"))
-                path.after(h("span", Object.assign({ class: "k-tool-caret", role: "button", "aria-label": "Path queries", "aria-haspopup": "menu" }, AB.act({ go: ["path-tool", "flyout"] })), icon("chevron-down", "sm")));
-        }
-        // only the toolbar itself: the selection bar's slot is taken by this bar (or the notice)
-        el.append(wrap.querySelector(".k-toolbar") || wrap);
+        const sel = tb.querySelector("[data-tool=Select]");
+        if (sel) sel.setAttribute("aria-pressed", String(!armed));
+        const old = tb.querySelector("[data-tool=Path]"); // version 1 toolbar button, gone in version 2
+        if (old) { if (old.nextElementSibling && old.nextElementSibling.classList.contains("k-tool-caret")) old.nextElementSibling.remove(); old.remove(); }
+        el.append(tb); // only the toolbar itself: this bar (or the notice) takes the selection bar's slot
     }
 
     registerSection({
         id: "path-tool",
-        title: "Path tool armed",
+        title: "Path pick mode",
         region: "toolbar",
         rail: "graph",
         closeTo: "toolbar/at-rest",
         states: [
             { id: "armed", label: "Armed" },
-            { id: "flyout", label: "Flyout" },
             { id: "picking-from", label: "Picking From" },
             { id: "from-picked", label: "From picked" },
             { id: "picking-to", label: "Picking To" },
@@ -115,9 +106,8 @@
             dataset: "transactions",
             left: "path-tool-tree/" + state,
             canvas: "path-tool-canvas/" + state,
-            right: state === "found" ? "inspector-group-set-path-row/path" : "path-tool-graph/nothing-selected",
+            right: state === "found" ? "inspector-group-set-path-row/path" : "inspector-nothing-selected/transfers",
             dock: false,
-            overlay: state === "flyout" ? "path-tool-flyout/open" : null,
         }),
         render(el, state, ctx) {
             if (state === "found") {
@@ -131,30 +121,6 @@
         },
     });
 
-    // ---------- the Path flyout ----------
-    registerSection({
-        id: "path-tool-flyout",
-        title: "Path tool: queries",
-        region: "overlay",
-        closeTo: "path-tool/armed",
-        states: ["open"],
-        render(el) {
-            el.append(AB.menu({
-                anchor: ".pt-entry",
-                place: "above-start",
-                items: [
-                    { heading: "Between two nodes" },
-                    { label: "Shortest path", check: true, shortcut: "P", go: ["path-tool", "armed"], desc: "The fewest hops, or the least total weight" },
-                    { label: "All shortest paths", go: ["path-tool", "armed"], desc: "Every route that ties for shortest" },
-                    { label: "K shortest paths", go: ["path-tool", "armed"], desc: "The shortest few, in order" },
-                    { label: "Flow between two nodes", go: ["path-tool", "armed"], desc: "How much can move from one to the other" },
-                    { sep: true },
-                    { label: "More in Analyze...", go: ["analyze-popover", "open"] },
-                ],
-            }));
-        },
-    });
-
     // ---------- the canvas: pick marks over the transfers drawing ----------
     function mark(a, text, kind) {
         return h("span", { class: "pt-mark", "data-kind": kind, style: `left:${a.x}%;top:${a.y}%` }, h("span", { class: "pt-mark-tag" }, text));
@@ -165,30 +131,22 @@
             h("span", { class: "k-secondary" }, acc.kind + ", " + acc.country + ", degree " + acc.degree + (acc.flagged ? ", flagged" : "")), h("br"),
             verb);
     }
-    const HINT = {
-        armed: ["Click the node or set to start from.", "Esc cancels"],
-        flyout: ["Click the node or set to start from.", "Esc cancels"],
-        "picking-from": ["Click the node or set to start from.", "Esc cancels"],
-        "from-picked": ["Now click where the path should end.", "Esc cancels"],
-        "picking-to": ["Now click where the path should end.", "Esc cancels"],
-        ready: ["Press Run, or Enter.", "Esc cancels"],
-    };
     registerSection({
         id: "path-tool-canvas",
-        title: "Path tool: canvas",
+        title: "Path between: the pick mode",
         region: "canvas",
         states: Object.keys(STEP),
         render(el, state) {
             const t = T(), sp = t.setsAndPaths, s = STEP[state];
-            const zoom = h("span", Object.assign({ id: "ab-zoom", class: "k-btn k-btn-ghost ab-zoom", role: "button" }, AB.act({ go: ["zoom-and-view-menu", "2d"] })), state === "found" ? "300%" : "100%", icon("chevron-down", "sm"));
+            const zoom = AB.cameraFace({ moved: state === "found" });
             if (state === "found") {
                 const r = P().asDistance;
-                const stage = h("div", { class: "k-stage" }, AB.drawing("transactions-path-cheapest", "The found path " + r.route.join(" to ") + ", zoomed to 300%"));
+                const stage = h("div", { class: "k-stage" }, AB.drawing("transactions-path-cheapest", "The found path " + r.route.join(" to ") + ", framed"));
                 const legend = h("div", { class: "k-legend-card ab-legend pt-legend" },
                     AB.nav(h("div", { class: "k-lg-title" }, RESULT), "inspector-group-set-path-row", "path"),
                     AB.nav(h("div", { class: "k-lg-row" }, h("span", { class: "pt-route-swatch" }), P().from.id + " to " + P().to.id, h("span", { class: "k-value" }, r.hops + " hops")), "inspector-group-set-path-row", "path"),
                     h("div", { class: "k-lg-sub k-num" }, "Total amount " + fmt(r.dollars)));
-                el.append(stage, legend, zoom);
+                el.append(stage, legend, h("div", { class: "ab-canvas-corner" }, zoom));
                 return;
             }
             const stage = h("div", { class: "k-stage pt-picking" }, AB.drawing("transactions-density", t.frame.altSized));
@@ -200,12 +158,11 @@
             if (s.to) stage.append(mark(a.to, "To", "to"));
             if (s.hover === "from") stage.append(tip(a.from, P().from, "Click to start here"));
             if (s.hover === "to") stage.append(tip(a.to, P().to, "Click to end here"));
-            const [line, esc] = HINT[state];
-            el.append(stage, h("div", { class: "pt-hint", role: "status" }, icon("route", "sm"), line, h("span", { class: "k-kbd" }, "Esc"), h("span", { class: "k-secondary" }, esc.replace("Esc ", ""))), zoom);
+            el.append(stage, h("div", { class: "ab-canvas-corner" }, zoom));
         },
     });
 
-    // ---------- the tree (left) and the graph inspector (right) for the transfers graph ----------
+    // ---------- the tree (left) for the transfers graph ----------
     function runRow(open) {
         const p = P();
         return {
@@ -216,7 +173,7 @@
     }
     registerSection({
         id: "path-tool-tree",
-        title: "Path tool: tree",
+        title: "Path between: the found path in the tree",
         region: "left",
         rail: "graph",
         states: Object.keys(STEP),
@@ -224,39 +181,26 @@
             const t = T();
             const found = state === "found";
             const rows = [
-                { name: "Selection", kindIcon: "scan", pinned: true, count: "Nothing selected", eye: true, go: ["inspector-selection-and-everything", "selection"] },
+                { name: "Selection", kindIcon: "scan", pinned: true, builtin: true, count: "Nothing selected", eye: true, go: ["inspector-selection-and-everything", "selection"] },
+                { name: "Notes", kindIcon: "message-square", pinned: true, builtin: true, count: "No notes", eye: true, go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] },
                 found ? runRow(true) : null,
-                { name: "Everything", kindIcon: "square", pinned: true, eye: true, go: ["inspector-selection-and-everything", "everything"] },
+                { name: "Everything", kindIcon: "square-filled", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "everything"] },
             ].filter(Boolean);
             el.append(
                 AB.placeHead("Graph"),
                 h("div", { class: "ab-switcher" }, h("span", Object.assign({ class: "ab-switch-btn", role: "button" }, AB.act({ go: ["graphs-switcher", "open"] })), icon("network"), h("span", { class: "k-ellipsis" }, t.graphName), icon("chevron-down", "sm")), h("span", { class: "k-grow" }), h("span", { class: "k-secondary k-num" }, t.nodes.toLocaleString("en-US") + " nodes")),
-                h("div", { class: "ab-treebar" }, AB.field("Find rows", { icon: "search", go: ["commands-and-search", "find"] }), AB.iconButton("list-filter", "List options", { go: ["graph-place", "list-menu"] }), AB.iconButton("flask-conical", "Analyze", { go: ["analyze-popover", "open"] })),
+                h("div", { class: "ab-treebar" }, AB.field("Find rows", { icon: "search", go: ["commands-and-search", "find"] }), AB.iconButton("list-filter", "List options", { go: ["graph-place", "list-menu"] })),
                 h("div", { class: "k-scroll" }, AB.tree(rows),
                     found ? h("div", { class: "ab-pad k-secondary pt-treenote" }, "The next path asked with the same settings joins this row as another child. ", oq("Do settings that differ start a second path run row, or a child with its own settings?")) : null),
             );
         },
     });
+    // Alias kept for recipe-apply, which still names it: the transfers graph with nothing selected
     registerSection({
         id: "path-tool-graph",
-        title: "Path tool: graph inspector",
+        title: "Transfers graph, nothing selected",
         region: "right",
         states: ["nothing-selected"],
-        render(el) {
-            // the graph inspector with nothing selected: picking an end is not a selection
-            const t = T();
-            el.append(AB.inspector({
-                icon: "network", title: t.graphName, kind: "Graph", meta: t.frame.project + ", " + t.file,
-                body: [
-                    AB.section("Overview",
-                        AB.data("Nodes", t.nodes.toLocaleString("en-US")), AB.data("Edges", t.edges.toLocaleString("en-US") + " (directed)"),
-                        AB.data("Density", String(t.stats.density)), AB.data(t.frame.componentsName, t.frame.components),
-                        AB.data("Average degree", String(t.stats.averageDegree)),
-                        AB.data("Edge weight", "amount", { go: ["inspector-attribute-and-filter-step", "attribute"] }),
-                        h("div", { class: "ab-cap k-secondary" }, "amount: " + t.frame.edgesLine.replace(/^directed; amount: /, "") + ".")),
-                    AB.section({ title: "Notes", count: 0, actions: AB.iconButton("plus", "Add note", { go: ["notes-place", "all"] }) }, h("div", { class: "ab-pad k-secondary" }, "No notes about this graph yet.")),
-                ],
-            }));
-        },
+        render(el, state, ctx) { ctx.renderSection("inspector-nothing-selected/transfers", el); },
     });
 })();

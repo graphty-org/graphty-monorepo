@@ -1,252 +1,264 @@
-/* Inspector: a run row. The Louvain run the Graph tree shows on Les Miserables (Style, Data,
-   Finished) and its readings-only Density run; and, for the states that need two data versions
-   (rerun, failed, out of date, earlier results) and for many groups, the Louvain run on the
-   transfers (datasets.transactionsApril), framed by the transfers tree and canvas. Transfers numbers
-   come from kit/fixtures.json; the Les Miserables communities (sizes, colors, modularity 0.565,
-   seed 7) are the ones the Graph place and the table dock computed. Plain ASCII. Styles are injected once below (this section's own; no shared file is edited). */
+/* Inspector: a run row, in the one inspector frame (version 2). The Louvain run on Les Miserables
+   (6 communities, modularity 0.565, seed 7, as the Graph place and the table dock computed) and its
+   readings-only Density run; and, for the states that need two data versions (rerun on April data,
+   failed, out of date) and for many groups, the Louvain run on the transfers
+   (datasets.transactionsApril), framed by the transfers tree and canvas.
+   Style tab: the shared Style tab with Fill color bound to the run's communities; the binding
+   block under that line holds the palette the children share, per-child exceptions, overflow, and
+   the Level of a hierarchy. Data tab: Summary, Top items, Made with (every option editable; an edit raises the
+   state bar), Notes. Run status (running, queued, cannot be stopped, partial, failed, out of date)
+   and the settings-changed commit sit in the one state bar under the header. Verbs live in "...".
+   Plain ASCII. Styles are injected once below (this section's own; no shared file is edited). */
 (function () {
     "use strict";
     const { h, icon } = AB;
 
     const CSS = `
-.rr-status { display: grid; gap: 6px; padding: 8px 16px 10px; border-bottom: 1px solid var(--cm-border); }
-.rr-status .k-progress { width: 100%; }
-.rr-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 16px 10px; }
-.rr-line { display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 0 8px 0 16px; }
-.rr-line > .k-grow { min-width: 0; }
 .rr-oq { display: inline-flex; align-items: center; height: 16px; padding: 0 6px; margin-inline-start: 4px; border-radius: 8px; font-size: 10px; font-weight: 550; background: var(--cm-bg-warning); color: #000; white-space: nowrap; vertical-align: middle; }
-.rr-past { display: grid; gap: 4px; margin: 0 8px 8px 16px; padding: 8px; border-radius: 8px; background: var(--cm-bg-secondary); }
-.rr-past .rr-acts { padding: 4px 0 0; }
-.rr-stale { display: inline-flex; align-items: center; gap: 4px; color: var(--cm-text-secondary); }
-.rr-disabled { opacity: 0.55; pointer-events: none; }
-.rr-fields2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .rr-note { padding: 0 16px 8px; line-height: 16px; }
-.rr-kind { display: inline-flex; color: var(--cm-text-secondary); }
+.rr-fields2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rr-bar { display: grid; gap: 4px; min-width: 0; padding: 2px 0; line-height: 16px; }
+.rr-bar .k-progress { width: 100%; }
+.rr-insp .ab-statebar { flex-wrap: wrap; padding-block: 6px; }
+.rr-insp .ab-statebar > .k-grow { flex: 1 0 100%; min-width: 0; }
+.rr-bind { margin: 0 8px 8px 16px; padding: 2px 0; border-inline-start: 2px solid var(--cm-border); }
+.rr-sizes { display: flex; align-items: flex-end; gap: 4px; height: 48px; padding: 4px 16px; }
+.rr-sizes > span { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; }
+.rr-kv { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 24px; padding: 2px 0 2px 8px; }
+.rr-insp .ab-insp-body > .rr-kv, .rr-insp .ab-sec-body > .rr-kv { grid-template-columns: 88px minmax(0, 1fr); padding: 2px 8px 2px 16px; }
+.rr-kv > .k-name { color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-kv > .k-value { min-width: 0; }
 `;
     if (!document.getElementById("rr-style")) document.head.append(h("style", { id: "rr-style" }, CSS));
 
     const oq = (text) => h("span", { class: "rr-oq", title: "Open question: " + text }, "Open question");
     const fmt = (n) => Number(n).toLocaleString("en-US");
     const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
+    const RUN_LABEL = "a run's name is its label, which graphty-element keeps read-only";
+    const NO_EARLIER = "a rerun replaces the result, and graphty-element keeps no earlier one";
+    const MENU = ["context-menus", "run-row"];
+    const EDIT = ["inspector-run-row", "settings-changed"];
 
     function fieldRow(legend, control, extra) {
         return h("div", { class: "k-fieldrow" }, h("span", { class: "k-legend" }, legend, extra || null), control);
     }
+    // Every run option is editable; any edit raises the state bar (the settings-changed state).
     function seg(options, pick) {
         const g = h("span", { class: "k-seg k-seg-fill", role: "radiogroup" });
         options.forEach((o) => {
             const b = h("span", { role: "radio", tabindex: "0", "aria-checked": String(o === pick) }, o);
-            b.addEventListener("click", () => g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === b))));
+            AB.nav(b, EDIT[0], EDIT[1]);
             g.append(b);
         });
         return g;
     }
     function toggle(label, on) {
         const s = h("span", { class: "k-switch", role: "switch", tabindex: "0", "aria-checked": String(on), "aria-label": label });
-        s.addEventListener("click", () => s.setAttribute("aria-checked", String(s.getAttribute("aria-checked") !== "true")));
-        return h("div", { class: "rr-line" }, h("span", { class: "k-grow" }, label), s);
+        AB.nav(s, EDIT[0], EDIT[1]);
+        return h("div", { class: "k-data" }, h("span", { class: "k-name" }, label), h("span", { class: "k-value" }, s));
     }
+    const opt = (value, o) => AB.field(value, Object.assign({ go: EDIT }, o || {}));
 
     // Les Miserables: Louvain weighted by value, resolution 1.0, seed 7
     const LESMIS_RUN = [[1, 25, "#E69F00"], [2, 17, "#56B4E9"], [3, 10, "#009E73"], [4, 10, "#0072B2"], [5, 9, "#D55E00"], [6, 6, "#CC79A7"]];
-    const TRANSFERS = ["many-groups", "running", "failed", "out-of-date", "earlier-results"];
+    const TRANSFERS = ["many-groups", "running", "failed", "out-of-date"];
 
-    function build(state) {
+    function world(state) {
         const fx = AB.fx, A = fx.datasets.transactionsApril, M = fx.datasets.transactions, LM = fx.datasets.lesmis;
-        const L = A.louvain, G = A.agreement, other = fx.canvas.otherGray;
-        const lm = !TRANSFERS.includes(state);
-        const march = state === "out-of-date" || state === "running" || state === "failed" || state === "many-groups";
-        const W = lm
-            ? { unit: "nodes", edgeUnit: "edges", weight: "value", seed: "7", title: "Louvain, resolution 1.0", where: "Les Miserables. ", tree: "louvain-open", table: "communities", direction: "Undirected" }
-            : { unit: "accounts", edgeUnit: "transfers", weight: "amount", seed: "11", title: "Louvain, weighted by amount", where: null, tree: "many-groups", table: "transfers", direction: "Directed data, read as undirected" };
-        const now = lm ? { file: LM.file, nodes: LM.nodes, edges: LM.edges, communities: LESMIS_RUN.length, modularity: 0.565, legend: { rows: LESMIS_RUN.map(([n, c, col]) => ({ name: "Community " + n, color: col, count: c, go: ["inspector-group-set-path-row", "community-" + n] })), other: null } } : march ? { month: "March", file: M.file, nodes: M.nodes, edges: M.edges, communities: L.march.communities, modularity: L.march.modularity, legend: A.legends.march, reruns: G.marchRerunRange, together: G.stayTogether.marchRerunInTen } : { month: "April", file: A.file, nodes: A.nodes, edges: A.edges, communities: L.april.communities, modularity: L.april.modularity, legend: A.legends.april, reruns: G.aprilRerunRange, together: G.stayTogether.aprilRerunInTen };
-        if (!lm) W.where = "Transfers, " + now.month + " 2026. ";
-        const staleMark = state === "out-of-date" ? h("span", { class: "rr-stale", title: "Computed on March data" }, icon("history", "sm"), "March") : null;
+        const L = A.louvain;
+        if (!TRANSFERS.includes(state))
+            return { lm: true, unit: "nodes", weight: "value", seed: "7", title: "Louvain, resolution 1.0", where: "Les Miserables", tree: "louvain-open", table: "communities",
+                file: LM.file, version: LM.file + ", current", nodes: LM.nodes, edges: LM.edges, communities: LESMIS_RUN.length, modularity: 0.565,
+                rows: LESMIS_RUN.map(([n, c, col]) => ({ name: "Community " + n, color: col, count: c, go: ["inspector-group-set-path-row", "community-" + n] })), other: null };
+        // the transfers tree and canvas this section is framed by show the March result
+        const src = { month: "March", file: M.file, nodes: M.nodes, edges: M.edges, c: L.march, legend: A.legends.march };
+        return { lm: false, unit: "accounts", weight: "amount", seed: "11", title: "Louvain, weighted by amount", where: "Transfers, " + src.month + " 2026", tree: "many-groups", table: "transfers",
+            file: src.file, version: src.month + " (" + src.file + ")", nodes: src.nodes, edges: src.edges, communities: src.c.communities, modularity: src.c.modularity,
+            rows: src.legend.rows.map((r) => ({ name: r.name, color: r.color, count: r.count, go: ["table-dock", "transfers"] })), other: src.legend.other, month: src.month };
+    }
 
-        if (state === "readings-only") return readingsOnly(LM);
+    // ---------- the state bar: the settings-changed commit, and the run's own status ----------
+    function stateBar(state, W) {
+        const A = AB.fx.datasets.transactionsApril;
+        const bar = (lines) => h("div", { class: "rr-bar" }, lines);
+        const prog = (pct, title) => h("div", { class: "k-progress", role: "progressbar", "aria-valuenow": String(pct), "aria-valuemin": "0", "aria-valuemax": "100", title: title || null }, h("i", { style: "width:" + pct + "%" }));
+        switch (state) {
+            case "settings-changed":
+                return { text: "Settings changed since the run", actions: [{ label: "Rerun", go: ["inspector-run-row", "cannot-cancel"] }, { label: "Run as copy", go: ["graph-place", "finished"] }, { label: "Revert", go: ["inspector-run-row", "data"] }] };
+            case "running":
+                return { text: bar([h("span", { class: "k-strong" }, "Rerunning on April data"), prog(40), h("span", { class: "k-secondary" }, "Showing the March result until it finishes")]), actions: [{ label: "Cancel", go: ["inspector-run-row", "out-of-date"] }] };
+            case "queued":
+                return { text: bar([h("span", { class: "k-strong" }, "Rerun queued, 2nd"), h("span", { class: "k-secondary" }, "Starts when Betweenness finishes. The current result paints until then.")]), actions: [{ label: "Cancel", go: ["inspector-run-row", "data"] }] };
+            case "cannot-cancel":
+                return { text: bar([h("span", { class: "k-strong", title: "This step cannot be stopped" }, "Rerunning with resolution 1.2"), prog(70, "This step cannot be stopped"), h("span", { class: "k-secondary" }, "This step cannot be stopped. The current result paints until it finishes.")]), actions: [] };
+            case "partial":
+                return { text: bar([h("span", { class: "k-strong" }, "Partial: stopped at the time limit"), h("span", { class: "k-secondary" }, "The communities found so far paint. They are not final.")]), actions: [{ label: "Rerun", go: ["inspector-run-row", "cannot-cancel"] }] };
+            case "failed":
+                return { text: bar([h("span", { class: "k-strong" }, icon("circle-x", "sm"), " The rerun on April data failed"), h("span", { class: "k-secondary" }, "Reason:", oq("the element's own wording for a failed Louvain run, shown word for word")), h("span", { class: "k-secondary" }, "Nothing changed: the March result is still shown.")]), actions: [{ label: "Retry", go: ["inspector-run-row", "running"] }] };
+            case "out-of-date":
+                return { text: bar([h("span", { class: "k-strong" }, "Out of date: computed on March data"), h("span", { class: "k-secondary" }, "Now April (" + A.file + "): " + A.versionDiff.accountsAdded + " accounts added, " + A.versionDiff.accountsRemoved + " removed. ", AB.link("data-place", "versions", "Data versions"))]), actions: [{ label: "Rerun on April data", go: ["inspector-run-row", "running"] }] };
+            default:
+                return null;
+        }
+    }
 
-        // ---------- Style tab ----------
-        const style = () => [
-            h("div", { class: "rr-note k-secondary" }, "One palette colors all " + now.communities + " communities. A community's own row can override its color."),
-            lm ? h("div", { class: "rr-note k-secondary" }, "The communities paint as soon as the run finishes. The eye on this row shows and hides all of them.") : null,
-            AB.section("Colors for every community",
-                fieldRow("Palette", AB.field("Colorblind-safe, 8 colors", { caret: true, go: ["context-menus", "run-row"] })),
-                h("div", { class: "k-fieldrow" }, h("span", { class: "ab-multi" }, fx.canvas.categorical.map((c) => AB.chit(c, true)))),
-                fieldRow("Order colors by", AB.field("Size, largest first", { caret: true, onClick: flash("Order colors by") })),
-                now.legend.rows.map((r) => AB.row({ swatch: AB.chit(r.color, true), label: r.name, trail: fmt(r.count), go: r.go || ["table-dock", "transfers"] })),
-                now.legend.other ? AB.row({ swatch: AB.chit(other, true), label: now.legend.other.communities + " more communities share one color", trail: fmt(now.legend.other.count), go: ["table-dock", "transfers"] }) : null,
-                now.legend.other ? h("div", { class: "ab-cap k-secondary" }, "More communities than the palette tells apart share gray. " + now.legend.other.holds + ".") : null,
-            ),
-            AB.section({ title: "Overrides", count: 0 },
-                h("div", { class: "rr-note k-secondary" }, "No community has its own color. Change one on its own row; it is then listed here with Reset."),
-            ),
-            AB.section("Level",
-                fieldRow("Paint the groups of", AB.field("Final level, most merged", { caret: true, onClick: flash("Level menu") }), oq("how many levels graphty-element reports for a Louvain run")),
-                h("div", { class: "rr-note k-secondary" }, "Louvain merges groups in levels. The level chosen here is what the child rows are and what they paint. To show two levels together, keep one as a separate run from Earlier results."),
-            ),
-            AB.section("Shared members",
-                h("div", { class: "rr-disabled", "aria-disabled": "true" }, fieldRow("A member of two groups takes", AB.field("The higher group's color", { caret: true }))),
-                h("div", { class: "rr-note k-secondary" }, "Only for runs whose groups can share members. Louvain puts each " + (lm ? "node" : "account") + " in exactly one community."),
-            ),
+    // ---------- Style tab ----------
+    function styleTab(state, W) {
+        const fx = AB.fx;
+        const hier = state === "hierarchy-level";
+        const levelMenu = (e) => AB.menu({ anchor: e.currentTarget, place: "below-start", items: [
+            { heading: "Paint the groups of" },
+            { label: "Final level, most merged", check: !hier, go: ["inspector-run-row", "style"] },
+            { label: "First level, least merged", check: hier, go: ["inspector-run-row", "hierarchy-level"] },
+            { sep: true },
+            { label: "Levels in between", disabled: true, desc: AB.needsElement("how many levels graphty-element reports for a Louvain run") },
+        ] });
+        // The shared Style tab: Fill color is bound to the run's result, and everything about how
+        // communities become colors sits in the binding block under that line (as on a measure row)
+        // One label column and one value column; a line shows only when it applies, and its
+        // explanation is the tooltip. An exception's home is the community's own row (its Fill reads
+        // "from the Louvain palette" until edited); this block would only link to such rows.
+        const kv = (label, value, title) => h("div", { class: "rr-kv", title: title || null }, h("span", { class: "k-name" }, label), h("span", { class: "k-value" }, value));
+        const block = () => h("div", { class: "rr-bind", role: "group", "aria-label": "How the communities become colors" },
+            // The palette field shows its colors (the name is in the tooltip), as Figma's swatch fields do
+            kv("Palette", Object.assign(AB.field(h("span", { class: "ab-multi" }, fx.canvas.categorical.map((c) => AB.chit(c, true))), { caret: true, go: ["style-pickers", "choice"] }), { title: "Eight Distinct Colors, safe for color-blind readers" }), "The colors the communities share, in order. A community with a look of its own is set on its own row."),
+            kv("Order by", AB.field("Size", { caret: true, go: ["style-pickers", "choice"] }), "Which community takes the first color: the largest, by size"),
+            W.other
+                ? [kv("Overflow", AB.field("The rest share one color", { caret: true, go: ["style-pickers", "choice"] }), "More communities than colors: what the rest draw as"),
+                    kv("Also by", AB.field("Nothing else", { caret: true, go: ["style-pickers", "choice"] }), "Tell the rest apart by another property, such as shape"),
+                    kv("Shared color", AB.link("table-dock", "transfers", W.other.communities + " communities, " + fmt(W.other.count) + " " + W.unit))]
+                : null,
+            kv("Level", Object.assign(AB.field(hier ? "First level" : "Final level", { caret: true, onClick: levelMenu }), { title: hier ? "First level, least merged" : "Final level, most merged" }), "Louvain merges groups in levels; the child rows are the level chosen here. To show two levels together, Run again as copy (in \"...\") and pick a level on each."),
+            hier ? oq("how many groups the first level holds") : null);
+        return [
+            AB.paintsLine("members of its " + (hier ? "" : W.communities + " ") + "communities: ", AB.link("table-dock", W.table, fmt(W.nodes) + " " + W.unit)),
+            AB.styleTab({ kind: "node", set: {}, bound: { "node.color": "Community" }, blocks: { "node.color": block }, openSection: "Fill" }),
         ];
+    }
 
-        // ---------- Data tab ----------
-        const status = [];
-        if (state === "running")
-            status.push(h("div", { class: "rr-status", role: "status" },
-                h("span", { class: "k-strong" }, "Rerunning on April data"),
-                h("div", { class: "k-progress" }, h("i", { style: "width:40%" })),
-                h("span", { class: "k-secondary" }, "Showing the March result until this run finishes. " + fmt(A.nodes) + " accounts, " + fmt(A.edges) + " transfers."),
-                h("div", null, AB.button("Cancel", { kind: "secondary", go: ["inspector-run-row", "out-of-date"] }), " ", AB.link("analyze-popover", "running", "Also shown in Analyze")),
-            ));
-        if (state === "failed")
-            status.push(h("div", { class: "rr-status" },
-                h("div", { class: "k-issue", style: "padding:0" }, icon("circle-x"), h("div", { class: "k-issue-body" }, h("b", null, "The rerun on April data failed"), h("span", { class: "k-secondary" }, "Reason:", oq("the element's own wording for a failed Louvain run, shown word for word")), h("span", { class: "k-secondary" }, "Nothing changed: the March result is still shown."))),
-                h("div", null, AB.button("Retry", { icon: "refresh-cw", go: ["inspector-run-row", "running"] }), " ", AB.button("Details", { kind: "ghost", onClick: flash("Details") })),
-            ));
-        if (state === "out-of-date")
-            status.push(h("div", { class: "rr-status" },
-                h("div", { class: "k-issue", style: "padding:0" }, h("span", { class: "k-warn-glyph" }, "!"), h("div", { class: "k-issue-body" }, h("b", null, "Out of date: computed on March data"), h("span", { class: "k-secondary" }, "The data is now April (" + A.file + "): " + A.versionDiff.accountsAdded + " accounts added, " + A.versionDiff.accountsRemoved + " removed, " + fmt(A.versionDiff.transfersAdded) + " transfers added, " + fmt(A.versionDiff.transfersRemoved) + " removed. The communities still paint as they were found in March."))),
-                h("div", null, AB.button("Rerun on April data", { icon: "refresh-cw", go: ["inspector-run-row", "running"] }), " ", AB.link("data-place", "versions", "See the data versions")),
-            ));
-        if (state === "finished")
-            status.push(h("div", { class: "rr-status", role: "status" },
-                h("span", null, icon("circle-check", "sm"), " ", h("span", { class: "k-strong" }, "Finished: " + now.communities + " communities, modularity " + now.modularity)),
-                h("span", { class: "k-secondary" }, "The communities now paint the canvas. Each is a row under this run in the tree."),
-                h("div", null, AB.link("graph-place", "louvain-open", "Show its rows in the tree")),
-            ));
-        if (state === "earlier-results")
-            status.push(h("div", { class: "rr-status", role: "status" },
-                h("span", { class: "k-strong" }, "Rerun on April data"),
-                h("span", { class: "k-secondary" }, "The March result is kept under Earlier results, below."),
-            ));
-
-        const earlier = state === "earlier-results"
-            ? AB.section({ title: "Earlier results", count: 1 },
-                h("div", { class: "rr-past" },
-                    h("span", { class: "k-strong" }, "March data, seed 11"),
-                    h("span", { class: "k-secondary k-num" }, L.march.communities + " communities, modularity " + L.march.modularity + ", largest " + L.march.largest[0] + " accounts"),
-                    h("span", { class: "k-secondary k-num" }, "Agreement with the April result: " + L.amiMarchVsApril + " (adjusted mutual information, on the " + fmt(G.accountsInBoth) + " accounts in both)"),
-                    h("div", { class: "rr-acts" },
-                        AB.button("Restore", { kind: "secondary", onClick: flash("Restore the March result") }),
-                        AB.button("Keep as separate run", { kind: "secondary", go: ["graph-place", "louvain-open"] }),
-                        AB.button("Compare", { kind: "ghost", go: ["full-canvas-modes", "comparison"] })),
-                ))
-            : AB.section({ title: "Earlier results", count: 0 }, h("div", { class: "rr-note k-secondary" }, "None yet. When this run is rerun, its current result is kept here, with Restore and Keep as separate run."));
-
-        const data = () => [
-            status,
-            state === "earlier-results" ? earlier : null,
-            AB.section({ title: "Settings", actions: AB.iconButton("ellipsis", "Run menu", { go: ["context-menus", "run-row"] }) },
-                fieldRow("Scope", AB.field("Full graph, " + fmt(now.nodes) + " " + W.unit, { caret: true, onClick: flash("Scope") })),
-                fieldRow("Direction", lm ? h("span", { class: "k-secondary" }, "This graph's edges have no direction.") : seg(["Follow", "Ignore"], "Ignore")),
-                fieldRow("Weight", lm ? AB.field(W.weight, { icon: "hash", caret: true, onClick: flash("Weight choices") }) : AB.field(W.weight, { icon: "hash", caret: true, go: ["inspector-attribute-and-filter-step", "attribute"] })),
-                fieldRow("A higher weight means", seg(["Stronger", "Farther"], "Stronger")),
-                h("div", { class: "k-fieldrow" }, h("div", { class: "rr-fields2" },
-                    h("div", null, h("span", { class: "k-legend" }, "Resolution"), AB.field("1.0", { onClick: flash("Resolution") })),
-                    h("div", null, h("span", { class: "k-legend" }, "Seed"), AB.field(W.seed, { onClick: flash("Seed") })))),
-                h("div", { class: "ab-cap k-secondary" }, "Resolution: higher finds more, smaller communities; lower finds fewer, larger ones."),
-                advanced(),
-                h("div", { class: "rr-acts" },
-                    AB.button("Rerun", { icon: "refresh-cw", go: ["inspector-run-row", "running"] }),
-                    AB.button("Run again as copy", { kind: "secondary", go: ["graph-place", W.tree] }),
-                    AB.link("analyze-popover", "open", "Other methods in Analyze")),
-            ),
-            AB.section("Readings",
-                AB.data("Modularity (weighted)", h("span", null, String(now.modularity), staleMark ? " " : null, staleMark)),
-                AB.data("Number of communities", String(now.communities)),
-                AB.data("Largest community", fmt(now.legend.rows[0].count) + " " + W.unit),
-                march || lm ? null : AB.data("Single-account communities", String(A.dormant.singletonCommunities)),
+    // ---------- Data tab ----------
+    function dataTab(state, W) {
+        const changed = state === "settings-changed";
+        const partial = state === "partial";
+        const summary = partial
+            ? [AB.data("Modularity", h("span", null, "Not final", oq("which readings the element reports for a run stopped early"))), AB.data("Number of communities", "Not final")]
+            : [
+                AB.data("Modularity (weighted)", String(W.modularity)),
+                AB.data("Number of communities", String(W.communities), { go: ["graph-place", W.tree] }),
+                AB.data("Largest community", fmt(W.rows[0].count) + " " + W.unit, { go: W.rows[0].go }),
                 AB.data("Edges within and between", "In the table", { go: ["table-dock", W.table] }),
-            ),
-            AB.section({ title: "Top items", count: null },
+            ];
+        return [
+            AB.section({ title: "Summary", collapsible: true, key: "rr-summary", summary: W.communities + " communities, modularity " + W.modularity }, summary),
+            // Every community is a child row in the tree beside it, so the Data tab shows their sizes, not the list again
+            partial ? null : W.other ? AB.section({ title: "Top items", count: W.communities, collapsible: true, key: "rr-top", summary: "Largest: " + W.rows[0].name },
                 h("div", { class: "ab-cap k-secondary" }, "Largest communities"),
-                now.legend.rows.map((r) => AB.row({ swatch: AB.chit(r.color, true), label: r.name, trail: fmt(r.count), go: r.go || ["table-dock", "transfers"] })),
-                h("div", { class: "ab-pad" }, AB.link("table-dock", W.table, "Show all " + now.communities + " in the table")),
+                W.rows.slice(0, 10).map((r) => AB.row({ swatch: AB.chit(r.color, true), label: r.name, trail: fmt(r.count), go: r.go })),
+            ) : AB.section({ title: "Sizes", count: W.communities, collapsible: true, key: "rr-sizes", summary: fmt(W.rows[W.rows.length - 1].count) + " to " + fmt(W.rows[0].count) + " " + W.unit + " each" },
+                h("div", { class: "rr-sizes", role: "img", "aria-label": "Community sizes, largest first: " + W.rows.map((r) => r.count).join(", ") }, W.rows.map((r) => h("span", { style: `height:${Math.round((r.count / W.rows[0].count) * 100)}%;background:${r.color}`, title: r.name + ": " + fmt(r.count) + " " + W.unit }))),
+                h("div", { class: "ab-cap k-secondary" }, fmt(W.rows[W.rows.length - 1].count) + " to " + fmt(W.rows[0].count) + " " + W.unit + " each, largest first"),
             ),
-            state === "earlier-results" ? null : earlier,
-            AB.section("Provenance",
-                AB.data("Scope", "Full graph"), AB.data(lm ? "Nodes" : "Accounts", fmt(now.nodes)), AB.data(lm ? "Edges" : "Transfers", fmt(now.edges)),
-                AB.data("Version", lm ? now.file + ", current" : now.month + " (" + now.file + ")", { go: ["full-canvas-modes", "version-history"] }),
-                AB.data("Direction", W.direction),
-                AB.data("Weight", W.weight + "; higher = stronger"),
+            AB.section({ title: "Made with", collapsible: true, key: "rr-made", summary: "Full graph, weight " + W.weight + ", resolution " + (changed ? "1.2" : "1.0") + ", seed " + W.seed },
+                // Options that differ from the element's defaults show here; every other option is
+                // one level down, under All options. Editing any of them raises the state bar.
+                madeWith(W, changed, partial),
+                AB.data("Data version", W.version, { go: ["full-canvas-modes", "version-history"] }),
+                AB.data(W.lm ? "Nodes, edges" : "Accounts, transfers", fmt(W.nodes) + ", " + fmt(W.edges)),
                 AB.data("Repeated edges, self-loops", oq("how graphty-element records the way repeated edges and self-loops were read")),
-                AB.data("Seed", W.seed),
-                AB.data("Ran", h("span", null, "Sep 28", oq("which time and engine the element records"))),
+                AB.data("Ran", h("span", null, "Sep 28", oq("which time, precision and engine the element records"))),
             ),
-            AB.section("Compare",
-                h("div", { class: "rr-acts" }, AB.button("Compare with another run...", { kind: "secondary", icon: "git-compare-arrows", go: ["full-canvas-modes", "comparison"] })),
-            ),
-            AB.section("Check",
-                lm ? h("div", { class: "rr-note k-secondary" }, "Not checked yet. Both checks rerun Louvain and add their results here.") : [
-                    AB.data("Stability across seeds", now.reruns[0] + " to " + now.reruns[1]),
-                    h("div", { class: "ab-cap k-secondary" }, "Agreement of this run with reruns on seeds " + G.seeds[1] + " to " + G.seeds[G.seeds.length - 1] + " (adjusted mutual information). Of the pairs this run puts together, " + (now.together[0] === now.together[1] ? now.together[0] : now.together[0] + " to " + now.together[1]) + " in 10 stay together.")],
-                h("div", { class: "rr-acts" },
-                    AB.button("Test against a null model...", { kind: "secondary", onClick: flash("Test against a null model") }),
-                    AB.button("Stability across seeds...", { kind: "secondary", onClick: flash("Stability across seeds") })),
-            ),
-            notes(),
+            AB.notesSection(W.lm ? 1 : 0, ["notes-place", "about-selection"]),
         ];
+    }
 
+    function madeWith(W, changed, partial) {
+        const kv = (label, value, title) => h("div", { class: "rr-kv", title: title || null }, h("span", { class: "k-name" }, label), h("span", { class: "k-value" }, value));
+        const all = [
+            [true, kv("Weight", opt(W.weight, { icon: "hash", caret: true }))],
+            [false, kv("Higher means", seg(["Stronger", "Farther"], "Stronger"), "What a higher weight means for this run")],
+            [changed, kv("Resolution", opt(changed ? "1.2, was 1.0" : "1.0"), "Higher finds more, smaller communities; lower finds fewer, larger ones")],
+            [true, kv("Seed", opt(W.seed))],
+            [false, kv("Scope", opt("Full graph, " + fmt(W.nodes) + " " + W.unit, { caret: true }))],
+            [false, W.lm ? kv("Direction", h("span", { class: "k-secondary", title: "This graph's edges have no direction" }, "None")) : kv("Direction", seg(["Follow", "Ignore"], "Ignore"))],
+            [partial, kv("Stop after", opt(partial ? "10 seconds" : "No limit", { caret: true }))],
+            [false, kv("Max iterations", opt("100"))],
+            [false, kv("Tolerance", opt("0.000001"))],
+            [false, toggle("Use the optimized implementation", true)],
+        ];
+        const rest = all.filter(([d]) => !d).map(([, el]) => el);
+        return [all.filter(([d]) => d).map(([, el]) => el),
+            AB.section({ title: "All options", count: rest.length, collapsible: true, collapsed: true, key: "rr-all-options", summary: "At their defaults" }, rest)];
+    }
+
+    function readingsOnly() {
+        const LM = AB.fx.datasets.lesmis;
         return AB.inspector({
-            icon: "group",
-            title: W.title,
-            kind: "Run",
-            kindKey: "run-row",
-            meta: [now.communities + " communities. " + W.where, AB.link("graph-place", W.tree, "Show in tree")],
-            tabs: { Style: style, Data: data },
-            tab: state === "style" || state === "many-groups" ? "Style" : "Data",
+            icon: "gauge", title: "Density", kind: "Run", kindKey: "run-row-readings",
+            provenance: ["from Analyze, Sep 28", "analyze-popover", "open"], menu: MENU, renameDisabled: RUN_LABEL,
+            meta: ["Readings only: nothing to paint, so its row has no eye."],
+            body: [
+                AB.section({ title: "Summary", collapsible: true, key: "rr-ro-summary", summary: "Density " + LM.stats.density },
+                    AB.data("Density", String(LM.stats.density)),
+                    AB.data(LM.frame.componentsName, String(LM.stats.components)),
+                    AB.data("Isolated nodes", String(LM.stats.isolated)),
+                    AB.data("Average degree", String(LM.stats.averageDegree)),
+                ),
+                AB.section({ title: "Made with", collapsible: true, key: "rr-ro-made", summary: "Full graph, " + LM.nodes + " nodes" },
+                    fieldRow("Scope", opt("Full graph, " + fmt(LM.nodes) + " nodes", { caret: true })),
+                    fieldRow("Direction", h("span", { class: "k-secondary" }, "This graph's edges have no direction.")),
+                    AB.data("Data version", LM.file + ", current", { go: ["full-canvas-modes", "version-history"] }),
+                    AB.data("Nodes, edges", LM.nodes + ", " + LM.edges),
+                ),
+                AB.notesSection(0),
+            ],
         });
     }
 
-    function advanced() {
-        const box = h("div");
-        let open = false;
-        const draw = () => {
-            box.replaceChildren(AB.row({ icon: open ? "chevron-down" : "chevron-right", label: "Advanced", trail: open ? null : "3 options", onClick: () => { open = !open; draw(); } }));
-            if (open)
-                box.append(
-                    fieldRow("Max iterations", AB.field("100", { onClick: flash("Max iterations") })),
-                    fieldRow("Tolerance", AB.field("0.000001", { onClick: flash("Tolerance") })),
-                    toggle("Use the optimized implementation", true),
-                );
-        };
-        draw();
-        return box;
+    function build(state) {
+        if (state === "readings-only") return readingsOnly();
+        const W = world(state);
+        const styleFirst = state === "style" || state === "many-groups" || state === "hierarchy-level";
+        const meta = state === "finished" ? [icon("circle-check", "sm"), " Finished: " + W.communities + " communities, modularity " + W.modularity + ". " + W.where + "."]
+            : state === "rename-disabled" ? ["Its name is the run's label. ", AB.needsElement(RUN_LABEL)]
+            : null;
+        const insp = AB.inspector({
+            icon: "group", title: W.title, kind: "Run", kindKey: "run-row",
+            provenance: ["from Analyze, Sep 28", "analyze-popover", "open"],
+            menu: MENU,
+            renameDisabled: RUN_LABEL,
+            meta,
+            stateBar: stateBar(state, W),
+            tabs: { Style: () => styleTab(state, W), Data: () => dataTab(state, W) },
+            tab: styleFirst ? "Style" : "Data",
+        });
+        insp.classList.add("rr-insp");
+        return insp;
     }
 
-    function notes() {
-        return AB.section({ title: "Notes", count: 0, actions: AB.iconButton("plus", "Add note", { go: ["notes-place", "about-selection"] }) },
-            h("div", { class: "rr-note k-secondary" }, "No notes about this run yet. ", AB.link("notes-place", "all", "All notes")));
-    }
-
-    function readingsOnly(A) {
-        const data = () => [
-            h("div", { class: "rr-note k-secondary" }, "This run has nothing to paint, so its row has no eye. Its readings are here and in the graph's Statistics."),
-            AB.section("Readings",
-                AB.data("Density", String(A.stats.density)),
-                AB.data(A.frame.componentsName, String(A.stats.components)),
-                AB.data("Isolated nodes", String(A.stats.isolated)),
-                AB.data("Average degree", String(A.stats.averageDegree)),
-            ),
-            AB.section("Settings",
-                fieldRow("Scope", AB.field("Full graph, " + fmt(A.nodes) + " nodes", { caret: true, onClick: flash("Scope") })),
-                fieldRow("Direction", h("span", { class: "k-secondary" }, "This graph's edges have no direction.")),
-                h("div", { class: "rr-acts" }, AB.button("Rerun", { icon: "refresh-cw", onClick: flash("Rerun") })),
-            ),
-            AB.section({ title: "Earlier results", count: 0 }, h("div", { class: "rr-note k-secondary" }, "None yet.")),
-            AB.section("Provenance",
-                AB.data("Scope", "Full graph"), AB.data("Nodes", fmt(A.nodes)), AB.data("Edges", fmt(A.edges)),
-                AB.data("Version", A.file + ", current", { go: ["full-canvas-modes", "version-history"] }),
-                AB.data("Direction", "Undirected"),
-            ),
-            AB.section("Compare", h("div", { class: "rr-acts" }, AB.button("Compare with another run...", { kind: "secondary", icon: "git-compare-arrows", go: ["full-canvas-modes", "comparison"] }))),
-            notes(),
-        ];
-        return AB.inspector({
-            icon: "gauge", title: "Density", kind: "Run", kindKey: "run-row-readings",
-            meta: ["Readings only. Les Miserables. ", AB.link("graph-place", "at-rest", "Show in tree")],
-            tabs: { Data: data }, tab: "Data",
+    // The "..." menu, word for word the run row's right-click menu, opened over the inspector
+    function runMenu() {
+        return AB.menu({
+            anchor: "#ab-right .ab-insp-sub .k-icon-btn", place: "below-end",
+            items: [
+                { heading: "Louvain, resolution 1.0" },
+                { label: "Rerun", go: ["inspector-run-row", "cannot-cancel"] },
+                { label: "Run again as copy", desc: "Keeps this run; the copy lands on top", go: ["graph-place", "finished"] },
+                { label: "Restore an earlier result", disabled: true, desc: AB.needsElement(NO_EARLIER) },
+                { sep: true },
+                { label: "Check against a null model...", disabled: true, desc: AB.needsElement("a null-model test for a run") },
+                { label: "Stability across seeds...", disabled: true, desc: AB.needsElement("rerunning over several seeds and reporting agreement") },
+                { label: "Compare with another run...", go: ["full-canvas-modes", "comparison"] },
+                { sep: true },
+                { label: "Show members in table", go: ["table-dock", "communities"] },
+                { label: "Lay out by these groups" },
+                { label: "Restore the suggested look" },
+                { sep: true },
+                { label: "Add note", shortcut: "N", go: ["notes-place", "writing"] },
+                { label: "Lock" },
+                { label: "Hide from list (keeps painting)", go: ["graph-place", "show-hidden"] },
+                { sep: true },
+                { label: "Delete...", go: ["context-menus", "run-delete"] },
+            ],
         });
     }
 
@@ -255,21 +267,36 @@
         title: "Inspector: a run row",
         region: "right",
         rail: "graph",
-        // The Les Miserables states sit beside the tree's Louvain run; the transfers states beside the transfers tree
-        frame: (state) => (TRANSFERS.includes(state) ? { left: "graph-place/many-groups", canvas: "canvas-and-states/transfers-communities" } : { left: "graph-place/" + (state === "readings-only" ? "at-rest" : "louvain-open"), dock: "table-dock/communities" }),
+        frame: (state) => {
+            if (TRANSFERS.includes(state)) return { left: "graph-place/many-groups", canvas: "canvas-and-states/transfers-communities" };
+            const f = { left: "graph-place/" + (state === "readings-only" ? "at-rest" : "louvain-open"), dock: "table-dock/communities" };
+            if (state === "earlier-results") f.overlay = "inspector-run-row/earlier-results";
+            return f;
+        },
         states: [
             { id: "style", label: "Style tab" },
-            { id: "data", label: "Data tab: Settings" },
-            { id: "running", label: "Running" },
+            { id: "data", label: "Data tab" },
+            { id: "settings-changed", label: "Settings changed since the run" },
+            { id: "running", label: "Running (transfers, April rerun)" },
+            { id: "queued", label: "Queued" },
+            { id: "cannot-cancel", label: "Running, cannot be stopped" },
+            { id: "partial", label: "Partial: stopped at the time limit" },
             { id: "finished", label: "Finished" },
-            { id: "earlier-results", label: "Earlier results after a rerun" },
+            { id: "earlier-results", label: "\"...\" menu: Restore an earlier result" },
             { id: "failed", label: "Failed" },
             { id: "readings-only", label: "Readings-only run" },
             { id: "out-of-date", label: "Out of date after a data change" },
             { id: "many-groups", label: "Many groups (transfers)" },
+            { id: "hierarchy-level", label: "Hierarchy: first level" },
+            { id: "rename-disabled", label: "Rename refused" },
         ],
-        render(el, state) {
+        render(el, state, ctx) {
+            if (ctx && ctx.region === "overlay") {
+                if (state === "earlier-results") el.append(runMenu());
+                return;
+            }
             el.append(build(state));
+            if (state === "rename-disabled") AB.flash("Rename needs graphty-element: " + RUN_LABEL);
         },
     });
 })();

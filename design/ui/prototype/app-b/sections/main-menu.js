@@ -1,14 +1,14 @@
-/* Main menu: the rail's top button. A dark menu of submenus (File, Edit, View, Analyze, Recipes,
-   Help) and Preferences..., cascading to the right. Each state opens one submenu; Open recent and
-   the four Analyze catalog groups have their own states for the third level.
+/* Main menu: the rail's top button. A dark menu (File, Edit, Settings..., Help), cascading to the
+   right. It keeps only commands with no other home; Quick actions is the full index. The rule
+   between the two top-left menus (studio decision): the main menu is the app (New, Open, Open
+   recent, Apply a file, Edit, Settings, Help); the project-name menu is this project (Rename,
+   Save, Save as, Export, Version history, file location, Close). Each state
+   opens one submenu; Open recent has its own state for the third level; two Edit states show the
+   selection-dependent items enabled.
    Only the overlay region is drawn; the frame underneath is the app at rest. Plain ASCII. */
 (function () {
     const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
-
-    // Display toggles flip in place (a reader setting; which are on by default is open, see below).
-    const display = { labels: true, arrows: false, legend: true, minimap: false, notes: true };
-    let redraw = null;
-    const toggle = (key) => () => { display[key] = !display[key]; if (redraw) redraw(); };
+    const cmd = AB.cmd;
 
     const RECENTS = [
         { name: "Mule ring review", when: "Today 09:14" },
@@ -17,128 +17,72 @@
         { name: "Patent citations 1999-2001", when: "Sep 19" },
     ];
 
-    // The Analyze catalog, grouped by what a run adds to the tree (same groups as the Analyze popover).
-    const CATALOG = {
-        "analyze-rank": {
-            label: "Rank nodes and edges", adds: "Adds a measure row that paints when it finishes",
-            items: ["PageRank", "Degree", "Betweenness", "Closeness", "Eigenvector", "Edge betweenness"],
-        },
-        "analyze-groups": {
-            label: "Find groups", adds: "Adds a run row with one child row per group",
-            items: ["Louvain", "Leiden", "Label propagation", "Connected components", "k-core"],
-        },
-        "analyze-paths": {
-            label: "Find paths", adds: "Adds a path run row",
-            items: ["Shortest path", "All shortest paths", "Minimum spanning tree"],
-        },
-        "analyze-measure": {
-            label: "Measure the graph", adds: "Adds a run row with readings and no eye",
-            items: ["Density", "Diameter", "Clustering coefficient", "Link prediction", "Node similarity"],
-        },
-    };
-
+    // Top level: submenus by id, and Settings... which opens the dialog directly.
     const TOP = [
         { id: "file", label: "File" },
         { id: "edit", label: "Edit" },
-        { id: "view", label: "View" },
-        { id: "analyze", label: "Analyze" },
-        { id: "recipes", label: "Recipes" },
         { id: "help", label: "Help" },
     ];
 
-    function sub(id) {
-        switch (id) {
-            case "file": return [
-                { label: "New project", go: ["graph-place", "empty"] },
-                { label: "Open...", shortcut: "Ctrl+O", go: ["load-step", "preview"] },
-                { label: "Open recent", sub: true, go: ["main-menu", "file-recent"] },
-                { sep: true },
-                { label: "Save", shortcut: "Ctrl+S", onClick: flash("Save") },
-                { label: "Save as...", shortcut: "Ctrl+Shift+S", onClick: flash("Save as") },
-                { sep: true },
-                { label: "Add data...", go: ["load-step", "join"] },
-                { label: "Paste data", shortcut: "Ctrl+V", go: ["load-step", "preview"] },
-                { sep: true },
-                { label: "Export...", go: ["export-dialog", "figure"] },
-            ];
-            case "edit": return [
-                { label: "Undo", shortcut: "Ctrl+Z", onClick: flash("Undo") },
-                { label: "Redo", shortcut: "Ctrl+Shift+Z", onClick: flash("Redo") },
-                { label: "Undo history", go: ["full-canvas-modes", "version-history"] },
-                { sep: true },
-                { label: "Select all visible", shortcut: "Ctrl+A", onClick: flash("Select all visible") },
-                { label: "Invert selection", shortcut: "I", onClick: flash("Invert selection") },
-                { label: "Previous selection", onClick: flash("Previous selection") },
-                { label: "Select same value", desc: "Needs a selection", disabled: true },
-                { label: "Select edges between", desc: "Needs two or more nodes selected", disabled: true },
-                { label: "Copy ids", desc: "Needs a selection", disabled: true },
-                { sep: true },
-                { label: "Create set", shortcut: "Ctrl+G", desc: "Needs a selection", disabled: true },
-                { label: "Filter to neighbors", desc: "Needs a selection", disabled: true },
-                { label: "Hide on canvas", shortcut: "Ctrl+Shift+H", desc: "Needs a selection", disabled: true },
-                { label: "Show all", go: ["graph-place", "show-hidden"] },
-            ];
-            case "view": return [
-                { label: "2D", shortcut: "5", check: true, go: ["zoom-and-view-menu", "2d"] },
-                { label: "3D", shortcut: "5", go: ["zoom-and-view-menu", "3d"] },
-                { label: "Enter VR", onClick: flash("Enter VR") },
-                { label: "Enter AR", onClick: flash("Enter AR") },
-                { sep: true },
-                { label: "Toggle panels", shortcut: "Ctrl+B", onClick: flash("Toggle panels") },
-                { label: "Table", shortcut: "Shift+T", check: true, go: ["table-dock", "nodes"] },
-                { label: "Time slider", shortcut: "T", desc: "This graph has no time attribute", disabled: true },
-                { sep: true },
-                { heading: "Show on canvas" },
-                { label: "Labels", check: display.labels, onClick: toggle("labels") },
-                { label: "Arrows", check: display.arrows, onClick: toggle("arrows") },
-                { label: "Legend", shortcut: "L", check: display.legend, onClick: toggle("legend") },
-                { label: "Minimap", shortcut: "M", check: display.minimap, onClick: toggle("minimap") },
-                { label: "Note markers", shortcut: "Shift+N", check: display.notes, onClick: toggle("notes") },
-            ];
-            case "analyze": return [
-                ...Object.keys(CATALOG).map((k) => ({ label: CATALOG[k].label, sub: true, go: ["main-menu", k] })),
-                { sep: true },
-                { label: "All algorithms...", shortcut: "A", go: ["analyze-popover", "all-algorithms"] },
-                { label: "New graph from...", desc: "Projections and samples add a graph, not a row", go: ["graphs-switcher", "new-graph-from"] },
-                { sep: true },
-                { label: "Re-run layout", onClick: flash("Re-run layout") },
-            ];
-            case "recipes": return [
-                { label: "Apply recipe...", go: ["recipe-apply", "binding"] },
-                { label: "Apply style file on top...", onClick: flash("Apply style file on top") },
-                { label: "Replace style with style file...", onClick: flash("Replace style with style file") },
-                { sep: true },
-                { label: "Save as recipe...", onClick: flash("Save as recipe") },
-                { label: "Export style...", onClick: flash("Export style") },
-                { label: "Use as overview...", onClick: flash("Use as overview") },
-            ];
-            case "help": return [
-                { label: "Keyboard shortcuts", shortcut: "?", go: ["commands-and-search", "shortcuts"] },
-                { label: "Documentation", onClick: flash("Documentation") },
-                { label: "Report a problem", onClick: flash("Report a problem") },
-                { sep: true },
-                { label: "About", onClick: flash("About") },
-            ];
-        }
-        return [];
-    }
-
-    function third(state) {
-        if (state === "file-recent") return [
-            ...RECENTS.map((r) => ({ label: r.name, shortcut: r.when, onClick: flash("Open " + r.name) })),
-            { sep: true },
-            { label: "Show start screen", go: ["start-screen", "returning"] },
-        ];
-        const g = CATALOG[state];
+    function fileItems() {
         return [
-            { heading: g.adds },
-            ...g.items.map((name) => ({ label: name, go: name === "PageRank" ? ["analyze-popover", "essentials"] : ["analyze-popover", "open"] })),
+            { label: "New project", go: ["graph-place", "empty"] },
+            { label: "Open...", shortcut: "Ctrl+O", go: ["load-step", "preview"] },
+            { label: "Open recent", sub: true, go: ["main-menu", "file-recent"] },
+            { sep: true },
+            { label: "Apply recipe or style file...", go: ["recipe-apply", "binding"] },
         ];
     }
 
-    const parentOf = (state) => (state === "file-recent" ? "file" : CATALOG[state] ? "analyze" : state);
+    // state: "edit" (nothing selected), "edit-selection" (two nodes), "edit-hidden" (after Hide on canvas)
+    function editItems(state) {
+        const sel = state === "edit-selection" || state === "edit-hidden";
+        const needs = (label, reason, extra) => (sel ? Object.assign({ label }, extra) : { label, desc: reason, disabled: true });
+        return [
+            cmd("undo", { onClick: flash("Undo") }),
+            cmd("redo", { onClick: flash("Redo") }),
+            { sep: true },
+            { label: "Select all visible", shortcut: "Ctrl+A", onClick: flash("Select all visible") },
+            { label: "Invert selection", shortcut: "I", onClick: flash("Invert selection") },
+            { label: "Previous selection", onClick: flash("Previous selection") },
+            needs("Select same value", "Needs a selection", { onClick: flash("Select same value") }),
+            { label: "Select where...", go: ["select-where", "where"] },
+            { label: "Select by ids...", go: ["select-where", "by-ids"] },
+            state === "edit-selection"
+                ? { label: "Select edges between", onClick: flash("Select edges between Valjean and Javert") }
+                : { label: "Select edges between", desc: "Needs two or more nodes selected", disabled: true },
+            needs("Copy ids", "Needs a selection", { onClick: () => AB.flash(state === "edit-selection" ? "Copied 2 ids" : "Copied 1 id") }),
+            { sep: true },
+            state === "edit-hidden"
+                ? { label: AB.COMMANDS["show-hidden"].label, go: AB.COMMANDS["show-hidden"].go }
+                : { label: AB.COMMANDS["show-hidden"].label, desc: "Nothing is hidden on the canvas", disabled: true },
+        ];
+    }
 
-    const openQ = (text) => AB.h("div", { class: "k-tooltip", style: "position:absolute;max-width:260px;background:var(--cm-bg-brand);pointer-events:none", role: "note" }, "Open question: " + text);
+    function helpItems() {
+        return [
+            cmd("shortcuts"),
+            { label: "Documentation", onClick: flash("Documentation") },
+            { label: "Report a problem", onClick: flash("Report a problem") },
+            { sep: true },
+            { label: "About", onClick: flash("About") },
+        ];
+    }
+
+    const recentItems = () => [
+        ...RECENTS.map((r) => ({ label: r.name, desc: r.when, onClick: flash("Open " + r.name) })),
+        { sep: true },
+        { label: "Show start screen", go: ["start-screen", "returning"] },
+    ];
+
+    const parentOf = (state) => (state === "file-recent" ? "file" : state.startsWith("edit") ? "edit" : state);
+    const itemsOf = (open, state) => (open === "file" ? fileItems() : open === "edit" ? editItems(state) : helpItems());
+
+    const openQ = (text) => h("div", { class: "main-oq", style: "position:absolute;max-width:260px;pointer-events:none;background:var(--cm-bg) !important", role: "note" }, "Open question: " + text);
+
+    // The Nth real item (not a separator or heading) of a menu element
+    const nth = (menuEl, items, i) => menuEl.querySelectorAll(".k-menu-item")[items.slice(0, i).filter((it) => !it.sep && !it.heading).length];
+    const hover = (it) => { if (it) { it.dataset.hover = ""; it.setAttribute("aria-expanded", "true"); } };
 
     function draw(el, state) {
         el.replaceChildren();
@@ -148,63 +92,63 @@
             return;
         }
         const open = parentOf(state);
-        const top = AB.menu({
-            anchor: "#ab-rail-menu", place: "right-start",
-            items: [
-                ...TOP.map((t) => ({ label: t.label, sub: true, go: ["main-menu", t.id] })),
-                { sep: true },
-                { label: "Preferences...", shortcut: "Ctrl+,", go: ["preferences", "general"] },
-            ],
-        });
+        const topItems = [
+            { label: "File", sub: true, go: ["main-menu", "file"] },
+            { label: "Edit", sub: true, go: ["main-menu", "edit"] },
+            cmd("settings"),
+            { sep: true },
+            { label: "Help", sub: true, go: ["main-menu", "help"] },
+        ];
+        const top = AB.menu({ anchor: "#ab-rail-menu", place: "right-start", items: topItems });
         top.setAttribute("aria-label", "Main menu");
         el.append(top);
-        const idx = TOP.findIndex((t) => t.id === open);
-        const openItem = top.querySelectorAll(".k-menu-item")[idx];
-        if (openItem) { openItem.dataset.hover = ""; openItem.setAttribute("aria-expanded", "true"); }
+        const openItem = nth(top, topItems, topItems.findIndex((t) => t.go && t.go[1] === open));
+        hover(openItem);
 
-        const second = AB.menu({ anchor: openItem, place: "right-start", items: sub(open) });
-        second.setAttribute("aria-label", TOP[idx].label);
+        const items = itemsOf(open, state);
+        const second = AB.menu({ anchor: openItem, place: "right-start", items });
+        second.setAttribute("aria-label", TOP.find((t) => t.id === open).label);
         second.style.marginTop = "-8px"; // line the first item up with its parent item
         el.append(second);
 
-        if (open !== state) {
-            const items = sub(open);
-            const target = items.findIndex((it) => it.go && it.go[1] === state);
-            const anchorItem = second.querySelectorAll(".k-menu-item")[items.slice(0, target).filter((it) => !it.sep && !it.heading).length];
-            if (anchorItem) { anchorItem.dataset.hover = ""; anchorItem.setAttribute("aria-expanded", "true"); }
-            const m3 = AB.menu({ anchor: anchorItem, place: "right-start", items: third(state) });
+        if (state === "file-recent") {
+            const anchorItem = nth(second, items, items.findIndex((it) => it.go && it.go[1] === "file-recent"));
+            hover(anchorItem);
+            const m3 = AB.menu({ anchor: anchorItem, place: "right-start", items: recentItems() });
+            m3.setAttribute("aria-label", "Open recent");
             m3.style.marginTop = "-8px";
             el.append(m3);
         }
-        if (open === "view") {
-            el.append(AB.position(openQ("which display toggles are on for a new project, and whether VR and AR show when no headset is reported"), second, "below-start"));
+        if (state === "edit-selection") {
+            el.append(AB.position(openQ("Select same value: which attribute it matches on when the selected nodes differ"), second, "below-start"));
         }
     }
+
+    const STATES = ["file", "edit", "edit-selection", "edit-hidden", "help", "file-recent", "closed"];
 
     registerSection({
         id: "main-menu",
         title: "Main menu",
         region: "overlay",
         rail: "graph",
-        frame: { left: "graph-place/at-rest" },
+        frame: (state) => (state === "edit-selection"
+            ? { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", toolbar: "selection-bar/two-nodes" }
+            : state === "edit-hidden"
+                ? { left: "graph-place/at-rest", toolbar: "selection-bar/hidden" }
+                : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
             { id: "file", label: "File" },
-            { id: "edit", label: "Edit" },
-            { id: "view", label: "View" },
-            { id: "analyze", label: "Analyze" },
-            { id: "recipes", label: "Recipes" },
+            { id: "edit", label: "Edit, nothing selected" },
+            { id: "edit-selection", label: "Edit, two nodes selected" },
+            { id: "edit-hidden", label: "Edit, after Hide on canvas" },
             { id: "help", label: "Help" },
             { id: "file-recent", label: "File, Open recent" },
-            { id: "analyze-rank", label: "Analyze, Rank nodes and edges" },
-            { id: "analyze-groups", label: "Analyze, Find groups" },
-            { id: "analyze-paths", label: "Analyze, Find paths" },
-            { id: "analyze-measure", label: "Analyze, Measure the graph" },
             { id: "closed", label: "Closed" },
         ],
         render(el, state) {
-            redraw = () => draw(el, state);
-            draw(el, state);
+            // Old links (view, analyze, recipes, analyze-*) land on File.
+            draw(el, STATES.includes(state) ? state : "file");
         },
     });
 })();

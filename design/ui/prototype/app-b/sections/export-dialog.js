@@ -1,8 +1,15 @@
 /* Export dialog: one dialog, a list of what can be written on the left, the chosen output on the
    right (what it contains, its scope, what is left out, a size estimate, its settings and a
-   preview of the file). Opened from the project-name menu, File > Export..., Data > Sent and
-   saved ("Export again"), or a row's menu with that row filled in as the target. Every export is
-   recorded in Data > Sent and saved. Plain ASCII. Its styles are injected below. */
+   preview of the file). Opened from the project-name menu's Export... and Mod+E (both land on
+   Image, the export-image section), the Camera menu and the Views header's "..." (doors), Data > Sent and saved ("Export again"), or a row's menu with
+   that row filled in as the target. Every export is recorded in Data > Sent and saved.
+
+   Shared: this file publishes AB.exportDialogFrame(activeId, body, foot), the dialog's frame (the
+   output list on the left with activeId lit, body on the right, foot in the footer). The
+   export-image and export-video sections draw their bodies inside it, so the list is written once.
+   List order: Image, Video, Figure (needs graphty-element: SVG now, PDF later), Findings report,
+   Methods text, Project, Recipe, Style, Data (needs graphty-element), Table as CSV.
+   Plain ASCII. Its styles are injected below. */
 (function () {
     "use strict";
     const CSS = `
@@ -32,8 +39,10 @@
 .ex-h { font-weight: 550; margin: 4px 0 -4px; }
 .ex-paper { background: #fff; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; color: #1a1a1a; font-size: 11px; line-height: 15px; max-width: 720px; }
 .ex-paper img { width: 100%; height: auto; display: block; }
-.ex-paper .k-dark-only { display: none !important; }
-.ex-paper .k-light-only { display: block !important; }
+/* The figure is drawn on its chosen background (White), whatever the app theme */
+:root .ex-paper .k-dark-only, :root[data-theme="dark"] .ex-paper .k-dark-only { display: none !important; }
+:root .ex-paper .k-light-only, :root[data-theme="dark"] .ex-paper .k-light-only { display: block !important; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ex-paper .k-dark-only { display: none !important; } :root:not([data-theme="light"]) .ex-paper .k-light-only { display: block !important; } }
 .ex-legend b { display: block; margin-bottom: 2px; }
 .ex-legend div { display: flex; gap: 6px; align-items: center; }
 .ex-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
@@ -45,15 +54,17 @@
 .ex-later { display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 5px; font-size: 10px; color: var(--cm-text-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); margin-left: 4px; }
 .ex-footl { flex: 1 1 auto; min-width: 0; color: var(--cm-text-secondary); display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ex-footl a { color: var(--cm-text-brand); }
+.ex-off { opacity: .55; pointer-events: none; }
+.ex-item .ab-needs { font-size: 10px; }
 .ex-from { color: var(--cm-text-secondary); font-size: 11px; font-weight: 400; margin-left: auto; }
 .ex-from a { color: var(--cm-text-brand); }
 `;
-    if (!document.getElementById("ex-style")) document.head.append(h("style", { id: "ex-style" }, CSS));
+    if (!document.getElementById("ex-style")) document.head.append(h("style", { id: "ex-style" }, CSS + ".ex-item[aria-disabled=true] .ex-item-t, .ex-item[aria-disabled=true] > .k-i { color: var(--cm-text-tertiary); }"));
 
     const oq = (text) => h("span", { class: "ex-oq", title: text }, "Open question");
     const L = () => AB.fx.datasets.lesmis;
     const n = (v) => Number(v).toLocaleString("en-US");
-    const VIEWS = ["Communities, whole graph", "Valjean's paths"]; // the Graph place's two saved views
+    const VIEWS = AB.SAVED_VIEWS; // the Views place's saved views, in its order
     const WATCH = ["Valjean", "Javert", "Thenardier", "Mme.Thenardier", "Eponine"]; // the Watchlist set row
     const FORMATS = ["CSV", "GraphML", "GEXF", "GML", "DOT", "Pajek", "JSON"]; // graph-io's formats
     const SIZE = "Under 1 MB";
@@ -93,45 +104,47 @@
     const KINDS = {
         figure: {
             name: "Figure", ext: ".svg", icon: "network", line: "The drawing with its legend",
+            needs: "graphty-element captures raster images only. A vector figure (SVG now, PDF later) with its legend drawn in needs the element; the app does not draw the graph itself.",
             facts: () => [
                 ["Contains", "The canvas as drawn in the chosen view, its legend, and a footer saying how the numbers were computed."],
                 ["Scope", scopeFacts()],
-                ["Masked", "Rows whose eye is off are not drawn: Betweenness in the folder For the report."],
-                ["Size estimate", SIZE],
+                ["Not drawn", "Rows whose eye is off: Betweenness in the folder For the report."],
             ],
             settings: () => [
-                setRow("View", AB.field("Current canvas", { caret: true, onClick: () => AB.flash("Choose a view: the canvas, " + VIEWS.join(", ") + " (not wired in the skeleton)") })),
-                setRow("Format", h("span", { class: "k-seg ex-seg" }, h("button", { type: "button", "aria-pressed": "true" }, "SVG"), h("button", { type: "button", disabled: "" }, "PDF", h("span", { class: "ex-later" }, "later")))),
-                setRow("Width", AB.field("174 mm", { onClick: () => AB.flash("Width (not wired in the skeleton)") })),
-                setRow("Background", AB.field("White", { caret: true, onClick: () => AB.flash("Background: White, Canvas, Transparent (not wired in the skeleton)") })),
-                setRow("Labels", h("span", null, `As on the canvas, up to ${L().frame.labelBudget}. `, oq("How labels hidden to avoid overlap are listed in this dialog"))),
+                setRow("View", AB.field("Current camera", { caret: true })),
+                setRow("Format", h("span", { class: "k-seg ex-seg" }, h("button", { type: "button", disabled: "" }, "SVG"), h("button", { type: "button", disabled: "" }, "PDF", h("span", { class: "ex-later" }, "later")))),
+                setRow("Width", AB.field("174 mm")),
+                setRow("Background", AB.field("White", { caret: true })),
+                setRow("Labels", "As on the canvas (Hide overlapping labels: Off)"),
             ],
             preview: () => {
                 // The figure is the canvas as it paints now: PageRank wins color at rest
                 const lg = L().frame.legend;
                 return h("div", { class: "ex-paper" },
-                    h("div", null, AB.lesmisDrawing ? AB.lesmisDrawing("lesmis-groups-rest", "Les Miserables colored by PageRank, sized by number of connections") : null),
+                    // What the canvas draws now (PageRank wins color); the legend titles are the row names
+                    h("div", null, (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", "Les Miserables colored by PageRank, sized by Degree")),
                     h("div", { class: "ex-legend" }, h("b", null, "Color: PageRank"),
                         h("div", null, h("i", { style: "width:24px;border-radius:2px;background:linear-gradient(90deg,#ef7818,#b84203,#662506)" }), "0.0033 to 0.0754"),
-                        h("b", { style: "margin-top:6px" }, lg.sizeTitle || "Size: degree")),
+                        h("b", { style: "margin-top:6px" }, "Size: Degree")),
                     h("div", { class: "ex-foot-note" }, `Color is PageRank (damping 0.85, unweighted); size is degree, the number of characters each one appears with, on ${scopeFacts().toLowerCase()}. Edge value was not used.`));
             },
             file: "les-miserables_figure.svg",
         },
         report: {
             name: "Findings report", ext: ".html", icon: "book-open", line: "Views, notes and methods in one file",
+            needs: "graphty-element keeps no run records that a methods writer could read; writing this text in the app would be the app describing the graph. Filed: a run-record methods writer.",
             facts: () => [
                 ["Contains", "One self-contained HTML file that opens offline and prints to PDF from the browser: the saved views as pages in order, each with its notes, then every other note, then the methods text written from the run records."],
                 ["Scope", scopeFacts()],
                 ["Masked", "Nothing. Every note is included in full."],
                 ["Size estimate", SIZE],
             ],
-            settings: () => [setRow("Page order", h("span", null, "The order of Views in the Graph place. ", AB.link("graph-place", "views-open", "Reorder views")))],
+            settings: () => [setRow("Page order", "The saved views in their order in the Views place")],
             preview: () => [
                 h("div", { class: "ex-h" }, "Pages"),
                 h("ol", { class: "ex-pages" },
-                    h("li", null, VIEWS[0], h("span", null, "The Louvain communities; its note: \"Valjean and Javert land in the same community, with Marius and Cosette.\"")),
-                    h("li", null, VIEWS[1], h("span", null, "Valjean to Javert and Myriel to Javert.")),
+                    h("li", null, VIEWS[0], h("span", null, "The whole graph in frame; its note: \"Valjean and Javert land in the same community, with Marius and Cosette.\"")),
+                    h("li", null, VIEWS[1], h("span", null, "Valjean and the characters closest to him.")),
                     h("li", null, "Other notes", h("span", null, "\"Co-appearances counted per chapter, from Knuth's list.\" and the notes on Community 3.")),
                     h("li", null, "Methods", h("span", null, "Written from the Louvain, PageRank and shortest path runs."))),
             ],
@@ -139,6 +152,7 @@
         },
         methods: {
             name: "Methods text", ext: ".txt", icon: "file", line: "How every number was computed",
+            needs: "graphty-element keeps no run records that a methods writer could read; writing this text in the app would be the app describing the graph. Filed: a run-record methods writer.",
             facts: () => [
                 ["Contains", "The methods text alone, as the findings report writes it: the data, the scope and every run's settings."],
                 ["Scope", scopeFacts()],
@@ -185,16 +199,16 @@
         },
         data: {
             name: "Data", ext: "", icon: "database", line: "The graph for other tools",
+            needs: "graphty-element's format catalog says canExport: false for every format, although graph-io has the exporters. Filed: connect graph-io's exporters to the format catalog. The app does not call graph-io itself.",
             facts: () => [
                 ["Contains", `${L().nodes} nodes and ${n(L().edges)} edges with every attribute (label, group, degree, betweenness, value), plus run results as attributes: PageRank and the Louvain community.`],
                 ["Scope", scopeFacts()],
-                ["Masked", h("span", null, "Paint, notes and views. ", oq("What each format cannot carry, and how the dialog says so"))],
+                ["Masked", "Paint, notes and views."],
                 ["Size estimate", SIZE],
             ],
             settings: () => [
                 setRow("Format", h("span", { class: "k-seg ex-seg", role: "radiogroup", "aria-label": "Format" },
-                    FORMATS.map((f) => h("button", { type: "button", role: "radio", "aria-checked": String(f === format), on: { click: () => { format = f; redraw(); } } }, f)))),
-                format === "CSV" ? setRow("Files", h("span", null, "Nodes and edges. ", oq("One file or two"))) : null,
+                    FORMATS.map((f) => h("button", { type: "button", role: "radio", disabled: "", "aria-checked": String(f === format) }, f)))),
             ],
             preview: () => h("pre", { class: "ex-pre" }, dataPreview()),
             file: () => "les-miserables." + ({ CSV: "csv", GraphML: "graphml", GEXF: "gexf", GML: "gml", DOT: "dot", Pajek: "net", JSON: "json" })[format],
@@ -216,7 +230,12 @@
             file: () => (target ? "les-miserables_watchlist.csv" : "les-miserables_" + tableTab.split(":")[0].toLowerCase() + ".csv"),
         },
     };
-    const ORDER = ["figure", "report", "methods", "project", "recipe", "style", "data", "table"];
+    // Image and Video are drawn by their own sections, inside this frame.
+    const OTHERS = {
+        image: { name: "Image", ext: ".png", icon: "camera", line: "A picture of the canvas", go: ["export-image", "image"] },
+        video: { name: "Video", ext: ".webm", icon: "play", line: "The canvas as it moves, or a tour of views", go: ["export-video", "still"] },
+    };
+    const ORDER = ["image", "video", "figure", "report", "methods", "project", "recipe", "style", "data", "table"];
 
     function dataPreview() {
         const rs = L().rows.slice(0, 3);
@@ -241,9 +260,8 @@
     const STATE_KIND = { figure: "figure", "findings-report": "report", methods: "methods", project: "project", recipe: "recipe", style: "style", data: "data", table: "table", "from-row": "table" };
     const KIND_STATE = { figure: "figure", report: "findings-report", methods: "methods", project: "project", recipe: "recipe", style: "style", data: "data", table: "table" };
     const FROM = {
-        figure: ["project-menu", "open", "the project-name menu"],
-        "findings-report": ["main-menu", "file", "File menu"],
-        data: ["main-menu", "file", "File menu"],
+        "findings-report": ["project-menu", "open", "the project menu"],
+        data: ["data-place", "sent-and-saved", "Data > Sent and saved"],
         "from-row": ["context-menus", "row", "the Watchlist row's menu"],
     };
     let cur = "figure";
@@ -258,16 +276,6 @@
         const k = KINDS[key];
         const file = typeof k.file === "function" ? k.file() : k.file;
 
-        const list = h("div", { class: "ex-list", role: "listbox", "aria-label": "What to export" },
-            ORDER.map((id) => {
-                const it = KINDS[id];
-                return h("div", Object.assign({ class: "ex-item", role: "option", "aria-selected": String(id === key) }, AB.act({ go: ["export-dialog", target && id === "table" ? "from-row" : KIND_STATE[id]] })),
-                    icon(it.icon),
-                    h("div", null,
-                        h("div", { class: "ex-item-t" }, it.name, it.ext ? h("span", { class: "ex-ext" }, it.ext) : null, id === "figure" ? h("span", { class: "ex-later" }, "PDF later") : null),
-                        h("div", { class: "ex-item-d" }, it.line)));
-            }));
-
         const from = FROM[cur];
         const scopeless = ["project", "recipe", "style"].includes(key);
         const main = h("div", { class: "ex-main" },
@@ -275,10 +283,11 @@
                 from ? h("span", { class: "ex-from" }, "Opened from ", AB.link(from[0], from[1], from[2])) : null),
             target ? h("div", { class: "ex-target" }, icon("circle-check", "sm"), h("b", null, "For: Watchlist"), h("span", { class: "k-secondary" }, WATCH.join(", ")),
                 h("span", { class: "k-grow" }), AB.link("export-dialog", "table", "Export the whole table instead")) : null,
-            facts(k.facts().map(([name, v]) => (name === "Scope" && !target && !scopeless
+            facts(k.facts().map(([name, v]) => (name === "Scope" && !target && !scopeless && !k.needs
                 ? [name, h("div", { class: "ex-scope" }, scopeControl(), h("div", { class: "k-secondary" }, v))] : [name, v]))),
-            h("div", { class: "ex-set" }, k.settings()),
-            k.preview ? [h("div", { class: "ex-h" }, "Preview"), k.preview()] : null);
+            k.needs ? h("div", null, AB.needsElement(k.needs)) : null,
+            h("div", { class: "ex-set" + (k.needs ? " ex-off" : ""), "aria-disabled": k.needs ? "true" : null }, k.settings()),
+            k.preview ? [h("div", { class: "ex-h" }, k.needs ? "What the file would hold" : "Preview"), h("div", { class: k.needs ? "ex-off" : null, "aria-disabled": k.needs ? "true" : null }, k.preview())] : null);
 
         const write = () => {
             AB.go("data-place", "sent-and-saved");
@@ -288,12 +297,31 @@
             h("span", { class: "ex-footl" }, icon("info", "sm"), "Saved to this computer; nothing is uploaded. Each export is listed in ",
                 AB.link("data-place", "sent-and-saved", "Data > Sent and saved"), "."),
             AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() }),
-            AB.button("Export", { icon: "download", onClick: write }),
+            AB.button("Export", { icon: "download", onClick: write, disabled: !!k.needs }),
         ];
-        const m = AB.modal({ title: "Export", body: [list, main], foot });
-        m.querySelector(".k-modal").classList.add("ex-modal");
-        el.append(m);
+        el.append(frame(target ? "from-row" : key, main, foot));
     }
+
+    // The dialog frame: the output list, then body. activeId is a list id (image, video, figure,
+    // report, ...) or "from-row" (Table as CSV, target filled in).
+    function frame(activeId, body, foot) {
+        const lit = activeId === "from-row" ? "table" : activeId;
+        const list = h("div", { class: "ex-list", role: "listbox", "aria-label": "What to export" },
+            ORDER.map((id) => {
+                const it = KINDS[id] || OTHERS[id];
+                const to = it.go || ["export-dialog", activeId === "from-row" && id === "table" ? "from-row" : KIND_STATE[id]];
+                return h("div", Object.assign({ class: "ex-item", role: "option", "aria-selected": String(id === lit), "aria-disabled": it.needs ? "true" : null }, AB.act({ go: to })),
+                    icon(it.icon),
+                    h("div", null,
+                        h("div", { class: "ex-item-t" }, it.name, it.ext ? h("span", { class: "ex-ext" }, it.ext) : null, id === "figure" ? h("span", { class: "ex-later" }, "PDF later") : null),
+                        h("div", { class: "ex-item-d" }, it.line),
+                        it.needs ? h("div", { class: "ex-item-d" }, AB.needsElement(it.needs)) : null));
+            }));
+        const m = AB.modal({ title: "Export", body: [list, body], foot });
+        m.querySelector(".k-modal").classList.add("ex-modal");
+        return m;
+    }
+    AB.exportDialogFrame = frame;
 
     registerSection({
         id: "export-dialog",

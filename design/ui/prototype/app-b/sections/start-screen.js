@@ -1,6 +1,7 @@
 /* Start screen and the usage-data opt-in. Shown when no project is open. Plain ASCII.
-   Layout: a header line (name, privacy line, Preferences), three columns (ways in, recent
+   Layout: a header line (name, privacy line, Settings gear), three columns (ways in, recent
    projects, samples), and on first launch a non-blocking usage-data card at the foot.
+   The ways in are the empty state of Data > Sources (no project exists yet), not a second home.
    Styles: start-screen.css, loaded below (section-local, not shared). */
 (function () {
     if (!document.querySelector("link[data-ss-css]")) {
@@ -44,8 +45,8 @@
         return h("div", { class: "ss-head" },
             h("span", { class: "ss-brand" }, icon("network"), "graphty"),
             h("span", { class: "k-grow" }),
-            link("preferences", "general", [icon(privacy === "Local only" ? "lock" : "share", "sm"), privacy], { class: "ab-link ss-privacy", title: "Change this in Preferences" }),
-            AB.iconButton("settings", "Preferences", { go: ["preferences", "general"] }),
+            link("settings", "privacy", [icon(privacy === "Local only" ? "lock" : "share", "sm"), privacy], { class: "ab-link ss-privacy", title: "Change this in Settings > Privacy" }),
+            AB.iconButton("settings", "Settings (Ctrl+,)", { go: ["settings", "you"] }),
         );
     }
 
@@ -64,7 +65,7 @@
             h("div", { class: "ss-card-body" },
                 h("p", { class: "ss-card-h" }, "Your data is yours, but please help us."),
                 h("p", null, "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions."),
-                h("p", { class: "k-secondary" }, "Nothing is collected until you answer. You can change your answer any time in ", link("preferences", "general", "Preferences"), "."),
+                h("p", { class: "k-secondary" }, "Nothing is collected until you answer. You can change your answer any time in ", link("settings", "privacy", "Settings > Privacy"), "."),
                 details,
             ),
             h("div", { class: "ss-card-acts" },
@@ -72,6 +73,29 @@
                 AB.button("No thanks", { kind: "secondary", go: ["start-screen", "declined"] }),
             ),
         );
+    }
+
+    // Open from URL: graphty-element's loadFromUrl. The file is fetched by this browser, then the
+    // same load step as a dropped file. Studio decision: a small dialog on the start screen, since
+    // no project (and so no Data > Sources) exists yet.
+    function urlDialog() {
+        const back = () => AB.go("start-screen", "returning");
+        const box = h("div", { class: "k-modal ss-url", role: "dialog", "aria-label": "Open from URL" },
+            h("div", { class: "k-modal-head" }, h("span", { class: "k-grow" }, "Open from URL"), AB.iconButton("x", "Close", { onClick: back })),
+            h("div", { class: "k-modal-body" },
+                h("label", { class: "ss-url-label", for: "ss-url-in" }, "Address of a graph file"),
+                h("input", { id: "ss-url-in", class: "ss-url-input", type: "url", value: "https://example.org/data/lesmis.graphml", spellcheck: "false" }),
+                h("p", { class: "k-secondary" }, "CSV, GraphML, GEXF, GML, DOT, Pajek or JSON. The format is read from the file. This browser fetches it; nothing is sent to us."),
+                h("p", { class: "k-secondary" }, "The source keeps its address, so Data > Sources can refresh it later."),
+                openQ("a server that refuses the browser (CORS): say so plainly, and offer to download the file and drop it"),
+            ),
+            h("div", { class: "k-modal-foot" },
+                h("span", { class: "k-grow" }),
+                AB.button("Cancel", { kind: "secondary", onClick: back }),
+                AB.button("Read", { go: ["load-step", "preview"] }),
+            ),
+        );
+        return h("div", Object.assign({ class: "ss-url-wrap" }, { on: { click: (e) => { if (e.target === e.currentTarget) back(); } } }), box);
     }
 
     registerSection({
@@ -86,11 +110,12 @@
             { id: "declined", label: "Answered: no thanks" },
             { id: "returning", label: "Returning, with recent projects" },
             { id: "drop-target", label: "File dragged over the window" },
+            { id: "open-url", label: "Open from URL..." },
         ],
         render(el, state) {
             const fx = AB.fx.datasets;
             const firstLaunch = state === "first-run" || state === "disclosure";
-            const hasRecents = state === "returning" || state === "drop-target";
+            const hasRecents = state === "returning" || state === "drop-target" || state === "open-url";
             const privacy = state === "answered" ? "Usage data on, content masked" : "Local only";
 
             const doors = column("Start",
@@ -98,8 +123,8 @@
                 door({ icon: "file-plus", label: "New project", go: ["graph-place", "empty"] }),
                 door({ icon: "upload", label: "Drop a file anywhere", hint: "on this window", go: ["start-screen", "drop-target"] }),
                 door({ icon: "copy", label: "Paste data", key: "Ctrl+V", go: ["load-step", "preview"] }),
-                door({ icon: "plug", label: "Connect to a data source...", go: ["load-step", "preview"] }),
-                h("div", { class: "ss-note" }, openQ("which sources are offered, and what is asked before the load step")),
+                door({ icon: "link", label: "Open from URL...", go: ["start-screen", "open-url"] }),
+                h("div", { class: "ss-note" }, openQ("connectors (databases, APIs) wait until graphty-element can load from them")),
                 h("p", { class: "k-secondary ss-line" }, icon("lock", "sm"), "Files are read on this computer and never uploaded."),
             );
 
@@ -130,7 +155,7 @@
                 h("div", { class: "ss-cols" }, doors, recents, samples),
                 firstLaunch ? card(state === "disclosure") : null,
                 state === "answered" || state === "declined"
-                    ? h("div", { class: "ss-toast" }, AB.notice(state === "answered" ? "Thank you. Usage data is on, with content masked." : "Usage data stays off.", { label: "Preferences", go: ["preferences", "general"] }))
+                    ? h("div", { class: "ss-toast" }, AB.notice(state === "answered" ? "Thank you. Usage data is on, with content masked." : "Usage data stays off.", { label: "Settings", go: ["settings", "privacy"] }))
                     : null,
                 state === "drop-target"
                     ? h("div", Object.assign({ class: "ss-drop", role: "button", "aria-label": "Drop to open" }, AB.act({ go: ["load-step", "preview"] })),
@@ -140,10 +165,12 @@
                             h("p", { class: "k-secondary" }, "CSV, GraphML, GEXF, GML, DOT, Pajek, JSON. The file is read here and never uploaded."),
                         ))
                     : null,
+                state === "open-url" ? urlDialog() : null,
             );
             el.append(screen);
+            if (state === "open-url") screen.querySelector(".ss-url-input").focus();
             // Esc leaves the drop target, as releasing the drag outside the window would.
-            if (state === "drop-target") {
+            if (state === "drop-target" || state === "open-url") {
                 const esc = (e) => { if (e.key === "Escape") { window.removeEventListener("keydown", esc); AB.go("start-screen", "returning"); } };
                 window.addEventListener("keydown", esc);
                 window.addEventListener("hashchange", () => window.removeEventListener("keydown", esc), { once: true });

@@ -49,3 +49,11 @@
     .ss-cols > .ss-col:last-child > .ss-h { grid-column: 1 / -1; }
     .ss-card { flex-direction: column; align-items: stretch; }
 }
+/* Open from URL: a small dialog over the start screen */
+.ss-url-wrap { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: var(--cm-modal-backdrop); z-index: 6; }
+.ss-url { width: min(480px, 100%); }
+.ss-url .k-modal-body { padding: 12px 16px 16px; }
+.ss-url .k-modal-body p { margin: 8px 0 0; line-height: 18px; }
+.ss-url-label { display: block; margin-bottom: 4px; font-weight: 550; }
+.ss-url-input { width: 100%; box-sizing: border-box; height: 28px; padding: 0 8px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); outline: 1px solid var(--cm-border); outline-offset: -1px; }
+.ss-url-input:focus { outline-color: var(--cm-border-selected); }

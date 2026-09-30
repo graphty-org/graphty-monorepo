@@ -65,7 +65,7 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-main[data-dock="none"] .ab-dock { display: none; }
 .ab-dock .k-dock-tabs { border-bottom: 0; }
 .ab-tablist { display: inline-flex; gap: 4px; }
-@container main (max-width: 600px) { .ab-tlabel { display: none; } .k-tool.k-tool-label { padding: 0; width: 32px; justify-content: center; } }
+@container main (max-width: 650px) { .ab-toolbar:not([data-labels="always"]) .ab-tlabel { display: none; } .ab-toolbar:not([data-labels="always"]) .k-tool.k-tool-label { padding: 0; width: 32px; justify-content: center; } }
 .ab-workspace, .ab-full { display: none; }
 .ab-app[data-workspace="true"] .ab-left, .ab-app[data-workspace="true"] .ab-main, .ab-app[data-workspace="true"] .ab-right { display: none; }
 .ab-app[data-workspace="true"] .ab-workspace { display: flex; flex-direction: column; grid-column: 2 / -1; grid-row: 1; min-width: 0; min-height: 0; overflow: auto; background: var(--k-canvas); }
@@ -107,7 +107,7 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-multi .k-chit + .k-chit { margin-inline-start: -5px; }
 .ab-tname { flex: 1 1 auto; min-width: 64px; }
 .ab-tcount { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto !important; }
-.ab-insp-head .k-name { flex: 1 1 auto; min-width: 0; }
+.ab-insp-head .k-name { flex: 0 1 auto; min-width: 0; }
 .ab-tcount, .ab-tnotes, .ab-tinside { flex: none; color: var(--cm-text-secondary); display: inline-flex; align-items: center; gap: 2px; }
 .ab-tinside { padding: 0 4px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
 .ab-eye, .ab-eye-slot { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; flex: none; color: var(--cm-icon-secondary); }
@@ -116,9 +116,18 @@ body[data-page="map"] .ab-app { display: none; }
 
 /* ---------- inspector ---------- */
 .ab-insp { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
-.ab-insp-head { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px 0 16px; flex: none; }
+/* Header: line 1 (24 px) icon and name; line 2 (20 px) kind, provenance, "...". Then the optional
+   state bar, then the 32 px tab strip or, for a single body, an empty spacer of the same height. */
+.ab-insp-head { display: flex; align-items: center; gap: 8px; height: 24px; margin-top: 8px; padding: 0 8px 0 16px; flex: none; }
+.ab-insp-head .k-name { cursor: text; }
+.ab-insp-sub { display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px 0 40px; flex: none; min-width: 0; margin-bottom: 4px; }
+.ab-insp-sub .k-icon-btn { width: 24px; height: 20px; }
+.ab-prov { min-width: 0; font-size: 11px; }
+.ab-changed { width: 6px; height: 6px; border-radius: 50%; background: var(--cm-bg-brand); flex: none; }
+.ab-statebar { display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 8px 4px 16px; background: var(--cm-bg-secondary); border-top: 1px solid var(--cm-border); flex: none; }
 .ab-insp-meta { padding: 0 16px 8px; flex: none; }
-.ab-insp-tabs { padding: 0 8px 8px 12px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.ab-insp-tabs { display: flex; align-items: center; height: 32px; box-sizing: border-box; padding: 0 8px 0 12px; border-bottom: 1px solid var(--cm-border); flex: none; }
+.ab-insp-spacer { color: var(--cm-text-disabled); }
 .ab-insp-body { flex: 1 1 auto; }
 .ab-bars { display: flex; align-items: flex-end; gap: 1px; height: 40px; padding: 4px 16px 2px; }
 .ab-bars span { flex: 1 1 0; background: var(--cm-icon-secondary); border-radius: 1px 1px 0 0; }
@@ -140,3 +149,127 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-stub-card { margin: 48px auto; width: 360px; max-width: calc(100% - 32px); padding: 16px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-300); display: grid; gap: 8px; }
 /* The legend sits top left so the floating toolbar never covers it at 1366 x 768 or 1024 x 768 */
 .ab-canvas .ab-legend { top: 12px; bottom: auto; max-height: calc(100% - 84px); overflow: auto; }
+
+/* ---------- version 2 shared pieces ---------- */
+/* Rename in place: the field is exactly the row's height */
+.ab-rename { flex: 1 1 auto; min-width: 64px; height: 22px; box-sizing: border-box; margin: 0; padding: 0 4px; font: inherit; color: var(--cm-text); background: var(--cm-bg); border: 1px solid var(--cm-border-selected); border-radius: 4px; outline: none; }
+.ab-insp-head .ab-rename { height: 24px; font-weight: 550; }
+.ab-tprog { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--cm-text-secondary); white-space: nowrap; }
+.ab-tprog .k-progress { width: 40px; flex: none; }
+/* The one mark for a control graphty-element cannot back yet */
+.ab-needs { color: var(--cm-text-tertiary); font-size: 11px; line-height: 16px; text-decoration: underline dotted; text-underline-offset: 2px; white-space: nowrap; cursor: help; }
+/* Collapsible sections */
+.ab-sec-toggle { padding-inline-start: 8px; gap: 4px; }
+.ab-sec-sum { padding: 0 16px 8px 28px; margin-top: -8px; }
+/* The Style tab */
+.ab-style-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; }
+.ab-style-filter { width: 100%; box-sizing: border-box; height: 24px; padding: 0 8px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; box-shadow: var(--cm-field-shadow); }
+.ab-sline { display: grid; grid-template-columns: 60px minmax(0, 1fr) 24px 24px; align-items: center; gap: 4px; height: 24px; padding: 0 8px 0 24px; }
+.ab-sline[data-unset] { grid-template-columns: minmax(0, 1fr) 24px; }
+.ab-sline[data-inherited] { grid-template-columns: 60px minmax(0, 1fr) 24px; }
+.ab-sname { color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ab-sv { min-width: 0; }
+.ab-inh { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.ab-bound { color: var(--cm-text-brand); }
+.ab-aa { font-weight: 600; font-size: 11px; width: 16px; text-align: center; flex: none; }
+.ab-serr { padding: 0 8px 4px 28px; font-size: 11px; line-height: 16px; }
+.ab-style-body .k-section { padding-bottom: 4px; }
+.ab-style-head .k-seg > * { display: inline-flex; align-items: center; gap: 4px; }
+/* Inspector density: section headers 32 px, data rows 24 px */
+.ab-insp .k-section-head { height: 32px; }
+/* Why this look */
+.ab-why { padding: 4px 0 8px; }
+.ab-why-line { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; min-width: 0; }
+.ab-why-line .k-chit, .ab-why-line .ab-ramp { width: 12px; height: 12px; flex: none; }
+.ab-why-line[data-dim] .ab-why-name { color: var(--cm-text-secondary); }
+.ab-why-name { flex: 0 1 auto; min-width: 0; }
+.ab-why-tokens { display: inline-flex; gap: 4px; margin-inline-start: auto; flex: none; }
+.ab-token { padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 16px; background: var(--cm-bg-secondary); color: var(--cm-text); }
+.ab-token:hover { background: var(--cm-bg-hover); }
+.ab-why-more { color: var(--cm-text-secondary); padding-inline-start: 12px; }
+/* Canvas corner: the layout chip left of the Camera menu face */
+.ab-canvas-corner { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px; z-index: 4; }
+.ab-canvas-corner .ab-zoom { position: static; }
+.ab-zoom { display: inline-flex; align-items: center; gap: 4px; height: 32px; }
+.ab-layout-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); white-space: nowrap; }
+.ab-layout-chip[data-state="settled"] { color: var(--cm-text-secondary); }
+/* Legend close and the chip that brings it back */
+.ab-legend-x { float: right; margin: -4px -8px 0 4px; }
+.ab-legend-x .k-icon-btn { width: 20px; height: 20px; }
+.ab-legend-chip { position: absolute; left: 12px; top: 12px; z-index: 4; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
+/* The Views place: 16:10 thumbnail rows */
+.ab-view-row { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 8px 4px 16px; border-radius: 5px; }
+.ab-view-row:hover { background: var(--cm-bg-hover); }
+.ab-view-row[aria-selected="true"] { background: var(--cm-bg-selected); }
+.ab-view-thumb { width: 48px; aspect-ratio: 16 / 10; flex: none; border-radius: 3px; overflow: hidden; background: var(--k-canvas); box-shadow: inset 0 0 0 1px var(--cm-border); }
+.ab-view-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Toolbar labels: Settings > Appearance (auto hides them on a narrow canvas, above) */
+.ab-toolbar[data-labels="never"] .ab-tlabel { display: none; }
+.ab-toolbar[data-labels="never"] .k-tool.k-tool-label { padding: 0; width: 32px; justify-content: center; }
+.ab-pulse { box-shadow: 0 0 0 2px var(--cm-border-selected); }
+
+/* ---------- review fixes ---------- */
+/* A leaf row's disclosure slot is empty: it is not a control */
+.ab-disc:empty { cursor: default; }
+/* Overlay children take clicks even before the layer is marked active (menus placed a frame late) */
+.ab-overlay > .k-menu, .ab-overlay > .k-popover, .ab-overlay > .ab-pop, .ab-overlay > .ab-modal-wrap, .ab-overlay > .dp-scrim { pointer-events: auto; }
+/* Collapsible section heads: the heading holds the toggle; the head's actions sit beside it */
+.ab-sec-h { display: contents; font: inherit; }
+.ab-sec-btn { display: inline-flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer; }
+.ab-sec-toggle { cursor: pointer; }
+/* Design notes (review only, never product UI): one dashed chip in the annotation color for every
+   "Open question" and "needs graphty-element" mark. The review bar's switch hides them all. */
+html body :is(.ab-design-note, .ab-needs, .k-annot-tag, .gp-oq, .isr-oq, .pm-oq, .ex-oq, .ls-oq, .imr-open, .ss-oq, .as-open, .fcm-oq, .xi-oq, .dp-oq, .ab-oq, .ins-oq, .gs-oq, .rr-oq, .xv-oq, .sv-oq, .main-oq) {
+    display: inline-flex; align-items: center; width: auto; height: auto; min-height: 16px; margin: 0; padding: 0 5px;
+    border: 1px dashed var(--k-annot) !important; border-radius: 4px; background: transparent !important; box-shadow: none !important;
+    color: var(--k-annot-ink) !important; font-size: 10px; line-height: 14px; font-weight: 500; font-style: normal;
+    text-decoration: none; white-space: normal; cursor: help; vertical-align: middle;
+}
+html[data-design-notes-hidden] body :is(.ab-design-note, .ab-needs, .k-annot-tag, .gp-oq, .isr-oq, .pm-oq, .ex-oq, .ls-oq, .imr-open, .ss-oq, .as-open, .fcm-oq, .xi-oq, .dp-oq, .ab-oq, .ins-oq, .gs-oq, .rr-oq, .xv-oq, .sv-oq, .main-oq, .igs-oq, .sp-oq, .src-oq, .cm-oq) { display: none !important; }
+/* The selected row's fill matches the weight of the hover fill in dark mode */
+:root[data-theme="dark"] .ab-trow[aria-selected="true"] { background: color-mix(in srgb, var(--cm-bg-selected) 55%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ab-trow[aria-selected="true"] { background: color-mix(in srgb, var(--cm-bg-selected) 55%, transparent); } }
+/* An inspector's status line opens its body (the header stays two lines) */
+.ab-insp-meta { padding: 8px 16px 0; }
+html body .ab-needs { white-space: nowrap; }
+
+/* The one Paints line (spec 5.1 item 4) */
+.ab-paints { display: flex; align-items: flex-start; gap: 6px; padding: 6px 16px 8px; color: var(--cm-text-secondary); line-height: 16px; }
+.ab-paints > .k-i { flex: none; margin-top: 0; }
+.ab-paints .ab-needs { white-space: normal; }
+/* Tree columns line up on every row: disclosure 16, type icon 16, swatch 20, then the name */
+.ab-trow > .ab-kind { width: 16px; min-width: 16px; }
+.ab-sw-slot { display: inline-flex; align-items: center; width: 20px; flex: none; }
+.ab-sw-slot > .ab-ramp { width: 16px; }
+/* Why this look: layer names read as text, and underline only on hover */
+.ab-why-head { padding: 0 8px 0 16px; }
+.ab-why .ab-link.ab-why-name { color: var(--cm-text); text-decoration: none; }
+.ab-why .ab-link.ab-why-name:hover, .ab-why .ab-link.ab-why-name:focus-visible { text-decoration: underline; }
+/* A design note sits inline after its label, within the row */
+.ab-sline .ab-needs, .k-data .ab-needs, .k-fieldrow .ab-needs { margin-inline-start: 4px; }
+.ab-skip { position: absolute; left: -9999px; }
+.ab-skip:focus { position: static; }
+
+/* ---------- review fixes, round 3 ---------- */
+/* A collapsed section's summary wraps to two lines before it truncates (the tooltip has it whole) */
+.ab-sec-sum { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
+/* Tree trailing columns: count, note count and eye sit in fixed right-aligned slots on every row */
+.ab-trow .ab-tcount { margin-inline-start: auto; text-align: end; }
+.ab-trow .ab-tnotes { min-width: 28px; justify-content: flex-end; }
+.ab-tname { flex: 1 1 0; }
+.ab-why-hidden { font-size: 11px; flex: none; }
+/* Modal titles are real headings, drawn at the header's size */
+.ab-modal-title { margin: 0; font: inherit; font-weight: 550; }
+/* The header's name is a heading holding the rename button */
+.ab-insp-head[role="heading"] { font: inherit; }
+/* Narrow windows: the side panels give the canvas room, and every left panel scrolls */
+@media (max-width: 1180px) { .ab-app { --k-panel-w: 208px; } }
+.ab-left > .k-scroll, .ab-left .ab-left-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.ab-h1, .ab-place-title { margin: 0; font: inherit; min-width: 0; display: inline-flex; }
+.ab-place-title { font-weight: 550; outline-offset: 2px; }
+.ab-insp-sub > .k-secondary { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+/* A measure's ramp reads as a ramp, not a solid chip */
+.ab-why-line .ab-ramp { width: 16px; height: 10px; }
+/* The place heading takes focus on a direct link (screen readers start there); it is not a control */
+.ab-place-title:focus { outline: none; }
+.ab-place-head > .ab-place-title { flex: none; }

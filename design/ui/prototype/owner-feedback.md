@@ -102,3 +102,20 @@ Questions the owner asks the design team to consider (decide them as a studio, w
 4. Is "Data" in the nav rail really "Sources"? Consider borrowing Tableau's paradigm (its data source page, typed fields, dimensions and measures).
 
 The owner wants a clickable, layout-complete skeleton of refined B to review BEFORE any focus group or flow study.
+
+## 2026-09-30 -- the owner's review of the refined B skeleton (verbatim; answer every item)
+
+"I like where refined B is headed." Questions back to the design team:
+- when I click on the "Everything" layer, it only has some of the styling options for nodes and edges. displaying all the styling options is important, but it is also complex because there are so many of them (and likely more in the future). the design team should consider how to add all styling options but keep the right sidebar organized.
+- renaming a row should be double clicking on it, like in figma. it shouldn't require a right-click
+- the "File" menu has "Add data" and "Paste data". shouldn't those be under the data tab? also, there is "Add new graph from" when you drop down from the top of the left bar. should the data nav link become the equivalent of Tableau's "Data Sources" where multiple data sources can be loaded, extracted / cached, connected to, joined, filtered, etc?
+- maybe notes should have a style layer rather than being a callout. as a general rule, styling should be unopinionated and left to the user.
+- when I click on a node "Why this look" has a lot of layers and uses a lot of real estate. maybe it should just list the active layers
+- consider whether the toolbar should move to the left-hand side of the screen (or be re-positionable) so that the text could expand horizontally (and potentially be hidden) without using up all the toolbar space. if there was more toolbar space, would we add more tools? is it a limiting factor? I also still question why path is a top level item -- maybe it should be under select?
+- I don't think the design takes all of graphty-element's functionality into account. for example, where can I set and save specific camera views? where can I export images and videos? review all the graphty-element functionality and make sure we have it all accounted for in the skeleton.
+- maybe we should bring back "views" or "present" or "export" to the nav rail? maybe setting or jumping to cameras should be a tool? or maybe camera management is already at the bottom of the graph and it's just not explained well?
+- I think we had a design principle that ever element has one home. the drop down menu in the top left has "View" which expands to 2D, 3D, etc. That is duplicative of what is in the toolbar. review the app for duplicative locations for features and decide if we should simplify.
+- is the "preferences" window the same as "settings" in most apps? is it complete with all the settings we would like to have?
+- the right sidebars are getting cluttered and complex, and are overloading what they can do. we need common interaction patterns for the right sidebars -- similar looks and feels and modes of interaction. we probably need one well thought out right sidebar per layer type, and we need to think about how the layouts are the same or different across different layers. we also need to think about what belongs in the right-hand side. for example "re-run layout" is an action, but I think at one point we said that the right-hand sidebars were just for reading data, not running actions.
+"take your time and answer each question. come back to me with a new updated refined B so I can review it before it goes to the personas / study group review."
+Owner principle stated here: styling should be unopinionated and left to the user.

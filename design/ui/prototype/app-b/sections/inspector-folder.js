@@ -1,13 +1,18 @@
-/* Inspector: a folder. A folder has no style of its own: its Style tab lists the swatches of the
-   rows inside (each a link to that row), its Data tab lists those rows with their counts, then the
-   folder's own Notes. The folder "For the report" holds four Les Miserables rows.
+/* Inspector: a folder. One body, no tab strip: a folder has no look of its own, so it has no
+   Style tab. The body lists the rows inside (swatch, name, count; the name opens that row, the
+   count selects its members), a short About, and Notes. No verbs: Rename, Ungroup, Lock, Hide
+   from list and Delete are in "...", the folder's context menu.
+   The folder "For the report" holds the same three rows as the Graph tree: Group 2 (kept), Group 8 (kept) and
+   Betweenness (its eye is off in the tree).
+   State "folder"; "style" and "data" (the version 1 tab states) are aliases that draw the same body.
    Plain ASCII. */
 (function () {
-    const oq = (text) => h("span", { class: "k-badge ab-oq", title: text }, "Open question");
+    const oq = (text) => h("span", { class: "k-badge ab-oq", title: text, tabindex: "0", "aria-label": "Open question: " + text }, "Open question");
     if (!document.getElementById("ab-folder-css")) {
         document.head.append(h("style", { id: "ab-folder-css" },
             ".ab-oq{margin-left:6px;font-size:10px;color:var(--cm-text-secondary);white-space:nowrap}" +
-            ".ab-folder-line{display:flex;align-items:center;gap:6px;padding:4px 16px 8px}"));
+            ".ab-folder-hidden{display:inline-flex;align-items:center;color:var(--cm-text-secondary)}" +
+            ".ab-folder-row .k-grow{min-width:0}"));
     }
 
     registerSection({
@@ -16,44 +21,36 @@
         region: "right",
         rail: "graph",
         frame: { left: "graph-place/at-rest" },
-        states: [{ id: "style", label: "Style tab" }, { id: "data", label: "Data tab" }],
-        render(el, state) {
+        states: [{ id: "folder", label: "Folder" }],
+        render(el) {
             const L = AB.fx.datasets.lesmis;
             const g = (label) => L.frame.legend.rows.find((r) => r.label === label);
             const g2 = g("2"), g8 = g("8");
-            // The rows inside, in paint order (the tree read top to bottom).
+            // The rows inside, in paint order (the tree read top to bottom)
             const rows = [
-                { name: "Group 2", icon: "circle-dot", swatch: AB.chit(g2.color, true), count: g2.count + " nodes", paints: "Node fill", go: ["inspector-group-set-path-row", "style"] },
-                { name: "Group 8", icon: "circle-dot", swatch: AB.chit(g8.color, true), count: g8.count + " nodes", paints: "Node fill", go: ["inspector-group-set-path-row", "style"] },
-                { name: "Valjean to Javert", icon: "route", swatch: AB.chit("#D55E00"), count: null, paints: "Path color", go: ["inspector-group-set-path-row", "path"] },
-                { name: "Betweenness", icon: "chart-column", swatch: AB.ramp(), count: L.nodes + " nodes", paints: "Node color", go: ["inspector-measure-row", "style"] },
+                { name: "Group 2 (kept)", icon: "circle-check", swatch: AB.chit(g2.color, true), count: g2.count, go: ["inspector-group-set-path-row", "kept-2"] },
+                { name: "Group 8 (kept)", icon: "circle-check", swatch: AB.chit(g8.color, true), count: g8.count, go: ["inspector-group-set-path-row", "kept-8"] },
+                { name: "Betweenness", icon: "chart-column", swatch: AB.ramp(), count: L.nodes, hidden: true, go: ["inspector-measure-row", "style"] },
             ];
-            const more = AB.iconButton("ellipsis", "Folder actions", { go: ["context-menus", "folder"] });
+            // A count is a link that selects what it counts (it does not open the row)
+            const countLink = (n) => link("inspector-several-elements", "style", n + " nodes", {
+                class: "ab-link k-num", title: "Select these " + n + " nodes",
+                on: { click: (e) => e.stopPropagation() },
+            });
+            const line = (r) => h("div", Object.assign({ class: "k-row ab-folder-row" }, AB.act({ go: r.go })),
+                icon(r.icon), r.swatch, h("span", { class: "k-grow k-ellipsis" }, r.name),
+                r.hidden ? h("span", { class: "ab-folder-hidden", title: "Eye off in the tree: not painting", "aria-label": "hidden on the canvas" }, icon("eye-off", "sm")) : null,
+                countLink(r.count));
 
-            const style = () => [
-                h("div", { class: "ab-pad k-secondary" }, "A folder has no look of its own. Each row inside paints itself; select a row to change its look."),
-                AB.section({ title: "Rows inside", count: rows.length },
-                    rows.map((r) => AB.row({ icon: r.icon, swatch: r.swatch, label: r.name, trail: r.paints, go: r.go }))),
-                AB.section("Paint order",
-                    h("div", { class: "ab-pad k-secondary" }, "The rows stay together in the tree, so dragging the folder moves them as one block. Higher rows win."),
-                    h("div", { class: "ab-folder-line" }, link("graph-place", "at-rest", "Show in the tree"))),
-                AB.section("All rows at once",
-                    h("div", { class: "ab-pad k-secondary" }, "To change a property on every row inside, select them together."),
-                    h("div", { class: "ab-pad" }, AB.button("Select rows inside", { kind: "secondary", icon: "layers", go: ["inspector-several-rows", "style"] })),
-                    h("div", { class: "ab-folder-line k-secondary" }, "An eye on the folder row", oq("Does a folder row carry an eye that hides every row inside at once, and does Alt-click solo the folder?"))),
-            ];
-
-            const dataTab = () => [
-                AB.section({ title: "Rows inside", count: rows.length },
-                    rows.map((r) => AB.row({ icon: r.icon, swatch: r.swatch, label: r.name, trail: r.count == null ? null : r.count, go: r.go })),
-                    h("div", { class: "ab-pad" }, AB.button("Compare rows inside...", { kind: "ghost", go: ["inspector-several-rows", "data"] }))),
-                AB.section("About",
-                    AB.data("Kind", "Folder"),
-                    AB.data("Holds", "Rows put here by hand"),
-                    AB.data("Where", "Graph: " + L.frame.graphRow, { go: ["graph-place", "at-rest"] }),
-                    h("div", { class: "ab-folder-line k-secondary" }, "Combined member count", oq("Should a folder show how many distinct nodes its rows cover together? Rows overlap, so it is not the sum."))),
-                AB.section({ title: "Notes", count: 0, actions: AB.iconButton("plus", "Add note", { go: ["notes-place", "all"] }) },
-                    h("div", { class: "ab-pad k-secondary" }, "No notes about this folder yet. Notes about the rows inside are on each row.")),
+            const body = () => [
+                AB.section({ title: "Rows inside", count: rows.length, collapsible: true, key: "folder-rows", summary: rows.map((r) => r.name).join(", ") },
+                    rows.map(line)),
+                AB.section({ title: "About", collapsible: true, key: "folder-about", summary: "Folder in " + L.frame.graphRow },
+                    AB.data("Graph", L.frame.graphRow, { go: ["graph-place", "at-rest"] }),
+                    AB.data("Order", "Below Watchlist", { go: ["graph-place", "at-rest"] }),
+                    AB.data("Own look", h("span", { title: "A folder paints nothing; each row inside paints itself" }, "None")),
+                    AB.data("Covers", h("span", null, "--", oq("Show how many distinct nodes the rows cover together? Rows overlap, so it is not the sum of the counts.")))),
+                AB.notesSection(0),
             ];
 
             el.append(AB.inspector({
@@ -61,9 +58,8 @@
                 title: "For the report",
                 kind: "Folder",
                 kindKey: "folder",
-                meta: h("span", { class: "ab-folder-meta" }, rows.length + " rows, in " + L.frame.graphRow + " ", more),
-                tab: state === "data" ? "Data" : "Style",
-                tabs: { Style: style, Data: dataTab },
+                menu: ["context-menus", "folder"],
+                body: body(),
             }));
         },
     });

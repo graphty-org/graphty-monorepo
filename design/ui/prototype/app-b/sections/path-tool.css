@@ -1,11 +1,11 @@
-/* Path tool armed. Loaded by path-tool.js. Plain ASCII. */
+/* Path pick mode. Loaded by path-tool.js. Plain ASCII. */
 .pt-bar { height: auto; min-height: 40px; flex-wrap: wrap; row-gap: 6px; max-width: min(100cqw - 24px, 1040px); justify-content: center; }
 .pt-bar .k-field { min-width: 0; }
 .pt-group { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; white-space: nowrap; max-width: 100%; }
 .pt-lbl { color: var(--cm-text-secondary); }
 .pt-sep { width: 1px; align-self: stretch; background: var(--cm-border); }
-.pt-entry { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border-radius: 5px; font-weight: 550; cursor: default; }
-.pt-entry:hover { background: var(--cm-bg-hover); }
+.pt-entry { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 2px; font-weight: 550; }
+.pt-esc { display: inline-flex; align-items: center; gap: 6px; cursor: default; }
 .pt-ep { width: 150px; }
 .pt-ep[data-active] { box-shadow: inset 0 0 0 2px var(--cm-border-brand, var(--cm-text-brand)); }
 .pt-ep-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; }
@@ -22,7 +22,4 @@
 .pt-mark[data-kind="to"] .pt-mark-tag { background: var(--cm-text-brand); color: #fff; }
 .pt-tip { transform: translate(16px, -110%); white-space: nowrap; }
 .pt-tip[data-flip] { transform: translate(calc(-100% - 16px), -110%); } /* right half: open leftward, inside the canvas */
-.pt-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 13px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); white-space: nowrap; }
 .pt-route-swatch { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--cm-text-brand); flex: none; }
-@container main (max-width: 760px) { .pt-hint { top: 52px; } }
-.pt-legend { min-width: 260px; } .pt-legend .k-lg-row { white-space: nowrap; }

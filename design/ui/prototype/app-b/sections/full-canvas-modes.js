@@ -99,6 +99,7 @@
     function versionHistory(state, fx) {
         const A = fx.datasets.transactionsApril, M = fx.datasets.transactions, D = A.versionDiff, L = A.louvain;
         const past = state === "past-version";
+        const recipeOpen = state === "recipe-detail", noRecipes = state === "no-recipes";
         const wrap = h("div", { class: "fcm" });
         wrap.append(head("Version history", ["graph-place", "at-rest"], [
             AB.button("Export the operation log...", { kind: "secondary", icon: "download", go: ["export-dialog", "data"] }),
@@ -137,9 +138,33 @@
             h("div", null, oq("whether a join makes its own version, or belongs to the read before it")));
         left.append(april, marchJoin, marchRead);
 
-        left.append(AB.section({ title: "Applied recipes", count: 0 },
-            h("div", { class: "fcm-cap" }, "No recipe has been applied to this project. An applied recipe is listed here with who saved it and when, when it was applied, and the rows it added to the tree."),
-            h("div", { class: "ab-pad" }, AB.button("Apply recipe...", { kind: "secondary", go: ["recipe-apply", "binding"] }))));
+        // Applied recipes (moved here from Data: a recipe brings runs and paint, not data). The
+        // recipe is recipe-apply.js's: Mule ring triage, applied on April data. No Apply button:
+        // applying has one home, File > Apply recipe or style file...
+        if (noRecipes) {
+            left.append(AB.section({ title: "Applied recipes", count: 0 },
+                h("div", { class: "fcm-cap" }, "No recipe has been applied to this project. Applying one (File > Apply recipe or style file...) lists it here with who saved it, when it was applied, and the rows it added to the tree.")));
+        } else {
+            const W = A.watchlist;
+            const added = [
+                { ic: "circle-check", name: "Watchlist", sub: W.inCurrentData + " of " + W.members + " accounts", go: ["recipe-apply", "applied"] },
+                { ic: "chart-column", name: "Personalized PageRank from Watchlist", sub: "ran on apply", go: ["inspector-measure-row", "style"] },
+                { ic: "route", name: "Cycles up to 4 transfers", sub: "arrived not run", go: ["inspector-run-row", "data"] },
+                { ic: "hash", name: "riskScore", sub: "paints node color", go: ["inspector-measure-row", "risk-score"] },
+                { ic: "tag", name: "alertRule", sub: "arrived off: nothing to bind", go: ["inspector-group-set-path-row", "style"] },
+            ];
+            const card = h("div", Object.assign({ class: "fcm-ver", "aria-current": String(recipeOpen), role: "button", "aria-expanded": String(recipeOpen), "aria-label": "Mule ring triage, applied recipe" },
+                recipeOpen ? {} : AB.act({ go: ["full-canvas-modes", "recipe-detail"] })),
+                h("div", Object.assign({ class: "fcm-ver-l1" }, recipeOpen ? AB.act({ go: ["full-canvas-modes", "version-history"] }) : {}), icon("book-open", "sm"), h("span", { class: "k-grow k-ellipsis" }, "Mule ring triage"), h("span", { class: "k-secondary" }, "today 09:31")),
+                h("div", { class: "k-secondary" }, "Saved by Dana Reyes, Mar 28 2026. Applied on top, on April data. Added 5 rows."),
+                recipeOpen ? h("div", { class: "fcm-chg" },
+                    h("div", { class: "k-secondary" }, "mule-ring-triage.graphty, made on transfers-2026-03.csv. Carries no data."),
+                    h("div", { class: "k-secondary" }, "The rows it added, each marked \"from recipe Mule ring triage\" in its Made with:"),
+                    added.map((r) => h("div", { class: "fcm-chg-line" }, icon(r.ic, "sm"), AB.link(r.go[0], r.go[1], r.name), h("span", { class: "k-secondary" }, r.sub))),
+                    h("div", { class: "fcm-chg-sub" }, "Bound: amount, timestamp, riskScore. alertRule is not in April data. ", oq("whether removing a recipe is one step here, or one row at a time in the tree"))) : null);
+            left.append(AB.section({ title: "Applied recipes", count: 1 }, card));
+            if (recipeOpen) setTimeout(() => card.scrollIntoView({ block: "nearest" }), 0);
+        }
 
         // ----- center: the version on screen -----
         const center = h("div", { class: "fcm-col", role: "region", "aria-label": past ? "March data, view only" : "April data" });
@@ -170,8 +195,9 @@
         const list = h("ul", { class: "fcm-log", "aria-label": "Operations, newest first" });
         const entry = (kind, ic, text, sub, target) => h("li", Object.assign({ class: "fcm-entry", "data-kind": kind }, AB.act(target)), icon(ic, "sm"), h("span", null, text), sub ? h("span", { class: "fcm-entry-sub" }, sub) : null);
         const heading = (t) => h("li", { class: "fcm-loghead", "data-kind": "heading" }, t);
-        list.append(
+        AB.append(list, [
             heading("On April data"),
+            noRecipes ? null : entry("Recipes", "book-open", "Applied recipe Mule ring triage, on top", "Saved by Dana Reyes. Added Watchlist, Personalized PageRank from Watchlist, Cycles up to 4 transfers, riskScore and alertRule (off: nothing to bind).", { go: ["full-canvas-modes", "recipe-detail"] }),
             entry("Runs", "layers", "Louvain communities, rerun: " + L.april.communities + " communities, modularity " + L.april.modularity, "Weighted by amount, direction ignored, seed 11. The March result is kept under Earlier results.", { go: ["inspector-run-row", "earlier-results"] }),
             entry("Runs", "chart-column", "PageRank", "Directed, damping 0.85, 100 iterations, unweighted.", { go: ["graph-place", "at-rest"] }),
             entry("Data", "upload", "Replaced the data with April", fmt(A.nodes) + " accounts, " + fmt(A.edges) + " transfers, from " + A.files.accounts.file + " and " + A.file + ". Runs on March data were marked out of date.", { go: ["data-place", "versions"] }),
@@ -180,7 +206,7 @@
             entry("Runs", "layers", "Louvain communities: " + L.march.communities + " communities, modularity " + L.march.modularity, "Weighted by amount, direction ignored, seed 11.", { go: ["inspector-run-row", "out-of-date"] }),
             entry("Data", "table", "Joined " + M.accountsFile, fmt(M.nodes) + " of " + fmt(M.nodes) + " accounts matched, Sep 28.", { go: ["data-place", "at-rest"] }),
             entry("Data", "file-plus", "Read " + M.file, fmt(M.nodes) + " accounts, " + fmt(M.edges) + " transfers, directed, Sep 28.", { go: ["data-place", "at-rest"] }),
-        );
+        ]);
         const empty = h("div", { class: "fcm-cap", hidden: true }, "No recipe has been applied to this project.");
         const filter = (k) => {
             list.querySelectorAll(".fcm-entry").forEach((li) => { li.hidden = k !== "All" && li.dataset.kind !== k; });
@@ -305,7 +331,7 @@
                 h("div", { class: "fcm-saved", role: "status" }, h("b", null, "Saved at the top of the Graph tree."), h("span", { class: "k-secondary" }, "It paints now: each account by how its community changed. Hide it with its eye.")),
                 h("div", { class: "fcm-colhead" }, h("span", { class: "k-grow" }, "In the tree")),
                 h("div", { class: "fcm-tree" }, rowTree),
-                AB.inspector({ icon: "git-compare-arrows", title: "Louvain: March vs April", kind: "Comparison", tab: "Data", kindKey: "fcm-comparison",
+                AB.inspector({ icon: "git-compare-arrows", title: "Louvain: March vs April", kind: "Comparison", tab: "Data", kindKey: "fcm-comparison", menu: ["context-menus", "row"],
                     tabs: {
                         Style: () => [
                             AB.section("Colors for the change",
@@ -324,8 +350,7 @@
                                 AB.data("First", "Louvain, March data", { go: ["inspector-run-row", "out-of-date"] }),
                                 AB.data("Second", "Louvain, April data", { go: ["inspector-run-row", "earlier-results"] }),
                                 AB.data("Matched by", "overlap of members")),
-                            AB.section("Compare", h("div", { class: "ab-pad" }, AB.button("Open the comparison", { kind: "secondary", icon: "git-compare-arrows", go: ["full-canvas-modes", "comparison"] }))),
-                        ],
+                                        ],
                     } }));
         }
         body.append(panel);
@@ -358,13 +383,15 @@
         states: [
             { id: "version-history", label: "Version history" },
             { id: "past-version", label: "Version history: an older version" },
+            { id: "recipe-detail", label: "Version history: an applied recipe open" },
+            { id: "no-recipes", label: "Version history: no recipe applied" },
             { id: "comparison", label: "Comparison surface" },
             { id: "unsaved", label: "Leaving unsaved" },
             { id: "saved", label: "Comparison saved (row added)" },
         ],
         render(el, state) {
             const fx = AB.fx;
-            el.append(state === "version-history" || state === "past-version" ? versionHistory(state, fx) : comparison(state, fx));
+            el.append(["version-history", "past-version", "recipe-detail", "no-recipes"].includes(state) ? versionHistory(state, fx) : comparison(state, fx));
         },
     });
 })();

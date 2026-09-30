@@ -1,7 +1,8 @@
 /* Graphs switcher: the menu on the Graph place's switcher line. It lists the project's graphs
-   (each with Rename, Move up, Move down) and holds what acts on whole graphs: New graph from,
-   Add as another graph..., Compare with... and Version history. A derived graph is a new entry
-   in this list, never a tree row. Plain ASCII. The few styles it needs are injected below. */
+   (double-click a name to rename it; each has Move up and Move down) and holds what acts on whole
+   graphs: Compare with... and New graph from. A derived graph is a new entry in this list, never
+   a tree row. Loading a file as a new graph is the load dialog's job, and version history lives
+   in the project-name menu. Plain ASCII. The few styles it needs are injected below. */
 (function () {
     "use strict";
     const CSS = `
@@ -32,39 +33,43 @@
         }];
     }
 
-    let order = null; // per-visit order, so Move up and Move down change the list in place
+    let order = null; // per-visit order, so Move up, Move down and rename change the list in place
     let lastState = null;
+    const NO_TRANSFORM = "graphty-element has no transform API yet; computing a new graph in the app is not allowed.";
 
     function actBtn(iconName, label, disabled, onClick) {
         return h("span", Object.assign({ class: "gs-act", role: "button", "aria-label": label, title: label, "aria-disabled": disabled ? "true" : null }, disabled ? {} : AB.act({ onClick: (e) => { if (e) e.stopPropagation(); onClick(); } })), icon(iconName, "sm"));
     }
 
+    // Double-click the name renames it (as in Figma); a single click switches graph, after a
+    // short wait so a double-click does not also switch.
+    function startRename(nameEl, g, redraw) {
+        AB.renameInPlace(nameEl, { onSave: (n) => { g.name = n; redraw(); } });
+    }
+
     function graphItem(g, i, list, redraw) {
-        const name = h("span", { class: "gs-name" }, h("span", { class: "k-ellipsis", style: "display:block" }, g.name), h("span", { class: "k-menu-desc" }, g.desc),
+        const label = h("span", { class: "k-ellipsis gs-label", style: "display:block", title: "Double-click to rename" }, g.name);
+        const name = h("span", { class: "gs-name" }, label, h("span", { class: "k-menu-desc" }, g.desc),
             g.derived ? h("span", { class: "gs-oq", title: "Open question" }, "Open question: does it update when its source graph changes?") : null);
+        let timer = null;
         const item = h("div", Object.assign({ class: "k-menu-item gs-graph", role: "menuitemradio", "aria-checked": g.current ? "true" : "false", "data-described": "" },
-            AB.act({ onClick: () => (g.current ? AB.go("graph-place", "at-rest") : AB.flash("Switched to " + g.name + " (not wired in the skeleton)")) })),
+            AB.act({ onClick: () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => (g.current ? AB.go("graph-place", "at-rest") : AB.flash("Switched to " + g.name + " (not wired in the skeleton)")), 250);
+            } })),
         h("span", { class: "k-check-col" }, g.current ? icon("check", "sm") : null), name,
         h("span", { class: "gs-acts" },
-            actBtn("pencil", "Rename " + g.name, false, () => {
-                const input = h("input", { value: g.name, "aria-label": "Graph name" });
-                const done = () => { g.name = input.value.trim() || g.name; redraw(); };
-                input.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") done(); if (e.key === "Escape") redraw(); });
-                input.addEventListener("click", (e) => e.stopPropagation());
-                input.addEventListener("blur", done);
-                name.firstChild.replaceWith(input);
-                input.focus(); input.select();
-            }),
             actBtn("chevron-up", "Move " + g.name + " up", i === 0, () => { list.splice(i - 1, 0, list.splice(i, 1)[0]); redraw(); }),
             actBtn("chevron-down", "Move " + g.name + " down", i === list.length - 1, () => { list.splice(i + 1, 0, list.splice(i, 1)[0]); redraw(); })));
+        item.addEventListener("dblclick", (e) => { e.stopPropagation(); clearTimeout(timer); startRename(label, g, redraw); });
+        item.addEventListener("keydown", (e) => { if (e.key === "F2") { e.preventDefault(); e.stopPropagation(); startRename(label, g, redraw); } });
         return item;
     }
 
     function commandItem(label, o) {
-        const it = h("div", Object.assign({ class: "k-menu-item", role: "menuitem", "aria-haspopup": o.sub ? "menu" : null, "aria-expanded": o.sub ? String(!!o.open) : null, "data-hover": o.open ? "" : null, "data-described": o.desc ? "" : null }, AB.act(o.go ? { go: o.go } : { onClick: o.onClick })),
+        return h("div", Object.assign({ class: "k-menu-item", role: "menuitem", "aria-haspopup": o.sub ? "menu" : null, "aria-expanded": o.sub ? String(!!o.open) : null, "data-hover": o.open ? "" : null, "data-described": o.desc ? "" : null }, AB.act(o.go ? { go: o.go } : { onClick: o.onClick })),
             h("span", { class: "k-check-col" }), h("span", null, label, o.desc ? h("span", { class: "k-menu-desc" }, o.desc) : null),
             o.sub ? h("span", { class: "k-sub" }, icon("chevron-right", "sm")) : null);
-        return it;
     }
 
     registerSection({
@@ -77,37 +82,33 @@
             { id: "open", label: "One graph" },
             { id: "two-graphs", label: "Two graphs, one of them derived" },
             { id: "new-graph-from", label: "New graph from submenu open" },
+            { id: "rename", label: "Renaming a graph (double-click its name)" },
         ],
         render(el, state) {
-            if (state !== lastState || !order) { order = graphs(AB.fx, state); lastState = state; }
-            const anchor = ".ab-switch-btn";
+            if (state !== lastState || !order) { order = graphs(AB.fx, state === "rename" ? "two-graphs" : state); lastState = state; }
             const m = h("div", { class: "k-menu ab-menu gs-menu", role: "menu", "aria-label": "Graphs in this project" });
-            let sub = null;
             const draw = () => {
                 m.replaceChildren(
                     h("div", { class: "k-menu-label" }, "Graphs in this project"),
                     ...order.map((g, i) => graphItem(g, i, order, draw)),
                     h("div", { class: "k-menu-sep", role: "separator" }),
-                    commandItem("New graph from", { sub: true, open: state === "new-graph-from", go: ["graphs-switcher", state === "new-graph-from" ? "open" : "new-graph-from"] }),
-                    commandItem("Add as another graph...", { go: ["load-step", "preview"], desc: "Load a file into this project as its own graph" }),
                     commandItem("Compare with...", { go: ["full-canvas-modes", "comparison"], desc: "Two graphs, or two time windows" }),
-                    h("div", { class: "k-menu-sep", role: "separator" }),
-                    commandItem("Version history", { go: ["full-canvas-modes", "version-history"] }),
+                    commandItem("New graph from", { sub: true, open: state === "new-graph-from", go: ["graphs-switcher", state === "new-graph-from" ? "open" : "new-graph-from"] }),
                 );
             };
             draw();
-            el.append(AB.position(m, anchor, "below-start"));
+            el.append(AB.position(m, ".ab-switch-btn", "below-start"));
+
+            if (state === "rename") {
+                requestAnimationFrame(() => { const lab = m.querySelector(".gs-label"); if (lab) startRename(lab, order[0], draw); });
+            }
 
             if (state === "new-graph-from") {
-                sub = AB.menu({
+                const needs = () => AB.needsElement(NO_TRANSFORM);
+                const sub = AB.menu({
                     anchor: m.querySelector("[aria-haspopup=menu]"), place: "right-start",
-                    items: [
-                        { label: "Selection (Extract as graph)", disabled: true, desc: "Needs a selection: nothing is selected" },
-                        { label: "Bipartite projection...", onClick: () => AB.flash("Bipartite projection options (not wired in the skeleton)") },
-                        { label: "Quotient by groups...", desc: "One node per group of a group row", go: ["graphs-switcher", "two-graphs"] },
-                        { label: "Combine graphs...", onClick: () => AB.flash("Combine graphs options (not wired in the skeleton)") },
-                        { label: "Null-model sample...", onClick: () => AB.flash("Null-model sample options (not wired in the skeleton)") },
-                    ],
+                    items: ["Selection (Extract as graph)", "Bipartite projection...", "Quotient by groups...", "Combine graphs...", "Null-model sample..."]
+                        .map((label) => ({ label, disabled: true, desc: needs() })),
                 });
                 sub.classList.add("gs-sub");
                 sub.setAttribute("aria-label", "New graph from");

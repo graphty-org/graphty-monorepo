@@ -96,7 +96,10 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         // Undirected: closeness here measures distance, which ignores the declared direction. An
         // exact run is too slow on the device above the cap, so it stays on the CPU port there.
         const accelerable = sampled || this.input("undirected").nodeCount <= EXACT_CLOSENESS_MAX_ACCELERATED_NODES;
-        const { snapshot, run } = this.accelerated("closenessCentrality", "undirected", { accelerable });
+        const { snapshot, run } = this.accelerated("closenessCentrality", "undirected", {
+            accelerable,
+            sources: k ?? Number.POSITIVE_INFINITY,
+        });
         // A k past the node count (a small scope, say) samples every node, which is the exact score.
         const drawn = k === null ? undefined : Math.min(k, snapshot.nodeCount);
 

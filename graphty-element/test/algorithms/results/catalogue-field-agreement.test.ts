@@ -29,6 +29,7 @@ import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/Betweenn
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
 import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMatchingAlgorithm";
 import { ClosenessCentralityAlgorithm } from "../../../src/algorithms/ClosenessCentralityAlgorithm";
+import { ClusteringCoefficientAlgorithm } from "../../../src/algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
@@ -161,6 +162,7 @@ const CASES: readonly Case[] = [
     declared("max flow", "max-flow", (g) => new MaxFlowAlgorithm(g, { source: "A", sink: "F" })),
     declared("min cut", "min-cut", (g) => new MinCutAlgorithm(g)),
     metric("k-core", (g) => new KCoreAlgorithm(g)),
+    declared("clustering coefficient", "clustering-coefficient", (g) => new ClusteringCoefficientAlgorithm(g)),
     declared("link prediction", "link-prediction", (g) => new LinkPredictionAlgorithm(g)),
 ];
 

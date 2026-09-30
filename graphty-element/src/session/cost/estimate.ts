@@ -343,7 +343,7 @@ function declaredIterationBound(
 }
 
 /** The option that samples a run's sources, by catalogue key: set, the run costs that share of the exact one. */
-const SAMPLE_OPTIONS: Readonly<Partial<Record<string, string>>> = { closeness: "k" };
+const SAMPLE_OPTIONS: Readonly<Partial<Record<string, string>>> = { betweenness: "k", closeness: "k" };
 
 /**
  * The sample size a run asks for through its own option, such as closeness's `k`.

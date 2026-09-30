@@ -12,6 +12,8 @@
  *   pnpm exec tsx benchmarks/run.ts layout-grid           # the grid ladder in 2D / 3D, T-6 / T-7 and the 7.8 re-check rows (P4)
  *   pnpm exec tsx benchmarks/run.ts attraction-scale      # the attraction gather across the working-set ladder (the G4-F16 diagnostic)
  *   pnpm exec tsx benchmarks/run.ts bfs                   # T-10: BFS auto / top-down and SSSP on the RMAT tiers, BFS on the 1000 x 1000 grid (P8)
+ *   pnpm exec tsx benchmarks/run.ts apsp                  # all-pairs shortest paths, 512 .. 5,760 nodes, and the matrix readback alone
+ *   pnpm exec tsx benchmarks/run.ts triangles label-propagation   # the structure groups (issue #422), no target
  *   pnpm exec tsx benchmarks/run.ts --no-save             # print only
  *   pnpm exec tsx benchmarks/run.ts --runs 3              # 3 timed runs per benchmark
  *   pnpm exec tsx benchmarks/run.ts --samples-out s.json  # also write every timed sample per row (scripts/bench-ab.js)
@@ -27,6 +29,7 @@ import { writeFileSync } from "node:fs";
 
 import { type GpuContext } from "../src/context.js";
 import { createNodeGpuContext } from "../src/node/index.js";
+import { APSP_GROUP, runApspBenchmarks } from "./apsp.bench.js";
 import { ATTRACTION_SCALE_GROUP, runAttractionScaleBenchmarks } from "./attraction-scale.bench.js";
 import { BETWEENNESS_GROUP, runBetweennessBenchmarks } from "./betweenness.bench.js";
 import { BFS_GROUP, runBfsBenchmarks } from "./bfs.bench.js";
@@ -44,15 +47,24 @@ import { LAYOUT_FR_GROUP, runLayoutFrBenchmarks } from "./layout-fr.bench.js";
 import { LAYOUT_GRID_GROUP, runLayoutGridBenchmarks } from "./layout-grid.bench.js";
 import { runPagerankBenchmarks } from "./pagerank.bench.js";
 import { runRoundtripBenchmarks } from "./roundtrip.bench.js";
+import {
+    LABEL_PROPAGATION_GROUP,
+    runLabelPropagationBenchmarks,
+    runTriangleBenchmarks,
+    TRIANGLES_GROUP,
+} from "./structure.bench.js";
 import { runUploadBenchmarks } from "./upload.bench.js";
 import { runWccBenchmarks } from "./wcc.bench.js";
 
 /**
  * The groups and the T-targets they record (6.3): upload T-1, roundtrip T-2 / T-3, layout-exact T-4 and the Node side
  * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14, `layout-grid` T-6 / T-7 and the grid rows of the 7.8
- * re-check, `bfs` T-10 (P8), `betweenness` T-11. `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than
- * a gate row. Every group is REQUIRED by scripts/bench-append-session.js: a session appended to a baseline must carry
- * all of them, so a new group is added there and to test/benchmarks.test.ts in the same change.
+ * re-check, `bfs` T-10 (P8), `betweenness` T-11. `apsp` (all-pairs shortest paths, design 8.7) has no T-target: its
+ * rows arm the regression check. `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than
+ * a gate row; nor do `triangles` and `label-propagation` (issue #422), whose CPU crossover is in
+ * design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md. Every group is REQUIRED by
+ * scripts/bench-append-session.js: a session appended to a baseline must carry all of them, so a new group is added
+ * there and to test/benchmarks.test.ts in the same change.
  */
 const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]>>> = {
     upload: runUploadBenchmarks,
@@ -65,6 +77,9 @@ const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]
     [ATTRACTION_SCALE_GROUP]: runAttractionScaleBenchmarks,
     [BFS_GROUP]: runBfsBenchmarks,
     [BETWEENNESS_GROUP]: runBetweennessBenchmarks,
+    [APSP_GROUP]: runApspBenchmarks,
+    [TRIANGLES_GROUP]: runTriangleBenchmarks,
+    [LABEL_PROPAGATION_GROUP]: runLabelPropagationBenchmarks,
 };
 
 /** The parsed command line. */

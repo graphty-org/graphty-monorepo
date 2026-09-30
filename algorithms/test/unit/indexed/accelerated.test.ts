@@ -18,7 +18,7 @@ import {
 } from "../../../src/index.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
-import { gnm } from "./port-fixtures.js";
+import { gnm, undirectedFixtures } from "./port-fixtures.js";
 
 function pathGraph(): Graph {
     const g = new Graph({ directed: true });
@@ -353,6 +353,73 @@ describe("accelerated(acc)", () => {
         const boom = new Error("E_DEVICE_LOST");
         const fake: AlgorithmAccelerator = { kind: "fake", labelPropagation: () => Promise.reject(boom) };
         await expect(accelerated(fake).labelPropagation(cycle())).rejects.toBe(boom);
+    });
+
+    describe("labelPropagationSynchronous", () => {
+        it("runs the synchronous port with no accelerator", async () => {
+            const s = toSnapshot(gnm(30, 80, false, 4));
+            const via = await accelerated(null).labelPropagationSynchronous(s, { maxIterations: 20 });
+            const direct = indexed.labelPropagationSynchronous(s, { maxIterations: 20 });
+            expect([...via.labels]).toEqual([...direct.labels]);
+        });
+
+        it("hands the accelerator's labelPropagation the pass cap and the weighting, and nothing else", async () => {
+            const s = cycle();
+            const answer: LabelResultLike = { labels: Uint32Array.of(0, 0, 0), count: 1, groups: () => [] };
+            const seen: unknown[] = [];
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                labelPropagation: (snapshot, received) => (seen.push(snapshot, received), Promise.resolve(answer)),
+            };
+            expect(await accelerated(fake).labelPropagationSynchronous(s, { maxIterations: 7, weighted: false })).toBe(
+                answer,
+            );
+            expect(seen).toEqual([s, { maxIterations: 7, weighted: false }]);
+        });
+    });
+
+    describe("triangleCount", () => {
+        const s = (): GraphSnapshot => toSnapshot(undirectedFixtures()[7].graph);
+
+        it("runs the port with no accelerator", async () => {
+            const snapshot = s();
+            const via = await accelerated(null).triangleCount(snapshot);
+            const direct = indexed.triangleCount(snapshot);
+            expect(via.total).toBe(45);
+            expect([...via.coefficient]).toEqual([...direct.coefficient]);
+            expect(via.transitivity).toBe(direct.transitivity);
+        });
+
+        it("passes an accelerator's coefficient and transitivity through when it returns them", async () => {
+            const snapshot = s();
+            const coefficient = new Float32Array(snapshot.nodeCount).fill(0.5);
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                triangleCount: () =>
+                    Promise.resolve(
+                        Object.assign(
+                            { perNode: new Uint32Array(snapshot.nodeCount), total: 7 },
+                            { coefficient, transitivity: 0.25 },
+                        ),
+                    ),
+            };
+            const result = await accelerated(fake).triangleCount(snapshot);
+            expect(result.total).toBe(7);
+            expect(result.coefficient).toBe(coefficient);
+            expect(result.transitivity).toBe(0.25);
+        });
+
+        it("computes them from the counts when an accelerator returns only the seam's perNode and total", async () => {
+            const snapshot = s();
+            const direct = indexed.triangleCount(snapshot);
+            const fake: AlgorithmAccelerator = {
+                kind: "fake",
+                triangleCount: () => Promise.resolve({ perNode: direct.perNode, total: direct.total }),
+            };
+            const result = await accelerated(fake).triangleCount(snapshot);
+            expect([...result.coefficient]).toEqual([...direct.coefficient]);
+            expect(result.transitivity).toBe(direct.transitivity);
+        });
     });
 
     describe("allPairsShortestPath", () => {
@@ -701,6 +768,7 @@ describe("accelerated(acc)", () => {
             "kargerMinCut",
             "katzCentrality",
             "labelPropagation",
+            "labelPropagationSynchronous",
             "leiden",
             "louvain",
             "maxFlow",
@@ -713,6 +781,7 @@ describe("accelerated(acc)", () => {
             "sssp",
             "stoerWagner",
             "stronglyConnectedComponents",
+            "triangleCount",
             "weaklyConnectedComponents",
         ]);
     });

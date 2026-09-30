@@ -7,7 +7,8 @@
  * P5's `fruchtermanReingold` and `springElectrical` (the two other layout members of spec 9.3, landed together once
  * both models were green, P5 PD-19), P7's seven algorithm members (spec 8.2, 8.3; M8b-T8, PD-14) and P8's four
  * traversal members (spec 8.4; P8-T13 PD-16, PD-19: `breadthFirstSearch`, `sssp`, `bellmanFord`,
- * `closenessCentrality`, each taking the seam's own option type) and nothing else: the CPU-side dispatchers
+ * `closenessCentrality`, each taking the seam's own option type), `allPairsShortestPath` (design 8.7), P11's
+ * `triangleCount` and `labelPropagation`, and nothing else: the CPU-side dispatchers
  * (`accelerated()`, `createSimulation()`) test `acc.betweennessCentrality !== undefined` /
  * `acc.fruchtermanReingold !== undefined` and route to the CPU when the member is absent (spec 2.4 row "method
  * missing"), so a method the GPU does not implement must not exist here -- never a throwing stub. The remaining
@@ -16,15 +17,19 @@
 
 import { type F32, type F64, type GraphSnapshot } from "@graphty/graph-format";
 
+import { allPairsShortestPath } from "./algorithms/all-pairs.js";
 import { bellmanFord } from "./algorithms/bellman-ford.js";
 import { betweennessCentrality, edgeBetweennessCentrality } from "./algorithms/betweenness.js";
 import { breadthFirstSearch } from "./algorithms/bfs.js";
 import { closenessCentrality } from "./algorithms/closeness.js";
 import { connectedComponents } from "./algorithms/components.js";
+import { labelPropagation } from "./algorithms/label-propagation.js";
 import { pageRank, personalizedPageRank } from "./algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "./algorithms/spectral.js";
 import { sssp } from "./algorithms/sssp.js";
+import { triangleCount } from "./algorithms/triangles.js";
 import { type GpuContext } from "./context.js";
+import { WebGpuGraphError } from "./errors.js";
 import { createForceAtlas2 } from "./layouts/forceatlas2.js";
 import { createFruchtermanReingold } from "./layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "./layouts/spring-electrical.js";
@@ -34,6 +39,7 @@ import {
     type BfsOptions,
     type ClosenessAcceleratorOptions,
     type GpuAccelerator,
+    type HitsOptionsLike,
     type SsspOptions,
 } from "./types/accelerator.js";
 import {
@@ -48,6 +54,7 @@ import {
     type KatzOptions,
     type PageRankOptions,
 } from "./types/algorithms.js";
+import { type GpuApspResult } from "./types/all-pairs.js";
 import { type GpuBetweennessResult, type GpuEdgeScoresResult } from "./types/betweenness.js";
 import {
     type ForceAtlas2Stats,
@@ -61,6 +68,7 @@ import {
     type FruchtermanReingoldOptions,
     type SpringElectricalOptions,
 } from "./types/options.js";
+import { type GpuTriangleResult } from "./types/structure.js";
 import { type GpuBellmanFordResult, type GpuBfsResult, type GpuSsspResult } from "./types/traversal.js";
 
 /** The `algorithms` record of AcceleratorOptions (spec 3.3), named for the copy helpers. */
@@ -356,6 +364,53 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
         async closenessCentrality(gs: GraphSnapshot, o?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult> {
             ctx.assertReady();
             return await closenessCentrality(ctx, gs, o);
+        },
+        /**
+         * All-pairs shortest paths on the device (design 8.7): blocked Floyd-Warshall, `E_TOO_LARGE` above the device's
+         * storage-binding ceiling. The seam passes `SsspOptions`; neither of its keys has an all-pairs meaning, so a
+         * defined `cutoff` (it would change what `+Infinity` means) or `weights` (a per-arc override is a different
+         * matrix from the snapshot's resident column) is `E_UNSUPPORTED { option }`, never silently dropped.
+         * @param gs - the snapshot
+         * @param o - the seam's `SsspOptions`; both keys refused when defined
+         * @returns the row-major `n x n` distances and `n` (spec 3.3 line 835)
+         */
+        async allPairsShortestPath(gs: GraphSnapshot, o?: SsspOptions): Promise<GpuApspResult> {
+            ctx.assertReady();
+            for (const key of ["cutoff", "weights"] as const) {
+                if (o?.[key] !== undefined) {
+                    throw new WebGpuGraphError("E_UNSUPPORTED", `allPairsShortestPath: ${key} is not supported`, {
+                        option: key,
+                        hint: "all-pairs shortest paths runs over the snapshot's own weights with no cutoff",
+                    });
+                }
+            }
+            return await allPairsShortestPath(ctx, gs);
+        },
+        /**
+         * Triangle counting with the clustering coefficient and the transitivity (design 8.5; P11).
+         * @param gs - the snapshot
+         * @returns perNode, total, coefficient and transitivity
+         */
+        async triangleCount(gs: GraphSnapshot): Promise<GpuTriangleResult> {
+            ctx.assertReady();
+            return await triangleCount(ctx, gs);
+        },
+        /**
+         * Label propagation (design 8.6; P11): `maxIterations` and `weighted` are honoured, `tolerance` is refused when
+         * defined (a label propagation stops at a fixed point, not below a tolerance).
+         * @param gs - the snapshot
+         * @param o - the seam's placeholder `HitsOptionsLike`
+         * @returns the labels dense in first-seen order, the community count and groups()
+         */
+        async labelPropagation(gs: GraphSnapshot, o?: HitsOptionsLike): Promise<GpuLabelResult> {
+            ctx.assertReady();
+            if (o?.tolerance !== undefined) {
+                throw new WebGpuGraphError("E_UNSUPPORTED", "labelPropagation: tolerance has no meaning here", {
+                    option: "tolerance",
+                    hint: "label propagation stops at a fixed point or after maxIterations passes",
+                });
+            }
+            return await labelPropagation(ctx, gs, { maxIterations: o?.maxIterations, weighted: o?.weighted });
         },
         /**
          * Destroys every device buffer recorded for the snapshot (spec 4.5); delegates to ctx.release.

@@ -5,6 +5,8 @@ import {
     type AdapterInfoLike,
     type AdapterSummary,
     type AlgorithmAccelerator,
+    allPairsShortestPath,
+    type ApspOptions,
     type ApspResultLike,
     ARC_WINDOW_ALIGN,
     bellmanFord,
@@ -39,6 +41,7 @@ import {
     type FruchtermanReingoldStats,
     type FruchtermanReingoldTraceRecord,
     type GpuAccelerator,
+    type GpuApspResult,
     type GpuBellmanFordResult,
     type GpuBfsResult,
     type GpuCalibration,
@@ -54,6 +57,7 @@ import {
     type GpuRunOptions,
     type GpuScoresResult,
     type GpuSsspResult,
+    type GpuTriangleResult,
     hasErrorCode,
     hits,
     type HitsOptions,
@@ -63,6 +67,8 @@ import {
     isWebGpuGraphError,
     katzCentrality,
     type KatzOptions,
+    labelPropagation,
+    type LabelPropagationOptions,
     type LabelResultLike,
     LAYOUT_TUNING_DEFAULTS,
     type LayoutAccelerator,
@@ -95,6 +101,7 @@ import {
     sssp,
     type SsspResultLike,
     STORAGE_ALIGN,
+    triangleCount,
     WebGpuGraphError,
     type WebGpuGraphErrorCode,
     WORKGROUP_SIZE,
@@ -352,6 +359,32 @@ expectTypeOf<GpuAccelerator["closenessCentrality"]>()
     .parameter(1)
     .toEqualTypeOf<ClosenessAcceleratorOptions | undefined>();
 expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuClosenessResult>();
+
+// ---- all-pairs shortest paths (design 3.3 lines 813 and 835, 8.7, 9.7)
+expectTypeOf(allPairsShortestPath).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(allPairsShortestPath).parameter(2).toEqualTypeOf<(ApspOptions & GpuRunOptions) | undefined>();
+expectTypeOf(allPairsShortestPath).returns.resolves.toEqualTypeOf<GpuApspResult>();
+expectTypeOf<keyof GpuApspResult>().toEqualTypeOf<"dist" | "n">();
+expectTypeOf<GpuApspResult["dist"]>().toEqualTypeOf<F32>();
+expectTypeOf<GpuApspResult["n"]>().toBeNumber();
+expectTypeOf<keyof ApspOptions>().toEqualTypeOf<"weighted">();
+expectTypeOf<ApspOptions["weighted"]>().toEqualTypeOf<boolean | undefined>();
+expectTypeOf<GpuApspResult>().toMatchTypeOf<ApspResultLike>();
+expectTypeOf<GpuAccelerator["allPairsShortestPath"]>().parameter(1).toEqualTypeOf<SsspOptions | undefined>();
+expectTypeOf<GpuAccelerator["allPairsShortestPath"]>().returns.resolves.toEqualTypeOf<GpuApspResult>();
+// ---- P11: triangle counting and label propagation (design 3.3 lines 806-807, 8.5, 8.6)
+expectTypeOf(triangleCount).parameter(1).toEqualTypeOf<GraphSnapshot>();
+expectTypeOf(triangleCount).parameter(2).toEqualTypeOf<GpuRunOptions | undefined>();
+expectTypeOf(triangleCount).returns.resolves.toEqualTypeOf<GpuTriangleResult>();
+expectTypeOf<keyof GpuTriangleResult>().toEqualTypeOf<"perNode" | "total" | "coefficient" | "transitivity">();
+expectTypeOf<GpuTriangleResult["perNode"]>().toEqualTypeOf<U32>();
+expectTypeOf<GpuTriangleResult["coefficient"]>().toEqualTypeOf<F32>();
+expectTypeOf(labelPropagation).parameter(2).toEqualTypeOf<(LabelPropagationOptions & GpuRunOptions) | undefined>();
+expectTypeOf(labelPropagation).returns.resolves.toEqualTypeOf<GpuLabelResult>();
+expectTypeOf<keyof LabelPropagationOptions>().toEqualTypeOf<"maxIterations" | "weighted">();
+expectTypeOf<GpuAccelerator["triangleCount"]>().returns.resolves.toEqualTypeOf<GpuTriangleResult>();
+expectTypeOf<GpuAccelerator["labelPropagation"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
+expectTypeOf<GpuAccelerator["labelPropagation"]>().returns.resolves.toEqualTypeOf<GpuLabelResult>();
 
 // ---- layouts (P3; contract 3.3, 3.13)
 expectTypeOf(seedPositions).parameter(2).toEqualTypeOf<number | null>();

@@ -13,7 +13,11 @@
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
  * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
  * blocks; P8-T11 adds closeness-sweep and closeness-reduce; P9 (betweenness) adds bc-finalize, bc-forward,
- * bc-backward, bc-gather, bc-edge-gather and bc-forward-edge with the BcParams block. This file is the only importer of src/wgsl/** (spec 3.2;
+ * bc-backward, bc-gather, bc-edge-gather and bc-forward-edge with the BcParams block; all-pairs shortest paths
+ * (design 8.7) adds apsp-init and apsp-fw with the ApspParams block. P11 (the structure and community phase, plan
+ * design/webgpu/plans/2026-09-23-webgpu-p11-structure-and-community.md) adds the graph build on the device (coo-emit,
+ * run-flags, coo-scatter), the per-row group-by-key (group-by-key-row), label propagation's step (lpa-step) and
+ * triangle counting (orient-flags, tri-intersect). This file is the only importer of src/wgsl/** (spec 3.2;
  * test/layers.test.ts).
  */
 
@@ -24,6 +28,8 @@ import { type BindingDecl, type OverrideDecl, type WgslModuleSpec } from "./kern
 import { type CoreBinding } from "./memory/residency.js";
 import { type Binding } from "./types/memory.js";
 import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
+import { apspFwWgsl } from "./wgsl/apsp-fw.wgsl.js";
+import { apspInitWgsl } from "./wgsl/apsp-init.wgsl.js";
 import { bcBackwardWgsl } from "./wgsl/bc-backward.wgsl.js";
 import { bcEdgeGatherWgsl } from "./wgsl/bc-edge-gather.wgsl.js";
 import { bcFinalizeWgsl } from "./wgsl/bc-finalize.wgsl.js";
@@ -40,6 +46,8 @@ import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
 import { closenessReduceWgsl } from "./wgsl/closeness-reduce.wgsl.js";
 import { closenessSweepWgsl } from "./wgsl/closeness-sweep.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
+import { cooEmitWgsl } from "./wgsl/coo-emit.wgsl.js";
+import { cooScatterWgsl } from "./wgsl/coo-scatter.wgsl.js";
 import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
 import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
 import { dedupeFilterWgsl } from "./wgsl/dedupe-filter.wgsl.js";
@@ -58,25 +66,30 @@ import { gridCentroidHubWgsl } from "./wgsl/grid-centroid-hub.wgsl.js";
 import { gridDownsampleWgsl } from "./wgsl/grid-downsample.wgsl.js";
 import { gridFarFieldWgsl } from "./wgsl/grid-far-field.wgsl.js";
 import { gridNearFieldWgsl } from "./wgsl/grid-near-field.wgsl.js";
+import { groupByKeyRowWgsl } from "./wgsl/group-by-key-row.wgsl.js";
 import { histogramWgsl } from "./wgsl/histogram.wgsl.js";
 import { indirectFinalizeWgsl } from "./wgsl/indirect-finalize.wgsl.js";
+import { lpaStepWgsl } from "./wgsl/lpa-step.wgsl.js";
+import { orientFlagsWgsl } from "./wgsl/orient-flags.wgsl.js";
 import { prFinalizeWgsl } from "./wgsl/pr-finalize.wgsl.js";
 import { prScaleWgsl } from "./wgsl/pr-scale.wgsl.js";
 import { radixHistWgsl } from "./wgsl/radix-hist.wgsl.js";
 import { radixScatterWgsl } from "./wgsl/radix-scatter.wgsl.js";
 import { reduceWgsl } from "./wgsl/reduce.wgsl.js";
+import { runFlagsWgsl } from "./wgsl/run-flags.wgsl.js";
 import { scanAddWgsl } from "./wgsl/scan-add.wgsl.js";
 import { scanBlockWgsl } from "./wgsl/scan-block.wgsl.js";
 import { segmentedReduceWgsl } from "./wgsl/segmented-reduce.wgsl.js";
 import { spmvPullWgsl } from "./wgsl/spmv-pull.wgsl.js";
 import { ssspPredWgsl } from "./wgsl/sssp-pred.wgsl.js";
 import { ssspRelaxWgsl } from "./wgsl/sssp-relax.wgsl.js";
+import { triIntersectWgsl } from "./wgsl/tri-intersect.wgsl.js";
 import { wccCompressWgsl } from "./wgsl/wcc-compress.wgsl.js";
 import { wccLinkEdgesWgsl } from "./wgsl/wcc-link-edges.wgsl.js";
 import { wccLinkSampleWgsl } from "./wgsl/wcc-link-sample.wgsl.js";
 import { wccSampleWgsl } from "./wgsl/wcc-sample.wgsl.js";
 
-/** Every module id of P1-P4, P7, P8 and P9 (later ids are appended, never renamed). */
+/** Every module id of P1-P4, P7, P8, P9 and P11 (later ids are appended, never renamed). */
 export type KernelId =
     | "degree"
     | "reduce"
@@ -129,7 +142,16 @@ export type KernelId =
     | "bc-backward"
     | "bc-gather"
     | "bc-edge-gather"
-    | "bc-forward-edge";
+    | "bc-forward-edge"
+    | "apsp-init"
+    | "apsp-fw"
+    | "coo-emit"
+    | "run-flags"
+    | "coo-scatter"
+    | "orient-flags"
+    | "tri-intersect"
+    | "group-by-key-row"
+    | "lpa-step";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -144,7 +166,7 @@ export interface KernelEntry {
     /** The snippet marker names the body carries (segmented-reduce: ["VALUE"]). */
     readonly snippetSlots: readonly string[];
     /** The phase the entry landed in (documentation and the compile-matrix filter). */
-    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9";
+    readonly phase: "P1" | "P2" | "P3" | "P4" | "P7" | "P8" | "P9" | "P11";
 }
 
 // ---- the generated blocks (spec 5.3; contract 3.10.2): field order = byte order, offsets in the JSDoc
@@ -511,6 +533,38 @@ export const BF_FLAGS: UniformBlock = UniformBlock.define(
     ],
     { layout: "storage" },
 );
+
+/** `ApspParams` (uniform, 16 B; design 8.7): `n` @0 (the node count, the matrix side), `round` @4 (the pivot block index of the blocked Floyd-Warshall round), `blocks` @8 (`ceil(n / APSP_TILE)`), `infBits` @12 (`F32_INF_BITS`: a kernel reads `+Infinity` from a uniform because Tint refuses it as a constant expression). */
+export const APSP_PARAMS: UniformBlock = UniformBlock.define("ApspParams", [
+    ["n", "u32"],
+    ["round", "u32"],
+    ["blocks", "u32"],
+    ["infBits", "u32"],
+]);
+
+/** `CooParams` (uniform, 16 B; P11): `count` @0 (the arcs or positions of the dispatch), `pad0` @4, `pad1` @8, `pad2` @12. The one params block of `coo-emit`, `run-flags`, `coo-scatter`, `orient-flags` and `tri-intersect`. */
+export const COO_PARAMS: UniformBlock = UniformBlock.define("CooParams", [
+    ["count", "u32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
+    ["pad2", "u32"],
+]);
+
+/** `GroupParams` (uniform, 16 B; P11): `rowsBase` @0 (the word of `rows` where the dispatch's row list starts), `basesBase` @4 (the word where the workgroup tier's region offsets start), `count` @8 (the rows of the dispatch), `pad0` @12. */
+export const GROUP_PARAMS: UniformBlock = UniformBlock.define("GroupParams", [
+    ["rowsBase", "u32"],
+    ["basesBase", "u32"],
+    ["count", "u32"],
+    ["pad0", "u32"],
+]);
+
+/** `LpaParams` (uniform, 16 B; P11): `n` @0, `direction` @4 (0: a pass that moves labels down only, 1: up only), `counterIndex` @8 (the word of `counters` that receives the pass's move count), `pad0` @12. */
+export const LPA_PARAMS: UniformBlock = UniformBlock.define("LpaParams", [
+    ["n", "u32"],
+    ["direction", "u32"],
+    ["counterIndex", "u32"],
+    ["pad0", "u32"],
+]);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
 
@@ -1516,6 +1570,183 @@ const BC_FORWARD_EDGE: KernelEntry = {
     phase: "P9",
 };
 
+/** `apsp-init` (design 8.7): one lane per row writes that row's arcs into the `+Infinity`-filled `n x n` matrix, the cheapest of parallel arcs, then the diagonal zero; 5 storage bindings (the four graph slots -- `perm` bound to its dummy, the rows are never permuted -- and `dist`). */
+const APSP_INIT: KernelEntry = {
+    id: "apsp-init",
+    body: apspInitWgsl,
+    entryPoint: "apsp_init",
+    bindings: GRAPH_SLOTS.concat(decl(1, 0, "dist", "storage", "array<f32>"), decl(2, 0, "P", "uniform", "ApspParams")),
+    overrideDecls: [],
+    uniforms: [APSP_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `apsp-fw` (design 8.7): one phase of one blocked Floyd-Warshall round over 32 x 32 tiles in workgroup memory -- `PHASE` 0 the pivot block, 1 the pivot row and column, 2 every other block; 1 storage binding (`dist`, read-write). */
+const APSP_FW: KernelEntry = {
+    id: "apsp-fw",
+    body: apspFwWgsl,
+    entryPoint: "apsp_fw",
+    bindings: [decl(1, 0, "dist", "storage", "array<f32>"), decl(2, 0, "P", "uniform", "ApspParams")],
+    overrideDecls: [{ name: "PHASE", type: "u32", default: 0 }],
+    uniforms: [APSP_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `coo-emit` (design 6 row 10; P11): position i takes arc i, or `order[i]` under INDEXED, and writes its source, target and weight -- arc 2e is edge e as declared, 2e + 1 its reverse; a self-loop's two arcs become `INVALID_INDEX`; 7 storage bindings. */
+const COO_EMIT: KernelEntry = {
+    id: "coo-emit",
+    body: cooEmitWgsl,
+    entryPoint: "coo_emit",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "edgeWeight", "storage-ro", "array<f32>"),
+        decl(1, 3, "order", "storage-ro", "array<u32>"),
+        decl(1, 4, "outSrc", "storage", "array<u32>"),
+        decl(1, 5, "outDst", "storage", "array<u32>"),
+        decl(1, 6, "outWeight", "storage", "array<f32>"),
+        decl(2, 0, "P", "uniform", "CooParams"),
+    ],
+    overrideDecls: [
+        { name: "INDEXED", type: "bool", default: false },
+        { name: "WEIGHTED", type: "bool", default: false },
+    ],
+    uniforms: [COO_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `run-flags` (design 6 row 10; P11): 1 where an arc opens a run of equal (keysA, keysB) pairs and is not dropped; 3 storage bindings. */
+const RUN_FLAGS: KernelEntry = {
+    id: "run-flags",
+    body: runFlagsWgsl,
+    entryPoint: "run_flags",
+    bindings: [
+        decl(1, 0, "keysA", "storage-ro", "array<u32>"),
+        decl(1, 1, "keysB", "storage-ro", "array<u32>"),
+        decl(1, 2, "flags", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "CooParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COO_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `coo-scatter` (design 6 row 10; P11): the scatter of `cooToCsr` -- the cursor mode, or under SORTED_INPUT the order-preserving mode whose precondition flag is `cursors[0]`; 7 storage bindings. */
+const COO_SCATTER: KernelEntry = {
+    id: "coo-scatter",
+    body: cooScatterWgsl,
+    entryPoint: "coo_scatter",
+    bindings: [
+        decl(1, 0, "src", "storage-ro", "array<u32>"),
+        decl(1, 1, "dst", "storage-ro", "array<u32>"),
+        decl(1, 2, "weight", "storage-ro", "array<f32>"),
+        decl(1, 3, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 4, "cursors", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "colIdx", "storage", "array<u32>"),
+        decl(1, 6, "outWeight", "storage", "array<f32>"),
+        decl(2, 0, "P", "uniform", "CooParams"),
+    ],
+    overrideDecls: [
+        { name: "SORTED_INPUT", type: "bool", default: false },
+        { name: "WEIGHTED", type: "bool", default: false },
+    ],
+    uniforms: [COO_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `orient-flags` (design 8.5; P11): 1 where arc (u, v) points up the (degree, id) order, one arc per undirected edge; 4 storage bindings. */
+const ORIENT_FLAGS: KernelEntry = {
+    id: "orient-flags",
+    body: orientFlagsWgsl,
+    entryPoint: "orient_flags",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "src", "storage-ro", "array<u32>"),
+        decl(1, 3, "flags", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "CooParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [COO_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `tri-intersect` (design 8.5, 8.10 "Triangle intersection"; P11): one oriented arc per invocation, merge or binary-search intersection (SEARCH 0 chooses, 1 merge, 2 search), u32 atomic per-node counts; 4 storage bindings. */
+const TRI_INTERSECT: KernelEntry = {
+    id: "tri-intersect",
+    body: triIntersectWgsl,
+    entryPoint: "tri_intersect",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "src", "storage-ro", "array<u32>"),
+        decl(1, 3, "counts", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "CooParams"),
+    ],
+    overrideDecls: [{ name: "SEARCH", type: "u32", default: 0 }],
+    uniforms: [COO_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `group-by-key-row` (design 8.6; P11): per listed row, the target key with the largest summed weight (lowest key on a tie), TIER 0 a thread per row, else a workgroup per row over a global hash region; 8 storage bindings. */
+const GROUP_BY_KEY_ROW: KernelEntry = {
+    id: "group-by-key-row",
+    body: groupByKeyRowWgsl,
+    entryPoint: "group_by_key_row",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "weights", "storage-ro", "array<f32>"),
+        decl(1, 3, "keyIn", "storage-ro", "array<u32>"),
+        decl(1, 4, "rows", "storage-ro", "array<u32>"),
+        decl(1, 5, "hashRegion", "storage", "array<atomic<u32>>"),
+        decl(1, 6, "bestKey", "storage", "array<u32>"),
+        decl(1, 7, "bestScore", "storage", "array<f32>"),
+        decl(2, 0, "P", "uniform", "GroupParams"),
+    ],
+    overrideDecls: [
+        { name: "TIER", type: "u32", default: 0 },
+        { name: "WEIGHTED", type: "bool", default: false },
+    ],
+    uniforms: [GROUP_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `lpa-step` (design 8.6, 8.10 "Label propagation"; P11): a vertex adopts its best neighbour label when the move goes the pass's direction; one atomic per workgroup adds the moves to `counters[P.counterIndex]`; 4 storage bindings. */
+const LPA_STEP: KernelEntry = {
+    id: "lpa-step",
+    body: lpaStepWgsl,
+    entryPoint: "lpa_step",
+    bindings: [
+        decl(1, 0, "labelsIn", "storage-ro", "array<u32>"),
+        decl(1, 1, "bestKey", "storage-ro", "array<u32>"),
+        decl(1, 2, "labelsOut", "storage", "array<u32>"),
+        decl(1, 3, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "LpaParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [LPA_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1525,8 +1756,10 @@ const BC_FORWARD_EDGE: KernelEntry = {
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, and betweenness the
- * six `"bc-*"` entries, so every member of `KernelId` is present and the assertion is exact.
+ * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, betweenness the
+ * six `"bc-*"` entries, all-pairs shortest paths `"apsp-init"` and `"apsp-fw"`, and P11 its seven (the graph
+ * build, the group-by-key, label propagation's step and triangle counting), so every member of `KernelId`
+ * is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
     degree: DEGREE,
@@ -1581,6 +1814,15 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bc-gather": BC_GATHER,
     "bc-edge-gather": BC_EDGE_GATHER,
     "bc-forward-edge": BC_FORWARD_EDGE,
+    "apsp-init": APSP_INIT,
+    "apsp-fw": APSP_FW,
+    "coo-emit": COO_EMIT,
+    "run-flags": RUN_FLAGS,
+    "coo-scatter": COO_SCATTER,
+    "orient-flags": ORIENT_FLAGS,
+    "tri-intersect": TRI_INTERSECT,
+    "group-by-key-row": GROUP_BY_KEY_ROW,
+    "lpa-step": LPA_STEP,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

@@ -9,6 +9,7 @@ import { BFSAlgorithm } from "./BFSAlgorithm";
 // Phase 8 advanced algorithms
 import { BipartiteMatchingAlgorithm } from "./BipartiteMatchingAlgorithm";
 import { ClosenessCentralityAlgorithm } from "./ClosenessCentralityAlgorithm";
+import { ClusteringCoefficientAlgorithm } from "./ClusteringCoefficientAlgorithm";
 // Phase 6 component algorithms
 import { ConnectedComponentsAlgorithm } from "./ConnectedComponentsAlgorithm";
 // Phase 1 algorithms
@@ -73,6 +74,7 @@ Algorithm.register(BipartiteMatchingAlgorithm);
 Algorithm.register(MaxFlowAlgorithm);
 Algorithm.register(MinCutAlgorithm);
 Algorithm.register(KCoreAlgorithm);
+Algorithm.register(ClusteringCoefficientAlgorithm);
 Algorithm.register(LinkPredictionAlgorithm);
 
 // Export base class and types

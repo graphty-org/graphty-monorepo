@@ -162,8 +162,9 @@ expectTypeOf(acc.edgeBetweennessCentrality).toMatchTypeOf<
     NonNullable<AlgorithmAccelerator["edgeBetweennessCentrality"]>
 >();
 expectTypeOf(acc.betweennessCentrality).not.toEqualTypeOf<undefined>();
-// members no phase implements yet keep the mirror's optional type -- the dispatchers read them as `undefined`
-expectTypeOf(acc.allPairsShortestPath).toEqualTypeOf<AlgorithmAccelerator["allPairsShortestPath"]>();
+// the all-pairs member is non-optional and narrows the mirror's optional type
+expectTypeOf(acc.allPairsShortestPath).toMatchTypeOf<NonNullable<AlgorithmAccelerator["allPairsShortestPath"]>>();
+expectTypeOf(acc.allPairsShortestPath).not.toEqualTypeOf<undefined>();
 // the two P5 layout members (spec 3.3 lines 892-893; PD-19): functions, non-optional, the @graphty/layout option
 // type `| undefined` in and a LayoutSimulation (the GPU simulation) out; `createSimulation` routes on `!== undefined`
 expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().toBeFunction();

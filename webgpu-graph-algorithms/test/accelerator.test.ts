@@ -1,14 +1,17 @@
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 
 import { createAccelerator } from "../src/accelerator.js";
+import { allPairsShortestPath } from "../src/algorithms/all-pairs.js";
 import { bellmanFord } from "../src/algorithms/bellman-ford.js";
 import { betweennessCentrality, edgeBetweennessCentrality } from "../src/algorithms/betweenness.js";
 import { breadthFirstSearch } from "../src/algorithms/bfs.js";
 import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
+import { labelPropagation } from "../src/algorithms/label-propagation.js";
 import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
 import { sssp } from "../src/algorithms/sssp.js";
+import { triangleCount } from "../src/algorithms/triangles.js";
 import { FA2_DEFAULTS, FR_DEFAULTS, LAYOUT_TUNING_DEFAULTS, SE_DEFAULTS } from "../src/constants.js";
 import { isWebGpuGraphError } from "../src/errors.js";
 import { ForceSimulation } from "../src/layouts/force-simulation.js";
@@ -37,8 +40,8 @@ import { expectBitwiseEqual } from "./helpers/matchers.js";
 import { acquire, requireGpu } from "./setup/gpu.js";
 
 /**
- * The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14) and the four P8 traversal members (P8-T13 PD-16), in the
- * order AlgorithmAccelerator declares them.
+ * The seven P7 algorithm members (spec 9.2; M8b-T8 PD-14), the four P8 traversal members (P8-T13 PD-16), the two
+ * betweenness members, all-pairs shortest paths and the two P11 members, in the order AlgorithmAccelerator declares them.
  */
 const ALGORITHM_MEMBERS = [
     "pageRank",
@@ -54,6 +57,9 @@ const ALGORITHM_MEMBERS = [
     "closenessCentrality",
     "betweennessCentrality",
     "edgeBetweennessCentrality",
+    "allPairsShortestPath",
+    "triangleCount",
+    "labelPropagation",
 ] as const;
 
 /** The simulation class behind createForceAtlas2, narrowed so the tests can read `tuning` and `options`. */
@@ -137,10 +143,10 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         expect(typeof acc.springElectrical).toBe("function");
         expect(typeof acc.release).toBe("function");
         expect(typeof acc.dispose).toBe("function");
-        // spec 2.4 row "method missing" / 9.2 `acc.allPairsShortestPath === undefined -> CPU`: absent, never a
+        // spec 2.4 row "method missing" / 9.2 `acc.kCoreDecomposition === undefined -> CPU`: absent, never a
         // throwing stub; the shipped members are present and route to the GPU
-        expect(acc.allPairsShortestPath).toBeUndefined();
-        expect("allPairsShortestPath" in acc).toBe(false);
+        expect(acc.kCoreDecomposition).toBeUndefined();
+        expect("kCoreDecomposition" in acc).toBe(false);
         // P8 PD-16: a member exists when its algorithm ships, so the four traversals are functions now and a consumer's
         // feature detection (`typeof accel.sssp === "function"`) routes them to the GPU; nothing named harmonic or
         // eccentricity exists (DEP-P8-F)
@@ -149,7 +155,7 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         }
         expect("harmonicCentrality" in acc).toBe(false);
         expect("eccentricity" in acc).toBe(false);
-        const route = acc.allPairsShortestPath !== undefined ? "gpu" : "cpu";
+        const route = acc.kCoreDecomposition !== undefined ? "gpu" : "cpu";
         expect(route).toBe("cpu");
         expect(typeof acc.betweennessCentrality).toBe("function");
         const p7Route = acc.pageRank !== undefined ? "gpu" : "cpu";
@@ -565,6 +571,69 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         });
         plain.dispose();
         await expect(plain.betweennessCentrality(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });
+    });
+
+    it("carries allPairsShortestPath, delegating to its driver and refusing the seam's cutoff and weights (design 8.7)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-all-pairs" });
+        const acc = createAccelerator(ctx);
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const injected: AlgorithmAccelerator = acc;
+        expect(typeof acc.allPairsShortestPath).toBe("function");
+        expect(injected.allPairsShortestPath).toBe(acc.allPairsShortestPath);
+        const viaMember = await acc.allPairsShortestPath(snapshot);
+        const direct = await allPairsShortestPath(ctx, snapshot);
+        expectBitwiseEqual(viaMember.dist, direct.dist, "allPairsShortestPath.dist");
+        expect(viaMember.n).toBe(snapshot.nodeCount);
+        // neither SsspOptions key has an all-pairs meaning: refused through the member, never dropped
+        await expect(acc.allPairsShortestPath(snapshot, { cutoff: 2 })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "cutoff" },
+        });
+        const weights = new Float32Array(snapshot.arcCount).fill(2);
+        await expect(acc.allPairsShortestPath(snapshot, { weights })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "weights" },
+        });
+        // undefined for both runs
+        const plain = await acc.allPairsShortestPath(snapshot, { cutoff: undefined, weights: undefined });
+        expectBitwiseEqual(plain.dist, direct.dist, "allPairsShortestPath with undefined options");
+        acc.release(snapshot);
+        acc.dispose();
+        await expect(acc.allPairsShortestPath(snapshot)).rejects.toMatchObject({ code: "E_DISPOSED" });
+    });
+
+    it("carries the two P11 members, each delegating to its driver; labelPropagation refuses tolerance", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "accelerator-structure" });
+        const acc = createAccelerator(ctx);
+        const snapshot = snapshotOf(KARATE_EDGES);
+        const mass = new Float32Array(snapshot.nodeCount);
+        const injected: AlgorithmAccelerator = acc;
+        for (const member of ["triangleCount", "labelPropagation"] as const) {
+            expect(typeof acc[member], member).toBe("function");
+            expect(injected[member], member).toBe(acc[member]);
+        }
+        const tri = await acc.triangleCount(snapshot);
+        const triDirect = await triangleCount(ctx, snapshot);
+        expectBitwiseEqual(tri.perNode, triDirect.perNode, "triangleCount.perNode");
+        expectBitwiseEqual(tri.coefficient, triDirect.coefficient, "triangleCount.coefficient");
+        expect(tri.total).toBe(45);
+        expect(tri.transitivity).toBe(triDirect.transitivity);
+        // the seam's HitsOptionsLike: maxIterations and weighted reach the driver
+        const lpa = await acc.labelPropagation(snapshot, { maxIterations: 3, weighted: false });
+        const lpaDirect = await labelPropagation(ctx, snapshot, { maxIterations: 3, weighted: false });
+        expectBitwiseEqual(lpa.labels, lpaDirect.labels, "labelPropagation");
+        expect(lpa.count).toBe(lpaDirect.count);
+        await expect(acc.labelPropagation(snapshot, { tolerance: 1e-6 })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+            details: { option: "tolerance" },
+        });
+        acc.release(snapshot);
+        acc.dispose();
+        for (const member of ["triangleCount", "labelPropagation"] as const) {
+            await expect(callMember(acc, member, snapshot, mass), member).rejects.toMatchObject({ code: "E_DISPOSED" });
+        }
     });
 
     it("release and dispose delegate to the context", async (t) => {

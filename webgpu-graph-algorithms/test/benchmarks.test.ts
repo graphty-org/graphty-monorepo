@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { APSP_GROUP, APSP_RUNGS, apspReadbackRowName, apspRowName } from "../benchmarks/apsp.bench.js";
 import {
     ATTRACTION_LADDER,
     ATTRACTION_SCALE_GROUP,
@@ -699,6 +700,16 @@ describe("scripts/bench-readme-tables.js (issue #277)", () => {
     });
 });
 
+describe("benchmarks/apsp.bench.ts (design 8.7)", () => {
+    it("the group is apsp; its rungs are multiples of the 32-node tile climbing to 5,760, one tile under the 5,792-node default ceiling", () => {
+        expect(APSP_GROUP).toBe("apsp");
+        expect([...APSP_RUNGS]).toEqual([512, 1024, 2048, 4096, 5760]);
+        expect(APSP_RUNGS.every((n) => n % 32 === 0 && n < 5792)).toBe(true);
+        expect(apspRowName(512)).toBe("apsp at n=512");
+        expect(apspReadbackRowName(5760)).toBe("apsp readback n=5760");
+    });
+});
+
 describe("benchmarks/bfs.bench.ts (spec 10.4 T-10; P8-T14)", () => {
     it("the group is bfs; its RMAT rungs are the 100k / 1M and 1M / 10M tiers as 2^17 x 8 and 2^20 x 10; the grid is 1000 x 1000", () => {
         expect(BFS_GROUP).toBe("bfs");
@@ -741,6 +752,9 @@ describe("scripts/bench-append-session.js (P8-T14 Step 3; contract 6.4)", () => 
         "attraction-scale",
         "bfs",
         "betweenness",
+        "apsp",
+        "triangles",
+        "label-propagation",
     ] as const;
     /** A hardware session of the dev-box class with one row per group: the one the script accepts. */
     const complete = (): BenchSession[] =>
@@ -814,7 +828,7 @@ describe("scripts/bench-append-session.js (P8-T14 Step 3; contract 6.4)", () => 
         expect(r.results).toBeNull();
     });
 
-    it("refusal 3: a session missing any one of the ten groups, named; the T4 run of 2026-09-23 lacks two", () => {
+    it("refusal 3: a session missing any one of the thirteen groups, named; the T4 run of 2026-09-23 lacks two", () => {
         const last = lastOf(complete());
         for (const group of REQUIRED_GROUPS) {
             const r = append(variant({ results: last.results.filter((row) => row.group !== group) }), null);

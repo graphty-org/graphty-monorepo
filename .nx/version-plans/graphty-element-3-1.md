@@ -9,6 +9,10 @@ Features:
 - A plugin algorithm reads its graph through `context.input(orientation)`: the snapshot, the scope's masks, `subgraph()`, `input.edgeId(row)` and `input.subgraphEdgeIds(row)` for edge ids, `input.column(option)` for declared attribute and partition options, and the `weight` input option. `./extend` also exports `edgeMetricFields`, `Column` and `WeightMeaning`.
 - `closeness` takes `k` to sample that many source nodes on a big graph; the result says so in `caveats.exact` and `caveats.sampleSize`.
 - `@graphty/graph-format` is a regular dependency only, no longer also a peer dependency, so a consumer does not install it alongside.
+- With `@graphty/webgpu-graph-algorithms` installed, `betweenness` and `floyd-warshall` run on the GPU from a few hundred nodes. `clustering-coefficient` and `label-propagation` are routed too, but their measured floor, 100,000 nodes, is above the 50,000 the element draws, so today they reach the GPU only through `acceleration-min-nodes` or `acceleration="required"`. Each run says which path answered in `caveats.precision`. The floors of every accelerated algorithm were re-measured against the new CPU implementations: `pagerank` now goes to the GPU from 10,000 nodes and `closeness` from 4,000. The acceleration guide lists every floor.
+- `betweenness` takes `k` to sample that many source nodes, as `closeness` does.
+- `clustering-coefficient` runs: each node's local clustering coefficient and triangle count, and the graph's transitivity and triangle total. It is no longer in `DEPRECATED_ALGORITHMS`.
+- `label-propagation` runs synchronous passes when no `randomSeed` is set, which is now the default. A GPU runs the same rule, so a large graph can go to the GPU. Set `randomSeed` for the previous seeded, one-node-at-a-time algorithm, which always runs on the CPU. The partition a run without a seed returns can differ from the old default's.
 
 Deprecated (removed in 4.0):
 

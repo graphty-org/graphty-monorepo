@@ -133,9 +133,10 @@ That is the label to show beside a value a reader might compare against a saved 
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
 | `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
 | `closeness`                            | Yes, with one exception | The CPU implementation                           |
+| `betweenness`, `floyd-warshall`        | Yes, above a floor      | The CPU implementation                           |
+| `clustering-coefficient`               | Yes, above a floor      | The CPU implementation                           |
+| `label-propagation`                    | Yes, with one exception | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
-| `betweenness`                          | No                      | The CPU implementation                           |
-| `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
 | `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
 `kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
@@ -143,12 +144,13 @@ with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it
 `E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
 the member exists, with no change to your page.
 
-The algorithms in the last three rows are never handed to an accelerator, even one that implements
+The algorithms in the last row are never handed to an accelerator, even one that implements
 them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
 
-An algorithm is accelerated only above a measured node count: `closeness` from 5,800 nodes, `hits`
-from 15,000, `katz` and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
-`connected-components` from 132,000 and `bfs` from 141,000. An algorithm
+An algorithm is accelerated only above a measured node count: `floyd-warshall` from 300 nodes,
+`betweenness` from 400, `closeness` from 4,000, `pagerank` from 10,000, `hits` from 15,000,
+and `katz`, `eigenvector`, `dijkstra`, `bfs`, `connected-components`,
+`clustering-coefficient` and `label-propagation` from 100,000. An algorithm
 is one call, and on the device that call costs several round trips whatever the size, so below
 those counts the CPU has finished before the device has started -- and a traversal, which is one
 round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
@@ -157,17 +159,18 @@ card (see `acceleration-min-nodes` below for how to replace them with your own),
 `acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
 purpose.
 
-Three of those floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
-`connected-components` and `bfs` take the CPU path at every size the element will hold today. That
-is the measurement, not caution: through the element an accelerated call never returned in under
-about 12 milliseconds, because every level of a traversal and every convergence test is a readback
-worth roughly 2 milliseconds of round trip, and on a graph of 50,000 nodes and 100,000 edges the
-CPU implementations of all three finish well inside that. PageRank crosses at the top of what the
-element can hold, and `hits`, `katz` and `eigenvector` cross below it; their floors come from timing
-the GPU package against the CPU implementations rather than from a run through the element, so the
-element's own crossing may sit somewhat higher. Raising the renderer's ceiling is what would put
-the others in reach; until then, `acceleration="required"` or your own
-`acceleration-min-nodes` is how to put them on the device deliberately.
+Seven of those floors are above the 50,000 nodes this renderer will draw, so `katz`, `eigenvector`,
+`dijkstra`, `bfs`, `connected-components`, `clustering-coefficient` and `label-propagation` take
+the CPU path at every size the element will hold today. That is the measurement, not caution: an
+accelerated call costs several readbacks of roughly 2 milliseconds each whatever the size, and on
+a graph of 50,000 nodes and 100,000 edges the CPU implementations of those seven finish inside that,
+or -- for `clustering-coefficient` and `label-propagation`, which do win on denser graphs of
+10,000 to 20,000 nodes, and `katz`, which wins on 50,000 nodes with one edge each but loses on a
+grid -- lose at that shape, and a floor has to hold at every size above it. The
+floors were measured on 2026-09-30 by timing the CPU implementations against the GPU package in
+headless Chromium on one card. Raising the renderer's ceiling is what would put the seven in reach;
+until then, `acceleration="required"` or your own `acceleration-min-nodes` is how to put them on the
+device deliberately.
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:
@@ -192,13 +195,32 @@ single precision: the same scale, the same weighting, the same order. Under
 `closeness` has one exception: an exact run (no `k`) over more than 30,000 nodes
 takes the CPU implementation, and throws `E_NO_ACCELERATOR` under `acceleration="required"`. The
 device computes it, but the time grows with the square of the node count and is tens of seconds at
-100,000 nodes, so above that size ask for a sampled run instead. A sampled run has no cap. Its
-floor, 5,800 nodes, is the conservative of the two crossovers measured for sampled closeness (about
-100 nodes on a busy machine's medians, about 5,800 on the minimum of repeated runs).
+100,000 nodes, so above that size ask for a sampled run instead. A sampled run has no cap.
 
-An algorithm the element does not route to the device at all (`betweenness`,
-`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim`, `scc`, `k-core` and
-`louvain` today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather
+`betweenness` and `closeness` take a `k` option: set, the run is sampled from `k` sources drawn the
+same way every time, and the CPU and the device draw the same ones. Past the node floor, a run
+also needs enough work: the number of sources times the number of edges must reach 500,000 for
+`betweenness` and 1,000,000 for `closeness` (an exact run counts every node as a source). The
+device's cost of a sampled run hardly depends on the size, while the CPU's grows with the sources,
+so with a small `k` the CPU is faster on graphs where a larger `k` would be faster on the device.
+
+`label-propagation` has one exception. With no `randomSeed` (the default) it runs synchronous
+passes -- every node takes the lowest of its neighbours' best-voted labels, all at once, with passes
+alternating between moving labels only up and only down -- which is the rule a GPU runs, so above
+the floor it goes to the device and below it `@graphty/algorithms`' synchronous implementation
+runs. The two agree on community structure but differ in three details: which direction the first
+pass moves, whether a node keeps a label tied for the lead, and how a run that never settles ends.
+So on a graph with tied votes they can settle on different, equally valid partitions;
+`caveats.precision` says which ran. When labels cycle, which happens on some weighted graphs, the CPU
+stops as soon as it sees the cycle and reports `caveats.converged` as false; the device runs every
+one of `maxIterations` passes, returns whichever state that lands on and cannot report convergence,
+so `caveats.converged` is absent. With a
+`randomSeed` it runs the seeded asynchronous algorithm, one node at a time in an order drawn from the
+seed, which no GPU kernel implements: it always runs on the CPU, and under `acceleration="required"`
+it throws `E_NO_ACCELERATOR`.
+
+An algorithm the element does not route to the device at all (`dfs`, `bellman-ford`, `prim`,
+`scc`, `k-core` and `louvain` today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather
 than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.

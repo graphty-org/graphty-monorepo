@@ -582,7 +582,7 @@ describe("the hits and katz floors", () => {
 
     for (const [capability, floor] of [
         ["hits", 15_000],
-        ["katzCentrality", 28_000],
+        ["katzCentrality", 50_000],
     ] as const) {
         it(`${capability}: the CPU port below ${String(floor)} nodes, the accelerator at it`, async () => {
             assert.strictEqual(ACCELERATION_MIN_NODES_BY_CAPABILITY[capability], floor);

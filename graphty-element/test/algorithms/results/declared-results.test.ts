@@ -82,7 +82,7 @@ const CASES: readonly Case[] = [
         name: "label propagation",
         key: "label-propagation",
         shape: "community",
-        method: "label-propagation",
+        method: "label-propagation-synchronous",
         make: (g) => new LabelPropagationAlgorithm(g),
     },
     {

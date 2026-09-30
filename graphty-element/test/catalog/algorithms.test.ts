@@ -103,12 +103,12 @@ describe("built-in algorithm catalogue", () => {
             );
         });
 
-        it("folds twenty-five registered algorithms into twenty-three keys", () => {
+        it("folds twenty-six registered algorithms into twenty-four keys", () => {
             const legacyCount = BUILT_IN_ALGORITHMS.reduce((total, d) => total + d.legacyKeys.length, 0);
 
-            assert.lengthOf(registeredTypes(), 25);
-            assert.lengthOf(BUILT_IN_ALGORITHMS, 23);
-            assert.strictEqual(legacyCount, 25);
+            assert.lengthOf(registeredTypes(), 26);
+            assert.lengthOf(BUILT_IN_ALGORITHMS, 24);
+            assert.strictEqual(legacyCount, 26);
         });
 
         it("uses a unique key for every descriptor", () => {
@@ -383,12 +383,12 @@ describe("built-in algorithm catalogue", () => {
             });
         });
 
-        it("maps the twenty unchanged keys to themselves with no parameters", () => {
+        it("maps the twenty-one unchanged keys to themselves with no parameters", () => {
             const unchanged = BUILT_IN_ALGORITHMS.filter((descriptor) => descriptor.legacyKeys.length === 1).filter(
                 (descriptor) => descriptor.legacyKeys[0].key === descriptor.key,
             );
 
-            assert.lengthOf(unchanged, 20);
+            assert.lengthOf(unchanged, 21);
             for (const descriptor of unchanged) {
                 assert.deepEqual(algorithmByLegacyKey(descriptor.key)?.params, {}, descriptor.key);
             }

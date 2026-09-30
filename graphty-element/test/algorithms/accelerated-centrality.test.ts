@@ -227,8 +227,8 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
     describe("routing", () => {
         it("carries the measured floors and forwards the three members, and not the unmeasured ones", () => {
             assert.strictEqual(floorOf("hits"), 15_000);
-            assert.strictEqual(floorOf("katzCentrality"), 28_000);
-            assert.strictEqual(floorOf("eigenvectorCentrality"), 28_000);
+            assert.strictEqual(floorOf("katzCentrality"), 50_000);
+            assert.strictEqual(floorOf("eigenvectorCentrality"), 100_000);
 
             const noop = (): Promise<never> => Promise.reject(new Error("not called"));
             const narrowed = narrowAlgorithms(
@@ -237,16 +237,16 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
                         hits: noop,
                         katzCentrality: noop,
                         eigenvectorCentrality: noop,
-                        labelPropagation: noop,
-                        allPairsShortestPath: noop,
+                        kCoreDecomposition: noop,
+                        louvain: noop,
                     },
                 }),
             );
             assert.isFunction(narrowed.hits);
             assert.isFunction(narrowed.katzCentrality);
             assert.isFunction(narrowed.eigenvectorCentrality);
-            assert.isFalse("labelPropagation" in narrowed);
-            assert.isFalse("allPairsShortestPath" in narrowed);
+            assert.isFalse("kCoreDecomposition" in narrowed);
+            assert.isFalse("louvain" in narrowed);
         });
 
         const cases: readonly [FlooredCapability, (graph: Graph) => MetricAlgorithm][] = [

@@ -149,8 +149,8 @@ describe("closeness centrality through accelerated()", () => {
     });
 
     describe("routing", () => {
-        it("forwards closeness, floored at the record's conservative 5,800", () => {
-            assert.strictEqual(FLOOR, 5_800);
+        it("forwards closeness, floored at the 4,000 nodes measured against the 3.0 port", () => {
+            assert.strictEqual(FLOOR, 4_000);
             const narrowed = narrowAlgorithms(closenessFake().fake);
             assert.isFunction(narrowed.closenessCentrality);
         });

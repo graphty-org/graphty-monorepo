@@ -10,7 +10,7 @@
  * on small random graphs without self-loops and no lower on average (the 2.x values are recorded
  * below), and it is the modularity of the partition it published.
  *
- * Then the routing: eigenvector goes to the accelerator at its floor (28,000 nodes) and above and stays on the
+ * Then the routing: eigenvector goes to the accelerator at its floor (100,000 nodes) and above and stays on the
  * processor below, and a run the dispatcher answers on the processor says `f64` even when an
  * accelerator was attached.
  */
@@ -483,15 +483,15 @@ describe("centrality and community adapters on the index-based ports", () => {
     describe("routing", () => {
         const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY.eigenvectorCentrality;
 
-        it("eigenvector carries a 28,000-node floor and is forwarded to the accelerator", () => {
-            assert.strictEqual(floor, 28_000);
+        it("eigenvector carries a 100,000-node floor and is forwarded to the accelerator", () => {
+            assert.strictEqual(floor, 100_000);
             const { fake } = eigenvectorFake();
             assert.isFunction(narrowAlgorithms(fake).eigenvectorCentrality);
         });
 
         it("eigenvector at the floor runs on the accelerator and says f32", async () => {
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(28_001), fake, true);
+            const graph = await graphWith(oddRing(100_001), fake, true);
             const { values, precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 1);
             assert.strictEqual(precision, "f32");
@@ -501,7 +501,7 @@ describe("centrality and community adapters on the index-based ports", () => {
 
         it("eigenvector below the floor runs on the processor and says f64", async () => {
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(27_999), fake, true);
+            const graph = await graphWith(oddRing(99_999), fake, true);
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 0);
             assert.strictEqual(precision, "f64");
@@ -510,7 +510,7 @@ describe("centrality and community adapters on the index-based ports", () => {
         it("eigenvector above the floor on a graph the accelerator cannot answer says f64", async () => {
             // An even ring is bipartite, which the dispatcher keeps on the processor.
             const { fake, calls } = eigenvectorFake();
-            const graph = await graphWith(oddRing(28_002), fake, true);
+            const graph = await graphWith(oddRing(100_002), fake, true);
             const { precision } = await measured(graph, new EigenvectorCentralityAlgorithm(graph));
             assert.strictEqual(calls.eigenvector, 0);
             assert.strictEqual(precision, "f64");
@@ -523,7 +523,7 @@ describe("centrality and community adapters on the index-based ports", () => {
                         Promise.resolve({ scores: new Float32Array(s.nodeCount), iterations: 1000, converged: false }),
                 },
             });
-            const graph = await graphWith(oddRing(28_001), fake, true);
+            const graph = await graphWith(oddRing(100_001), fake, true);
             let thrown: unknown;
             try {
                 await new EigenvectorCentralityAlgorithm(graph).publishResult(detachedRunContext(), "eigen_gpu");
@@ -534,36 +534,34 @@ describe("centrality and community adapters on the index-based ports", () => {
             assert.strictEqual((thrown as { code: string }).code, "E_NOT_CONVERGED");
         });
 
-        it("betweenness stays on the processor with an accelerator that has it; closeness is forwarded", async () => {
+        it("betweenness and closeness are both forwarded to an accelerator that has them", async () => {
             const { fake, calls } = eigenvectorFake();
             const graph = await graphWith(WEIGHTED_MULTI, fake);
             const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
             const closeness = await measured(graph, new ClosenessCentralityAlgorithm(graph));
-            assert.strictEqual(calls.betweenness, 0);
-            assert.strictEqual(betweenness.precision, "f64");
-            // the mock's threshold is 0, so the floor does not apply and closeness reaches the device
+            // the mock's threshold is 0, so the floors do not apply and both reach the device
+            assert.strictEqual(calls.betweenness, 1);
+            assert.strictEqual(betweenness.precision, "f32");
             assert.strictEqual(calls.closeness, 1);
             assert.strictEqual(closeness.precision, "f32");
         });
 
-        it("under required with an accelerator that lacks both, betweenness runs on the processor and closeness refuses", async () => {
-            // The element does not forward betweenness, so the controller is never asked. It does
-            // forward closeness, and this accelerator has no such member: E_NO_ACCELERATOR.
+        it("under required with an accelerator that lacks both, betweenness and closeness both refuse", async () => {
+            // The element forwards both, and this accelerator has neither member: E_NO_ACCELERATOR.
             const fake = createFakeAccelerator();
             assert.notProperty(fake, "betweennessCentrality");
             assert.notProperty(fake, "closenessCentrality");
             const graph = await graphWith(WEIGHTED_MULTI, fake, true, "required");
-            const betweenness = await measured(graph, new BetweennessCentralityAlgorithm(graph));
-            assert.strictEqual(betweenness.precision, "f64");
-            assert.isAbove(betweenness.values.get("C") ?? 0, 0);
-            let thrown: unknown;
-            try {
-                await new ClosenessCentralityAlgorithm(graph).run();
-            } catch (error) {
-                thrown = error;
+            for (const algorithm of [new BetweennessCentralityAlgorithm(graph), new ClosenessCentralityAlgorithm(graph)]) {
+                let thrown: unknown;
+                try {
+                    await algorithm.run();
+                } catch (error) {
+                    thrown = error;
+                }
+                assert.isTrue(isGraphtyError(thrown));
+                assert.strictEqual((thrown as { code: string }).code, "E_NO_ACCELERATOR");
             }
-            assert.isTrue(isGraphtyError(thrown));
-            assert.strictEqual((thrown as { code: string }).code, "E_NO_ACCELERATOR");
         });
     });
 

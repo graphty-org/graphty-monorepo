@@ -348,8 +348,8 @@
 - **graphty-element:** an eigenvector run that does not converge fails with E_NOT_CONVERGED ([47b116ac](https://github.com/graphty-org/graphty-monorepo/commit/47b116ac))
 - **graphty-element:** overflow policy for groups, and size by a run's metric ([#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050))
 - **graphty-element:** publish CHANNEL_DESCRIPTORS so the app stops copying it ([1ee1170d](https://github.com/graphty-org/graphty-monorepo/commit/1ee1170d))
-- ⚠️  **graphty:** drive the app through the v2 channel api ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
-- ⚠️  **graphty:** consume the element's API instead of working around it ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
+- ⚠️ **graphty:** drive the app through the v2 channel api ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
+- ⚠️ **graphty:** consume the element's API instead of working around it ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
 
 ### 🩹 Fixes
 
@@ -358,12 +358,12 @@
 - **graphty:** the app story defines graphty-element, so its canvas draws ([24986d67](https://github.com/graphty-org/graphty-monorepo/commit/24986d67))
 - **graphty-element:** colour the nodes of flow and matching runs, and size encodings ([0d21967b](https://github.com/graphty-org/graphty-monorepo/commit/0d21967b))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **graphty:** drive the app through the v2 channel api  ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
+- **graphty:** drive the app through the v2 channel api ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
   the app now requires a graphty-element that publishes the v2
   style-channel API.
-- **graphty:** consume the element's API instead of working around it  ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
+- **graphty:** consume the element's API instead of working around it ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
   an unmeasured node is drawn in the element's missing-data colour rather than the
   first anchor of the ramp, which is the same colour a genuine low score would have had.
 

@@ -4,33 +4,33 @@
 
 - **algorithms:** sampled closeness centrality with sources, k and sourcesUsed ([#426](https://github.com/graphty-org/graphty-monorepo/issues/426))
 - **algorithms:** add degrees and let the dispatcher walk any adjacency view ([0355ab4f](https://github.com/graphty-org/graphty-monorepo/commit/0355ab4f))
-- ⚠️  **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+- ⚠️ **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
 
 ### 🩹 Fixes
 
 - **algorithms:** state the sampled closeness scale per form; throw like betweenness ([6b821750](https://github.com/graphty-org/graphty-monorepo/commit/6b821750))
-- ⚠️  **algorithms:** list the remaining 2.x result differences of flow, cut and isomorphism ([05373dc8](https://github.com/graphty-org/graphty-monorepo/commit/05373dc8))
+- ⚠️ **algorithms:** list the remaining 2.x result differences of flow, cut and isomorphism ([05373dc8](https://github.com/graphty-org/graphty-monorepo/commit/05373dc8))
 - **graphty-element:** refuse endpoints on eigenvector and record every port difference ([08608117](https://github.com/graphty-org/graphty-monorepo/commit/08608117))
 - **graphty-element:** count undirected degree once and tighten the katz convergence check ([a3047c17](https://github.com/graphty-org/graphty-monorepo/commit/a3047c17))
 - **graphty-element:** keep katz finite on accelerators and k-core, louvain off the controller ([30f0f89f](https://github.com/graphty-org/graphty-monorepo/commit/30f0f89f))
 - **algorithms:** give the hits and katz dispatchers the ports' answer on an accelerator ([c1215007](https://github.com/graphty-org/graphty-monorepo/commit/c1215007))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **algorithms:** list the remaining 2.x result differences of flow, cut and isomorphism  ([05373dc8](https://github.com/graphty-org/graphty-monorepo/commit/05373dc8))
+- **algorithms:** list the remaining 2.x result differences of flow, cut and isomorphism ([05373dc8](https://github.com/graphty-org/graphty-monorepo/commit/05373dc8))
   results differ from 2.x in these further cases.
-  - kargerMinCut on a graph of three or more components puts every node on
-    a side; 2.x dropped the components after the first two.
-  - Every Set and Map in the flow, cut, matching and isomorphism results
-    lists nodes in node order, and cut edges come by their source-side node
-    and then in edge order; 2.x followed the order its search met them. The
-    contents are unchanged.
-  - The findAllMappings option of isGraphIsomorphic is gone; with it set,
-    2.x answered false for every pair of graphs.
-  - A node that is only the target of an edge is a node to the max-flow
-    search: flow reaches such a sink. 2.x edmondsKarp on a Map-of-Maps
-    returned no flow when the source or the sink was not a key.
-- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph  ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+    - kargerMinCut on a graph of three or more components puts every node on
+      a side; 2.x dropped the components after the first two.
+    - Every Set and Map in the flow, cut, matching and isomorphism results
+      lists nodes in node order, and cut edges come by their source-side node
+      and then in edge order; 2.x followed the order its search met them. The
+      contents are unchanged.
+    - The findAllMappings option of isGraphIsomorphic is gone; with it set,
+      2.x answered false for every pair of graphs.
+    - A node that is only the target of an edge is a node to the max-flow
+      search: flow reaches such a sink. 2.x edmondsKarp on a Map-of-Maps
+      returned no flow when the source or the sink was not a key.
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
   the id-keyed API is removed. Build a snapshot with GraphBuilder or
   fromEdgeArrays from @graphty/graph-format; read results with s.ids.toMap(values) and
   s.ids.idOf(index).
@@ -171,7 +171,7 @@
 - **algorithms:** add ring queue, bit set and indexed max heap scratch structures ([7cd48e20](https://github.com/graphty-org/graphty-monorepo/commit/7cd48e20))
 - **algorithms:** expose all-pairs shortest paths in the indexed namespace and dispatcher ([9e8ac371](https://github.com/graphty-org/graphty-monorepo/commit/9e8ac371))
 - **algorithms:** route labelPropagation through the accelerated() dispatcher ([c5416093](https://github.com/graphty-org/graphty-monorepo/commit/c5416093))
-- **algorithms:** export indexed.labelPropagation and its Indexed* types ([2a6e81fe](https://github.com/graphty-org/graphty-monorepo/commit/2a6e81fe))
+- **algorithms:** export indexed.labelPropagation and its Indexed\* types ([2a6e81fe](https://github.com/graphty-org/graphty-monorepo/commit/2a6e81fe))
 - **algorithms:** record predecessor arcs and walk all-pairs shortest paths ([31768197](https://github.com/graphty-org/graphty-monorepo/commit/31768197))
 - **algorithms:** directed snapshots in indexed label propagation ([78ff0b77](https://github.com/graphty-org/graphty-monorepo/commit/78ff0b77))
 - **algorithms:** self-loops, parallel edges and unweighted mode in indexed label propagation ([7c574a55](https://github.com/graphty-org/graphty-monorepo/commit/7c574a55))
@@ -320,7 +320,7 @@
 
 ### 🚀 Features
 
-- ⚠️  **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
+- ⚠️ **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
 
 ### 🩹 Fixes
 
@@ -331,9 +331,9 @@
 - **algorithms:** restore the doc comment orphaned from bellmanFord ([71a5b0ac](https://github.com/graphty-org/graphty-monorepo/commit/71a5b0ac))
 - **algorithms:** relax an undirected edge in both directions in Bellman-Ford ([08f83553](https://github.com/graphty-org/graphty-monorepo/commit/08f83553))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge  ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
+- **algorithms:** eigenvectorCentrality throws ConvergenceError when it does not converge ([aa247241](https://github.com/graphty-org/graphty-monorepo/commit/aa247241))
   callers that relied on eigenvectorCentrality returning
   unconverged scores at maxIterations now get a ConvergenceError. Long paths and
   large grids need more than the default 100 passes (networkx fails on the same

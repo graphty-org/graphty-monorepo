@@ -644,7 +644,8 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 ### Visual review
 
-CI screenshots every story of compact-mantine, graphty-element and layout; the owner compares them with
+CI screenshots every story of every package with a Storybook (compact-mantine, graphty-element,
+layout, algorithms and the graphty app); the owner compares them with
 the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
 machine. The tool is the publishable package `@graphty/visual-review` (`visual-review/`, design in
 `design/visual-testing/design.md`); this repository is one consumer of it, configured by

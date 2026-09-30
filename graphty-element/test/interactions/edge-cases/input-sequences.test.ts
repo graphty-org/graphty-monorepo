@@ -9,7 +9,7 @@ import { PointerEventTypes, type PointerInfo } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -33,7 +33,7 @@ describe("Input Sequences", () => {
         await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 }, pinOnDrag: true });
         await graph.addNodes(TEST_NODES);
         await graph.addEdges(TEST_EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
@@ -173,7 +173,7 @@ describe("Input Sequences", () => {
 
             // Change view mode mid-drag
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Graph should be in valid 2D state
@@ -198,7 +198,7 @@ describe("Input Sequences", () => {
 
             // Add new node mid-drag
             await graph.addNodes([{ id: "node3", x: 10, y: 10, z: 0 }]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // End drag
             scene.onPointerObservable.notifyObservers({
@@ -221,7 +221,7 @@ describe("Input Sequences", () => {
 
             // Manipulate node position
             node1.mesh.position.x = 100;
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isDefined(graph.getNode("node1"), "Node1 should still exist");
             assert.isDefined(graph.getNode("node2"), "Node2 should still exist");

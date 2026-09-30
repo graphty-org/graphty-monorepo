@@ -262,7 +262,7 @@ describe("checkShapeContract", () => {
 
         assert.strictEqual(violations.length, 1);
         assert.strictEqual(violations[0].field, "level");
-        assert.include(violations[0].reason, "\"integer\"");
+        assert.include(violations[0].reason, '"integer"');
     });
 
     it("accepts a shape's optional graph field being absent, and present", () => {
@@ -351,7 +351,7 @@ describe("run identity and status", () => {
 
         const terminal = RUN_STATUSES.filter((status: RunStatus) => isTerminalRunStatus(status));
 
-        assert.deepStrictEqual([...terminal], ["succeeded", "failed", "canceled"]);
+        assert.deepStrictEqual([...terminal], ["succeeded", "failed", "canceled", "removed"]);
     });
 
     it("keeps a time-boxed stop out of the failure statuses", () => {

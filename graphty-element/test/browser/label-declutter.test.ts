@@ -14,7 +14,7 @@
 import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 
@@ -78,14 +78,14 @@ describe("node labels do not overlap", () => {
         await g.addNodes(nodes);
         await g.addEdges(EDGES);
         await g.setLayout("fixed", { dim: 3 });
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
         await g.getSession().styles.add({
             name: "labels",
             target: "node",
             selector: { match: "everything" },
             set: { "node.label": "A LONG LABEL FOR THIS NODE" },
         });
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
 
         for (let at = 0; at < FRAMES; at++) {
             g.scene.render();
@@ -131,7 +131,12 @@ describe("node labels do not overlap", () => {
                 ys.push(p.y);
             }
 
-            const plane = { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+            const plane = {
+                left: Math.min(...xs),
+                right: Math.max(...xs),
+                top: Math.min(...ys),
+                bottom: Math.max(...ys),
+            };
             if (words && label) {
                 const text = label.textBounds;
                 const w = plane.right - plane.left;
@@ -171,7 +176,7 @@ describe("node labels do not overlap", () => {
         const g = await draw(PILED, true, PILED_VIEW);
 
         assert.isTrue(g.selectNode("left"));
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
         g.scene.render();
 
         assert.deepEqual([...drawnLabels(g).keys()], ["left"]);
@@ -275,7 +280,7 @@ describe("node labels do not overlap", () => {
         assert.strictEqual(pass.passes, before, "a still camera over a still layout is placed once");
 
         assert.isTrue(g.selectNode("left"));
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
         g.scene.render();
         assert.isAbove(pass.passes, before, "a selection change places the labels again");
 
@@ -299,7 +304,7 @@ describe("node labels do not overlap", () => {
 
         const g = await draw(nodes);
         assert.isTrue(g.selectNode("n17"));
-        await g.operationQueue.waitForCompletion();
+        await operationQueueOf(g).waitForCompletion();
         g.scene.render();
 
         const drawn = drawnLabels(g, ids, true);

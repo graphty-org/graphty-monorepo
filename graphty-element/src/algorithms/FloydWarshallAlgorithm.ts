@@ -1,7 +1,9 @@
-import { floydWarshall } from "@graphty/algorithms";
+import { APSP_DEFAULT_MAX_NODES } from "@graphty/algorithms";
 
+import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { SimplifyPolicy } from "./input/derivedInputs";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
@@ -20,6 +22,8 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
     static type = "floyd-warshall";
     /** Measures every pair of the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
+    /** A distance: of a group of parallel edges, the cheapest is the one a shortest path takes. */
+    static parallelEdges: SimplifyPolicy = "min";
 
     /**
      * Measure the distance between every pair of nodes, and give each node the distance to the
@@ -37,6 +41,8 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
      * either, which is the case that has to be fixed here rather than worked around outside.
      * @param context - What the element gave the run.
      * @returns The all-pairs measurement, or null when there are no nodes to measure.
+     * @throws A `GraphtyError` with `E_TOO_LARGE` when the run is over more nodes than the
+     *   all-pairs matrix is bounded to, before any of it is allocated.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         // The nodes of the run's input: its scope's, or the whole graph's.
@@ -46,61 +52,59 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
             return null;
         }
 
-        // Undirected: floydWarshall seeds both directions of every edge when its input is undirected.
-        const graphData = this.algorithmGraph("undirected");
+        // Undirected: a shortest path may cross an edge in either direction.
+        const { snapshot, run } = this.accelerated("allPairsShortestPath", "undirected");
+
+        // The matrix is n * n doubles. Past the bound it is refused here, before a byte of it is
+        // allocated, rather than left to run the tab out of memory.
+        const limit = APSP_DEFAULT_MAX_NODES;
+        if (snapshot.nodeCount > limit) {
+            throw new GraphtyError({
+                code: "E_TOO_LARGE",
+                message:
+                    `floyd-warshall measures every pair, and ${String(snapshot.nodeCount)} nodes is more than the ` +
+                    `${String(limit)} it is bounded to; run it over a smaller scope`,
+                source: "run",
+                details: { nodeCount: snapshot.nodeCount, limit },
+            });
+        }
 
         context.report({ phase: "Measuring every pair", total: null });
-        const result = floydWarshall(graphData);
+        const { value, precision } = await run((dispatch, s) => dispatch.allPairsShortestPath(s));
+        const { dist, n, hasNegativeCycle } = value;
+        const { ids } = snapshot;
 
-        // Eccentricity: how far the furthest reachable node is. Unreachable nodes are skipped
-        // rather than counted as infinitely far, which is what makes the diameter finite on a
-        // graph that comes in several pieces.
-        const eccentricityOf = new Map<number | string, number>();
-        await forEachChunked(context, "Measuring reach", nodeIds, (nodeId) => {
-            const distances = result.distances.get(nodeId);
+        const notes = [
+            "Every pair was measured. Each node's value is its eccentricity: the distance to the " +
+                "furthest node it can reach.",
+        ];
 
-            if (distances === undefined) {
-                eccentricityOf.set(nodeId, Infinity);
-                return;
-            }
-
-            let furthest = 0;
-            for (const distance of distances.values()) {
-                if (isFinite(distance) && distance > furthest) {
-                    furthest = distance;
-                }
-            }
-
-            eccentricityOf.set(nodeId, furthest);
-        });
-
+        // Under a negative cycle no distance is defined -- the matrix is all NaN -- so there is no
+        // eccentricity, diameter or radius to publish, only the fact of the cycle.
+        const nodes: ResultElementValues[] = [];
         let diameter = 0;
         let radius = Infinity;
-        for (const eccentricity of eccentricityOf.values()) {
-            if (!isFinite(eccentricity)) {
-                continue;
-            }
+        if (hasNegativeCycle) {
+            notes.push("The graph has a negative cycle, so no distance is defined and none was published.");
+        } else {
+            // Eccentricity: how far the furthest reachable node is, read along the node's row.
+            // Unreachable nodes are skipped rather than counted as infinitely far, which is what
+            // makes the diameter finite on a graph that comes in several pieces.
+            await forEachChunked(context, "Measuring reach", nodeIds, (nodeId) => {
+                const row = ids.indexOf(nodeId) * n;
+                let furthest = 0;
+                for (let j = 0; j < n; j++) {
+                    const distance = dist[row + j];
+                    if (distance !== Infinity && distance > furthest) {
+                        furthest = distance;
+                    }
+                }
 
-            diameter = Math.max(diameter, eccentricity);
-            radius = Math.min(radius, eccentricity);
+                diameter = Math.max(diameter, furthest);
+                radius = Math.min(radius, furthest);
+                nodes.push({ id: nodeId, values: { value: furthest } });
+            });
         }
-
-        if (radius === Infinity) {
-            radius = 0;
-        }
-
-        const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Publishing distances", nodeIds, (nodeId) => {
-            const eccentricity = eccentricityOf.get(nodeId) ?? Infinity;
-
-            // An unreachable node has no eccentricity to publish: infinity is not a distance, and
-            // publishing it would put every disconnected node at the top of the column.
-            if (!isFinite(eccentricity)) {
-                return;
-            }
-
-            nodes.push({ id: nodeId, values: { value: eccentricity } });
-        });
 
         return {
             shape: "node-metric",
@@ -111,15 +115,13 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
                 { name: "hasNegativeCycle", kind: "graph", type: "boolean" },
             ],
             nodes,
-            graph: { diameter, radius, hasNegativeCycle: result.hasNegativeCycle },
+            graph: hasNegativeCycle ? { hasNegativeCycle } : { diameter, radius, hasNegativeCycle },
             caveats: declaredCaveats({
                 method: "floyd-warshall",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
-                notes: [
-                    "Every pair was measured. Each node's value is its eccentricity: the distance to the " +
-                        "furthest node it can reach.",
-                ],
+                precision,
+                notes,
             }),
         };
     }

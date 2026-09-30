@@ -7,7 +7,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { type InputCounters, inputCountersOf } from "../../../src/session/attributes";
 import { inputCountersOfSession } from "../../../src/session/GraphSession";
 
@@ -33,9 +33,9 @@ describe("attribute revisions through the element", () => {
      * @param policy - the repeated-edge policy
      */
     const load = async (document: { nodes: object[]; edges: object[] }, policy: DuplicatePolicy): Promise<void> => {
-        graph.styles.config.data.knownFields.repeatedEdges = policy;
+        void graph.getSession().config.set({ data: { knownFields: { repeatedEdges: policy } } });
         await graph.addDataFromSource("json", { data: JSON.stringify(document) });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     };
 
     beforeEach(async () => {
@@ -63,7 +63,7 @@ describe("attribute revisions through the element", () => {
             { id: "b", weight: 2 },
         ]);
         await graph.addEdges([{ source: "a", target: "b", kind: "x" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.deepEqual(revisions("nodes", "id", "label", "weight", "kind"), [1, 1, 1, 0]);
         assert.deepEqual(revisions("edges", "source", "target", "kind", "label"), [1, 1, 1, 0]);
@@ -72,7 +72,7 @@ describe("attribute revisions through the element", () => {
     for (const skipQueue of [true, false]) {
         it(`updateNodes ${skipQueue ? "without" : "through"} the queue bumps only the fields it writes`, async () => {
             await graph.addNodes([{ id: "a", label: "A", weight: 1 }]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             const [label, weight, id] = revisions("nodes", "label", "weight", "id");
 
             await graph.updateNodes([{ id: "a", label: "B" }], { skipQueue });
@@ -108,13 +108,13 @@ describe("attribute revisions through the element", () => {
         it(`the snapshot serial covers a pre-freeze merge under \`${policy}\``, async () => {
             // Edges pushed before their nodes exist wait as pending records: the merge then writes
             // the builder's weight and replaces the pending record, neither of which is a `.data`.
-            graph.styles.config.data.knownFields.repeatedEdges = policy;
+            void graph.getSession().config.set({ data: { knownFields: { repeatedEdges: policy } } });
             await graph.addEdges([{ source: "p", target: "q", weight: 1 }]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             const { serial } = graph.getDataManager().getSnapshot();
 
             await graph.addEdges([{ source: "p", target: "q", weight: 2 }]);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             const snapshot = graph.getDataManager().getSnapshot();
 
             assert.notStrictEqual(snapshot.serial, serial, "a cache keyed on the serial misses");

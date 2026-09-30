@@ -1,8 +1,10 @@
-import { Edge as LayoutEdge, Node as LayoutNode, randomLayout } from "@graphty/layout";
+import type { F32 } from "@graphty/graph-format";
+import { random } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * The seed used when none is given. The element recommends this layout for large graphs as "the
@@ -51,11 +53,13 @@ type RandomLayoutOpts = Partial<RandomLayoutConfigType>;
 /**
  * Random layout engine that places nodes at random positions
  */
-export class RandomLayout extends SimpleLayoutEngine {
+export class RandomLayout extends SnapshotLayoutEngine {
     static type = "random";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = randomLayoutOptionsSchema;
-    scalingFactor = 100;
+    /** Layout units to scene units. */
+    private static readonly scale = 100;
+    protected readonly dimensions: 2 | 3;
     config: RandomLayoutConfigType;
 
     /**
@@ -65,6 +69,7 @@ export class RandomLayout extends SimpleLayoutEngine {
     constructor(opts: RandomLayoutOpts) {
         super(opts);
         this.config = RandomLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -77,13 +82,26 @@ export class RandomLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute random node positions
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = randomLayout({ nodes, edges }, this.config.center, this.config.dim, this.config.seed);
+    /**
+     * Compute random node positions
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return sceneUnits(
+            random(input.graph, {
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+                seed: this.config.seed,
+            }),
+            RandomLayout.scale,
+        );
     }
 }

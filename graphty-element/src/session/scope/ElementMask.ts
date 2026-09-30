@@ -25,6 +25,8 @@
 
 import { INVALID_INDEX, remapArray, type U8, type U32 } from "@graphty/graph-format";
 
+import { GraphtyError } from "../../errors/GraphtyError";
+
 /** Rows the mask holds before its first growth. */
 export const DEFAULT_MASK_CAPACITY = 1024;
 
@@ -33,6 +35,22 @@ const MEMBER = 1;
 
 /** The byte a row carries while it is out of the set. */
 const ABSENT = 0;
+
+/** Every method that writes a mask, which a read-only copy refuses. */
+const MUTATORS = [
+    "grow",
+    "remap",
+    "add",
+    "delete",
+    "fill",
+    "clear",
+    "invert",
+    "union",
+    "intersect",
+    "subtract",
+    "symmetricDifference",
+    "load",
+] as const;
 
 /**
  * Reject a row count that is not a non-negative integer.
@@ -412,6 +430,47 @@ export class ElementMask<TId> {
      */
     bytes(): U8 {
         return new Uint8Array(this.array.subarray(0, this.rows));
+    }
+
+    /**
+     * Replace the whole membership with bytes {@link ElementMask.bytes} handed out earlier: one
+     * per row, and the row count becomes their length. The revision moves, as it does for a
+     * remap, because the membership was rewritten wholesale.
+     * @param bytes - One byte per row, `1` for a member.
+     */
+    load(bytes: U8): void {
+        this.grow(bytes.length);
+        this.array.set(bytes);
+        this.members = this.countMembers();
+        this.revision += 1;
+    }
+
+    /**
+     * A copy of this mask that refuses every write: the same rows, members and revision, so a
+     * reader keyed on `version` still sees the same number, but nothing done to the copy can
+     * reach this mask.
+     * @returns The copy.
+     */
+    readOnlyCopy(): ElementMask<TId> {
+        const copy = new ElementMask<TId>(this.readSpace, Math.max(1, this.rows));
+        copy.array.set(this.array.subarray(0, this.rows));
+        copy.rows = this.rows;
+        copy.members = this.members;
+        copy.revision = this.revision;
+        for (const verb of MUTATORS) {
+            Object.defineProperty(copy, verb, {
+                value: (): never => {
+                    throw new GraphtyError({
+                        code: "E_READONLY",
+                        message: `This mask is a read-only copy, so "${verb}" on it would change nothing.`,
+                        source: "data",
+                        details: { verb },
+                    });
+                },
+            });
+        }
+
+        return copy;
     }
 
     /**

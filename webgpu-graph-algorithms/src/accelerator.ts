@@ -32,13 +32,14 @@ import {
     type AcceleratorOptions,
     type BetweennessAcceleratorOptions,
     type BfsOptions,
+    type ClosenessAcceleratorOptions,
     type GpuAccelerator,
-    type HitsOptionsLike,
     type SsspOptions,
 } from "./types/accelerator.js";
 import {
     type ComponentsOptions,
     type EigenvectorOptions,
+    type GpuClosenessResult,
     type GpuHitsResult,
     type GpuLabelResult,
     type GpuPageRankResult,
@@ -349,10 +350,10 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
          * Closeness centrality on the device (spec 8.4; P8-T13): the bit-parallel multi-source sweep, or one `sssp`
          * per source when `weighted`. `maxIterations` / `tolerance` are refused when defined (P8 PD-25).
          * @param gs - the snapshot
-         * @param o - the seam's placeholder `HitsOptionsLike` (`weighted`)
-         * @returns the f32 scores with `precision: "f32"` (spec 9.7)
+         * @param o - `weighted`, and a sampled run's `sources` (undirected snapshots only)
+         * @returns the f32 scores with `precision: "f32"` (spec 9.7) and `sourcesUsed`
          */
-        async closenessCentrality(gs: GraphSnapshot, o?: HitsOptionsLike): Promise<GpuScoresResult> {
+        async closenessCentrality(gs: GraphSnapshot, o?: ClosenessAcceleratorOptions): Promise<GpuClosenessResult> {
             ctx.assertReady();
             return await closenessCentrality(ctx, gs, o);
         },

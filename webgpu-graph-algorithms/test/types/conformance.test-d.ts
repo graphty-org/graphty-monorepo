@@ -5,9 +5,10 @@ import type {
     BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     EdgeScoresResultLike,
-    HitsOptionsLike,
-    IndexedPageRankOptions,
+    PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
     SsspOptions,
@@ -113,7 +114,7 @@ expectTypeOf(dispatch(createAccelerator(ctx))).toEqualTypeOf<AcceleratedAlgorith
 // method-syntax members are bivariant in their parameters and an all-optional bag (`SsspOptions & { delta?: number }`,
 // or `{ cutoff?: number }` with `weights` dropped) is assignable to `SsspOptions` in both directions. `toEqualTypeOf`
 // on the GPU member's parameter is the one check that fails when a GPU option type drifts from the seam's by one key.
-expectTypeOf<IndexedPageRankOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
+expectTypeOf<PageRankOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["pageRank"]>[1]>();
 
 // ---- P8 (PD-19): the four traversal members conform to the seam TYPE FOR TYPE -- the seam's option types in, the
 // design's result records out, which satisfy the seam's `*Like` shapes.
@@ -121,11 +122,13 @@ expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator>();
 expectTypeOf<BfsOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["breadthFirstSearch"]>[2]>();
 expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["sssp"]>[2]>();
 expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["bellmanFord"]>[2]>();
-expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["closenessCentrality"]>[1]>();
+expectTypeOf<ClosenessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["closenessCentrality"]>[1]
+>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatchTypeOf<BfsResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
-expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ClosenessResultLike>();
 
 // ---- betweenness: the seam's option type in, the design's result records out, which satisfy the seam's shapes
 expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<

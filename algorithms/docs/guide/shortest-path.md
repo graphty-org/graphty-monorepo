@@ -1,53 +1,70 @@
 # Shortest Path Algorithms
 
-Find the shortest path between nodes in a graph. Different algorithms are suited for different graph types.
+Find the shortest path between nodes in a graph. Different algorithms suit different graph types. Each takes a graph
+snapshot and node indices (see [Graph Data Structure](./graph.md)); edge weights are read as distances.
 
 ## Algorithm Selection Guide
 
-| Algorithm | Weights | Negative Weights | All Pairs | Time Complexity |
-|-----------|---------|------------------|-----------|-----------------|
-| BFS | No (unit) | N/A | No | O(V + E) |
-| Dijkstra | Yes (non-negative) | No | No | O((V + E) log V) |
-| Bellman-Ford | Yes | Yes | No | O(V × E) |
-| Floyd-Warshall | Yes | Yes (no neg cycles) | Yes | O(V³) |
-| A* | Yes (non-negative) | No | No | O(E) best case |
+| Algorithm              | Weights            | Negative Weights    | All Pairs | Time Complexity    |
+| ---------------------- | ------------------ | ------------------- | --------- | ------------------ |
+| BFS                    | No (unit)          | N/A                 | No        | O(V + E)           |
+| Dijkstra               | Yes (non-negative) | No                  | No        | O((V + E) log V)   |
+| Bidirectional Dijkstra | Yes (non-negative) | No                  | No        | O((V + E) log V)   |
+| Bellman-Ford           | Yes                | Yes                 | No        | O(V x E)           |
+| All pairs              | Yes                | Yes (no neg cycles) | Yes       | O(V x E) to O(V^3) |
+| A\*                    | Yes (non-negative) | No                  | No        | O(E) best case     |
 
 ## Dijkstra's Algorithm
 
 The standard algorithm for weighted graphs with non-negative edge weights.
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph, dijkstra } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { dijkstra } from "@graphty/algorithms";
 
-const graph = new Graph<string>();
-graph.addEdge("a", "b", { weight: 4 });
-graph.addEdge("a", "c", { weight: 2 });
-graph.addEdge("b", "c", { weight: 1 });
-graph.addEdge("b", "d", { weight: 5 });
-graph.addEdge("c", "d", { weight: 8 });
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 4);
+builder.addEdge("a", "c", 2);
+builder.addEdge("b", "c", 1);
+builder.addEdge("b", "d", 5);
+builder.addEdge("c", "d", 8);
+const graph = builder.freeze();
+const d = graph.ids.requireIndex("d");
 
-const result = dijkstra(graph, "a");
+const result = dijkstra(graph, graph.ids.requireIndex("a"));
 
-// Get distance to a specific node
-console.log(result.distances.get("d")); // 9
+console.log(result.dist[d]); // 9
+console.log(Array.from(result.pathTo(d), (i) => graph.ids.idOf(i))); // ["a", "b", "d"]
 
-// Get the path to a node
-console.log(result.paths.get("d")); // ["a", "b", "d"]
-
-// Get all reachable distances
-for (const [node, distance] of result.distances) {
-  console.log(`${node}: ${distance}`);
-}
+// Every node's distance; Infinity for a node the source cannot reach
+console.log(Array.from(result.dist)); // [0, 4, 2, 9]
 ```
 
-### Dijkstra to Single Target
+`result.pathEdges(target)` gives the edge indices along the same path, and the `cutoff` option skips every node farther
+away than the given distance.
+
+### Between Two Nodes
+
+When only one target matters, `bidirectionalDijkstra` searches from both ends and stops where they meet:
+
+<!-- doc-check -->
 
 ```typescript
-// Stop as soon as target is found (more efficient)
-const result = dijkstra(graph, "a", { target: "d" });
+import { GraphBuilder } from "@graphty/graph-format";
+import { bidirectionalDijkstra } from "@graphty/algorithms";
 
-console.log(result.distance); // 9
-console.log(result.path);     // ["a", "b", "d"]
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 4);
+builder.addEdge("a", "c", 2);
+builder.addEdge("b", "d", 5);
+builder.addEdge("c", "d", 8);
+const graph = builder.freeze();
+
+const trip = bidirectionalDijkstra(graph, graph.ids.requireIndex("a"), graph.ids.requireIndex("d"));
+console.log(trip.distance); // 9
+console.log(Array.from(trip.path, (i) => graph.ids.idOf(i))); // ["a", "b", "d"]
 ```
 
 ::: warning
@@ -58,135 +75,159 @@ Dijkstra's algorithm does not work correctly with negative edge weights. Use Bel
 
 Handles graphs with negative edge weights and detects negative cycles.
 
-```typescript
-import { Graph, bellmanFord } from "@graphty/algorithms";
-
-const graph = new Graph<string>();
-graph.addEdge("a", "b", { weight: 4 });
-graph.addEdge("b", "c", { weight: -2 });
-graph.addEdge("a", "c", { weight: 5 });
-
-const result = bellmanFord(graph, "a");
-
-if (result.hasNegativeCycle) {
-  console.log("Graph contains a negative cycle!");
-} else {
-  console.log(result.distances.get("c")); // 2 (a -> b -> c: 4 + -2)
-}
-```
-
-### Negative Cycle Detection
+<!-- doc-check -->
 
 ```typescript
-const graph = new Graph<string>();
-graph.addEdge("a", "b", { weight: 1 });
-graph.addEdge("b", "c", { weight: -1 });
-graph.addEdge("c", "a", { weight: -1 }); // Creates negative cycle
+import { GraphBuilder } from "@graphty/graph-format";
+import { bellmanFord } from "@graphty/algorithms";
 
-const result = bellmanFord(graph, "a");
-console.log(result.hasNegativeCycle); // true
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 4);
+builder.addEdge("b", "c", -2);
+builder.addEdge("a", "c", 5);
+const graph = builder.freeze();
+
+const result = bellmanFord(graph, graph.ids.requireIndex("a"));
+console.log(result.hasNegativeCycle); // false
+console.log(result.dist[graph.ids.requireIndex("c")]); // 2
+
+// A cycle whose weights sum below zero
+builder.addEdge("c", "a", -3);
+console.log(bellmanFord(builder.freeze(), 0).hasNegativeCycle); // true
 ```
 
-## Floyd-Warshall Algorithm
+On an undirected graph every edge can be walked both ways, so a single negative edge is already a negative cycle.
 
-Finds shortest paths between all pairs of nodes.
+## All-Pairs Shortest Paths
+
+`allPairsShortestPath` returns the distance between every pair of nodes as a dense row-major `Float64Array`. It
+picks the fastest strategy for the graph: one breadth-first search per source when unweighted, Floyd-Warshall when a
+weight is negative or the graph is dense, and one Dijkstra per source otherwise.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, floydWarshall } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { allPairsShortestPath } from "@graphty/algorithms";
 
-const graph = new Graph<string>();
-graph.addEdge("a", "b", { weight: 3 });
-graph.addEdge("b", "c", { weight: 1 });
-graph.addEdge("a", "c", { weight: 6 });
-graph.addEdge("c", "a", { weight: 2 });
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 3);
+builder.addEdge("b", "c", 1);
+builder.addEdge("a", "c", 6);
+builder.addEdge("c", "a", 2);
+const graph = builder.freeze();
+const a = graph.ids.requireIndex("a");
+const b = graph.ids.requireIndex("b");
+const c = graph.ids.requireIndex("c");
 
-const result = floydWarshall(graph);
-
-// Get distance between any two nodes
-console.log(result.distance("a", "c")); // 4 (a -> b -> c)
-console.log(result.distance("c", "b")); // 5 (c -> a -> b)
-
-// Get path between any two nodes
-console.log(result.path("a", "c")); // ["a", "b", "c"]
+const result = allPairsShortestPath(graph, { paths: true });
+console.log(result.dist[a * result.n + c]); // 4
+console.log(result.dist[c * result.n + b]); // 5
+console.log(Array.from(result.pathTo(a, c), (i) => graph.ids.idOf(i))); // ["a", "b", "c"]
 ```
+
+It refuses graphs above 5,792 nodes unless `maxNodes` is raised, and reports a negative cycle as
+`hasNegativeCycle: true` with every distance `NaN`.
 
 ::: tip
-Floyd-Warshall is ideal when you need to query shortest paths between many different pairs of nodes, as it precomputes all paths in O(V³) time.
+All-pairs shortest paths suit graphs where you query many different pairs: the whole table is computed once.
 :::
 
-## A* Search
+### Exact Weights
+
+A snapshot stores arc weights as 32-bit floats. Rounding a weight such as 0.1 to 32 bits changes more than the last
+digits: with edges a-b 0.1, b-c 0.2 and a-c 0.3, the rounded weights make the path a, b, c shorter than the edge a-c,
+where exact arithmetic finds them equal. A builder created with `weightDtype: "f64"` keeps the exact weights in an edge
+column as well; pass them as the `weights` option:
+
+<!-- doc-check -->
+
+```typescript
+import { expandEdges, GraphBuilder } from "@graphty/graph-format";
+import { allPairsShortestPath } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false, weightDtype: "f64" });
+builder.addEdge("a", "b", 0.1);
+builder.addEdge("b", "c", 0.2);
+builder.addEdge("a", "c", 0.3);
+const graph = builder.freeze();
+
+const shadow = graph.edges.byRole("weight");
+const exact = shadow !== null && shadow.dtype === "f64" ? expandEdges(graph, shadow.data) : graph.weights;
+const result = allPairsShortestPath(graph, { weights: exact ?? undefined, paths: true });
+console.log(result.pathTo(0, 2).length); // 2: the direct edge a-c
+
+// With the rounded weights the detour through b is shorter
+console.log(allPairsShortestPath(graph, { paths: true }).pathTo(0, 2).length); // 3: a, b, c
+```
+
+## A\* Search
 
 A heuristic-guided search that can be faster than Dijkstra when a good heuristic is available.
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph, aStar } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { astar } from "@graphty/algorithms";
 
 // Graph with 2D coordinates
-const graph = new Graph<string>();
-const positions = new Map([
-  ["a", { x: 0, y: 0 }],
-  ["b", { x: 1, y: 0 }],
-  ["c", { x: 2, y: 1 }],
-  ["d", { x: 3, y: 1 }],
-]);
+const positions: Record<string, [number, number]> = {
+    a: [0, 0],
+    b: [1, 0],
+    c: [2, 1],
+    d: [3, 1],
+};
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b", 1);
+builder.addEdge("b", "c", 1.5);
+builder.addEdge("a", "c", 3);
+builder.addEdge("c", "d", 1);
+const graph = builder.freeze();
 
-graph.addEdge("a", "b", { weight: 1 });
-graph.addEdge("b", "c", { weight: 1.5 });
-graph.addEdge("a", "c", { weight: 3 });
-graph.addEdge("c", "d", { weight: 1 });
-
-// Euclidean distance heuristic
-const heuristic = (node: string, goal: string) => {
-  const p1 = positions.get(node)!;
-  const p2 = positions.get(goal)!;
-  return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+// Euclidean distance heuristic, over node indices
+const heuristic = (node: number, goal: number) => {
+    const [x1, y1] = positions[String(graph.ids.idOf(node))];
+    const [x2, y2] = positions[String(graph.ids.idOf(goal))];
+    return Math.hypot(x1 - x2, y1 - y2);
 };
 
-const result = aStar(graph, "a", "d", heuristic);
-
-console.log(result.path);     // ["a", "b", "c", "d"]
+const result = astar(graph, graph.ids.requireIndex("a"), graph.ids.requireIndex("d"), heuristic);
+console.log(Array.from(result.path, (i) => graph.ids.idOf(i))); // ["a", "b", "c", "d"]
 console.log(result.distance); // 3.5
-console.log(result.explored); // Number of nodes explored (often less than Dijkstra)
+console.log(result.visited.length); // 3
 ```
 
 ### Heuristic Requirements
 
-For A* to find optimal paths, the heuristic must be:
+For A\* to find optimal paths, the heuristic must be:
 
-1. **Admissible**: Never overestimates the actual cost
-2. **Consistent** (optional): h(n) ≤ cost(n, n') + h(n')
+1. **Admissible**: never overestimates the actual cost
+2. **Consistent**: h(n) <= cost(n, n') + h(n'); an expanded node is never reopened, so an inconsistent heuristic can
+   miss the shortest path
 
 Common heuristics:
-- **Euclidean distance**: For 2D/3D spatial graphs
-- **Manhattan distance**: For grid-based graphs
-- **Zero**: Degenerates to Dijkstra's algorithm
 
-## Practical Examples
+- **Euclidean distance**: for 2D/3D spatial graphs
+- **Manhattan distance**: for grid-based graphs
+- **Zero**: degenerates to Dijkstra's algorithm
 
-### Road Network
+## Practical Example: Degrees of Separation
 
-```typescript
-const roads = new Graph<string>();
-roads.addEdge("NYC", "Boston", { weight: 215 });
-roads.addEdge("NYC", "Philadelphia", { weight: 95 });
-roads.addEdge("Boston", "Portland", { weight: 110 });
-// ... more roads
+In an unweighted graph the BFS depth is the number of hops:
 
-const trip = dijkstra(roads, "NYC", { target: "Portland" });
-console.log(`Distance: ${trip.distance} miles`);
-console.log(`Route: ${trip.path.join(" → ")}`);
-```
-
-### Social Network (Unweighted)
+<!-- doc-check -->
 
 ```typescript
-const social = new Graph<string>({ directed: false });
-social.addEdge("Alice", "Bob");
-social.addEdge("Bob", "Carol");
-social.addEdge("Alice", "Dave");
-// ... connections
+import { GraphBuilder } from "@graphty/graph-format";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
-// Find degrees of separation
-const result = bfs(social, "Alice");
-console.log(`Carol is ${result.distances.get("Carol")} connections away`);
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("Alice", "Bob");
+builder.addEdge("Bob", "Carol");
+builder.addEdge("Alice", "Dave");
+const social = builder.freeze();
+
+const result = breadthFirstSearch(social, social.ids.requireIndex("Alice"));
+console.log(`Carol is ${String(result.depth[social.ids.requireIndex("Carol")])} connections away`); // Carol is 2 connections away
 ```

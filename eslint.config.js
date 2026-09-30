@@ -35,7 +35,6 @@ export default tseslint.config(
             // which is inside the compiled source tree and is imported by a story, so a file
             // that runs in Storybook and in the storybook test project was linted by nothing.
             "*/examples/**",
-            "*/examples-legacy/**",
             // The webgpu-graph-algorithms browser demo belongs to no tsconfig on purpose --
             // webgpu-graph-algorithms/eslint.config.js has ignored it since it was written, with
             // the note that it is type-checked by hand with the DOM lib. A per-package run honours
@@ -43,6 +42,9 @@ export default tseslint.config(
             // without this line `npx eslint .` reports three "not found by the project service"
             // parsing errors that the package's own lint gate has never reported.
             "webgpu-graph-algorithms/demo/**",
+            // Third-party source vendored unchanged (pixelmatch); its own style is not ours to lint,
+            // and editing it to pass would make the next upgrade a merge instead of a copy.
+            "visual-review/trusted/vendor/**",
             // VitePress cache and generated files
             "**/.vitepress/cache/**",
             "**/.vitepress/dist/**",
@@ -442,6 +444,47 @@ export default tseslint.config(
         languageOptions: {
             globals: {
                 ...globals.node,
+            },
+        },
+    },
+
+    // ============================================
+    // VISUAL-REVIEW: NODE TOOL, BROWSER PAGE
+    // ============================================
+    // visual-review is plain .mjs with no build. Its CLI, library, capture and tests run in Node;
+    // only trusted/page/ runs in the owner's browser. The base config declares browser globals
+    // alone, so the Node files need Node's declared. With no TypeScript source, a JSDoc type is
+    // the only type annotation these files have, so it is allowed and read as a TypeScript type.
+    {
+        files: ["visual-review/**/*.{js,mjs}"],
+        settings: {
+            jsdoc: {
+                mode: "typescript",
+            },
+        },
+        rules: {
+            "jsdoc/no-types": "off",
+        },
+    },
+    {
+        files: [
+            "visual-review/trusted/lib/**/*.mjs",
+            "visual-review/trusted/cli.mjs",
+            "visual-review/trusted/gate.mjs",
+            "visual-review/capture/**/*.mjs",
+            "visual-review/test/**/*.mjs",
+        ],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
+    {
+        files: ["visual-review/trusted/page/**/*.js"],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
             },
         },
     },

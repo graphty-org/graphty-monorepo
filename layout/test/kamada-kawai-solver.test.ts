@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { _computeShortestPathDistances, _kamadaKawaiSolve } from "../src/algorithms/optimization";
+import { _kamadaKawaiSolve } from "../src/algorithms/optimization";
 import { _kamadaKawaiCostfn } from "../src/algorithms/optimization/kamada-kawai-solver";
 
 /**
@@ -26,11 +26,10 @@ function kkCost(positions: number[][], dist: number[][]): number {
 function nonUniformDistances(n: number): number[][] {
     let seed = 7;
     const next = (): number => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-    const weights = new Map<string, number>();
-    const edges: [number, number][] = [];
+    const d = [...Array(n).keys()].map((i) => [...Array(n).keys()].map((j) => (i === j ? 0 : Infinity)));
     const add = (a: number, b: number): void => {
-        edges.push([a, b]);
-        weights.set(`${a}-${b}`, 1 + Math.floor(next() * 31));
+        const w = 1 / (1 + Math.floor(next() * 31));
+        d[a][b] = d[b][a] = Math.min(d[a][b], w);
     };
     for (let i = 0; i < n; i++) {
         add(i, (i + 1) % n);
@@ -38,17 +37,15 @@ function nonUniformDistances(n: number): number[][] {
     for (let i = 0; i < n; i += 3) {
         add(i, Math.floor(next() * n));
     }
-    const nodes = [...Array(n).keys()];
-    const graph = {
-        nodes: () => nodes,
-        edges: () => edges,
-        getEdgeData: (s: number, t: number) => {
-            const w = weights.get(`${s}-${t}`) ?? weights.get(`${t}-${s}`);
-            return w === undefined ? undefined : 1 / w;
-        },
-    };
-    const map = _computeShortestPathDistances(graph as never, "weight");
-    return nodes.map((i) => nodes.map((j) => map[i][j]));
+    // Floyd-Warshall
+    for (let k = 0; k < n; k++) {
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                d[i][j] = Math.min(d[i][j], d[i][k] + d[k][j]);
+            }
+        }
+    }
+    return d;
 }
 
 describe("the Kamada-Kawai solver", () => {

@@ -1,6 +1,6 @@
 /**
  * Betweenness and edge betweenness (design 8.4, 9.7, 11.3) against the Brandes reference of test/oracle/betweenness.ts
- * and, on karate, the CPU package's own `betweennessCentrality` / `edgeBetweennessCentrality`. Covered: the batch
+ * and, on every simple fixture, the CPU port's `betweennessCentrality` / `edgeBetweennessCentrality`. Covered: the batch
  * planner's k against faked limits (pure); the forward pass on its own -- every batch's `depthK` exactly the
  * reference's depths and `sigmaK` exactly its path counts, at k = 1, k = 2 and the planner's k; the overflow flag on
  * the layered fixture and its control; the published scores within 1e-4 on the fixture list with the top-k order,
@@ -15,13 +15,14 @@
  */
 
 import {
+    accelerated,
     betweennessCentrality as cpuBetweenness,
     edgeBetweennessCentrality as cpuEdgeBetweenness,
-    Graph,
 } from "@graphty/algorithms";
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
+import { createAccelerator } from "../../src/accelerator.js";
 import {
     type BetweennessBatchReport,
     betweennessCentrality,
@@ -91,30 +92,6 @@ function fixtures(): readonly { readonly name: string; readonly s: GraphSnapshot
         { name: "directed random(300, 1200, 5)", s: snapshotOf(randomEdges(300, 1200, 5), { directed: true }) },
         { name: "loops and parallels(200, 800, 9)", s: snapshotOf(randomEdgesLoose(200, 800, 9)) },
     ];
-}
-
-/**
- * The CPU package's betweenness on the same graph, index-aligned (every node added first). The node ids are the
- * strings "v<index>", not the numbers: the CPU accumulation skips its stack entry with `if (!w) continue`
- * (algorithms/src/algorithms/centrality/betweenness.ts), which drops the node whose id is the number 0 and scores
- * karate's vertex 0 as 0 instead of 231.07.
- * @param edges - the edges
- * @param n - the node count
- * @returns the vertex scores and the edge scores keyed "u-v"
- */
-function cpuScores(edges: readonly EdgeSpec[], n: number): { vertex: Float64Array; edge: Map<string, number> } {
-    const graph = new Graph();
-    for (let v = 0; v < n; v++) {
-        graph.addNode(`v${v}`);
-    }
-    for (const [u, v] of edges) {
-        graph.addEdge(`v${u}`, `v${v}`);
-    }
-    const scores = cpuBetweenness(graph);
-    return {
-        vertex: Float64Array.from({ length: n }, (_, v) => scores[`v${v}`]),
-        edge: cpuEdgeBetweenness(graph),
-    };
 }
 
 describe("betweenness batch planner (design 8.4, 10.1)", () => {
@@ -254,20 +231,33 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(() => checked.validate({ checksum: true })).not.toThrow();
     }, 300_000);
 
-    it("karate equals the CPU package's betweennessCentrality, and its edgeBetweennessCentrality summed over the two orientations it reports an undirected edge under, within 1e-4", async (t) => {
+    it("every simple fixture equals the CPU port's betweennessCentrality and edgeBetweennessCentrality within 1e-4, exact, normalized and on a source list; the dispatcher's k runs the port's draw", async (t) => {
         const ctx = await context(t);
-        const s = snapshotOf(KARATE_EDGES);
-        const cpu = cpuScores(KARATE_EDGES, s.nodeCount);
-        expect(scoreError((await betweennessCentrality(ctx, s)).scores, cpu.vertex)).toBeLessThanOrEqual(TOLERANCE);
-        const edges = (await edgeBetweennessCentrality(ctx, s)).scores;
-        const want = new Float64Array(s.edgeCount);
-        for (let e = 0; e < s.edgeCount; e++) {
-            const [u, v] = KARATE_EDGES[e];
-            // the CPU keys an undirected edge under BOTH orientations, each holding half of the edge's score
-            want[e] = (cpu.edge.get(`v${u}-v${v}`) ?? 0) + (cpu.edge.get(`v${v}-v${u}`) ?? 0);
+        const sources = [0, 3, 3, 7, 11];
+        for (const { name, s } of fixtures()) {
+            if (s.flags.multigraph) {
+                continue; // the port collapses parallel edges and the dispatcher keeps multigraphs on it
+            }
+            for (const options of [{}, { normalized: true }, { sources }] as const) {
+                const label = `${name} ${JSON.stringify(options)}`;
+                const got = await betweennessCentrality(ctx, s, options);
+                expect(scoreError(got.scores, cpuBetweenness(s, options).scores), label).toBeLessThanOrEqual(TOLERANCE);
+                const edges = await edgeBetweennessCentrality(ctx, s, options);
+                expect(scoreError(edges.scores, cpuEdgeBetweenness(s, options).scores), label).toBeLessThanOrEqual(
+                    TOLERANCE,
+                );
+            }
         }
-        expect(scoreError(edges, want)).toBeLessThanOrEqual(TOLERANCE);
-    }, 60_000);
+        const s = snapshotOf(randomEdges(1000, 4000, 21));
+        const dispatch = accelerated(createAccelerator(ctx));
+        const k = { k: 50 };
+        expect(
+            scoreError((await dispatch.betweennessCentrality(s, k)).scores, cpuBetweenness(s, k).scores),
+        ).toBeLessThanOrEqual(TOLERANCE);
+        expect(
+            scoreError((await dispatch.edgeBetweennessCentrality(s, k)).scores, cpuEdgeBetweenness(s, k).scores),
+        ).toBeLessThanOrEqual(TOLERANCE);
+    }, 300_000);
 
     it("the closed forms: path(n) scores i (n - 1 - i); star(L) the hub L (L - 1) / 2 and every leaf 0; normalized divides by (n - 1)(n - 2) / 2", async (t) => {
         const ctx = await context(t);
@@ -419,14 +409,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(scoreError(got, vertexConvention(s, brandesOracle(s).vertex))).toBeLessThanOrEqual(TOLERANCE);
         // 0 -> 2 has three shortest paths (two through 1, one through 3): vertex 1 carries 2/3 of the pair
         expect(got[1]).toBeCloseTo(2 / 3, 6);
-        const graph = new Graph({ allowParallelEdges: true });
-        for (let v = 0; v < 4; v++) {
-            graph.addNode(`v${v}`);
-        }
-        for (const [u, v] of edges) {
-            graph.addEdge(`v${u}`, `v${v}`);
-        }
-        expect(cpuBetweenness(graph).v1).toBeCloseTo(0.5, 6);
+        expect(cpuBetweenness(s).scores[1]).toBeCloseTo(0.5, 6);
     });
 
     it("a one-batch run leaves the edge list unuploaded; a pinned edge-parallel run uploads it", async (t) => {

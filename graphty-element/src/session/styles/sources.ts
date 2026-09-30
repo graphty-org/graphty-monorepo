@@ -46,7 +46,7 @@ import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, RunId } from "../../catalog/types";
 import { RESULT_ROOT, type RunResult } from "../results";
-import { edgeSpaceOf } from "../scope";
+import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
@@ -403,7 +403,7 @@ function isPresent(value: unknown): boolean {
  * @example
  * ```ts
  * const elements = createSelectorSource({
- *     snapshot: () => session.snapshot(),
+ *     snapshot: () => store.getSnapshot(),
  *     results: (id) => session.runs.get(id)?.result,
  *     records,
  * });
@@ -652,7 +652,8 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         const count = target === "node" ? held.nodeCount : held.edgeCount;
         const read =
             target === "node"
-                ? (index: number): Readonly<Record<string, unknown>> | undefined => result.node(held.graph.ids.idOf(index))
+                ? (index: number): Readonly<Record<string, unknown>> | undefined =>
+                      result.node(held.graph.ids.idOf(index))
                 : (index: number): Readonly<Record<string, unknown>> | undefined => result.edge(edgeIdAt(held, index));
         const found = new Uint32Array(count);
         let kept = 0;

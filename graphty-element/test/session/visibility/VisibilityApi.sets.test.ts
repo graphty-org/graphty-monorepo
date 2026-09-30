@@ -27,6 +27,7 @@ import type { ElementSet } from "../../../src/session/sets/types";
 import type { ElementSession } from "../../../src/session/types";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { finishAtOnce } from "../runs/harness";
+import { plant } from "../sets/plant";
 import { type Published, publishing } from "./results";
 
 /**
@@ -155,8 +156,9 @@ describe("the visibility filter follows the sets it names", () => {
         // The door refuses the loop; a load or an undo writes the store directly and can make one.
         assert.throws(() => h.session.sets.redefine(id, LOOP));
         const store = setsStoreOf(setsOfSession(h.session));
-        store.transact(() => {
-            store.put({ ...(store.get(id) as ElementSet), definition: LOOP });
+        plant(store, ...store.list().filter((set) => set.id !== id), {
+            ...(store.get(id) as ElementSet),
+            definition: LOOP,
         });
 
         // The filter's leaf now closes a loop and speaks nothing, so "not S" shows everything.

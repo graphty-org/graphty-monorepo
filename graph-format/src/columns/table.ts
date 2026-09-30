@@ -84,6 +84,15 @@ export function columnSetVersion(table: AttributeTable): number {
 }
 
 /**
+ * Make a table's column set read-only: set / remove / rename throw E_FROZEN from then on (the table
+ * half of snapshot.seal()). Idempotent; there is no unseal.
+ * @param table - the table
+ */
+export function sealTable(table: AttributeTable): void {
+    (table as unknown as { sealed: boolean }).sealed = true;
+}
+
+/**
  * Record a table as a holder of a column and of every buffer the column views (design section 9.1).
  * @param column - the column being attached
  */
@@ -110,6 +119,9 @@ export class AttributeTable implements AttributeTableContract {
 
     /** Bumped on every change of the column set (set / remove / rename), for callers that cache a lookup. */
     private mutations = 0;
+
+    /** Set by sealTable(): set / remove / rename throw E_FROZEN from then on. */
+    private sealed = false;
 
     /**
      * Create a table from wrapped columns (the constructor the freeze pipeline, fromCsr and the wire
@@ -270,6 +282,7 @@ export class AttributeTable implements AttributeTableContract {
         decl?: ColumnDeclPatch,
         opts?: SetOptions,
     ): Column {
+        this.assertWritable(name);
         const patch = decl ?? {};
         let column: Column;
         if (isTypedArrayData(data)) {
@@ -320,6 +333,7 @@ export class AttributeTable implements AttributeTableContract {
      * @returns true when a column was removed
      */
     remove(name: string): boolean {
+        this.assertWritable(name);
         const removed = this.columns.delete(name);
         if (removed) {
             this.mutations++;
@@ -334,6 +348,7 @@ export class AttributeTable implements AttributeTableContract {
      * @param to - the new name; E_COLUMN_EXISTS when another column has it
      */
     rename(from: string, to: string): void {
+        this.assertWritable(from);
         const column = this.require(from);
         if (from === to) {
             return;
@@ -412,6 +427,20 @@ export class AttributeTable implements AttributeTableContract {
             merged.fill = meta.fill;
         }
         return rewrapColumn(column, resolveColumnMeta(name, this.domain, merged));
+    }
+
+    /**
+     * Throw E_FROZEN when the table was sealed.
+     * @param name - the column the refused change names
+     */
+    private assertWritable(name: string): void {
+        if (this.sealed) {
+            throw new GraphFormatError(
+                "E_FROZEN",
+                `the ${this.domain} table is sealed: its column set cannot change (column "${name}")`,
+                { domain: this.domain, column: name },
+            );
+        }
     }
 
     private checkColumn(name: string, column: Column): void {

@@ -34,6 +34,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { operationQueueOf } from "../../src/Graph";
 
 /** Babylon's `Camera.ORTHOGRAPHIC_CAMERA`, compared as a number so no renderer class is imported. */
 const ORTHOGRAPHIC = 1;
@@ -82,7 +83,7 @@ function mount(): Graphty {
  * @param element - the mounted element
  */
 async function settle(element: Graphty): Promise<void> {
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 

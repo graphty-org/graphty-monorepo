@@ -9,7 +9,7 @@ import { PointerEventTypes, type PointerInfo, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../../src/Graph";
+import { Graph, operationQueueOf } from "../../../src/Graph";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -34,7 +34,7 @@ describe("Node Drag and Drop", () => {
             await configureGraph(graph, { viewMode: "3d", layout: "fixed", layoutOptions: { dim: 3 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
         });
 
@@ -141,7 +141,7 @@ describe("Node Drag and Drop", () => {
             await configureGraph(graph, { viewMode: "2d", layout: "fixed", layoutOptions: { dim: 2 } });
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 100));
         });
 

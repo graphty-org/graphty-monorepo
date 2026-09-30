@@ -44,6 +44,8 @@ export interface CorpusFile {
     readonly expectedEdges: number;
     /** Feature tags. */
     readonly features: readonly string[];
+    /** The importer options the file needs (an adjacency table, a delimiter, a path to its arrays). */
+    readonly options?: object | undefined;
 }
 
 /**
@@ -90,6 +92,17 @@ export function corpusEntry(format: CorpusFormat, name: string): CorpusFile {
         throw new Error(`no manifest entry for ${format}/${name}`);
     }
     return entry;
+}
+
+/**
+ * The importer options a corpus file needs: its manifest entry's `options`, or none (an unlisted
+ * file included).
+ * @param format - the format directory
+ * @param name - the file name
+ * @returns the options
+ */
+export function corpusOptions(format: CorpusFormat, name: string): Readonly<Record<string, unknown>> {
+    return (corpusFiles(format).find((f) => f.path === name)?.options ?? {}) as Readonly<Record<string, unknown>>;
 }
 
 /**

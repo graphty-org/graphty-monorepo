@@ -35,11 +35,14 @@ const LAYOUT_MEMBERS = ["forceAtlas2", "fruchtermanReingold", "springElectrical"
 /**
  * The members of `AlgorithmAccelerator` the element forwards, in the order it copies them.
  *
- * These are exactly the six `accelerated()` dispatches today: a member it does not dispatch can
- * never be reached through the seam, and a member whose CPU port does not exist has nothing to
- * fall back to. When `@graphty/algorithms` adds a dispatcher method, add its name here -- until
- * then an accelerator that implements it is asked for the CPU port instead, which is the honest
- * answer rather than a silent half-route.
+ * These are the dispatcher members an adapter routes through `accelerated()` AND whose device
+ * crossover is known, each with its floor in `ACCELERATION_MIN_NODES_BY_CAPABILITY`. A member the
+ * dispatcher has but this list lacks -- betweenness, label propagation and all-pairs
+ * shortest paths among them (issue #558), and k-core and Louvain, which no shipped accelerator
+ * computes -- is never offered to the accelerator:
+ * `Algorithm.accelerated` runs the CPU port for it without asking the controller, which is the
+ * honest answer rather than a silent half-route. Add a name here once its crossover is measured,
+ * with its floor beside it.
  *
  * `release` is the one member of `AlgorithmAccelerator` deliberately left out, and the asymmetry
  * with the layout list is real. A simulation holds device buffers ACROSS frames and releases them
@@ -54,7 +57,20 @@ const ALGORITHM_MEMBERS = [
     "connectedComponents",
     "weaklyConnectedComponents",
     "minimumSpanningTree",
+    "hits",
+    "katzCentrality",
+    "eigenvectorCentrality",
+    "closenessCentrality",
 ] as const;
+
+/**
+ * Whether the element offers this capability to an accelerator at all.
+ * @param capability - A dispatcher member name, such as `"pageRank"`.
+ * @returns True when {@link narrowAlgorithms} copies a member of that name.
+ */
+export function forwardsAlgorithm(capability: string): boolean {
+    return (ALGORITHM_MEMBERS as readonly string[]).includes(capability);
+}
 
 /**
  * Narrows the attached accelerator to the layout seam `createSimulation` feature-tests.
@@ -94,6 +110,8 @@ export function narrowLayout(accelerator: GraphAccelerator): LayoutAccelerator {
  * implements, each bound to it, so the dispatcher runs the accelerated implementation where one
  * exists and the CPU port everywhere else.
  * @param accelerator - The accelerator the controller has attached.
+ * @param onCall - Called whenever the dispatcher reaches one of the members, so a caller can tell
+ *   an answer the device computed from one the dispatcher routed to the CPU port.
  * @returns The algorithm half of it, for `accelerated()`.
  * @example
  * ```ts
@@ -102,7 +120,7 @@ export function narrowLayout(accelerator: GraphAccelerator): LayoutAccelerator {
  * );
  * ```
  */
-export function narrowAlgorithms(accelerator: GraphAccelerator): AlgorithmAccelerator {
+export function narrowAlgorithms(accelerator: GraphAccelerator, onCall?: () => void): AlgorithmAccelerator {
     const narrowed: { -readonly [K in keyof AlgorithmAccelerator]: AlgorithmAccelerator[K] } = {
         kind: accelerator.backend,
     };
@@ -110,9 +128,17 @@ export function narrowAlgorithms(accelerator: GraphAccelerator): AlgorithmAccele
     for (const member of ALGORITHM_MEMBERS) {
         const value = accelerator[member];
         if (typeof value === "function") {
+            const bound = (value as SeamMember).bind(accelerator);
             // `never` is the one type assignable to every member of the union the index produces;
             // the feature test above is what makes the assignment sound.
-            narrowed[member] = (value as SeamMember).bind(accelerator) as never;
+            narrowed[member] = (
+                onCall === undefined
+                    ? bound
+                    : (...args: readonly never[]): unknown => {
+                          onCall();
+                          return bound(...args);
+                      }
+            ) as never;
         }
     }
 

@@ -1,8 +1,10 @@
-import { Edge as LayoutEdge, Node as LayoutNode, shellLayout } from "@graphty/layout";
+import { type F32, INVALID_INDEX } from "@graphty/graph-format";
+import { shell } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Shell Layout
@@ -45,11 +47,13 @@ type ShellLayoutOpts = Partial<ShellLayoutConfigType>;
 /**
  * Shell layout engine that arranges nodes in concentric shells
  */
-export class ShellLayout extends SimpleLayoutEngine {
+export class ShellLayout extends SnapshotLayoutEngine {
     static type = "shell";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = shellLayoutOptionsSchema;
-    scalingFactor = 100;
+    /** Layout units to scene units. */
+    private static readonly scale = 100;
+    protected readonly dimensions: 2 | 3;
     config: ShellLayoutConfigType;
 
     /**
@@ -59,6 +63,7 @@ export class ShellLayout extends SimpleLayoutEngine {
     constructor(opts: ShellLayoutOpts) {
         super(opts);
         this.config = ShellLayoutConfig.parse(opts);
+        this.dimensions = layoutDim(this.config.dim);
     }
 
     /**
@@ -76,19 +81,31 @@ export class ShellLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions in concentric shells
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
-        const nodes = (): LayoutNode[] => this._nodes.map((n) => n.id as LayoutNode);
-        const edges = (): LayoutEdge[] => this._edges.map((e) => [e.srcId, e.dstId] as LayoutEdge);
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
 
-        this.positions = shellLayout(
-            { nodes, edges },
-            this.config.nlist,
-            this.config.scale,
-            this.config.center,
-            this.config.dim,
+    /**
+     * Compute node positions in concentric shells
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
+        const { nlist } = this.config;
+        return sceneUnits(
+            shell(input.graph, {
+                // A node a shell names that the graph does not hold has nowhere to be drawn.
+                nlist: nlist?.map((shell) =>
+                    shell.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
+                ),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+                dim: layoutDim(this.config.dim),
+            }),
+            ShellLayout.scale,
         );
     }
 }

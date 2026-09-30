@@ -26,7 +26,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LabelStyle, LayerSpec, StaticStyle } from "../../src/catalog/types";
 import type { Edge } from "../../src/Edge";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import type { GraphSession } from "../../src/session";
 
@@ -86,7 +86,7 @@ describe("a caption at the end of an arrow", () => {
         // Circular rather than a physics layout: a frame read while the nodes are still drifting
         // differs from the one before it for reasons no layer is responsible for.
         await graph.setLayout("circular", { scale: 0.2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // THE PREREQUISITE, and it is the subject of one of the tests below as well: a caption
         // hangs from the cap at its end, so both ends need a cap before either can carry one.
@@ -103,7 +103,7 @@ describe("a caption at the end of an arrow", () => {
                 "edge.arrowTailSize": 3,
             },
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Drawn before the first measurement, so that every "the frame moved" below is a change
         // to a graph that was already on screen rather than to a graph that had never been drawn.
@@ -120,7 +120,7 @@ describe("a caption at the end of an arrow", () => {
      * @returns How many pixels fall in each coarse colour bucket.
      */
     async function frame(): Promise<Uint32Array> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();
@@ -276,7 +276,7 @@ describe("a caption at the end of an arrow", () => {
         assert.isNotNull(edge.arrowHeadText, "the caption is drawn while the layer is there");
 
         await session.styles.remove(id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const restored = await frame();
 

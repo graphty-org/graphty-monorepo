@@ -9,7 +9,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { ViewMode } from "../../src/config";
 import { isGraphtyError } from "../../src/errors";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 describe("ViewMode API", () => {
     let graph: Graph;
@@ -47,18 +47,18 @@ describe("ViewMode API", () => {
 
         it("should return '2d' after setting viewMode to '2d'", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.strictEqual(graph.getViewMode(), "2d");
         });
 
         it("should return '3d' after setting viewMode to '3d'", async () => {
             // First switch to 2d
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Then back to 3d
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             assert.strictEqual(graph.getViewMode(), "3d");
         });
     });
@@ -67,13 +67,13 @@ describe("ViewMode API", () => {
         it("should switch from 3D to 2D", async () => {
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "3d");
             assert.isFalse(graph.getViewMode() === "2d");
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "2d");
             assert.isTrue(graph.getViewMode() === "2d");
@@ -81,17 +81,17 @@ describe("ViewMode API", () => {
 
         it("should switch from 2D to 3D", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             await graph.addNodes(TEST_NODES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "2d");
             assert.isTrue(graph.getViewMode() === "2d");
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "3d");
             assert.isFalse(graph.getViewMode() === "2d");
@@ -100,7 +100,7 @@ describe("ViewMode API", () => {
         it("should not change if setting same mode", async () => {
             const initialMode = graph.getViewMode();
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), initialMode);
         });
@@ -109,29 +109,29 @@ describe("ViewMode API", () => {
             assert.isFalse(graph.getViewMode() === "2d", "Should start in 3D");
 
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isTrue(graph.getViewMode() === "2d", "is2D() should be true when viewMode is '2d'");
-             
+
             assert.isTrue(graph.styles.config.graph.twoD, "twoD config should be true");
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.isFalse(graph.getViewMode() === "2d", "is2D() should be false when viewMode is '3d'");
-             
+
             assert.isFalse(graph.styles.config.graph.twoD, "twoD config should be false");
         });
 
         it("should update scene metadata", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.scene.metadata?.viewMode, "2d");
             assert.isTrue(graph.scene.metadata?.twoD);
 
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.scene.metadata?.viewMode, "3d");
             assert.isFalse(graph.scene.metadata?.twoD);
@@ -144,13 +144,13 @@ describe("ViewMode API", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.getViewMode(), "3d");
 
             // Switch to 2D mode using viewMode API
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are flattened
             assert.strictEqual(graph.getViewMode(), "2d");
@@ -164,7 +164,7 @@ describe("ViewMode API", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Force node positions to be updated from layout engine
             for (const node of graph.getNodes()) {
@@ -179,7 +179,7 @@ describe("ViewMode API", () => {
 
             // Switch to 2D mode
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify flattened
             for (const node of graph.getNodes()) {
@@ -188,7 +188,7 @@ describe("ViewMode API", () => {
 
             // Switch back to 3D mode
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify Z positions are restored
             for (const node of graph.getNodes()) {
@@ -226,16 +226,16 @@ describe("ViewMode API", () => {
 
         it("agrees everywhere after a switch to 2D", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assertAgrees("2d");
         });
 
         it("agrees everywhere after a switch back to 3D", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assertAgrees("3d");
         });
@@ -250,7 +250,7 @@ describe("ViewMode API", () => {
                 set: { "node.color": "#4CAF50", "node.shape": "sphere", "node.size": 10 },
             });
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assertAgrees("2d");
         });
@@ -261,7 +261,7 @@ describe("ViewMode API", () => {
         it("should fall back to 3d when VR is not available", async () => {
             // Try to switch to VR (should fail gracefully)
             await graph.setViewMode("vr");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should fall back to 3D since XR is not available in test environment
             assert.strictEqual(graph.getViewMode(), "3d");
@@ -270,7 +270,7 @@ describe("ViewMode API", () => {
         it("should fall back to 3d when AR is not available", async () => {
             // Try to switch to AR (should fail gracefully)
             await graph.setViewMode("ar");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Should fall back to 3D since XR is not available in test environment
             assert.strictEqual(graph.getViewMode(), "3d");
@@ -282,7 +282,7 @@ describe("ViewMode API", () => {
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
             await graph.setLayout("circular");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Force node positions to be updated from layout engine
             for (const node of graph.getNodes()) {
@@ -299,7 +299,7 @@ describe("ViewMode API", () => {
             for (let i = 0; i < 3; i++) {
                 // To 2D
                 await graph.setViewMode("2d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 assert.strictEqual(graph.getViewMode(), "2d");
                 for (const node of graph.getNodes()) {
@@ -313,7 +313,7 @@ describe("ViewMode API", () => {
 
                 // Back to 3D
                 await graph.setViewMode("3d");
-                await graph.operationQueue.waitForCompletion();
+                await operationQueueOf(graph).waitForCompletion();
 
                 assert.strictEqual(graph.getViewMode(), "3d");
                 for (const node of graph.getNodes()) {
@@ -348,7 +348,7 @@ describe("ViewMode API", () => {
 
         it("refuses the orbit camera in 2D and keeps the orthographic one", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             const error = await refusal(graph.setCameraMode("orbit"));
 
@@ -374,12 +374,12 @@ describe("ViewMode API", () => {
 
         it("setViewMode repairs a 2D scene drawing through the orbit camera", async () => {
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Force the drift the element no longer lets a caller cause.
             graph.camera.activateCamera("orbit");
             await graph.setViewMode("2d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.scene.activeCamera?.mode, Camera.ORTHOGRAPHIC_CAMERA);
         });
@@ -387,7 +387,7 @@ describe("ViewMode API", () => {
         it("setViewMode repairs a 3D scene drawing through the 2D camera", async () => {
             graph.camera.activateCamera("2d");
             await graph.setViewMode("3d");
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
         });

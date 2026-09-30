@@ -29,6 +29,7 @@ import type { SetStatus } from "../../../src/session/sets/types";
 import { type Harness, makeSession } from "../helpers";
 import { type Published, publishing } from "../visibility/results";
 import { TestGraph } from "./graphs";
+import { plant } from "./plant";
 
 /**
  * Nodes to values.
@@ -130,7 +131,8 @@ async function countOf(f: Fixture, id: SetId): Promise<[number, number]> {
 }
 
 /**
- * Put a record straight into the store, as the loader or an undo does, past the doors' refusals.
+ * Put a record straight into the slice, as a load does, past the doors' refusals, beside the live
+ * ones.
  * @param f - The fixture.
  * @param name - Its name, which its id is minted from.
  * @param definition - Its definition.
@@ -138,15 +140,14 @@ async function countOf(f: Fixture, id: SetId): Promise<[number, number]> {
  */
 function put(f: Fixture, name: string, definition: unknown): SetId {
     const store = setsStoreOf(f.harness.session.sets);
+    const id = store.mint(name);
+    plant(
+        store,
+        ...store.list(),
+        prepareCreate(store, { id, name, order: store.nextOrder(), definition, createdFrom: { kind: "user" } }),
+    );
 
-    return store.transact(() => {
-        const id = store.mint(name);
-        store.put(
-            prepareCreate(store, { id, name, order: store.nextOrder(), definition, createdFrom: { kind: "user" } }),
-        );
-
-        return id;
-    });
+    return id;
 }
 
 /**
@@ -447,20 +448,18 @@ describe("status, row by row of the design's table", () => {
         );
 
         const store = setsStoreOf(f.harness.session.sets);
-        const opaque = store.transact(() => {
-            const id = store.mint("opaque");
-            store.put(
-                loadRecord({
-                    id,
-                    name: "Opaque",
-                    order: store.nextOrder(),
-                    definition: { kind: "acme:blob", payload: 1 },
-                    createdFrom: { kind: "user" },
-                }),
-            );
-
-            return id;
-        });
+        const opaque = store.mint("opaque");
+        plant(
+            store,
+            ...store.list(),
+            loadRecord({
+                id: opaque,
+                name: "Opaque",
+                order: store.nextOrder(),
+                definition: { kind: "acme:blob", payload: 1 },
+                createdFrom: { kind: "user" },
+            }),
+        );
         assert.deepStrictEqual(
             statusOfSet(f, opaque),
             status("unresolvable", [{ kind: "missing-capability", name: "acme:blob" }]),

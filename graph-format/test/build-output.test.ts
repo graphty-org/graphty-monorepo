@@ -1,5 +1,7 @@
+import { spawnSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
+import { pathToFileURL } from "url";
 import { describe, expect, it } from "vitest";
 
 import { WIRE_PRODUCER } from "../src/wire/to-wire.js";
@@ -78,9 +80,7 @@ describe("Build Output Tests", () => {
         // 0.2.0 stamps "@graphty/graph-format@0.1.0". Only the shape is fixed, because the value
         // is a build stamp: a short commit from scripts/build-bundle.js, "dev" under tsc/vitest
         // where the define does not run, or "unknown" when built with no git available.
-        expect(WIRE_PRODUCER).toMatch(
-            new RegExp(`^${packageJson.name}@(dev|unknown|[0-9a-f]{7,40}(-dirty)?)$`),
-        );
+        expect(WIRE_PRODUCER).toMatch(new RegExp(`^${packageJson.name}@(dev|unknown|[0-9a-f]{7,40}(-dirty)?)$`));
     });
 
     it("should have the standard script set", () => {
@@ -154,5 +154,33 @@ describe("Build Output Tests", () => {
         expect(existsSync(resolve("./dist/graph-format.js.map"))).toBe(true);
         const dts = readFileSync(resolve("./dist/graph-format.d.ts"), "utf-8");
         expect(dts.trim()).toBe('export * from "./src/index.js";');
+    });
+
+    // Only the bundle is stamped with the build commit; the tsc output under dist/src/ writes
+    // "@graphty/graph-format@dev" into every wire manifest (issue #101). The tarball ships the bundle
+    // and the declarations, never that unstamped runtime code.
+    it.skipIf(!bundleExists)("should publish no runtime code that stamps wire files as dev", async () => {
+        const pack = spawnSync("npm", ["pack", "--dry-run", "--json"], { encoding: "utf-8" });
+        expect(pack.status, pack.stderr).toBe(0);
+        const [{ files }] = JSON.parse(pack.stdout) as [{ files: { path: string }[] }];
+        const paths = files.map((f) => f.path);
+
+        expect(paths).toContain("dist/graph-format.js");
+        expect(paths).toContain("dist/src/index.d.ts");
+        const runtime = paths.filter((p) => p.startsWith("dist/") && /\.js(\.map)?$/.test(p));
+        expect(runtime.sort()).toEqual(["dist/graph-format.js", "dist/graph-format.js.map"]);
+        // The producer string is assembled at runtime, so "@graphty/graph-format@dev" never appears
+        // literally. A file that still reads the commit placeholder is one the build did not stamp,
+        // and it falls back to "dev".
+        for (const p of paths.filter((path) => path.endsWith(".js"))) {
+            expect(readFileSync(resolve(p), "utf-8"), p).not.toContain("__GRAPH_FORMAT_COMMIT__");
+        }
+
+        const bundle = (await import(pathToFileURL(bundlePath).href)) as typeof import("../src/index.js");
+        const builder = new bundle.GraphBuilder({ directed: false });
+        builder.addEdge("a", "b");
+        expect(builder.freeze().toWire().manifest.producer).toMatch(
+            /^@graphty\/graph-format@(unknown|[0-9a-f]{7,40}(-dirty)?)$/,
+        );
     });
 });

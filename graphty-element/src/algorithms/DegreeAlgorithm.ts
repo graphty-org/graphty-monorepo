@@ -1,3 +1,5 @@
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
@@ -57,14 +59,29 @@ export class DegreeAlgorithm extends MetricAlgorithm {
      * @returns One count per node, unscaled.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        // Directed, so in-degree and out-degree are the directions the records declared.
-        const graphData = this.algorithmGraph("directed");
+        /* The declared snapshot, with each group of parallel edges counted once -- the same merge
+           every run takes. The dispatcher counts each edge at its declared source and target rather
+           than reading the snapshot's degree views: an undirected snapshot's in- and out-degree are
+           one array holding the whole degree, so adding them would double it. No accelerator counts
+           degrees, so this is the CPU port's decision. */
+        const { snapshot, run } = this.accelerated("degrees", "directed");
+        const { ids } = snapshot;
+        const {
+            value: { inDegree: inDegrees, outDegree: outDegrees },
+        } = await run((dispatch, s) => dispatch.degrees(s));
         const nodes: ResultElementValues[] = [];
 
         await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
-            const inDegree = graphData.inDegree(nodeId);
-            const outDegree = graphData.outDegree(nodeId);
+            const index = ids.indexOf(nodeId);
 
+            if (index === INVALID_INDEX) {
+                nodes.push({ id: nodeId, values: {} });
+
+                return;
+            }
+
+            const inDegree = inDegrees[index];
+            const outDegree = outDegrees[index];
             nodes.push({ id: nodeId, values: { value: inDegree + outDegree, inDegree, outDegree } });
         });
 

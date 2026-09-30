@@ -182,8 +182,8 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
             </PanelSection>
 
             {/*
-                graphty-element has no data exporter yet (its format catalogue says canExport
-                is false for every format), so the whole section is unshipped: 5.8's group
+                graphty-element writes every format in its catalogue (exportGraph), but this
+                panel does not call it yet, so the whole section is unshipped: 5.8's group
                 form, one tag on the header, and every control dimmed and disabled rather
                 than drawn operable and snapping back. The props stay for the day it ships.
             */}

@@ -21,11 +21,11 @@ export {
     type SelectionAttributeStatistics,
     type SelectionCause,
     type SelectionDelta,
+    type SelectionOp,
     type SelectionOwner,
     type SelectionSources,
     type SelectionStatistics,
     SET_OPS,
-    type SetOp,
 } from "./SelectionApi";
 export {
     type ElementIdTarget,

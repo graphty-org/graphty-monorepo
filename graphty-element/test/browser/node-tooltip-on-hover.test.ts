@@ -25,7 +25,7 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
@@ -68,7 +68,7 @@ describe("a tooltip a layer asks for", () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.setLayout("circular");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

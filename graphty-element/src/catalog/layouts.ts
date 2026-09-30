@@ -75,6 +75,8 @@ export interface LayoutImplementation {
      * catalogue cannot claim a weight channel an engine does not have.
      */
     honoursWeights: boolean;
+    /** Whether this engine accepts a scope, read off the engine class's own `static scoped`. */
+    scoped: boolean;
     /**
      * What has to be true before this engine can run at all, in the same shape an algorithm
      * declares it.
@@ -138,7 +140,7 @@ function engineOptions(
  * @returns The finished entry.
  */
 function entry(
-    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights">,
+    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights" | "scoped">,
     primary: LayoutImplementationSpec,
     alternates: readonly LayoutImplementationSpec[] = [],
 ): LayoutCatalogEntry {
@@ -148,6 +150,7 @@ function entry(
             engine: primary.engine,
             options: primary.options,
             honoursWeights: primary.honoursWeights,
+            scoped: primary.scoped,
         },
         implementations: [
             { ...primary, isDefault: true },
@@ -173,6 +176,7 @@ const ngraph: LayoutImplementationSpec = {
         "draws this same arrangement on an accelerator instead, whenever one is attached.",
     options: engineOptions(NGraphEngine.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: NGraphEngine.honoursWeights,
+    scoped: NGraphEngine.scoped,
 };
 
 const d3: LayoutImplementationSpec = {
@@ -186,6 +190,7 @@ const d3: LayoutImplementationSpec = {
         "the arrangement has to match a d3 drawing elsewhere in the product.",
     options: engineOptions(D3GraphEngine.zodOptionsSchema),
     honoursWeights: D3GraphEngine.honoursWeights,
+    scoped: D3GraphEngine.scoped,
 };
 
 const forceAtlas2: LayoutImplementationSpec = {
@@ -199,6 +204,7 @@ const forceAtlas2: LayoutImplementationSpec = {
         "It keeps running until the layout settles and reheats on a drag or a pin.",
     options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ForceAtlas2Layout.honoursWeights,
+    scoped: ForceAtlas2Layout.scoped,
 };
 
 const spring: LayoutImplementationSpec = {
@@ -212,6 +218,7 @@ const spring: LayoutImplementationSpec = {
         "the same settled shape.",
     options: engineOptions(SpringLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringLayout.honoursWeights,
+    scoped: SpringLayout.scoped,
 };
 
 const springElectrical: LayoutImplementationSpec = {
@@ -226,6 +233,7 @@ const springElectrical: LayoutImplementationSpec = {
         "it then needs an accelerator and says so when there is none.",
     options: engineOptions(SpringElectricalLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringElectricalLayout.honoursWeights,
+    scoped: SpringElectricalLayout.scoped,
     requires: { accelerator: true },
 };
 
@@ -240,6 +248,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
     honoursWeights: KamadaKawaiLayout.honoursWeights,
+    scoped: KamadaKawaiLayout.scoped,
 };
 
 const arf: LayoutImplementationSpec = {
@@ -253,6 +262,7 @@ const arf: LayoutImplementationSpec = {
         "is what it computes rather than what it is flattened into afterwards.",
     options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ArfLayout.honoursWeights,
+    scoped: ArfLayout.scoped,
 };
 
 const circular: LayoutImplementationSpec = {
@@ -264,6 +274,7 @@ const circular: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(CircularLayout.zodOptionsSchema),
     honoursWeights: CircularLayout.honoursWeights,
+    scoped: CircularLayout.scoped,
 };
 
 const shell: LayoutImplementationSpec = {
@@ -275,6 +286,7 @@ const shell: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(ShellLayout.zodOptionsSchema),
     honoursWeights: ShellLayout.honoursWeights,
+    scoped: ShellLayout.scoped,
 };
 
 const radial: LayoutImplementationSpec = {
@@ -286,6 +298,7 @@ const radial: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(RadialLayout.zodOptionsSchema),
     honoursWeights: RadialLayout.honoursWeights,
+    scoped: RadialLayout.scoped,
 };
 
 const grid: LayoutImplementationSpec = {
@@ -297,6 +310,7 @@ const grid: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(GridLayout.zodOptionsSchema),
     honoursWeights: GridLayout.honoursWeights,
+    scoped: GridLayout.scoped,
 };
 
 const spiral: LayoutImplementationSpec = {
@@ -308,6 +322,7 @@ const spiral: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(SpiralLayout.zodOptionsSchema),
     honoursWeights: SpiralLayout.honoursWeights,
+    scoped: SpiralLayout.scoped,
 };
 
 const spectral: LayoutImplementationSpec = {
@@ -319,6 +334,7 @@ const spectral: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(SpectralLayout.zodOptionsSchema),
     honoursWeights: SpectralLayout.honoursWeights,
+    scoped: SpectralLayout.scoped,
 };
 
 const planar: LayoutImplementationSpec = {
@@ -330,6 +346,7 @@ const planar: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: PlanarLayout.honoursWeights,
+    scoped: PlanarLayout.scoped,
 };
 
 const bfs: LayoutImplementationSpec = {
@@ -343,6 +360,7 @@ const bfs: LayoutImplementationSpec = {
         "arrival and does not reduce edge crossings between rows.",
     options: engineOptions(BfsLayout.zodOptionsSchema),
     honoursWeights: BfsLayout.honoursWeights,
+    scoped: BfsLayout.scoped,
 };
 
 const bipartite: LayoutImplementationSpec = {
@@ -354,6 +372,7 @@ const bipartite: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(BipartiteLayout.zodOptionsSchema),
     honoursWeights: BipartiteLayout.honoursWeights,
+    scoped: BipartiteLayout.scoped,
 };
 
 const multipartite: LayoutImplementationSpec = {
@@ -365,6 +384,7 @@ const multipartite: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(MultipartiteLayout.zodOptionsSchema),
     honoursWeights: MultipartiteLayout.honoursWeights,
+    scoped: MultipartiteLayout.scoped,
 };
 
 const fixed: LayoutImplementationSpec = {
@@ -376,6 +396,7 @@ const fixed: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(FixedLayout.zodOptionsSchema),
     honoursWeights: FixedLayout.honoursWeights,
+    scoped: FixedLayout.scoped,
 };
 
 const random: LayoutImplementationSpec = {
@@ -387,6 +408,7 @@ const random: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: RandomLayout.honoursWeights,
+    scoped: RandomLayout.scoped,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -519,8 +541,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             id: "planar",
             plainName: "No Crossings",
             technicalName: "Planar embedding",
-            description:
-                "Places nodes so that no two edges cross, for the graphs where that is possible.",
+            description: "Places nodes so that no two edges cross, for the graphs where that is possible.",
             family: "geometric",
             kind: "batch",
             maxDimensions: 2,

@@ -269,8 +269,8 @@ async function main(): Promise<number> {
                 `batch=${args.batch} maxIter=${args.iterations} repulsion=${args.repulsion}`,
         );
         console.log(
-            `adapter: ${caps.vendor} / ${caps.architecture} / ${caps.description} (profiler ${profiled ? "on" : "off"})` +
-                (caps.software ? " -- software adapter: timings are not representative (spec 11.7)" : ""),
+            `adapter: ${caps.vendor} / ${caps.architecture} / ${caps.description} (profiler ${profiled ? "on" : "off"})${ 
+                caps.software ? " -- software adapter: timings are not representative (spec 11.7)" : ""}`,
         );
         const snapshot = snapshotOf(randomEdges(args.nodes, args.edges, args.seed), {
             label: `layout-run/${args.nodes}/${args.edges}`,

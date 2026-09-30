@@ -24,9 +24,9 @@ describe("compactTheme", () => {
         expect(compactTheme.colors?.dark).toHaveLength(10);
     });
 
-    it("includes all 41 component extensions", () => {
+    it("includes all 43 component extensions", () => {
         const componentNames = Object.keys(compactTheme.components ?? {});
-        expect(componentNames).toHaveLength(41);
+        expect(componentNames).toHaveLength(43);
     });
 
     it("includes all input components", () => {

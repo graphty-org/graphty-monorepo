@@ -28,7 +28,7 @@
 import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /**
  * Enough nodes and edges that the force layout moves them a measurable distance per step, so a box
@@ -154,7 +154,7 @@ describe("framing the graph", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

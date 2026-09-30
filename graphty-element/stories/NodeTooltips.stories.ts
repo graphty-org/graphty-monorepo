@@ -17,7 +17,6 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { LayerSpec } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
-import { type Graphty } from "../src/graphty-element";
 import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
@@ -64,7 +63,7 @@ interface TooltipArgs {
  * @returns The element.
  */
 function render(args: TooltipArgs): Element {
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
 
     setLayoutPreSteps(element, 2000);
 

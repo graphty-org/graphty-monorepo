@@ -1,7 +1,7 @@
 /**
  * Spec 11.9 item 1 for the `grid-cell-key` kernel (P4-T8): every SABOTAGE row of G1 is spliced into the normative
  * body and compiled on a FRESH context, and the SAME bitwise check that passes on the real kernel (gridReport over
- * random20k and outside5 in 2D and 3D: the keys, the stable order, the histogram and its scan against the oracle)
+ * random20k, outside5 and nonfinite in 2D and 3D: the keys, the stable order, the histogram and its scan against the oracle)
  * fails on the mutant by at least minFactor -- any mismatch is Infinity. The first block is the coverage loop of
  * test/sabotage/coverage.test.ts applied to these rows (P4 is not in SABOTAGE_PHASES until T12, PD-1).
  */
@@ -17,7 +17,7 @@ import { assertCheckPasses, type CheckReport, mergeReports, SABOTAGE, sabotagedB
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const ID: KernelId = "grid-cell-key";
-const FIXTURES: readonly string[] = ["random20k", "outside5"];
+const FIXTURES: readonly string[] = ["random20k", "outside5", "nonfinite"];
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**
@@ -34,11 +34,12 @@ async function report(ctx: GpuContext): Promise<CheckReport> {
 }
 
 describe("sabotage: grid-cell-key (spec 11.9 item 1; P4-T8)", () => {
-    it("has three rows naming the grid test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
+    it("has four rows naming the grid test; every find occurs once in the normative body, the replacement differs, minFactor >= 10, names unique", () => {
         expect((SABOTAGE[ID] ?? []).map((m) => m.name)).toEqual([
             "pseudo-cell-dropped",
             "axes-swapped",
             "floor-replaced-by-round",
+            "nan-in-cell-zero",
         ]);
         const { body } = KERNELS[ID];
         const names = new Set<string>();
@@ -59,7 +60,7 @@ describe("sabotage: grid-cell-key (spec 11.9 item 1; P4-T8)", () => {
         }
     });
 
-    it("the real kernel passes the bitwise check over random20k and outside5 (factor 0)", async (t) => {
+    it("the real kernel passes the bitwise check over random20k, outside5 and nonfinite (factor 0)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "sabotage-grid" });
         try {

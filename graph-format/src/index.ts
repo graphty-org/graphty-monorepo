@@ -25,7 +25,18 @@ export { fromRecords } from "./populate/from-records.js";
 export { renumberPartition } from "./snapshot/derived.js";
 export { equalsTopology, isGraphSnapshot } from "./snapshot/graph-snapshot.js";
 export { expandEdges, foldArcs } from "./snapshot/views.js";
-export { makeMask, maskCount, maskSet, maskTest, maskToIndices } from "./util/mask.js";
+export {
+    makeMask,
+    maskAnd,
+    maskAndNot,
+    maskCount,
+    maskNot,
+    maskOr,
+    maskSet,
+    maskTest,
+    maskToIndices,
+    maskXor,
+} from "./util/mask.js";
 export { paddedU32View } from "./util/typed-array.js";
 export { fromByteChunks, fromBytes } from "./wire/bytes.js";
 export { fromWire } from "./wire/from-wire.js";

@@ -16,8 +16,10 @@ import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
 
 import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode, resolveEdgeWeight } from "../../src/data/ingest";
 import type { Graph } from "../../src/Graph";
+import { resolveEdgeCapacity } from "../../src/session/project/graphOps";
+import { resolveEdgeWeight } from "../../src/session/project/ingest";
+import { ingestEdge, ingestNode } from "./rawIngest";
 
 /**
  * Options for creating a mock graph
@@ -125,7 +127,14 @@ export function createMockSnapshotSource(
     }
 
     for (const record of edges.values()) {
-        const { index } = ingestEdge(store, record.srcId, record.dstId, resolveEdgeWeight(record, "weight").weight);
+        const { index } = ingestEdge(
+            store,
+            record.srcId,
+            record.dstId,
+            resolveEdgeWeight(record, "weight").weight,
+            undefined,
+            resolveEdgeCapacity(record),
+        );
         // `Edge.index` is the dense row an edge result is keyed by, and `DataManager` writes it
         // onto every edge it builds. A mock whose edges lack it is a mock an edge-result adapter
         // cannot read.
@@ -234,6 +243,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
                 nodes,
                 edges,
                 ...snapshots,
+                getEdge: (id: string) => edges.get(id),
                 get graphResults() {
                     return graphResults;
                 },
@@ -254,9 +264,8 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
  * @param nodeId - The node ID to look up
  * @returns The node object (any type)
  */
- 
+
 export function getMockNode(graph: Graph, nodeId: string | number): any {
-     
     const dm = graph.getDataManager() as any;
     return dm.nodes.get(nodeId);
 }

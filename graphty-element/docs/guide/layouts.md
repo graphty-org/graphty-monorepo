@@ -347,6 +347,38 @@ element.pinnedNodes; // a Set of the pinned node ids
 Turn the drag behaviour off with `pinOnDrag: false` in the graph's behaviour configuration; the
 verbs above still work.
 
+## Laying out part of the graph
+
+`setLayout` takes a `scope` as its third argument. The layout moves only the scope's nodes and
+holds every other node exactly where it is -- useful for tidying one community or a kept
+[set](./sets) without disturbing the rest:
+
+```typescript
+const cluster = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d"], reading: "induced" });
+
+await element.setLayout("ngraph", { seed: 7 }, { scope: { set: cluster } });
+
+// The scope is kept: changing an option lays out the same nodes again
+element.layoutConfig = { seed: 8 };
+
+// Back to the whole graph
+await element.setLayout("ngraph", {}, { scope: "graph" });
+```
+
+The same scope is the `layoutScope` property and the `layout-scope` attribute (JSON), which read
+`undefined` for the whole graph.
+
+- **The members are captured when the layout starts.** A click, a filter change or an attribute
+  edit does not move the hold, and a node added later is held too.
+- **The physics layouts accept a scope**: `ngraph`, `d3`, `forceatlas2`, `spring` and
+  `spring-electrical`. Any other refuses one with `E_UNSUPPORTED`; `session.catalog.layouts()`
+  says which as `scoped`.
+- **A hold is not a pin.** It is never saved as a pin, and unpinning a held node does not release
+  it.
+- **Removing the set releases the hold**: the layout runs over the whole graph, and nothing throws.
+- Held nodes still push and pull on the members, so a scoped layout costs the same per step as a
+  whole-graph one, and a small scope is spread over the whole layout's extent.
+
 ## Performance Tips
 
 1. **Large graphs**: Use Barnes-Hut approximation (ngraph with default theta)

@@ -4,20 +4,15 @@
  * Demonstrates spiral layout where nodes are positioned along a spiral path.
  * Shows animation from random initial positions to final spiral positions.
  *
- * IMPORTANT: This story uses the actual spiralLayout implementation
+ * IMPORTANT: This story uses the actual spiral implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { spiralLayout } from "@graphty/layout";
+import { spiral, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -49,19 +44,15 @@ function createSpiralStory(args: SpiralArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final spiral layout using actual algorithm
-    const finalPositions = spiralLayout(
-        layoutGraph,
-        scale,
-        [0, 0],
-        2,
-        resolution,
-        equidistant,
+    const finalPositions = toPositionMap(
+        spiral(snapshot, { scale, center: [0, 0], resolution, equidistant }),
+        snapshot.ids,
     );
 
     // Create container
@@ -126,15 +117,7 @@ const meta: Meta<SpiralArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         scale: {
@@ -171,7 +154,7 @@ type Story = StoryObj<SpiralArgs>;
 /**
  * Spiral layout story - positions nodes along a spiral path.
  *
- * This story uses the actual `spiralLayout()` function from @graphty/layout.
+ * This story uses the actual `spiral()` function from @graphty/layout.
  * The play function animates from random positions to the spiral arrangement.
  */
 export const Spiral: Story = {

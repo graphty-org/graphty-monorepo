@@ -1,47 +1,70 @@
 # Traversal Algorithms
 
-Traversal algorithms systematically visit all nodes in a graph. They form the foundation for many other graph algorithms.
+Traversal algorithms systematically visit the nodes of a graph. They form the foundation for many other graph
+algorithms. Each one takes a graph snapshot and a start node index, and returns typed arrays indexed by node (see
+[Graph Data Structure](./graph.md) for how snapshots and node indices work).
 
 ## Breadth-First Search (BFS)
 
-BFS explores nodes level by level, visiting all neighbors of a node before moving to the next level.
+BFS explores nodes level by level, visiting all neighbours of a node before moving to the next level.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, bfs } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
-const graph = new Graph<string>();
-graph.addEdge("a", "b");
-graph.addEdge("a", "c");
-graph.addEdge("b", "d");
-graph.addEdge("c", "d");
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+builder.addEdge("a", "c");
+builder.addEdge("b", "d");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+const name = (i: number) => graph.ids.idOf(i);
 
-const result = bfs(graph, "a");
+const result = breadthFirstSearch(graph, graph.ids.requireIndex("a"));
 
-console.log(result.order);     // ["a", "b", "c", "d"]
-console.log(result.distances); // Map { "a" => 0, "b" => 1, "c" => 1, "d" => 2 }
-console.log(result.parents);   // Map { "b" => "a", "c" => "a", "d" => "b" }
+// `order` holds the visited nodes first; `visitedCount` says how many
+console.log(Array.from(result.order.subarray(0, result.visitedCount), name)); // ["a", "b", "c", "d"]
+console.log(result.depth[graph.ids.requireIndex("d")]); // 2
+console.log(name(result.parent[graph.ids.requireIndex("d")])); // b
 ```
+
+`parent` and `depth` hold `INVALID_INDEX` (4294967295) for the start node's parent and for every node the search did
+not reach.
 
 ### BFS Options
 
+<!-- doc-check -->
+
 ```typescript
-const result = bfs(graph, "a", {
-  // Maximum depth to explore
-  maxDepth: 3,
+import { GraphBuilder } from "@graphty/graph-format";
+import { breadthFirstSearch } from "@graphty/algorithms";
 
-  // Custom visitor function
-  visitor: (node, depth) => {
-    console.log(`Visiting ${node} at depth ${depth}`);
-  },
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+const a = graph.ids.requireIndex("a");
 
-  // Stop when target is found
-  target: "d",
-});
+// Explore at most two hops from the start
+const near = breadthFirstSearch(graph, a, { maxDepth: 2 });
+console.log(near.visitedCount); // 3
+
+// Stop as soon as "c" is reached
+const toC = breadthFirstSearch(graph, a, { target: graph.ids.requireIndex("c") });
+console.log(toC.visitedCount); // 3
 ```
+
+To search against the direction of the edges, pass the reverse view: `breadthFirstSearch(graph.reverse(), start)`.
+
+For very large, low-diameter graphs, `directionOptimizedBfs(graph, start)` returns the same kind of result and
+switches between top-down and bottom-up steps.
 
 ### Use Cases
 
-- Finding shortest path in unweighted graphs
+- Finding shortest paths in unweighted graphs
 - Level-order traversal
 - Finding connected components
 - Testing bipartiteness
@@ -50,39 +73,27 @@ const result = bfs(graph, "a", {
 
 DFS explores as far as possible along each branch before backtracking.
 
-```typescript
-import { Graph, dfs } from "@graphty/algorithms";
-
-const graph = new Graph<string>();
-graph.addEdge("a", "b");
-graph.addEdge("a", "c");
-graph.addEdge("b", "d");
-graph.addEdge("c", "d");
-
-const result = dfs(graph, "a");
-
-console.log(result.order);      // ["a", "b", "d", "c"]
-console.log(result.preorder);   // Pre-order traversal
-console.log(result.postorder);  // Post-order traversal
-```
-
-### DFS Options
+<!-- doc-check -->
 
 ```typescript
-const result = dfs(graph, "a", {
-  // Pre-visit callback
-  preVisit: (node) => {
-    console.log(`Entering ${node}`);
-  },
+import { GraphBuilder } from "@graphty/graph-format";
+import { depthFirstSearch } from "@graphty/algorithms";
 
-  // Post-visit callback
-  postVisit: (node) => {
-    console.log(`Leaving ${node}`);
-  },
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+builder.addEdge("a", "c");
+builder.addEdge("b", "d");
+builder.addEdge("c", "d");
+const graph = builder.freeze();
+const name = (i: number) => graph.ids.idOf(i);
+const a = graph.ids.requireIndex("a");
 
-  // Maximum depth
-  maxDepth: 5,
-});
+const pre = depthFirstSearch(graph, a);
+console.log(Array.from(pre.order.subarray(0, pre.visitedCount), name)); // ["a", "b", "d", "c"]
+
+// Post-order lists a node once everything below it is done
+const post = depthFirstSearch(graph, a, { order: "post" });
+console.log(Array.from(post.order.subarray(0, post.visitedCount), name)); // ["d", "b", "c", "a"]
 ```
 
 ### Use Cases
@@ -91,93 +102,101 @@ const result = dfs(graph, "a", {
 - Cycle detection
 - Strongly connected components
 - Path finding
-- Tree/graph traversal
-
-## Iterative Deepening DFS
-
-Combines the space efficiency of DFS with the completeness of BFS.
-
-```typescript
-import { Graph, iterativeDeepeningDfs } from "@graphty/algorithms";
-
-const graph = new Graph<string>();
-// ... add nodes and edges
-
-const result = iterativeDeepeningDfs(graph, "start", "goal");
-
-console.log(result.found);     // true if goal was found
-console.log(result.path);      // Path from start to goal
-console.log(result.depth);     // Depth at which goal was found
-```
-
-## Bidirectional Search
-
-Searches from both the start and goal simultaneously, meeting in the middle.
-
-```typescript
-import { Graph, bidirectionalSearch } from "@graphty/algorithms";
-
-const graph = new Graph<string>();
-// ... add nodes and edges
-
-const result = bidirectionalSearch(graph, "start", "goal");
-
-console.log(result.found);  // true if path exists
-console.log(result.path);   // Shortest path
-console.log(result.length); // Path length
-```
-
-### Efficiency
-
-Bidirectional search can be significantly faster than unidirectional BFS for large graphs:
-
-- BFS: O(b^d) where b is branching factor, d is depth
-- Bidirectional: O(b^(d/2)) - explores much less of the graph
 
 ## Topological Sort
 
-Orders nodes in a directed acyclic graph (DAG) such that for every edge u→v, u comes before v.
+Orders the nodes of a directed acyclic graph (DAG) so that for every edge u -> v, u comes before v.
+
+<!-- doc-check -->
 
 ```typescript
-import { Graph, topologicalSort } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { topologicalSort } from "@graphty/algorithms";
 
-const graph = new Graph<string>();
-graph.addEdge("compile", "link");
-graph.addEdge("compile", "test");
-graph.addEdge("link", "deploy");
-graph.addEdge("test", "deploy");
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("compile", "link");
+builder.addEdge("compile", "test");
+builder.addEdge("link", "deploy");
+builder.addEdge("test", "deploy");
+const graph = builder.freeze();
 
 const order = topologicalSort(graph);
-console.log(order); // ["compile", "link", "test", "deploy"] or similar valid order
+console.log(order === null ? null : Array.from(order, (i) => graph.ids.idOf(i))); // ["compile", "test", "link", "deploy"]
 ```
 
 ::: warning
-Topological sort only works on directed acyclic graphs (DAGs). If the graph contains cycles, an error will be thrown.
+`topologicalSort` returns `null` when the graph has a cycle, and throws for an undirected graph.
 :::
 
 ## Cycle Detection
 
+<!-- doc-check -->
+
 ```typescript
-import { Graph, hasCycle, findCycles } from "@graphty/algorithms";
+import { GraphBuilder } from "@graphty/graph-format";
+import { hasCycle } from "@graphty/algorithms";
 
-const graph = new Graph<string>();
-graph.addEdge("a", "b");
-graph.addEdge("b", "c");
-graph.addEdge("c", "a"); // Creates a cycle
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+const graph = builder.freeze();
+console.log(hasCycle(graph)); // false
 
-console.log(hasCycle(graph)); // true
+builder.addEdge("c", "a"); // closes a cycle
+console.log(hasCycle(builder.freeze())); // true
+```
 
-const cycles = findCycles(graph);
-console.log(cycles); // [["a", "b", "c"]]
+## Connected Components
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { connectedComponents, stronglyConnectedComponents, weaklyConnectedComponents } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("c", "d");
+builder.addNode("e");
+const graph = builder.freeze();
+
+const components = connectedComponents(graph);
+console.log(components.count); // 3
+console.log(components.groups().map((g) => Array.from(g, (i) => graph.ids.idOf(i)))); // [["a", "b"], ["c", "d"], ["e"]]
+
+// On a directed graph: weakly (ignoring direction) or strongly connected components
+const cycle = new GraphBuilder({ directed: true });
+cycle.addEdge("x", "y");
+cycle.addEdge("y", "x");
+cycle.addEdge("y", "z");
+const directed = cycle.freeze();
+console.log(weaklyConnectedComponents(directed).count); // 1
+console.log(stronglyConnectedComponents(directed).count); // 2
+```
+
+## Bipartite Test
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { isBipartite } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "c");
+builder.addEdge("c", "d");
+builder.addEdge("d", "a");
+console.log(isBipartite(builder.freeze()).bipartite); // true
 ```
 
 ## Performance Comparison
 
-| Algorithm | Time Complexity | Space Complexity | Best For |
-|-----------|-----------------|------------------|----------|
-| BFS | O(V + E) | O(V) | Shortest paths, level order |
-| DFS | O(V + E) | O(V) | Connectivity, cycles |
-| IDDFS | O(b^d) | O(d) | Unknown depth, memory limited |
-| Bidirectional | O(b^(d/2)) | O(b^(d/2)) | Single source-target |
+| Algorithm        | Time Complexity | Space Complexity | Best For                    |
+| ---------------- | --------------- | ---------------- | --------------------------- |
+| BFS              | O(V + E)        | O(V)             | Shortest hops, level order  |
+| DFS              | O(V + E)        | O(V)             | Connectivity, cycles        |
+| Topological Sort | O(V + E)        | O(V)             | Dependency order            |
+| Components       | O(V + E)        | O(V)             | Splitting a graph in pieces |
 
-Where V = vertices, E = edges, b = branching factor, d = depth.
+Where V = vertices and E = edges.

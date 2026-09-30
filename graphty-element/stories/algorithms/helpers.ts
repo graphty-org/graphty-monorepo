@@ -4,7 +4,6 @@ import "../../src/algorithms";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { LayerSpec } from "../../src/catalog/types";
-import type { Graphty } from "../../src/graphty-element";
 import {
     assertAlgorithmPainted,
     assertDistinctPicture,
@@ -14,6 +13,7 @@ import {
     type Drawn,
     drawn,
     holds,
+    renderedElement,
 } from "../assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "../helpers";
 
@@ -125,12 +125,10 @@ export const createAlgorithmStory = (
             await waitForGraphSettled(canvasElement);
 
             // Get the graphty-element
-            const element = canvasElement.querySelector("graphty-element");
-
-            await holds(element !== null, `${algorithmId}: the story rendered no <graphty-element> at all`);
-
-            const graphtyElement = element as Graphty;
-            const { graph, session } = graphtyElement;
+            const { graph, session } = await renderedElement(
+                canvasElement,
+                `${algorithmId}: the story rendered no <graphty-element> at all`,
+            );
 
             // The reader's layers go in first, so the algorithm's layer paints over them.
             for (const layer of readerLayers ?? []) {

@@ -13,7 +13,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Three nodes and two edges, so "empty" is a change rather than a starting condition. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }];
@@ -38,7 +38,7 @@ describe("the verbs the guides teach", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -62,14 +62,14 @@ describe("the verbs the guides teach", () => {
         });
 
         await graph.addNodes([{ id: "delta" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         const whileSubscribed = heard;
         assert.isAbove(whileSubscribed, 0, "the listener heard something while it was subscribed");
 
         stop();
 
         await graph.addNodes([{ id: "epsilon" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(heard, whileSubscribed, "nothing reached the listener after it was stopped");
     });
@@ -92,14 +92,14 @@ describe("the verbs the guides teach", () => {
         assert.strictEqual(typeof id, "symbol", "the id is what the element's own remove verb takes");
 
         await graph.addNodes([{ id: "delta" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         const whileSubscribed = heard;
         assert.isAbove(whileSubscribed, 0);
 
         assert.isTrue(graph.removeListener(id), "the id named a listener that was there");
 
         await graph.addNodes([{ id: "epsilon" }]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.strictEqual(heard, whileSubscribed);
     });

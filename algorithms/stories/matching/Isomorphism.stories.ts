@@ -8,20 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, isGraphIsomorphic } from "@graphty/algorithms";
+import { isGraphIsomorphic } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    SeededRandom,
-} from "../utils/graph-generators.js";
-import {
-    createSimpleAnimationControls,
-    createStatusPanel,
-    renderGraph,
-    updateStatus,
-} from "../utils/visualization.js";
+import { type GeneratedGraph, SeededRandom } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
+import { createSimpleAnimationControls, createStatusPanel, renderGraph, updateStatus } from "../utils/visualization.js";
 
 /**
  * Story arguments interface.
@@ -150,23 +143,6 @@ function generateGraphPair(
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Create SVG container for a graph.
  */
 function createSvgContainer(width: number = 220, height: number = 220): SVGSVGElement {
@@ -204,11 +180,24 @@ function createIsomorphismStory(args: IsomorphismArgs): HTMLElement {
 
     // Generate graph pair
     const { graph1, graph2 } = generateGraphPair(nodeCount, isIsomorphic, seed);
-    const algoGraph1 = toAlgorithmGraph(graph1);
-    const algoGraph2 = toAlgorithmGraph(graph2);
+    const algoGraph1 = toSnapshot(graph1);
+    const algoGraph2 = toSnapshot(graph2);
 
-    // Check isomorphism using actual algorithm
-    const result = isGraphIsomorphic(algoGraph1, algoGraph2);
+    // Check isomorphism using actual algorithm; the mapping as node id -> node id
+    const iso = isGraphIsomorphic(algoGraph1, algoGraph2);
+    const { mapping } = iso;
+    const result = {
+        isIsomorphic: iso.isomorphic,
+        mapping:
+            mapping === null
+                ? null
+                : new Map(
+                      Array.from(mapping, (image, i) => [
+                          Number(algoGraph1.ids.idOf(i)),
+                          Number(algoGraph2.ids.idOf(image)),
+                      ]),
+                  ),
+    };
 
     // Create main container
     const container = document.createElement("div");
@@ -322,8 +311,14 @@ function createIsomorphismStory(args: IsomorphismArgs): HTMLElement {
                 // Highlight nodes with matching colors based on mapping
                 if (result.mapping) {
                     const colors = [
-                        "#ef4444", "#f59e0b", "#22c55e", "#3b82f6",
-                        "#8b5cf6", "#ec4899", "#14b8a6", "#f97316",
+                        "#ef4444",
+                        "#f59e0b",
+                        "#22c55e",
+                        "#3b82f6",
+                        "#8b5cf6",
+                        "#ec4899",
+                        "#14b8a6",
+                        "#f97316",
                     ];
 
                     let idx = 0;
@@ -359,9 +354,12 @@ function createIsomorphismStory(args: IsomorphismArgs): HTMLElement {
             }
         }
 
-        updateStatus(statusPanel, result.isIsomorphic
-            ? "Graphs are isomorphic - matching nodes are highlighted"
-            : "Graphs are not isomorphic");
+        updateStatus(
+            statusPanel,
+            result.isIsomorphic
+                ? "Graphs are isomorphic - matching nodes are highlighted"
+                : "Graphs are not isomorphic",
+        );
     }
 
     /**

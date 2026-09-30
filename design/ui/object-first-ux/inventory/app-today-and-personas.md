@@ -1,0 +1,568 @@
+# The graphty app as it is today, and the people it is for
+
+An inventory of every surface, control, keyboard binding and flow in the graphty app shell
+(`graphty/src/components/shell/`), what each one does, which graphty-element call it makes,
+whether it works or is tagged "Coming", and which persona and workflow needs it. It closes
+with the twelve personas and twenty-five workflows in `design/designloom/` that are the
+requirements base, and with the design documents in `design/ui/` that the shell was built
+from.
+
+It is written for an engineer who is not a UX designer. Every design term is defined the first
+time it appears. Everything here was read from the source on 2026-09-25; nothing is a
+recollection.
+
+## 1. Terms used throughout
+
+- **Region.** One of the seven fixed areas of the window: top bar, activity rail, activity
+  panel, canvas, inspector, status bar, and the transient surfaces that float over them.
+- **Activity rail.** The 48 px column of icons on the left edge. Each icon chooses which
+  panel the left column shows. Six activities (Data, Explore, Analyze, Style, Present, AI)
+  plus Settings and Help pinned at the bottom.
+- **Activity panel.** The 280 px column beside the rail whose content changes with the
+  chosen activity. In Figma terms this is the "left sidebar", but here it holds verbs
+  (things to do), not nouns (things you have).
+- **Inspector.** The 280 px column on the right. Its content is decided by what was touched
+  last: a selected node, a picked style layer, an algorithm result, or, with nothing
+  selected, a summary of the whole graph. A panel whose content follows the selection is
+  called a **selection-driven panel**.
+- **Canvas.** The graph itself, drawn by `<graphty-element>`, plus everything floating over
+  it: the toolbar, the minimap, the legend, the suggestion cards.
+- **Dock versus overlay.** A dock (the data table drawer) takes space away from the graph.
+  An overlay (minimap, legend, toolbar, cards) floats over it and takes none.
+- **Tier.** The design's word for how far a control is from the surface: tier 1 is always
+  visible, tier 2 is inside a collapsible section, tier 3 is behind a pop-out or a dialog.
+- **Section.** A collapsible group inside a panel with a 32 px header row. Its open or
+  closed state is remembered between visits.
+- **"Coming" tag.** A small grey pill on a control whose feature does not exist yet. The
+  control is drawn at its final shape but disabled. The design (section 5.8 of
+  `design/ui/app-shell-progressive-disclosure-design.md`) requires this instead of hiding the
+  control. There are about thirty of them on screen today.
+- **Key chip.** The small text of a keyboard shortcut ("Ctrl+K") printed beside a control.
+- **Style layer.** graphty-element's unit of appearance: a rule ("which nodes") plus the
+  values it paints (colour, size, label...). Layers stack; a higher layer overrides a lower
+  one where both match. All appearance in graphty must go through layers.
+- **Run.** One execution of an algorithm inside graphty-element's session, with an id, its
+  parameters, and the per-node values it produced. Runs are what the app calls "results".
+- **Encoding.** A mapping from data to appearance: "colour by community", "size by degree".
+  graphty-element derives one automatically when a run completes, as a style layer whose
+  source is that run.
+- **Reading.** The app's word for a one- or two-sentence plain-language summary of a result
+  or of the graph ("6 groups found. The groups are clearly separated (modularity 0.361).").
+- **State axis.** The shell's notion of what exists: empty, loading, loaded, selected, or
+  result. Several regions change form with it.
+- **Command palette.** The search box opened by Ctrl+K that lists every command by name.
+- **Pop-out.** A small floating panel anchored to the control that opened it, used for
+  settings that do not fit in the 280 px column.
+- **Floor.** The design's list of things that must stay on screen at every density: the
+  reading, every caveat, the run record, the reason a control is disabled, the legend's
+  meaning, one name per thing, and the user's own data strings.
+
+## 2. The frame
+
+Source: `graphty/src/components/shell/AppShell.tsx` (5,187 lines, the composition root),
+`ShellContext.tsx` (the layout store), `constants.ts`, `types.ts`.
+
+```
++--------------------------------------------------------------------------+
+| top bar, 40 px, full width                                               |
++----+-----------------+---------------------------------+-----------------+
+|rail| activity panel  |            canvas               |   inspector     |
+| 48 |     280         |   (whatever is left)            |      280        |
++----+-----------------+---------------------------------+-----------------+
+| status bar, 24 px, full width                                            |
++--------------------------------------------------------------------------+
+```
+
+- Both sidebars (panel and inspector) show together or hide together. One top-bar button
+  and one binding (Ctrl+B / Cmd+B) toggle them. There is no per-sidebar close, no latch, no
+  auto-hide; all of those were deleted on 2026-09-14 at the owner's request.
+- Panel and inspector widths are drag-resizable on the desktop and remembered.
+- Below 1280 px wide the shell does not lay out at all. It draws a full-screen "screen too
+  small" sheet over the still-mounted shell (so the graph is not lost on resize).
+- Remembered between visits, in `localStorage`: the active activity, both widths, whether
+  the sidebars are hidden, every section's open state (key `graphty.shell.layout.v3`); the
+  canvas layout (drawer open and height, minimap, legend, toolbar, time slider, whether the
+  suggestion strip was dismissed); which suggestion cards were retired; the Analyze panel's
+  tab and card view; the label-budget settings; AI provider keys (opt-in).
+- The frame owns one keyboard dispatcher (`useShellKeyBindings.ts`) and one binding table
+  (`bindings.ts`). No region installs its own global key listener.
+- Focus can be cycled through regions with F6 (rail, panel, canvas, inspector, status bar,
+  then the suggestion strip and open docks).
+
+## 3. Region by region
+
+The columns in every table below are: **Control** (what is drawn), **Does** (what happens),
+**Element call** (the graphty-element or wrapper API behind it; "none" means the click has no
+handler today), **State** (Works, Coming, or Inert: drawn and clickable but wired to
+nothing), **Needed by** (the designloom capability name, and the personas or workflows that
+list it; see sections 6 and 7 for the full lists).
+
+The graphty-element wrapper is `graphty/src/components/Graphty.tsx`; its handle exposes
+`getData`, `loadFromUrl`, `loadFromFile`, `loadData`, `clearData`, `pin`, `unpin`,
+`pinnedNodes` and the raw `graph`. The element's session API (`@graphty/graphty-element/session`)
+is reached as `graph.getSession()` and is written `session.` below.
+
+### 3.1 Top bar (`topbar/TopBar.tsx`, `topbar/topBarStrings.ts`)
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Dataset name (left) | Shows the loaded file's name; nothing in the Empty state | none (shell state) | Works | all |
+| Undo (split button, main half) | Undoes the last history entry | none; the history store (`topbar/undoStore.ts`) only records algorithm runs and reverts nothing (issue #197) | Inert | analysis-history: Analyst Alex, Expert Emma, workflows Iterative Analysis Cycle, Reproducible Session |
+| Undo (caret half), right-click, long-press | Opens the History pop-out | none | Works (the list is empty except run entries) | analysis-history |
+| Redo | Redo | none | Inert | analysis-history |
+| Command palette pill "Search commands, nodes and edges" (Ctrl+K) | Opens the palette | none | Works, but searches commands only, never nodes (issue #173) | keyboard-shortcuts, search: Expert Emma |
+| Export menu: Image, Data | Both rows open the Present panel | none | Works as navigation only; nothing exports | export-image, data-export: Findings Communication |
+| Share menu: Export data, Copy image | Both open the Present panel | none | Navigation only | data-export |
+| Compare toggle "Compare two views" | Flips a flag; no comparison view exists (issue #186) | none | Inert | comparison-view: Condition Comparison, Network Evolution |
+| Toggle sidebars (Ctrl+B) | Hides or shows both sidebars | none | Works | all |
+
+The History pop-out (`topbar/HistoryPopover.tsx`): rows newest first, current position
+marked, undone rows struck through, click restores, title click opens the owning panel.
+Only "Ran Groups" and "Ran <metric>" entries are ever pushed, and restoring them changes
+nothing on the canvas.
+
+### 3.2 Activity rail (`rail/ActivityRail.tsx`, `rail/HelpMenu.tsx`)
+
+| Control | Does | State |
+|---|---|---|
+| Data | Shows the Data panel; the only activity enabled before a load | Works |
+| Explore, Analyze, Style, Present, AI | Show that panel; disabled with ". Load data first" until data is loaded | Works |
+| Settings (bottom) | Opens the Settings overlay over the body row; never becomes the active activity | Works |
+| Help (bottom, "?") | Opens a 200 px menu anchored to the rail | Works |
+
+Rail rules: clicking the active icon does nothing (no close-on-click); the rail has no
+hotkeys by design; the Data icon may carry a warning dot (never wired, since nothing computes
+validation issues); the Present icon may carry a badge counting pinned items and open notes
+(never wired).
+
+Help menu rows: Keyboard shortcuts (opens the shortcuts sheet); Show suggestions (restores the
+dismissed suggestion strip); More suggestions (N) and Already run (N) (drawn only at non-zero
+counts, which the shell always passes as zero, so never drawn); What the marks mean (opens the
+shortcuts sheet, which is not what the row promises); Documentation (opens graphty.app/docs);
+Send feedback (opens the feedback dialog).
+
+### 3.3 Data panel (`panel/DataPanel.tsx`, dialog `components/LoadDataModal.tsx`)
+
+The activity for getting data in. It also owns the sample list that Welcome draws.
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Section "Open file" (renamed "Add data" once loaded), dashed drop zone | Drop a file to load it; replaces the dataset if one is loaded only when the drop is on Welcome; on a loaded graph the drop is refused with a sentence (issue #198) | `handle.loadFromFile` -> element `dataSource`/`dataSourceConfig` properties; result heard on the `data-loaded` and `data-loading-error` DOM events | Works | data-import: every persona; workflows First Exploration, Data Import and Validation, First-Time Onboarding |
+| Button "Open file" (filled, the one primary button) | Opens the Load data dialog | as above | Works | data-import |
+| "Open from URL", "Paste data" | Open the same dialog (on its File tab, issue #200) | `handle.loadFromUrl`, `handle.loadData("json", {data})` | Works | data-import |
+| Row "Run a recipe..." | nothing | none | Coming | analysis-history (recipes): Analyst Alex |
+| Row "Add to current graph" (loaded only) | nothing; tooltip explains a second file replaces | none; the element has no merge entry the wrapper exposes | Coming | data-import (merge): Condition Comparison |
+| Row "Add attributes from a table" (loaded only) | nothing | none; element cannot join a table (issue #298) | Coming | data-import (table join): Gene List to Interaction Network, Genomics Cytoscape User |
+| Section "Sample datasets": one row per sample (name, size, tags) | Loads the sample, replacing the dataset | `handle.loadData` or `handle.loadFromUrl` after `handle.clearData()` | Works | sample-datasets: Explorer Elena, First-Time Onboarding |
+| Section "Recent files" | Empty; nothing records recent files | none | Inert (empty) | data-import |
+| Section "Loaded data" (loaded only): "What the file is" compound row (format, size), gear "Import options" | Shows the format and size the load request named; the gear has no handler (issue #185) | none | Works (row) / Inert (gear) | data-preview, data-validation: Data Import and Validation |
+| Section "Data table" with a switch "Show data table (Shift+T)" | Opens or closes the data table drawer on the canvas | `handle.getData()` for the rows | Works | details-on-demand, data-preview |
+| Panel overflow (three dots): "Close dataset. Starts a new session" | Clears the graph and every derived state | `handle.clearData()`, `session.styles.removeBySource(...)` | Works | all |
+
+Load data dialog: tabs File / URL / Paste, a Format select (auto-detect or one of JSON, CSV or
+TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2; the last two are published ids with no reader,
+issue #57), a "Replace existing data" checkbox, and a Load button. The dialog stays open with
+the user's input when the element reports a parse failure.
+
+### 3.4 Explore panel (`panel/ExplorePanel.tsx`)
+
+The activity for finding and narrowing. Almost none of it is wired.
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Search field "Search nodes and edges" (/) with scope token All / Visible nodes and an info circle giving the syntax (id:, type:, exact:, regex:, =) | Holds the typed text; nothing searches (the element throws `E_UNSUPPORTED` for `{where}` queries and text search, issue #149) | none | Inert | search: Explorer Elena, Fraud Analyst, Intelligence Analyst; Path Investigation, Fraud Ring Investigation, Threat Hunting |
+| Filter chips row | Drawn only when a filter is active; nothing ever activates one | none | never drawn | filtering |
+| Row "Select all visible" with the count "34 nodes" | nothing (the element side exists: `session.selection.apply(target, op)`) | none | Inert | node-selection |
+| Row "Select" with a menu: Invert, Neighbors of selection, Same group as selection, From list, By expression, Select matching filter, Select edges between selected, Select largest connected part, Save selection as set... | All rows disabled under one sentence "Dimmed rows are not built yet" | none | Coming | node-selection, selection-statistics: Hub Investigation, Cluster and Annotate |
+| Section "Filter builder" (+ "Add a rule") | nothing | none | Inert | filtering: every analysis workflow |
+| Section "Filters" (+ "Save as filter...", disabled until a rule exists) | nothing | none | Inert | saved-filters: Threat Hunting, Fraud Ring, Anomaly Detection |
+| Section "Sets" (+ "Save selection as set...", disabled until something is selected) | nothing | none | Inert | node-selection |
+| Section "Views" (+ "Save as view...") | nothing | none | Inert | view-bookmarks: Visual Exploration, Threat Hunting, Reproducible Session |
+| Section "Find a pattern" | nothing | none | Coming | pattern-search: Cybersecurity Analyst, Threat Hunting, Fraud Ring |
+| Section "Neighborhood expansion" | nothing (reason in tooltip only) | none | Coming | neighborhood-expansion: Path Investigation, Hub Investigation, Fraud Ring, Criminal Network |
+| Section "Step through time" with a switch | Drawn only when the data has a Time role; nothing assigns roles (issue #299), so never drawn | none | never drawn | temporal-navigation: Network Evolution, Threat Hunting, Fraud Ring |
+| Section "Notes" (+ "Note", disabled until something is selected) | nothing | none | Inert | annotation: Intelligence Analyst, Findings Communication |
+
+### 3.5 Analyze panel (`panel/AnalyzePanel.tsx`, dialog `components/RunAlgorithmModal.tsx`)
+
+The one activity that works end to end. It is the app at its best and the model for the
+object-first redesign: a run produces a result, the result paints, the inspector reads it.
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Tab track Run / Results (N) | Switches the body; Results is disabled and dimmed until a result exists | none | Works | statistics-panel |
+| Cards / List toggle in the panel header | Remembered, but read by nothing (a known dead control) | none | Inert | - |
+| "Weight" compound row and a scope line | Drawn only when passed; the shell never passes them | none | never drawn | - |
+| Section "Suggested": four rows, each a plain name plus technical name, an info circle with one sentence, and a filled **Run** button: Groups (Communities, Louvain); Most connected (Degree centrality); Bridges (Betweenness centrality); Influence (PageRank) | Runs the algorithm. Run's label carries the cost ("Run (about 4 min)") and a warning line appears under the row when the estimate is long; above a threshold a confirm dialog asks first | `session.estimate({op:"algo.run", algorithm})` for the cost; `session.runs.start(algorithm)`; the element derives the colour encoding itself; `session.styles.removeBySource` removes the previous run's layers so node colour has one owner; `session.styles.legend()` feeds the legend | Works | community-detection, centrality-degree, centrality-betweenness, centrality-pagerank: Analyst Alex, Marketing Analyst, Fraud Analyst, Intelligence Analyst; Community Analysis, Influencer Identification, Hub Investigation, Hub Gene Identification |
+| Button "+ Analysis" ("Add an analysis: 26 methods behind 7 questions") | Opens the old Run Algorithm dialog: Category select, Algorithm select, options, source/target node fields, "Show advanced options", "Apply suggested styles" checkbox | `graph.runAlgorithm(namespace, type, options)` through the dialog | Works, but lists by category not by question (issue #320) | every centrality and clustering capability: Expert Emma |
+| Results tab: one row per result (title, headline "6 groups, modularity 0.361", swatch, "Change encoding") | Row click opens the result in the inspector; "Change encoding" opens the Style panel (but not the run's layer, issue #324) | none | Works; holds only the latest result (issue #176) | statistics-panel, analysis-history |
+| Section "All statistics" | empty | none | Inert | basic-statistics, statistics-panel: First Exploration |
+| Section "Metric histograms" (+ "Add a histogram of links per node") | nothing | none | Inert | metric-histograms: First Exploration, Hub Gene Identification |
+| Section "History" | empty | none | Inert | analysis-history |
+| Section "Recipes" (+ "Save as recipe..." disabled) | nothing | none | Coming | analysis-history (recipes): Analyst Alex |
+| Section "More" | empty | none | Inert | - |
+
+The size gate: `analysis/metricCost.ts` turns the element's estimate into a verdict (run, ask,
+warn, unavailable) and one sentence; the confirm dialog (`AppShell.tsx`, "metricConfirm")
+draws that sentence with Cancel and the Run label.
+
+### 3.6 Style panel (`panel/StylePanel.tsx`, list `components/layout/LeftSidebar.tsx`, dialog `components/RunLayoutsModal.tsx`)
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Section "Layers" with "+ Add a style layer" | Adds an empty layer over every node named "New Layer N" | `session.styles.add({name, target:"node", selector:{match:"everything"}})` | Works in code; the owner reported it silently doing nothing (issue #380, critical) | visual-encoding-nodes, visual-encoding-edges: every persona; Findings Communication, Gene List to Interaction Network |
+| Layer rows (name, drag handle "Reorder this layer"); click selects; drag reorders; rename | Selecting a layer fills the inspector with the layer editor; reorder changes precedence | `session.styles.move(id, aboveId)`, `session.styles.update(id, {name})`; rows come from the `styles-changed` event with the element's own locked base layers filtered out | Works; rows lack show/hide, delete, paint chip, match count (issue #167) | visual-encoding |
+| Section "Arrangement (Layout)", tagged Coming, with a select of four quick picks (Force directed, Hierarchical: Coming, Radial: Coming, Grid) and a gear "Layout parameters" | Select applies the layout; gear opens the Run Layout dialog (Layout Algorithm select, Dimensions 2D/3D radio, per-layout options) | wrapper props `layout` / `layoutConfig` -> element `setLayout`; picks read from the app's own `data/layoutMetadata.ts` (a copy of the element catalogue) | Works despite the Coming tag (issue #384); grid and radial are published ids with no engine (issue #58) | layout-force-directed, layout-hierarchical, layout-radial: Visual Exploration, Supply Chain Risk, Hub Investigation |
+| Section "Styles", tagged Coming: five built-in rows (Default, High contrast, Print, Colorblind safe, Presentation), "+ Save as style...", overflow (Import style..., Export style (JSON), Reset styles to defaults) | Rows and verbs have no handlers | none | Coming | style-presets: Findings Communication, Gene List to Interaction Network |
+| Section "Canvas": switch "Show legend (L)" | Shows or hides the legend; disabled with a reason while nothing is encoded | none (canvas layout flag) | Works | legend-display |
+| Panel overflow: "Reset styles to defaults" | Removes every non-element layer | `session.styles.removeBySource(() => true)` | Works | - |
+
+### 3.7 Present panel (`panel/PresentPanel.tsx`)
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Section "Export image": Image format select (PNG, JPEG, WebP; SVG and PDF "(Coming)"), Image scope "Current view", buttons "Copy to clipboard" and "Export image" (filled), gear "Image options" | No handlers are passed by the shell | none (the element can screenshot; the shell never calls it) | Inert | export-image: Explorer Elena, Findings Communication, Reproducible Session |
+| Section "Export data", tagged Coming: Data format (JSON, CSV, GraphML, GEXF, CX2), Scope select ("Whole graph"), "Include notes" checkbox, "Copy node ids", "Export data" (filled), gear "Data options" | No handlers | none | Inert | data-export: Drug Target Discovery, Influencer Identification, Knowledge Graph Construction |
+| Section "Reports", tagged Coming: Report sections, Generate report, Export evidence bundle, Export recipe (JSON), Export selection... | Dimmed, disabled | none | Coming | report-generation: Findings Communication, Reproducible Session (issue #187) |
+
+### 3.8 AI panel (`panel/AiPanel.tsx`)
+
+| Control | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Transcript of messages | Shows the conversation | none | Works | guided-onboarding (the design's "AI as free-form guidance") |
+| Setup line "No provider is configured. Open Settings to connect one." with a Settings button | Opens Settings on the AI providers pane | none | Works | - |
+| Provider row | Shows the provider in use | none | Works | - |
+| Section "Console" | empty | none | Coming | - |
+| Composer "Ask the assistant" (backtick focuses it), Send (Ctrl+Enter), Cancel while working, Retry on a failed message, microphone when speech is available | Sends the text to the app's AI manager, which drives the element | app hooks `useAiManager` and `useAiKeyStorage` over graphty-element's AI integration; `aiManager.execute(text)` | Works when a key is configured; the panel does not say what data it sends (issue #326) | Explorer Elena |
+
+### 3.9 Settings overlay (`panel/SettingsOverlay.tsx`)
+
+A full-panel overlay over the body row with a 200 px section nav. Sections: Appearance
+(works: the colour-scheme toggle), Defaults (Coming), Keyboard shortcuts (works: the whole
+binding table with Coming tags on unshipped rows), Performance (works: "Label the most
+connected nodes" switch and "How many labels" number; applies on the next load), AI providers
+(works: provider list, key entry, default provider, persistence opt-in), Data management
+(Coming), Extensions (Coming). Header line "Changes save automatically". Issue #182 covers
+the three stub panes and the missing settings store.
+
+### 3.10 Canvas (`canvas/CanvasRegion.tsx` and the files it draws)
+
+| Surface | Does | Element call | State | Needed by |
+|---|---|---|---|---|
+| Graph host (`components/Graphty.tsx`) | Draws the graph; mounted in every state including Empty | `<graphty-element>` with `layers`, `viewMode`, `layout`, `layoutConfig`; events `selection-changed`, `styles-changed` | Works | graph-rendering, zoom-pan: everyone |
+| Welcome sheet (`canvas/WelcomeState.tsx`, `canvas/WelcomeSampleList.tsx`), Empty state only | Heading "Open a graph to get started", a dashed drop zone with "Open file", "or paste data / open from URL", the accepted-formats line, the sample list (each row with a size, tags, a blurb, and an optional hint link that loads the sample and runs Find groups), and the failed-load sentence inline in the zone | `handle.loadFromFile` etc. | Works | guided-onboarding, sample-datasets: Explorer Elena; First-Time Onboarding (this is view V01 "Welcome") |
+| Insights strip (`canvas/InsightsStrip.tsx`, rules in `insights/insightsRules.ts`) | Up to four suggestion cards at the top centre, each a plain name, technical name, one sentence and "Try it"; the whole card runs the capability; X dismisses the strip (remembered); Delete on a focused card retires it. Rule table: data validation (never fires: nothing counts issues), Find groups, Who has influence (directed graphs), Who is most connected, Search, plus large-graph and time cards that cannot fire (issue #323) | `session.catalog.metrics()` decides which cards the graph supports and their cost; activation calls the same run functions as Analyze | Works | guided-onboarding: Explorer Elena; First-Time Onboarding |
+| Filter status strip (`canvas/FilterStatusStrip.tsx`) | Chips for active filters under the strip | none | never drawn (no filter exists) | filtering |
+| Minimap (`canvas/Minimap.tsx`), bottom left, M | Draws points and a viewport rectangle it is handed; the shell hands it only the node count, so it is an empty box | none (the element publishes no positions or settle event a minimap could read, issue #293) | Inert placeholder | overview-minimap: Visual Exploration, Path Investigation, Threat Hunting |
+| Legend (`canvas/Legend.tsx`, `canvas/legendChannels.ts`), bottom right, L | One block per encoded channel: "Color: Community (group)", up to five categorical rows plus Other, or the stops of a ramp, the scale in words, and every caveat; compacts while the drawer is open; not drawn while nothing is encoded | `session.styles.legend()` translated into blocks | Works (numbering mismatch with the result list, issue #381; "Other" swatch wrong, issue #201) | legend-display: Community Analysis, Findings Communication, Gene List to Interaction Network |
+| Data table drawer (`canvas/DataTableDrawer.tsx`), bottom dock, Shift+T | Tabs Nodes / Edges, a virtualised table of every attribute column, a "Show: All N of N" control, a resize handle, an X; a Graph / Table segmented control at the top centre maximises it | `handle.getData()` | Works; no metric columns, no column menu, "See all ranked" lands on the plain table (issues #168, #169) | details-on-demand, data-preview: First Exploration, Hub Gene Identification, Genomics Cytoscape User |
+| Time slider (`canvas/TimeSlider.tsx`) | Transport (step back, play/pause, step forward), "Viewing:" readout, gear | none | never drawn (no Time role) | temporal-navigation: Network Evolution, Fraud Ring, Threat Hunting |
+| Canvas toolbar (`toolbar/CanvasToolbar.tsx`), bottom centre | [2D 3D] segmented control; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F, disabled with "Select something first"); Views menu | `graph.setCameraZoom` or `setCameraState({cameraDistance})`, `graph.zoomToFit`, `graph.getNodeMesh` + `setCameraTarget`; view mode through the wrapper prop | Works | zoom-pan: Visual Exploration |
+| Views menu (`toolbar/ViewsMenu.tsx`), opens upward | Reset view (Shift+0), Top (7), Front (1), Side (3), Isometric (Coming), Follow selection (Coming), Save as view... (Coming), Minimap (M, checked), Toolbar (checked; the palette row "Show canvas toolbar" is the only way back), Legend (L, disabled with a reason while nothing is encoded), Enter VR / Enter AR (drawn only when the browser reports support; handlers are no-ops) | `graph.resetCamera`, `graph.setCameraState({preset})` | Works except the three Coming rows (issue #183) and XR | zoom-pan, view-bookmarks |
+| Screen too small (`AppShell.tsx`) | Full-screen sheet below 1280 px | none | Works (portrait iPads are caught by it, issue #327) | - |
+
+Behaviour rules the canvas keeps: the drawer never covers a sidebar (it is inset to the live
+canvas); the toolbar rides 12 px above the uppermost of the canvas floor, the time slider and
+the drawer; the minimap and legend share that baseline and rise onto a second line on a
+narrow canvas; the drawer maximised hides toolbar, minimap and legend.
+
+### 3.11 Inspector (`inspector/`)
+
+Header (`inspector/InspectorHeader.tsx`): the surface kind at 12 px ("Graph summary", "Node",
+"Result", "Style layer", "Edge", "Selection", "Pattern match", "Cleaning step"), the identity
+beside it (the node's id), then "Copy reading" and, for a node, edge, selection or result,
+"Pin as A". The pin freezes a copy of the content for comparison; it is set but nothing draws
+the pinned card or a delta. The precedence rule: a selected node beats a picked layer, which
+beats a result, which beats the graph summary.
+
+**Graph summary** (`inspector/GraphSummary.tsx`), nothing selected:
+
+| Block | Does | Element call | State |
+|---|---|---|---|
+| The reading ("34 nodes, connected by 78 relationships. One connected part holds all 34 nodes.") | Templated from statistics | `session.data.statistics()` | Works |
+| Counts (collapsed): Nodes, Edges, Type (Directed / Undirected / Mixed, "(from file)" when the file said so), How tightly linked (density), Average links per node, Connected parts, Self-loops and Parallel edges when non-zero | Rows | `session.data.statistics()` | Works |
+| Most connected (Degree centrality): top five by degree (row click selects the node), a "links per node" histogram, "See all N ranked", header verbs "Show in table" and an Export menu (top 20 CSV, ranked list CSV) | Rows select; See all and Show in table open the drawer; exports are no-ops | degree pass run at load: `session.runs.start("degree", {}, {style:false})`; histogram binned in the app (issue #165) | Works / exports Inert |
+| Schema (node types, edge types, Filter to type, Select all of type, Export schema JSON, gear to a 480 px matrix) | Never drawn: the shell passes an empty schema with "measuring..." (issue #321) | none | never drawn |
+| Attributes (Nodes / Edges tabs, filter box) | Never drawn: empty lists | none | never drawn |
+| "Add a case note" row | Opens Explore | none | Inert |
+| "More in Analyze" row | Opens Analyze | none | Works |
+
+**One node** (`inspector/NodeInspector.tsx`):
+
+| Block | Does | Element call | State |
+|---|---|---|---|
+| Label, "Copy id", "Locate" | Copy to clipboard; centre the camera on the node | `graph.getNodeMesh` + `setCameraTarget` | Works |
+| "Pinned" badge with Unpin | Shown when the node is pinned (by the Pin verb or by dragging) | `handle.pinnedNodes`, `graphty-node-drag-end` event | Works |
+| Attributes grid (the app's `DataAccordion`), filter box above ten attributes, "Show all N" | Shows the record the selection event carried | `selection-changed` detail | Works |
+| Computed metrics | Never drawn: the shell passes none | none | never drawn (issue: the element's results are not read per node here) |
+| Notes: "Add a note..." (Ctrl+Enter saves, Escape cancels), note rows with Done and Delete | Saving opens Explore and discards the text (issue #188) | none | Inert |
+| Neighbors: count line, In/Out/All tabs on directed graphs, up to twenty rows "label - edge type - value" (click selects; a pin icon "Note this relationship"), "Show all in data table", "Select these", "See all N" | Rows select the neighbour; table rows open the drawer on Edges; "Select these" is a no-op | neighbours computed in the app from the edge records (`analysis/graphShape.ts`), an app-side reimplementation; `graph.selectNode` | Works (rows read "9 - edge -", issue #382) |
+| Actions footer (four resident rows, rest under More): Expand N neighbors (with a cost line), Frame this node, Select neighbors, Find path from here; More: Ego network, Radial layout around this node, Use as root or focus, Pin/Unpin, Distance from here, Likely missing links, Simulate removing, Merge with..., Tag..., Bookmark, Show in table, Copy as JSON, Copy neighbor ids | Only Pin/Unpin does anything | `handle.pin` / `handle.unpin` | Pin Works; eight are Coming; the rest Inert (issues #314, #180) |
+
+**Algorithm result** (`inspector/ResultInspector.tsx`): the reading, a caveats line when a
+run departed from exact (PageRank not converged), the one-line run record ("Louvain, 34
+nodes"), the swatch and layer name, a "Result" section of rows (Group 1: 11 members ... or the
+ranked nodes with rank chips, each row selecting its node) and a distribution chart for
+metrics, then actions Change encoding (opens Style), Delete layer (removes the run's layers,
+keeps the result), Remove result (removes both; states the layer count first). Element calls:
+`session.runs.list()`, the run's results, `session.styles.removeBySource` by run id. Works.
+
+**Style layer** (`inspector/StyleLayerInspector.tsx` around the app's
+`sidebar/panels/StyleLayerPropertiesPanel.tsx`): a "Source" section tagged Coming (never
+drawn, the shell passes no source); "Which nodes" with a raw selector expression field (shows
+internal ids like `results.degree_0bkzd1n0p2dnik.value >= 9`, issue #383); "Node" with Shape
+(Size, Type), Color (Color, Opacity), Effects (Outline, Glow, Glow strength, Wireframe, Flat
+shaded, Marker), Text (label source with "Convert to a fixed value", Label style sub-groups).
+A channel the layer computes from data is disabled with a sentence and a resolve verb.
+Element calls: `session.styles.update(id, patch)`, `session.styles.resolveToStatic(id,
+channel)`. Works.
+
+**Edge, Multiple selection, Pattern match, Cleaning step** (`EdgeInspector.tsx`,
+`MultiSelectionInspector.tsx`, `PatternMatchInspector.tsx`, `CleaningStepInspector.tsx`):
+built at their target shape but unreachable. graphty-element's selection is single-node, so
+no edge or multi-selection ever arrives; there is no pattern search and no cleaning step. Their
+action lists (Select endpoints, Delete edge, Filter to selection, Save as subgraph, Style
+selection, Merge, Center on match, Undo this step...) are all Coming. Issues #179, #322.
+
+### 3.12 Status bar (`statusbar/`)
+
+Nine slots exist in the model; the shell fills three.
+
+| Slot | Reads | Does | State |
+|---|---|---|---|
+| Counts "34 nodes 78 edges" | Node and edge counts; "shown of total" when a filter applies | Click opens the drawer | Works (`session.data.statistics()`) |
+| Zoom "Zoom 100%" with a menu | - | - | never drawn: the element reports no camera changes for wheel or drag and no fit extent |
+| XR chip "VR / AR" with Exit | - | - | never drawn |
+| Layout chip "NGraph Force" with a caret menu (four quick picks with check and Coming tags, Re-run, Stop, Layout settings...) | The layout in force | Body re-applies the layout; menu picks apply; Layout settings opens Style; Stop is a no-op | Works (tooltip covers the menu, issue #385) |
+| Running "Computing Bridges... 42% Cancel" | - | - | never drawn: the element offers no progress or cancel a caller can reach |
+| Viewing (time window) | - | - | never drawn |
+| Issues: validation chip, notes chip, Performance mode chip | - | - | never drawn |
+| AI "AI: Anthropic ready" | - | - | never drawn |
+| Selection "1 selected" | The selected node | text only | Works |
+
+A load-failure toast ("Could not load x.gml. <reason>" with "Open Data") is drawn in the
+bar and stays until the next load.
+
+### 3.13 Command palette (`CommandPalette.tsx`, rows built in `AppShell.tsx`)
+
+Groups and rows today: Go to (Data, Explore, Analyze, Style, Present, AI, Settings, Help and
+keyboard shortcuts); View (Zoom in, Zoom out, Zoom to fit, Zoom to selection, Reset view,
+Top, Front, Side, 2D/3D, Minimap, Legend, Show canvas toolbar, Data table, Toggle sidebars);
+Analyze (Most connected, Bridges, Influence, one row per node metric, run through the same
+size gate); Help (Keyboard shortcuts, Show suggestions, What the marks mean, Documentation,
+Send feedback). Every word of the query must match the group or label. The design indexes
+about 25 more commands, every algorithm, question phrasings, attributes, nodes by "@", saved
+things and notes (issues #174, #175, #173).
+
+### 3.14 Keyboard bindings (`bindings.ts`), the one table
+
+Shipped and fired by the shell dispatcher: Zoom in (= or +), Zoom out (-), Zoom to fit (0 or
+Home), Zoom to selection (F), Reset view (Shift+0), Front view (1), Side view (3), Top view
+(7), Toggle 2D and 3D (5), Escape ladder (Escape), Command palette (Ctrl+K), Focus Explore
+search (/), Toggle the sidebars (Ctrl+B), Toggle minimap (M), Toggle legend (L), Toggle the
+data table drawer (Shift+T), Focus the assistant (`), Keyboard shortcuts dialog (?), Cycle
+regions (F6, Shift+F6), Undo (Ctrl+Z), Redo (Shift+Ctrl+Z, Ctrl+Y). Shipped and handled by the
+element or a widget: arrows pan or orbit (the element's own controller), Insights strip Left
+and Right and Enter and Delete, time slider Space and arrows, panel Up and Down and Enter and
+Ctrl+Enter, note save (Ctrl+Enter) and cancel (Escape), assistant send (Ctrl+Enter).
+
+In the table but not shipped, each with its reason recorded: Space held to pan (element has
+no pointer pan call), Select all visible (Ctrl+A), Invert selection (I), Expand neighbors (E),
+Select neighbors (Shift+E), Ego network (G), Find path (P), Inspect selection (Enter), Remove
+selected (Delete), Toggle time slider (T), Focus console (Shift+`), Context menu (Shift+F10,
+no canvas context menu exists, issue #319), Add a note (N), Toggle notes layer (Shift+N), Save
+as (Ctrl+S), Open file (Ctrl+O), Paste data (Ctrl+V), time slider step and jump (, . Shift+,
+Shift+.).
+
+The Escape ladder, one rung per press: cancel a drag or marquee (no element call exists);
+close the topmost transient (palette, Views menu, Help menu, shortcuts sheet, Settings,
+feedback); pause timeline playback (no slider exists); clear the selection
+(`graph.deselectNode`). Escape never closes a sidebar and never leaves XR.
+
+A list of chords that must never be bound (browser and OS chords) is kept in the same file.
+
+### 3.15 Dialogs and other transient surfaces
+
+- Load data dialog (Data panel), Run Algorithm dialog (Analyze), Run Layout dialog (Style
+  gear), the metric confirm dialog (size gate), the feedback dialog (Help), the Settings
+  overlay, the keyboard shortcuts sheet (a non-modal 480 px surface listing shipped bindings
+  by scope), the Help menu, the Views menu, the layout chip menu, the Export and Share menus,
+  the History pop-out, the Explore Select menu, the Styles overflow menu, the inspector More
+  menu. Only one transient of a class opens at a time (pop-outs over Settings is a known
+  defect, issue #184).
+
+## 4. Flows as they run today
+
+1. **First visit.** Welcome fills the canvas; the Data panel is open; every other rail item is
+   disabled. Open file, drop a file, or click a sample.
+2. **Load.** `handleLoad` in `AppShell.tsx` arms a wait for the element's own `data-loaded`
+   or `data-loading-error` event before touching the element, then calls the wrapper. The
+   name goes into the top bar at once (optimistically); on failure the shell clears the
+   element, returns to Welcome, and prints the sentence in the drop zone and the status bar.
+3. **After the first successful load**, unasked: the panel switches to Explore; a degree pass
+   runs in the background; the element's `recommendLayout` picks the arrangement; a style
+   layer "Top degree labels" is added labelling the square-root-of-N most connected nodes;
+   the inspector shows the graph summary with "Most connected"; the Insights strip shows up
+   to four cards; the minimap (empty) and the toolbar appear.
+4. **Sample row's hint link** ("Try Find groups"): loads the sample and, once the defaults
+   have landed, runs community detection, so the reader sees coloured groups in one click.
+5. **Run Groups** (card, Analyze Run, or palette): `session.runs.start`; the element derives
+   the colour encoding; the shell removes any other run's layers, clears the node selection
+   on both sides, writes the result into the inspector, opens Analyze, pushes a history entry,
+   and retires the card if the run came from the card's own panel.
+6. **Run a node metric** (degree, betweenness, PageRank): same, behind the size gate; the
+   inspector shows the ranked rows and a distribution; the legend shows a ramp.
+7. **Select a node** (canvas click): the element fires `selection-changed`; the inspector
+   switches to the node surface; the status bar shows "1 selected". Escape or a click on
+   empty canvas clears it.
+8. **Pick a style layer** (Style panel row): the inspector becomes the layer editor; edits
+   go to `session.styles.update` and repaint.
+9. **Change how a result looks**: Result inspector "Change encoding" opens Style; the reader
+   then has to find and pick the run's layer by hand.
+10. **Close dataset** (Data overflow) or a replacing load: clears selection, pin, result,
+    legend, degree pass, run layers and the shell's own default layers; focus goes to the
+    canvas; widths and section states survive.
+
+Things the app does without being asked, in one list: switches to Explore after the first
+load; runs degree; picks a layout; adds a label layer; computes "Most connected"; shows four
+suggestion cards; removes the previous run's colour layers when a new run paints; clears the
+selection when a run completes; opens Analyze when a run completes.
+
+## 5. The element API the shell actually uses, and what it lacks
+
+Used: `session.data.statistics()`, `session.estimate({op:"algo.run"})`,
+`session.catalog.metrics()`, `session.runs.start(algorithm, options, {style})`,
+`session.runs.list()`, run results by field, `session.styles.add / update / move / get / list
+/ removeBySource / resolveToStatic / encode / legend`, `session.seededNodeCount`,
+`recommendLayout`, `DEFAULT_LIMITS`; on the graph: `runAlgorithm`, `selectNode`,
+`deselectNode`, `zoomToFit`, `getCameraState`, `setCameraState`, `setCameraZoom`,
+`setCameraTarget`, `getNodeMesh`, `resetCamera`, `is2D`, `setXRConfig`, `addListener`; on the
+wrapper: load, clear, pin, unpin, pinnedNodes, getData; DOM events `data-loaded`,
+`data-loading-error`, `data-loading-progress`, `data-added`, `selection-changed`,
+`styles-changed`, `graphty-node-drag-end`.
+
+Recorded in the shell's own comments as missing on the element side, each blocking a drawn
+control: multi-node and edge selection with set algebra (the element's `selection.apply`
+exists but the app never calls it); a where-query and text search (`E_UNSUPPORTED`); neighbour
+lookup (the app walks edge records itself); node positions and a settle event for a minimap;
+camera-change events and a fit extent for a zoom readout; a drag-cancel call; progress and
+cancel for runs and loads; a merge-capable load; table join; column roles (Time, Type,
+Label); notes or a journal; a layout API on the session (pause, stop, settled); a mutation
+API with inverses (delete, merge, edit attributes); an in-canvas legend and minimap the
+element could own; a context-menu event. Most have open issues (numbers 144 to 149, 291 to
+301, 319).
+
+## 6. Personas (`design/designloom/personas/`)
+
+Twelve personas. For each: who they are, their goal, and the task they must complete in
+their first five minutes (derived from their listed behaviours and their first workflow).
+Expertise words are the files' own: novice, intermediate, expert.
+
+| Persona (file) | Who | Goal | First five minutes |
+|---|---|---|---|
+| Explorer Elena (`explorer-elena.yaml`) | Product manager, novice, no graph vocabulary, uses the tool as needed on a laptop | See something interesting, understand the shape of the data, share a screenshot, without learning terminology | Load a file or sample, see the graph, click a big node to learn what it is and who it connects to, search for a name she knows |
+| Analyst Alex (`analyst-alex.yaml`) | Data analyst, intermediate, weekly, has used Gephi and NetworkX | Answer a specific question with an established algorithm; reproduce it; export the numbers | Load data, run degree or communities, read the ranking, export metrics |
+| Expert Emma (`expert-emma.yaml`) | Network-science researcher and consultant, expert, daily, keyboard-driven | Full parameter control, minimal clicks, scripting, no wizards | Open a file by keyboard, run an exact algorithm with chosen parameters, validate against a reference, export raw data |
+| Fraud Detection Analyst (`fraud-analyst.yaml`) | Financial-crime investigator, intermediate, daily, 50+ alerts a day, time pressure | Follow the money from a flagged account, document evidence, decide quickly | Search the flagged account, expand one hop, trace paths, look at the timeline, note findings |
+| Intelligence Analyst (`intelligence-analyst.yaml`) | Counter-terrorism analyst, intermediate, daily, sensitive data | Map an organisation, find brokers with betweenness, watch activation over time, brief decision-makers | Load multi-source data, run betweenness and communities, expand around a seed, bookmark and annotate |
+| Cybersecurity Threat Analyst (`cybersecurity-analyst.yaml`) | Threat hunter over SIEM data, expert, daily, very large graphs | Hunt for attack patterns by hypothesis, save the queries that worked | Filter a huge behavioural graph, search for a pattern, triage matches, save the filter |
+| Bioinformatics Researcher (`bioinformatics-researcher.yaml`) | Computational biologist leading a lab, expert, weekly, tens of thousands of nodes | Find drug targets: hubs and bottlenecks in protein networks; reproducible, publishable | Import a STRING or BioGRID download, cluster, run centralities, export a subnetwork figure |
+| Genomics Cytoscape User (`genomics-cytoscape-user.yaml`) | Postdoc following Cytoscape protocols, intermediate biology expert, not a graph theorist | Turn a gene list plus a spreadsheet into a coloured network figure with a legend by Friday | Paste a gene list or load an edge list, keep the largest component, join a 30-column table by gene symbol, colour by log fold change on a red-blue gradient centred on zero |
+| Marketing Network Analyst (`marketing-analyst.yaml`) | Growth marketer, intermediate, weekly | Find influencers of different kinds and segment audiences | Run several centralities at once, run communities, export a ranked list |
+| Supply Chain Network Analyst (`supply-chain-analyst.yaml`) | Supply-chain risk manager, intermediate, weekly | Find single points of failure and model "what if supplier X fails" | Lay out the multi-tier network hierarchically, run betweenness, simulate removing a node |
+| ML Engineer, Recommendation Systems (`ml-engineer-recsys.yaml`) | Recommender-systems engineer, expert, daily, millions of edges | Link prediction and graph features for a bipartite user-item graph | Import an interaction log, compute common-neighbour scores, export features |
+| Knowledge Graph Engineer (`knowledge-engineer.yaml`) | Enterprise ontologist, expert, daily | Build and validate a unified knowledge graph; merge duplicate entities | Import from several sources, inspect schema and components, merge duplicates, export |
+
+## 7. Workflows (`design/designloom/workflows/`)
+
+Twenty-five workflow files; each lists its personas, the capabilities it requires and its
+task phases. The steps below are the files' own phases, condensed.
+
+| Workflow (file) | Personas | Steps | Capabilities it leans on most |
+|---|---|---|---|
+| First Exploration: Quick Data Assessment (`W01.yaml`) | Elena, Alex, Emma, Fraud, Intelligence, Bioinformatics | Size check; structure check (directed, weighted); degree distribution; inspect a sample of rows; assess attributes; decide to proceed or not, under 15 minutes | data-import, data-validation, data-preview, basic-statistics, degree-analysis, component-analysis, metric-histograms |
+| Visual Exploration: Overview to Detail (`W02.yaml`) | Elena, Alex, Emma | Overview; zoom to an area; filter out the uninteresting; details on a node | graph-rendering, zoom-pan, filtering, details-on-demand, minimap, hover-highlight, view-bookmarks |
+| Iterative Analysis Cycle (`W03.yaml`) | Alex, Emma, Bioinformatics | Question; explore views and encodings; hypothesise; test with algorithms; refine and document; conclude | the four centralities, community-detection, analysis-history, comparison-view, statistics-panel |
+| Community Analysis (`W04.yaml`) | Alex, Emma, Fraud, Marketing | Detect (Louvain); validate modularity; characterise each group; find bridge nodes; map inter-group structure | community-detection, community-profiling, centrality-betweenness, legend-display |
+| Path Investigation (`W05.yaml`) | Fraud, Intelligence, Alex | Pick source and target; shortest path; compare alternative paths; show in context; interpret intermediates | shortest-path, all-paths-finding, path-highlighting, search, neighborhood-expansion |
+| Fraud Ring Investigation (`W06.yaml`) | Fraud | Contextualise the alert (1-2 hops); recognise patterns; expand to the ring; score risk; document; decide | ego-network, neighborhood-expansion, anomaly-detection, temporal-navigation, annotation, pattern-search, saved-filters |
+| Threat Hunting (`W07.yaml`) | Cybersecurity | Hypothesis; translate to a pattern; query; triage; iterate; respond or document | pattern-search, anomaly-detection, filtering, saved-filters, large-graph-rendering, view-bookmarks |
+| Drug Target Discovery (`W08.yaml`) | Bioinformatics | Build the disease network; define the module; rank by centrality; validate; select candidates | centralities, community-detection, shortest-path, computed-attributes, data-export |
+| Criminal Network Analysis (`W09.yaml`) | Intelligence | Initialise the case; integrate data; build the network (merge duplicates); structural analysis; vulnerabilities; briefings | centralities, community-detection, ego-network, node-merging, removal-impact-analysis, annotation, export-image |
+| Influencer Identification (`W10.yaml`) | Marketing | Define influence; compute metrics; segment by type; validate; rank | four centralities, community-detection, large-graph-rendering, data-export |
+| Supply Chain Risk Assessment (`W11.yaml`) | Supply chain | Map the network; dependency analysis; betweenness bottlenecks; scenario modelling; mitigation | centrality-betweenness, layout-hierarchical, removal-impact-analysis, comparison-view |
+| Anomaly Detection (`W12.yaml`) | Fraud, Cybersecurity, Alex | Baseline; statistical outliers; structural outliers; triage; investigate; classify | anomaly-detection, clustering-coefficient, metric-histograms, selection-statistics, saved-filters |
+| Knowledge Graph Construction (`W13.yaml`) | Knowledge engineer | Schema; extract entities; map relationships; resolve duplicates; validate; deploy | data-import, data-validation, node-merging, search, data-export |
+| First-Time User Onboarding (`W14.yaml`) | Elena | Arrive to a clear call to action; load (file, URL, paste, sample); first visualisation with counts; guided tries (zoom, select, layout); one analysis; next steps; under 2 minutes to the first picture | guided-onboarding, sample-datasets, community-detection |
+| Findings Communication (`W15.yaml`) | Alex, Emma, Fraud, Intelligence | Audience; message; filter and highlight and annotate; narrative; produce image or report; validate | export-image, annotation, style-presets, legend-display, report-generation |
+| Graph-Based Recommendation (`W16.yaml`) | ML engineer | Bipartite graph; graph features; similarity; score pairs; evaluate; deploy | link-prediction, clustering-coefficient, data-export |
+| Hub Investigation (`W17.yaml`) | Alex, Fraud, Intelligence | Identify hubs; ego network; attribute analysis; temporal growth; classify the role; anomaly check | ego-network, layout-radial, selection-statistics, neighborhood-expansion |
+| Data Import and Validation (`W18.yaml`) | Elena, Alex, Emma | Source; format detection; field mapping; preview; load; validate; quality report | data-import, data-validation, data-preview, progressive-loading |
+| Network Evolution Analysis (`W19.yaml`) | Alex, Emma, Bioinformatics | Time windows; metrics per window; change detection; trends; community evolution; interpret | temporal-analysis, temporal-navigation, comparison-view, animated-transitions |
+| Gene List to Interaction Network (`W20.yaml`) | Genomics, Bioinformatics | Get the network (paste genes or load an edge list); keep the largest component; join the data table by key; colour by log fold change with grey for missing; lay out and read; export with legend | data-import (table join), component-analysis, visual-encoding-nodes, legend-display, export-image |
+| Cluster and Functionally Annotate (`W21.yaml`) | Genomics, Bioinformatics | Cluster (MCL expected); inspect clusters as a table and select members; annotate each cluster; show terms on the map; export | community-detection, community-profiling, selection-statistics, annotation |
+| Enrichment Map (`W22.yaml`) | Genomics, Bioinformatics | Build the map from an enrichment table; explore; tune thresholds; name themes; publish (adopted as a data-only case through the ordinary Data panel and filter builder) | data-import, filtering, community-detection, annotation, node-merging |
+| Hub Gene Identification and Ranking (`W23.yaml`) | Genomics, Bioinformatics | Compute several rankings; read distributions; combine or intersect top-10 lists; look at hubs in context; report | four centralities, clustering-coefficient, computed-attributes, metric-histograms, removal-impact-analysis |
+| Condition Comparison (`W24.yaml`) | Genomics, Bioinformatics | Load both; merge (union, intersection, difference); compare statistics; find rewired genes; side by side; report (phases 1 and 2 blocked on network collections; Compare mode covers one pair) | comparison-view, node-merging, computed-attributes, selection-statistics |
+| Reproducible Session and Publication (`W25.yaml`) | Genomics, Bioinformatics | Tidy and name; record parameters; save the session; export deliverables with a legend; share with metadata (session file blocked on project files, issue #301) | analysis-history, report-generation, data-export, export-image, view-bookmarks, style-presets |
+
+The four views in `design/designloom/views/`: Welcome (V01, the empty state), Graph Explorer
+(V02, the working screen with a tools sidebar left, a canvas with minimap, zoom controls and
+legend, and a details sidebar right, serving seventeen of the workflows), Report Builder (V03,
+a right-sidebar layout for Findings Communication), Settings (V04). The shell today is V01 and
+V02 merged into one frame; V03 does not exist.
+
+Which controls today serve which workflow, in one sentence each: First Exploration is served
+by the graph summary and its counts, with data validation, preview and histograms missing;
+Visual Exploration by the canvas, toolbar and node inspector, with filtering, minimap and
+bookmarks missing; Community Analysis by Run Groups, its result and the legend, with
+profiling and bridge nodes missing; Influencer, Hub Gene and Drug Target by the three metric
+runs, with closeness, eigenvector, combining and export missing; First-Time Onboarding by
+Welcome, the samples and the suggestion cards; every workflow that needs search, filtering,
+paths, expansion, notes, time, comparison, export or reports is not served.
+
+## 8. The design documents in `design/ui/`
+
+- `app-shell-progressive-disclosure-design.md` (8,815 lines) is the specification the shell
+  was built from. Section 5 lays out the frame and every panel's contents (Data at line 621,
+  Explore 1337, Analyze 1665, Style 2394, Present 2855, AI 3111, Settings 3216, Help 3418),
+  section 5.4 the inspector per selection, 5.5 the palette, 5.6 the bindings, 5.8 the
+  dependency register (what is shipped, what needs a wrapper, what is new work), 5.9 XR.
+  Section 6 is the rule book (vocabulary rule, reachability, memory, row types, the floor,
+  pop-outs, surface lifecycle, stacking, the state rule, text entry, the style layer rule,
+  the default component rule). Section 7 is the "novice path" and is the vertical slice the
+  shell implements end to end: Welcome, defaults on load, the Insights strip, AI as guidance,
+  plain-language readings, mapped to the onboarding workflow's success criteria.
+- `mockups/` holds 62 static artboards (`mockups/artboards/*.dc.html`, 1440x900) drawn from
+  that spec and a design system (`mockups/system/VOCAB.md` for palette, type ramp and control
+  sizes; `REGISTER-1.5.md`, one glyph and one tooltip per verb; `COMPACTION-1.6.md`, the ten
+  row types; `FIXTURES.md`, the sample datasets' numbers). The shell's code cites these
+  artboards line by line.
+- `figma/` is the measured study of the Figma editor that the object-first proposal uses as
+  its visual baseline (`figma/README.md`, `components.md`, `flows.md`,
+  `compact-mantine-mapping.md`, `tokens/tokens.json`).
+- Older feature designs that the shell superseded or absorbed: `figma-style-sidebar.md` and
+  `progressive-disclosure-design.md` (the first Figma-inspired properties sidebar),
+  `properties-sidebar-design.md` (the style layer editor's control groups),
+  `layers_feature_design.md` (the layer list), `run-algorithm-design.md` and
+  `layouts-design.md` (the two dialogs now re-homed in Analyze and Style),
+  `data-view-feature-design.md` (the data grid), `popout-panel-design.md` (the pop-out
+  component), `compact-ui-design.md` (the compact size system that became
+  `compact-mantine`), and `UAT.md` (the acceptance scenarios the shell was checked against).
+
+## 9. Counts worth keeping in view
+
+- Controls tagged Coming on the everyday screens: about thirty (Data 3, Explore 2 plus a
+  nine-row disabled menu, Analyze 1, Style 2 plus 2 layout picks, Present 2 plus 5 rows plus
+  2 formats, AI 1, Views menu 3, Settings 3 panes, inspector action lists 8 on a node and every
+  row on the four unreachable surfaces). Issue #181 asks for an ordered backlog of them.
+- Controls drawn and clickable but wired to nothing (Inert above): Undo, Redo, Compare, both
+  Present sections, the four Explore section pluses, Select all visible, Search, the Styles
+  section, the graph summary exports and schema verbs, most node actions, note save, layout
+  Stop, minimap.
+- Element-side gaps the app can see but cannot fix: listed in section 5, all with issues.
+- Capabilities the designloom set names: 61. Served fully today: about ten (graph rendering,
+  zoom and pan, force layout, data import of the common formats, sample datasets, basic
+  statistics, degree, betweenness, PageRank, community detection, legend, details on demand
+  for one node, keyboard shortcuts, guided onboarding). Everything else is a drawn shape, a
+  plan, or an open issue.

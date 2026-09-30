@@ -1,3 +1,4 @@
+import type { NodeMask } from "@graphty/graph-format";
 import {
     Edge as D3Edge,
     forceCenter,
@@ -12,7 +13,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
-import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for D3 Force Layout
@@ -112,12 +113,24 @@ function isD3Edge(e: unknown): e is D3Edge {
 }
 
 /**
+ * Fix a d3 node where it is now, which is how d3 holds a body still.
+ * @param d3node - The node to fix.
+ */
+function fixAt(d3node: D3Node): void {
+    d3node.fx = d3node.x;
+    d3node.fy = d3node.y;
+    d3node.fz = d3node.z;
+}
+
+/**
  * D3 force-directed layout engine using d3-force-3d simulation
  */
 export class D3GraphEngine extends LayoutEngine {
     static type = "d3";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = d3LayoutOptionsSchema;
+    /** Accepts a scope: a held node is fixed through d3's own `fx`/`fy`/`fz`. */
+    static override scoped = true;
     d3ForceLayout: ReturnType<typeof forceSimulation>;
     d3AlphaMin: number;
     d3AlphaTarget: number;
@@ -201,6 +214,10 @@ export class D3GraphEngine extends LayoutEngine {
                 }
 
                 this.nodeMapping.set(n, d3node);
+                // A node that arrived after a scoped layout started is not one of its members.
+                if (this.isHeld(n.index)) {
+                    fixAt(d3node);
+                }
             }
             this.newNodeMap.clear();
 
@@ -333,7 +350,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to set position for
      * @param newPos - The new position coordinates
      */
-    setNodePosition(n: Node, newPos: Position): void {
+    protected setNodePosition(n: Node, newPos: Position): void {
         const d3node = this._getMappedNode(n);
         d3node.x = newPos.x;
         d3node.y = newPos.y;
@@ -345,6 +362,17 @@ export class D3GraphEngine extends LayoutEngine {
         // "undraggable".
         this.writeNodePosition(n, d3node.x, d3node.y, d3node.z, "placement");
         this.reheat = true;
+    }
+
+    /**
+     * Take the position array as this engine's own. Nodes still waiting for the next refresh are
+     * taken into the simulation first: undo and rollback rebuild the nodes they bring back, and a
+     * node left waiting would be placed by d3's own initial layout at its first tick -- over the
+     * coordinates the restore wrote for it.
+     */
+    override loadArrangement(): void {
+        this.refresh();
+        super.loadArrangement();
     }
 
     /**
@@ -373,7 +401,7 @@ export class D3GraphEngine extends LayoutEngine {
      * Pin a node to its current position
      * @param n - The node to pin
      */
-    pin(n: Node): void {
+    protected pin(n: Node): void {
         const d3node = this._getMappedNode(n);
 
         d3node.fx = d3node.x;
@@ -388,13 +416,38 @@ export class D3GraphEngine extends LayoutEngine {
      * Unpin a node to allow it to move freely
      * @param n - The node to unpin
      */
-    unpin(n: Node): void {
+    protected unpin(n: Node): void {
         const d3node = this._getMappedNode(n);
+        // A node a scoped layout is holding stays fixed: the hold is not the reader's pin to lift.
+        if (this.isHeld(n.index)) {
+            return;
+        }
 
         d3node.fx = undefined;
         d3node.fy = undefined;
         d3node.fz = undefined;
         this.reheat = true; // TODO: is this necessary?
+    }
+
+    /**
+     * Holds the nodes a scoped layout may not move, as d3 fixes a node: at its current position.
+     *
+     * A node that is no longer held is released unless the reader pinned it.
+     * @param mask - One bit per row to hold, or null to hold nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.refresh();
+        for (const [node, d3node] of this.nodeMapping) {
+            if (this.isHeld(node.index)) {
+                fixAt(d3node);
+            } else if (!node.isPinned()) {
+                d3node.fx = undefined;
+                d3node.fy = undefined;
+                d3node.fz = undefined;
+            }
+        }
     }
 
     /**
@@ -446,6 +499,24 @@ export class D3GraphEngine extends LayoutEngine {
         this.edgeMapping.delete(e);
         this.newEdgeMap.delete(e);
         this.reheat = true;
+    }
+
+    /**
+     * Strict state: {@link LayoutEngine.edgeProblems} over the links and the edges still waiting
+     * for the next refresh, each once, with both endpoints held.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem.
+     */
+    protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        const problems = heldEdgeProblems([...this.edgeMapping.keys(), ...this.newEdgeMap.keys()], drawn);
+        const nodes = new Set<unknown>(this.nodeMapping.values());
+        for (const [edge, link] of this.edgeMapping) {
+            if (!nodes.has(link.source) || !nodes.has(link.target)) {
+                problems.push(`edge ${edge.id} links a node the simulation no longer holds`);
+            }
+        }
+
+        return problems;
     }
 
     private _getMappedNode(n: Node): D3Node {

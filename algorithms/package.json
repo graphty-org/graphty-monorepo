@@ -1,6 +1,6 @@
 {
     "name": "@graphty/algorithms",
-    "version": "2.0.4",
+    "version": "3.0.0",
     "description": "Graph algorithms library for browser environments implemented in TypeScript",
     "author": "Adam Powers <apowers@ato.ms>",
     "main": "dist/algorithms.js",
@@ -22,9 +22,6 @@
         "README.md",
         "LICENSE"
     ],
-    "directories": {
-        "example": "examples"
-    },
     "scripts": {
         "test": "vitest",
         "test:ui": "vitest --ui",
@@ -41,29 +38,19 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "test:browser": "vitest --project=browser",
         "test:all": "vitest run --project=default --project=browser",
-        "test:performance": "tsx test/helpers/run-performance-regression.ts",
-        "test:performance:update": "tsx test/helpers/run-performance-regression.ts --update-baselines",
-        "benchmark": "tsx src/benchmark-all-algorithms.ts",
-        "benchmark:quick": "tsx src/benchmark-all-algorithms.ts --quick",
+        "benchmark": "tsx benchmarks/node/algorithms-benchmark.ts",
+        "benchmark:quick": "tsx benchmarks/node/algorithms-benchmark.ts --quick",
         "benchmark:report": "tsx scripts/generate-performance-report.ts",
-        "benchmark:validation": "tsx src/optimized/benchmark-validation.ts",
-        "benchmark:comprehensive": "tsx src/optimized/benchmark-comprehensive.ts",
-        "memory:profile": "tsx test/helpers/memory-profiler.ts",
         "lint": "eslint && tsc --noEmit && tsc -p tsconfig.typecheck.json",
         "lint:fix": "eslint --fix",
-        "lint:knip": "cd .. && pnpm run lint:knip -- --workspace algorithms",
+        "lint:knip": "cd .. && ./tools/run-knip.sh --workspace algorithms",
         "typecheck": "tsc --noEmit",
-        "build": "tsc",
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "build:gh-pages": "npm run build:bundle && node scripts/build-gh-pages.js",
+        "build:gh-pages": "node scripts/build-gh-pages.js",
         "build:watch": "tsc --watch",
         "dev": "tsc --watch",
-        "examples": "node examples/run-all-examples.js",
-        "examples:run": "node examples/run-all-examples.js",
-        "examples:html": "npm run build:bundle && vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "serve": "npm run build:bundle && vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "commit": "cz",
         "ready:commit": "npm run build && npm run lint && npm run test:all",
         "watch": "tsc --watch",
         "docs:api": "typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
@@ -112,19 +99,21 @@
     "devDependencies": {
         "@chromatic-com/storybook": "^4.0.0",
         "@eslint/js": "^9.29.0",
+        "@graphty/graph-samples": "workspace:^",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
         "@storybook/addon-docs": "^9.0.11",
         "@storybook/html-vite": "^9.0.11",
         "@storybook/test": "^8.6.14",
         "@types/benchmark": "^2.1.5",
+        "@vitest/browser-playwright": "catalog:",
         "benchmark": "^2.1.4",
         "chromatic": "^11.0.0",
         "eslint": "^9.29.0",
         "eslint-plugin-simple-import-sort": "^12.1.1",
         "gh-pages": "^6.3.0",
         "globals": "^15.12.0",
-        "happy-dom": "^18.0.1",
+        "happy-dom": "^20.8.9",
         "knip": "^5.61.3",
         "playwright": "^1.53.0",
         "semantic-release": "^25.0.2",
@@ -138,11 +127,10 @@
         "typescript-eslint": "^8.34.1",
         "vite": "^7.0.5",
         "vitepress": "^1.6.3",
-        "vitest": "^3.2.4"
+        "vitest": "catalog:"
     },
     "dependencies": {
-        "@graphty/graph-format": "workspace:^",
-        "typedfastbitset": "^0.6.1"
+        "@graphty/graph-format": "workspace:^"
     },
     "peerDependencies": {
         "@graphty/graph-format": "^1.0.0"

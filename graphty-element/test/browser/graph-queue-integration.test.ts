@@ -1,6 +1,6 @@
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 describe("Graph Queue Integration", () => {
     let container: HTMLElement;
@@ -26,7 +26,7 @@ describe("Graph Queue Integration", () => {
         ];
 
         // Spy on queue operation
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         await graph.addNodes(nodes);
 
@@ -34,7 +34,7 @@ describe("Graph Queue Integration", () => {
             "data-add",
             expect.any(Function),
             expect.objectContaining({
-                description: "Adding 2 nodes",
+                description: "Added 2 nodes",
             }),
         );
 
@@ -42,7 +42,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue setLayout operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         await graph.setLayout("ngraph");
 
@@ -50,77 +50,76 @@ describe("Graph Queue Integration", () => {
             "layout-set",
             expect.any(Function),
             expect.objectContaining({
-                description: "Setting layout to ngraph",
+                description: "Changed the layout to force",
             }),
         );
 
         queueSpy.mockRestore();
     });
 
-    it("puts a style edit and a data load in one queue, in the order they were asked for", async () => {
+    it("writes a style edit at once, and paints the rows a later load adds after that load", async () => {
         const operations: string[] = [];
-        const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
+        const originalQueue = operationQueueOf(graph).queueOperation.bind(operationQueueOf(graph));
 
-        vi.spyOn(graph.operationQueue, "queueOperation").mockImplementation((category, execute, metadata) => {
+        vi.spyOn(operationQueueOf(graph), "queueOperation").mockImplementation((category, execute, metadata) => {
             operations.push(category);
             return originalQueue(category, execute, metadata);
         });
 
-        // A style edit takes its turn in the same queue as everything else. It used to be a
-        // `style-init` operation, queued by `setStyleTemplate`; a layer edit is a session run
-        // now, queued as `style-edit`, and the repaint that follows a data load is the queue's
-        // own `style-apply`. The category is its own rather than shared with `algorithm-run`
-        // because `data-add` obsoletes an algorithm run -- a computation over data that has just
-        // changed -- and must not cancel a layer, which says how to paint whatever arrives.
-        await graph.getSession().styles.add({
+        // A style edit is an undoable step of the session: the stack holds the layer when the verb
+        // returns, and the repaint runs on the session's derivation lane. It takes no turn in the
+        // queue, so no load can overtake it. Nor does the repaint of a data load: the derivation
+        // pass that derives the load paints it.
+        const added = graph.getSession().styles.add({
             name: "every node blue",
             target: "node",
             selector: { match: "everything" },
             set: { "node.color": "blue" },
         });
-
-        // Add nodes
-        await graph.addNodes([{ id: "1", label: "Node 1" }]);
-
-        // Wait for operations to complete
-        await graph.operationQueue.waitForCompletion();
-
-        const styleEditIndex = operations.indexOf("style-edit");
-        const dataAddIndex = operations.indexOf("data-add");
-        const repaintIndex = operations.indexOf("style-apply");
-
-        assert(styleEditIndex !== -1, "a style edit is a queued run");
-        assert(dataAddIndex !== -1, "data-add should be present");
-        assert(styleEditIndex < dataAddIndex, "the style edit was asked for first, so it is queued first");
-        assert(
-            repaintIndex > dataAddIndex,
-            "and the rows a load added are painted after it, which is what the data-add trigger is for",
+        assert.include(
+            graph
+                .getSession()
+                .styles.list()
+                .map((layer) => layer.name),
+            "every node blue",
+            "the stack holds the layer as soon as the verb returns",
         );
+        await added;
+
+        await graph.addNodes([{ id: "1", label: "Node 1" }]);
+        await graph.waitForSettled();
+
+        assert.notInclude(operations, "style-edit", "a style edit takes no turn in the queue");
+        assert.include(operations, "data-add", "data-add should be present");
+        assert.notInclude(operations, "style-apply", "the load's repaint takes no turn in the queue either");
+        const node = graph.getNodes()[0];
+        assert.isNotNull(graph.getStylePainter().nodePaint(node.index), "and the rows the load added are painted");
     });
 
     it("should handle batchOperations method", async () => {
         const operations: string[] = [];
-        const originalQueue = graph.operationQueue.queueOperation.bind(graph.operationQueue);
+        const originalQueue = operationQueueOf(graph).queueOperation.bind(operationQueueOf(graph));
 
-        vi.spyOn(graph.operationQueue, "queueOperation").mockImplementation((category, execute, metadata) => {
+        vi.spyOn(operationQueueOf(graph), "queueOperation").mockImplementation((category, execute, metadata) => {
             operations.push(category);
             return originalQueue(category, execute, metadata);
         });
 
-        // Use batchOperations to ensure all operations are in same batch
-        await graph.batchOperations(async () => {
-            await graph.addNodes([
+        // The changes made through the batch's `tx` are one step, and the queued ones still take
+        // their turn on the queue.
+        await graph.batchOperations(async (tx) => {
+            await tx.data.addNodes([
                 { id: "1", label: "Node 1" },
                 { id: "2", label: "Node 2" },
             ]);
 
-            await graph.addEdges([{ source: "1", target: "2", label: "Edge 1" }], { source: "source", target: "target" });
+            await tx.data.addEdges([{ src: "1", dst: "2", label: "Edge 1" }]);
 
-            await graph.setLayout("circular");
+            await tx.layout.set("circular");
         });
 
-        // All operations should be queued
-        expect(operations).toContain("data-add");
+        expect(graph.getNodeCount()).toBe(2);
+        expect(graph.getEdgeCount()).toBe(1);
         expect(operations).toContain("layout-set");
     });
 
@@ -139,7 +138,7 @@ describe("Graph Queue Integration", () => {
         await graph.setLayout("random");
 
         // Wait for operations to complete
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Verify data was added
         const nodeCount = graph.getNodeCount();
@@ -188,7 +187,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should support skipQueue option for backwards compatibility", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // When skipQueue is true, operation should not be queued
         await graph.addNodes([{ id: "1", label: "Node 1" }], undefined, { skipQueue: true });
@@ -203,7 +202,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue addEdges operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // First add nodes (needed for edges)
         await graph.addNodes([
@@ -231,7 +230,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue removeNodes operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // Add nodes first
         await graph.addNodes([
@@ -247,7 +246,7 @@ describe("Graph Queue Integration", () => {
             "data-remove",
             expect.any(Function),
             expect.objectContaining({
-                description: "Removing 1 nodes",
+                description: "Removed a node",
             }),
         );
 
@@ -255,7 +254,7 @@ describe("Graph Queue Integration", () => {
     });
 
     it("should queue updateNodes operations", async () => {
-        const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+        const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
         // Add node first
         await graph.addNodes([{ id: "1", label: "Node 1" }]);
@@ -268,7 +267,7 @@ describe("Graph Queue Integration", () => {
             "data-update",
             expect.any(Function),
             expect.objectContaining({
-                description: "Updating 1 nodes",
+                description: "Edited 1 node",
             }),
         );
 
@@ -282,7 +281,7 @@ describe("Graph Queue Integration", () => {
             // this test is for is that algorithm work takes its turn in the element's queue --
             // where it is ordered against loads, layouts and style passes -- and that is still
             // exactly what happens, on the same queue object, under the same category.
-            const queueSpy = vi.spyOn(graph.operationQueue, "queueOperation");
+            const queueSpy = vi.spyOn(operationQueueOf(graph), "queueOperation");
 
             // Add nodes first
             await graph.addNodes([
@@ -304,7 +303,7 @@ describe("Graph Queue Integration", () => {
             await graph.runAlgorithm("graphty", "degree", {});
 
             // Wait for operations
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify algorithm-run was queued
             expect(queueSpy).toHaveBeenCalledWith(
@@ -353,7 +352,7 @@ describe("Graph Queue Integration", () => {
             await graph.setLayout("circular");
 
             // Wait for all operations
-            await graph.operationQueue.waitForCompletion();
+            await operationQueueOf(graph).waitForCompletion();
 
             // Verify execution order respects dependencies
             const dataIndex = executionOrder.indexOf("data-add");

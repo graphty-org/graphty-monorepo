@@ -1,9 +1,10 @@
-import { louvain } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -46,7 +47,8 @@ const louvainOptionsSchema = defineOptions({
         schema: z.boolean().default(true),
         meta: {
             label: "Use Optimized",
-            description: "Use optimized implementation for better performance on large graphs",
+            description:
+                "Only the optimized implementation remains, so a run with this switched off is refused. Leave it on",
             advanced: true,
         },
     },
@@ -62,16 +64,19 @@ interface LouvainOptions extends Record<string, unknown> {
     maxIterations: number;
     /** Minimum modularity improvement to continue */
     tolerance: number;
-    /** Use optimized implementation for better performance on large graphs */
+    /** Only the optimized implementation remains, so `false` is refused */
     useOptimized: boolean;
 }
 
 /**
- *
+ * Louvain: communities found by moving nodes between groups while modularity improves, then
+ * merging each group into one node and repeating.
  */
 export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
     static namespace = "graphty";
     static type = "louvain";
+    /** Groups over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = louvainOptionsSchema;
 
@@ -107,7 +112,8 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
             type: "boolean",
             default: true,
             label: "Use Optimized",
-            description: "Use optimized implementation for better performance on large graphs",
+            description:
+                "Only the optimized implementation remains, so a run with this switched off is refused. Leave it on",
             advanced: true,
         },
     };
@@ -122,7 +128,8 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
      * @returns The community result, or null when there are no nodes to group.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, so a member with no edge in the scope stands alone.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
@@ -130,27 +137,31 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
 
         const { resolution, maxIterations, tolerance, useOptimized } = this.schemaOptions;
 
-        // Undirected: modularity is defined over unordered pairs.
-        const graphData = this.algorithmGraph("undirected");
-
-        context.report({ phase: "Optimizing modularity", total: null });
-        const result = louvain(graphData, {
-            resolution,
-            maxIterations,
-            tolerance,
-            useOptimized,
-        });
-
-        const groupOf = new Map<number | string, number>();
-        for (let index = 0; index < result.communities.length; index++) {
-            for (const nodeId of result.communities[index]) {
-                groupOf.set(nodeId, index);
-            }
+        if (!useOptimized) {
+            // The option chose between two implementations, and the unoptimized one is not carried
+            // over to the snapshot. A run that asked for it is told so rather than quietly given
+            // the other; `true`, the default, keeps saved documents running.
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                source: "run",
+                message: "Louvain has only its optimized implementation now; leave useOptimized on.",
+                details: { algorithm: "louvain", option: "useOptimized", value: false, permitted: [true] },
+            });
         }
 
+        // Undirected: modularity is defined over unordered pairs. No shipped accelerator groups
+        // communities, so this runs the index-based CPU port.
+        const { snapshot, run } = this.accelerated("louvain", "undirected");
+
+        context.report({ phase: "Optimizing modularity", total: null });
+        const { value: result, precision } = await run((dispatch, s) =>
+            dispatch.louvain(s, { resolution, maxIterations, tolerance }),
+        );
+
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+            nodes.push({ id: nodeId, values: { group: result.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 
         return {
@@ -162,6 +173,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
                 method: "louvain",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "strength" },
+                precision,
                 notes: [`Resolution ${String(resolution)}.`],
             }),
         };

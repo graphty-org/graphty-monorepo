@@ -470,16 +470,23 @@ export function drawnText(
 }
 
 /**
- * Watch one label's plane for a while and report how far it moved.
+ * Watch the label planes for a number of rendered frames and report how far they moved.
  *
  * FOR THE STORIES WHOSE SUBJECT IS MOTION. An animated label is the one case where a single
  * reading of the scene says nothing: a pulse is a scale that changes, and any one frame of it is
- * a still label at some scale. Two readings a few frames apart is the smallest honest test.
+ * a still label at some scale.
+ *
+ * COUNTED IN FRAMES, NOT MILLISECONDS. A label animation advances by a fixed step per rendered
+ * frame, so how far it moves in a stretch of wall-clock time depends on how fast the browser
+ * draws. The storybook test browser renders in software, where one frame can take a few hundred
+ * milliseconds, and a 400 ms window then held one or two frames: a pulse caught near its peak
+ * moved a quarter of the threshold and the story failed. Every frame is read, not just the last,
+ * because two readings can land on the same point of a cycle and show no change at all.
  * @param scene - What the story drew.
- * @param overMs - How long to watch for.
+ * @param frames - How many rendered frames to watch.
  * @returns The largest change in scale and in position any one label showed.
  */
-export async function labelMotion(scene: Drawn, overMs = 400): Promise<{ scale: number; position: number }> {
+export async function labelMotion(scene: Drawn, frames = 20): Promise<{ scale: number; position: number }> {
     const planes = scene.graph
         .getNodes()
         .map((node) => node.label?.labelMesh ?? null)
@@ -490,21 +497,32 @@ export async function labelMotion(scene: Drawn, overMs = 400): Promise<{ scale: 
         position: [plane.position.x, plane.position.y, plane.position.z] as const,
     }));
 
-    await new Promise((resolve) => setTimeout(resolve, overMs));
-
     let scale = 0;
     let position = 0;
+    const read = (): void => {
+        planes.forEach((plane, at) => {
+            scale = Math.max(scale, Math.abs(plane.scaling.x - before[at].scale));
+            position = Math.max(
+                position,
+                Math.hypot(
+                    plane.position.x - before[at].position[0],
+                    plane.position.y - before[at].position[1],
+                    plane.position.z - before[at].position[2],
+                ),
+            );
+        });
+    };
 
-    planes.forEach((plane, at) => {
-        scale = Math.max(scale, Math.abs(plane.scaling.x - before[at].scale));
-        position = Math.max(
-            position,
-            Math.hypot(
-                plane.position.x - before[at].position[0],
-                plane.position.y - before[at].position[1],
-                plane.position.z - before[at].position[2],
-            ),
-        );
+    await new Promise<void>((resolve) => {
+        let seen = 0;
+        const observer = scene.graph.scene.onAfterRenderObservable.add(() => {
+            read();
+            seen++;
+            if (seen >= frames) {
+                scene.graph.scene.onAfterRenderObservable.remove(observer);
+                resolve();
+            }
+        });
     });
 
     return { scale, position };

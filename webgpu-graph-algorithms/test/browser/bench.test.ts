@@ -1,7 +1,10 @@
 /**
  * T-5 (spec 10.4): the FA2 per-frame cost in Chromium -- step(1) + the 12n readback -- at the 10k exact tier and
- * (P4-T14) at the 100k grid tier, measured by this `bench`-tagged browser test (spec 11.6 item 8, 11.7) and appended
- * to benchmarks/out/<runner class>.json through the Vitest commands bridge (contract 2.5 appendBenchRecord, 6.4).
+ * (P4-T14) at the 100k grid tier, and T-3 in Chromium: the empty submit + 4-byte readU32 round trip that every
+ * interactive frame of a browser layout pays (issue #278; the Node twin is benchmarks/roundtrip.bench.ts). Measured
+ * by this `bench`-tagged browser test (spec 11.6 item 8, 11.7) and appended to benchmarks/out/<runner class>.json
+ * through the Vitest commands bridge (contract 2.5 appendBenchRecord, 6.4). The round trip is recorded, not held to
+ * the <= 0.1 ms T-3 target: that target was set for Dawn in Node (benchmarks/results/targets.json).
  * Skipped unless GRAPHTY_BROWSER_GPU === "nvidia" (software adapters never time anything, spec 11.7).
  *
  * The targets (<= 6 ms on the 4070 at 10k; <= 12 ms at 100k on the grid tier) are a G3 / G4 record, not an assertion
@@ -21,11 +24,12 @@
  * by name.
  */
 
-import { commands } from "@vitest/browser/context";
+import { commands } from "vitest/browser";
 
 import type { BenchResult, BenchSession, GpuSessionInfo } from "../../benchmarks/harness.js";
 import { runnerClass } from "../../scripts/runner-class.js";
 import { type GpuContext } from "../../src/context.js";
+import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import { type GpuLayoutTuning } from "../../src/types/layout.js";
 import { randomEdges, snapshotOf } from "../helpers/graphs.js";
@@ -34,6 +38,11 @@ import { acquireBrowser, browserGpu, requireBrowserGpu } from "../setup/browser.
 const EDGE_FACTOR = 10; // E = 10 n, the ladder density of T-4 / T-6 (spec 10.4)
 const WARM_FRAMES = 5;
 const TIMED_FRAMES = 50;
+const WARM_ROUNDTRIPS = 10;
+// Chromium quantises performance.now() to 100 us outside a cross-origin-isolated page, which is the size of the
+// round trip itself; each sample therefore times a batch and records the mean round trip of the batch.
+const ROUNDTRIPS_PER_SAMPLE = 20;
+const ROUNDTRIP_SAMPLES = 30;
 
 /** One T-5 case: the node count, the tier it forces and the row it writes. */
 interface FrameCase {
@@ -86,72 +95,132 @@ function median(values: readonly number[]): number {
     return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-describe.skipIf(browserGpu() !== "nvidia")("[bench] T-5: FA2 per-frame cost in Chromium (NVIDIA only)", () => {
-    for (const c of CASES) {
-        it(`${c.title}: step(1) + readback timings appended through commands.appendBenchRecord`, async (t) => {
+/**
+ * Appends one row timed in this browser to benchmarks/out/<runner class>.json, as a session of its own.
+ * @param ctx - the context the row ran on (its caps name the runner class)
+ * @param group - the benchmark group
+ * @param name - the row name
+ * @param deltas - the timed samples in milliseconds
+ * @param rateUnit - the unit of 1000 / median
+ * @returns a one-line summary for the console
+ */
+async function appendBench(
+    ctx: GpuContext,
+    group: string,
+    name: string,
+    deltas: readonly number[],
+    rateUnit: string,
+): Promise<string> {
+    const medianMs = median(deltas);
+    expect(Number.isFinite(medianMs)).toBe(true);
+    expect(medianMs).toBeGreaterThan(0);
+    const result: BenchResult = {
+        group,
+        name,
+        medianMs,
+        minMs: Math.min(...deltas),
+        maxMs: Math.max(...deltas),
+        runs: deltas.length,
+        memoryDeltaBytes: 0, // no process.memoryUsage() in the browser
+        rate: 1000 / medianMs,
+        rateUnit,
+    };
+    // an explicit empty env: the browser has no process.env and no forwarded GRAPHTY_RUNNER_CLASS (see the header)
+    const cls = runnerClass(
+        { vendor: ctx.caps.vendor, architecture: ctx.caps.architecture, description: ctx.caps.description },
+        {},
+    );
+    const session: BenchSession = {
+        date: new Date().toISOString(),
+        host: globalThis.location.hostname,
+        node: navigator.userAgent,
+        cpu: "unknown",
+        exposeGc: false,
+        gpu: browserGpuSessionInfo(ctx),
+        runnerClass: cls,
+        results: [result],
+    };
+    const file = await commands.appendBenchRecord({ runnerClass: cls, session });
+    expect(file).toMatch(/benchmarks[\\/]out[\\/][A-Za-z0-9_.-]+\.json$/);
+    return `median ${medianMs.toFixed(3)} ms (min ${result.minMs.toFixed(3)}, max ${result.maxMs.toFixed(3)}) over ${String(deltas.length)} runs on ${cls} -> ${file}`;
+}
+
+describe.skipIf(browserGpu() !== "nvidia")(
+    "[bench] T-5 and T-3 in Chromium: FA2 per-frame cost and the submit round trip (NVIDIA only)",
+    () => {
+        for (const c of CASES) {
+            it(`${c.title}: step(1) + readback timings appended through commands.appendBenchRecord`, async (t) => {
+                await requireBrowserGpu(t);
+                const ctx = await acquireBrowser();
+                expect(ctx.caps.software).toBe(false); // never time a software adapter (spec 11.7); a SwiftShader pick is red, not silent
+                expect(ctx.caps.vendor).toBe("nvidia");
+                const snapshot = snapshotOf(randomEdges(c.nodes, EDGE_FACTOR * c.nodes, 5), { nodeCount: c.nodes });
+                expect(snapshot.nodeCount).toBe(c.nodes);
+                const sim = createForceAtlas2(ctx, {
+                    seed: 1,
+                    maxIter: 1_000_000,
+                    settleThreshold: 0,
+                    maxInFlight: 1,
+                    ...c.tuning,
+                });
+                const positions = new Float32Array(3 * c.nodes).fill(NaN);
+                sim.load(snapshot, positions);
+                for (let i = 0; i < WARM_FRAMES; i++) {
+                    await sim.step(1); // pipeline compile, the first submit, the staging ring's growth
+                }
+                expect(sim.stats.repulsionTier).toBe(c.tuning.repulsion);
+                const deltas: number[] = [];
+                for (let i = 0; i < TIMED_FRAMES; i++) {
+                    const start = performance.now();
+                    await sim.step(1); // resolves once the 12n readback has landed in `positions`: the per-frame cost of T-5
+                    deltas.push(performance.now() - start);
+                }
+                expect(sim.iterationsDone).toBe(WARM_FRAMES + TIMED_FRAMES);
+                expect(positions.every((v) => Number.isFinite(v))).toBe(true);
+                const result = await appendBench(ctx, "layout-browser", c.row, deltas, "frames/s");
+                console.warn(`T-5 ${c.row}: ${result}`);
+                sim.dispose();
+                ctx.release(snapshot);
+            });
+        }
+
+        it("empty submit + 4-byte readU32 round trip (T-3 in Chromium), appended through commands.appendBenchRecord", async (t) => {
             await requireBrowserGpu(t);
             const ctx = await acquireBrowser();
-            expect(ctx.caps.software).toBe(false); // never time a software adapter (spec 11.7); a SwiftShader pick is red, not silent
+            expect(ctx.caps.software).toBe(false);
             expect(ctx.caps.vendor).toBe("nvidia");
-            const snapshot = snapshotOf(randomEdges(c.nodes, EDGE_FACTOR * c.nodes, 5), { nodeCount: c.nodes });
-            expect(snapshot.nodeCount).toBe(c.nodes);
-            const sim = createForceAtlas2(ctx, {
-                seed: 1,
-                maxIter: 1_000_000,
-                settleThreshold: 0,
-                maxInFlight: 1,
-                ...c.tuning,
+            const counter = ctx.device.createBuffer({
+                size: 4,
+                usage: BufferUsage.STORAGE | BufferUsage.COPY_SRC | BufferUsage.COPY_DST,
+                label: "roundtrip-browser/counter",
             });
-            const positions = new Float32Array(3 * c.nodes).fill(NaN);
-            sim.load(snapshot, positions);
-            for (let i = 0; i < WARM_FRAMES; i++) {
-                await sim.step(1); // pipeline compile, the first submit, the staging ring's growth
+            try {
+                for (let i = 0; i < WARM_ROUNDTRIPS; i++) {
+                    ctx.device.queue.submit([]);
+                    await ctx.readback.readU32(counter, 0); // the staging buffer's first map, the first submit
+                }
+                const deltas: number[] = [];
+                for (let i = 0; i < ROUNDTRIP_SAMPLES; i++) {
+                    let sum = 0;
+                    const start = performance.now();
+                    for (let j = 0; j < ROUNDTRIPS_PER_SAMPLE; j++) {
+                        ctx.device.queue.submit([]);
+                        sum += await ctx.readback.readU32(counter, 0);
+                    }
+                    deltas.push((performance.now() - start) / ROUNDTRIPS_PER_SAMPLE);
+                    expect(sum).toBe(0); // a fresh buffer reads zero
+                }
+                const result = await appendBench(
+                    ctx,
+                    "roundtrip-browser",
+                    "empty-submit-readU32",
+                    deltas,
+                    "roundtrips/s",
+                );
+                console.warn(`T-3 empty-submit-readU32: ${result}`);
+            } finally {
+                counter.destroy();
             }
-            expect(sim.stats.repulsionTier).toBe(c.tuning.repulsion);
-            const deltas: number[] = [];
-            for (let i = 0; i < TIMED_FRAMES; i++) {
-                const start = performance.now();
-                await sim.step(1); // resolves once the 12n readback has landed in `positions`: the per-frame cost of T-5
-                deltas.push(performance.now() - start);
-            }
-            expect(sim.iterationsDone).toBe(WARM_FRAMES + TIMED_FRAMES);
-            expect(positions.every((v) => Number.isFinite(v))).toBe(true);
-            const medianMs = median(deltas);
-            expect(Number.isFinite(medianMs)).toBe(true);
-            expect(medianMs).toBeGreaterThan(0);
-            const result: BenchResult = {
-                group: "layout-browser",
-                name: c.row,
-                medianMs,
-                minMs: Math.min(...deltas),
-                maxMs: Math.max(...deltas),
-                runs: TIMED_FRAMES,
-                memoryDeltaBytes: 0, // no process.memoryUsage() in the browser
-                rate: 1000 / medianMs,
-                rateUnit: "frames/s",
-            };
-            // an explicit empty env: the browser has no process.env and no forwarded GRAPHTY_RUNNER_CLASS (see the header)
-            const cls = runnerClass(
-                { vendor: ctx.caps.vendor, architecture: ctx.caps.architecture, description: ctx.caps.description },
-                {},
-            );
-            const session: BenchSession = {
-                date: new Date().toISOString(),
-                host: globalThis.location.hostname,
-                node: navigator.userAgent,
-                cpu: "unknown",
-                exposeGc: false,
-                gpu: browserGpuSessionInfo(ctx),
-                runnerClass: cls,
-                results: [result],
-            };
-            const file = await commands.appendBenchRecord({ runnerClass: cls, session });
-            expect(file).toMatch(/benchmarks[\\/]out[\\/][A-Za-z0-9_.-]+\.json$/);
-            console.warn(
-                `T-5 ${c.row}: median ${medianMs.toFixed(3)} ms (min ${result.minMs.toFixed(3)}, max ${result.maxMs.toFixed(3)}) over ${TIMED_FRAMES} frames on ${cls} -> ${file}`,
-            );
-            sim.dispose();
-            ctx.release(snapshot);
         });
-    }
-});
+    },
+);

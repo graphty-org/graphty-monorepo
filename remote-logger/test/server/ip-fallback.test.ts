@@ -14,6 +14,7 @@ vi.mock("internal-ip", () => ({
 
 // Import after mocking
 import { internalIpV4Sync } from "internal-ip";
+
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
 
 const mockedInternalIpV4Sync = vi.mocked(internalIpV4Sync);

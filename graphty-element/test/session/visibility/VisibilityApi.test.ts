@@ -5,9 +5,9 @@ import { isGraphtyError } from "../../../src/errors";
 import { createScopeApi } from "../../../src/session/scope/index";
 import {
     createVisibilityApi,
-    type Filter,
     type FilterResult,
     type FilterValueSource,
+    type RuleTree,
     type SessionVisibilityApi,
     type VisibilityApi,
     type VisibilityChange,
@@ -43,7 +43,7 @@ function modelOf(harness: Harness, extra: Partial<VisibilitySources> = {}): Sess
 }
 
 /** Only hosts. */
-const HOSTS: Filter = { kind: "categories", attribute: "data.type", values: ["host"] };
+const HOSTS: RuleTree = { kind: "categories", attribute: "data.type", values: ["host"] };
 
 /** How much is showing, read through the consumer surface a third party sees. */
 function summaryOf(visibility: VisibilityApi): VisibilitySummary {
@@ -122,7 +122,7 @@ describe("applying a filter", () => {
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "b"]);
         assert.deepStrictEqual([...visibility.edges], [edgeBetween(harness, "a", "b")], "b:c lost an endpoint");
         assert.isFalse(visibility.isVisible("c"));
-        assert.strictEqual(visibility.filter, HOSTS);
+        assert.deepStrictEqual(visibility.filter, HOSTS, "a frozen copy of the filter, not the caller's object");
         harness.session.dispose();
     });
 
@@ -184,7 +184,10 @@ describe("applying a filter", () => {
         const harness = harnessOf([{ id: "a" }]);
         const visibility = modelOf(harness);
 
-        assert.strictEqual(codeOf(() => visibility.set({ kind: "nope" } as unknown as Filter)), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => visibility.set({ kind: "nope" } as unknown as RuleTree)),
+            "E_BAD_COMMAND",
+        );
         assert.strictEqual(visibility.summary.visibleNodes, 1, "a refused filter changed nothing");
         harness.session.dispose();
     });
@@ -193,7 +196,10 @@ describe("applying a filter", () => {
         const harness = harnessOf([{ id: "a" }]);
         const visibility = modelOf(harness);
 
-        assert.strictEqual(codeOf(() => visibility.set(HOSTS, { dryRun: true })), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => visibility.set(HOSTS, { dryRun: true })),
+            "E_UNSUPPORTED",
+        );
         harness.session.dispose();
     });
 });
@@ -212,7 +218,7 @@ describe("a filter and a window are two producers of one model", () => {
 
         await visibility.setWindow({ attribute: "data.at", from: 0, to: 10 });
         assert.deepStrictEqual([...visibility.nodes], ["a"], "a host, inside the window");
-        assert.strictEqual(visibility.filter, HOSTS, "setting a window left the filter alone");
+        assert.deepStrictEqual(visibility.filter, HOSTS, "setting a window left the filter alone");
 
         await visibility.set(null);
         assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "c"], "the window is still in force");
@@ -246,8 +252,14 @@ describe("the lazy id sets", () => {
         const visibility = modelOf(harness);
         const ids = visibility.nodes as Set<NodeId>;
 
-        assert.strictEqual(codeOf(() => ids.add("b")), "E_READONLY");
-        assert.strictEqual(codeOf(() => ids.clear()), "E_READONLY");
+        assert.strictEqual(
+            codeOf(() => ids.add("b")),
+            "E_READONLY",
+        );
+        assert.strictEqual(
+            codeOf(() => ids.clear()),
+            "E_READONLY",
+        );
         harness.session.dispose();
     });
 });
@@ -263,9 +275,16 @@ describe("when the graph moves underneath a filter", () => {
         await visibility.set(HOSTS);
         assert.strictEqual(visibility.summary.visibleNodes, 1);
 
-        harness.add([{ id: "d", type: "host" }, { id: "e", type: "service" }]);
+        harness.add([
+            { id: "d", type: "host" },
+            { id: "e", type: "service" },
+        ]);
 
-        assert.deepStrictEqual([...visibility.nodes].sort(), ["a", "d"], "the new host shows, the new service does not");
+        assert.deepStrictEqual(
+            [...visibility.nodes].sort(),
+            ["a", "d"],
+            "the new host shows, the new service does not",
+        );
         assert.strictEqual(visibility.summary.totalNodes, 4);
         harness.session.dispose();
     });
@@ -303,7 +322,24 @@ describe("a pass is a run", () => {
         harness.session.dispose();
     });
 
-    it("changes nothing when it is cancelled", async () => {
+    it("writes nothing when its signal is already aborted", async () => {
+        const harness = harnessOf([
+            { id: "a", type: "host" },
+            { id: "b", type: "service" },
+        ]);
+        const visibility = modelOf(harness);
+        const controller = new AbortController();
+        controller.abort();
+
+        const run = visibility.set(HOSTS, { signal: controller.signal });
+
+        assert.strictEqual(await nameOfRejection(run), "AbortError");
+        assert.strictEqual(visibility.summary.visibleNodes, 2, "the masks were never written");
+        assert.strictEqual(visibility.filter, null);
+        harness.session.dispose();
+    });
+
+    it("keeps the filter when it is cancelled after the call: undo is the way back", async () => {
         const harness = harnessOf([
             { id: "a", type: "host" },
             { id: "b", type: "service" },
@@ -313,14 +349,13 @@ describe("a pass is a run", () => {
         const run = visibility.set(HOSTS);
         run.cancel("no longer wanted");
 
-        assert.strictEqual(await nameOfRejection(run), "AbortError");
-        assert.strictEqual(visibility.summary.visibleNodes, 2, "the masks were never written");
-        assert.strictEqual(visibility.filter, null);
+        assert.deepStrictEqual((await run).visible, { edges: 0, nodes: 1 });
+        assert.deepStrictEqual(visibility.filter, HOSTS);
         harness.session.dispose();
     });
 
-    it("is replaced by the next instruction rather than queued behind it", async () => {
-        // A slider being dragged makes one pass per frame; only the last one's answer matters.
+    it("evaluates only the latest instruction when several arrive before the masks catch up", async () => {
+        // A slider being dragged makes one edit per frame; only the last one's answer matters.
         const harness = harnessOf([
             { id: "a", type: "host" },
             { id: "b", type: "service" },
@@ -330,7 +365,7 @@ describe("a pass is a run", () => {
         const first = visibility.set(HOSTS);
         const second = visibility.set({ kind: "categories", attribute: "data.type", values: ["service"] });
 
-        assert.strictEqual(await nameOfRejection(first), "AbortError");
+        assert.deepStrictEqual((await first).visible.nodes, 1, "the first settles with the counts the masks now show");
         await second;
         assert.deepStrictEqual([...visibility.nodes], ["b"]);
         harness.session.dispose();
@@ -370,6 +405,8 @@ describe("telling a host what changed", () => {
         await visibility.setWindow({ attribute: "data.at", from: 0, to: 10 });
         await visibility.set(null);
         visibility.showContext = true;
+        // The flag's announcement follows the pass that derives it, one turn of the loop later.
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.deepStrictEqual(
             changes.map((change) => change.filterKind),

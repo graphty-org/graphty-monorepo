@@ -1,8 +1,9 @@
-import { kCoreDecomposition } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -25,6 +26,8 @@ const K_CORE_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class KCoreAlgorithm extends MetricAlgorithm {
     static namespace = "graphty";
     static type = "k-core";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a k-core result publishes.
@@ -41,18 +44,19 @@ export class KCoreAlgorithm extends MetricAlgorithm {
      * @returns One core number per node.
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
-        // Undirected: a core counts neighbours, whichever way the record declared the edge.
-        const graphData = this.algorithmGraph("undirected");
+        // Undirected: a core counts neighbours, whichever way the record declared the edge. No
+        // shipped accelerator computes cores, so this runs the index-based CPU port.
+        const { snapshot, run } = this.accelerated("kCoreDecomposition", "undirected");
 
         context.report({ phase: "peeling cores", total: null });
-        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
-        const { coreness } = kCoreDecomposition(graphData);
+        const { value, precision } = await run((dispatch, s) => dispatch.kCoreDecomposition(s));
         context.signal.throwIfAborted();
 
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading core numbers", (nodeId) => {
-            const core = coreness.get(String(nodeId));
-            nodes.push({ id: nodeId, values: core === undefined ? {} : { value: core } });
+            const index = ids.indexOf(nodeId);
+            nodes.push({ id: nodeId, values: index === INVALID_INDEX ? {} : { value: value.coreness[index] } });
         });
 
         return {
@@ -63,9 +67,12 @@ export class KCoreAlgorithm extends MetricAlgorithm {
                 exact: true,
                 direction: "undirected",
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "k-core",
-                notes: ["Counted over the graph read as undirected; edge weights are not read."],
+                notes: [
+                    "Counted over the graph read as undirected; edge weights are not read.",
+                    "A self-loop does not count toward its node's core number, and parallel edges count once.",
+                ],
             },
         };
     }

@@ -170,6 +170,7 @@ export type KnownColumnRole =
     | "timestamps"
     | "spells"
     | "open"
+    | "spellsOpen"
     | "timeText"
     | "key"
     | "directed"
@@ -631,7 +632,8 @@ export interface AttributeTableContract extends Iterable<Column> {
      * @param data - a Column, a typed array, or a JS array for string / list / json
      * @param decl - declaration fields to apply
      * @param opts - role replacement and u8 adoption options
-     * @returns the attached column (`column.data !== data` only when a u8 array was copied)
+     * @returns the attached column (`column.data !== data` only when a u8 array was copied); E_FROZEN
+     *   when the table belongs to a sealed snapshot
      */
     set(
         name: string,
@@ -642,11 +644,11 @@ export interface AttributeTableContract extends Iterable<Column> {
     /**
      * Remove a column.
      * @param name - the column name
-     * @returns true when a column was removed
+     * @returns true when a column was removed; E_FROZEN when the table belongs to a sealed snapshot
      */
     remove(name: string): boolean;
     /**
-     * Rename a column in place.
+     * Rename a column in place. E_FROZEN when the table belongs to a sealed snapshot.
      * @param from - the current name; E_UNKNOWN_COLUMN when absent
      * @param to - the new name
      */

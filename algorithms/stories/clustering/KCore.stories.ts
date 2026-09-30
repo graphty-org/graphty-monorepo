@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, kCoreDecomposition } from "@graphty/algorithms";
+import { kCoreDecomposition } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { byId, toSnapshot } from "../utils/snapshot.js";
 import {
     applyHeatMap,
     createHeatMapLegend,
@@ -37,23 +34,6 @@ interface KCoreArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Create the K-Core visualization story.
  */
 function createKCoreStory(args: KCoreArgs): HTMLElement {
@@ -61,16 +41,13 @@ function createKCoreStory(args: KCoreArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
 
     // Run K-Core decomposition using actual algorithm
     const result = kCoreDecomposition(graph);
 
     // Convert coreness map to scores for heat map
-    const scores: Record<string, number> = {};
-    for (const [nodeId, coreness] of result.coreness) {
-        scores[nodeId] = coreness;
-    }
+    const scores = byId(graph, result.coreness);
 
     // Create container
     const { container, svg } = createStoryContainer();

@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:f
 import { dirname, join, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -40,8 +41,6 @@ const CAN_SIGNAL = process.platform !== "win32";
 /** The fixed marker on every missing-file line, so a log can be grepped for one string. */
 const MISSING_MARKER = "[missing-files]";
 
-/** The colour escapes the reporters write around every glyph and path. */
-const ANSI = /\u001B\[[0-9;]*m/g;
 /** The head of a per-file or per-test result line: one of the reporters' status glyphs and its ASCII fallbacks. */
 const RESULT_HEAD = /^\s*[\u2713\u221A\u00D7\u2717\u276F\u203A\u2193]\s/;
 /** The `stdout | <file>` / `stderr | <file>` line vitest prints above output a test file wrote. */
@@ -64,7 +63,7 @@ export function missingTestFiles(output) {
     const started = new Set();
     const reported = new Set();
     for (const raw of String(output).split("\n")) {
-        const line = raw.replace(ANSI, "");
+        const line = stripVTControlCharacters(raw);
         const announced = OUTPUT_HEAD.exec(line);
         if (announced !== null) {
             const named = TEST_FILE.exec(announced[1]);
@@ -252,18 +251,16 @@ async function main(argv) {
         env.NODE_OPTIONS =
             `${process.env.NODE_OPTIONS ?? ""} --report-on-signal --report-signal=SIGUSR2 --report-directory=${dir}`.trim();
     }
-    // On a POSIX host the run goes through a shell so `ulimit -c 0` applies. It does NOT make a crash free, which
-    // is what it was added for: on the first run that carried it (CI run 35788215777, 2026-09-22) the dump happened
-    // anyway -- this wrapper's own snapshot caught `node (vitest 2)` in the kernel's `vfs_coredump` with 2,003,660
-    // KB resident, 90 s into the silence this wrapper watches for. That write is what the run's silent gap is made
-    // of (170-179 s on the runs of G4-F14), and it ends with the pool writing to the channel the dying worker had
-    // already closed (the crashing file is named in G4-F18 and now walks a short ladder on a software rasteriser).
-    // core(5) has the explanation that fits: "The RLIMIT_CORE limit is not enforced for core dumps that are piped
-    // to a program", which is what a /proc/sys/kernel/core_pattern beginning with a pipe asks the kernel to do.
-    // That runner's pattern was not captured, so the pipe is inferred; the limit failing to stop the dump is not.
-    // The limit stays because it does bind on a host whose pattern writes a file. Windows has no such shell and no
-    // such dump, and `sh` may not resolve there at all, so that host spawns the runner directly -- going through a
-    // shell it might not have would fail the step before a single test ran.
+    // On a POSIX host the run goes through a shell so `ulimit -c 0` applies, and a worker that crashes writes no
+    // core dump. The limit alone was not enough on CI: CI run 35788215777 (2026-09-22) caught `node (vitest 2)` in
+    // the kernel's `vfs_coredump` with about 2 GB resident, which is where the run's long silent gap came from.
+    // The runner's kernel.core_pattern pipes cores to a program, and core(5) says "The RLIMIT_CORE limit is not
+    // enforced for core dumps that are piped to a program". The workflows that run this wrapper (ci.yml's
+    // webgpu-graph-algorithms-node shard and gpu.yml) therefore set `kernel.core_pattern=core` first, a plain file
+    // pattern, under which this limit binds. The crash that produced those dumps was dawn-node polling a freed
+    // Dawn instance, fixed in PR #451. Windows has no such shell and no such dump, and `sh` may not resolve there
+    // at all, so that host spawns the runner directly -- going through a shell it might not have would fail the
+    // step before a single test ran.
     const child = CAN_SIGNAL
         ? spawn(
               "sh",

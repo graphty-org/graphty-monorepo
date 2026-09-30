@@ -156,6 +156,8 @@ export function KeyboardShortcutsOverlay(props: KeyboardShortcutsOverlayProps): 
             </Box>
 
             <Box
+                // Focusable so a keyboard reader can scroll the table (axe: scrollable-region-focusable).
+                tabIndex={0}
                 style={{
                     flex: "1 1 auto",
                     minHeight: 0,

@@ -5,20 +5,15 @@
  * Unlike other layout stories, this one does not have a before/after animation
  * since the result is already random.
  *
- * IMPORTANT: This story uses the actual randomLayout implementation
+ * IMPORTANT: This story uses the actual random implementation
  * from @graphty/layout to demonstrate real package behavior.
  */
 
-import { randomLayout } from "@graphty/layout";
+import { random, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandomPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -46,7 +41,7 @@ function createRandomStory(args: RandomArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const initialPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
@@ -71,9 +66,9 @@ function createRandomStory(args: RandomArgs): HTMLElement {
      * Apply new random layout.
      */
     function apply(): void {
-        // Use the actual randomLayout function from @graphty/layout
+        // Use the actual random function from @graphty/layout
         const newSeed = Math.floor(Math.random() * 100000);
-        const positions = randomLayout(layoutGraph, [0, 0], 2, newSeed);
+        const positions = toPositionMap(random(snapshot, { center: [0, 0], seed: newSeed }), snapshot.ids);
 
         // Update visualization
         renderGraph(svg, generatedGraph, positions, 20, 200, 250, 250);
@@ -85,13 +80,13 @@ function createRandomStory(args: RandomArgs): HTMLElement {
      */
     function reset(): void {
         // Re-apply the original random layout with the story seed
-        const positions = randomLayout(layoutGraph, [0, 0], 2, seed);
+        const positions = toPositionMap(random(snapshot, { center: [0, 0], seed: seed }), snapshot.ids);
         renderGraph(svg, generatedGraph, positions, 20, 200, 250, 250);
         updateStatus(statusPanel, "Reset to initial random layout");
     }
 
     // Apply initial layout using the actual algorithm
-    const positions = randomLayout(layoutGraph, [0, 0], 2, seed);
+    const positions = toPositionMap(random(snapshot, { center: [0, 0], seed: seed }), snapshot.ids);
     renderGraph(svg, generatedGraph, positions, 20, 200, 250, 250);
 
     // Add controls
@@ -110,15 +105,7 @@ const meta: Meta<RandomArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         seed: {
@@ -140,7 +127,7 @@ type Story = StoryObj<RandomArgs>;
 /**
  * Random layout story - places nodes uniformly at random.
  *
- * This story uses the actual `randomLayout()` function from @graphty/layout.
+ * This story uses the actual `random()` function from @graphty/layout.
  * Unlike other layout stories, this shows random positions directly.
  */
 export const Random: Story = {

@@ -7,8 +7,15 @@ graphty-element/test/helpers/corpus/** -text
 *.gsnp binary
 *.png binary
 *.zip binary
+*.gz binary
 
 # Conformance fixtures are test inputs: store their bytes exactly (line endings, encodings, BOMs).
 graph-io/test/conformance/fixtures/** -text -diff
 # The official schemas the exports are validated against are unmodified copies (xlink.xsd is CRLF).
 graph-io/test/conformance/schemas/** -text -diff
+
+# Visual review baselines are Git LFS objects (design/visual-testing/design.md section 7): plain-git
+# image history is permanent and would grow every clone. Review records and story settings files
+# (visual-baselines/**/*.json) stay plain git. Without git-lfs, run `git lfs install` first
+# (visual-review/README.md, "Setup").
+visual-baselines/**/*.png filter=lfs diff=lfs merge=lfs -text

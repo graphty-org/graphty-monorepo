@@ -16,7 +16,7 @@
 #   compact-mantine/storybook-static    -> /storybook/compact-mantine/
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
-#   algorithms/gh-pages                 -> /algorithms/          examples + benchmarks
+#   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
 #

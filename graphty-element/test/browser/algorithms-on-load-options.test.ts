@@ -13,6 +13,7 @@ import "../../src/algorithms";
 import type { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
+import { operationQueueOf } from "../../src/Graph";
 import { Graphty } from "../../src/graphty-element";
 
 /** A star with a tail, so the nodes differ in importance. */
@@ -63,7 +64,7 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
-    await element.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(element.graph).waitForCompletion();
     await element.session.styles.settled();
 
     for (let frame = 0; frame < 10; frame++) {
@@ -91,7 +92,8 @@ function drawn(element: Graphty): Map<string, { radius: number; colour: string }
                 String(node.id),
                 {
                     radius: node.mesh.getBoundingInfo().boundingBox.extendSizeWorld.x,
-                    colour: color === undefined ? "none" : [color.r, color.g, color.b].map((c) => c.toFixed(3)).join(","),
+                    colour:
+                        color === undefined ? "none" : [color.r, color.g, color.b].map((c) => c.toFixed(3)).join(","),
                 },
             ];
         }),
@@ -122,11 +124,17 @@ describe("run options in the load-time algorithm list", () => {
             const nodes = drawn(element);
             const radii = [...nodes.values()].map((node) => node.radius);
 
-            assert.strictEqual(nodes.get(first)?.radius, Math.max(...radii), "the node PageRank ranks first is largest");
+            assert.strictEqual(
+                nodes.get(first)?.radius,
+                Math.max(...radii),
+                "the node PageRank ranks first is largest",
+            );
             assert.closeTo(Math.max(...radii) / Math.min(...radii), 5, 0.1, "the range [1, 5] spans five times");
             assert.notStrictEqual(nodes.get(first)?.colour, nodes.get(last)?.colour, "the run colours nodes by score");
 
-            const sizeLayers = element.session.styles.list().filter((layer) => layer.encode?.["node.size"] !== undefined);
+            const sizeLayers = element.session.styles
+                .list()
+                .filter((layer) => layer.encode?.["node.size"] !== undefined);
 
             assert.lengthOf(sizeLayers, 1, "one size layer, from the run");
         },
@@ -174,14 +182,9 @@ describe("run options in the load-time algorithm list", () => {
         const element = new Graphty();
         element.algorithmsOnLoad = ["graphty:degree"];
 
-        assert.throws(
-            () => {
-                element.algorithmsOnLoad = [
-                    { algorithm: "graphty:pagerank", style: { size: "big" } } as unknown as string,
-                ];
-            },
-            /graphty:pagerank/,
-        );
+        assert.throws(() => {
+            element.algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: "big" } } as unknown as string];
+        }, /graphty:pagerank/);
 
         let code: unknown;
 

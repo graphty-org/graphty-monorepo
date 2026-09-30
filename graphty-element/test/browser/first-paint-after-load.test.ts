@@ -26,6 +26,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Layer, LayerSpec, Run } from "../../session";
+import { operationQueueOf } from "../../src/Graph";
 /*
  * A value import, not a type import, and that is load-bearing: importing the package is what
  * defines the `<graphty-element>` custom element, and a module whose every binding is type-only is
@@ -167,7 +168,7 @@ async function load(target: Graphty, path: LoadPath): Promise<void> {
  */
 async function settle(target: Graphty): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, TICK_MS));
-    await target.graph.operationQueue.waitForCompletion();
+    await operationQueueOf(target.graph).waitForCompletion();
     await target.session.styles.settled();
     await new Promise((resolve) => setTimeout(resolve, TICK_MS));
 }

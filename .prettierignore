@@ -44,6 +44,11 @@ algorithms/benchmark-results/
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/
+
+# Signed gate records of webgpu-graph-algorithms: history, kept word for word. Prettier rewrites
+# some of their text (a `.*` glob becomes `._`, blank signature lines become bold), not just spacing
+webgpu-graph-algorithms/docs/decisions/G[0-9]*.md
+
 # Third-party source vendored unchanged
 visual-review/trusted/vendor/
 

@@ -49,7 +49,7 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
 
     private renderLoopActive = false;
-    private updateCallback?: () => void;
+    private updateCallback?: (frameMs: number) => void;
     /** How many callers currently hold the frames back; see {@link holdFrames}. */
     private frameHolds = 0;
     private resizeHandler: () => void;
@@ -179,9 +179,10 @@ export class RenderManager implements Manager {
 
     /**
      * Start the render loop with the provided update callback
-     * @param updateCallback - Function to call before each render frame
+     * @param updateCallback - Function to call before each render frame, given how long the frame
+     *     before it took in milliseconds (0 on the first)
      */
-    startRenderLoop(updateCallback: () => void): void {
+    startRenderLoop(updateCallback: (frameMs: number) => void): void {
         if (this.renderLoopActive) {
             return;
         }
@@ -199,7 +200,7 @@ export class RenderManager implements Manager {
             try {
                 // Call update callback
                 if (this.updateCallback) {
-                    this.updateCallback();
+                    this.updateCallback(this.engine.getDeltaTime());
                 }
 
                 // Update camera - NOTE: This might be redundant with UpdateManager.update()

@@ -1241,8 +1241,8 @@ export class Graph implements GraphContext {
             });
 
             // Start the graph system (render loop, etc.)
-            this.lifecycleManager.startGraph(() => {
-                this.update();
+            this.lifecycleManager.startGraph((frameMs) => {
+                this.update(frameMs);
             });
 
             // Initialize XR (VR/AR) if enabled
@@ -1278,14 +1278,16 @@ export class Graph implements GraphContext {
     /**
      * Update method - kept for backward compatibility
      * All update logic is now handled by UpdateManager
+     * @param frameMs - How long the previous frame took, which sets how many layout steps this
+     *     frame owes; see `UpdateManager.update`. Omitted, the frame takes one step.
      */
-    update(): void {
+    update(frameMs = 0): void {
         // Start frame profiling (tracks operations for blocking detection)
         this.statsManager.startFrameProfiling();
 
         this.statsManager.measure("Graph.update", () => {
             this.statsManager.measure("Graph.updateManager", () => {
-                this.updateManager.update();
+                this.updateManager.update(frameMs);
             });
 
             this.statsManager.measure("Graph.settlementCheck", () => {

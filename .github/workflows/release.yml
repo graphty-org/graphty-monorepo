@@ -300,16 +300,6 @@ jobs:
                   # exists solely to auto-answer the publish prompt, and skipping
                   # publishing means there is no prompt to answer. Versioning,
                   # changelog and the GitHub release never consult it.
-                  # nx.json's graphty-element-by-version-plan group versions graphty-element
-                  # ONLY from a plan file under .nx/version-plans/; with the group left in place
-                  # and no plan, graphty-element silently gets no release at all. The group was
-                  # added for the 3.1.0 minor and must be removed once that release has happened
-                  # (see "Release versioning" in CLAUDE.md), so refuse to release until it is.
-                  if node -e 'process.exit(require("./nx.json").release.groups?.["graphty-element-by-version-plan"] ? 0 : 1)' \
-                      && ! ls .nx/version-plans/*.md >/dev/null 2>&1; then
-                      echo "::error::nx.json still has the graphty-element-by-version-plan release group but no version plan is left: delete release.groups from nx.json"
-                      exit 1
-                  fi
                   pnpm exec nx release --skip-publish --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

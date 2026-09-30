@@ -240,11 +240,11 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
 - a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
   wrote.
 
-### Changes from graphty-element 2.x
+### Changes in graphty-element 3.1
 
-Before 3.0 the element read DOT, GML and Pajek with parsers of its own. graph-io reads them as
-Graphviz, NetworkX and Pajek define them, so some files load differently. Random graphs in all
-three formats load exactly as before; these are the edge cases that do not.
+Up to 3.0 the element read DOT, GML and Pajek with parsers of its own. From 3.1 graph-io reads
+them as Graphviz, NetworkX and Pajek define them, which fixes how some files load. Random graphs in
+all three formats load exactly as before; these are the edge cases that do not.
 
 DOT:
 

@@ -360,7 +360,7 @@ graphty-element (element minor):
   string "1", `source: "1"` names the string. Before, every id was compared as a string.
 - DOT, GML and Pajek files are read by graph-io, which reads them as Graphviz, NetworkX and Pajek
   do. Every difference from the 2.x readers, with an example of each, is listed in
-  `graphty-element/docs/guide/data-sources.md`, "Changes from graphty-element 2.x": DOT `strict`
+  `graphty-element/docs/guide/data-sources.md`, "Changes in graphty-element 3.1": DOT `strict`
   merges parallel edges, `node`/`edge` defaults apply, `+` concatenates, backslash-newline
   continues, first-mention node order, a headerless text or a mid-line `#` fails; GML refuses bare
   words, `directed true` and multi-line strings, drops a non-integer id, decodes entities, reads

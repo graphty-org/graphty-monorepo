@@ -1,8 +1,9 @@
 /**
- * @file The 3.0 migration guide lists every algorithm result that differs from 2.x on purpose.
+ * @file The migration guide lists every algorithm result that graphty-element 3.x fixes.
  *
- * These differences were decided when the built-in algorithms moved onto the graph snapshot. A
- * reader upgrading from 2.x who sees a different PageRank or a new E_OPTION_RANGE error must find the reason in the guide, not only in a commit body.
+ * These fixes came with the move of the built-in algorithms onto the graph snapshot. A reader
+ * upgrading from 2.x or 3.0 who sees a different PageRank or a new E_OPTION_RANGE error must find
+ * the reason in the guide, not only in a commit body.
  */
 
 import { readFileSync } from "node:fs";
@@ -25,8 +26,8 @@ function section(heading: string): string {
 }
 
 describe("migrating-to-3.md", () => {
-    it("lists the traversal and path results that differ from 2.x", () => {
-        const text = section("Some algorithm results differ from 2.x");
+    it("lists the traversal and path result fixes", () => {
+        const text = section("Algorithm results fixed in 3.x");
         for (const phrase of [
             "PageRank",
             "strongly connected components",
@@ -49,7 +50,7 @@ describe("migrating-to-3.md", () => {
     });
 
     it("lists the centrality, community, flow, cut, matching, all-pairs and link results", () => {
-        const text = section("Some algorithm results differ from 2.x");
+        const text = section("Algorithm results fixed in 3.x");
         for (const phrase of [
             "k-core",
             "self-loop",

@@ -279,11 +279,14 @@ nodes and keeps every existing one where it was.
 CSV, JSON, GEXF and GraphML files are read through `@graphty/graph-io`: JSON keys with null values
 are dropped, mixed-type CSV columns widen to text, and CSV node ids stay text.
 
-## Some algorithm results differ from 2.x
+## Algorithm results fixed in 3.x
 
-The built-in algorithms now run on the graph snapshot through the `@graphty/algorithms` 3.0
-ports, and some of their answers change on purpose. These are the differences from 2.x, grouped
-by kind of algorithm.
+The built-in algorithms run on the graph snapshot through the index-based ports of
+`@graphty/algorithms`, and that fixes some of their answers. Some of these fixes shipped in
+graphty-element 3.0 and the rest in 3.1; each is described against what 2.x answered. They are
+fixes, not API changes: no option, event or result field is renamed or removed. What changes is a
+value, a tie-break, or an input that was silently accepted and is now refused with a coded error.
+They are grouped by kind of algorithm.
 
 ### Traversal and path algorithms
 

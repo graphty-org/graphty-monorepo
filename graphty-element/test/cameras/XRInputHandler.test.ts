@@ -1,6 +1,6 @@
 import { NullEngine, Scene } from "@babylonjs/core";
 import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, type Mock, test, vi } from "vitest";
 
 import { PivotController } from "../../src/cameras/PivotController";
 import { applyDeadzone, XRInputHandler } from "../../src/cameras/XRInputHandler";
@@ -72,7 +72,7 @@ describe("XRInputHandler", () => {
 
     interface MockMotionController {
         getComponentIds: ReturnType<typeof vi.fn>;
-        getComponent: ReturnType<typeof vi.fn>;
+        getComponent: Mock<() => MockComponent>;
         getComponentOfType: ReturnType<typeof vi.fn>;
     }
 

@@ -40,6 +40,7 @@ import { arrayColumn, computeColumnStatistics } from "../results/statistics";
 import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import { edgeSpaceOf, nodeSpaceOf, type ScopeResolver } from "../scope/ScopeApi";
+import { createSetAs } from "../sets/SetsApi";
 import { ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "../types";
 import {
     resolveTarget,
@@ -66,20 +67,21 @@ const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 // The surface
 // ---------------------------------------------------------------------------------------------
 
-/** What a mutation does with the elements a target named. */
-export type SetOp = "replace" | "add" | "remove" | "toggle" | "intersect";
+/** What a selection change does with the elements a target named. */
+export type SelectionOp = "replace" | "add" | "remove" | "toggle" | "intersect";
 
 /** Every set operation, for a caller that wants to check one before passing it on. */
-export const SET_OPS: readonly SetOp[] = Object.freeze(["replace", "add", "remove", "toggle", "intersect"]);
+export const SET_OPS: readonly SelectionOp[] = Object.freeze(["replace", "add", "remove", "toggle", "intersect"]);
 
 /**
  * Who asked for a selection change.
  *
- * A consumer reacts differently to the three: a change a person made with the mouse should move
- * the camera and open the inspector, and the identical change made by a script replaying a
- * saved document should do neither.
+ * A consumer reacts differently to each: a change a person made with the mouse should move the
+ * camera and open the inspector, and the identical change made by a script replaying a saved
+ * document should do neither. `history` is an undo, a redo or a restore selecting the elements
+ * it changed.
  */
-export type SelectionCause = "user" | "api" | "command";
+export type SelectionCause = "user" | "api" | "command" | "history";
 
 /** What one mutation changed. */
 export interface SelectionDelta {
@@ -210,20 +212,23 @@ export interface SelectionApi {
      *     does.
      * @returns What changed.
      */
-    apply(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta>;
+    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     /**
      * Empty the selection.
      * @returns What changed.
      */
     clear(): SelectionDelta;
     /**
-     * Keep this selection under a name, so it can be named as a scope later.
+     * Keep this selection under a name, as a kept set created from the selection, so it can be
+     * named as `{ set: id }` later.
      *
-     * The saved scope holds the selected NODES: a scope's edges are induced from its nodes, so a
-     * selected edge whose endpoints are not selected is not an edge any work over that scope
-     * could follow.
+     * The kept set holds the selected nodes and the selected edges. With nodes selected it reads
+     * `induced`: every edge between its nodes comes with it, and the selected edges are kept
+     * beside them. With edges alone it reads `listed`: those edges and their endpoints.
+     * @deprecated Use {@link SetsApi.createFrom | session.sets.createFrom("selection")}, which keeps
+     * the same members and also takes a reading; this verb keeps working.
      * @param name - The name to save it under.
-     * @returns The minted scope id.
+     * @returns The minted set id.
      */
     promote(name: string): ScopeId;
     /**
@@ -250,7 +255,16 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked; the API itself when absent.
      * @returns What changed.
      */
-    applyNow(target: SelectionTarget, op?: SetOp, cause?: SelectionCause): SelectionDelta;
+    applyNow(target: SelectionTarget, op?: SelectionOp, cause?: SelectionCause): SelectionDelta;
+    /**
+     * Change the selection at the next read instead of now, so a change made while the graph has
+     * edits not yet frozen does not freeze it: how an undo selects what it changed without paying
+     * for a rebuild nobody asked for. A later call replaces one still waiting.
+     * @param target - What to select.
+     * @param op - What to do with it.
+     * @param cause - Who asked.
+     */
+    applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -325,6 +339,8 @@ export interface SelectionSources {
      * @param delta - What joined, what left, what the selection holds now, and who asked.
      */
     readonly onChange?: (delta: SelectionDelta) => void;
+    /** Called on every version bump of either mask, which is what advances the session input tick. */
+    readonly onMaskVersion?: () => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -468,6 +484,10 @@ class Selection implements SelectionOwner {
 
     #truncated = false;
 
+    /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
+    #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
+        null;
+
     /**
      * Build a selection over one session's sources, with nothing selected.
      * @param sources - Where to read the graph and the capabilities a target needs.
@@ -476,8 +496,16 @@ class Selection implements SelectionOwner {
         this.#sources = sources;
         const graph = sources.snapshot();
         this.#frame = frameOf(graph);
-        this.#nodes = new ElementMask<NodeId>(() => this.#frame.nodeSpace, Math.max(1, graph.nodeCount));
-        this.#edges = new ElementMask<EdgeId>(() => this.#frame.edgeSpace, Math.max(1, graph.edgeCount));
+        this.#nodes = new ElementMask<NodeId>(
+            () => this.#frame.nodeSpace,
+            Math.max(1, graph.nodeCount),
+            sources.onMaskVersion,
+        );
+        this.#edges = new ElementMask<EdgeId>(
+            () => this.#frame.edgeSpace,
+            Math.max(1, graph.edgeCount),
+            sources.onMaskVersion,
+        );
         this.#nodes.grow(graph.nodeCount);
         this.#edges.grow(graph.edgeCount);
     }
@@ -542,7 +570,7 @@ class Selection implements SelectionOwner {
         // One boolean in the common case. The frame is marked stale only by a freeze that
         // renumbered the elements, so this rebuilds once per freeze rather than once per call,
         // and the render loop's per-element test stays free of allocation.
-        if (this.#frameStale) {
+        if (this.#frameStale || this.#pending !== null) {
             this.#sync();
         }
 
@@ -619,7 +647,7 @@ class Selection implements SelectionOwner {
      * @param op - What to do with it; replace when absent.
      * @returns What changed.
      */
-    apply(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    apply(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return Promise.resolve(this.applyNow(target, op));
     }
 
@@ -638,7 +666,7 @@ class Selection implements SelectionOwner {
      *   `E_UNSUPPORTED` when the target names a capability this session lacks, or
      *   `E_OPTION_RANGE` when one of the target's options is outside the permitted range.
      */
-    applyNow(target: SelectionTarget, op: SetOp = "replace", cause: SelectionCause = "api"): SelectionDelta {
+    applyNow(target: SelectionTarget, op: SelectionOp = "replace", cause: SelectionCause = "api"): SelectionDelta {
         this.#sync();
         assertOp(op);
         // The cap is read BEFORE anything is mutated: a session configured with a cap that is not
@@ -672,6 +700,10 @@ class Selection implements SelectionOwner {
         return this.#delta(before, members.unmatched, members.unresolvedPaths, cause);
     }
 
+    applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
+        this.#pending = { target, op, cause };
+    }
+
     /**
      * Empty the selection.
      * @returns What changed.
@@ -687,11 +719,12 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * Keep this selection under a name, as a saved scope over its nodes.
+     * Keep this selection under a name, as a kept set of its nodes and edges, created from the
+     * selection.
      * @param name - The name to save it under.
-     * @returns The minted scope id.
+     * @returns The minted set id.
      * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached, or
-     *   `E_SCOPE_EMPTY` when no node is selected.
+     *   `E_SCOPE_EMPTY` when nothing is selected.
      */
     promote(name: string): ScopeId {
         this.#sync();
@@ -706,16 +739,23 @@ class Selection implements SelectionOwner {
             });
         }
 
-        if (this.#nodes.size === 0) {
+        if (this.#nodes.size === 0 && this.#edges.size === 0) {
             throw new GraphtyError({
                 code: "E_SCOPE_EMPTY",
-                message: `No node is selected, so there is nothing to save as "${name}".`,
+                message: `Nothing is selected, so there is nothing to save as "${name}".`,
                 source: "run",
-                details: { name, edges: this.#edges.size },
+                details: { name },
             });
         }
 
-        return scope.save(name, { nodes: this.#nodes.ids() });
+        const reading = this.#nodes.size === 0 ? "listed" : "induced";
+
+        return createSetAs(
+            scope.sets,
+            { kind: "fixed", nodes: this.#nodes.ids(), edges: this.#edges.ids(), reading },
+            name,
+            { kind: "selection" },
+        );
     }
 
     /**
@@ -774,6 +814,12 @@ class Selection implements SelectionOwner {
 
         if (this.#edges.count !== graph.edgeCount) {
             this.#edges.grow(graph.edgeCount);
+        }
+
+        const pending = this.#pending;
+        if (pending !== null) {
+            this.#pending = null;
+            this.applyNow(pending.target, pending.op, pending.cause);
         }
     }
 
@@ -1064,7 +1110,7 @@ function describeAttribute(
  * @param op - The value to check.
  * @throws A `GraphtyError` coded `E_BAD_COMMAND` when it is not.
  */
-function assertOp(op: SetOp): void {
+function assertOp(op: SelectionOp): void {
     if (!SET_OPS.includes(op)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",

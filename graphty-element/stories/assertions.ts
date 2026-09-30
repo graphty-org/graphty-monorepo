@@ -95,6 +95,8 @@ interface DrawnNode {
     readonly geometryDigest: string;
     /** Whether the source mesh's material is drawn as a wireframe. */
     readonly wireframe: boolean;
+    /** Whether its mesh is enabled: a node the visibility filter hides is disabled, not deleted. */
+    readonly enabled: boolean;
     /** What `mesh.visibility` is, which is where opacity lands. */
     readonly opacity: number;
     /** Half the drawn bounding box's width in world units, which is where size lands. */
@@ -218,6 +220,25 @@ export async function holds(condition: boolean, complaint: string): Promise<void
 }
 
 /**
+ * The story's `<graphty-element>`, or a failure naming the story when it rendered none.
+ * @param canvasElement - Where the story was rendered.
+ * @param complaint - What to say when there is no element.
+ * @returns The element.
+ */
+export async function renderedElement(canvasElement: HTMLElement, complaint: string): Promise<Graphty> {
+    const element = canvasElement.querySelector("graphty-element");
+
+    await holds(element !== null, complaint);
+
+    // `holds` is async, and an async function cannot be a type assertion, so it cannot narrow.
+    if (element === null) {
+        throw new Error(complaint);
+    }
+
+    return element;
+}
+
+/**
  * Cut a list of offenders down to something a person can read.
  * @param offenders - What went wrong.
  * @returns The list, with a count when it was cut.
@@ -252,9 +273,12 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("expired");
-        }, Math.max(0, deadline - Date.now()));
+        timer = setTimeout(
+            () => {
+                resolve("expired");
+            },
+            Math.max(0, deadline - Date.now()),
+        );
     });
 
     const outcome = await Promise.race([work.then(() => "done" as const), expired]);
@@ -494,11 +518,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         `${story}: no graph ever arrived, so the story's data never loaded`,
     );
 
-    await within(
-        graph.operationQueue.waitForCompletion(),
-        deadline,
-        `${story}: the element's operation queue never drained`,
-    );
+    await within(graph.waitForSettled(), deadline, `${story}: the element's operation queue never drained`);
 
     await within(
         session.styles.settled(),
@@ -515,7 +535,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
     const digests = new Map<number, string>();
-    const digestOf = (mesh: { uniqueId: number; getVerticesData: (kind: string) => Float32Array | number[] | null }): string => {
+    const digestOf = (mesh: {
+        uniqueId: number;
+        getVerticesData: (kind: string) => Float32Array | number[] | null;
+    }): string => {
         const seen = digests.get(mesh.uniqueId);
 
         if (seen !== undefined) {
@@ -560,6 +583,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
             geometryDigest: digestOf(source ?? (node.mesh as unknown as Parameters<typeof digestOf>[0])),
             wireframe: source?.material?.wireframe ?? false,
+            enabled: node.mesh.isEnabled(),
             opacity: node.mesh.visibility,
             radius: Number(box.x.toFixed(4)),
             hex: instanceHex(node.mesh),
@@ -581,10 +605,12 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // generated name, so nothing in the scene graph distinguishes them; the edge that owns a
     // caption knows which end it hangs from, and that is the only place the answer exists.
     const captions: DrawnCaption[] = [...graph.getDataManager().edges.values()].flatMap((edge) =>
-        ([
-            ["arrowHead", edge.arrowHeadText],
-            ["arrowTail", edge.arrowTailText],
-        ] as const)
+        (
+            [
+                ["arrowHead", edge.arrowHeadText],
+                ["arrowTail", edge.arrowTailText],
+            ] as const
+        )
             .filter(([, caption]) => caption !== null)
             .map(([end, caption]) => {
                 const read = labelInk(caption?.labelMesh ?? null);
@@ -603,7 +629,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         graph,
         session,
         nodes,
-        edgeIds: [...scope.edges].map((id) => String(id)),
+        edgeIds: [...scope.edges],
         nodeCount: session.status.counts.nodes,
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
@@ -768,6 +794,24 @@ export async function assertDrawnColour(
 }
 
 /**
+ * Exactly the named nodes are drawn; every other node is hidden.
+ * @param scene - What the story drew.
+ * @param expected - The ids of the nodes on screen.
+ */
+export async function assertNodesShown(scene: Drawn, expected: readonly string[]): Promise<void> {
+    const shown = scene.nodes
+        .filter((node) => node.enabled)
+        .map((node) => node.id)
+        .sort();
+    const want = [...expected].sort();
+
+    await holds(
+        shown.join(",") === want.join(","),
+        `${scene.story}: the nodes on screen are ${listed(shown)}, not ${listed(want)}`,
+    );
+}
+
+/**
  * The nodes named in each group are drawn differently from the nodes in every other group.
  *
  * THE ASSERTION THE LAYERED STORIES NEEDED. "Two layers set two colours" is invisible to a check
@@ -833,13 +877,11 @@ export async function assertLabelsDrawn(
     scene: Drawn,
     options: { readonly ids?: readonly string[]; readonly minimumInk?: number } = {},
 ): Promise<void> {
-    const wanted = options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
+    const wanted =
+        options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
     const minimumInk = options.minimumInk ?? 1;
 
-    await holds(
-        wanted.length > 0,
-        `${scene.story}: no node of the ones this assertion names is in the graph at all`,
-    );
+    await holds(wanted.length > 0, `${scene.story}: no node of the ones this assertion names is in the graph at all`);
 
     const missing = wanted.filter((node) => !node.hasLabelMesh).map((node) => node.id);
 
@@ -860,7 +902,9 @@ export async function assertLabelsDrawn(
     );
 
     if (options.ids !== undefined) {
-        const extra = scene.nodes.filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh).map((n) => n.id);
+        const extra = scene.nodes
+            .filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh)
+            .map((n) => n.id);
 
         await holds(
             extra.length === 0,
@@ -1036,33 +1080,38 @@ export async function assertAlgorithmPainted(
     algorithm: string,
     options: { readonly paints?: "node" | "edge" | "either"; readonly atLeast?: number } = {},
 ): Promise<void> {
-    const finished = scene.session.runs.list().filter((run) => run.status === "succeeded");
+    // The runs this address names, as the element resolves it: every suggestion is built from one
+    // finished run of the algorithm, and names that run.
+    const runIds = new Set(
+        scene.graph.getSuggestedStyles(algorithm).map(({ spec: { run } }) => {
+            if (typeof run === "string") {
+                return run;
+            }
+
+            return "runId" in run ? run.runId : run.id;
+        }),
+    );
 
     await holds(
-        finished.length > 0,
-        `${scene.story}: no run in this session succeeded, so the picture is the element's defaults. It holds ` +
-            `[${scene.session.runs
+        runIds.size > 0,
+        `${scene.story}: no run of "${algorithm}" succeeded with anything to draw, so none of the picture is ` +
+            `its. The session holds [${scene.session.runs
                 .list()
                 .map((run) => `${String(run.algorithm)}:${run.status}`)
                 .join(", ")}]`,
     );
 
-    await holds(
-        scene.graph.getSuggestedStyles(algorithm).length > 0,
-        `${scene.story}: "${algorithm}" finished and suggests nothing to draw, so applySuggestedStyles had ` +
-            "nothing to apply and the picture is the element's defaults",
-    );
-
     const fromRun = scene.session.styles
         .list()
-        .filter((layer) => (layer.source as { by?: string } | undefined)?.by === "run");
+        .filter((layer) => layer.source?.by === "run" && runIds.has(layer.source.runId));
 
     await holds(
         fromRun.length > 0,
-        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from a run, so nothing ` +
-            `it computed is being drawn. The stack is [${scene.session.styles
+        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from its runs ` +
+            `[${[...runIds].join(", ")}], so nothing it computed is being drawn. The stack is ` +
+            `[${scene.session.styles
                 .list()
-                .map((layer) => layer.name)
+                .map((layer) => `${layer.name} (${layer.source?.by === "run" ? layer.source.runId : "not a run"})`)
                 .join(", ")}]`,
     );
 
@@ -1088,8 +1137,9 @@ export async function assertAlgorithmPainted(
     await holds(
         counted >= atLeast,
         `${scene.story}: "${algorithm}" has a layer in the stack and it painted ${String(paintedNodes)} nodes ` +
-            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ` +
-            `${paints === "either" ? "elements" : `${paints}s`}`,
+            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ${
+                paints === "either" ? "elements" : `${paints}s`
+            }`,
     );
 }
 /**
@@ -1190,18 +1240,20 @@ function arrangementDistance(
         return Number.POSITIVE_INFINITY;
     }
 
-    const normalise = (
-        cloud: ReadonlyMap<string, readonly [number, number, number]>,
-    ): [number, number, number][] => {
+    const normalise = (cloud: ReadonlyMap<string, readonly [number, number, number]>): [number, number, number][] => {
         const points = shared.map((id) => cloud.get(id) as readonly [number, number, number]);
         const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
         const radius =
             Math.sqrt(
-                points.reduce((sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0), 0) /
-                    points.length,
+                points.reduce(
+                    (sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0),
+                    0,
+                ) / points.length,
             ) || 1;
 
-        return points.map((p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number]);
+        return points.map(
+            (p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number],
+        );
     };
 
     const left = normalise(a);
@@ -1665,8 +1717,7 @@ export async function assertBackgroundColour(scene: Drawn, hex: string): Promise
 
     await holds(
         close,
-        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` +
-            `rgb(${drawn_.join(", ")})`,
+        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` + `rgb(${drawn_.join(", ")})`,
     );
 }
 
@@ -1694,8 +1745,9 @@ export async function assertNodesOnACircle(scene: Drawn, tolerance = 0.05): Prom
     await holds(
         mean > 0 && spread / mean <= tolerance,
         `${scene.story}: a circular layout draws every node the same distance from the centre, and these run ` +
-            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${ 
-            mean.toFixed(3)}`,
+            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${mean.toFixed(
+                3,
+            )}`,
     );
 }
 
@@ -1771,7 +1823,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
     const haloed = scene.graph
         .getNodes()
         .filter((node) => {
-            const {halo} = (node as unknown as { halo?: { isDisposed: () => boolean } | null });
+            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
 
             return halo !== undefined && halo !== null && !halo.isDisposed();
         })

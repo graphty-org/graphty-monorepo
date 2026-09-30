@@ -1,8 +1,14 @@
 import assert from "node:assert";
+
 import { describe, it } from "vitest";
 
-import { createSimulation, ForceAtlas2Simulation, FruchtermanReingoldSimulation } from "../../src/simulation";
-import type { LayoutAccelerator, LayoutSimulation } from "../../src/simulation";
+import {
+    createSimulation,
+    ForceAtlas2Simulation,
+    FruchtermanReingoldSimulation,
+    type LayoutAccelerator,
+    type LayoutSimulation,
+} from "../../src/simulation";
 
 const fakeSim: LayoutSimulation = {
     load() {},

@@ -1,5 +1,5 @@
 /**
- * @file The field list a node-metric result publishes.
+ * @file The field lists a metric or a community result publishes.
  *
  * The names are fixed by the result's SHAPE rather than by the algorithm -- `results.<run>.value`
  * means the same thing for every metric -- so they are built here once instead of being written
@@ -47,32 +47,23 @@ interface MetricValueName {
 }
 
 /**
- * Build the fields every node-metric result publishes.
- *
- * The per-element trio and the seven graph-level statistics are what the shape promises, and an
- * algorithm that measures something extra appends its own fields after these rather than
- * replacing any of them.
+ * Build the fields every metric result publishes, per node or per edge.
+ * @param kind - Whether the value is measured per node or per edge.
  * @param value - What this metric's primary value is called.
- * @returns The uniform field list for the node-metric shape.
+ * @returns The uniform field list for the metric shape.
  */
-export function nodeMetricFields(value: MetricValueName): readonly FieldDescriptor[] {
+function metricFields(kind: "node" | "edge", value: MetricValueName): readonly FieldDescriptor[] {
     return [
         metricField({
             name: "value",
             plainName: value.plainName,
             technicalName: value.technicalName,
-            kind: "node",
+            kind,
             type: value.type ?? "number",
             ...(value.unit === undefined ? {} : { unit: value.unit }),
         }),
-        metricField({ name: "rank", plainName: "Rank", technicalName: "rank", kind: "node", type: "integer" }),
-        metricField({
-            name: "percentile",
-            plainName: "Percentile",
-            technicalName: "percentile",
-            kind: "node",
-            type: "number",
-        }),
+        metricField({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
+        metricField({ name: "percentile", plainName: "Percentile", technicalName: "percentile", kind, type: "number" }),
         metricField({ name: "min", plainName: "Lowest", technicalName: "min", kind: "graph", type: "number" }),
         metricField({ name: "max", plainName: "Highest", technicalName: "max", kind: "graph", type: "number" }),
         metricField({ name: "median", plainName: "Middle", technicalName: "median", kind: "graph", type: "number" }),
@@ -99,4 +90,82 @@ export function nodeMetricFields(value: MetricValueName): readonly FieldDescript
             type: "integer",
         }),
     ];
+}
+
+/**
+ * Build the fields every node-metric result publishes.
+ *
+ * The per-element trio and the seven graph-level statistics are what the shape promises, and an
+ * algorithm that measures something extra appends its own fields after these rather than
+ * replacing any of them.
+ * @param value - What this metric's primary value is called.
+ * @returns The uniform field list for the node-metric shape.
+ */
+export function nodeMetricFields(value: MetricValueName): readonly FieldDescriptor[] {
+    return metricFields("node", value);
+}
+
+/**
+ * Build the fields every edge-metric result publishes: {@link nodeMetricFields} for a value
+ * measured per edge.
+ * @param value - What this metric's primary value is called.
+ * @returns The uniform field list for the edge-metric shape.
+ */
+export function edgeMetricFields(value: MetricValueName): readonly FieldDescriptor[] {
+    return metricFields("edge", value);
+}
+
+/**
+ * Build the fields every community result publishes: the group, and the sizes and count the
+ * element derives from it; modularity only when asked for, because only a method that scores its
+ * own partition may publish one. A run fills what `communityFieldSpecs` lists.
+ * @param value - What one group is called, and whether the method publishes modularity.
+ * @param value.plainName - What one group is called in plain words, such as "Community".
+ * @param value.technicalName - What a paper calls the grouping.
+ * @param value.modularity - Whether the method scores its partition with modularity.
+ * @returns The uniform field list for the community shape.
+ */
+export function communityFields(value: {
+    readonly plainName: string;
+    readonly technicalName: string;
+    readonly modularity?: boolean;
+}): readonly FieldDescriptor[] {
+    const { plainName } = value;
+    const fields = [
+        metricField({ name: "group", plainName, technicalName: value.technicalName, kind: "node", type: "integer" }),
+        metricField({
+            name: "groupSize",
+            plainName: `${plainName} size`,
+            technicalName: "groupSize",
+            kind: "node",
+            type: "integer",
+        }),
+        metricField({
+            name: "groupCount",
+            plainName: `${plainName} count`,
+            technicalName: "groupCount",
+            kind: "graph",
+            type: "integer",
+        }),
+        metricField({
+            name: "sizes",
+            plainName: `${plainName} sizes`,
+            technicalName: "sizes",
+            kind: "graph",
+            type: "table",
+        }),
+    ];
+
+    return value.modularity === true
+        ? [
+              ...fields,
+              metricField({
+                  name: "modularity",
+                  plainName: "Community strength",
+                  technicalName: "modularity",
+                  kind: "graph",
+                  type: "number",
+              }),
+          ]
+        : fields;
 }

@@ -1,14 +1,19 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
+import type { CommonImportOptions, GraphImporter, ImportReport } from "@graphty/graph-io";
 import { z } from "zod/v4";
 import * as z4 from "zod/v4/core";
 
+import { MIN_CONTENT_CONFIDENCE } from "../catalog/detect";
 import { publishFormatDescriptor } from "../catalog/formatRegistry";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { FormatDescriptor } from "../catalog/types";
+import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { ErrorAggregator } from "./ErrorAggregator.js";
+import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
 
 // Base configuration interface
 export interface BaseDataSourceConfig {
@@ -141,8 +146,8 @@ function readFormatDescriptor(type: string, value: unknown): FormatDescriptor {
     if (fields.canExport === true) {
         refuseRegistration(
             "descriptor.canExport",
-            `the format "${type}" says it can be written, and there is nowhere to register a writer: a ` +
-                '"Save as" menu built from the catalogue would offer a format nothing can save',
+            `the reader "${type}" says its format can be written; a writer is registered with ` +
+                "registerFormatWriter, which marks the catalogue entry, so a reader's descriptor keeps canExport: false",
         );
     }
 
@@ -175,6 +180,33 @@ export interface DataSourceChunk {
     nodes: AdHocData[];
     edges: AdHocData[];
 }
+
+/** How {@link DataSource.fromImporter} runs the importer it wraps. */
+export interface ImporterSourceOptions<Opts> {
+    /**
+     * Options handed to the importer on every load. A descriptor option the host passes is laid
+     * over them; a descriptor option the host leaves out fills its default only where these name
+     * no value. `ids` defaults to "string", so an id stays the text the file wrote.
+     */
+    readonly importOptions?: Partial<Opts & CommonImportOptions>;
+    /**
+     * The words in the file that stated its direction, which the element shows beside it
+     * (`directednessSource.statedBy`). Return null when the file stated none: the element's own
+     * `data.directed` setting then stands. Left out, no file states a direction: a graph-io
+     * importer applies its own default when the file is silent (CSV's is directed), and the
+     * adapter cannot tell that default from a statement, so it claims none on the file's behalf.
+     * @param snapshot - the imported graph; `snapshot.directed` is the direction the importer read
+     * @param report - the importer's report
+     * @returns the words, or null
+     */
+    readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
+}
+
+/** The registrable reader {@link DataSource.fromImporter} returns. */
+export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
+    readonly type: string;
+    readonly descriptor: FormatDescriptor;
+};
 
 /**
  * What a file said about its own direction, as its parser read it.
@@ -645,9 +677,11 @@ export abstract class DataSource {
         // Published BEFORE the class is filed, so a refusal leaves neither half registered: a
         // reader loadable by name that no catalogue lists is the state this whole seam exists to
         // end, and half-succeeding here would recreate it.
+        const descriptor = readFormatDescriptor(type, cls.descriptor);
+        assertReaderAgreesWithWriter(descriptor);
         publishFormatDescriptor(
             {
-                descriptor: readFormatDescriptor(type, cls.descriptor),
+                descriptor,
                 type,
                 ...(detect === undefined ? {} : { detect }),
             },
@@ -656,6 +690,103 @@ export abstract class DataSource {
 
         dataSourceRegistry.set(type, cls);
         return cls;
+    }
+
+    /**
+     * Turn a graph-io importer into a reader class, ready for {@link DataSource.register}.
+     *
+     * For an author who already has a `GraphImporter` (an object whose `import(input, sink,
+     * options)` pushes nodes and edges into a builder). The class reads its input the way every
+     * reader does -- inline `data`, a `File` or a `url` with retries -- and hands the importer
+     * the text. Each node and edge attribute the importer set becomes a key of the record under
+     * its column name; an edge's weight becomes `weight`. A repeated node keeps its first
+     * declaration, as the element keeps a repeated record. The importer's errors are aggregated
+     * like any reader's, and a file the importer gives up on (it throws graph-io's `ImportError`)
+     * fails the load with `E_PARSE_FAILED` naming the format and the line, leaving the graph on
+     * screen as it was. The options the descriptor declares are checked against what a host
+     * passes, filled with their defaults, and handed to the importer.
+     *
+     * Throw the `ImportError` re-exported by `@graphty/graphty-element/extend`, not one from your
+     * own copy of graph-io, or the element cannot tell a refusal from a crash.
+     * @param importer - the graph-io importer
+     * @param descriptor - the format's catalogue entry; its `id` is the name the class registers under
+     * @param options - fixed importer options and how the file states its direction
+     * @returns a `DataSource` subclass whose `type` is `descriptor.id`
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.field: "importer"`, when `importer` has
+     * no `import` method.
+     */
+    static fromImporter<Opts>(
+        importer: GraphImporter<Opts>,
+        descriptor: FormatDescriptor,
+        options: ImporterSourceOptions<Opts> = {},
+    ): ImporterDataSourceClass {
+        if (typeof importer !== "object" || typeof (importer as Partial<GraphImporter> | null)?.import !== "function") {
+            refuseRegistration(
+                "importer",
+                `the reader for "${descriptor.id}" needs a graph-io importer: an object with import(input, sink, options)`,
+            );
+        }
+
+        const { importOptions = {}, statedBy } = options;
+        const sniff = importer.sniff?.bind(importer);
+
+        return class ImporterDataSource extends DataSource {
+            static override readonly type: string = descriptor.id;
+            static override readonly descriptor: FormatDescriptor = descriptor;
+            // The importer's sniffer, held to the confidence the built-in sniffers are held to.
+            static override readonly detect =
+                sniff === undefined
+                    ? undefined
+                    : (sample: string): boolean => sniff(new TextEncoder().encode(sample)) >= MIN_CONTENT_CONFIDENCE;
+
+            readonly #config: BaseDataSourceConfig;
+            readonly #options: Record<string, unknown>;
+
+            constructor(config: BaseDataSourceConfig) {
+                super(config.errorLimit ?? 100, config.chunkSize);
+                this.#config = config;
+                this.#options = this.resolveOptions(config);
+            }
+
+            protected getConfig(): BaseDataSourceConfig {
+                return this.#config;
+            }
+
+            /**
+             * The fixed options, with the descriptor options the host passed laid over them and
+             * the defaults of the ones it left out filling only what the fixed options leave open.
+             * @returns the options handed to the importer
+             */
+            #importerOptions(): Opts & CommonImportOptions {
+                const merged: Record<string, unknown> = { ...this.#options, ...importOptions };
+                const passed = this.#config as unknown as Record<string, unknown>;
+                for (const [name, value] of Object.entries(this.#options)) {
+                    if (passed[name] !== undefined) {
+                        merged[name] = value;
+                    }
+                }
+
+                return merged as Opts & CommonImportOptions;
+            }
+
+            async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+                const imported = await importWhole(
+                    importer,
+                    await this.getContent(),
+                    this.#importerOptions(),
+                    this.errorAggregator,
+                    { firstDeclarationWins: true },
+                );
+                const { snapshot, report } = imported;
+                const words = statedBy?.(snapshot, report) ?? null;
+                if (words !== null) {
+                    this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
+                }
+
+                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+                yield* this.chunkData(nodes, edges);
+            }
+        };
     }
 
     /**

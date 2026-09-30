@@ -8,15 +8,14 @@
 import * as http from "http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createMcpServer } from "../../src/mcp/mcp-server.js";
-import { LogStorage } from "../../src/server/log-storage.js";
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
+import { LogStorage } from "../../src/server/log-storage.js";
 
 describe("Dual mode (HTTP + MCP)", () => {
     let dualServer: DualServerResult;
     let port: number;
 
-    beforeEach(async () => {
+    beforeEach(() => {
         port = 8500 + Math.floor(Math.random() * 100);
     });
 

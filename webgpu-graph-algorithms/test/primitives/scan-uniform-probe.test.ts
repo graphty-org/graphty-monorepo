@@ -39,6 +39,10 @@
  *
  * Pipelines are built straight on the device, as the first probe does, so no probe key ever reaches the normative
  * compile matrix of src/kernels.ts.
+ *
+ * run-twice exempt: a diagnostic probe of the dispatch machinery around the scan, built straight on the device
+ * rather than from a package kernel; test/primitives/scan.test.ts runs the real scan twice and compares the outputs
+ * bitwise.
  */
 
 import { type U32 } from "@graphty/graph-format";

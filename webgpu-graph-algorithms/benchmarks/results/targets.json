@@ -1,0 +1,182 @@
+{
+    "upload/residency.core 100k/1M weighted hot prefix (16.4 MB, arena)": {
+        "id": "T-1",
+        "what": "Upload of the 100k / 1M weighted hot prefix (16.4 MB), Node",
+        "target": 10,
+        "gatingRunnerClasses": ["gpu-linux-t4"],
+        "knownMiss": {
+            "gpu-linux-t4": "host-side copy cost of a datacentre card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7)"
+        }
+    },
+    "upload/residency.core 1M/10M weighted hot prefix (164.0 MB, arena)": {
+        "id": "T-1",
+        "what": "Upload of the 1M / 10M weighted hot prefix (164 MB), Node",
+        "target": 100,
+        "gatingRunnerClasses": ["gpu-linux-t4"],
+        "knownMiss": {
+            "gpu-linux-t4": "host-side copy cost of a datacentre card behind a cloud vCPU; the row misses on the dev box too, the open owner decision of docs/decisions/G1.md section 7"
+        }
+    },
+    "roundtrip/degree + 400 KB readback at 100k (core resident)": {
+        "id": "T-2",
+        "what": "`degree` + 400 KB readback at 100k (core resident), Node",
+        "target": 2,
+        "gatingRunnerClasses": ["gpu-linux-t4"],
+        "knownMiss": {
+            "gpu-linux-t4": "readback and submit latency of a datacentre card behind a cloud vCPU (the README's CI-lane section); met on the dev box"
+        }
+    },
+    "roundtrip/empty submit + 4-byte readU32 round trip": {
+        "id": "T-3",
+        "what": "Empty submit + 4-byte `readU32` round trip, Dawn in Node",
+        "target": 0.1,
+        "gatingRunnerClasses": ["gpu-linux-t4"],
+        "knownMiss": {
+            "gpu-linux-t4": "submit latency of the cloud runner; on the dev box the row misses too whenever the SM clock has dropped to idle (G3-F2 of docs/decisions/G3.md section 10)"
+        }
+    },
+    "roundtrip-browser/empty-submit-readU32": {
+        "id": "T-3",
+        "what": "Empty submit + 4-byte `readU32` round trip, Chromium (the <= 0.1 ms target is Dawn's)",
+        "target": "recorded"
+    },
+    "layout-exact/ms/iteration (profiler) n=10000 [10k]": {
+        "id": "T-4",
+        "what": "ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k",
+        "target": 1,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-exact/ms/iteration (profiler) n=16384 [16k]": {
+        "id": "T-4",
+        "what": "ForceAtlas2 exact tier, GPU time per iteration (profiler) at 16k",
+        "target": 2,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-browser/fa2-exact-10k-step1-readback": {
+        "id": "T-5",
+        "what": "ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium",
+        "target": 6,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-exact/step(1) wall n=10000 m=100000 2D [10k]": {
+        "id": "T-5",
+        "what": "ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Node",
+        "target": "recorded"
+    },
+    "layout-browser/fa2-grid-100k-step1-readback": {
+        "id": "T-5",
+        "what": "ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium",
+        "target": 12,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-grid/grid step(1) wall n=100000 m=1000000 2D [100k]": {
+        "id": "T-5",
+        "what": "ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Node",
+        "target": "recorded"
+    },
+    "layout-grid/grid ms/iteration (profiler) n=100000 2D [100k]": {
+        "id": "T-6",
+        "what": "ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D",
+        "target": 10,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-grid/grid ms/iteration (profiler) n=1000000 2D [1M]": {
+        "id": "T-6",
+        "what": "ForceAtlas2 grid tier, GPU time per iteration (profiler) at 1M 2D",
+        "target": 100,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-grid/grid ms/iteration (profiler) n=100000 3D [100k]": {
+        "id": "T-6",
+        "what": "ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 3D",
+        "target": 20,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "layout-grid/attraction ms/iteration (profiler) n=1000000 [1M]": {
+        "id": "T-7",
+        "what": "Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M",
+        "target": 15,
+        "gatingRunnerClasses": ["gpu-linux-t4"],
+        "knownMiss": {
+            "gpu-linux-t4": "the pass's 16 MiB working set does not fit the T4's 4 MiB L2, and two T4 instances read 13.8 and 18.2 ms on the same work (G4-F16 and G4-F21 of docs/decisions/G4.md)"
+        }
+    },
+    "pagerank/pagerank 100 iterations at 100k/1M": {
+        "id": "T-8",
+        "what": "PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M",
+        "target": 150,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "pagerank/pagerank 100 iterations at 1M/10M": {
+        "id": "T-8",
+        "what": "PageRank, 100 iterations, wall end to end including the upload, at 1M / 10M",
+        "target": 1500,
+        "gatingRunnerClasses": ["gpu-linux-t4"]
+    },
+    "wcc/wcc at 1M/10M": {
+        "id": "T-9",
+        "what": "Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M",
+        "target": 100,
+        "gatingRunnerClasses": ["gpu-linux-t4"],
+        "knownMiss": {
+            "gpu-linux-t4": "the row carries the same 164 MB upload T-1 times, which alone takes longer than the 100 ms target; it misses on the dev box too (docs/decisions/G7.md)"
+        }
+    },
+    "wcc/wcc at 100k/1M": {
+        "id": "T-9",
+        "what": "Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 100k / 1M",
+        "target": "recorded"
+    },
+    "layout-fr/fr ms/iteration (profiler) n=10000 [10k]": {
+        "id": "T-14",
+        "what": "Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k",
+        "target": "recorded"
+    },
+    "layout-fr/fr ms/iteration (profiler) n=100000 [100k]": {
+        "id": "T-14",
+        "what": "Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 100k (`repulsion: \"exact\"`)",
+        "target": "recorded"
+    },
+    "layout-fr/se ms/iteration (profiler) n=10000 [10k]": {
+        "id": "T-14",
+        "what": "Spring-electrical preset, GPU time per iteration (profiler) at 10k",
+        "target": "recorded"
+    },
+    "layout-fr/se ms/iteration (profiler) n=100000 [100k]": {
+        "id": "T-14",
+        "what": "Spring-electrical preset, GPU time per iteration (profiler) at 100k (`repulsion: \"exact\"`)",
+        "target": "recorded"
+    },
+    "bfs/bfs auto at 1M/10M": {
+        "id": "T-10",
+        "what": "BFS direction-optimizing (`breadthFirstSearch`), wall end to end including the upload, from node 0 of the undirected RMAT at 1M / 10M (a contract on the dev box only)",
+        "target": 100,
+        "gatingRunnerClasses": []
+    },
+    "bfs/bfs top-down at 1M/10M": {
+        "id": "T-10",
+        "what": "BFS top-down, the same traversal at 1M / 10M",
+        "target": "recorded"
+    },
+    "bfs/bfs auto at 100k/1M": {
+        "id": "T-10",
+        "what": "BFS direction-optimizing, the same traversal at 100k / 1M",
+        "target": "recorded"
+    },
+    "bfs/bfs grid 1000x1000 levels=1999": {
+        "id": "T-10",
+        "what": "BFS on the 1000 x 1000 grid from a corner (1,999 levels), wall including the upload (a contract on the dev box only)",
+        "target": 1500,
+        "gatingRunnerClasses": []
+    },
+    "bfs/sssp at 1M/10M": {
+        "id": "T-10",
+        "what": "`sssp` (the near-far queue), wall end to end including the upload, random f32 weights in [0.1, 10), at 1M / 10M",
+        "target": "recorded"
+    },
+    "bfs/sssp at 100k/1M": {
+        "id": "T-10",
+        "what": "`sssp`, the same run at 100k / 1M",
+        "target": "recorded"
+    }
+}

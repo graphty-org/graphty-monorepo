@@ -11,7 +11,7 @@ import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { Edge } from "../../src/Edge";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { addStyleLayer, asData, edgeBetween } from "../helpers/testSetup";
 
 type ViewMode = "2d" | "3d";
@@ -41,7 +41,7 @@ describe("an arrowhead is independent of the line it caps", () => {
     async function build(mode: ViewMode, lines: Record<string, number>[]): Promise<Edge[]> {
         graph = new Graph(container);
         await graph.setViewMode(mode);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const edges: Edge[] = [];
         for (const [index, set] of lines.entries()) {
@@ -61,7 +61,7 @@ describe("an arrowhead is independent of the line it caps", () => {
             edges.push(edge);
         }
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getUpdateManager().stepFrames(2);
 
         // Re-read: a repaint may have rebuilt the edge objects' meshes.

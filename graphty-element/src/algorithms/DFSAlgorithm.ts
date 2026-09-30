@@ -1,9 +1,10 @@
-import { depthFirstSearch } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -13,6 +14,7 @@ import {
     metricFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { declarationArcOrder, withoutArcsOf } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for DFS algorithm
@@ -37,7 +39,8 @@ const dfsOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Recursive",
-            description: "Use recursive implementation instead of iterative (may cause stack overflow on large graphs)",
+            description:
+                "Walk recursively: with a pre-order target, the walk skips only the target's subtree and goes on instead of stopping",
             advanced: true,
         },
     },
@@ -59,7 +62,7 @@ interface DFSOptions extends Record<string, unknown> {
     source: number | string | null;
     /** Target node for early termination (optional) */
     targetNode: number | string | null;
-    /** Use recursive implementation vs iterative */
+    /** With a pre-order target, skip only the target's subtree instead of stopping the walk. */
     recursive: boolean;
     /** Use pre-order traversal (visit before children) vs post-order */
     preOrder: boolean;
@@ -74,6 +77,8 @@ interface DFSOptions extends Record<string, unknown> {
 export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
     static namespace = "graphty";
     static type = "dfs";
+    /** Walks the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = dfsOptionsSchema;
 
@@ -100,7 +105,8 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
             type: "boolean",
             default: false,
             label: "Recursive",
-            description: "Use recursive implementation instead of iterative (may cause stack overflow on large graphs)",
+            description:
+                "Walk recursively: with a pre-order target, the walk skips only the target's subtree and goes on instead of stopping",
             advanced: true,
         },
         preOrder: {
@@ -140,8 +146,8 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
      * @returns The exploration order, or null when there is nothing to walk.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes of the run's input: its scope's, or the whole graph's.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
@@ -152,28 +158,39 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
         const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const { targetNode, recursive, preOrder } = this._schemaOptions;
 
-        if (!dataManager.nodes.has(source)) {
-            return null;
-        }
+        // Undirected: the traversal follows an edge in either direction. No accelerator walks
+        // depth first, so this is the CPU port's decision, made the same way as every other.
+        const { snapshot, run } = this.accelerated("depthFirstSearch", "undirected");
+        const sourceIndex = this.nodeIndex(snapshot, "source", source);
+        // Only a pre-order walk stops at a target, so a post-order walk never reads one.
+        const targetIndex =
+            targetNode === null || !preOrder ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
-        // Undirected: the traversal follows an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
-
+        /* Each node's neighbours are tried in the order their edges were declared, as the element's
+           walks always have: the order IS the result here. A post-order walk runs to the end, since
+           a node's place is known only once everything below it is done, so a target stops only a
+           pre-order walk and a post-order one reaches everything it can. A recursive walk records
+           the target and goes no further from it, but goes on elsewhere: the same walk over a view
+           in which the target has no arcs of its own. */
         context.report({ phase: "Walking deep", total: null });
-        const result = depthFirstSearch(graphData, source, {
-            targetNode: targetNode ?? undefined,
-            recursive,
-            preOrder,
+        const { value, precision } = await run((dispatch, s) => {
+            const view = recursive && targetIndex !== undefined ? withoutArcsOf(s, targetIndex) : s;
+            return dispatch.depthFirstSearch(view, sourceIndex, {
+                arcOrder: declarationArcOrder(view),
+                order: preOrder ? "pre" : "post",
+                target: view === s ? targetIndex : undefined,
+            });
         });
 
-        const positionOf = new Map<number | string, number>();
-        result.order.forEach((nodeId, position) => positionOf.set(nodeId, position));
+        const positionOf = new Map<number, number>();
+        value.order.subarray(0, value.visitedCount).forEach((index, position) => positionOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Recording the order", nodeIds, (nodeId) => {
-            const position = positionOf.get(nodeId);
+            const index = snapshot.ids.indexOf(nodeId);
+            const reached = index !== INVALID_INDEX && value.depth[index] !== INVALID_INDEX;
 
-            nodes.push({ id: nodeId, values: { value: position, visited: result.visited.has(nodeId) } });
+            nodes.push({ id: nodeId, values: { value: positionOf.get(index), visited: reached } });
         });
 
         return {
@@ -184,7 +201,10 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
                 method: "dfs",
                 direction: "undirected",
                 weight: null,
-                notes: [`Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`],
+                precision,
+                notes: [
+                    `Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`,
+                ],
             }),
         };
     }

@@ -34,7 +34,7 @@ export function bitmapWordCount(bits: number): number {
  * @param bits - the bit count
  * @returns the mask as an unsigned 32-bit value
  */
-function lastWordMask(bits: number): number {
+export function lastWordMask(bits: number): number {
     const remainder = bits % 32;
     return remainder === 0 ? ALL_ONES : ALL_ONES >>> (32 - remainder);
 }

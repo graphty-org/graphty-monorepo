@@ -9,6 +9,7 @@ import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
 import type { Node } from "./Node";
 import type { StyleChange } from "./session/styles/StylesApi";
+import type { HistoryCause } from "./session/types";
 
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
@@ -111,6 +112,8 @@ export interface GraphDataLoadedEvent {
          */
         loadId?: number;
     };
+    /** What loaded it; absent for a load that does not yet come through the session's history. */
+    cause?: HistoryCause;
 }
 
 export interface GraphDataAddedEvent {
@@ -119,6 +122,13 @@ export interface GraphDataAddedEvent {
     count: number;
     shouldStartLayout: boolean;
     shouldZoomToFit: boolean;
+    /**
+     * What added the rows: a command, or undo, redo or a rollback bringing them back. Absent for a
+     * load that does not yet come through the session's history (a data source, a file, a URL).
+     * The element starts a layout, frames the camera and runs the on-load algorithms only for
+     * rows a command or such a load added, never for rows undo or redo brought back.
+     */
+    cause?: HistoryCause;
 }
 
 /**
@@ -195,6 +205,9 @@ export interface GraphGenericEvent {
         | "operation-start"
         | "operation-complete"
         | "operation-progress"
+        // How far a layout on the snapshot contract has got: `layoutType`, `fraction` (0 to 1, or
+        // null when the layout cannot say) and an optional `message`, as the layout reported them.
+        | "layout-progress"
         | "operation-obsoleted"
         | "animation-progress"
         | "animation-cancelled"
@@ -350,6 +363,8 @@ export interface ElementsRemovedEvent {
     nodes: NodeId[];
     /** Every edge that was attached to one of them, and therefore went with it. */
     edges: EdgeId[];
+    /** What removed them; absent for a removal that does not yet come through the history. */
+    cause?: HistoryCause;
 }
 
 // Selection events

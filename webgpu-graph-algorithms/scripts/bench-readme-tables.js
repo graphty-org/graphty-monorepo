@@ -1,0 +1,149 @@
+#!/usr/bin/env node
+/**
+ * bench:readme -- regenerates the target tables of the README's Performance section (issue #277) from
+ * benchmarks/results/targets.json and the checked-in results files, so the README is never hand-edited to say whether a
+ * target is met.
+ *
+ * Each table sits between `<!-- targets-table:<class> -->` and `<!-- /targets-table:<class> -->` in README.md; only the
+ * text between the two markers is rewritten. A row's figure is the best median any session of its results file has
+ * recorded -- the pinned baseline bench:compare measures a run against: the Node rows from benchmarks/results/<class>.json, the Chromium rows (the `-browser` groups, which
+ * Chromium's redacted driver string files under a class of their own) from benchmarks/results/<browser class>.json. A
+ * row that no checked-in session carries reads "not yet measured". The status is the one bench:compare prints
+ * (scripts/bench-targets.js), and the reasons of the class's known misses are listed under its table.
+ *
+ * Usage: `pnpm run bench:readme` rewrites README.md; `--check` exits 1 when README.md differs from the generated text.
+ * test/benchmarks.test.ts runs the same check, so a results file or targets.json changed without regenerating fails
+ * the node suite.
+ */
+
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { judgeTarget, readTargets } from "./bench-targets.js";
+
+/** The tables of the README: the Node runner class and the class its Chromium sessions land in. */
+const TABLES = [
+    { cls: "nvidia-lovelace-driver580", browser: "nvidia-lovelace-driver0" },
+    { cls: "gpu-linux-t4", browser: "nvidia-turing-driver0" },
+];
+
+/**
+ * The pinned figures of a results file: the best median and the best minimum every session has recorded for each
+ * row, the same baseline bench:compare measures a run against (a regressed session appended later cannot become the
+ * figure, and neither can a session measured while the SM clock idled).
+ * @param {string} file - the results file
+ * @returns {{ rows: Map<string, { medianMs: number, minMs?: number }>, sessions: number }} the rows keyed by `group/name`
+ */
+function pinnedRows(file) {
+    const rows = new Map();
+    if (!existsSync(file)) {
+        return { rows, sessions: 0 };
+    }
+    const sessions = JSON.parse(readFileSync(file, "utf8"));
+    for (const s of sessions) {
+        for (const r of s.results) {
+            const key = `${r.group}/${r.name}`;
+            const best = rows.get(key);
+            if (best === undefined) {
+                rows.set(key, { medianMs: r.medianMs, minMs: r.minMs });
+                continue;
+            }
+            best.medianMs = Math.min(best.medianMs, r.medianMs);
+            if (typeof r.minMs === "number") {
+                best.minMs = typeof best.minMs === "number" ? Math.min(best.minMs, r.minMs) : r.minMs;
+            }
+        }
+    }
+    return { rows, sessions: sessions.length };
+}
+
+/**
+ * A markdown table with its columns padded to their widest cell, the layout prettier writes.
+ * @param {readonly string[]} header - the header cells
+ * @param {readonly (readonly string[])[]} body - the rows
+ * @returns {string} the table
+ */
+function markdownTable(header, body) {
+    const widths = header.map((h, i) => Math.max(3, h.length, ...body.map((b) => b[i].length)));
+    const line = (cells) => `| ${cells.map((c, i) => c.padEnd(widths[i])).join(" | ")} |`;
+    return [line(header), line(widths.map((w) => "-".repeat(w))), ...body.map(line)].join("\n");
+}
+
+/**
+ * The generated text of one table.
+ * @param {Readonly<Record<string, import("./bench-targets.js").Target>>} targets - targets.json
+ * @param {string} resultsDir - benchmarks/results
+ * @param {{ cls: string, browser: string }} table - the classes of the table
+ * @returns {string} the text between the markers
+ */
+function renderTable(targets, resultsDir, table) {
+    const node = pinnedRows(join(resultsDir, `${table.cls}.json`));
+    const browser = pinnedRows(join(resultsDir, `${table.browser}.json`));
+    const body = [];
+    const known = [];
+    for (const [key, t] of Object.entries(targets)) {
+        const inBrowser = key.split("/")[0].endsWith("-browser");
+        const r = (inBrowser ? browser : node).rows.get(key);
+        const judged = r === undefined ? null : judgeTarget(t, r, table.cls);
+        const reason = t.knownMiss?.[table.cls];
+        if (reason !== undefined && !known.some((k) => k.startsWith(`${t.id}:`))) {
+            known.push(`${t.id}: ${reason}.`);
+        }
+        body.push([
+            t.id,
+            t.what,
+            t.target === "recorded" ? "recorded" : `<= ${String(t.target)} ms`,
+            r === undefined ? "not yet measured" : `${r.medianMs.toFixed(3)} ms`,
+            judged === null ? "-" : judged.status,
+        ]);
+    }
+    const lines = [
+        `Generated by \`pnpm run bench:readme\` from \`benchmarks/results/targets.json\`. Each figure is the best median the row has recorded, the baseline \`bench:compare\` pins: Node rows across the ${String(node.sessions)} session(s) of \`benchmarks/results/${table.cls}.json\`, Chromium rows across the ${String(browser.sessions)} of \`benchmarks/results/${table.browser}.json\`.`,
+        "",
+        markdownTable(["Id", "What", "Target", "Measured", "Status"], body),
+    ];
+    if (known.length > 0) {
+        lines.push("", "Known misses on this class, which `bench:compare` reports without failing:", "");
+        lines.push(...known.map((k) => `- ${k}`));
+    }
+    return lines.join("\n");
+}
+
+/**
+ * Rewrites every targets table of a README.
+ * @param {string} readme - the README text
+ * @param {string} resultsDir - the benchmarks/results directory
+ * @returns {string} the README with each table regenerated
+ */
+function renderReadme(readme, resultsDir) {
+    const targets = readTargets(join(resultsDir, "targets.json"));
+    let text = readme;
+    for (const table of TABLES) {
+        const open = `<!-- targets-table:${table.cls} -->`;
+        const close = `<!-- /targets-table:${table.cls} -->`;
+        const start = text.indexOf(open);
+        const end = text.indexOf(close);
+        if (start < 0 || end < start) {
+            throw new Error(`README.md lacks the ${open} ... ${close} markers`);
+        }
+        text = `${text.slice(0, start + open.length)}\n\n${renderTable(targets, resultsDir, table)}\n\n${text.slice(end)}`;
+    }
+    return text;
+}
+
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const file = join(root, "README.md");
+    const readme = readFileSync(file, "utf8");
+    const generated = renderReadme(readme, join(root, "benchmarks/results"));
+    if (process.argv.includes("--check")) {
+        if (generated !== readme) {
+            console.error("README.md's targets tables are stale: run `pnpm run bench:readme`");
+            process.exitCode = 1;
+        }
+    } else if (generated !== readme) {
+        writeFileSync(file, generated);
+        console.log("README.md: targets tables regenerated");
+    }
+}

@@ -1,4 +1,4 @@
-import type { NodeId } from "../types/index.js";
+import type { NodeId } from "@graphty/graph-format";
 
 /**
  * Union-Find (Disjoint Set) data structure with path compression and union by rank

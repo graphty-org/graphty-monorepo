@@ -34,7 +34,7 @@
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { LayerSpec, StaticStyle } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 /** Two nodes and the edge between them. */
@@ -81,7 +81,7 @@ describe("a layer written to a graph that is already drawn", () => {
         // Circular rather than a physics layout: a frame read while the nodes are still drifting
         // differs from the one before it for reasons no layer is responsible for.
         await graph.setLayout("circular", { scale: 0.2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // THE PREREQUISITES, which are what each measurement below is a change TO. A cap colour
         // needs a cap, and at the default size a cap is a few dozen pixels -- too near the
@@ -98,7 +98,7 @@ describe("a layer written to a graph that is already drawn", () => {
                 "edge.arrowTailSize": 3,
             },
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 
     afterAll(() => {
@@ -227,7 +227,7 @@ describe("a layer written to a graph that is already drawn", () => {
         const restored = await frame();
 
         await session.styles.remove(glowing.id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.isAbove(
             moved(before, after),

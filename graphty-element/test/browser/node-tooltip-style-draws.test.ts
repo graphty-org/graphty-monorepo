@@ -28,7 +28,7 @@ import { type DynamicTexture, Matrix, type StandardMaterial, Vector3 } from "@ba
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
@@ -86,7 +86,7 @@ describe("the look of a node's tooltip, and the channel that carries it", () => 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.setLayout("circular");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

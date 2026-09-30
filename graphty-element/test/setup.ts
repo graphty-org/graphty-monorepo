@@ -1,9 +1,20 @@
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Logger } from "@babylonjs/core/Misc/logger";
 import { afterEach, beforeAll, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
+import { caughtFailure, installCaughtErrors, takeCaughtErrors } from "./helpers/caught-errors";
 import { pinLabelFont } from "./helpers/pin-label-font";
+
+// An error the element caught and carried on past, or one nobody caught, fails the test it
+// happened in (test/helpers/caught-errors.ts).
+installCaughtErrors();
+
+// Strict state: every session created in these tests checks that project state changes only
+// through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
+// A plain global rather than an import, so this file reaches nothing under src/ at setup time.
+(globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
 
 // Mock CreateScreenshotAsync to return a valid 1x1 PNG data URL
 // This allows testing screenshot logic without requiring actual WebGL rendering
@@ -35,11 +46,12 @@ if (typeof FontFace !== "undefined") {
     beforeAll(pinLabelFont);
 }
 
-// Suppress Babylon.js logs during tests - must use dynamic import since we mock @babylonjs/core
-beforeAll(async () => {
-    const { Logger } = await import("@babylonjs/core");
-    Logger.LogLevels = Logger.ErrorLogLevel;
-});
+// Suppress Babylon.js logs during tests. The Logger is imported from its own module, not from the
+// "@babylonjs/core" barrel: the barrel's Logger is this same class, and loading the barrel here
+// used to load all of Babylon.js -- some 2,000 modules -- for every test file in the project,
+// including the many that never touch Babylon. Done in a beforeAll hook, that load ran under a
+// 10 s hook timeout, which a machine busy with a dozen pre-push gates at once exceeded (#491).
+Logger.LogLevels = Logger.ErrorLogLevel;
 
 // Suppress Lit dev mode warnings by setting production mode
 if (typeof window !== "undefined") {
@@ -66,7 +78,11 @@ export function createMockInputSystem(): MockDeviceInputSystem {
 }
 
 // Cleanup after each test
-afterEach(() => {
+afterEach(async () => {
+    // Strict state's full sweep: no typed array state kept was written in place during the test.
+    // Registered by src/session/project/strict.ts once a test has loaded it.
+    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
+
     // Only run DOM cleanup if document is available (browser environment)
     if (typeof document !== "undefined") {
         // Clean up any lingering canvases
@@ -77,6 +93,13 @@ afterEach(() => {
         // Reset body styles
         document.body.style.margin = "0";
         document.body.style.padding = "0";
+    }
+
+    // Let a late throw land, then fail the test on anything caught during it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const caught = caughtFailure(takeCaughtErrors());
+    if (caught !== undefined) {
+        throw caught;
     }
 });
 

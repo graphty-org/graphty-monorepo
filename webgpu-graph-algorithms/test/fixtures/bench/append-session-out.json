@@ -121,6 +121,50 @@
                 "memoryDeltaBytes": 0,
                 "rate": 31200000,
                 "rateUnit": "nodes/s"
+            },
+            {
+                "group": "betweenness",
+                "name": "betweenness exact karate",
+                "medianMs": 3.1,
+                "minMs": 3.0,
+                "maxMs": 3.4,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 11000,
+                "rateUnit": "sources/s"
+            },
+            {
+                "group": "apsp",
+                "name": "apsp at n=512",
+                "medianMs": 20.0,
+                "minMs": 19.5,
+                "maxMs": 21.0,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 13107200,
+                "rateUnit": "pairs/s"
+            },
+            {
+                "group": "triangles",
+                "name": "triangleCount at 100k/1M",
+                "medianMs": 29.7,
+                "minMs": 28.4,
+                "maxMs": 33.1,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 33630000,
+                "rateUnit": "edges/s"
+            },
+            {
+                "group": "label-propagation",
+                "name": "labelPropagation at 100k/1M",
+                "medianMs": 196.6,
+                "minMs": 176.8,
+                "maxMs": 202.7,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 5090000,
+                "rateUnit": "edges/s"
             }
         ]
     }

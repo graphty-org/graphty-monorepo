@@ -49,7 +49,7 @@
 
 import { Logger } from "@babylonjs/core";
 import { setProjectAnnotations } from "@storybook/web-components-vite";
-import { assert } from "vitest";
+import { afterEach, assert } from "vitest";
 
 import type { Graphty } from "../src/graphty-element";
 import {
@@ -59,6 +59,16 @@ import {
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
 import * as projectAnnotations from "./preview";
+import { operationQueueOf } from "../src/Graph";
+
+// Strict state: every session created in these tests checks that project state changes only
+// through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
+// A plain global rather than an import, so this file reaches nothing under src/ at setup time.
+(globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+// Its full sweep after each test: no typed array state kept was written in place.
+afterEach(() => {
+    (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
+});
 
 // Suppress Babylon.js logs during tests
 Logger.LogLevels = Logger.ErrorLogLevel;
@@ -207,9 +217,12 @@ async function settleQuietly(done: () => boolean, deadline: number): Promise<voi
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("expired");
-        }, Math.max(0, deadline - Date.now()));
+        timer = setTimeout(
+            () => {
+                resolve("expired");
+            },
+            Math.max(0, deadline - Date.now()),
+        );
     });
 
     const outcome = await Promise.race([work.then(() => "done" as const), expired]);
@@ -268,7 +281,7 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
     );
 
     await within(
-        graph.operationQueue.waitForCompletion(),
+        operationQueueOf(graph).waitForCompletion(),
         deadline,
         `${story}: the element's operation queue never drained.`,
     );

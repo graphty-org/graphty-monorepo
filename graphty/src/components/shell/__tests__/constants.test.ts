@@ -57,7 +57,6 @@ import {
     STATUS_BAR_SLOT_ORDER,
     TIME_SLIDER_HEIGHT,
     TOP_BAR_HEIGHT,
-    UNDO_DEPTH,
 } from "../constants";
 
 describe("shell constants", () => {
@@ -114,10 +113,6 @@ describe("shell constants", () => {
             expect(
                 NARROW_BREAKPOINT - ACTIVITY_RAIL_WIDTH - ACTIVITY_PANEL_WIDTH_DEFAULT - INSPECTOR_WIDTH_DEFAULT,
             ).toBe(416);
-        });
-
-        it("fixes the undo depth at 50", () => {
-            expect(UNDO_DEPTH).toBe(50);
         });
     });
 

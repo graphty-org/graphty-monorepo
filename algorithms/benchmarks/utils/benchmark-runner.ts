@@ -1,4 +1,5 @@
 import Benchmark from "benchmark";
+
 import { BenchmarkResult, BenchmarkSession } from "../benchmark-result";
 import { getSystemInfo } from "./system-info";
 
@@ -13,6 +14,16 @@ export interface BenchmarkConfig {
         iterations: number;
         minTime?: number; // minimum warmup time in seconds
     };
+}
+
+/** What a test hands the runner to label its result. Any other fields a caller passes are ignored. */
+export interface BenchmarkTestData {
+    algorithm?: string;
+    graphType?: string;
+    graphGenerationAlgorithm?: string;
+    graphSize?: number;
+    edges?: number;
+    additionalMetrics?: Record<string, number>;
 }
 
 export interface PlatformMemoryInfo {
@@ -84,7 +95,7 @@ export class CrossPlatformBenchmark {
                     } else {
                         testFn();
                     }
-                } catch (error) {
+                } catch {
                     // Continue warmup despite errors
                 }
             }
@@ -95,7 +106,7 @@ export class CrossPlatformBenchmark {
         console.log(`  Warmup completed for ${name}`);
     }
 
-    addTest(name: string, testFn: () => void | Promise<void>, testData: any = {}, options: Benchmark.Options = {}) {
+    addTest(name: string, testFn: () => void | Promise<void>, testData: BenchmarkTestData = {}, options: Benchmark.Options = {}) {
         const memoryBefore = this.getMemoryInfo();
 
         // Store test function for warmup
@@ -118,18 +129,14 @@ export class CrossPlatformBenchmark {
     private setupFunction() {
         // Force garbage collection if available
         if (this.config.platform === "node") {
-            if (typeof global !== "undefined" && (global as any).gc) {
-                (global as any).gc();
-            }
+            (globalThis as { gc?: () => void }).gc?.();
         } else {
             // Browser memory pressure hint
             if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
                 // Some browsers support gc() in development
                 try {
-                    if ("gc" in window) {
-                        (window as any).gc();
-                    }
-                } catch (e) {
+                    (globalThis as { gc?: () => void }).gc?.();
+                } catch {
                     // Ignore if not available
                 }
             }
@@ -151,7 +158,11 @@ export class CrossPlatformBenchmark {
         } else {
             // Browser memory information
             if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
-                const mem = (window.performance as any).memory;
+                const mem = (
+                    window.performance as Performance & {
+                        memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
+                    }
+                ).memory;
                 return {
                     usedJSHeapSize: mem.usedJSHeapSize,
                     totalJSHeapSize: mem.totalJSHeapSize,
@@ -164,11 +175,11 @@ export class CrossPlatformBenchmark {
 
     private collectResult(
         event: Benchmark.Event,
-        testData: any,
+        testData: BenchmarkTestData,
         memoryBefore: PlatformMemoryInfo,
         memoryAfter: PlatformMemoryInfo,
     ) {
-        const benchmark = event.target as Benchmark;
+        const benchmark = event.target;
         const memoryUsed = this.calculateMemoryDelta(memoryBefore, memoryAfter);
 
         const result: BenchmarkResult = {
@@ -188,8 +199,6 @@ export class CrossPlatformBenchmark {
                 marginOfError: benchmark.stats?.rme || 0,
                 standardDeviation: benchmark.stats?.deviation || 0,
                 variance: benchmark.stats?.variance || 0,
-                platform: this.config.platform,
-                testType: this.config.testType,
                 teps: testData.edges && benchmark.stats ? testData.edges / benchmark.stats.mean : 0,
                 ...testData.additionalMetrics,
             },
@@ -201,9 +210,9 @@ export class CrossPlatformBenchmark {
     private calculateMemoryDelta(before: PlatformMemoryInfo, after: PlatformMemoryInfo): number {
         if (this.config.platform === "node") {
             return (after.heapUsed || 0) - (before.heapUsed || 0);
-        } else {
+        } 
             return (after.usedJSHeapSize || 0) - (before.usedJSHeapSize || 0);
-        }
+        
     }
 
     async run(): Promise<BenchmarkSession> {
@@ -219,7 +228,7 @@ export class CrossPlatformBenchmark {
         return new Promise((resolve, reject) => {
             this.suite
                 .on("cycle", (event: Benchmark.Event) => {
-                    const benchmark = event.target as Benchmark;
+                    const benchmark = event.target;
                     console.log(`  ${benchmark.name}: ${benchmark.toString()}`);
                 })
                 .on("complete", () => {

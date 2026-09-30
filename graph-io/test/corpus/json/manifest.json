@@ -57,6 +57,15 @@
             "expectedNodes": 77,
             "expectedEdges": 254,
             "features": ["d3", "nodes-links", "real-world"]
+        },
+        {
+            "path": "nested-paths.json",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 4,
+            "expectedEdges": 4,
+            "features": ["node-link", "paths", "weighted"],
+            "options": { "nodesPath": "data.nodes", "edgesPath": "data.relationships" }
         }
     ]
 }

@@ -1,3 +1,4 @@
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -16,6 +17,8 @@ export default defineConfig({
                     exclude: [
                         // Browser-specific tests
                         "test/browser/**/*.test.ts",
+                        // Broken on purpose; test/unit/golden-helper.test.ts runs them in a child vitest
+                        "test/helpers/golden-cases/**",
                         // Standard vitest excludes
                         "**/node_modules/**",
                         "**/dist/**",
@@ -31,7 +34,7 @@ export default defineConfig({
                     browser: {
                         enabled: true,
                         headless: true,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
                     include: ["test/browser/**/*.test.ts"],
@@ -41,7 +44,6 @@ export default defineConfig({
             },
         ],
         coverage: {
-            all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             // Allow override via COVERAGE_DIR env var for sharded coverage runs
@@ -60,7 +62,9 @@ export default defineConfig({
             // - COVERAGE_DIR is set (sharded local runs)
             // - Running specific project via --project flag (CI shards)
             thresholds:
-                process.env.COVERAGE_DIR || process.argv.includes("--project=browser") || process.argv.includes("--project=default")
+                process.env.COVERAGE_DIR ||
+                process.argv.includes("--project=browser") ||
+                process.argv.includes("--project=default")
                     ? undefined
                     : {
                           lines: 80,

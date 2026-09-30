@@ -41,6 +41,8 @@ export interface UndoSplitButtonProps {
     readonly canUndo: boolean;
     /** Undo one step. */
     readonly onUndo: () => void;
+    /** What the next undo will do, for the main half's tooltip, e.g. "Undo Ran Degree". */
+    readonly undoLabel?: string;
     /** Open History, from the caret half, a right-click or a long-press. */
     readonly onOpenHistory: () => void;
     /** Whether the History pop-out is open; the caret half draws active while it is. */
@@ -60,7 +62,7 @@ export interface UndoSplitButtonProps {
  * @returns the two-half group.
  */
 export function UndoSplitButton(props: UndoSplitButtonProps): React.JSX.Element {
-    const { canUndo, caretRef, groupRef, historyOpen = false, onOpenHistory, onUndo } = props;
+    const { canUndo, caretRef, groupRef, historyOpen = false, onOpenHistory, onUndo, undoLabel } = props;
 
     const longPressTimer = useRef<number | null>(null);
     const longPressFired = useRef(false);
@@ -116,7 +118,7 @@ export function UndoSplitButton(props: UndoSplitButtonProps): React.JSX.Element 
             }}
         >
             <TopBarIconButton
-                title={undoTitle(canUndo)}
+                title={undoTitle(canUndo, undefined, undoLabel)}
                 accessibleName={undoAccessibleName(canUndo)}
                 glyph="undo"
                 width={SPLIT_MAIN_WIDTH}

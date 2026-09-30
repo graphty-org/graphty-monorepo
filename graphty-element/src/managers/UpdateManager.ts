@@ -1174,7 +1174,7 @@ export class UpdateManager implements Manager {
         for (const node of this.layoutManager.nodes) {
             const { index } = node;
 
-            if (index < 0) {
+            if (index === INVALID_INDEX) {
                 moved = true;
                 continue;
             }
@@ -1214,7 +1214,7 @@ export class UpdateManager implements Manager {
         for (const node of this.layoutManager.nodes) {
             const { index } = node;
 
-            if (index < 0) {
+            if (index === INVALID_INDEX) {
                 continue;
             }
 

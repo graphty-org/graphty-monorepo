@@ -587,14 +587,19 @@ describe("AccelerationController: the built-in floor of a traversal", () => {
         // A floor above what the renderer will draw is a capability that never reaches the device,
         // whatever hardware is attached: `DataManager` refuses a load past `renderCeiling` nodes or
         // `edgesDrawn` edges with `E_TOO_LARGE`. The 2026-09-27 sweep found that only PageRank beats
-        // the CPU port inside that band, so PageRank is the one floor that has to stay reachable --
-        // lower any of the other three below the ceiling and it starts routing at a size where it
-        // was measured to be one and a half to ten times slower. Raising the ceiling (issue #419) is
-        // what lets the other three be measured through the element and brought under it.
-        assert.isAtMost(floorOf("pageRank"), DEFAULT_LIMITS.renderCeiling);
-        assert.isAbove(floorOf("breadthFirstSearch"), DEFAULT_LIMITS.renderCeiling);
-        assert.isAbove(floorOf("sssp"), DEFAULT_LIMITS.renderCeiling);
-        assert.isAbove(floorOf("connectedComponents"), DEFAULT_LIMITS.renderCeiling);
+        // the CPU port inside the old 50,000-node band; breadth-first search, SSSP and connected
+        // components lose at 50,000 nodes and win at 100,000. Raising the ceiling to 100,000 (issue
+        // #419) brings those three floors inside it, so every floor here is now reachable -- and
+        // none of the three may drop to the size where it was measured to be one and a half to ten
+        // times slower.
+        const measuredToLose = 50_000;
+        for (const capability of ["pageRank", "breadthFirstSearch", "sssp", "connectedComponents"] as const) {
+            assert.isAtMost(floorOf(capability), DEFAULT_LIMITS.renderCeiling, `${capability} reaches the device`);
+        }
+
+        assert.isAbove(floorOf("breadthFirstSearch"), measuredToLose);
+        assert.isAbove(floorOf("sssp"), measuredToLose);
+        assert.isAbove(floorOf("connectedComponents"), measuredToLose);
     });
 
     it("leaves the layout on the accelerator at every size: the zero was measured for it", async () => {

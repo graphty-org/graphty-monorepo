@@ -163,7 +163,10 @@ describe("closeness centrality through accelerated()", () => {
         it("a sampled run at both floors reaches the accelerator with the drawn sources and says f32", async () => {
             const { fake, handed } = closenessFake();
             const graph = await graphWith(ring(FLOOR), fake);
-            const { values, caveats } = await measured(graph, new ClosenessCentralityAlgorithm(graph, { k: K_AT_FLOOR }));
+            const { values, caveats } = await measured(
+                graph,
+                new ClosenessCentralityAlgorithm(graph, { k: K_AT_FLOOR }),
+            );
             assert.strictEqual(handed.length, 1);
             const options = handed[0] as { sources: number[]; weighted: boolean };
             assert.strictEqual(options.sources.length, K_AT_FLOOR);

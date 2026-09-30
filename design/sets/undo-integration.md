@@ -7,8 +7,9 @@ undo branch (`feat/element-undo`, design in `design/undo/undo-design.md`, plan i
 dispatcher, and today holds saved scopes in a slice called `scopes`. Neither branch imports the
 other's code.
 
-This file is what whoever merges second has to do. Every item is mechanical except the five
-decisions at the end, which are one-way doors and must be answered before the second merge lands.
+This file is what whoever merges second has to do. Undo merged second, and carried it out; the
+five decisions at the end are decided, as recommended (section 8), and section 10 records where
+the port departs from the items below.
 Paths are under `graphty-element/src/` unless they say otherwise. "Undo branch" line references
 are to its tip as of 2026-09-27 (plan phase `25b` reached, `PLAN_PHASE` in
 `session/commands/doors.ts`).
@@ -255,20 +256,22 @@ each is a revisit, not new work:
 
 The app phases (23, 25a to 25c) are unaffected: the app calls none of the scope or set doors.
 
-## 8. Decisions due before the second merge (one-way doors)
+## 8. Decisions (decided)
 
-1. **Does `scope.save` / `scope.remove` survive as an op name?** Recommendation: no. The
-   deprecated `scope.save` and `scope.remove` doors dispatch `set.create` and `set.remove`, so
-   history shows one vocabulary. Neither op has been released, so dropping them costs nothing now
-   and is breaking later.
-2. **The public `set.create` command form.** Recommendation: no `id`, `order` or `createdFrom` from
-   a caller; the recorded form carries them. This differs from the undo branch's `scope.save`,
-   which accepts `id?`.
-3. **`ProjectSlice` spells the slice `"sets"`.** It is a published union on the undo branch.
-4. **`SetChange.cause` gains `"undo"` and `"redo"`.** The union is declared open, so this is
-   additive, but the values are published.
-5. **The op names `set.create`, `set.rename`, `set.redefine`, `set.members`, `set.remove`**, which
-   also appear in the sets design's public contract (section 15.3, item 12).
+The owner confirmed that unpublished names are not one-way doors, so each is decided as
+recommended:
+
+1. **`scope.save` / `scope.remove` do not survive as op names.** The deprecated `scope.save` and
+   `scope.remove` doors forward to `session.sets`, which dispatch `set.create` and `set.remove`, so
+   history shows one vocabulary.
+2. **The public `set.create` command form carries no `id`, `order` or `createdFrom`.**
+   `session.execute` refuses a `set.create` that carries any of them with `E_BAD_COMMAND`; the
+   element's own doors mint them, and the recorded command carries them.
+3. **`ProjectSlice` spells the slice `"sets"`.**
+4. **`SetChange.cause` gains `"undo"` and `"redo"`.** A restore across several steps is told as the
+   direction it moved; a rollback tells nothing.
+5. **The op names are `set.create`, `set.rename`, `set.redefine`, `set.members` and `set.remove`**,
+   plus `set.restore` for the published `sets.restore`, with the same undo semantics.
 
 ## 9. Conflicts to expect
 
@@ -278,3 +281,37 @@ cache key), `session/selection/SelectionApi.ts` (`promote`), `session/types.ts` 
 `managers/LayoutManager.ts` and `Graph.ts` (the layout doors), and `session/runs/Run.ts` and
 `RunsApi.ts` (the token and captures). In each, keep the sets branch's behaviour and route its
 writes through the undo branch's dispatcher.
+
+## 10. How the port went
+
+Where the merge departs from the items above, and why:
+
+- **No `sets` derivation hook.** The store tells its listeners from the dispatcher's
+  `project:changed`, which fires synchronously when a step seals and on undo, redo and restore
+  alike (never for a rollback). It diffs the slice against what it last told, so `onCommit` (the
+  change notifier, which re-resolves layers and the filter and repaints only the rows that moved)
+  and `onChange` (`set:changed`) keep their order and their synchronous timing. `"sets"` sits in
+  the hook order after `"runs"` and before `"styles"` and `"visibility"`, and has no hook.
+- **The register is written when a step that wrote the id is sealed** (the command registers it
+  through the group's seal callback), and an id minted for a write not yet sealed is skipped while
+  any group is open. An id minted and never written is not issued. Nested transactions flatten into
+  the outermost one, so a savepoint is a door: a refused door inside a transaction reverts only its
+  own write.
+- **Tombstones are written by the `set.remove` body**, and never rewound; undoing a create does not
+  tombstone the set, so `sets.restore` does not bring back an undone create (redo does).
+- **The layout scope** is `scope` on `LayoutChoice`. `setLayout(type, opts, { scope })` records it
+  in `layout.set`, which refuses a scope the engine cannot hold or that holds nothing.
+  `Graph.setLayoutScope` and the element's `layoutScope` property dispatch a new op, `layout.scope`,
+  on the immediate lane, so the scope is carried at once by a layout still waiting its turn, and a
+  scope that resolves to nothing leaves the layout over the whole graph rather than refusing.
+  `LayoutManager.carryScope` and `rescope` are gone.
+- **A re-run keeps the result it replaces** until it publishes the new one, because the result is
+  project state in the `runs` slice. The sets branch cleared it while the re-run was queued; the
+  execution token and the input tick now move only when the new result is published, and the
+  held-item captures are written with the result, in `RunEntry.held`.
+- **Attribute revisions** move in the graph primitives: every record write, forward, undo, redo and
+  rollback, bumps the fields it changed, and an edit after load announces them.
+- **Edge identity survives undo and redo.** An undone add keeps the identity cells the edge was
+  completed with and a redo writes them back, so a set naming the edge by its load ordinal still
+  finds it. The pairs-ordered latch is dropped when the graph holds no edges and taken again when
+  edges come back, so undoing to an empty graph returns to one that has not latched.

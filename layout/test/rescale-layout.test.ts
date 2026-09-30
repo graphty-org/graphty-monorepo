@@ -1,6 +1,11 @@
-import { assert,describe, it } from "vitest";
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { assert, describe, it } from "vitest";
 
-import { circularLayout, completeGraph, randomLayout, rescaleLayout, rescaleLayoutDict, starGraph } from "../src";
+import { circular, random, rescaleLayout, rescaleLayoutDict, toPositionMap } from "../src";
+
+/** An edgeless snapshot of `n` nodes. */
+const nodes = (n: number) =>
+    fromEdgeArrays({ directed: false, nodeCount: n, src: new Uint32Array(0), dst: new Uint32Array(0) });
 
 describe("Rescale Layout", () => {
     describe("Dictionary format (rescaleLayout)", () => {
@@ -127,8 +132,8 @@ describe("Rescale Layout", () => {
 
     describe("Integration with layouts", () => {
         it("should rescale circular layout", () => {
-            const graph = completeGraph(6);
-            const positions = circularLayout(graph, 1); // radius 1
+            const s = nodes(6);
+            const positions = toPositionMap(circular(s), s.ids); // radius 1
 
             const rescaled = rescaleLayout(positions, 5); // scale up to radius 5
 
@@ -140,8 +145,8 @@ describe("Rescale Layout", () => {
         });
 
         it("should recenter random layout", () => {
-            const graph = starGraph(5);
-            const positions = randomLayout(graph, [0, 0]); // centered at origin
+            const s = nodes(5);
+            const positions = toPositionMap(random(s, { seed: 1 }), s.ids);
 
             const newCenter = [20, 30];
             const rescaled = rescaleLayout(positions, 1, newCenter);

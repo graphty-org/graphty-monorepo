@@ -32,7 +32,7 @@
  * @module testing/fakeAccelerator
  */
 
-import type { IndexedPageRankOptions, LabelResultLike, PageRankResultLike } from "@graphty/algorithms";
+import type { LabelResultLike, PageRankOptions, PageRankResultLike } from "@graphty/algorithms";
 import { type F32, type GraphSnapshot, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
 import {
     createSimulation,
@@ -546,7 +546,7 @@ export interface FakeAccelerator extends GraphAccelerator {
      * @param options - Ignored.
      * @returns Scores of `1 / n`, converged after one iteration.
      */
-    pageRank(snapshot: GraphSnapshot, options?: IndexedPageRankOptions): Promise<PageRankResultLike>;
+    pageRank(snapshot: GraphSnapshot, options?: PageRankOptions): Promise<PageRankResultLike>;
     /**
      * Puts every node in one component.
      * @param snapshot - The graph.

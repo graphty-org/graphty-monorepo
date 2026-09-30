@@ -83,6 +83,8 @@ export type {
     BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
+    ClosenessAcceleratorOptions,
+    ClosenessResultLike,
     CommunityResultLike,
     CorenessResultLike,
     EdgeScoresResultLike,
@@ -109,6 +111,7 @@ export type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./types/
 export type {
     ComponentsOptions,
     EigenvectorOptions,
+    GpuClosenessResult,
     GpuHitsResult,
     GpuLabelResult,
     GpuPageRankResult,

@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "vitest";
 
 describe("the element never transfers a snapshot", () => {
-    it("src/ contains no transferables(), toWire() or toBytes() call", () => {
+    // toBytes() is allowed: it writes every array into one freshly allocated buffer and detaches
+    // nothing, which is how session.snapshot() hands a consumer a copy it may write to. The calls
+    // that can hand the element's own buffers to someone else -- transferables(), toWire() and
+    // the chunked container that streams them -- stay out.
+    it("src/ contains no transferables(), toWire() or toByteChunks() call", () => {
         // fileURLToPath, not import.meta.dirname: the workspace engines floor is node >=18.19.0
         // and import.meta.dirname only exists from 20.11, where it would be `undefined` and join
         // would throw. vitest.config.ts already uses this form.
@@ -21,7 +25,7 @@ describe("the element never transfers a snapshot", () => {
             }
 
             const text = readFileSync(join(root, entry), "utf8");
-            if (/\.transferables\(|\.toWire\(|\.toBytes\(|\.toByteChunks\(/.test(text)) {
+            if (/\.transferables\(|\.toWire\(|\.toByteChunks\(/.test(text)) {
                 offenders.push(entry);
             }
         }

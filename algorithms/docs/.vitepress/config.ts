@@ -45,7 +45,7 @@ export default defineConfig({
         nav: [
             { text: "Guide", link: "/guide/getting-started" },
             { text: "API", link: "/api/" },
-            { text: "Examples", link: "https://graphty.app/algorithms/examples/" },
+            { text: "Examples", link: "https://graphty.app/storybook/algorithms/" },
         ],
 
         sidebar: {
@@ -61,6 +61,7 @@ export default defineConfig({
                     text: "Core Concepts",
                     items: [
                         { text: "Graph Data Structure", link: "/guide/graph" },
+                        { text: "Migrating to 3.0", link: "/guide/migrating-to-3" },
                         { text: "Traversal Algorithms", link: "/guide/traversal" },
                         { text: "Shortest Path", link: "/guide/shortest-path" },
                         { text: "Centrality", link: "/guide/centrality" },
@@ -81,11 +82,7 @@ export default defineConfig({
                 { text: "Overview", link: "/api/" },
                 {
                     text: "Reference",
-                    items: [
-                        { text: "Graph", link: "/api/generated/core/graph/classes/Graph" },
-                        { text: "Types", link: "/api/generated/types/" },
-                        { text: "Functions", link: "/api/generated/index/" },
-                    ],
+                    items: [{ text: "Functions and types", link: "/api/generated/index/" }],
                 },
                 {
                     text: "Generated TypeDoc",

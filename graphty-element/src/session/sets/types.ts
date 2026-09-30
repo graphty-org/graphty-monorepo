@@ -56,8 +56,11 @@ export interface SetChange {
     readonly fields: readonly ("name" | "definition" | "order")[];
     /** The frozen record after the change; null after removal. */
     readonly set: ElementSet | null;
-    /** What caused it. OPEN UNION: `command`, or `load` for a stored slice; undo and redo are added later. */
-    readonly cause: "command" | "load";
+    /**
+     * What caused it. OPEN UNION: `command`, `load` for a stored slice, or `undo` and `redo` for a
+     * history call (a restore across several steps is told as the direction it moved).
+     */
+    readonly cause: "command" | "load" | "undo" | "redo";
 }
 
 /**

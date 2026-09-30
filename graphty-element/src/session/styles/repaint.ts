@@ -60,7 +60,15 @@ import { isGraphtyError } from "../../errors";
 import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
-import type { CompiledLayer, LayerRepaint, RepaintContext, RepaintReport, RepaintRequest } from "./Layer";
+import type {
+    CompiledLayer,
+    LayerEdit,
+    LayerRepaint,
+    RepaintContext,
+    RepaintReason,
+    RepaintReport,
+    RepaintRequest,
+} from "./Layer";
 import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "./predicate";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
 
@@ -704,6 +712,75 @@ function addedOnTop(request: RepaintRequest): boolean {
     return fromIndex === stack.length - edits.length;
 }
 
+/**
+ * What the `styles` hook of the derivation lane hands the repaint: the difference between the
+ * stack the picture shows and the stack project state holds, whatever moved it -- an edit, an
+ * undo, a redo, a rollback, or several of them folded into one pass.
+ *
+ * A layer is the same layer when it is the same compiled object: an update replaces it, so the
+ * old and new objects under one id are an edit from one to the other; a layer only in one of the
+ * two stacks was added or removed. A layer kept by identity whose place among the kept layers
+ * changed was moved, and is marked with itself on both sides, so the repaint visits the elements
+ * it matches.
+ * @param previous - The stack the picture shows, bottom first.
+ * @param next - The stack to show.
+ * @returns The request; no edits when the two stacks are the same.
+ */
+export function stackChange(previous: readonly CompiledLayer[], next: readonly CompiledLayer[]): RepaintRequest {
+    const before = new Map(previous.map((entry) => [entry.layer.id, entry]));
+    const after = new Map(next.map((entry) => [entry.layer.id, entry]));
+    const edits: LayerEdit[] = [];
+
+    for (const [id, entry] of before) {
+        const now = after.get(id);
+        if (now !== entry) {
+            edits.push({ previous: entry, next: now ?? null });
+        }
+    }
+
+    for (const [id, entry] of after) {
+        if (!before.has(id)) {
+            edits.push({ previous: null, next: entry });
+        }
+    }
+
+    // ponytail: every kept layer whose place among the kept layers changed is marked, not the
+    // fewest that explain the reorder; a move repaints a little more than it strictly must.
+    const inNext = new Set(next);
+    const inPrevious = new Set(previous);
+    const keptBefore = previous.filter((entry) => inNext.has(entry));
+    const keptAfter = next.filter((entry) => inPrevious.has(entry));
+    keptBefore.forEach((entry, index) => {
+        if (keptAfter[index] !== entry) {
+            edits.push({ previous: entry, next: entry });
+        }
+    });
+
+    let fromIndex = 0;
+    while (fromIndex < next.length && fromIndex < previous.length && next[fromIndex] === previous[fromIndex]) {
+        fromIndex++;
+    }
+
+    return { reason: reasonOf(edits), edits, stack: next, fromIndex };
+}
+
+/**
+ * What a set of layer edits amounts to, for the repaint request and the change announcement.
+ * @param edits - The edits.
+ * @returns The reason.
+ */
+function reasonOf(edits: readonly LayerEdit[]): RepaintReason {
+    if (edits.length > 0 && edits.every((edit) => edit.previous === null)) {
+        return "add";
+    }
+
+    if (edits.length > 0 && edits.every((edit) => edit.next === null)) {
+        return edits.length === 1 ? "remove" : "sweep";
+    }
+
+    return edits.length > 0 && edits.every((edit) => edit.previous === edit.next) ? "move" : "update";
+}
+
 // ---------------------------------------------------------------------------------------------
 // The pass
 // ---------------------------------------------------------------------------------------------
@@ -763,6 +840,12 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
     /** The layers the pass in progress could not paint. */
     let problems: RepaintProblem[] = [];
+    /**
+     * The problems already said on the console, by layer and code. `problems()` is internal, so
+     * without this a layer the pass refused -- a palette with fewer colours than the groups --
+     * would paint nothing and tell no one why.
+     */
+    const reported = new Set<string>();
 
     /**
      * The pass that is running, so the next one can wait for it rather than interleave with it.
@@ -1439,6 +1522,14 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
             if (layer.problem !== null) {
                 problems.push(layer.problem);
+                const key = `${layer.problem.layerId}\u0000${layer.problem.code}`;
+                if (!reported.has(key)) {
+                    reported.add(key);
+                    console.warn(
+                        `[graphty] The style layer "${entry.layer.name}" paints nothing: ${layer.problem.message} (${layer.problem.code})`,
+                    );
+                }
+
                 continue;
             }
 

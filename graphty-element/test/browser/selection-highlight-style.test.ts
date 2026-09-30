@@ -17,7 +17,7 @@
 import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 
 /** Two nodes, so selecting one leaves something unselected to compare against. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -43,7 +43,7 @@ describe("what a selected node looks like", () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
         await graph.setLayout("circular", { scale: 0.05 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {

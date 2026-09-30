@@ -61,6 +61,7 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
 import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
@@ -258,6 +259,11 @@ export interface CompiledLayer {
     readonly layer: Layer;
     /** Its selector, reduced to a predicate and the columns that predicate reads. */
     readonly selector: CompiledSelector;
+    /**
+     * Every path the layer reads, its selector's and its bindings', without repeats: what a
+     * change to a record's attributes has to name for the layer to paint anything differently.
+     */
+    readonly reads: readonly Path[];
 }
 
 /** Which edit asked for a repaint. */
@@ -988,7 +994,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
 
     return {
         result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths }),
-        layer: buildLayer(spec, options.id, target, compiled),
+        layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }
 
@@ -998,27 +1004,37 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
  * @param id - The id the layer carries for the rest of its life.
  * @param target - What it paints.
  * @param selector - Its compiled selector.
+ * @param reads - Every path it reads.
  * @returns The compiled layer.
  */
-function buildLayer(spec: LayerSpec, id: LayerId, target: SelectorTarget, selector: CompiledSelector): CompiledLayer {
+function buildLayer(
+    spec: LayerSpec,
+    id: LayerId,
+    target: SelectorTarget,
+    selector: CompiledSelector,
+    reads: readonly Path[],
+): CompiledLayer {
     const source = sourceOf(spec);
+    // A copy, deep-frozen, of everything but `userData`: the caller's objects stay theirs to
+    // change, and nothing reachable from a layer in the stack can change under it.
+    const frozen = <T>(value: T): T => deepFreeze(structuredClone(value));
     const layer: Layer = Object.freeze({
         id,
         name: spec.name,
         kind: spec.kind ?? "custom",
-        source,
+        source: frozen(source),
         locked: isElementSource(source),
         enabled: spec.enabled ?? true,
         target,
-        selector: spec.selector as Selector,
-        ...(spec.set === undefined ? {} : { set: Object.freeze({ ...spec.set }) }),
-        ...(spec.encode === undefined ? {} : { encode: Object.freeze({ ...spec.encode }) }),
+        selector: frozen(spec.selector as Selector),
+        ...(spec.set === undefined ? {} : { set: frozen(spec.set) }),
+        ...(spec.encode === undefined ? {} : { encode: frozen(spec.encode) }),
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
     });
 
-    return Object.freeze({ layer, selector });
+    return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
 }
 
 /**

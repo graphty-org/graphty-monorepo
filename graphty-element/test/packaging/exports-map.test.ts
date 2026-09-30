@@ -37,11 +37,13 @@ const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), 
  */
 const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string }[] = [
     { subpath: ".", source: "index.ts", output: "graphty" },
-    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map((name) => ({
-        subpath: `./${name}`,
-        source: `${name}.ts`,
-        output: name,
-    })),
+    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map(
+        (name) => ({
+            subpath: `./${name}`,
+            source: `${name}.ts`,
+            output: name,
+        }),
+    ),
 ];
 
 /**
@@ -147,7 +149,7 @@ function viteEntries(): Record<string, string> {
                 continue;
             }
 
-            const {initializer} = declaration;
+            const { initializer } = declaration;
             if (initializer === undefined || !ts.isObjectLiteralExpression(initializer)) {
                 continue;
             }
@@ -164,15 +166,18 @@ function viteEntries(): Record<string, string> {
 }
 
 describe("the exports map", () => {
-    it.each(MODULE_ENTRIES)("$subpath is a real entry point with a source file behind it", ({ subpath, source, output }) => {
-        const conditions = manifest.exports[subpath];
+    it.each(MODULE_ENTRIES)(
+        "$subpath is a real entry point with a source file behind it",
+        ({ subpath, source, output }) => {
+            const conditions = manifest.exports[subpath];
 
-        assert.deepEqual(
-            conditions,
-            { types: `./dist/${output === "graphty" ? "index" : output}.d.ts`, import: `./dist/${output}.js` },
-        );
-        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
-    });
+            assert.deepEqual(conditions, {
+                types: `./dist/${output === "graphty" ? "index" : output}.d.ts`,
+                import: `./dist/${output}.js`,
+            });
+            assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
+        },
+    );
 
     it("publishes ./bundle as one self-contained file, for a page with no installer", () => {
         // The UMD build is gone, and ./bundle is what replaced it. A consumer pasting a script
@@ -181,6 +186,16 @@ describe("the exports map", () => {
         // every dependency. Losing it would silently break the first example in the docs.
         assert.strictEqual(manifest.exports["./bundle"], "./dist/graphty.bundle.js");
         assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts")));
+    });
+
+    it("builds ./bundle from an entry that adds GraphtyLogger, so a page with no build step can switch logging on", () => {
+        // The simple tier's logging example ends with GraphtyLogger.configure({ enabled: true }).
+        // A bundle-only page has no second address to import the logger from.
+        const config = readFileSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts"), "utf8");
+        assert.match(config, /entry: `\$\{here\}bundle\.ts`/);
+        const entry = readFileSync(resolve(PACKAGE_ROOT, "bundle.ts"), "utf8");
+        assert.include(entry, 'export * from "./index";');
+        assert.include(entry, 'export { GraphtyLogger } from "./logging";');
     });
 
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
@@ -246,16 +261,28 @@ describe("what the package promises about side effects and size", () => {
 });
 
 describe("the sibling packages", () => {
-    it("takes graph-format as a dependency and a peer, so one copy is installed", () => {
+    it("takes graph-format as a regular dependency, not a peer, so installing the element never fails on the consumer's own graph-format", () => {
         assert.strictEqual(manifest.dependencies["@graphty/graph-format"], "workspace:^");
-        assert.isDefined(manifest.peerDependencies["@graphty/graph-format"]);
+        assert.isUndefined(manifest.peerDependencies["@graphty/graph-format"]);
+    });
+
+    it("declares no package as both a dependency and a peer", () => {
+        const peers = Object.keys(manifest.peerDependencies);
+        assert.deepEqual(
+            Object.keys(manifest.dependencies).filter((name) => peers.includes(name)),
+            [],
+        );
+    });
+
+    it("takes graph-io as a dependency, since the element's readers parse through it", () => {
+        assert.strictEqual(manifest.dependencies["@graphty/graph-io"], "workspace:^");
     });
 
     it("takes the GPU package as an optional peer, so a consumer who never wants it never resolves it", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
-        // A workspace reference, like the graph-format peer above: pnpm rewrites it on publish to a
+        // A workspace reference: pnpm rewrites it on publish to a
         // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
         // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
         // an older range would crash when the element attached an accelerator. The explicit
@@ -265,7 +292,10 @@ describe("the sibling packages", () => {
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {
-        assert.deepEqual(namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)), []);
+        assert.deepEqual(
+            namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)),
+            [],
+        );
     });
 });
 
@@ -287,6 +317,30 @@ describe("the ./format entry point", () => {
 
         for (const name of ["GraphBuilder", "AttributeTable", "NodeIdMap", "fromRecords", "fromWire", "fromBytes"]) {
             assert.notInclude(exported, name);
+        }
+    });
+});
+
+describe("the ./commands entry point", () => {
+    it("publishes the vocabulary as data that survives JSON, and a guard that reads it", async () => {
+        const commands = await import("../../commands");
+
+        assert.isAbove(Object.keys(commands.COMMANDS).length, 0);
+        assert.deepEqual(JSON.parse(JSON.stringify(commands.COMMANDS)), commands.COMMANDS);
+        assert.isTrue(commands.isSessionCommand({ op: "algo.run", algorithm: "degree" }));
+        assert.isFalse(commands.isSessionCommand({ op: "no.such-op" }));
+        assert.isFalse(commands.isSessionCommand(null));
+        assert.isFalse(commands.isSessionCommand({ op: "toString" }));
+    });
+
+    it("is the vocabulary of the session: every op is undoable or exempt with a reason", async () => {
+        const { COMMANDS } = await import("../../commands");
+
+        for (const [op, meta] of Object.entries(COMMANDS) as [string, { undo: string; reason?: string }][]) {
+            assert.include(["undoable", "exempt"], meta.undo, op);
+            if (meta.undo === "exempt") {
+                assert.isNotEmpty(meta.reason, op);
+            }
         }
     });
 });

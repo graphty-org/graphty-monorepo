@@ -63,6 +63,8 @@ function createMockGraph(): MockGraph {
 function createMockContext(mockGraph: MockGraph): CommandContext {
     return {
         graph: mockGraph as unknown as CommandContext["graph"],
+        // Capture writes nothing, so it never reaches the transaction.
+        tx: {} as CommandContext["tx"],
         abortSignal: new AbortController().signal,
         emitEvent: vi.fn(),
         updateStatus: vi.fn(),

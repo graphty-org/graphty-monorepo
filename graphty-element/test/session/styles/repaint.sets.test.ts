@@ -292,18 +292,17 @@ describe("a layer naming a set repaints only what moved", () => {
         const seen = passes(h);
 
         await run.rerun();
-        // Wait for the two passes themselves, not a tick: a pass that outruns its time slice
-        // hands the thread back and finishes on a later task.
-        while (seen.log.length < 2) {
+        // Wait for the pass itself, not a tick: a pass that outruns its time slice hands the
+        // thread back and finishes on a later task.
+        while (seen.log.length < 1) {
             await seen.next();
         }
 
-        // Queued for the re-run the result is cleared (the members leave, with the two edges they
-        // induce), and its end publishes the same values again (they return).
-        assert.deepStrictEqual(seen.log, [
-            { nodes: 3, edges: 2 },
-            { nodes: 3, edges: 2 },
-        ]);
+        await drain();
+        // The re-run keeps the result it replaces while it computes (the result is project state,
+        // in the runs slice), so the members never leave. Its end publishes the same values under
+        // a new token, and the layers reading the run are repainted once, whole.
+        assert.deepStrictEqual(seen.log, [{ nodes: 5, edges: 4 }]);
         assert.deepStrictEqual(red(h), ["b", "c", "d"]);
     });
 

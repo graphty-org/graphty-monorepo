@@ -125,6 +125,9 @@ export class BabylonInputSystem {
             shiftKey: event.shiftKey,
             altKey: event.altKey,
             metaKey: event.metaKey,
+            preventDefault: () => {
+                event.preventDefault();
+            },
         };
     }
 

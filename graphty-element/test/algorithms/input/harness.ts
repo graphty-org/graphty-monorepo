@@ -17,8 +17,8 @@ import type { ResolvedInputScope } from "../../../src/algorithms/input/ScopedInp
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { GraphStore } from "../../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../../src/data/ingest";
 import type { Graph } from "../../../src/Graph";
+import { ingestEdge, ingestNode } from "../../helpers/rawIngest";
 
 /** One edge to add: source, target and an optional weight. */
 export type EdgeSpec = readonly [string, string, number?];
@@ -89,12 +89,10 @@ export class InputGraph {
         edges: Map<string, { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }>;
         getSnapshot: () => GraphSnapshot;
         undirected: GraphStore["undirected"];
-        getEdge: (id: string) => { data?: Record<string, unknown> } | undefined;
     } {
         return {
             nodes: this.nodes,
             edges: this.edges,
-            getEdge: (id) => this.edges.get(id),
             getSnapshot: () => this.store.getSnapshot(),
             undirected: (snapshot) => this.store.undirected(snapshot),
         };

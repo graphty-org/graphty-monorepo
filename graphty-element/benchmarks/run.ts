@@ -28,13 +28,13 @@ import { revisionOf } from "../src/catalog/sets/hash";
 import type { EdgeMember, NodeId, SetDefinition } from "../src/catalog/types";
 import { EDGE_ID_COLUMN, stableEdgeMember } from "../src/data/edgeIdentity";
 import { GraphStore } from "../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../src/data/ingest";
-import { createGraphSession, scopeResolverOfSession } from "../src/session/GraphSession";
+import { createElementSession, scopeResolverOfSession } from "../src/session/GraphSession";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
 import { combineMasks, createMaterialiser } from "../src/session/sets/algebra";
 import { addEdgeRow, digestOf, edgeMemberKey, resolveFixed, resolveScope } from "../src/session/sets/resolve";
 import { createSetsApi, sessionEdgeMember } from "../src/session/sets/SetsApi";
 import type { GraphSession } from "../src/session/types";
+import { ingestEdge, ingestNode } from "../test/helpers/rawIngest";
 import { appendSession, bench, type BenchResult, benchTimed, printTable } from "./harness";
 
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
@@ -253,7 +253,7 @@ function sessionOverGraph(): { session: GraphSession; snapshot: GraphSnapshot } 
     }
 
     store.closeLoad();
-    const session = createGraphSession({ store });
+    const session = createElementSession({ store });
 
     return { session, snapshot: session.data.snapshot() };
 }

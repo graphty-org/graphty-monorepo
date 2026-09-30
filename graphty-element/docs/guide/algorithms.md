@@ -45,6 +45,18 @@ grids need more passes; raise the param and run it again:
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });
 ```
 
+`closeness` is exact by default: one breadth-first search from every node, which grows with the
+square of the node count. On a big graph, sample it. `k` draws that many source nodes (the same
+ones every time for the same graph), and each node is then scored from its distances to those
+sources only. The result says so: `caveats.exact` is `false` and
+`caveats.sampleSize` is the number of sources run. A sampled score is the reciprocal of the summed
+distance to the sources, unscaled, so the ranking is the estimate; multiply by `k / n` for an
+estimate of the exact score.
+
+```typescript
+await graph.runAlgorithm("graphty", "closeness", { algorithmOptions: { k: 100 } });
+```
+
 ### Community Detection
 
 Find clusters of related nodes:
@@ -68,6 +80,9 @@ Find connected subgraphs:
 | `connected-components` | Find all connected components         |
 | `strongly-connected`   | Strong connectivity (directed graphs) |
 
+On an undirected graph every edge runs both ways, so `strongly-connected` finds the same pieces as
+`connected-components`.
+
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```
@@ -89,11 +104,12 @@ await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
 
 Find optimal paths between nodes:
 
-| Algorithm      | Description                 |
-| -------------- | --------------------------- |
-| `dijkstra`     | Shortest path (weighted)    |
-| `bellman-ford` | Handles negative weights    |
-| `a-star`       | Heuristic-based pathfinding |
+| Algorithm        | Description                 |
+| ---------------- | --------------------------- |
+| `dijkstra`       | Shortest path (weighted)    |
+| `bellman-ford`   | Handles negative weights    |
+| `a-star`         | Heuristic-based pathfinding |
+| `floyd-warshall` | Distance between every pair |
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
@@ -101,6 +117,15 @@ await graph.runAlgorithm("graphty", "dijkstra", {
     target: "node5",
 });
 ```
+
+`floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses
+a run over more than 5,792 nodes with a `GraphtyError` whose code is `E_TOO_LARGE` (the details
+carry `nodeCount` and `limit`) before any of the matrix is allocated; run it over a smaller scope.
+
+When the graph has a negative cycle no distance between two nodes is defined, so `floyd-warshall`
+publishes no node values and no `diameter` or `radius`: the result carries only
+`hasNegativeCycle: true`. It treats every edge as undirected, so a single edge with a negative
+weight is already a negative cycle -- cross it and come back.
 
 ### Spanning Tree
 

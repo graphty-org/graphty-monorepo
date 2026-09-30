@@ -8,15 +8,12 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { Graph, labelPropagation } from "@graphty/algorithms";
+import { labelPropagation } from "@graphty/algorithms";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { labelsById, toSnapshot } from "../utils/snapshot.js";
 import {
     createSimpleAnimationControls,
     createStatusPanel,
@@ -33,23 +30,6 @@ interface LabelPropagationArgs {
     graphType: GraphType;
     maxIterations: number;
     seed: number;
-}
-
-/**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target, edge.weight ?? 1);
-    }
-
-    return graph;
 }
 
 /**
@@ -74,10 +54,11 @@ function createLabelPropagationStory(args: LabelPropagationArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph, { weighted: true });
 
     // Run Label Propagation algorithm
-    const result = labelPropagation(graph, { maxIterations });
+    const lp = labelPropagation(graph, { maxIterations });
+    const result = { communities: labelsById(graph, lp.labels), iterations: lp.iterations };
 
     // Group nodes by community - result.communities is Map<string, number>
     const communitiesArray: string[][] = [];

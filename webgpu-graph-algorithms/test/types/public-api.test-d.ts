@@ -1,4 +1,4 @@
-import { type BfsOptions, type IndexedPageRankOptions, type SsspOptions } from "@graphty/algorithms";
+import { type BfsOptions, type PageRankOptionsLike, type SsspOptions } from "@graphty/algorithms";
 import { type F32, type F64, type GraphSnapshot, type NumericVector, type U32 } from "@graphty/graph-format";
 import {
     type AcceleratorOptions,
@@ -14,6 +14,7 @@ import {
     breadthFirstSearch,
     calibrateLayout,
     type CalibrateOptions,
+    type ClosenessAcceleratorOptions,
     closenessCentrality,
     type CommonLayoutOptions,
     type CommunityResultLike,
@@ -42,6 +43,7 @@ import {
     type GpuBfsResult,
     type GpuCalibration,
     type GpuCaps,
+    type GpuClosenessResult,
     GpuContext,
     type GpuContextOptions,
     type GpuHitsResult,
@@ -321,8 +323,10 @@ expectTypeOf(sssp).returns.resolves.toEqualTypeOf<GpuSsspResult>();
 expectTypeOf(bellmanFord).parameter(2).toBeNumber();
 expectTypeOf(bellmanFord).parameter(3).toEqualTypeOf<(SsspOptions & GpuRunOptions) | undefined>();
 expectTypeOf(bellmanFord).returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
-expectTypeOf(closenessCentrality).parameter(2).toEqualTypeOf<(HitsOptionsLike & GpuRunOptions) | undefined>();
-expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf(closenessCentrality)
+    .parameter(2)
+    .toEqualTypeOf<(ClosenessAcceleratorOptions & HitsOptionsLike & GpuRunOptions) | undefined>();
+expectTypeOf(closenessCentrality).returns.resolves.toEqualTypeOf<GpuClosenessResult>();
 expectTypeOf<GpuBfsResult["depth"]>().toEqualTypeOf<U32>();
 expectTypeOf<GpuBfsResult["parent"]>().toEqualTypeOf<U32>();
 expectTypeOf<GpuBfsResult["order"]>().toEqualTypeOf<U32>();
@@ -348,8 +352,10 @@ expectTypeOf<GpuAccelerator["sssp"]>().parameter(2).toEqualTypeOf<SsspOptions | 
 expectTypeOf<GpuAccelerator["sssp"]>().returns.resolves.toEqualTypeOf<GpuSsspResult>();
 expectTypeOf<GpuAccelerator["bellmanFord"]>().parameter(2).toEqualTypeOf<SsspOptions | undefined>();
 expectTypeOf<GpuAccelerator["bellmanFord"]>().returns.resolves.toEqualTypeOf<GpuBellmanFordResult>();
-expectTypeOf<GpuAccelerator["closenessCentrality"]>().parameter(1).toEqualTypeOf<HitsOptionsLike | undefined>();
-expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuScoresResult>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>()
+    .parameter(1)
+    .toEqualTypeOf<ClosenessAcceleratorOptions | undefined>();
+expectTypeOf<GpuAccelerator["closenessCentrality"]>().returns.resolves.toEqualTypeOf<GpuClosenessResult>();
 
 // ---- P11: triangle counting and label propagation (design 3.3 lines 806-807, 8.5, 8.6)
 expectTypeOf(triangleCount).parameter(1).toEqualTypeOf<GraphSnapshot>();
@@ -481,7 +487,7 @@ expectTypeOf<CommunityResultLike["modularity"]>().toBeNumber();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().parameter(0).toEqualTypeOf<GraphSnapshot>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>()
     .parameter(1)
-    .toEqualTypeOf<IndexedPageRankOptions | undefined>();
+    .toEqualTypeOf<PageRankOptionsLike | undefined>();
 expectTypeOf<HitsOptions>().toEqualTypeOf<HitsOptionsLike>(); // M8b's record IS the CPU seam's shape
 expectTypeOf<BetweennessAcceleratorOptions["sources"]>().toEqualTypeOf<readonly number[] | undefined>();
 expectTypeOf<NonNullable<AlgorithmAccelerator["pageRank"]>>().returns.resolves.toEqualTypeOf<PageRankResultLike>();

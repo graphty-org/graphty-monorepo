@@ -39,11 +39,11 @@ reports that acceleration is unavailable.
 
 The `acceleration` attribute says what you want, and it is one of three words.
 
-| Policy     | What it means                                                                           |
-| ---------- | --------------------------------------------------------------------------------------- |
-| `auto`     | The default. Use an accelerator when one can be attached; run on the CPU when none can. |
-| `off`      | Never look. Every layout and every run is on the CPU.                                   |
-| `required` | Refuse to run on the CPU: work that would fall back throws `E_NO_ACCELERATOR` instead.  |
+| Policy     | What it means                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `auto`     | The default. Use an accelerator when one can be attached; run on the CPU when none can.    |
+| `off`      | Never look. Every layout and every run is on the CPU.                                      |
+| `required` | Work that would fall back to the CPU throws `E_NO_ACCELERATOR` instead (exceptions below). |
 
 If you are drawing a control over these, take the list from the element rather than typing the words yourself:
 `ACCELERATION_POLICIES`, `ACCELERATION_POLICY_DEFAULT` and `isAccelerationPolicy` are exported from
@@ -131,14 +131,24 @@ That is the label to show beside a value a reader might compare against a saved 
 | `pagerank`                             | Yes, with one exception | The CPU implementation                           |
 | `connected-components`                 | Yes                     | The CPU implementation                           |
 | `dijkstra`, `bfs`                      | Yes, above a floor      | The CPU implementation                           |
+| `hits`, `katz`, `eigenvector`          | Yes, with exceptions    | The CPU implementation                           |
+| `closeness`                            | Yes, with one exception | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
+| `betweenness`                          | No                      | The CPU implementation                           |
+| `floyd-warshall`, `label-propagation`  | No                      | The CPU implementation                           |
+| `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
 
-The last row is routed but not accelerated: it asks the accelerator for a member it does not
-implement yet, and takes the CPU path with `caveats.precision` reading `"f64"`. It gains the
-hardware the day the member exists, with no change to your page.
+`kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
+with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
+`E_NO_ACCELERATOR`, because a CPU answer is what `required` refuses. It gains the hardware the day
+the member exists, with no change to your page.
 
-An algorithm is accelerated only above a measured node count: `pagerank` from 50,000 nodes,
-`dijkstra` from 107,000, `connected-components` from 132,000 and `bfs` from 141,000. An algorithm
+The algorithms in the last three rows are never handed to an accelerator, even one that implements
+them. They always run on the CPU and say `"f64"`, under `required` too, rather than throwing.
+
+An algorithm is accelerated only above a measured node count: `closeness` from 5,800 nodes, `hits`
+from 15,000, `katz` and `eigenvector` from 28,000, `pagerank` from 50,000, `dijkstra` from 107,000,
+`connected-components` from 132,000 and `bfs` from 141,000. An algorithm
 is one call, and on the device that call costs several round trips whatever the size, so below
 those counts the CPU has finished before the device has started -- and a traversal, which is one
 round trip per level, stays behind for longest. Under the floor the run takes the CPU path,
@@ -147,21 +157,49 @@ card (see `acceleration-min-nodes` below for how to replace them with your own),
 `acceleration="required"` ignores them, so a benchmark can put a small graph on the device on
 purpose.
 
-Three of those four floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
+Three of those floors are above the 50,000 nodes this renderer will draw, so `dijkstra`,
 `connected-components` and `bfs` take the CPU path at every size the element will hold today. That
 is the measurement, not caution: through the element an accelerated call never returned in under
 about 12 milliseconds, because every level of a traversal and every convergence test is a readback
 worth roughly 2 milliseconds of round trip, and on a graph of 50,000 nodes and 100,000 edges the
-CPU implementations of all three finish well inside that. PageRank is the one that crosses, and it
-crosses at the top of what the element can hold. Raising the renderer's ceiling is what would put
+CPU implementations of all three finish well inside that. PageRank crosses at the top of what the
+element can hold, and `hits`, `katz` and `eigenvector` cross below it; their floors come from timing
+the GPU package against the CPU implementations rather than from a run through the element, so the
+element's own crossing may sit somewhat higher. Raising the renderer's ceiling is what would put
 the others in reach; until then, `acceleration="required"` or your own
 `acceleration-min-nodes` is how to put them on the device deliberately.
 
 PageRank is the exception in the table. A run that sets `personalization` or `initialRanks`, and
 any run over an undirected graph, takes the CPU implementation whatever hardware is attached:
-those three change what the numbers mean rather than how fast they are computed, and only the
-reference implementation defines them. Such a run reports `caveats.precision` as `"f64"` and says
-in its caveats which of the three sent it there.
+those three change what the numbers mean rather than how fast they are computed. Such a run
+reports `caveats.precision` as `"f64"`, and under `acceleration="required"` it throws
+`E_NO_ACCELERATOR`. On an undirected graph every edge carries rank both ways. A personalization
+entry naming a node outside the run's graph -- outside a scope, say -- is left out, and the notes
+say how many were. A `bfs` with a `targetNode` is the same: it stops early, which the accelerator
+cannot, so it runs on the CPU and throws under `required`.
+
+`hits`, `katz` and `eigenvector` have exceptions of the same kind. A `katz` run with `normalized`
+switched off, over a graph where every node has the same number of neighbours, or with an `alpha`
+too large for its series to be certain to converge on that graph, takes the CPU implementation.
+That last one is checked against a bound on the graph's largest eigenvalue: a hub with d
+neighbours raises it to about the square root of d, so at the default `alpha` of 0.1 a graph stays
+on the CPU once its busiest region is roughly as dense as a hub of 100 neighbours, or a hub of 10
+whose neighbours have 10 each. So does an `eigenvector` run that follows edge direction or runs over a graph
+with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
+single precision: the same scale, the same weighting, the same order. Under
+`acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
+
+`closeness` has one exception: an exact run (no `k`) over more than 30,000 nodes
+takes the CPU implementation, and throws `E_NO_ACCELERATOR` under `acceleration="required"`. The
+device computes it, but the time grows with the square of the node count and is tens of seconds at
+100,000 nodes, so above that size ask for a sampled run instead. A sampled run has no cap. Its
+floor, 5,800 nodes, is the conservative of the two crossovers measured for sampled closeness (about
+100 nodes on a busy machine's medians, about 5,800 on the minimum of repeated runs).
+
+An algorithm the element does not route to the device at all (`betweenness`,
+`floyd-warshall`, `label-propagation`, `dfs`, `bellman-ford`, `prim`, `scc`, `k-core` and
+`louvain` today) runs on the CPU and says `"f64"` under `acceleration="required"` too, rather
+than throwing.
 
 Every other layout and every other algorithm runs on the CPU, and always did.
 
@@ -236,9 +274,11 @@ reject with `E_DEVICE_INCORRECT` when it is not. One that does not implement it 
 the strength of the probe, and so is an accelerator you hand to `setAccelerator` already built --
 the element only asks about accelerators it constructed itself.
 
-`E_TOO_LARGE` is about the ceiling the element asks for when an accelerator is built -- the
-WebGPU one computes exactly up to 32,768 nodes -- and not about the size of your graph. The
-element asks for no ceiling today, so no graph you draw produces it.
+`E_TOO_LARGE` from an accelerator is about the ceiling the element asks for when one is built --
+the WebGPU one computes exactly up to 32,768 nodes -- and not about the size of your graph. The
+element asks for no ceiling today, so no accelerator refuses a graph you draw. The same code from
+a run is the run's own bound, whatever the policy: `floyd-warshall` refuses more than 5,792
+nodes, because it holds a distance for every pair.
 
 One code is thrown rather than reported: `E_NO_ACCELERATOR`, when the policy is `required` and
 there is nothing to accelerate with. That is the policy working -- it is what `required` asked

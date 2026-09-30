@@ -73,14 +73,22 @@ export function isRunId(value: unknown): value is RunId {
  * "canceled" and "failed" are separate because a consumer treats them differently: a cancel is
  * something a person did and needs no apology, a failure is something the consumer has to
  * report. A time-boxed run that stopped early is neither -- it SUCCEEDS with `partial` set.
+ *
+ * "removed" is a finished run that undo has taken out of the project, or that `runs.remove`
+ * took away: its handle reports no result until a redo brings the run back.
  */
-export const RUN_STATUSES = ["queued", "running", "succeeded", "failed", "canceled"] as const;
+export const RUN_STATUSES = ["queued", "running", "succeeded", "failed", "canceled", "removed"] as const;
 
 /** Where a run is in its life. */
 export type RunStatus = (typeof RUN_STATUSES)[number];
 
 /** The statuses a run never leaves once it reaches them. */
-export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = Object.freeze(["succeeded", "failed", "canceled"]);
+export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = Object.freeze([
+    "succeeded",
+    "failed",
+    "canceled",
+    "removed",
+]);
 
 /**
  * Tell whether a value is one of the run statuses.
@@ -101,14 +109,15 @@ export function isTerminalRunStatus(status: RunStatus): boolean {
 }
 
 /**
- * The four moments a watcher is told about.
+ * The moments a watcher is told about: the four of a run's own life, and the two of history.
  *
  * Coarser than {@link RunStatus} on purpose: a status bar draws the same thing for a run that
  * failed and one that was cancelled -- it stops showing progress and reads the record -- so the
  * distinction belongs in the record the notification carries rather than in the notification's
- * own name.
+ * own name. "removed" and "restored" are an undo, a redo or a restore taking a finished run out
+ * of the project and putting it back; nothing was computed for either.
  */
-export const RUN_PHASES = ["queued", "start", "progress", "end"] as const;
+export const RUN_PHASES = ["queued", "start", "progress", "end", "removed", "restored"] as const;
 
 /** Which moment in a run's life a notification is about. */
 export type RunPhase = (typeof RUN_PHASES)[number];
@@ -125,6 +134,13 @@ export interface RunChange {
     readonly run: RunRecord;
     /** Which moment this is. */
     readonly phase: RunPhase;
+    /** What moved it: a command for the run's own life, or an undo, a redo or a restore. */
+    readonly cause: "command" | "undo" | "redo" | "restore" | "rollback";
+    /**
+     * How many times this run id has been executed, so a watcher keyed on the id can tell an old
+     * execution's `end` from a new one's.
+     */
+    readonly generation: number;
 }
 
 /**
@@ -379,6 +395,11 @@ export interface StartOptions extends RunOptions {
     readonly exact?: boolean;
     /** Ask for the approximate method at a chosen sample size. */
     readonly sample?: number;
+    /**
+     * Also apply the layers the run suggests, on top of the stack, in the same step as the run,
+     * so one undo takes the run and those layers away together.
+     */
+    readonly applySuggestedStyles?: boolean;
 }
 
 /**
@@ -559,7 +580,9 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     /** What qualifies the numbers. */
     readonly caveats: Caveats;
     /**
-     * The result, once there is one. Awaiting the run is the other way to get it.
+     * The result, once there is one. Awaiting the run is the other way to get it. Undefined
+     * again once undo has taken the run out of the project (`status` "removed"); a redo brings the
+     * same result object back.
      *
      * Spelled `?: T | undefined` rather than `?: T` because the implementation answers with a
      * getter, and under a consumer's `exactOptionalPropertyTypes` a getter that can return
@@ -585,7 +608,8 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      *
      * The new run keeps the SAME id, so every style layer, legend and saved reference bound to
      * it survives. That is what "re-run from a layer" needs, and it is why a binding never
-     * dangles after a re-run.
+     * dangles after a re-run. The last result stays readable until the new one is recorded, and
+     * undoing the re-run puts the previous result back without computing it again.
      * @returns The run, which is this one restarted rather than a second entry.
      */
     rerun(): Run<T>;

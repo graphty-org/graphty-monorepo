@@ -1390,6 +1390,15 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             minFactor: 10,
             test: CLOSENESS_TEST,
         },
+        {
+            // a sampled run's per-node sum counts the sources that reached x instead of adding their distances
+            // (every sampled score is the reciprocal of a count, not of a distance sum)
+            name: "per-node-distance-dropped",
+            find: "atomicAdd(&perSource[128u + x], countOneBits(fresh) * dist);",
+            replace: "atomicAdd(&perSource[128u + x], countOneBits(fresh));",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
     ]),
     "closeness-reduce": Object.freeze([
         {
@@ -1414,6 +1423,23 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             name: "carry-dropped",
             find: "select(0u, 1u, lo < before)",
             replace: "0u",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // role 2 ignores the source list and seeds the batch's first nodes, as the exact run's role 1 does
+            name: "sampled-list-ignored",
+            find: "if (P.role == 2u) {",
+            replace: "if (false) {",
+            minFactor: 10,
+            test: CLOSENESS_TEST,
+        },
+        {
+            // the visited seed stores instead of ORing, so a source listed twice in one batch loses its first bit
+            // and that copy re-claims its own node at distance 2
+            name: "duplicate-seed-overwritten",
+            find: "bits[v] = bits[v] | bit;",
+            replace: "bits[v] = bit;",
             minFactor: 10,
             test: CLOSENESS_TEST,
         },

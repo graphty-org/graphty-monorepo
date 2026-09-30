@@ -30,12 +30,15 @@ import { NullEngine, type Scene as BabylonScene, Scene } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
+import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
 import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
-import { DataManager } from "../../src/managers/DataManager";
+import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../../src/managers/GraphContext";
-import { LayoutManager } from "../../src/managers/LayoutManager";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { NodePaint } from "../../src/managers/StylePainter";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -86,7 +89,8 @@ function createHarness(): Harness {
         {},
     );
 
-    let nextIndex = 0;
+    // Through the data manager, so every node has a row in the graph a static layout reads.
+    dataManager.setGraphContext(context);
 
     return {
         context,
@@ -94,11 +98,9 @@ function createHarness(): Harness {
         layoutManager,
         scene,
         add(id: string): Node {
-            const node = new Node(context, id, NODE_PAINT, { id } as unknown as AdHocData, { pinOnDrag: true });
-            node.index = nextIndex++;
-            dataManager.positions.grow(nextIndex);
-            dataManager.nodes.set(id, node);
-            dataManager.nodeCache.set(id, node);
+            dataManager.addNodes([{ id }]);
+            const node = dataManager.nodes.get(id);
+            assert.isDefined(node, `${id} is a node of the graph`);
             return node;
         },
         coordsOf(node: Node): { x: number; y: number; z: number } {
@@ -132,12 +134,12 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("c");
         harness.add("d");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const held = harness.coordsOf(pinned);
         const movedBefore = harness.coordsOf(harness.dataManager.nodes.get("c") as Node);
         pinned.pin();
 
-        await harness.layoutManager.setLayout("spiral", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "spiral", {});
 
         assert.isTrue(pinned.isPinned(), "the pin survived the engine that was told about it");
         assert.deepStrictEqual(harness.coordsOf(pinned), held, "and so did the coordinates it was holding");
@@ -156,29 +158,44 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        const circular = { id: "circular", engine: "circular", options: {}, dimension: "3d" } as const;
+        await layoutManagerInternals.apply(harness.layoutManager, circular, { restoring: false });
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.updateLayoutDimension(true);
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { ...circular, dimension: "2d" },
+            { restoring: false },
+        );
 
         assert.isTrue(pinned.isPinned(), "switching to 2D did not release the reader's pins");
-        assert.deepStrictEqual(harness.coordsOf(pinned), held);
+        // Held where the reader put it, on the plane a 2D engine draws: a Z carried into 2D is
+        // hidden by the camera but not by the node's edges, which then run past it.
+        assert.deepStrictEqual(harness.coordsOf(pinned), { ...held, z: 0 });
     });
 
-    it("keeps the pin when a style template brings its own layout", async () => {
+    it("keeps the pin when the layout slice names a new layout", async () => {
         harness = createHarness();
         const pinned = harness.add("a");
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { id: "circular", engine: "circular", options: {}, dimension: "3d" },
+            { restoring: false },
+        );
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.applyTemplateLayout("spiral", {});
+        await layoutManagerInternals.apply(
+            harness.layoutManager,
+            { id: "spiral", engine: "spiral", options: {}, dimension: "3d" },
+            { restoring: false },
+        );
 
-        assert.isTrue(pinned.isPinned(), "applying a template did not release the reader's pins");
+        assert.isTrue(pinned.isPinned(), "the layout hook's new engine did not release the reader's pins");
         assert.deepStrictEqual(harness.coordsOf(pinned), held);
     });
 
@@ -196,14 +213,21 @@ describe("a pin outlives the engine that was told about it", () => {
         const pinned = harness.add("a");
         const other = harness.add("b");
         harness.add("c");
-        const link = { srcId: pinned.id, dstId: other.id, srcNode: pinned, dstNode: other };
-        harness.dataManager.edges.set("a-b", link as unknown as Edge);
+        const link = {
+            id: "a-b",
+            index: INVALID_INDEX,
+            srcId: pinned.id,
+            dstId: other.id,
+            srcNode: pinned,
+            dstNode: other,
+        };
+        dataManagerInternals.adoptEdge(harness.dataManager, link as unknown as Edge);
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const held = harness.coordsOf(pinned);
         pinned.pin();
 
-        await harness.layoutManager.setLayout("d3", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "d3", {});
         for (let step = 0; step < 20; step++) {
             harness.layoutManager.step();
         }
@@ -228,9 +252,9 @@ describe("a pin outlives the engine that was told about it", () => {
         const pinned = harness.add("a");
         harness.add("b");
 
-        await harness.layoutManager.setLayout("ngraph", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "ngraph", {});
         pinned.pin();
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
         assert.doesNotThrow(() => {
             pinned.unpin();
@@ -248,16 +272,13 @@ describe("a pin outlives the engine that was told about it", () => {
         const free = harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         const heldBefore = harness.coordsOf(pinned);
         const freeBefore = harness.coordsOf(free);
         pinned.pin();
 
-        // A fourth node re-seats the whole ring, so every node free to move has somewhere new to
-        // be and standing still means something.
-        const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
-        await harness.layoutManager.updatePositions([arrival]);
+        // A larger ring moves every node free to move, so standing still means something.
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", { scale: 2 });
 
         assert.deepStrictEqual(harness.coordsOf(pinned), heldBefore, "the pinned node did not move");
         assert.notDeepEqual(harness.coordsOf(free), freeBefore, "while an unpinned one did");
@@ -271,10 +292,12 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("b");
         harness.add("c");
 
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
         pinned.pin();
 
-        harness.layoutManager.layoutEngine?.setNodePosition(pinned, { x: 12, y: -34, z: 5 });
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.setNodePosition(engine, pinned, { x: 12, y: -34, z: 5 });
 
         const after = harness.coordsOf(pinned);
         assert.closeTo(after.x, 12, 1e-3, "a drag is a deliberate placement and lands on a pinned row");
@@ -283,7 +306,6 @@ describe("a pin outlives the engine that was told about it", () => {
 
         // And it stays there: the next recompute must not undo the drag either.
         const arrival = harness.add("d");
-        harness.layoutManager.layoutEngine?.addNode(arrival);
         await harness.layoutManager.updatePositions([arrival]);
 
         assert.deepStrictEqual(harness.coordsOf(pinned), after, "the layout did not take the placement back");
@@ -295,7 +317,7 @@ describe("a pin outlives the engine that was told about it", () => {
         // it.
         harness = createHarness();
         harness.add("a");
-        await harness.layoutManager.setLayout("circular", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
         const orphan = new Node(harness.context, "orphan", NODE_PAINT, { id: "orphan" } as unknown as AdHocData, {
             pinOnDrag: true,
@@ -303,6 +325,180 @@ describe("a pin outlives the engine that was told about it", () => {
 
         orphan.pin();
         assert.isFalse(orphan.isPinned(), "a node with no row in the graph cannot be pinned");
+    });
+});
+
+/** How far the mirroring star puts each leaf from its hub, in layout units. */
+const STAR_RADIUS = 10;
+
+/**
+ * A star whose re-run comes back mirrored, the way a spectral re-run can (an eigenvector's sign is
+ * arbitrary): the hub at the origin, leaves l0..l4 on a pentagon, and l5 in the gap between l0 and
+ * l1. Once the graph holds l5 the whole answer is reflected in x.
+ */
+class MirroringStarLayout extends SimpleLayoutEngine {
+    static type = "test-mirroring-star";
+    static maxDimensions: 2 | 3 = 2;
+    static descriptor: AuthoredLayoutDescriptor = {
+        id: "test-mirroring-star",
+        plainName: "Mirroring star",
+        technicalName: "star reflected once it grows",
+        description: "A hub and a pentagon of leaves, reflected in x after a sixth leaf arrives.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 2,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "test-mirroring-star",
+        options: [],
+    };
+
+    doLayout(): void {
+        this.stale = false;
+        const n = this.graph.nodeCount;
+        const flip = n > 6 ? -1 : 1;
+        const positions = new Float32Array(2 * n);
+        for (let row = 0; row < n; row++) {
+            const id = String(this.graph.ids.idOf(row));
+            if (id === "hub") {
+                continue;
+            }
+
+            const leaf = Number(id.slice(1));
+            const angle = leaf === 5 ? Math.PI / 5 : (2 * Math.PI * leaf) / 5;
+            positions[2 * row] = flip * STAR_RADIUS * Math.cos(angle);
+            positions[2 * row + 1] = STAR_RADIUS * Math.sin(angle);
+        }
+
+        this.result = { positions, dim: 2, n };
+    }
+}
+
+LayoutEngine.register(MirroringStarLayout);
+
+describe("a static layout after the graph grows", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("keeps every existing node where it was and places only the one added", async () => {
+        // graph-format design 14.4: after a reader adds to a finished graph, a static layout
+        // re-runs with the existing nodes held, so the picture they have been reading does not
+        // re-seat itself under them. Without the hold, a fourth node on a circle moves all three.
+        harness = createHarness();
+        const existing = [harness.add("a"), harness.add("b"), harness.add("c")];
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
+        const before = existing.map((node) => harness?.coordsOf(node));
+
+        const arrival = harness.add("d");
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            before,
+            "no existing node moved",
+        );
+        assert.isTrue(harness.dataManager.positions.isPlaced(arrival.index), "and the new node was placed");
+    });
+
+    it("re-arranges the whole graph when the same freeze also joins two existing nodes", async () => {
+        // An edge between nodes that were already drawn changes what the picture should be, so
+        // this is not an add to a finished graph and nothing is held.
+        harness = createHarness();
+        harness.add("a");
+        const free = harness.add("b");
+        harness.add("c");
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
+        const before = harness.coordsOf(free);
+
+        const arrival = harness.add("d");
+        harness.dataManager.addEdges([{ source: "b", target: "c" }]);
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.notDeepEqual(harness.coordsOf(free), before, "the ring was re-seated for four nodes");
+    });
+
+    it("re-arranges the whole graph when the same freeze swaps one edge between existing nodes for another", async () => {
+        // As many edges between the existing nodes as before, but not the same ones: a-b is gone
+        // and a-d is new, so the picture of the existing nodes has changed and nothing is held.
+        harness = createHarness();
+        const nodes = ["a", "b", "c", "d"].map((id) => harness?.add(id) as Node);
+        harness.dataManager.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+            { source: "c", target: "d" },
+        ]);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "spectral", {});
+        const before = nodes.map((node) => harness?.coordsOf(node));
+
+        const ab = [...harness.dataManager.edges.values()].find((e) => e.srcId === "a" && e.dstId === "b");
+        assert.isDefined(ab, "the a-b edge exists");
+        harness.dataManager.removeEdge(ab.id);
+        const arrival = harness.add("e");
+        harness.dataManager.addEdges([{ source: "a", target: "d" }]);
+        await harness.layoutManager.updatePositions([arrival]);
+
+        assert.notDeepEqual(
+            nodes.map((node) => harness?.coordsOf(node)),
+            before,
+            "the rewired nodes were arranged again",
+        );
+    });
+
+    it("draws the new node clear of the held nodes it was added among, and moves none of them", async () => {
+        // The re-run arranges ten nodes on a circle and the nine held ones sit on a circle of
+        // nine, so the tenth slot of the new circle is only a few degrees from a held node. Taken
+        // as it stands, the new node lands almost on top of it; carried into the held circle's
+        // frame, it lands in the gap between two of them.
+        harness = createHarness();
+        const existing: Node[] = [];
+        for (let i = 0; i < 9; i++) {
+            existing.push(harness.add(`n${String(i)}`));
+        }
+
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", { dim: 2 });
+        const held = existing.map((node) => harness?.coordsOf(node) ?? { x: 0, y: 0, z: 0 });
+        const gap = (p: { x: number; y: number; z: number }, q: { x: number; y: number; z: number }): number =>
+            Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+        const spacing = Math.min(...held.slice(1).map((p, i) => gap(p, held[i])));
+
+        const arrival = harness.add("n9");
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+        const nearest = Math.min(...held.map((p) => gap(p, placed)));
+
+        assert.isAbove(nearest, spacing / 4, "the new node is not drawn on top of a held one");
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            held,
+            "no held node moved",
+        );
+    });
+
+    it("carries the new node into the held frame when the re-run comes back mirrored", async () => {
+        // A mirror is no rotation: fitted by rotation and scale alone, the factor sums to about zero
+        // and the new leaf collapses onto the held nodes' centroid, which is the hub. Fitted with
+        // the mirror allowed, it lands where the unmirrored star puts it, between l0 and l1.
+        harness = createHarness();
+        const existing = ["hub", "l0", "l1", "l2", "l3", "l4"].map((id) => harness?.add(id) as Node);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "test-mirroring-star", {});
+        const held = existing.map((node) => harness?.coordsOf(node) ?? { x: 0, y: 0, z: 0 });
+        const radius = Math.hypot(held[1].x - held[0].x, held[1].y - held[0].y);
+
+        const arrival = harness.add("l5");
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+
+        assert.closeTo(placed.x - held[0].x, radius * Math.cos(Math.PI / 5), radius * 1e-3, "x of the gap");
+        assert.closeTo(placed.y - held[0].y, radius * Math.sin(Math.PI / 5), radius * 1e-3, "y of the gap");
+        assert.deepStrictEqual(
+            existing.map((node) => harness?.coordsOf(node)),
+            held,
+            "no held node moved",
+        );
     });
 });
 
@@ -328,15 +524,15 @@ describe("a pin survives the freeze that renumbers every node", () => {
 
         const stubs = ["a", "b", "c"].map((id, index) => {
             const stub = { id, index, dispose: () => undefined } as unknown as Node;
-            dm.nodes.set(id, stub);
+            dataManagerInternals.adoptNode(dm, stub);
             dm.nodeCache.set(id, stub);
             return stub;
         });
         const [a, , c] = stubs;
 
-        dm.positions.grow(3);
-        dm.positions.write(c.index, 11, 22, 33);
-        assert.isTrue(dm.positions.setPinned(c.index, true), "c is pinned at row 2");
+        dm[WRITABLE_LANE].grow(3);
+        dm[WRITABLE_LANE].write(c.index, 11, 22, 33);
+        assert.isTrue(dm[WRITABLE_LANE].setPinned(c.index, true), "c is pinned at row 2");
 
         // Removing a re-numbers everything above it, which is the whole point of the case.
         dm.removeNodeAndIncidentEdges(a.id);
@@ -350,5 +546,64 @@ describe("a pin survives the freeze that renumbers every node", () => {
         const out = { x: 0, y: 0, z: 0 };
         dm.positions.read(c.index, out);
         assert.deepStrictEqual(out, { x: 11, y: 22, z: 33 }, "holding the coordinates it was pinning");
+    });
+});
+
+describe("the fixed layout puts nodes where their data says", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("returns every node to its data position after another layout has moved it, and keeps a later drag", async () => {
+        // A switch to "fixed" used to keep whatever the previous layout had written into the
+        // position array, so a graph that started under the default force layout never reached its
+        // data positions.
+        harness = createHarness();
+        harness.context.getStyles().config.data.knownFields.positionScale = 2;
+        harness.dataManager.addNodes([
+            { id: "a", position: { x: 0, y: 2, z: 0 } },
+            { id: "b", position: { x: -2, y: 0, z: 0 } },
+            { id: "c", position: [2, 0] },
+        ]);
+        const node = (id: string): Node => harness?.dataManager.nodes.get(id) as Node;
+
+        await layoutManagerInternals.setLayout(harness.layoutManager, "circular", { scale: 7 });
+        assert.notDeepEqual(harness.coordsOf(node("a")), { x: 0, y: 4, z: 0 }, "the circular layout moved a");
+
+        await layoutManagerInternals.setLayout(harness.layoutManager, "fixed", {});
+        assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 0, y: 4, z: 0 });
+        assert.deepStrictEqual(harness.coordsOf(node("b")), { x: -4, y: 0, z: 0 });
+        assert.deepStrictEqual(harness.coordsOf(node("c")), { x: 4, y: 0, z: 0 });
+
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.setNodePosition(engine, node("a"), { x: 12, y: -34, z: 5 });
+        const arrival = harness.add("d");
+        await harness.layoutManager.updatePositions([arrival]);
+        assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 12, y: -34, z: 5 }, "the drag survived a recompute");
+    });
+
+    it("puts a node added after two others at its own data position, not their mirror image of it", async () => {
+        // Two held nodes lie on one line, so turning the re-run and mirroring it across that line
+        // fit them equally well. The fixed layout's re-run already matches them exactly, and the
+        // tie must go to leaving it alone: a mirror would reflect the newcomer across the line.
+        harness = createHarness();
+        harness.context.getStyles().config.data.knownFields.positionScale = 1;
+        harness.dataManager.addNodes([
+            { id: "a", position: { x: 0, y: 3, z: 0 } },
+            { id: "b", position: { x: 2.85, y: 0.93, z: 0 } },
+        ]);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "fixed", {});
+
+        harness.dataManager.addNodes([{ id: "c", position: { x: 1.76, y: -2.43, z: 0 } }]);
+        const arrival = harness.dataManager.nodes.get("c") as Node;
+        await harness.layoutManager.updatePositions([arrival]);
+        const placed = harness.coordsOf(arrival);
+
+        assert.closeTo(placed.x, 1.76, 1e-4, "x of c's data position");
+        assert.closeTo(placed.y, -2.43, 1e-4, "y of c's data position");
     });
 });

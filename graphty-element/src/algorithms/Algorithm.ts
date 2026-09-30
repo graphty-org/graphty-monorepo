@@ -1,17 +1,19 @@
-import { accelerated, type AcceleratedAlgorithms, type Graph as AlgorithmGraph } from "@graphty/algorithms";
+import { accelerated, type AcceleratedAlgorithms } from "@graphty/algorithms";
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { narrowAlgorithms } from "../acceleration/narrow";
+import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
-import { SharedImplementationMap } from "../catalog/pluginRegistry";
+import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import { publishAlgorithmDescriptor } from "../catalog/registry";
-import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId } from "../catalog/types";
+import type { AlgorithmDescriptor, FieldDescriptor, NodeId } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import type { RunResult } from "../session/results";
+import { type InputColumns, sessionColumns } from "./input/columns";
 import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
 import {
+    type AlgorithmGraphMode,
     createScopedInput,
     type ElementScopedInput,
     orientationOf,
@@ -21,7 +23,7 @@ import {
 } from "./input/ScopedInput";
 import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
-import { type AlgorithmGraphMode, toAlgorithmGraph } from "./utils/snapshotGraph";
+import { type Graph as LegacyGraph, legacyGraphOf } from "./utils/legacyGraph";
 
 /**
  * Type for algorithm class constructor
@@ -80,8 +82,11 @@ export interface AlgorithmStatics {
      * `cubic`. The element divides them by the rate it measured for that class on this device,
      * so the estimate follows the machine and reports "calibrated" once the device is probed,
      * exactly as a built-in's does. Wins over {@link cost} when both are declared.
+     *
+     * `options` are the values the run would use -- the caller's, with the declared defaults
+     * filled in -- so an option that multiplies the work (a number of passes) is priced.
      */
-    costUnits?: (n: number, m: number) => number;
+    costUnits?: (n: number, m: number, options: Readonly<Record<string, unknown>>) => number;
     /**
      * The plugin's own version, recorded on every run this algorithm produces.
      *
@@ -348,17 +353,17 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     }
 
     /**
-     * The `@graphty/algorithms` Graph this run reads, built from the element's graph snapshot.
-     *
-     * This is the ONLY way an algorithm should obtain its input. The `Node` and `Edge` objects the
-     * data manager also holds are render objects -- each `Node` builds a Babylon mesh in its
-     * constructor -- and reading the graph out of them ties every algorithm to a renderer and to
-     * whatever part of a data load the scene has caught up with.
-     * @param mode - the shape this algorithm needs; see {@link AlgorithmGraphMode}
-     * @returns a freshly built Graph for the algorithm package
+     * The graph this run reads, as the object graph `@graphty/algorithms` 2.x worked on: the run's
+     * input with parallel edges merged (weights summed), nodes in snapshot order.
+     * @param mode - `"undirected"` merges a reciprocal pair into one edge; `"directed"` keeps
+     *   each edge in its declared orientation.
+     * @returns a freshly built graph
+     * @deprecated Removed in graphty-element 4.0. Read `context.input("undirected").subgraph()`
+     *   (or `"declared"` for `"directed"`) in `compute()`; see the custom-algorithms guide,
+     *   "Moving from algorithmGraph()".
      */
-    protected algorithmGraph(mode: AlgorithmGraphMode): AlgorithmGraph {
-        return toAlgorithmGraph(this.graph.getDataManager(), mode, this.input(orientationOf(mode)));
+    protected algorithmGraph(mode: AlgorithmGraphMode): LegacyGraph {
+        return legacyGraphOf(this.input(orientationOf(mode)).subgraph(), mode);
     }
 
     /**
@@ -375,39 +380,62 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
         const merged = simplify === undefined ? options : { ...options, simplify };
 
-        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this));
+        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
     }
 
     /**
-     * One edge's record, by the id an input named it by: for an attribute the snapshot does not
-     * carry yet, such as a flow capacity. It is not a topology read -- the ids come from the input
-     * -- and it goes away once the store carries attribute columns.
-     * @param id - The edge's session id, from `scopeEdges`.
-     * @returns The record the edge was loaded from, or undefined.
-     * @internal
+     * Where this algorithm's input reads the columns behind its declared "attribute" and
+     * "partition" options, and the weight it asks for: the records and published results of the
+     * session it runs in. Read on first use, so an input that never asks for a column never
+     * touches the session.
+     * @returns The reader.
      */
-    protected edgeRecord(id: EdgeId): Readonly<Record<string, unknown>> | undefined {
-        return this.graph.getDataManager().getEdge(id)?.data;
+    private columns(): InputColumns {
+        const statics = this.constructor as { descriptor?: AlgorithmDescriptor; type?: string };
+        const reader = (): InputColumns =>
+            sessionColumns(
+                this.graph.getSession(),
+                statics.descriptor?.options ?? [],
+                this._schemaOptions,
+                statics.descriptor?.key ?? statics.type ?? "",
+            );
+
+        return {
+            option: (name) => reader().option(name),
+            read: (graph, path, on, edgeIdAt) => reader().read(graph, path, on, edgeIdAt),
+        };
     }
 
     /**
      * The route an algorithm with an accelerated implementation takes.
      *
-     * It is the counterpart of {@link algorithmGraph} for the algorithms `@graphty/algorithms`
-     * can dispatch: instead of copying the snapshot into an object graph, the work runs over the
+     * The route for the algorithms `@graphty/algorithms` can dispatch: the work runs over the
      * snapshot itself, on the attached accelerator or on the index-based CPU port, and the adapter
      * writes one loop over an index-aligned result either way.
      *
      * THE DECISION IS TAKEN ONCE, HERE, BEFORE ANY WORK STARTS. The controller answers "the policy
      * is off", "no accelerator", "below `acceleration.minNodes`" or "this accelerator does not
      * implement that" up front, and under `acceleration="required"` it throws `E_NO_ACCELERATOR`
-     * rather than answering quietly. After the work has started there is no second decision: a
+     * rather than answering quietly. A capability the element does not forward (betweenness,
+     * k-core and Louvain today) never asks the controller, so it runs on the CPU and
+     * says `f64` even under `"required"`. A call the dispatcher itself keeps on the CPU port (an
+     * option or a graph shape the device's kernel is not defined for, such as a Katz `alpha` whose
+     * series may diverge) runs there and says `f64` under `"auto"`; under `"required"` it throws
+     * `E_NO_ACCELERATOR`, because the run was promised the device. After the work has started there is no second decision: a
      * failure from the accelerator propagates with its code and fails the run, because a number
      * that silently came from somewhere else is worse than no number.
      * @param capability - The accelerator member this work would use, such as `"pageRank"`.
      * @param mode - The shape this algorithm needs; see {@link AlgorithmGraphMode}. `"undirected"`
      *   takes the snapshot's undirected view, which is what collapses a reciprocal pair into one
      *   edge.
+     * @param options - What the decision needs to know about this run.
+     * @param options.accelerable - False when the options of this run are ones no accelerator
+     *   answers, such as a walk that stops at a target, so the decision is the CPU port's (and
+     *   `E_NO_ACCELERATOR` under `acceleration="required"`). A capability the element does not
+     *   forward to an accelerator is never accelerable, whatever this says.
+     * @param options.over - A graph the adapter built itself for the work to run over, such as a
+     *   flow network. It stands in for the derived snapshot, which is then never built, and its
+     *   edge space is its own (`edgeRemap` is null).
      * @returns The snapshot, the edge map onto it, and the runner.
      * @example
      * ```ts
@@ -416,15 +444,17 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * const group = value.labels[snapshot.ids.indexOf(nodeId)];
      * ```
      */
-    protected accelerated(capability: string, mode: AlgorithmGraphMode): AcceleratedAlgorithmRun {
+    protected accelerated(
+        capability: string,
+        mode: AlgorithmGraphMode,
+        options?: { accelerable?: boolean; over?: GraphSnapshot },
+    ): AcceleratedAlgorithmRun {
         /* The input accessor derives the snapshot: the declared one or the store's cached
            undirected view, over the run's scope when the class declares one. It leaves the NODE
            space of the whole graph alone -- so a node result indexes the declared snapshot's nodes
            directly -- and only an EDGE result needs the map.
 
-           THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES, the same step `toAlgorithmGraph` takes for
-           the object-graph route, and for a reason that outlives that route's inability to hold
-           two edges between one pair: a group of parallel edges becomes ONE edge carrying the
+           THE ELEMENT SIMPLIFIES BEFORE IT DISPATCHES: a group of parallel edges becomes ONE edge carrying the
            group's summed weight, because a repeated edge between two nodes is MORE connection
            rather than the same connection -- the reading a weighted layout gives the same data.
            A class that reads a repeat differently says so in `parallelEdges`: a shortest path
@@ -434,9 +464,16 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
            a merged group carries the merged value, because they all map to the survivor through
            the remap. Without it a spanning tree or a route would flag one of two coincident
            edges and leave its twin unpainted, which reads as a rendering glitch. */
-        const { snapshot, edgeRemap } = this.input(orientationOf(mode)).derived();
+        const { snapshot, edgeRemap } =
+            options?.over === undefined
+                ? this.input(orientationOf(mode)).derived()
+                : { snapshot: options.over, edgeRemap: null };
         const controller = this.graph.acceleration;
-        const work = { capability, nodeCount: snapshot.nodeCount };
+        const work = {
+            capability,
+            nodeCount: snapshot.nodeCount,
+            forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
+        };
 
         return {
             snapshot,
@@ -444,12 +481,45 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             run: async <T>(
                 fn: (dispatch: AcceleratedAlgorithms, s: GraphSnapshot) => Promise<T>,
             ): Promise<{ value: T; precision: AccelerationPrecision }> => {
-                const outcome = await controller.run(work, (accelerator) =>
-                    fn(accelerated(narrowAlgorithms(accelerator)), snapshot),
-                );
+                // A capability the element does not route to the device is not the controller's
+                // question: asking would label a CPU answer with the device's precision, and under
+                // "required" refuse work the element never meant to send there.
+                if (forwardsAlgorithm(capability)) {
+                    // The dispatcher may still answer on the CPU port with an accelerator attached --
+                    // eigenvector centrality over a graph whose iteration the device kernel cannot
+                    // match, say -- so the precision follows whether a member was actually reached.
+                    let reached = false;
+                    const outcome = await controller.run(work, (accelerator) =>
+                        fn(
+                            accelerated(
+                                narrowAlgorithms(accelerator, () => {
+                                    reached = true;
+                                }),
+                            ),
+                            snapshot,
+                        ),
+                    );
 
-                if (outcome.accelerated) {
-                    return { value: outcome.value, precision: outcome.precision };
+                    if (outcome.accelerated) {
+                        if (reached) {
+                            return { value: outcome.value, precision: outcome.precision };
+                        }
+
+                        // Under "required" an answer the device did not compute is the absence that
+                        // policy exists to make loud, however it came about.
+                        if (controller.policy === "required") {
+                            throw new GraphtyError({
+                                code: "E_NO_ACCELERATOR",
+                                message:
+                                    `acceleration is required, but the accelerator does not answer this ` +
+                                    `"${capability}" run as asked, so it ran on the CPU`,
+                                source: "acceleration",
+                                details: { policy: "required", capability, nodeCount: snapshot.nodeCount },
+                            });
+                        }
+
+                        return { value: outcome.value, precision: CPU_PRECISION };
+                    }
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one
@@ -561,9 +631,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     /**
      * Registers an algorithm class in the global registry
      * @param cls - The algorithm class to register
+     * @param options - Whether a different class under a key already taken throws instead of
+     *   replacing it.
      * @returns The registered algorithm class
      */
-    static register<T extends AlgorithmClass>(cls: T): T {
+    static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T {
         const statics = cls as unknown as Partial<AlgorithmStatics>;
         const t = String(statics.type);
         const ns = String(statics.namespace);
@@ -580,14 +652,17 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         const { descriptor, cost, costUnits, version } = statics;
 
         if (descriptor !== undefined) {
-            publishAlgorithmDescriptor({
-                descriptor: withScopeInput(descriptor, statics.scopeInput ?? "none", `${ns}:${t}`),
-                namespace: ns,
-                type: t,
-                ...(cost === undefined ? {} : { cost }),
-                ...(costUnits === undefined ? {} : { costUnits }),
-                ...(version === undefined ? {} : { version }),
-            });
+            publishAlgorithmDescriptor(
+                {
+                    descriptor: withScopeInput(descriptor, statics.scopeInput ?? "none", `${ns}:${t}`),
+                    namespace: ns,
+                    type: t,
+                    ...(cost === undefined ? {} : { cost }),
+                    ...(costUnits === undefined ? {} : { costUnits }),
+                    ...(version === undefined ? {} : { version }),
+                },
+                options,
+            );
         }
 
         algorithmRegistry.set(`${ns}:${t}`, cls);

@@ -71,5 +71,4 @@ describe("an element with no data", () => {
         },
         TEST_TIMEOUT_MS,
     );
-
 });

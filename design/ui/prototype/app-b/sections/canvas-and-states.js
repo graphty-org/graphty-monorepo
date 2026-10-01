@@ -1,64 +1,39 @@
-/* Canvas and its states: the drawing with one legend (an entry selects the row that paints it; the
-   card closes to a Legend chip), the "not drawn" line with Show hidden elements, the Camera menu
-   face and the layout chip at the top right, and the state cards and one-line notices (loading,
-   empty graph, load refused as too large, less detail, waiting to settle, selection full, GPU
-   lost, headset session ended). Note markers are not drawn here: noted elements are painted by
-   the tree's Notes row, a style layer like any other. Plain ASCII.
+/* Canvas and its states, version 3. The canvas holds only the drawing, the legend card (top left,
+   AB.legendCard: shown or hidden only by the toolbar's Legend button and L) and the state cards. No
+   buttons, chips or "?". One state card pattern: icon and title, one sentence, at most one primary
+   and one secondary button; while a card shows, every toolbar button but Quick actions is disabled
+   with "Nothing is drawn". One-line states (less detail, waiting to settle, selection full) are the
+   shared notice. Elements hidden on canvas are reported in the tree's footer line, not here. Note
+   markers are the tree's Notes row, a style layer like any other. Plain ASCII.
 
    What paints: at rest the tree's top painting row is PageRank, which colors every node, so the
-   drawing is recolored at runtime with each node's PageRank on the measure ramp (the rows below it
-   still match, and show through when its eye is off). PageRank here is the same computation as the
-   measure inspector's: networkx les_miserables_graph, unweighted, damping 0.85, keyed by the node's
-   position in the kit's drawings (every Les Miserables drawing places the 77 nodes identically).
+   drawing is recolored at runtime with each node's PageRank on the measure ramp. PageRank here is
+   the same computation as the measure inspector's: networkx les_miserables_graph, unweighted,
+   damping 0.85, keyed by the node's position in the kit's drawings (every Les Miserables drawing
+   places the 77 nodes identically).
 
    Numbers: Les Miserables, transfers and Patent citations from kit/fixtures.json; the limits
    (50,000 nodes, 100,000 edges, less detail above 10,000, selections up to 5,000) are
    graphty-element's DEFAULT_LIMITS. Two drawings are derived here at runtime from the kit's Les
-   Miserables SVGs (nothing new is invented about the graph): "hidden on canvas" drops the 4
-   group-0 nodes and their edges; "Everything hidden" keeps groups 2 and 8 painted and draws every
-   other node as a plain gray stand-in for the element's unstyled node. The old state id
-   "too-large" is read as "refused-too-large". Styles are injected once from this file. */
+   Miserables SVGs: "hidden on canvas" drops the 4 group-0 nodes and their edges; "Everything
+   hidden" keeps groups 2 and 8 painted and draws every other node as a plain gray stand-in for the
+   element's unstyled node. Version 2 state ids (layout and legend states, camera moved, too-large)
+   open the drawn state: the toolbar section owns the layout and legend states now. */
 (function () {
     "use strict";
     const CSS = `
-.cs-edge { position: absolute; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%, -50%); }
-.cs-edge:hover, .cs-edge:focus-visible { box-shadow: 0 0 0 2px var(--k-mark-out), 0 0 0 4px var(--k-mark-in); }
-.cs-legend .k-lg-row[data-off] { color: var(--cm-text-tertiary); }
-.cs-legend .k-lg-row[data-off] .k-chit { opacity: .35; }
-.cs-lg-foot { border-top: 1px solid var(--cm-border); margin-top: 4px; padding-top: 4px; }
+.cs-edge { position: absolute; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%, -50%); cursor: help; }
+.cs-edge:hover { box-shadow: 0 0 0 2px var(--k-mark-out), 0 0 0 4px var(--k-mark-in); }
 .cs-card { width: 360px; max-width: calc(100% - 32px); }
 .cs-card .k-canvas-card-title .k-i { flex: none; }
-.cs-steps { display: grid; gap: 8px; margin: 4px 0; }
-.cs-step { display: grid; gap: 4px; }
-.cs-step-head { display: flex; gap: 8px; align-items: center; }
-.cs-step-head .k-value { margin-inline-start: auto; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
-.cs-step[data-wait] { color: var(--cm-text-tertiary); }
-.cs-indet { position: relative; }
-.cs-indet > i { width: 30%; animation: cs-slide 1.4s ease-in-out infinite; }
-@keyframes cs-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-@media (prefers-reduced-motion: reduce) { .cs-indet > i { animation: none; width: 40%; } }
-.cs-msg { padding: 6px 8px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text); }
-.cs-msg .k-secondary { display: block; }
-.cs-oq { align-self: start; justify-self: start; white-space: normal; }
 .cs-danger { color: var(--cm-text-danger); }
-.cs-lg-link { color: var(--cm-text-brand); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.cs-unstyled { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--cs-gray); flex: none; }
-.cs-notdrawn .ab-needs { margin-inline-start: 4px; }
-.cs-toast { position: absolute; left: 50%; bottom: 80px; transform: translateX(-50%); z-index: 4; display: grid; justify-items: center; gap: 6px; max-width: calc(100% - 32px); }
-.cs-toast .k-toast { white-space: normal; }
-.cs-toast .k-toast-action { white-space: nowrap; cursor: pointer; }
-.cs-toast .k-progress.cs-indet { width: 80px; flex: none; }
-.cs-card .ab-needs { white-space: normal; }
-:root { --cs-gray: #9E9E9E; }
-:root[data-theme="dark"] { --cs-gray: #6E6E6E; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cs-gray: #6E6E6E; } }
+.cs-dots { display: inline-flex; align-items: center; gap: 4px; }
 `;
     if (!document.getElementById("cs-css")) document.head.append(h("style", { id: "cs-css" }, CSS));
 
     const L = () => AB.fx.datasets.lesmis;
     const C = () => AB.fx.datasets.citations;
     const n = (x) => Number(x).toLocaleString("en-US");
-    const oq = (text) => h("span", { class: "k-annot-tag cs-oq", title: text }, "Open question: " + text);
     const byLabel = (label) => L().rows.find((r) => r.label === label);
 
     // ---------- derived drawings (cached per theme) ----------
@@ -130,113 +105,52 @@
         doc.querySelectorAll("circle").forEach((c) => { if (c.getAttribute("cx") === "698.7" && c.getAttribute("cy") === "394.3" && c.getAttribute("fill") !== "none") c.setAttribute("fill", "#E41A1C"); });
     }
 
-    // ---------- canvas furniture ----------
-    // The top right corner: the layout chip (only while a live layout runs, is paused, or has just
-    // settled) and the Camera menu face. o: { layout, view, moved } or null for no corner.
-    function corner(o) {
-        o = o || {};
-        return h("div", { class: "ab-canvas-corner" }, o.layout ? AB.layoutChip(o.layout) : null, AB.cameraFace({ view: o.view, moved: o.moved }));
-    }
-    function helpButton() {
-        return h("span", Object.assign({ class: "k-help", role: "button", "aria-label": "Keyboard shortcuts", title: "Keyboard shortcuts (?)" }, AB.act({ go: ["commands-and-search", "shortcuts"] })), icon("circle-help"));
-    }
-    function legendRow(swatch, label, count, go, extra) {
-        const r = h("div", Object.assign({ class: "k-lg-row", title: go ? "Select the row that paints this" : null }, extra || {}), swatch, label, count != null ? h("span", { class: "k-value" }, count) : null);
-        return go ? AB.nav(r, go[0], go[1]) : r;
-    }
-    // Every legend card gets its close button; a closed card leaves the Legend chip
-    function legendCard(...children) {
-        const card = h("div", { class: "k-legend-card ab-legend cs-legend", role: "group", "aria-label": "Legend" });
-        card.append(h("span", { class: "ab-legend-x" }, AB.legendClose(card)), ...children.filter((c) => c != null));
-        return card;
-    }
-    // Draw the legend closed: press its own close button, so the chip is the shared one
-    function closeLegend(card) {
-        const x = card.querySelector(".ab-legend-x .k-icon-btn");
-        if (x) x.click();
-    }
-    // A one-line notice above the toolbar
-    function toast(...children) {
-        return h("div", { class: "cs-toast" }, h("div", { class: "k-toast", role: "status" }, ...children));
-    }
-    const toastAct = (label, a) => h("span", Object.assign({ class: "k-toast-action", role: "button" }, AB.act(a)), label);
-
-    const HIDE_REASON = "graphty-element has no draw-only hide: it needs a visible style property (or a hidden set it honors) that also hides incident edges. Filtering changes what is computed, which Hide on canvas must not.";
-
-    // The legend for the drawing at rest: what wins color (PageRank), what the rows beneath it would
-    // show, and size. opts.hidden0: group 0 is hidden on canvas.
-    function pagerankLegend(opts) {
-        const f = L().frame;
-        return legendCard(
-            AB.nav(h("div", { class: "k-lg-title", title: "Select the row that paints this" }, "Color: PageRank"), "inspector-measure-row", "style"),
-            AB.nav(h("div", { class: "k-lg-row", title: "Select the row that paints this" }, h("b", { class: "k-ramp k-ramp-measure" }), h("span", { class: "k-num" }, PR_DOMAIN[0] + " to " + PR_DOMAIN[1])), "inspector-measure-row", "style"),
-            AB.nav(h("div", { class: "k-lg-title ab-lg-size", title: "Select the row that paints this" }, "Size: Degree ", f.sizeMarks.map((m) => h("span", { class: "ab-dot", style: `width:${m.px / 2}px;height:${m.px / 2}px`, title: "degree " + m.degree }))), "inspector-measure-row", "style"),
-            opts.hidden0
-                ? h("div", { class: "k-notdrawn cs-notdrawn", role: "status" }, f.legend.rows.find((r) => r.label === "0").count + " nodes not drawn: hidden on canvas. ",
-                    h("a", Object.assign({ role: "button" }, AB.act({ onClick: () => AB.flash("Selects the 4 hidden nodes (not wired in the skeleton)") })), "Select hidden"), ", ",
-                    h("a", Object.assign({ role: "button" }, AB.act({ go: ["canvas-and-states", "drawn"] })), "Show hidden elements"),
-                    AB.needsElement(HIDE_REASON))
-                : null,
-        );
-    }
-
+    // ---------- the canvas ----------
     // Hot spots on the drawing: Valjean (node) and the Fantine to Valjean edge.
     function hotspots() {
         const a = L().anchors.selected;
         const v = byLabel("Valjean");
-        const node = h("span", { class: "ab-hot", style: `left:${a.x}%;top:${a.y}%`, title: `Valjean: group ${v.group}, degree ${v.degree}`, "aria-label": "Valjean" });
+        const node = AB.tip(h("span", { class: "ab-hot", style: `left:${a.x}%;top:${a.y}%` }), "Valjean", { second: `group ${v.group}, degree ${v.degree}` });
         AB.nav(node, "inspector-node", "why-this-look");
         node.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
-        // midpoint of Fantine (626.4, 181) to Valjean (698.7, 394.3) in the 1200 x 800 drawing
-        // graphty-element cannot pick edges (Edge.ts: isPickable = false): a click here says so, and the
-        // edge inspector and menu open from the table
-        const EDGE_PICK = "Picking an edge on the canvas needs graphty-element (edge meshes are not pickable). Open edges from the table.";
-        const edge = h("span", { class: "cs-edge", role: "button", tabindex: "-1", style: "left:55.21%;top:35.96%", title: EDGE_PICK, "aria-label": "Edge Fantine to Valjean: " + EDGE_PICK });
-        edge.addEventListener("click", (e) => { e.stopPropagation(); AB.flash(EDGE_PICK); });
-        edge.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.flash(EDGE_PICK); });
+        // midpoint of Fantine (626.4, 181) to Valjean (698.7, 394.3) in the 1200 x 800 drawing.
+        // graphty-element cannot pick edges (Edge.ts: isPickable = false): the edge opens from the table.
+        const EDGE_PICK = "Picking an edge on the canvas needs graphty-element. Open edges from the table.";
+        // A design annotation, not a control: it explains a gap and hides with the design notes
+        const edge = AB.tip(h("span", { class: "cs-edge", role: "note", "data-needs": "", "aria-label": "Fantine - Valjean: " + EDGE_PICK, style: "left:55.21%;top:35.96%" }), "Fantine - Valjean", { second: EDGE_PICK, label: false });
         return [node, edge];
     }
 
+    // The one state card: icon and title, one sentence, at most one primary and one secondary button
     function card(o) {
+        AB.toolbarDisabled = "Nothing is drawn";
         return h("div", { class: "k-canvas-card cs-card", role: o.role || "status", "aria-live": "polite" },
-            h("div", { class: "k-canvas-card-title" }, o.icon, h("span", null, o.title)),
-            o.body,
-            o.acts ? h("div", { class: "k-canvas-card-acts" }, o.acts) : null);
+            h("div", { class: "k-canvas-card-title" }, icon(o.icon), h("span", null, o.title)),
+            h("div", null, o.text),
+            o.extra || null,
+            h("div", { class: "k-canvas-card-acts" }, o.primary || null, o.secondary || null));
     }
 
-    // ---------- the states ----------
-    // What the corner shows per state of the Les Miserables drawing
-    const CORNER = {
-        "layout-running": { layout: "running" },
-        "layout-paused": { layout: "paused" },
-        "layout-settled": { layout: "settled" },
-        "waiting-to-settle": { layout: "running" },
-        "camera-moved": { moved: true },
-    };
-    // less-detail: no fixture graph lies between 10,000 and 50,000 nodes, so the notice is shown
-    // over Les Miserables for placement only.
+    // The legend for the drawing at rest: what wins color (PageRank) and size (Degree)
+    function pagerankLegend() {
+        const f = L().frame;
+        const go = ["inspector-measure-row", "style"];
+        return AB.legendCard([
+            { title: "Color: PageRank", go, rows: [{ swatch: h("b", { class: "k-ramp k-ramp-measure" }), label: PR_DOMAIN[0] + " to " + PR_DOMAIN[1], go }] },
+            { title: "Size: Degree", go: ["inspector-measure-row", "degree"], rows: [{ swatch: h("span", { class: "cs-dots" }, f.sizeMarks.map((m) => h("span", { class: "ab-dot", style: `width:${m.px / 2}px;height:${m.px / 2}px` }))), label: f.sizeMarks[0].degree + " to " + f.sizeMarks[f.sizeMarks.length - 1].degree, go: ["inspector-measure-row", "degree"] }] },
+        ]);
+    }
+
     function drawn(el, state) {
         const f = L().frame;
-        const stage = h("div", { class: "k-stage", tabindex: "0", "aria-label": f.altSized });
+        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": f.altSized });
         const alt = "Les Miserables colored by PageRank, sized by degree";
         const edited = AB.route && AB.route.frame.right === "inspector-node/edited";
         stage.append(...AB.lesmisDrawing("lesmis-groups-rest", alt, state === "hidden-on-canvas" ? hideGroup0 : null, edited ? valjeanOverride : null));
         stage.append(...hotspots());
-        const legend = pagerankLegend({ hidden0: state === "hidden-on-canvas" });
-        el.append(stage, legend, corner(CORNER[state]), helpButton());
-        // The legend starts as its chip once three or more rows paint (the tree at rest); L or the chip opens it.
-        // It stays open where it carries a state line (nodes not drawn) and in its own review state.
-        if (state !== "legend-open" && state !== "hidden-on-canvas") closeLegend(legend);
-        if (state === "less-detail") {
-            el.append(toast("More than 10,000 nodes: drawn with less detail.", toastAct("Limits", { go: ["settings", "performance"] })),
-                h("div", { class: "cs-toast", style: "bottom:136px" }, oq("which details graphty-element drops is not published")));
-        }
-        if (state === "waiting-to-settle") {
-            el.append(h("div", { class: "cs-toast" }, h("div", { class: "k-toast", role: "status" },
-                h("span", { class: "k-progress cs-indet", "aria-label": "Waiting for the layout to settle" }, h("i")),
-                "Waiting for the layout to settle before capturing the image.",
-                toastAct("Cancel", { go: ["export-image", "image"] }))));
-        }
+        AB.append(el, [stage, pagerankLegend()]);
+        if (state === "less-detail") AB.notice("More than 10,000 nodes: drawn with less detail.", { label: "Limits", go: ["settings", "performance"] });
+        if (state === "waiting-to-settle") AB.notice("Waiting for the layout to settle before capturing the image.", { label: "Cancel", go: ["export-image", "image"] });
     }
 
     // The transfers data, for the places that work on it (Data, the many-groups run, a full
@@ -244,99 +158,62 @@
     function transfers(el, state) {
         const T = AB.fx.datasets.transactions;
         if (state !== "transfers-communities") {
-            el.append(h("div", { class: "k-stage", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), corner(), helpButton());
+            AB.append(el, [h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), AB.legendCard([])]);
             if (state === "selection-full") {
-                el.append(toast(icon("triangle-alert", "sm"), "Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.",
-                    toastAct("Narrow the query", { go: ["select-where", "where-error"] }), toastAct("Limits", { go: ["settings", "performance"] })));
+                AB.notice("Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.", { label: "Narrow the query", go: ["select-where", "where-error"] });
                 AB.announce("Selection is full: 5,000 of " + n(T.edges) + " matching transfers selected.");
             }
             return;
         }
         const lg = AB.fx.datasets.transactionsApril.legends.march;
         const run = ["inspector-run-row", "many-groups"];
-        el.append(
-            h("div", { class: "k-stage", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community")),
-            legendCard(
-                h("div", { class: "k-lg-title" }, "Louvain, weighted by amount"),
-                lg.rows.map((r) => legendRow(AB.chit(r.color), r.name, n(r.count), run)),
-                legendRow(AB.chit(AB.fx.canvas.otherGray), lg.other.communities + " more", n(lg.other.count), ["table-dock", "transfers"]),
-                h("div", { class: "k-lg-sub" }, lg.other.holds + " share one color")),
-            corner(), helpButton());
+        AB.append(el, [
+            h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community")),
+            AB.legendCard([{ title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: n(r.count), go: run })), more: lg.other.communities + " more communities" }])]);
     }
 
+    // Everything hidden: only the two kept sets paint; the legend lists only what paints
     function everything(el) {
-        const f = L().frame;
-        const g = (lab) => f.legend.rows.find((r) => r.label === lab);
-        const painted = g("2").count + g("8").count;
-        const stage = h("div", { class: "k-stage", tabindex: "0", "aria-label": "Les Miserables with Everything hidden: groups 2 and 8 painted, every other node drawn unstyled" });
+        const g = (lab) => L().frame.legend.rows.find((r) => r.label === lab);
+        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Les Miserables with Everything hidden: groups 2 and 8 painted, every other node drawn unstyled" });
         stage.append(...derived("lesmis-groups-onesize", "everything-hidden-v2", everythingHidden));
-        el.append(stage,
-            legendCard(
-                h("div", { class: "k-lg-title" }, "Group color ", h("span", { class: "k-secondary" }, "group")),
-                legendRow(AB.chit(g("2").color), "Group 2 (kept)", g("2").count, ["inspector-group-set-path-row", "kept-2"]),
-                legendRow(AB.chit(g("8").color), "Group 8 (kept)", g("8").count, ["inspector-group-set-path-row", "kept-8"]),
-                h("div", { class: "k-lg-row cs-lg-foot" }, h("span", { class: "cs-unstyled" }), "Painted by no row", h("span", { class: "k-value" }, String(L().nodes - painted))),
-                h("div", { class: "k-lg-sub" }, oq("how graphty-element draws an unstyled node")),
-                h("div", { class: "k-lg-sub" }, AB.link("inspector-selection-and-everything", "everything", "Show Everything"))),
-            corner(), helpButton());
+        const part = (lab) => ({ title: "Color: Group " + lab, go: ["inspector-group-set-path-row", "kept-2"], rows: [{ swatch: g(lab).color, label: g(lab).count + " nodes" }] });
+        AB.append(el, [stage, AB.legendCard([part("2"), part("8")])]);
     }
 
     function loading(el) {
-        const f = L().frame;
         el.append(card({
-            icon: icon("loader-circle"), title: "Reading " + f.file + " as JSON",
-            body: [
-                h("div", { class: "cs-steps" },
-                    h("div", { class: "cs-step" }, h("div", { class: "cs-step-head" }, icon("check", "sm"), "Nodes", h("span", { class: "k-value" }, L().nodes + " read")), h("div", { class: "k-progress" }, h("i", { style: "width:100%" }))),
-                    h("div", { class: "cs-step" }, h("div", { class: "cs-step-head" }, icon("loader-circle", "sm"), "Edges", h("span", { class: "k-value" }, "reading")), h("div", { class: "k-progress cs-indet" }, h("i"))),
-                    h("div", { class: "cs-step", "data-wait": "" }, h("div", { class: "cs-step-head" }, icon("clock", "sm"), "Drawing", h("span", { class: "k-value" }, "waiting")), h("div", { class: "k-progress" }, h("i", { style: "width:0" })))),
-                h("div", { class: "k-secondary" }, "The table and the inspector fill in as the data arrives. Cancel keeps nothing that has arrived."),
-                oq("a drawing progress count needs an event from graphty-element"),
-            ],
-            acts: [AB.button("Cancel", { kind: "secondary", go: ["start-screen", "returning"] })],
-        }), helpButton());
+            icon: "loader-circle", title: "Reading " + L().frame.file,
+            text: L().nodes + " nodes, " + L().edges + " edges...",
+            extra: h("div", { class: "k-progress", role: "progressbar", "aria-label": "Reading", "aria-valuenow": "60" }, h("i", { style: "width:60%" })),
+            secondary: AB.button("Cancel", { kind: "secondary", go: ["start-screen", "returning"] }),
+        }));
     }
 
     function empty(el) {
         const add = AB.cmd("add-data");
-        el.append(card({
-            icon: icon("database"), title: "No nodes to draw",
-            body: [h("div", { class: "k-secondary" }, "This graph is empty. Add data in Data > Sources: open a file, paste rows, or load from an address."), oq("what the inspector shows for a graph with no nodes")],
-            acts: [AB.button(add.label, { go: add.go })],
-        }), helpButton());
+        el.append(card({ icon: "database", title: "No nodes to draw", text: "This graph is empty.", primary: AB.button(add.label, { go: add.go }) }));
     }
 
     function refused(el) {
         const c = C();
         el.append(card({
-            role: "alert", icon: icon("triangle-alert"), title: "Load refused: too large to draw",
-            body: [
-                h("div", { class: "k-num" }, c.file + " has " + n(c.nodes) + " nodes and " + n(c.edges) + " edges. A graph draws up to " + n(c.drawingLimit) + " nodes and 100,000 edges, so graphty-element refused the load."),
-                h("div", { class: "k-secondary" }, "Nothing was loaded, so nothing needs undoing. Load a smaller file, or keep only part of this one as it is read."),
-                h("div", null, AB.needsElement("graphty-element cannot yet keep only part of a file while it reads it")),
-            ],
-            acts: [
-                AB.button("Filter at import...", { disabled: true, onClick: () => AB.flash("Filter at import needs graphty-element") }),
-                AB.button("Choose another file...", { kind: "secondary", go: ["data-place", "sources-menu"] }),
-                AB.button("Details", { kind: "ghost", go: ["load-step", "refused-too-large"] }),
-            ],
-        }), helpButton());
+            role: "alert", icon: "triangle-alert", title: "Too large to draw",
+            text: c.file + " has " + n(c.nodes) + " nodes; a graph draws up to " + n(c.drawingLimit) + " nodes and 100,000 edges, so nothing was loaded.",
+            primary: AB.button("Choose another file...", { go: ["load-step", "preview"] }),
+            secondary: AB.button("Details", { kind: "ghost", go: ["load-step", "refused-too-large"] }),
+        }));
     }
 
     function gpuLost(el) {
         el.append(card({
-            role: "alert", icon: h("span", { class: "cs-danger" }, icon("circle-x")), title: "Canvas not available",
-            body: [
-                h("div", null, "The graphics device was lost, so the drawing stopped. The rows, the table and the inspector are unchanged."),
-                h("div", { class: "cs-msg" }, h("span", { class: "k-secondary" }, "Closeness did not finish:"), "The GPU device was lost during the run. Nothing was computed on the CPU."),
-                oq("the words above are graphty-element's own message; this wording is a stand-in"),
-                oq("one card, or two, when the drawing and a run lose the device together"),
-                h("div", { class: "k-secondary" }, "The Closeness row keeps its error, with Retry. ", AB.link("graph-place", "failed", "Show the row")),
-            ],
-            acts: [AB.button("Restart viewer", { onClick: () => AB.go("canvas-and-states", "drawn") }), AB.button("Details", { kind: "secondary", go: ["inspector-run-row", "failed"] })],
-        }), helpButton());
+            role: "alert", icon: "circle-x", title: "Canvas not available",
+            text: "The graphics device was lost. The rows, table and inspector are unchanged.",
+            primary: AB.button("Restart viewer", { go: ["canvas-and-states", "drawn"] }),
+        }));
     }
 
+    const OLD = { "too-large": "refused-too-large", "layout-running": "drawn", "layout-paused": "drawn", "layout-settled": "drawn", "legend-open": "drawn", "camera-moved": "drawn" };
     const TRANSFERS = ["transfers", "transfers-communities", "selection-full"];
     registerSection({
         id: "canvas-and-states",
@@ -345,12 +222,13 @@
         rail: "graph",
         closeTo: "graph-place",
         frame(state) {
-            if (state === "too-large") state = "refused-too-large";
-            if (state === "everything-hidden") return { left: "graph-place/everything-hidden" };
+            state = OLD[state] || state;
+            if (state === "everything-hidden") return { left: "graph-place/everything-hidden", right: "inspector-selection-and-everything/everything" };
             if (state === "empty" || state === "refused-too-large") return { left: "graph-place/empty", right: false, dock: false };
-            if (state === "loading") return { left: "graph-place/empty" };
-            if (state === "gpu-lost") return { left: "graph-place/failed" };
+            if (state === "loading") return { left: "graph-place/empty", right: "inspector-nothing-selected/reading", dock: false };
+            if (state === "gpu-lost") return { left: "graph-place/failed", right: "inspector-nothing-selected/overview" };
             if (state === "headset-ended") return { left: "graph-place/at-rest", toolbar: "toolbar/session-ended" };
+            if (state === "waiting-to-settle") return { left: "graph-place/at-rest", toolbar: "toolbar/export-waiting" };
             if (state === "transfers") return { left: "data-place/at-rest" };
             if (state === "transfers-communities") return { left: "graph-place/many-groups", right: "inspector-run-row/many-groups" };
             if (state === "selection-full") return { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: "table-dock/transfers" };
@@ -358,26 +236,21 @@
         },
         states: [
             { id: "drawn", label: "Drawn (Les Miserables)" },
-            { id: "layout-running", label: "Layout running" },
-            { id: "layout-paused", label: "Layout paused" },
-            { id: "layout-settled", label: "Layout settled" },
-            { id: "legend-open", label: "Legend opened from its chip" },
-            { id: "camera-moved", label: "Camera moved" },
             { id: "hidden-on-canvas", label: "Nodes hidden on canvas" },
             { id: "everything-hidden", label: "Everything hidden" },
             { id: "loading", label: "Loading" },
             { id: "empty", label: "Empty graph" },
             { id: "refused-too-large", label: "Load refused: too large" },
-            { id: "less-detail", label: "Less detail above 10,000 nodes" },
-            { id: "waiting-to-settle", label: "Waiting for the layout to settle" },
-            { id: "selection-full", label: "Selection is full (5,000)" },
             { id: "gpu-lost", label: "GPU lost" },
-            { id: "headset-ended", label: "Headset session ended" },
+            { id: "less-detail", label: "Notice: less detail above 10,000 nodes" },
+            { id: "waiting-to-settle", label: "Notice: waiting for the layout to settle" },
+            { id: "selection-full", label: "Notice: selection is full (5,000)" },
+            { id: "headset-ended", label: "Notice: headset session ended" },
             { id: "transfers", label: "Transfers data (Data place)" },
             { id: "transfers-communities", label: "Transfers, colored by community" },
         ],
         render(el, state) {
-            if (state === "too-large") state = "refused-too-large";
+            state = OLD[state] || state;
             if (state === "everything-hidden") everything(el);
             else if (state === "loading") loading(el);
             else if (state === "empty") empty(el);

@@ -1,327 +1,308 @@
-/* Export dialog: one dialog, a list of what can be written on the left, the chosen output on the
-   right (what it contains, its scope, what is left out, a size estimate, its settings and a
-   preview of the file). Opened from the project-name menu's Export... and Mod+E (both land on
-   Image, the export-image section), the Camera menu and the Views header's "..." (doors), Data > Sent and saved ("Export again"), or a row's menu with
-   that row filled in as the target. Every export is recorded in Data > Sent and saved.
+/* Export dialog (spec 12.1): the one home of every output, about 760 x 560 so the canvas stays
+   visible. Left: five outputs, one line each, one Tab stop with arrow keys, then Recent exports.
+   Right: the chosen output -- title, one summary line, the settings grid, one callout, a preview.
+   Footer: "Saved to this computer only; nothing is uploaded.", Cancel and the main button.
 
-   Shared: this file publishes AB.exportDialogFrame(activeId, body, foot), the dialog's frame (the
-   output list on the left with activeId lit, body on the right, foot in the footer). The
-   export-image and export-video sections draw their bodies inside it, so the list is written once.
-   List order: Image, Video, Figure (needs graphty-element: SVG now, PDF later), Findings report,
-   Methods text, Project, Recipe, Style, Data (needs graphty-element), Table as CSV.
-   Plain ASCII. Its styles are injected below. */
+   Image and Video are drawn by the export-image and export-video sections inside this frame; the
+   states "image" and "video" here draw those sections, so Export... (Ctrl+E) opens on Image.
+
+   Shared, published for export-image and export-video (nothing else is shared):
+   - AB.exportDialogFrame(activeId, body, foot): the dialog. activeId is image, video, report,
+     recipe, data or recent. The footer note is added unless foot already carries it.
+   - AB.exportHead(title, summary): the title and its one summary line.
+   - AB.exportCallout(tone, ...children): the one callout above the preview (info, warning, error).
+   - AB.exportDone(file): closes the dialog and shows the one notice naming the file.
+
+   Old state ids other sections still link to are aliases: table -> data (node table),
+   style -> recipe (Only the style), methods and findings-report -> report, figure and project ->
+   image. Plain ASCII. Styles injected below. */
 (function () {
     "use strict";
     const CSS = `
-.ex-modal { width: min(1120px, calc(100vw - 48px)); height: min(760px, calc(100vh - 56px)); max-height: none; }
-.ex-modal .k-modal-body { flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
-.ex-list { overflow: auto; border-right: 1px solid var(--cm-border); padding: 6px 0; }
-.ex-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 12px 5px 14px; cursor: pointer; }
+.ex-modal { width: min(760px, calc(100vw - 32px)); height: min(560px, calc(100vh - 56px)); max-height: none; }
+.ex-modal .k-modal-body { flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden; display: grid; grid-template-columns: 164px minmax(0, 1fr); }
+.ex-list { overflow: auto; border-right: 1px solid var(--cm-border); padding: 6px 0; display: flex; flex-direction: column; }
+.ex-item { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; cursor: pointer; border-radius: 0; outline-offset: -2px; }
 .ex-item:hover { background: var(--cm-bg-hover, var(--cm-bg-secondary)); }
-.ex-item[aria-selected="true"] { background: var(--cm-bg-selected, var(--cm-bg-secondary)); }
-.ex-item .k-icon, .ex-item svg { margin-top: 2px; flex: none; }
-.ex-item-t { display: flex; gap: 6px; align-items: baseline; font-weight: 550; }
-.ex-item-t .ex-ext { font-weight: 400; color: var(--cm-text-secondary); }
-.ex-item-d { color: var(--cm-text-secondary); font-size: 11px; line-height: 15px; }
-.ex-main { overflow: auto; padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.ex-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
-.ex-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--cm-bg-selected, var(--cm-bg-secondary)); }
-.ex-facts { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 12px; margin: 0; }
-.ex-facts dt { color: var(--cm-text-secondary); }
-.ex-facts dd { margin: 0; }
-.ex-set { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 12px; align-items: center; }
-.ex-set > span:nth-child(odd) { color: var(--cm-text-secondary); }
-.ex-set .k-field { max-width: 280px; }
-.ex-seg { flex-wrap: wrap; height: auto; min-height: 24px; }
-.ex-seg > button { cursor: pointer; height: 24px; display: inline-flex; align-items: center; white-space: nowrap; }
-.ex-scope { display: grid; gap: 4px; justify-items: start; }
-.ex-seg > button[disabled] { cursor: default; color: var(--cm-text-disabled); }
-.ex-h { font-weight: 550; margin: 4px 0 -4px; }
-.ex-paper { background: #fff; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; color: #1a1a1a; font-size: 11px; line-height: 15px; max-width: 720px; }
-.ex-paper img { width: 100%; height: auto; display: block; }
-/* The figure is drawn on its chosen background (White), whatever the app theme */
-:root .ex-paper .k-dark-only, :root[data-theme="dark"] .ex-paper .k-dark-only { display: none !important; }
-:root .ex-paper .k-light-only, :root[data-theme="dark"] .ex-paper .k-light-only { display: block !important; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ex-paper .k-dark-only { display: none !important; } :root:not([data-theme="light"]) .ex-paper .k-light-only { display: block !important; } }
-.ex-legend b { display: block; margin-bottom: 2px; }
-.ex-legend div { display: flex; gap: 6px; align-items: center; }
-.ex-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.ex-foot-note { grid-column: 1 / -1; border-top: 1px solid #ddd; padding-top: 6px; color: #555; }
-.ex-pre { margin: 0; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); font: 11px/16px var(--cm-font-family-mono, monospace); white-space: pre; overflow: auto; max-width: 100%; }
-.ex-pages { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
-.ex-pages li span { display: block; color: var(--cm-text-secondary); }
-.ex-oq { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 5px; font-size: 10px; font-weight: 600; color: var(--k-annot-ink); box-shadow: inset 0 0 0 1px var(--k-annot); white-space: nowrap; vertical-align: 1px; }
-.ex-later { display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 5px; font-size: 10px; color: var(--cm-text-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); margin-left: 4px; }
+.ex-item[aria-selected="true"] { background: var(--cm-bg-selected, var(--cm-bg-secondary)); font-weight: 550; }
+.ex-item[aria-disabled="true"] { color: var(--cm-text-tertiary); }
+.ex-sep { height: 1px; background: var(--cm-border); margin: 6px 0; }
+.ex-main { overflow: auto; padding: 12px 16px 16px 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ex-main > * { flex: none; }
+.ex-main .ab-frow { margin-bottom: 0; }
+.ex-head { padding-left: 16px; }
+.ex-title { font-size: 15px; font-weight: 600; line-height: 20px; }
+.ex-sum { color: var(--cm-text-secondary); }
+.ex-set { display: flex; flex-direction: column; gap: 8px; }
+.ex-set .k-field { max-width: 260px; }
+.ex-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 24px; }
+.ex-chk { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; line-height: 24px; }
+.ex-callout { display: flex; gap: 8px; align-items: flex-start; margin-left: 16px; padding: 8px 10px; border-radius: 6px; background: var(--cm-bg-secondary); }
+.ex-callout > svg, .ex-callout > .k-icon { flex: none; margin-top: 2px; }
+.ex-callout[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--cm-border-warning, #d89a00); }
+.ex-callout[data-tone="error"] { box-shadow: inset 0 0 0 1px var(--cm-border-danger-strong); }
+.ex-callout ul { margin: 2px 0 0; padding-left: 16px; }
+.ex-h { font-weight: 550; padding-left: 16px; margin-bottom: -6px; }
+.ex-pre { margin: 0 0 0 16px; padding: 8px 10px; border-radius: 5px; background: var(--cm-bg-secondary); font: 11px/16px var(--cm-font-family-mono, monospace); white-space: pre; overflow: auto; }
+.ex-dl { margin: 0 0 0 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 8px; }
+.ex-dl dt { color: var(--cm-text-secondary); }
+.ex-dl dd { margin: 0; }
+.ex-line { padding-left: 16px; }
+.ex-recent { margin: 0 0 0 16px; display: flex; flex-direction: column; }
+.ex-rec { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--cm-border); }
+.ex-rec .ex-sum { grid-column: 2; font-size: 11px; }
+.ex-rec .k-btn { grid-row: 1 / span 2; grid-column: 3; }
 .ex-footl { flex: 1 1 auto; min-width: 0; color: var(--cm-text-secondary); display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ex-footl a { color: var(--cm-text-brand); }
-.ex-off { opacity: .55; pointer-events: none; }
-.ex-item .ab-needs { font-size: 10px; }
-.ex-from { color: var(--cm-text-secondary); font-size: 11px; font-weight: 400; margin-left: auto; }
-.ex-from a { color: var(--cm-text-brand); }
 `;
-    if (!document.getElementById("ex-style")) document.head.append(h("style", { id: "ex-style" }, CSS + ".ex-item[aria-disabled=true] .ex-item-t, .ex-item[aria-disabled=true] > .k-i { color: var(--cm-text-tertiary); }"));
+    if (!document.getElementById("ex-style")) document.head.append(h("style", { id: "ex-style" }, CSS));
 
-    const oq = (text) => h("span", { class: "ex-oq", title: text }, "Open question");
+    const NOTE = "Saved to this computer only; nothing is uploaded.";
     const L = () => AB.fx.datasets.lesmis;
     const n = (v) => Number(v).toLocaleString("en-US");
-    const VIEWS = AB.SAVED_VIEWS; // the Views place's saved views, in its order
+    const PROJECT = "les-miserables";
     const WATCH = ["Valjean", "Javert", "Thenardier", "Mme.Thenardier", "Eponine"]; // the Watchlist set row
-    const FORMATS = ["CSV", "GraphML", "GEXF", "GML", "DOT", "Pajek", "JSON"]; // graph-io's formats
-    const SIZE = "Under 1 MB";
 
-    // Reader choices for this page visit.
-    let scope = "full";
-    let format = "GraphML";
-    let tableTab = "Nodes";
+    // ---------- the list ----------
+    const LIST = [
+        { id: "image", name: "Image", icon: "camera", go: ["export-image", "image"] },
+        { id: "video", name: "Video", icon: "play", go: ["export-video", "still"] },
+        { id: "report", name: "Report", icon: "book-open", go: ["export-dialog", "report"], needs: true },
+        { id: "recipe", name: "Recipe", icon: "flask-conical", go: ["export-dialog", "recipe"] },
+        { id: "data", name: "Data", icon: "database", go: ["export-dialog", "data"] },
+        { sep: true },
+        { id: "recent", name: "Recent exports", icon: "history", go: ["export-dialog", "recent-exports"] },
+    ];
+    let listHadFocus = false;
 
-    function scopeFacts() {
-        const f = L().filterSteps;
-        return scope === "full"
-            ? `Full graph: ${L().nodes} nodes, ${n(L().edges)} edges`
-            : `Filtered graph: "${f.steps[0]}", ${f.after.step1} of ${L().nodes} nodes`;
-    }
-    function scopeControl() {
-        const b = (id, label) => h("button", { type: "button", role: "radio", "aria-checked": String(scope === id), on: { click: () => { scope = id; redraw(); } } }, label);
-        return h("span", { class: "k-seg ex-seg", role: "radiogroup", "aria-label": "Scope" },
-            b("full", `Full graph, ${L().nodes} nodes`),
-            b("filtered", `Filtered, ${L().filterSteps.after.step1} nodes`));
-    }
-    const setRow = (label, control) => [h("span", null, label), h("div", null, control)];
-    const facts = (pairs) => h("dl", { class: "ex-facts" }, pairs.map(([k, v]) => [h("dt", null, k), h("dd", null, v)]));
-
-    function rowOf(label) { return L().rows.find((r) => r.label === label) || {}; }
-    function methodsText() {
-        return [
-            `Graph: ${L().title}, ${L().nodes} characters and ${n(L().edges)} undirected co-appearance edges, read from ${L().file} (${L().source}).`,
-            `Scope: ${scopeFacts()}.`,
-            "Communities: Louvain at resolution 1.0, six communities shown.",
-            "Rank: PageRank over the same graph.",
-            "Paths: shortest paths from Valjean to Javert and from Myriel to Javert.",
-        ];
-    }
-
-    // ---------- the outputs ----------
-    const KINDS = {
-        figure: {
-            name: "Figure", ext: ".svg", icon: "network", line: "The drawing with its legend",
-            needs: "graphty-element captures raster images only. A vector figure (SVG now, PDF later) with its legend drawn in needs the element; the app does not draw the graph itself.",
-            facts: () => [
-                ["Contains", "The canvas as drawn in the chosen view, its legend, and a footer saying how the numbers were computed."],
-                ["Scope", scopeFacts()],
-                ["Not drawn", "Rows whose eye is off: Betweenness in the folder For the report."],
-            ],
-            settings: () => [
-                setRow("View", AB.field("Current camera", { caret: true })),
-                setRow("Format", h("span", { class: "k-seg ex-seg" }, h("button", { type: "button", disabled: "" }, "SVG"), h("button", { type: "button", disabled: "" }, "PDF", h("span", { class: "ex-later" }, "later")))),
-                setRow("Width", AB.field("174 mm")),
-                setRow("Background", AB.field("White", { caret: true })),
-                setRow("Labels", "As on the canvas (Hide overlapping labels: Off)"),
-            ],
-            preview: () => {
-                // The figure is the canvas as it paints now: PageRank wins color at rest
-                const lg = L().frame.legend;
-                return h("div", { class: "ex-paper" },
-                    // What the canvas draws now (PageRank wins color); the legend titles are the row names
-                    h("div", null, (AB.lesmisDrawing || AB.drawing)("lesmis-groups-rest", "Les Miserables colored by PageRank, sized by Degree")),
-                    h("div", { class: "ex-legend" }, h("b", null, "Color: PageRank"),
-                        h("div", null, h("i", { style: "width:24px;border-radius:2px;background:linear-gradient(90deg,#ef7818,#b84203,#662506)" }), "0.0033 to 0.0754"),
-                        h("b", { style: "margin-top:6px" }, "Size: Degree")),
-                    h("div", { class: "ex-foot-note" }, `Color is PageRank (damping 0.85, unweighted); size is degree, the number of characters each one appears with, on ${scopeFacts().toLowerCase()}. Edge value was not used.`));
-            },
-            file: "les-miserables_figure.svg",
-        },
-        report: {
-            name: "Findings report", ext: ".html", icon: "book-open", line: "Views, notes and methods in one file",
-            needs: "graphty-element keeps no run records that a methods writer could read; writing this text in the app would be the app describing the graph. Filed: a run-record methods writer.",
-            facts: () => [
-                ["Contains", "One self-contained HTML file that opens offline and prints to PDF from the browser: the saved views as pages in order, each with its notes, then every other note, then the methods text written from the run records."],
-                ["Scope", scopeFacts()],
-                ["Masked", "Nothing. Every note is included in full."],
-                ["Size estimate", SIZE],
-            ],
-            settings: () => [setRow("Page order", "The saved views in their order in the Views place")],
-            preview: () => [
-                h("div", { class: "ex-h" }, "Pages"),
-                h("ol", { class: "ex-pages" },
-                    h("li", null, VIEWS[0], h("span", null, "The whole graph in frame; its note: \"Valjean and Javert land in the same community, with Marius and Cosette.\"")),
-                    h("li", null, VIEWS[1], h("span", null, "Valjean and the characters closest to him.")),
-                    h("li", null, "Other notes", h("span", null, "\"Co-appearances counted per chapter, from Knuth's list.\" and the notes on Community 3.")),
-                    h("li", null, "Methods", h("span", null, "Written from the Louvain, PageRank and shortest path runs."))),
-            ],
-            file: "les-miserables_findings.html",
-        },
-        methods: {
-            name: "Methods text", ext: ".txt", icon: "file", line: "How every number was computed",
-            needs: "graphty-element keeps no run records that a methods writer could read; writing this text in the app would be the app describing the graph. Filed: a run-record methods writer.",
-            facts: () => [
-                ["Contains", "The methods text alone, as the findings report writes it: the data, the scope and every run's settings."],
-                ["Scope", scopeFacts()],
-                ["Masked", "Node names, values and notes. Only the method is written."],
-                ["Size estimate", SIZE],
-            ],
-            settings: () => [setRow("File type", h("span", null, "Plain text. ", oq("Plain text or Markdown")))],
-            preview: () => [h("pre", { class: "ex-pre", style: "white-space:pre-wrap" }, methodsText().join("\n\n")),
-                h("div", null, oq("Each run's recorded settings (seed, weight) and how they are worded"))],
-            file: "les-miserables_methods.txt",
-        },
-        project: {
-            name: "Project", ext: "", icon: "folder-open", line: "Everything, to reopen in graphty",
-            facts: () => [
-                ["Contains", `The data (${L().file}), every row in the tree, notes, views, data versions and the current selection.`],
-                ["Scope", "Always the full project, whatever the filter."],
-                ["Masked", "Nothing."],
-                ["Size estimate", SIZE],
-            ],
-            settings: () => [setRow("File type", oq("The project file's name ending and format"))],
-            preview: null, file: "Les Miserables (project file)",
-        },
-        recipe: {
-            name: "Recipe", ext: "", icon: "flask-conical", line: "The analysis, without the data",
-            facts: () => [
-                ["Contains", "Each run with its settings (Louvain at resolution 1.0, PageRank, shortest paths), the paint rows, the layout as its method, and the saved views."],
-                ["Scope", "None: a recipe carries no data."],
-                ["Masked", "No data inside: node names, attribute values, the Watchlist's members and every note's targets stay here."],
-                ["Size estimate", SIZE],
-            ],
-            settings: () => [setRow("Needs", "group, degree and value (edge), matched by name when the recipe is applied")],
-            preview: null, file: "les-miserables.recipe",
-        },
-        style: {
-            name: "Style", ext: "", icon: "palette", line: "Colors and sizes to reuse",
-            facts: () => [
-                ["Contains", "The paint rows as a style file: Group color, Size: degree, the PageRank ramp and the path colors."],
-                ["Scope", "None: a style carries no data."],
-                ["Masked", "Overrides (Valjean's color, set by hand), because they name nodes in this data."],
-                ["Size estimate", SIZE],
-            ],
-            settings: () => [setRow("File type", oq("The style file's name ending and format"))],
-            preview: null, file: "les-miserables.style",
-        },
-        data: {
-            name: "Data", ext: "", icon: "database", line: "The graph for other tools",
-            needs: "graphty-element's format catalog says canExport: false for every format, although graph-io has the exporters. Filed: connect graph-io's exporters to the format catalog. The app does not call graph-io itself.",
-            facts: () => [
-                ["Contains", `${L().nodes} nodes and ${n(L().edges)} edges with every attribute (label, group, degree, betweenness, value), plus run results as attributes: PageRank and the Louvain community.`],
-                ["Scope", scopeFacts()],
-                ["Masked", "Paint, notes and views."],
-                ["Size estimate", SIZE],
-            ],
-            settings: () => [
-                setRow("Format", h("span", { class: "k-seg ex-seg", role: "radiogroup", "aria-label": "Format" },
-                    FORMATS.map((f) => h("button", { type: "button", role: "radio", disabled: "", "aria-checked": String(f === format) }, f)))),
-            ],
-            preview: () => h("pre", { class: "ex-pre" }, dataPreview()),
-            file: () => "les-miserables." + ({ CSV: "csv", GraphML: "graphml", GEXF: "gexf", GML: "gml", DOT: "dot", Pajek: "net", JSON: "json" })[format],
-        },
-        table: {
-            name: "Table as CSV", ext: ".csv", icon: "table", line: "One table's rows for a spreadsheet",
-            facts: () => target
-                ? [["Contains", `The Watchlist's ${WATCH.length} nodes, one row each.`],
-                    ["Scope", "Watchlist, 5 nodes. Each column header names the graph its value was computed on."],
-                    ["Masked", "Nothing."], ["Size estimate", SIZE]]
-                : [["Contains", `The ${tableTab} table, one row per ${tableTab === "Edges" ? "edge" : tableTab === "Nodes" ? "node" : "community"}.`],
-                    ["Scope", scopeFacts() + ". Each column header names the graph its value was computed on."],
-                    ["Masked", "Columns hidden in the table."], ["Size estimate", SIZE]],
-            settings: () => target ? [] : [
-                setRow("Table", h("span", { class: "k-seg ex-seg", role: "radiogroup", "aria-label": "Table" },
-                    ["Nodes", "Edges", "Communities: Louvain"].map((t) => h("button", { type: "button", role: "radio", "aria-checked": String(t === tableTab), on: { click: () => { tableTab = t; redraw(); } } }, t)))),
-            ],
-            preview: () => h("pre", { class: "ex-pre" }, tablePreview()),
-            file: () => (target ? "les-miserables_watchlist.csv" : "les-miserables_" + tableTab.split(":")[0].toLowerCase() + ".csv"),
-        },
-    };
-    // Image and Video are drawn by their own sections, inside this frame.
-    const OTHERS = {
-        image: { name: "Image", ext: ".png", icon: "camera", line: "A picture of the canvas", go: ["export-image", "image"] },
-        video: { name: "Video", ext: ".webm", icon: "play", line: "The canvas as it moves, or a tour of views", go: ["export-video", "still"] },
-    };
-    const ORDER = ["image", "video", "figure", "report", "methods", "project", "recipe", "style", "data", "table"];
-
-    function dataPreview() {
-        const rs = L().rows.slice(0, 3);
-        if (format === "CSV") return ["id,label,group,degree,betweenness"].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].join(","))).join("\n") + "\n...";
-        if (format === "GraphML") return ['<graphml xmlns="http://graphml.graphdrawing.org/xmlns">', '  <key id="label" for="node" attr.name="label" attr.type="string"/>', '  <key id="group" for="node" attr.name="group" attr.type="int"/>', '  <graph edgedefault="undirected">']
-            .concat(rs.map((r) => `    <node id="${r.id}"><data key="label">${r.label}</data><data key="group">${r.group}</data></node>`)).concat(["    ..."]).join("\n");
-        if (format === "JSON") return '{\n  "nodes": [\n' + rs.map((r) => `    { "id": "${r.id}", "label": "${r.label}", "group": ${r.group} }`).join(",\n") + ",\n    ...";
-        if (format === "DOT") return "graph {\n" + rs.map((r) => `  "${r.id}" [label="${r.label}", group=${r.group}];`).join("\n") + "\n  ...";
-        if (format === "Pajek") return `*Vertices ${L().nodes}\n` + rs.map((r, i) => `${i + 1} "${r.label}"`).join("\n") + "\n...";
-        if (format === "GML") return "graph [\n  directed 0\n" + rs.map((r) => `  node [ id ${r.id} label "${r.label}" group ${r.group} ]`).join("\n") + "\n  ...";
-        return '<gexf version="1.3">\n  <graph defaultedgetype="undirected">\n    <nodes>\n' + rs.map((r) => `      <node id="${r.id}" label="${r.label}"/>`).join("\n") + "\n      ...";
-    }
-    function tablePreview() {
-        const sc = target ? "full graph" : scope === "full" ? "full graph" : "filtered graph";
-        if (!target && tableTab === "Edges") return `source,target,value (${sc})\n` + "Valjean,Javert,...\n...";
-        if (!target && tableTab !== "Nodes") return `community,size (${sc})\n1,25\n2,17\n3,10\n4,10\n5,9\n6,6`;
-        const rs = target ? WATCH.map(rowOf) : L().topByDegree.slice(0, 4);
-        return [`id,label,group,degree (${sc}),betweenness (${sc})`].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].join(","))).join("\n") + (target ? "" : "\n...");
+    function list(activeId) {
+        const items = [];
+        const el = h("div", { class: "ex-list", role: "listbox", "aria-label": "What to export" });
+        LIST.forEach((it) => {
+            if (it.sep) return el.append(h("div", { class: "ex-sep", role: "none" }));
+            const on = it.id === activeId;
+            const x = h("div", { class: "ex-item", role: "option", tabindex: on ? "0" : "-1", "aria-selected": String(on), "aria-disabled": it.needs ? "true" : null }, icon(it.icon), it.name);
+            x.addEventListener("click", () => { listHadFocus = el.contains(document.activeElement); AB.go(it.go[0], it.go[1]); });
+            items.push([x, it]);
+            el.append(x);
+        });
+        el.addEventListener("keydown", (e) => {
+            const i = items.findIndex(([x]) => x === document.activeElement);
+            const d = { ArrowDown: 1, ArrowUp: -1, Home: -i, End: items.length - 1 - i }[e.key];
+            if (i < 0 || d == null) return;
+            e.preventDefault();
+            const [, it] = items[(i + d + items.length) % items.length];
+            listHadFocus = true;
+            AB.go(it.go[0], it.go[1]);
+        });
+        if (listHadFocus) requestAnimationFrame(() => { const s = el.querySelector("[aria-selected=true]"); if (s) s.focus(); listHadFocus = false; });
+        return el;
     }
 
-    // ---------- the dialog ----------
-    const STATE_KIND = { figure: "figure", "findings-report": "report", methods: "methods", project: "project", recipe: "recipe", style: "style", data: "data", table: "table", "from-row": "table" };
-    const KIND_STATE = { figure: "figure", report: "findings-report", methods: "methods", project: "project", recipe: "recipe", style: "style", data: "data", table: "table" };
-    const FROM = {
-        "findings-report": ["project-menu", "open", "the project menu"],
-        data: ["data-place", "sent-and-saved", "Data > Sent and saved"],
-        "from-row": ["context-menus", "row", "the Watchlist row's menu"],
-    };
-    let cur = "figure";
-    let redraw = () => {};
-    let target = false;
-
-    function render(el, state) {
-        redraw = () => { el.textContent = ""; render(el, state); };
-        cur = STATE_KIND[state] ? state : "figure";
-        target = cur === "from-row";
-        const key = STATE_KIND[cur];
-        const k = KINDS[key];
-        const file = typeof k.file === "function" ? k.file() : k.file;
-
-        const from = FROM[cur];
-        const scopeless = ["project", "recipe", "style"].includes(key);
-        const main = h("div", { class: "ex-main" },
-            h("div", { class: "ex-title" }, icon(k.icon), k.name, k.ext ? h("span", { class: "k-secondary", style: "font-weight:400" }, k.ext) : null,
-                from ? h("span", { class: "ex-from" }, "Opened from ", AB.link(from[0], from[1], from[2])) : null),
-            target ? h("div", { class: "ex-target" }, icon("circle-check", "sm"), h("b", null, "For: Watchlist"), h("span", { class: "k-secondary" }, WATCH.join(", ")),
-                h("span", { class: "k-grow" }), AB.link("export-dialog", "table", "Export the whole table instead")) : null,
-            facts(k.facts().map(([name, v]) => (name === "Scope" && !target && !scopeless && !k.needs
-                ? [name, h("div", { class: "ex-scope" }, scopeControl(), h("div", { class: "k-secondary" }, v))] : [name, v]))),
-            k.needs ? h("div", null, AB.needsElement(k.needs)) : null,
-            h("div", { class: "ex-set" + (k.needs ? " ex-off" : ""), "aria-disabled": k.needs ? "true" : null }, k.settings()),
-            k.preview ? [h("div", { class: "ex-h" }, k.needs ? "What the file would hold" : "Preview"), h("div", { class: k.needs ? "ex-off" : null, "aria-disabled": k.needs ? "true" : null }, k.preview())] : null);
-
-        const write = () => {
-            AB.go("data-place", "sent-and-saved");
-            setTimeout(() => AB.flash(`Written: ${file}, to Downloads. Listed in Sent and saved.`), 50);
-        };
-        const foot = [
-            h("span", { class: "ex-footl" }, icon("info", "sm"), "Saved to this computer; nothing is uploaded. Each export is listed in ",
-                AB.link("data-place", "sent-and-saved", "Data > Sent and saved"), "."),
-            AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() }),
-            AB.button("Export", { icon: "download", onClick: write, disabled: !!k.needs }),
-        ];
-        el.append(frame(target ? "from-row" : key, main, foot));
-    }
-
-    // The dialog frame: the output list, then body. activeId is a list id (image, video, figure,
-    // report, ...) or "from-row" (Table as CSV, target filled in).
+    // ---------- the shared frame and parts ----------
     function frame(activeId, body, foot) {
-        const lit = activeId === "from-row" ? "table" : activeId;
-        const list = h("div", { class: "ex-list", role: "listbox", "aria-label": "What to export" },
-            ORDER.map((id) => {
-                const it = KINDS[id] || OTHERS[id];
-                const to = it.go || ["export-dialog", activeId === "from-row" && id === "table" ? "from-row" : KIND_STATE[id]];
-                return h("div", Object.assign({ class: "ex-item", role: "option", "aria-selected": String(id === lit), "aria-disabled": it.needs ? "true" : null }, AB.act({ go: to })),
-                    icon(it.icon),
-                    h("div", null,
-                        h("div", { class: "ex-item-t" }, it.name, it.ext ? h("span", { class: "ex-ext" }, it.ext) : null, id === "figure" ? h("span", { class: "ex-later" }, "PDF later") : null),
-                        h("div", { class: "ex-item-d" }, it.line),
-                        it.needs ? h("div", { class: "ex-item-d" }, AB.needsElement(it.needs)) : null));
-            }));
-        const m = AB.modal({ title: "Export", body: [list, body], foot });
+        foot = [].concat(foot || []);
+        const hasNote = foot.some((f) => f && f.textContent && f.textContent.includes("nothing is uploaded"));
+        if (!hasNote) foot.unshift(h("span", { class: "ex-footl" }, icon("lock", "sm"), NOTE));
+        const m = AB.modal({ title: "Export", body: [list(activeId === "from-row" ? "data" : activeId), body], foot });
         m.querySelector(".k-modal").classList.add("ex-modal");
         return m;
     }
-    AB.exportDialogFrame = frame;
+    const head = (title, summary) => h("div", { class: "ex-head" }, h("div", { class: "ex-title", role: "heading", "aria-level": "3" }, title), summary ? h("div", { class: "ex-sum" }, summary) : null);
+    const callout = (tone, ...kids) => h("div", { class: "ex-callout", "data-tone": tone, role: tone === "error" ? "alert" : null }, icon(tone === "info" ? "info" : "triangle-alert", "sm"), h("div", null, kids));
+    function done(file) {
+        AB.close();
+        setTimeout(() => AB.notice(`Exported ${file} to Downloads`), 50);
+    }
+    Object.assign(AB, { exportDialogFrame: frame, exportHead: head, exportCallout: callout, exportDone: done });
+
+    const row = (label, ...ctl) => AB.fieldRow(label, h("span", { class: "ex-ctl" }, ctl), { popover: true });
+    let chkSeq = 0;
+    function check(label, on, flip) {
+        const id = "ex-chk-" + ++chkSeq;
+        const text = h("span", { id }, label);
+        const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!on), "aria-labelledby": id });
+        const wrap = h("label", { class: "ex-chk" }, box, text);
+        wrap.addEventListener("click", (e) => { e.preventDefault(); flip(); });
+        box.addEventListener("keydown", (e) => { if (e.key === " ") { e.preventDefault(); flip(); } });
+        return wrap;
+    }
+    // A dropdown: a field that opens the one dark menu
+    function dropdown(value, options, pick, label) {
+        const f = AB.field(value, { caret: true });
+        f.setAttribute("aria-label", label);
+        f.setAttribute("aria-haspopup", "menu");
+        f.addEventListener("click", (e) => { e.stopPropagation(); AB.openMenu(f, options.map((o) => (typeof o === "string" ? { label: o, check: o === value, onClick: () => pick(o) } : o))); });
+        f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " " || (e.altKey && e.key === "ArrowDown")) { e.preventDefault(); f.click(); } });
+        return f;
+    }
+
+    // ---------- reader choices for this visit ----------
+    const S = { format: "CSV", table: "Edges", shape: "Generic", scope: "Full graph", onlyStyle: false, methodsOnly: false, adv: {} };
+    let redraw = () => {};
+
+    // ---------- Data: every format graphty-element writes (session.catalog.formats(), canExport) ----------
+    // Writer options from catalog/formats.ts; the first ones show inline, the rest in Advanced.
+    const FMT = {
+        CSV: { ext: "csv", inline: [["Table", ["Edges", "Nodes", "Adjacency"], "table"], ["File shape", ["Generic", "Neo4j"], "shape"]],
+            adv: [["Header names", ["Generic", "Gephi"]], ["Column separator", [",", ";", "Tab"]], ["Line ending", ["LF", "CRLF"]], ["Header row", true], ["Neutralize formulas", true, "Puts an apostrophe before a text cell that starts with =, +, - or @, so a spreadsheet does not run it"]] },
+        JSON: { ext: "json", inline: [["Shape", ["node-link", "d3", "jgf", "cytoscape", "graphology", "vis"], "shape"]], adv: [["Indent", ["0", "2", "4"]]] },
+        GraphML: { ext: "graphml", inline: [["Edge direction", ["undirected", "directed"], "shape"]], adv: [["Indent", true]] },
+        GEXF: { ext: "gexf", inline: [["Version", ["1.3", "1.2"], "shape"]], adv: [] },
+        GML: { ext: "gml", inline: [["Unwritable keys", ["error", "mangle"], "shape"]], adv: [["Weight key", ["value"]]] },
+        DOT: { ext: "dot", inline: [["Graph name", ["Les Miserables"], "shape"]], adv: [["Strict graph", false], ["Indent", ["2 spaces", "Tab"]]] },
+        "Pajek NET": { ext: "net", inline: [["Network header", true, null]], adv: [] },
+    };
+    // What the format cannot hold, worded from the element's lossNotes (graph-io's writers)
+    function lossNotes() {
+        const nodeCols = "label, group, degree, betweenness, PageRank, the Louvain community, the position and the drawn color and size";
+        if (S.format === "CSV" && S.table === "Edges") return [`The edge table holds edges only: each node's ${nodeCols} are not written. Choose Table: Nodes to keep them.`];
+        if (S.format === "CSV" && S.table === "Nodes") return [`The node table holds nodes only: the ${n(L().edges)} edges and their value are not written. Choose Table: Edges to keep them.`];
+        if (S.format === "CSV") return ["An adjacency table holds who links to whom and the edge value only; every node attribute and run result is not written."];
+        if (S.format === "Pajek NET") return ["Pajek has a slot for a label and a position per node: group, degree, betweenness, PageRank and the community are not written."];
+        if (S.format === "DOT") return ["DOT has no attribute types: numbers are written as text."];
+        return [];
+    }
+    function dataPreview() {
+        const rs = L().rows.slice(0, 3);
+        const ext = FMT[S.format].ext;
+        if (ext === "csv" && S.table === "Nodes") return ["id,label,group,degree,betweenness,results.pagerank.rank,results.louvain.community,x,y,color,size"].concat(rs.map((r) => [r.id, r.label, r.group, r.degree, r.betweenness].join(",") + ",...")).join("\n") + "\n...";
+        if (ext === "csv" && S.table === "Edges") return "source,target,value\n0,1,...\n...";
+        if (ext === "csv") return ",Myriel,Napoleon,Mlle.Baptistine,...\nMyriel,0,1,...\n...";
+        if (ext === "graphml") return ['<graphml xmlns="http://graphml.graphdrawing.org/xmlns">', '  <key id="label" for="node" attr.name="label" attr.type="string"/>', '  <key id="group" for="node" attr.name="group" attr.type="int"/>', `  <graph edgedefault="${S.adv.GraphML || "undirected"}">`]
+            .concat(rs.map((r) => `    <node id="${r.id}"><data key="label">${r.label}</data><data key="group">${r.group}</data></node>`)).concat(["    ..."]).join("\n");
+        if (ext === "json") return '{\n  "nodes": [\n' + rs.map((r) => `    { "id": "${r.id}", "label": "${r.label}", "group": ${r.group} }`).join(",\n") + ",\n    ...";
+        if (ext === "dot") return 'graph "Les Miserables" {\n' + rs.map((r) => `  "${r.id}" [label="${r.label}", group=${r.group}];`).join("\n") + "\n  ...";
+        if (ext === "net") return `*Vertices ${L().nodes}\n` + rs.map((r, i) => `${i + 1} "${r.label}"`).join("\n") + "\n...";
+        if (ext === "gml") return "graph [\n  directed 0\n" + rs.map((r) => `  node [ id ${r.id} label "${r.label}" group ${r.group} ]`).join("\n") + "\n  ...";
+        return '<gexf version="1.3">\n  <graph defaultedgetype="undirected">\n    <nodes>\n' + rs.map((r) => `      <node id="${r.id}" label="${r.label}"/>`).join("\n") + "\n      ...";
+    }
+    // Advanced: the one light popover. AB.popover's X and Esc call AB.close(), which would close
+    // the whole dialog, so this popover is closed locally (a shell gap: a popover inside a modal).
+    function advanced(anchor, f) {
+        const lay = document.getElementById("ab-overlay");
+        const body = h("div", null, f.adv.map(([label, v, why]) => {
+            const key = S.format + "." + label;
+            const cur = S.adv[key] != null ? S.adv[key] : Array.isArray(v) ? v[0] : v;
+            const set = (x) => { S.adv[key] = x; pop.replaceWith((pop = advanced(anchor, f))); };
+            const ctl = Array.isArray(v) ? AB.seg(v.map((o) => [o, o]), cur, set, { label }) : check(why ? h("span", { "data-tip": why }, "On") : "On", cur, () => set(!cur));
+            return AB.fieldRow(label, ctl, { popover: true });
+        }));
+        let pop = AB.popover({ anchor, title: S.format + " options", body, width: 300, place: "right-start" });
+        const close = () => { pop.remove(); document.removeEventListener("pointerdown", off, true); anchor.focus(); };
+        const off = (e) => { if (!pop.contains(e.target) && e.target !== anchor) close(); };
+        pop.querySelector(".k-popover-head .k-icon-btn").replaceWith(AB.iconButton("x", "Close", { key: "Esc", onClick: close }));
+        pop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } });
+        setTimeout(() => document.addEventListener("pointerdown", off, true));
+        lay.append(pop);
+        requestAnimationFrame(() => { const x = pop.querySelector("[tabindex='0']"); if (x) x.focus(); });
+        return pop;
+    }
+    function dataBody(fromRow) {
+        const f = FMT[S.format];
+        const scopeTxt = S.scope === "Watchlist" ? `Watchlist, ${WATCH.length} nodes` : `Full graph, ${L().nodes} nodes, ${n(L().edges)} edges`;
+        const notes = lossNotes();
+        const inline = f.inline.map(([label, v, k]) => {
+            if (!Array.isArray(v)) return row(label, check("On", true, () => AB.flash(label + " (not wired in the skeleton)")));
+            const cur = k === "table" ? S.table : S.adv[S.format] || v[0];
+            const set = (x) => { if (k === "table") S.table = x; else S.adv[S.format] = x; redraw(); };
+            return row(label, v.length <= 3 ? AB.seg(v.map((o) => [o, o]), cur, set, { label }) : dropdown(cur, v, set, label));
+        });
+        let advBtn = null;
+        if (f.adv.length) {
+            advBtn = AB.field("Advanced", { caret: true });
+            advBtn.setAttribute("aria-haspopup", "dialog");
+            AB.tip(advBtn, f.adv.map((a) => a[0]).join(", "), { label: false });
+            advBtn.addEventListener("click", (e) => { e.stopPropagation(); advanced(advBtn, f); });
+            advBtn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); advBtn.click(); } });
+        }
+        return h("div", { class: "ex-main" },
+            head("Data", `${scopeTxt} - every attribute and run result - ${S.format}`),
+            h("div", { class: "ex-set" },
+                row("Format", dropdown(S.format, Object.keys(FMT), (x) => { S.format = x; redraw(); }, "Format")),
+                row("Scope", dropdown(S.scope === "Watchlist" ? "Watchlist, 5 nodes" : "Full graph", ["Full graph", "Watchlist", "Filtered graph"].map((o) => ({ label: o, check: o === S.scope, onClick: () => { S.scope = o === "Filtered graph" ? S.scope : o; redraw(); }, needs: o === "Filtered graph" ? "exportGraph writes the whole graph; writing only the filtered graph needs graphty-element" : null })), null, "Scope"),
+                    S.scope !== "Full graph" ? AB.needsElement("exportGraph writes the whole graph; writing only a set's nodes needs graphty-element") : null),
+                inline, advBtn ? row("", advBtn) : null),
+            notes.length ? callout("warning", h("b", null, `${S.format} cannot hold everything`), h("ul", null, notes.map((t) => h("li", null, t)))) : null,
+            h("div", { class: "ex-h" }, "Preview"),
+            h("pre", { class: "ex-pre" }, dataPreview()),
+            );
+    }
+    const dataFile = () => `${PROJECT}${S.scope === "Watchlist" ? "_watchlist" : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;
+
+    // ---------- Recipe ----------
+    function recipeBody() {
+        const views = AB.SAVED_VIEWS;
+        return h("div", { class: "ex-main" },
+            head("Recipe", S.onlyStyle ? "Only the style - paint rows - no data" : `The analysis without the data - 7 runs, ${views.length} saved views`),
+            h("div", { class: "ex-set" },
+                row("Include", check("Only the style", S.onlyStyle, () => { S.onlyStyle = !S.onlyStyle; redraw(); })),
+                row("File", h("span", null, S.onlyStyle ? `${PROJECT}.style` : `${PROJECT}.recipe`), AB.openQuestion("The recipe and style files' name endings"))),
+            S.onlyStyle ? null : callout("info", "Applying it to other data runs each analysis again. ", "Restoring the results without running again", " ", AB.needsElement("graphty-element keeps no run records a recipe could restore without recomputing")),
+            h("div", { class: "ex-h" }, "What the file holds"),
+            h("dl", { class: "ex-dl" },
+                S.onlyStyle ? null : [h("dt", null, "Runs"), h("dd", null, "Louvain at resolution 1.0, Louvain weighted by amount, PageRank, Degree, Betweenness, Closeness, Shortest paths")],
+                h("dt", null, "Style"), h("dd", null, "Every paint row in the tree, with the custom palettes they use (styles.toDocument)"),
+                S.onlyStyle ? null : [h("dt", null, "Saved views"), h("dd", null, views.join(", "))],
+                h("dt", null, "Left out"), h("dd", null, "Node names, values, the Watchlist's members, Overrides and notes: they name things in this data"),
+                h("dt", null, "Needs"), h("dd", null, "group (node) and value (edge), matched by name when applied")));
+    }
+
+    // ---------- Report (disabled: title, one sentence, the mark) ----------
+    function reportBody() {
+        return h("div", { class: "ex-main" },
+            head("Report", null),
+            h("p", { class: "ex-line", style: "margin:0" }, "One self-contained HTML file -- the views in tour as pages, in order, with their notes and the methods text -- or, with Methods text only, just how every number was computed."),
+            h("div", { class: "ex-line" }, AB.needsElement("graphty-element keeps no run records a methods writer could read; writing the methods in the app would be the app describing the graph")));
+    }
+
+    // ---------- Recent exports ----------
+    const RECENT = [
+        { file: `${PROJECT}_whole-cast.png`, what: "Image, PNG at 2x, Whole cast", when: "Today 10:14", go: ["export-image", "image"] },
+        { file: `${PROJECT}_nodes.csv`, what: "Data, CSV node table, full graph", when: "Today 9:52", go: ["export-dialog", "data"], set: { format: "CSV", table: "Nodes", scope: "Full graph" } },
+        { file: `${PROJECT}.recipe`, what: "Recipe, 7 runs and 3 saved views", when: "Yesterday 16:30", go: ["export-dialog", "recipe"], set: { onlyStyle: false } },
+        { file: `${PROJECT}_tour.webm`, what: "Video, tour of saved views", when: "Sep 28 11:05", go: ["export-video", "tour"] },
+    ];
+    function recentBody() {
+        return h("div", { class: "ex-main" },
+            head("Recent exports", `${RECENT.length} files, newest first - each was saved to Downloads`),
+            h("div", { class: "ex-recent", role: "list" }, RECENT.map((r) => h("div", { class: "ex-rec", role: "listitem" },
+                icon("file", "sm"), h("span", { class: "k-ellipsis" }, r.file),
+                AB.button("Export again", { kind: "secondary", onClick: () => { Object.assign(S, r.set || {}); AB.go(r.go[0], r.go[1]); } }),
+                h("span", { class: "ex-sum" }, `${r.what} - ${r.when} - Downloads`)))),
+            h("div", { class: "ex-line ex-sum" }, "Export again opens the output with the same settings, on the data as it is now."));
+    }
+
+    // ---------- the section ----------
+    const ALIAS = { table: "data", style: "recipe", methods: "report", "findings-report": "report", figure: "image", project: "image" };
+    function render(el, state, ctx, again) {
+        redraw = () => { el.textContent = ""; render(el, state, ctx, true); };
+        if (ALIAS[state]) {
+            if (state === "table") Object.assign(S, { format: "CSV", table: "Nodes" });
+            if (state === "style") S.onlyStyle = true;
+            state = ALIAS[state];
+        }
+        if (state === "image") return ctx.renderSection("export-image/image", el);
+        if (state === "video") return ctx.renderSection("export-video/still", el);
+        // A door only fills a field: the Watchlist row's menu fills Scope (and the node table)
+        if (!again && state === "from-row") Object.assign(S, { format: "CSV", table: "Nodes", scope: "Watchlist" });
+        if (!again && state === "data") S.scope = "Full graph";
+        const cancel = AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() });
+        let body, foot;
+        if (state === "report") {
+            body = reportBody();
+            foot = [cancel, AB.button("Export", { icon: "download", disabled: "Needs graphty-element: a methods writer" })];
+        } else if (state === "recipe") {
+            body = recipeBody();
+            foot = [cancel, AB.button("Export", { icon: "download", onClick: () => done(S.onlyStyle ? `${PROJECT}.style` : `${PROJECT}.recipe`) })];
+        } else if (state === "recent-exports") {
+            body = recentBody();
+            foot = [AB.button("Close", { kind: "ghost", onClick: () => AB.close() })];
+        } else {
+            body = dataBody(state === "from-row");
+            foot = [cancel, AB.button("Copy", { kind: "secondary", onClick: () => AB.flash(`Copied ${dataFile()} to the clipboard`) }), AB.button("Export", { icon: "download", onClick: () => done(dataFile()) })];
+        }
+        el.append(frame(state === "recent-exports" ? "recent" : state === "from-row" ? "data" : state, body, foot));
+    }
 
     registerSection({
         id: "export-dialog",
@@ -330,15 +311,13 @@
         frame: { left: "graph-place/at-rest" },
         closeTo: "graph-place",
         states: [
-            { id: "figure", label: "Figure selected" },
-            { id: "findings-report", label: "Findings report selected" },
-            { id: "data", label: "Data format selected" },
-            { id: "from-row", label: "Opened from a row, target filled in" },
-            { id: "methods", label: "Methods text selected" },
-            { id: "project", label: "Project selected" },
-            { id: "recipe", label: "Recipe selected" },
-            { id: "style", label: "Style selected" },
-            { id: "table", label: "Table as CSV selected" },
+            { id: "image", label: "Image (the export-image section)" },
+            { id: "video", label: "Video (the export-video section)" },
+            { id: "report", label: "Report, disabled" },
+            { id: "recipe", label: "Recipe" },
+            { id: "data", label: "Data" },
+            { id: "from-row", label: "Data from the Watchlist row's menu" },
+            { id: "recent-exports", label: "Recent exports" },
         ],
         render,
     });

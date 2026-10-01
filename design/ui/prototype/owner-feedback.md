@@ -137,3 +137,22 @@ Owner principle stated here: styling should be unopinionated and left to the use
 "as a primary focus of the next round of the design studio go through every screen, every component, every interaction. what can we simplify? what can we refine? what can we polish? where can we make interaction patterns the same?"
 "let's see if we can streamline things a bit before our next round of user testing. return the next set of skeleton wireframes to me to review before we move on."
 Owner decisions stated here: the toolbar carries icons only, no text, with tooltips shown after a hover delay. "Why this look" is collapsible. The skeleton comes back to the owner for review before any user testing.
+
+## 2026-09-30 -- the owner's notes on the Tableau research and the data design (verbatim)
+
+- "In a graph, the link between nodes and edges is fixed by the file format: each edge's two ends point at node ids." -- don't you have to know which field holds the IDs?
+- you didn't mention node weight or edge weight as pre-defined fields?
+- label field should be a variable that is picked in styling, not a pre-defined field -- maybe we want to label our nodes with names; maybe locations; maybe sizes. maybe we want multiple labels (some above, some below the node)
+- isn't blending different sources one of our use cases?
+- live versus snapshots is interesting, maybe file that as a issue for future enhancement (filed: issue #643)
+- "wait, can't we join graphs on something other than node id? for example, if a graph is a set of door entry times that have a person_id and a building_id, maybe we want to load in two other graphs for people and buildings"
+- "don't worry about blending for now, but I do want to load and join multiple data sources"
+- "weight should be a field that is defined when the data source is loaded"
+
+Owner decisions stated here:
+- Loading several data sources and joining them on any key column (not only the node id) is a primary task. Worked example: a door-entries table (person_id, building_id, time) joined to a people table and a buildings table.
+- Blending is out of scope for now.
+- Weight (node weight and edge weight) is a field defined when the data source is loaded.
+- A label is a variable picked in styling, not a predefined field; several labels per node (for example one above, one below) are wanted.
+- Live data sources versus snapshots is a future enhancement (issue #643), not in the current design.
+- "+ next to label should start empty" (owner decision: adding a Label line binds nothing until the user picks a field; it is not pre-filled with Name)

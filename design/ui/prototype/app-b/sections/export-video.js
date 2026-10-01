@@ -1,240 +1,208 @@
-/* Export: video. The Export dialog's frame (the list of outputs on the left, the chosen output on
-   the right) with Video selected. Backed by graphty-element's captureAnimation: a still camera
-   (records what happens on screen, such as the layout settling) or a tour through the checked
-   saved views in list order. Before recording, the element's estimate; while recording, progress
-   and Cancel replace the buttons; after, the frames captured and dropped. Plain ASCII.
-   Styles are injected below under the xv- prefix so this file does not depend on
-   export-dialog.js loading first. */
+/* Export > Video: graphty-element's captureAnimation, drawn inside the shared Export dialog frame
+   (AB.exportDialogFrame, published by export-dialog.js) with Video lit in its list. Fields: View
+   (the current camera, a standard view, a saved view, or Tour of saved views), Length, Size and
+   Frame rate; an Advanced popover holds format, bitrate, transparency and easing. A tour's stops
+   are the views checked In tour in the Views place, in its order, each a name and a Hold time.
+   The element's estimate (estimateAnimationCapture) is the one callout; while recording, one
+   progress bar in the footer; Done is one callout line and Close, Record again at 24 fps, Export.
+   Plain ASCII. Styles injected below under the xv- prefix. */
 (function () {
     "use strict";
     const CSS = `
-.xv-modal { width: min(1120px, calc(100vw - 48px)); height: min(760px, calc(100vh - 56px)); max-height: none; }
-.xv-modal .k-modal-body { flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
-.xv-list { overflow: auto; border-right: 1px solid var(--cm-border); padding: 6px 0; }
-.xv-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 12px 5px 14px; cursor: pointer; }
-.xv-item:hover { background: var(--cm-bg-hover, var(--cm-bg-secondary)); }
-.xv-item[aria-selected="true"] { background: var(--cm-bg-selected, var(--cm-bg-secondary)); }
-.xv-item .k-icon, .xv-item svg { margin-top: 2px; flex: none; }
-.xv-item-t { display: flex; gap: 6px; align-items: baseline; font-weight: 550; }
-.xv-item-t .xv-ext { font-weight: 400; color: var(--cm-text-secondary); }
-.xv-item-d { color: var(--cm-text-secondary); font-size: 11px; line-height: 15px; }
-.xv-main { overflow: auto; padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.xv-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
-.xv-from { color: var(--cm-text-secondary); font-size: 11px; font-weight: 400; margin-left: auto; }
-.xv-from a { color: var(--cm-text-brand); }
-.xv-facts, .xv-set { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 12px; margin: 0; align-items: center; }
-.xv-facts dt, .xv-set > span:nth-child(odd) { color: var(--cm-text-secondary); }
-.xv-facts dd { margin: 0; }
-.xv-set .k-field { max-width: 220px; }
-.xv-set[aria-disabled="true"] { opacity: .55; pointer-events: none; }
-.xv-seg { flex-wrap: wrap; height: auto; min-height: 24px; }
-.xv-seg > button { cursor: pointer; height: 24px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.xv-seg > button[disabled] { cursor: default; color: var(--cm-text-disabled); }
-.xv-h { font-weight: 550; margin: 4px 0 -4px; }
-.xv-note { color: var(--cm-text-secondary); }
-.xv-note a { color: var(--cm-text-brand); }
-.xv-stops { display: grid; grid-template-columns: 24px 16px minmax(0, 1fr) 88px 120px; gap: 4px 8px; align-items: center; max-width: 620px; }
-.xv-stops .xv-sh { color: var(--cm-text-secondary); font-size: 11px; }
-.xv-stops .k-field { width: 100%; }
-.xv-num { color: var(--cm-text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
-.xv-est { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 6px; background: var(--cm-bg-secondary); max-width: 620px; }
-.xv-est .k-icon, .xv-est svg { flex: none; margin-top: 1px; }
-.xv-est[data-kind="warn"] { box-shadow: inset 3px 0 0 var(--cm-text-warning, #b7791f); }
-.xv-est[data-kind="done"] { box-shadow: inset 3px 0 0 var(--cm-bg-brand); }
-.xv-prog { display: grid; gap: 6px; max-width: 620px; }
-.xv-prog .k-progress { height: 6px; }
-.xv-footl { flex: 1 1 auto; min-width: 0; color: var(--cm-text-secondary); display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.xv-footl a { color: var(--cm-text-brand); }
-.xv-footl .k-progress { width: 160px; flex: none; }
-.xv-oq { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 5px; font-size: 10px; font-weight: 600; color: var(--k-annot-ink); box-shadow: inset 0 0 0 1px var(--k-annot); white-space: nowrap; vertical-align: 1px; margin-left: 4px; }
-.xv-later { display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 5px; font-size: 10px; color: var(--cm-text-secondary); box-shadow: inset 0 0 0 1px var(--cm-border); margin-left: 4px; }
+.xv-set[inert] { opacity: .55; }
+.xv-num { width: 56px; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); }
+.xv-num:focus { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+.xv-stops { display: grid; grid-template-columns: minmax(0, max-content) auto; gap: 4px 16px; align-items: center; }
+.xv-stops .xv-hold { display: inline-flex; gap: 4px; align-items: center; color: var(--cm-text-secondary); }
+.xv-sub { color: var(--cm-text-secondary); }
+.xv-prev { margin: 0 0 0 16px; max-width: 360px; border-radius: 2px; box-shadow: 0 0 0 1px var(--cm-border); overflow: hidden; background: var(--cm-bg); }
+.xv-prev img { width: 100%; height: auto; display: block; }
+.xv-footl { flex: 1 1 auto; min-width: 0; color: var(--cm-text-secondary); display: flex; gap: 8px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xv-footl .k-progress { flex: 0 0 120px; }
+.xv-footl { flex: 0 0 auto; }
 `;
     if (!document.getElementById("xv-style")) document.head.append(h("style", { id: "xv-style" }, CSS));
 
-    const oq = (text) => h("span", { class: "xv-oq", title: text }, "Open question");
-
-    // The dialog's list of outputs, in the order the spec gives (section 12.1). Only Video is
-    // drawn here; every other item opens its own section.
-    const LIST = [
-        { name: "Image", ext: ".png", icon: "camera", line: "A picture of the canvas", go: ["export-image", "image"] },
-        { name: "Video", ext: ".webm", icon: "play", line: "The canvas as it moves, or a tour of views", video: true },
-        { name: "Figure", ext: ".svg", icon: "network", line: "The drawing with its legend", later: "PDF later", go: ["export-dialog", "figure"] },
-        { name: "Findings report", ext: ".html", icon: "book-open", line: "Views, notes and methods in one file", go: ["export-dialog", "findings-report"] },
-        { name: "Methods text", ext: ".txt", icon: "file", line: "How every number was computed", go: ["export-dialog", "methods"] },
-        { name: "Project", icon: "folder-open", line: "Everything, to reopen in graphty", go: ["export-dialog", "project"] },
-        { name: "Recipe", icon: "flask-conical", line: "The analysis, without the data", go: ["export-dialog", "recipe"] },
-        { name: "Style", icon: "palette", line: "Colors and sizes to reuse", go: ["export-dialog", "style"] },
-        { name: "Data", icon: "database", line: "The graph for other tools", go: ["export-dialog", "data"] },
-        { name: "Table as CSV", ext: ".csv", icon: "table", line: "One table's rows for a spreadsheet", go: ["export-dialog", "table"] },
-    ];
-
-    // The project's saved views, in the Views place's order (the Graph place fixture holds two).
-    const VIEWS = AB.SAVED_VIEWS.slice(0, 2); // the views in the tour, in the Views place's order
+    const STANDARD = ["Fit", "Front", "Side", "Top", "Isometric"]; // the element's camera catalog in 3D
+    const TOUR = "Tour of saved views";
+    const IN_TOUR = AB.SAVED_VIEWS.slice(0, 2); // the views checked In tour, in the Views place's order
+    const TOUR_2D = "A tour needs 3D: graphty-element's tour stop is a 3D position and target, not a 2D view";
+    const SIZES = ["Canvas size", "Canvas at 2x", "1080p, 1920 x 1080", "4K, 3840 x 2160"];
+    const BITRATES = ["2.5 Mbps", "5 Mbps", "8 Mbps", "16 Mbps", "40 Mbps"];
     const EASINGS = ["Ease in and out", "Linear", "Ease in", "Ease out"];
+    const ALIAS = { orbit: "still", "layout-settling": "still" }; // old state ids other files link to
 
-    // Old state ids other files link to (lib.js "Record video..." goes to "orbit").
-    const ALIAS = { orbit: "still", "layout-settling": "still" };
-
-    // Reader choices for this page visit.
-    let format = "Automatic";
-    let transparent = false;
-    const stopOn = VIEWS.map(() => true);
-    const stopSecs = [4, 4];
+    let s = null;       // this visit's choices
+    let shown = null;   // the state they belong to
+    let adv = false;    // the Advanced popover is open
+    let again24 = false; // "Record again at 24 fps" was pressed
     let redraw = () => {};
 
-    function seg(label, options, value, onPick, disabled) {
-        return h("span", { class: "k-seg xv-seg", role: "radiogroup", "aria-label": label },
-            options.map((o) => {
-                const off = disabled && disabled[o];
-                return h("button", { type: "button", role: "radio", "aria-checked": String(o === value), disabled: off ? "" : null, title: off || null,
-                    on: { click: () => { if (!off) onPick(o); } } }, o);
-            }));
+    function fresh(state) {
+        const tour = ["tour", "estimate-warning", "recording", "done"].includes(state);
+        const heavy = ["estimate-warning", "recording", "done"].includes(state);
+        return { view: tour ? TOUR : "Current camera", length: 12, holds: IN_TOUR.map(() => 4),
+            size: heavy ? SIZES[3] : SIZES[2], fps: heavy ? 60 : 30,
+            format: "Automatic", bitrate: "5 Mbps", transparent: false, easing: EASINGS[0] };
     }
-    const setRow = (label, control) => [h("span", null, label), h("div", null, control)];
-    const sw = (on, label, onClick, disabledReason) => h("span", { style: "display:inline-flex;gap:8px;align-items:center" },
-        h("span", { class: "k-switch", role: "switch", tabindex: disabledReason ? null : "0", "aria-checked": String(on), "aria-label": label, "aria-disabled": disabledReason ? "true" : null,
-            style: disabledReason ? "opacity:.5" : "cursor:pointer", on: { click: () => { if (!disabledReason) onClick(); } } }),
-        disabledReason ? h("span", { class: "xv-note" }, disabledReason) : null);
+    // Stand-in for the element's estimate: it predicts dropped frames for 4K above 24 fps.
+    const drops = () => s.size === SIZES[3] && s.fps > 24;
+    const ext = () => (s.format === "MP4" ? ".mp4" : ".webm");
+    const isTour = () => s.view === TOUR;
+    const secs = () => (isTour() ? s.holds.reduce((a, b) => a + b, 0) : s.length);
+    const file = () => "les-miserables_" + (isTour() ? "tour" : "canvas") + ext();
+    const change = (fn) => () => { fn(); redraw(); };
+
+    function num(value, label, set, f) {
+        return h("input", { class: "xv-num", type: "number", min: "1", max: "120", value: String(value), "aria-label": label, "data-f": f,
+            on: { change: (e) => { set(Math.max(1, Math.min(120, Number(e.target.value) || 1))); redraw(); } } });
+    }
+    function pick(anchorEl, list, value, set, disabled) {
+        AB.openMenu(anchorEl, list.map((x) => (typeof x !== "string" ? x : { label: x, check: x === value, disabled: disabled && disabled(x), onClick: () => { set(x); redraw(); } })));
+    }
+    function dropdown(value, label, f, onOpen) {
+        const fl = AB.field(value, { caret: true, onClick: (e) => onOpen(e.currentTarget) });
+        fl.setAttribute("aria-label", label + ": " + value);
+        fl.setAttribute("tabindex", "0");
+        fl.dataset.f = f;
+        return fl;
+    }
+
+    // ---------- the body ----------
+    function body(state) {
+        const in2d = state === "tour-2d-disabled";
+        const busy = state === "recording";
+        const done = state === "done";
+
+        const viewItems = [
+            "Current camera", { sep: true }, { heading: "Standard views" }, ...STANDARD,
+            { sep: true }, { heading: "Your views" }, ...AB.SAVED_VIEWS, { sep: true }, TOUR,
+        ];
+        const viewField = dropdown(s.view, "View", "view", (a) => pick(a, viewItems, s.view, (v) => { s.view = v; }, (x) => (x === TOUR && in2d ? TOUR_2D : false)));
+
+        const stops = isTour() ? h("div", { class: "xv-stops", role: "group", "aria-label": "Tour stops" },
+            IN_TOUR.map((v, i) => [
+                AB.link("inspector-saved-view", null, v, { class: "k-ellipsis" }),
+                h("span", { class: "xv-hold" }, "Hold", num(s.holds[i], "Hold at " + v + ", seconds", (x) => { s.holds[i] = x; }, "hold" + i), "s"),
+            ])) : null;
+
+        const set = h("div", { class: "ex-set xv-set", inert: busy || done ? "" : null },
+            AB.fieldRow("View", h("span", { class: "ex-ctl" }, viewField,
+                in2d ? AB.needsElement("graphty-element records 2D video, but its tour stop (CameraWaypoint) takes only a 3D position and target. It should take a camera state or a saved view name.") : null), { popover: true }),
+            stops ? AB.fieldRow("Stops", h("span", { class: "ex-ctl", style: "flex-direction:column;align-items:flex-start" }, stops,
+                h("span", { class: "xv-sub" }, "Which views and their order: ", AB.link("views-place", "at-rest", "Views"), " ",
+                    AB.needsElement("graphty-element's tour stop is a position, a target and the time to reach it: it takes no saved view and has no hold time"))), { popover: true }) : null,
+            !isTour() ? AB.fieldRow("Length", h("span", { class: "ex-ctl" }, num(s.length, "Length, seconds", (x) => { s.length = x; }, "length"), h("span", { class: "xv-sub" }, "seconds")), { popover: true }) : null,
+            AB.fieldRow("Size", h("span", { class: "ex-ctl" }, dropdown(s.size, "Size", "size", (a) => pick(a, [...SIZES, { sep: true }, { label: "Custom...", onClick: () => AB.flash("Custom size (not wired in the skeleton)") }], s.size, (v) => { s.size = v; }))), { popover: true }),
+            AB.fieldRow("Frame rate", h("span", { class: "ex-ctl", "data-f": "fps" }, AB.seg([[24, "24"], [30, "30"], [60, "60"]], s.fps, (v) => { s.fps = v; redraw(); }, { label: "Frame rate, frames per second" }), h("span", { class: "xv-sub" }, "fps")), { popover: true }),
+            AB.fieldRow("", h("span", { class: "ex-ctl" }, AB.button("Advanced", { kind: "secondary", icon: "sliders-horizontal", onClick: () => { adv = !adv; redraw(); } })), { popover: true }));
+        const advBtn = set.querySelector(".k-btn");
+        advBtn.dataset.f = "advanced";
+        advBtn.setAttribute("aria-haspopup", "dialog");
+        advBtn.setAttribute("aria-expanded", String(adv));
+
+        // The one callout: the element's estimate before, the result after; nothing while recording.
+        let call = null;
+        if (done) {
+            const planned = secs() * s.fps;
+            call = AB.exportCallout("warning", h("span", null, `Recorded ${secs()} s; 3 of ${planned} frames dropped, so playback stutters in places.`));
+        } else if (!busy && drops()) {
+            call = AB.exportCallout("warning", h("span", null, `This computer is likely to drop frames at ${s.fps} fps in 4K. At 24 fps it expects to keep every frame.`),
+                AB.button("Use 24 fps", { kind: "secondary", onClick: change(() => { s.fps = 24; }) }));
+        }
+
+        const summary = [`Full graph - ${secs()} s - legend not drawn `, AB.needsElement("graphty-element draws no legend into a captured frame")];
+
+        return h("div", { class: "ex-main" },
+            AB.exportHead(["Video ", h("span", { class: "k-secondary", style: "font-weight:400" }, ext())], summary),
+            set, call,
+            h("div", { class: "ex-h" }, "Preview"),
+            h("div", { class: "xv-prev" }, AB.drawing("lesmis-groups-rest",
+                "First frame: Les Miserables from " + (isTour() ? IN_TOUR[0] : s.view.toLowerCase()))));
+    }
+
+    // ---------- the Advanced popover (the shared popover; closes back to this dialog, not out of it) ----------
+    function advanced(el, state) {
+        const anchor = el.querySelector("[data-f=advanced]");
+        const mp4 = s.format === "MP4";
+        const box = h("span", { class: "k-check", role: "checkbox", tabindex: mp4 ? "-1" : "0", "aria-checked": String(s.transparent), "aria-disabled": mp4 ? "true" : null,
+            "aria-label": "Transparent background", "data-f": "transparent", style: mp4 ? "opacity:.5" : "cursor:pointer",
+            on: { click: () => { if (!mp4) { s.transparent = !s.transparent; redraw(); } }, keydown: (e) => { if (e.key === " " && !mp4) { e.preventDefault(); s.transparent = !s.transparent; redraw(); } } } });
+        if (mp4) AB.tip(box, "Transparent background", { second: "MP4 cannot hold transparency; choose WebM or Automatic" });
+        const easing = isTour() && dropdown(s.easing, "Easing", "easing", (a) => pick(a, EASINGS, s.easing, (v) => { s.easing = v; }));
+        const bodyEl = [
+            AB.fieldRow("Format", h("span", { "data-f": "format" }, AB.seg([["Automatic", "Automatic"], ["WebM", "WebM"], ["MP4", "MP4"]], s.format, (v) => { s.format = v; if (v === "MP4") s.transparent = false; redraw(); }, { label: "Format" })), { popover: true }),
+            AB.fieldRow("Bitrate", dropdown(s.bitrate, "Bitrate", "bitrate", (a) => pick(a, BITRATES, s.bitrate, (v) => { s.bitrate = v; })), { popover: true }),
+            AB.fieldRow("Background", h("label", { class: "ex-chk" }, box, "Transparent"), { popover: true }),
+            AB.fieldRow("Easing", isTour() ? easing : h("span", { class: "xv-sub", style: "line-height:24px" }, "Only a tour moves the camera"), { popover: true }),
+        ];
+        const p = AB.popover({ anchor, place: "right-start", title: "Advanced", body: bodyEl, width: 320 });
+        p.querySelector(".k-popover-head .k-icon-btn").replaceWith(AB.iconButton("x", "Close", { key: "Esc", onClick: closeAdv }));
+        el.append(p);
+    }
+    let off = null;
+    function closeAdv() {
+        adv = false;
+        redraw();
+        const b = document.querySelector("#ab-overlay [data-f=advanced]");
+        if (b) b.focus();
+    }
+    function watchAdv(el) {
+        if (off) off();
+        if (!adv) { off = null; return; }
+        const key = (e) => { if (e.key === "Escape" && !document.querySelector("#ab-overlay .k-menu")) { e.preventDefault(); e.stopPropagation(); closeAdv(); } };
+        const down = (e) => { const p = el.querySelector(".k-popover"); if (p && !p.contains(e.target) && !e.target.closest(".k-menu, [data-f=advanced]")) closeAdv(); };
+        document.addEventListener("keydown", key, true);
+        document.addEventListener("pointerdown", down, true);
+        off = () => { document.removeEventListener("keydown", key, true); document.removeEventListener("pointerdown", down, true); };
+    }
+    window.addEventListener("hashchange", () => { adv = false; if (off) { off(); off = null; } });
+
+    // ---------- the footer ----------
+    function foot(state) {
+        if (state === "recording") {
+            const planned = secs() * s.fps;
+            return [
+                h("span", { class: "xv-footl", role: "status" },
+                    h("span", { class: "k-progress", role: "progressbar", "aria-label": "Recording", "aria-valuemin": "0", "aria-valuemax": String(planned), "aria-valuenow": String(planned / 2) }, h("i", { style: "width:50%" })),
+                    `Frame ${planned / 2} of ${planned}` + (isTour() ? `, ${IN_TOUR[0]}` : "")),
+                AB.button("Cancel", { kind: "secondary", onClick: () => { AB.go("export-video", "estimate-warning"); setTimeout(() => AB.notice("Recording canceled; nothing was saved."), 50); } }),
+            ];
+        }
+        if (state === "done") {
+            return [
+                AB.button("Close", { kind: "ghost", onClick: () => AB.close() }),
+                AB.button("Record again at 24 fps", { kind: "secondary", onClick: () => { again24 = true; AB.go("export-video", "recording"); } }),
+                AB.button("Export", { icon: "download", onClick: () => AB.exportDone(file()) }),
+            ];
+        }
+        return [
+            AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() }),
+            AB.button("Record", { icon: "circle-dot", go: ["export-video", "recording"] }),
+        ];
+    }
 
     function render(el, rawState) {
         const state = ALIAS[rawState] || rawState;
-        redraw = () => { el.textContent = ""; render(el, rawState); };
-        const tour = state === "tour" || state === "estimate-warning" || state === "recording" || state === "done";
-        const in2d = state === "tour-2d-disabled";
-        const warn = state === "estimate-warning" || state === "recording" || state === "done";
-        const busy = state === "recording";
-        const done = state === "done";
-        // The reader's settings; the warning states have chosen a heavy recording.
-        const fps = warn ? 60 : 30;
-        const size = warn ? "3840 x 2160" : "1920 x 1080";
-        const bitrate = warn ? "40 Mbps" : "8 Mbps";
-        const stops = VIEWS.map((v, i) => ({ v, i })).filter((s) => stopOn[s.i]);
-        const secs = tour ? stops.reduce((a, s) => a + stopSecs[s.i], 0) : 12;
-        const frames = secs * fps; // arithmetic on the reader's own settings
-        const file = tour ? "les-miserables_tour.webm" : "les-miserables_canvas.webm";
-
-        const list = h("div", { class: "xv-list", role: "listbox", "aria-label": "What to export" },
-            LIST.map((it) => h("div", Object.assign({ class: "xv-item", role: "option", "aria-selected": String(!!it.video) },
-                it.video ? AB.act({ onClick: () => {} }) : AB.act({ go: it.go })),
-            icon(it.icon),
-            h("div", null,
-                h("div", { class: "xv-item-t" }, it.name, it.ext ? h("span", { class: "xv-ext" }, it.ext) : null, it.later ? h("span", { class: "xv-later" }, it.later) : null),
-                h("div", { class: "xv-item-d" }, it.line)))));
-
-        // Still camera | Tour
-        const camera = seg("Camera", ["Still camera", "Tour"], tour ? "Tour" : "Still camera",
-            (o) => AB.go("export-video", o === "Tour" ? "tour" : "still"),
-            in2d ? { Tour: "A tour stop is a 3D position and target; a 2D view's zoom, pan and rotation cannot be a stop yet" } : null);
-        const cameraRow = h("div", null, camera,
-            in2d ? h("div", { class: "xv-note", style: "margin-top:4px" }, "Tour is off in 2D. ", AB.needsElement("graphty-element records 2D video and animates 2D zoom and pan, but its tour stop (CameraWaypoint) takes only a position and target, read as zoom in 2D. It should take a camera state or a saved view name; converting views to stops in the app would be a workaround."), " ",
-                AB.link("export-video", "tour", "Switch to 3D and record a tour")) : null);
-
-        const what = tour
-            ? h("div", { class: "xv-note" }, "Flies through the saved views checked for the tour, in the Views place's order, then stops.")
-            : h("div", { class: "xv-note" }, "Records the canvas from ", h("b", null, in2d ? "the current 2D camera" : "the current camera"),
-                " as it is, including anything that moves: resume the layout with the layout chip beside the Camera menu first, to record it settling.");
-
-        const stopsBlock = tour ? [
-            h("div", { class: "xv-h" }, `Stops (${stops.length} of ${VIEWS.length} views)`),
-            h("div", { class: "xv-stops", role: "group", "aria-label": "Tour stops" },
-                h("span", { class: "xv-sh" }, "Tour"), h("span", { class: "xv-sh" }, "#"), h("span", { class: "xv-sh" }, "Saved view"), h("span", { class: "xv-sh" }, "Hold"), h("span", { class: "xv-sh" }, "Move in"),
-                VIEWS.map((v, i) => [
-                    h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(stopOn[i]), "aria-label": "In tour: " + v,
-                        style: "cursor:pointer", on: { click: () => { if (busy) return; stopOn[i] = !stopOn[i]; redraw(); } } }),
-                    h("span", { class: "xv-num" }, String(i + 1)),
-                    AB.link("inspector-saved-view", null, v, { class: "k-ellipsis" }),
-                    AB.field(stopSecs[i] + " s", { onClick: () => { if (busy) return; stopSecs[i] = stopSecs[i] >= 8 ? 2 : stopSecs[i] + 2; redraw(); } }),
-                    AB.field(EASINGS[0], { caret: true, onClick: (e) => AB.menu({ anchor: e.currentTarget, place: "below-start", items: EASINGS.map((x, k) => ({ label: x, check: k === 0, onClick: () => AB.flash("Easing: " + x + " (not wired in the skeleton)") })) }) }),
-                ])),
-            h("div", { class: "xv-note" }, "The In tour checkboxes are the same ones as in the ", AB.link("views-place", "at-rest", "Views place"), "; clicking a hold time steps it by 2 s."),
-        ] : null;
-
-        const fmtOff = { MP4: null };
-        const transReason = format === "MP4" ? "MP4 has no transparency; choose WebM or Automatic" : null;
-        const settings = h("div", { class: "xv-set", "aria-disabled": busy || done ? "true" : null },
-            !tour ? setRow("Length", AB.field("12 s", { onClick: () => AB.flash("Length in seconds (not wired in the skeleton)") })) : setRow("Length", h("span", null, `${secs} s, the sum of the holds`)),
-            setRow("Format", h("span", null, seg("Format", ["Automatic", "WebM", "MP4"], format, (o) => { format = o; if (o === "MP4") transparent = false; redraw(); }, fmtOff),
-                format === "Automatic" ? h("span", { class: "xv-note", style: "margin-left:8px" }, "WebM here; MP4 where the browser records only that") : null)),
-            setRow("Frame rate", AB.field(fps + " fps", { caret: true, onClick: (e) => AB.menu({ anchor: e.currentTarget, place: "below-start", items: [24, 30, 60].map((f) => ({ label: f + " fps", check: f === fps, go: ["export-video", f === 60 ? "estimate-warning" : tour ? "tour" : "still"] })) }) })),
-            setRow("Bitrate", AB.field(bitrate, { caret: true, onClick: () => AB.flash("Bitrate: 4, 8, 16 or 40 Mbps (not wired in the skeleton)") })),
-            setRow("Size", AB.field(size, { caret: true, onClick: (e) => AB.menu({ anchor: e.currentTarget, place: "below-start", items: [
-                { label: "1280 x 720", onClick: () => AB.flash("1280 x 720 (not wired in the skeleton)") },
-                { label: "1920 x 1080", check: size === "1920 x 1080", go: ["export-video", tour ? "tour" : "still"] },
-                { label: "3840 x 2160", check: size === "3840 x 2160", go: ["export-video", "estimate-warning"] },
-                { sep: true }, { label: "The canvas size", onClick: () => AB.flash("The canvas size (not wired in the skeleton)") }] }) })),
-            setRow("Background", sw(transparent, "Transparent background", () => { transparent = !transparent; if (transparent && format === "MP4") format = "WebM"; redraw(); }, transReason)),
-        );
-
-        // The element's estimate (estimateAnimationCapture): no numbers of its own are drawn,
-        // only the verdict and the reader's arithmetic.
-        let status;
-        if (busy) {
-            const at = Math.round(frames / 2);
-            status = h("div", { class: "xv-prog", role: "status" },
-                h("div", null, h("b", null, "Recording"), h("span", { class: "xv-note" }, ` -- frame ${at} of ${frames}, stop 1 of ${stops.length}: ${stops[0] ? stops[0].v : ""}`)),
-                h("div", { class: "k-progress", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(frames), "aria-valuenow": String(at) }, h("i", { style: "width:50%" })),
-                h("div", { class: "xv-note" }, "Leave this tab open: the recording follows what the canvas draws. Cancel keeps nothing."));
-        } else if (done) {
-            status = [
-                h("div", { class: "xv-est", "data-kind": "done", role: "status" }, icon("circle-check", "sm"),
-                    h("div", null, h("b", null, "Recorded: " + file), h("div", { class: "xv-note" }, `${secs} s at ${fps} fps, ${size}. Some frames were dropped, so playback will stutter in places.`))),
-                h("dl", { class: "xv-facts" },
-                    h("dt", null, "Frames planned"), h("dd", null, `${frames} (${secs} s x ${fps} fps)`),
-                    h("dt", null, "Captured"), h("dd", { class: "xv-note" }, "the count graphty-element reports", oq("Frame counts are the element's; the skeleton has none to show")),
-                    h("dt", null, "Dropped"), h("dd", { class: "xv-note" }, "the count graphty-element reports")),
-            ];
-        } else if (warn) {
-            status = h("div", { class: "xv-est", "data-kind": "warn", role: "status" }, icon("triangle-alert", "sm"),
-                h("div", null, h("b", null, "This computer is likely to drop frames at these settings."),
-                    h("div", { class: "xv-note" }, `graphty-element's estimate for ${fps} fps at ${size}. At 24 fps it expects every frame to be kept.`)));
-        } else {
-            status = h("div", { class: "xv-est", role: "status" }, icon("gauge", "sm"),
-                h("div", null, h("b", null, "Expected to record smoothly."),
-                    h("div", { class: "xv-note" }, `graphty-element's estimate for ${frames} frames (${secs} s x ${fps} fps) at ${size}.`)));
-        }
-
-        const from = tour && !busy && !done ? ["views-place", "at-rest", "Views > Record tour"] : !tour ? ["project-menu", "open", "Project menu > Export..."] : null;
-        const main = h("div", { class: "xv-main" },
-            h("div", { class: "xv-title" }, icon("play"), "Video", h("span", { class: "k-secondary", style: "font-weight:400" }, format === "MP4" ? ".mp4" : ".webm"),
-                from ? h("span", { class: "xv-from" }, "Opened from ", AB.link(from[0], from[1], from[2])) : null),
-            h("dl", { class: "xv-facts" },
-                h("dt", null, "Camera"), h("dd", null, cameraRow),
-                h("dt", null, "Contains"), h("dd", null, what),
-                h("dt", null, "Masked"), h("dd", null, "Nothing is left out: the video shows the canvas exactly as drawn, with no legend. ", AB.needsElement("graphty-element draws no legend into a captured frame"))),
-            stopsBlock,
-            h("div", { class: "xv-h" }, "Settings"),
-            settings,
-            status);
-
-        let foot;
-        if (busy) {
-            foot = [
-                h("span", { class: "xv-footl" }, h("span", { class: "k-progress" }, h("i", { style: "width:50%" })), "Recording, 50%"),
-                AB.button("Cancel", { kind: "secondary", onClick: () => { AB.go("export-video", "estimate-warning"); setTimeout(() => AB.flash("Recording canceled. Nothing was saved."), 50); } }),
-            ];
-        } else if (done) {
-            foot = [
-                h("span", { class: "xv-footl" }, icon("info", "sm"), "Downloading lists it in ", AB.link("data-place", "sent-and-saved", "Data > Sent and saved"), "."),
-                AB.button("Record again at the recommended settings", { kind: "secondary", icon: "refresh-cw", go: ["export-video", "recording"] }),
-                AB.button("Download", { icon: "download", onClick: () => { AB.go("data-place", "sent-and-saved"); setTimeout(() => AB.flash(`Written: ${file}, to Downloads. Listed in Sent and saved.`), 50); } }),
-            ];
-        } else if (warn) {
-            foot = [
-                h("span", { class: "xv-footl" }, icon("info", "sm"), AB.link("export-video", "recording", `Record with my settings (${fps} fps)`, { title: "Keeps your settings; frames may drop" })),
-                AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() }),
-                AB.button("Record at 24 fps (recommended)", { icon: "circle-dot", go: ["export-video", "recording"] }),
-            ];
-        } else {
-            foot = [
-                h("span", { class: "xv-footl" }, icon("info", "sm"), "Saved to this computer; nothing is uploaded. Each export is listed in ", AB.link("data-place", "sent-and-saved", "Data > Sent and saved"), "."),
-                AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() }),
-                AB.button("Record", { icon: "circle-dot", go: ["export-video", "recording"] }),
-            ];
-        }
-
-        const m = AB.modal({ title: "Export", body: [list, main], foot });
-        m.querySelector(".k-modal").classList.add("xv-modal");
-        el.append(m);
+        if (shown !== state || !s) { shown = state; s = fresh(state); adv = false; if (again24) s.fps = 24; again24 = false; }
+        if (state === "tour-2d-disabled" && isTour()) s.view = "Current camera";
+        redraw = () => {
+            const f = document.activeElement && document.activeElement.closest && document.activeElement.closest("[data-f]");
+            const k = f && f.dataset.f;
+            el.textContent = "";
+            draw();
+            const again = k && el.querySelector(`[data-f="${k}"]`);
+            if (again) (again.matches("input, [tabindex], button") ? again : again.querySelector("[tabindex='0'], input, button") || again).focus();
+        };
+        const draw = () => {
+            const b = body(state);
+            const ft = foot(state);
+            el.append(AB.exportDialogFrame("video", b, ft));
+            if (adv) advanced(el, state);
+            watchAdv(el);
+        };
+        el.textContent = "";
+        draw();
     }
 
     registerSection({

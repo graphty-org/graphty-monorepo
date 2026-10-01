@@ -1,12 +1,18 @@
-/* Style pickers: the popovers the shared Style tab (AB.styleTab) and "Why this look"
-   (AB.whyThisLook) open. Each popover sits to the left of the inspector, level with the control
-   that opened it, so the row it edits stays in view.
+/* Style pickers (version 3): what the Style tab (AB.styleTab) and "Why this look" (AB.whyThisLook)
+   open. Two surfaces only:
+   - Dark menus choose one item: a section's "+" (the shared AB.plus menu, opened here on the real
+     button) and the From data list (AB.openMenu with its filter).
+   - Light popovers edit a value (AB.popover): Color, Glow, Shape, Pattern, Head or Tail (titled by the line), Label style,
+     Binding, Palette, Custom palette, and a token's property. Every change applies live; there is
+     no Apply or Cancel. Esc, the X or a click outside closes. Only Custom palette has a footer
+     button, because it creates something.
+   Inside a popover an unset field shows its effective value in gray, its source in the tooltip.
 
-   Lists come from graphty-element (copied here as stand-ins, the real app reads them from the
-   element): the 18 palettes of catalog/palettes.ts (plain names respelled "Colors"), the node
-   shapes, arrow types and line patterns of AB.CHANNELS, the label-style field names of
-   catalog/label-style.ts (LABEL_STYLE_FIELDS; names only, so the kinds and choices below are
-   typed by the app), and the nine scales of session/styles/scales.ts. Plain ASCII. */
+   Lists come from graphty-element (stand-ins here; the real app reads them from the element): the
+   18 palettes of catalog/palettes.ts, the shapes, arrow types and line patterns of AB.CHANNELS, the
+   label-style fields of catalog/label-style.ts (names only, so the kinds below are the app's), the
+   nine scales of catalog/scales.ts, and the defaults of config/EdgeStyle.ts and RichTextLabel.ts.
+   Plain ASCII. See ../README.md. */
 (function () {
     "use strict";
     const { h, icon } = AB;
@@ -14,79 +20,81 @@
     // ---------- this section's styles, injected once ----------
     if (!document.querySelector("style[data-sp]")) {
         document.head.append(h("style", { "data-sp": "" },
-            ".sp-pop .k-popover-body{padding:0 0 8px}" +
-            // A list of commands is a menu: the same dark surface as every menu (pickers stay light)
-            ".sp-menu-surface{color-scheme:dark;background:#1e1e1e;color:#fff}" +
-            ".sp-filter{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-bottom:1px solid var(--cm-border);color:var(--cm-icon-secondary)}" +
-            ".sp-filter input{flex:1;min-width:0;border:0;background:none;font:inherit;color:var(--cm-text);outline:none}" +
+            ".sp-pop .ab-sin::placeholder{color:var(--cm-text-secondary);opacity:1}" +
+            ".sp-eff{color:var(--cm-text-secondary)}" +
             ".sp-head{padding:8px 16px 2px;color:var(--cm-text-secondary);font-size:11px;font-weight:550}" +
+            ".sp-scope{padding:6px 16px;margin:-8px 0 8px;background:var(--cm-bg-secondary);color:var(--cm-text-secondary);font-size:11px}" +
             ".sp-item{display:flex;align-items:center;gap:8px;min-height:28px;padding:2px 16px;cursor:default}" +
             ".sp-item:hover,.sp-item:focus-visible{background:var(--cm-bg-hover)}" +
-            ".sp-item[aria-disabled=true]{color:var(--cm-text-tertiary)}" +
             ".sp-item[aria-selected=true]{background:var(--cm-bg-selected)}" +
-            ".sp-item .sp-ck{width:12px;flex:none;color:var(--cm-text-brand)}" +
-            ".sp-item .sp-sub{color:var(--cm-text-secondary);font-size:11px}" +
-            ".sp-item .sp-desc{display:block;color:var(--cm-text-tertiary);font-size:11px;line-height:14px}" +
-            ".sp-item svg.sp-g{flex:none;color:var(--cm-icon)}" +
+            ".sp-ck{width:12px;flex:none;color:var(--cm-text-brand)}" +
             ".sp-strip{display:flex;width:72px;height:12px;border-radius:2px;overflow:hidden;flex:none;box-shadow:inset 0 0 0 1px var(--cm-border)}" +
             ".sp-strip>span{flex:1}" +
-            ".sp-mark{display:inline-flex;align-items:center;gap:2px;font-size:11px;color:var(--cm-text-secondary);white-space:nowrap}" +
-            ".sp-warn{color:var(--cm-text-warning,var(--cm-text-secondary))}" +
-            ".sp-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:8px}" +
+            ".sp-mark{display:inline-flex;color:var(--cm-text-secondary)}" +
+            ".sp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;padding:0 8px 8px}" +
             ".sp-cell{min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 4px;border-radius:5px;color:var(--cm-icon)}" +
             ".sp-cell:hover,.sp-cell:focus-visible{background:var(--cm-bg-hover)}" +
             ".sp-cell[aria-selected=true]{background:var(--cm-bg-selected);box-shadow:inset 0 0 0 1px var(--cm-border-selected)}" +
-            ".sp-cell span{width:100%;text-align:center;font-size:10px;line-height:12px;color:var(--cm-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-            ".sp-now{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--cm-border)}" +
-            ".sp-row{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:8px;min-height:28px;padding:0 16px}" +
-            ".sp-row>label{color:var(--cm-text-secondary)}" +
-            ".sp-in{height:24px;min-width:0;width:100%;box-sizing:border-box;padding:0 6px;border-radius:5px;border:0;background:var(--cm-bg-secondary);color:var(--cm-text);font:inherit}" +
-            ".sp-in:focus{outline:2px solid var(--cm-border-selected);outline-offset:-1px}" +
-            ".sp-in::placeholder{color:var(--cm-text-tertiary)}" +
-            ".sp-color{display:flex;align-items:center;gap:6px}" +
-            ".sp-color .k-chit{cursor:default}" +
+            ".sp-cell>span{width:100%;text-align:center;font-size:11px;line-height:13px;color:var(--cm-text-secondary);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}" +
+            ".sp-cell svg{flex:none}" +
+            ".sp-filter{display:flex;align-items:center;gap:6px;margin:0 16px 8px;color:var(--cm-icon-secondary)}" +
+            ".sp-color{display:flex;align-items:center;gap:6px;min-width:0;flex:1}" +
+            ".sp-color .ab-sin{width:0}" +
+            ".sp-pct{flex:0 0 52px!important;width:52px!important}" +
+            ".sp-stops{display:flex;flex-wrap:wrap;gap:4px;padding:2px 16px 8px}" +
+            ".sp-stops .k-chit{width:20px;height:20px;cursor:default}" +
+            ".sp-sv{position:relative;height:150px;margin:0 16px 8px;border-radius:5px;box-shadow:inset 0 0 0 1px var(--cm-border)}" +
+            ".sp-sv>i{position:absolute;width:10px;height:10px;margin:-6px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #0006}" +
+            ".sp-hue{height:12px;margin:0 16px 10px;border-radius:6px;background:linear-gradient(90deg,red,#ff0,lime,cyan,blue,#f0f,red);position:relative}" +
+            ".sp-hue>i{position:absolute;top:-1px;width:10px;height:10px;margin-left:-6px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #0006}" +
+            ".sp-tabs{padding:0 8px 8px}" +
             ".sp-loc{display:grid;grid-template-columns:repeat(3,24px);gap:2px}" +
             ".sp-loc>span{height:20px;border-radius:4px;background:var(--cm-bg-secondary);display:grid;place-items:center}" +
             ".sp-loc>span::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--cm-icon-secondary)}" +
             ".sp-loc>span[aria-checked=true]{background:var(--cm-bg-brand)}" +
             ".sp-loc>span[aria-checked=true]::after{background:#fff}" +
-            ".sp-preview{display:flex;align-items:center;justify-content:center;height:56px;margin:8px 16px;border-radius:5px;background:var(--cm-bg-secondary)}" +
-            ".sp-preview b{padding:2px 8px;border-radius:4px;background:#FFFFFF;color:#000000;font-weight:500;font-size:13px;box-shadow:0 0 0 1px #00000026}" +
-            ".sp-tabs .k-tabs{padding:0 8px;overflow-x:auto}" +
-            ".sp-cap{padding:6px 16px;color:var(--cm-text-secondary);font-size:11px;line-height:16px}" +
-            ".sp-oq{display:flex;gap:6px;align-items:flex-start;padding:6px 16px;font-size:11px;line-height:16px;color:var(--cm-text-secondary)}" +
-            ".sp-foot-note{margin-inline-end:auto;align-self:center;color:var(--cm-text-secondary);font-size:11px}" +
-            ".sp-stops{display:flex;flex-wrap:wrap;gap:4px;padding:4px 16px 8px}" +
-            ".sp-stops .k-chit{width:20px;height:20px}"));
+            ".sp-preview{display:flex;align-items:center;justify-content:center;height:56px;margin:0 16px 8px;border-radius:5px;background:var(--cm-bg-secondary)}" +
+            ".sp-preview b{padding:2px 8px;border-radius:4px;font-family:Verdana,sans-serif;font-weight:400;font-size:13px}" +
+            ".sp-ml{display:inline-flex;align-items:center;gap:8px}" +
+            ".sp-detach{padding:4px 16px 0}" +
+            ".sp-pop .ab-frow .k-field{flex:1;min-width:0}" +
+            // the label popover's "-": the panel's rule, one 24 px slot at the row's end, shown on hover or focus
+            ".sp-lsrow .ab-fctl{display:flex;align-items:center;gap:4px}" +
+            ".sp-lsctl{flex:1;min-width:0;display:flex;align-items:center}" +
+            ".sp-minus{flex:none;width:24px;visibility:hidden}" +
+            ".sp-lsrow:is(:hover,:focus-within) .sp-minus{visibility:visible}" +
+            "@media (pointer:coarse){.sp-minus{visibility:visible}}"));
     }
 
     // ---------- the element's lists (stand-ins) ----------
-    const ALL3 = "Declared safe for deuteranopia, protanopia and tritanopia";
-    const P = (id, name, kind, colors, safe) => ({ id, name, kind, colors, safe, cap: kind === "categorical" ? colors.length : null });
+    const P = (id, name, kind, colors, safe) => ({ id, name, kind, colors, safe });
     const PALETTES = [
-        P("viridis", "Purple to Yellow", "sequential", ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"], true),
-        P("ylorbr", "Orange to Brown", "sequential", ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"], true),
-        P("plasma", "Blue to Yellow", "sequential", ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"], true),
-        P("inferno", "Black to Yellow", "sequential", ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"], true),
-        P("blues", "Shades of Blue", "sequential", ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"], true),
-        P("greens", "Shades of Green", "sequential", ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"], false),
-        P("oranges", "Shades of Orange", "sequential", ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#a63603", "#7f2704"], false),
-        P("okabe-ito", "Eight Distinct Colors", "categorical", ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"], true),
-        P("tol-vibrant", "Seven Bright Colors", "categorical", ["#0077BB", "#33BBEE", "#009988", "#EE7733", "#CC3311", "#EE3377", "#BBBBBB"], true),
-        P("tol-muted", "Nine Soft Colors", "categorical", ["#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77", "#CC6677", "#882255", "#AA4499"], true),
-        P("pastel", "Eight Pale Colors", "categorical", ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"], true),
-        P("carbon", "Five Enterprise Colors", "categorical", ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"], false),
-        P("purple-green", "Purple to Green", "diverging", ["#762a83", "#9970ab", "#c2a5cf", "#e7d4e8", "#f7f7f7", "#d9f0d3", "#a6dba0", "#5aae61", "#1b7837"], true),
-        P("blue-orange", "Blue to Orange", "diverging", ["#2166ac", "#4393c3", "#92c5de", "#d1e5f0", "#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b"], true),
-        P("red-blue", "Red to Blue", "diverging", ["#67001f", "#b2182b", "#d6604d", "#f4a582", "#fddbc7", "#f7f7f7", "#d1e5f0", "#92c5de", "#4393c3", "#2166ac"], false),
-        P("blue-highlight", "Blue Highlight", "categorical", ["#0072B2", "#CCCCCC"], true),
-        P("green-highlight", "Green Highlight", "categorical", ["#009E73", "#999999"], true),
-        P("orange-highlight", "Orange Highlight", "categorical", ["#E69F00", "#CCCCCC"], true),
+        P("viridis", "Purple to yellow", "sequential", ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"], true),
+        P("ylorbr", "Orange to brown", "sequential", ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"], true),
+        P("plasma", "Blue to yellow", "sequential", ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"], true),
+        P("inferno", "Black to yellow", "sequential", ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"], true),
+        P("blues", "Blues", "sequential", ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"], true),
+        P("greens", "Greens", "sequential", ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"], false),
+        P("oranges", "Oranges", "sequential", ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#a63603", "#7f2704"], false),
+        P("okabe-ito", "Eight distinct", "categorical", ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"], true),
+        P("tol-vibrant", "Seven bright", "categorical", ["#0077BB", "#33BBEE", "#009988", "#EE7733", "#CC3311", "#EE3377", "#BBBBBB"], true),
+        P("tol-muted", "Nine soft", "categorical", ["#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77", "#CC6677", "#882255", "#AA4499"], true),
+        P("pastel", "Eight pale", "categorical", ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"], true),
+        P("carbon", "Five enterprise", "categorical", ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"], false),
+        P("purple-green", "Purple to green", "diverging", ["#762a83", "#9970ab", "#c2a5cf", "#e7d4e8", "#f7f7f7", "#d9f0d3", "#a6dba0", "#5aae61", "#1b7837"], true),
+        P("blue-orange", "Blue to orange", "diverging", ["#2166ac", "#4393c3", "#92c5de", "#d1e5f0", "#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b"], true),
+        P("red-blue", "Red to blue", "diverging", ["#67001f", "#b2182b", "#d6604d", "#f4a582", "#fddbc7", "#f7f7f7", "#d1e5f0", "#92c5de", "#4393c3", "#2166ac"], false),
+        P("blue-highlight", "Blue highlight", "categorical", ["#0072B2", "#CCCCCC"], true),
+        P("green-highlight", "Green highlight", "categorical", ["#009E73", "#999999"], true),
+        P("orange-highlight", "Orange highlight", "categorical", ["#E69F00", "#CCCCCC"], true),
     ];
-    const SCALES = ["linear", "log", "neglog10", "sqrt", "pow", "bins", "quantile", "ordinal", "passthrough"];
-    const nodeCh = () => AB.CHANNELS.node.find((c) => c.id === "node.shape").choices;
-    const arrowCh = () => AB.CHANNELS.edge.find((c) => c.id === "edge.arrowHead").choices;
-    const lineCh = () => AB.CHANNELS.edge.find((c) => c.id === "edge.style").choices;
+    const pal = (id) => PALETTES.find((p) => p.id === id);
+    // the element's nine scales, offered by the bound value's type
+    const SCALES = { linear: "Linear", log: "Log", neglog10: "Log, with negatives", sqrt: "Square root", pow: "Power", bins: "Bins", quantile: "Quantiles", ordinal: "One color per value", passthrough: "As is" };
+    const SCALES_FOR = { number: ["linear", "log", "neglog10", "sqrt", "pow", "bins", "quantile"], category: ["ordinal"], text: ["passthrough"] };
+    const chChoices = (id) => AB.CHANNELS.node.concat(AB.CHANNELS.edge).find((c) => c.id === id).choices;
+    const nice = (v) => String(v).replace(/_/g, " ");
+    const DEF = "the default look";
 
     // ---------- glyphs (drawn in currentColor so they work in light and dark) ----------
     const NS = "http://www.w3.org/2000/svg";
@@ -96,7 +104,6 @@
         s.setAttribute("height", hgt);
         s.setAttribute("viewBox", vb);
         s.setAttribute("aria-hidden", "true");
-        s.setAttribute("class", "sp-g");
         s.innerHTML = inner;
         return s;
     }
@@ -154,7 +161,7 @@
         "half-open": '<path d="M14 8V3l8 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
         vee: '<path d="M15 3l7 5-7 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
     };
-    const arrowGlyph = (name) => svg(24, 16, "0 0 24 16", `<path d="M2 8h${name === "none" ? 20 : 12}" stroke="currentColor" stroke-width="1.5"/>` + (ARROW_ART[name] || ""));
+    const arrowGlyph = (name) => svg(36, 24, "0 -4 24 24", `<path d="M2 8h${name === "none" ? 20 : 12}" stroke="currentColor" stroke-width="1.5"/>` + (ARROW_ART[name] || ""));
     const star = (x) => `<polygon points="${pts(ngon(10, x, 8, 3.2, 3.2, -Math.PI / 2).map((p, i) => (i % 2 ? [x + (p[0] - x) * 0.45, 8 + (p[1] - 8) * 0.45] : p)))}"/>`;
     const LINE_ART = {
         solid: '<path d="M2 8h44" stroke="currentColor" stroke-width="2"/>',
@@ -169,361 +176,479 @@
     };
     const lineGlyph = (name) => svg(48, 16, "0 0 48 16", `<g fill="currentColor">${LINE_ART[name] || ""}</g>`);
 
-    // ---------- placement: left of the inspector, level with the control that opened it ----------
-    function beside(p, selectors) {
-        let a = null;
-        for (const s of selectors || []) { a = typeof s === "function" ? s() : document.querySelector(s); if (a) break; }
-        requestAnimationFrame(() => {
-            const L = document.getElementById("ab-overlay").getBoundingClientRect();
-            const R = document.getElementById("ab-right").getBoundingClientRect();
-            const E = p.getBoundingClientRect();
-            const A = a ? a.getBoundingClientRect() : { top: R.top + 96 };
-            const x = R.width > 0 ? R.left - L.left - E.width - 8 : L.width - E.width - 16;
-            const y = A.top - L.top - 8;
-            // Never over the toolbar: the popover's foot stays above the toolbar's top edge
-            const T = document.querySelector("#ab-toolbar .k-toolbar");
-            const floor = T && T.getBoundingClientRect().height ? T.getBoundingClientRect().top - L.top - 8 : L.height - 8;
-            p.style.left = Math.max(8, Math.min(x, L.width - E.width - 8)) + "px";
-            p.style.top = Math.max(8, Math.min(y, floor - E.height, L.height - E.height - 8)) + "px";
-        });
-        return p;
-    }
-    // the section head in the inspector whose title matches, then its "+"
-    const headPlus = (title) => () => { const hd = [...document.querySelectorAll("#ab-right .ab-style .k-section-head")].find((x) => x.textContent.trim().startsWith(title)); return hd && hd.querySelector(".k-icon-btn"); };
+    // ---------- what opened us: the Style tab line or the "Why this look" token last clicked ----------
+    // (a direct link has neither, and each state then shows its fixture default)
+    let opener = { line: null, token: null };
+    document.addEventListener("click", (e) => {
+        const t = e.target.closest && e.target.closest("#ab-right .ab-token, #ab-right .ab-sline");
+        if (!t) return;
+        opener = t.classList.contains("ab-token") ? { token: { prop: t.textContent.trim(), tip: t.dataset.tip || "" } } : { line: t.dataset.ch };
+    }, true);
+    const takeOpener = () => { const o = opener; opener = { line: null, token: null }; return o; };
+
+    // ---------- anchors ----------
+    // the first matching element that is laid out (a bind icon hidden until hover has no box)
+    const find = (...sels) => { for (const s of sels) for (const el of document.querySelectorAll(s)) { const r = el.getBoundingClientRect(); if (r.width && r.height) return el; } return document.querySelector("#ab-right .ab-style") || document.getElementById("ab-right"); };
+    const lineAt = (ch) => `#ab-right .ab-sline[data-ch="${ch}"] .ab-sv`;
+    const headOf = (title) => [...document.querySelectorAll("#ab-right .ab-style .k-section-head")].find((x) => x.textContent.trim().startsWith(title));
+    const headSel = (title) => { const hd = headOf(title); if (hd) hd.setAttribute("data-sp-head", title); return `[data-sp-head="${title}"]`; };
 
     // ---------- small builders ----------
-    const oq = (text) => h("div", { class: "sp-oq" }, h("span", { class: "k-annot-tag" }, "Open question"), h("span", null, text));
-    const filterField = (placeholder, value, onInput) => {
-        const inp = h("input", { type: "search", placeholder, "aria-label": placeholder, value: value || "" });
-        inp.addEventListener("input", () => onInput(inp.value.trim().toLowerCase()));
-        inp.addEventListener("keydown", (e) => { if (e.key === "Escape" && inp.value) { e.stopPropagation(); inp.value = ""; onInput(""); } });
-        setTimeout(() => inp.focus(), 0);
-        return h("div", { class: "sp-filter" }, icon("search", "sm"), inp);
+    // A field whose unset state shows the effective value in gray, the source in its tooltip
+    function input(o) {
+        const inp = h("input", { class: "ab-sin" + (o.num ? " k-num" : "") + (o.cls ? " " + o.cls : ""), type: "text", inputmode: o.num ? "decimal" : null, value: o.value == null ? "" : String(o.value), placeholder: o.eff || "", "aria-label": o.label, spellcheck: "false" });
+        if (o.eff) AB.tip(inp, o.eff + ", " + (o.src || DEF), { label: false });
+        inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { inp.blur(); AB.close(); } });
+        if (o.onInput) inp.addEventListener("input", () => o.onInput(inp.value.trim()));
+        return inp;
+    }
+    const row = (label, ...ctl) => AB.fieldRow(label, ctl, { popover: true });
+    // A color value: swatch, six-digit hex, opacity percent. Unset parts show their effective value in gray.
+    function colorValue(o) {
+        const chit = AB.chit(o.hex || o.eff || "transparent");
+        if (!o.hex) chit.style.opacity = ".5";
+        const hex = input({ label: (o.name || "Color") + ", hex", value: o.hex ? o.hex.slice(1).toUpperCase() : "", eff: o.eff ? o.eff.slice(1).toUpperCase() : null, src: o.src, cls: "k-mono",
+            onInput: (v) => { if (/^[0-9a-f]{6}$/i.test(v)) { chit.style.background = "#" + v; chit.style.opacity = ""; o.onChange && o.onChange("#" + v); } } });
+        hex.maxLength = 6;
+        if (o.focus) hex.setAttribute("data-autofocus", "");
+        const pct = o.noOpacity ? null : input({ label: (o.name || "Color") + ", opacity percent", num: true, value: o.pct == null ? null : o.pct + "%", eff: o.pct == null ? "100%" : null, cls: "sp-pct", onInput: (v) => o.onChange && o.onChange() });
+        if (o.chitGo) Object.assign(chit, { tabIndex: 0 }), chit.setAttribute("role", "button"), AB.tip(chit, "Open the color picker"), AB.nav(chit, o.chitGo[0], o.chitGo[1]);
+        const set = (c) => { hex.value = c.slice(1).toUpperCase(); chit.style.background = c; chit.style.opacity = ""; o.onChange && o.onChange(c); AB.announce((o.name || "Color") + " " + c); };
+        return { el: h("span", { class: "sp-color" }, chit, hex, pct), set };
+    }
+    // Swatches you can click: the document's colors, or a library palette
+    const swatches = (colors, onPick) => h("div", { class: "sp-stops", role: "listbox", "aria-label": "Colors" }, colors.map((c) => {
+        const s = h("span", { class: "k-chit", style: "background:" + c, role: "option", tabindex: "0" });
+        AB.tip(s, c.toUpperCase());
+        s.addEventListener("click", () => onPick(c));
+        s.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onPick(c)));
+        return s;
+    }));
+    // A segmented control that redraws itself on change (AB.seg reports; this keeps it current)
+    function segLive(options, value, onChange, label) {
+        const box = h("span", { style: "display:flex" });
+        const draw = (v) => box.replaceChildren(AB.seg(options, v, (n) => { draw(n); box.querySelector("[aria-checked=true]").focus(); onChange(n); }, { label }));
+        draw(value);
+        return box;
+    }
+    const check = (label, on, onFlip) => {
+        const b = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!on), "aria-label": label });
+        const flip = () => { b.setAttribute("aria-checked", String(b.getAttribute("aria-checked") !== "true")); onFlip && onFlip(b.getAttribute("aria-checked") === "true"); };
+        b.addEventListener("click", flip);
+        b.addEventListener("keydown", (e) => e.key === " " && (e.preventDefault(), flip()));
+        return b;
     };
-    // A pickable list item. o: { lead, label, sub, desc, trail, selected, disabled, onPick }
-    function item(o) {
-        const el = h("div", { class: "sp-item", role: "option", tabindex: o.disabled ? "-1" : "0", "aria-selected": o.selected ? "true" : "false", "aria-disabled": o.disabled ? "true" : null, title: o.title || null },
-            h("span", { class: "sp-ck" }, o.selected ? icon("check", "sm") : null), o.lead || null,
-            h("span", { class: "k-grow", style: "min-width:0" }, h("span", null, o.label, o.sub ? h("span", { class: "sp-sub" }, "  " + o.sub) : null), o.desc ? h("span", { class: "sp-desc" }, o.desc) : null),
-            o.trail || null);
-        if (!o.disabled && o.onPick) {
-            el.addEventListener("click", o.onPick);
-            el.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), o.onPick()));
-        }
-        return el;
+    // A dropdown: a field that opens the shared dark menu, with a check on the current value
+    function dropdown(label, value, choices, o) {
+        o = o || {};
+        let cur = value;
+        const text = h("span", { class: o.unset ? "sp-eff" : null }, choices[cur] || nice(cur));
+        const f = AB.field(text, { caret: true, onClick: () => AB.openMenu(f, Object.keys(choices).map((k) => ({ label: choices[k], check: k === cur, onClick: () => { cur = k; text.textContent = choices[k]; text.className = ""; AB.announce(label + ": " + choices[k]); o.onChange && o.onChange(k); } }))) });
+        f.setAttribute("aria-label", label);
+        f.setAttribute("aria-haspopup", "menu");
+        if (o.unset) AB.tip(f, (choices[cur] || nice(cur)) + ", " + (o.src || DEF), { label: false });
+        return f;
     }
-    const listbox = (label) => h("div", { role: "listbox", "aria-label": label });
-    const done = (text) => { AB.flash(text); AB.announce(text); };
-    // A picker whose choice moves the check in place and updates the "now" line
-    function choiceList(o) {
-        let cur = o.current, q = "";
-        const now = h("span", { class: "k-grow k-strong" });
-        const nowGlyph = h("span");
-        const box = o.grid ? h("div", { class: "sp-grid", role: "listbox", "aria-label": o.title }) : listbox(o.title);
-        const draw = () => {
-            now.textContent = cur.replace(/_/g, " ");
-            nowGlyph.replaceChildren(o.glyph(cur));
-            box.replaceChildren();
-            const hits = o.choices.filter((c) => !q || c.replace(/_/g, " ").includes(q));
-            if (!hits.length) box.append(h("div", { class: "ab-pad k-secondary" }, "No " + o.noun + " matches \"" + q + "\"."));
-            hits.forEach((c) => {
-                const pick = () => { cur = c; draw(); AB.announce(o.title + ": " + c.replace(/_/g, " ")); };
-                if (o.grid) {
-                    const cell = h("div", { class: "sp-cell", role: "option", tabindex: "0", title: c.replace(/_/g, " "), "aria-selected": String(c === cur) }, o.glyph(c), h("span", null, c.replace(/_/g, " ")));
-                    cell.addEventListener("click", pick);
-                    cell.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), pick()));
-                    box.append(cell);
-                } else box.append(item({ lead: o.glyph(c), label: c.replace(/_/g, " "), selected: c === cur, onPick: pick }));
-            });
-        };
-        draw();
-        return [h("div", { class: "sp-now" }, nowGlyph, now, o.nowTrail || null), o.filter ? filterField("Find a " + o.noun, "", (v) => { q = v; draw(); }) : null, box, o.after || null];
-    }
-
-    // ---------- plus menu: a section's unset properties, and the filter across everything ----------
-    const KIND_WORD = { color: "color", number: "number", choice: "choice", boolean: "on or off", text: "text", labelStyle: "label style" };
-    function plusMenu(el, typed) {
-        const SEC = "Effects";
-        const unset = AB.CHANNELS.node.filter((c) => c.section === SEC && c.drawn !== false);
-        const list = listbox("Properties");
-        const add = (c, value) => () => { done("Added " + c.name + (value ? " (" + value + ")" : "") + " to " + (c.section || "More") + ". It shows as a line in the section."); AB.close(); };
+    // A grid of glyph cells with names (shape, pattern, arrow): one Tab stop, arrows move, Enter picks
+    function glyphGrid(label, choices, current, glyph, onPick, family) {
+        const nm = (c) => AB.plain(family, c);
+        const grid = h("div", { class: "sp-grid", role: "listbox", "aria-label": label });
+        let cur = current;
         const draw = (q) => {
-            list.replaceChildren();
-            if (!q) {
-                list.append(h("div", { class: "sp-head" }, SEC + ": not set on this row"));
-                unset.forEach((c) => list.append(item({ label: c.name, sub: KIND_WORD[c.kind], desc: c.caveat, onPick: add(c) })));
-                list.append(h("div", { class: "sp-cap" }, "Type to search every node and edge property, and their values."));
-                return;
-            }
-            let n = 0;
-            ["node", "edge"].forEach((k) => {
-                const hits = [];
-                AB.CHANNELS[k].filter((c) => c.drawn !== false).forEach((c) => {
-                    const where = (k === "node" ? "Nodes" : "Edges") + ", " + (c.section || "More");
-                    if ((c.name + " " + c.section).toLowerCase().includes(q)) hits.push(item({ label: c.name, sub: where, desc: c.caveat, onPick: add(c) }));
-                    (c.choices || []).filter((v) => v.replace(/_/g, " ").includes(q)).forEach((v) =>
-                        hits.push(item({ lead: c.id === "edge.style" ? lineGlyph(v) : c.kind === "choice" && c.id.startsWith("edge.arrow") ? arrowGlyph(v) : c.id === "node.shape" ? svg(16, 16, "0 0 32 32", SHAPE_ART[v]()) : null, label: c.name + ": " + v.replace(/_/g, " "), sub: where, onPick: add(c, v) })));
+            grid.replaceChildren();
+            const hits = choices.filter((c) => !q || nm(c).toLowerCase().includes(q));
+            if (!hits.length) return grid.append(h("div", { style: "grid-column:1/-1" }, AB.noMatch(q)));
+            hits.forEach((c) => {
+                const cell = h("div", { class: "sp-cell", role: "option", tabindex: c === cur || (!hits.includes(cur) && c === hits[0]) ? "0" : "-1", "aria-selected": String(c === cur), "data-v": c }, glyph(c), h("span", null, nm(c)));
+                const pick = () => { cur = c; grid.querySelectorAll(".sp-cell").forEach((x) => { x.setAttribute("aria-selected", String(x === cell)); x.tabIndex = x === cell ? 0 : -1; }); AB.announce(label + ": " + nm(c)); onPick(c); };
+                cell.addEventListener("click", pick);
+                cell.addEventListener("keydown", (e) => {
+                    const all = [...grid.querySelectorAll(".sp-cell")], i = all.indexOf(cell);
+                    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, ArrowDown: i + 3, ArrowUp: i - 3, Home: 0, End: all.length - 1 }[e.key];
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+                    else if (to != null && all[to]) { e.preventDefault(); all[to].focus(); }
                 });
-                if (!hits.length) return list.append(h("div", { class: "sp-head" }, (k === "node" ? "Nodes" : "Edges") + ": no match"));
-                n += hits.length;
-                list.append(h("div", { class: "sp-head" }, k === "node" ? "Nodes" : "Edges"), ...hits);
-            });
-            if (!n) list.append(h("div", { class: "ab-pad k-secondary" }, "No property or value matches \"" + q + "\"."));
-        };
-        draw(typed || "");
-        const inp = filterField("Find a property or value", typed, draw);
-        const body = [inp, list];
-        if (typed) body.push(oq("An edge value found from a Nodes section: add it to this row's edges directly, or switch the tab to Edges first?"));
-        el.append(beside(AB.popover({ title: "Add a property", body, width: 300 }), [headPlus(SEC), "#ab-right .ab-style [aria-label^='Add a']", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
-    }
-
-    // ---------- bind: attributes and results, each with its level ----------
-    function bindPicker(el) {
-        const L = AB.fx.datasets.lesmis;
-        const ATTR_ICON = { text: "type", category: "tag", integer: "hash", number: "sigma" };
-        const LEVEL = { text: "text", category: "category", integer: "whole number", number: "number" };
-        const attrs = L.attributes.filter((a) => !a.name.includes("(edge)")).map((a) => ({
-            name: a.name, icon: ATTR_ICON[a.kind], level: LEVEL[a.kind],
-            detail: a.name === "group" ? Object.keys(a.values).length + " values" : a.name === "degree" ? "1 to " + L.stats.maxDegree : a.name === "label" ? L.nodes + " values" : null,
-        }));
-        const results = [
-            { name: "PageRank", icon: "chart-column", level: "number", detail: "0 to 1", from: "PageRank" },
-            { name: "Community", icon: "layers", level: "category", detail: "6 values", from: "Louvain, resolution 1.0" },
-        ];
-        let q = "";
-        const list = listbox("What to bind to");
-        const pick = (x) => () => { done("Color is bound to " + x.name + ". The line opens its scale, domain and palette in place."); AB.close(); };
-        const draw = () => {
-            list.replaceChildren();
-            const f = (x) => !q || x.name.toLowerCase().includes(q);
-            const a = attrs.filter(f), r = results.filter(f);
-            if (a.length) list.append(h("div", { class: "sp-head" }, "Node attributes"), ...a.map((x) => item({ lead: icon(x.icon, "sm"), label: x.name, sub: x.level + (x.detail ? ", " + x.detail : ""), title: x.level, onPick: pick(x) })));
-            if (r.length) list.append(h("div", { class: "sp-head" }, "Results"), ...r.map((x) => item({ lead: icon(x.icon, "sm"), label: x.name, sub: x.level + ", " + x.detail, desc: "from " + x.from, onPick: pick(x) })));
-            if (!a.length && !r.length) list.append(h("div", { class: "ab-pad k-secondary" }, "Nothing called \"" + q + "\"."));
-        };
-        draw();
-        const body = [filterField("Find an attribute or result", "", (v) => { q = v; draw(); }), list,
-            h("div", { class: "sp-cap" }, "The icon is the value's level: text, category, whole number or number. It decides which scales the binding offers (the element's nine: " + SCALES.join(", ") + ")."),
-            oq("Should a text attribute with a value per node (label, " + L.nodes + " values) be offered for color at all?")];
-        el.append(beside(AB.popover({ title: "Bind Color to", body, width: 300 }), ["#ab-right [aria-label^='Bind'], #ab-right [aria-label^='Change what']", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
-    }
-
-    // ---------- palette: the element's eighteen, with color-blind safety and capacity ----------
-    function palettePicker(el) {
-        const need = Object.keys(AB.fx.datasets.lesmis.attributes.find((a) => a.name === "group").values).length;
-        let kind = "all", cur = "okabe-ito";
-        const list = listbox("Palettes");
-        const strip = (p) => h("span", { class: "sp-strip", "aria-hidden": "true" }, p.colors.map((c) => h("span", { style: "background:" + c })));
-        const marks = (p) => h("span", { style: "display:flex;gap:8px" },
-            h("span", { class: "sp-mark", title: p.safe ? ALL3 : "Not declared color-blind safe" }, icon(p.safe ? "eye" : "eye-off", "sm"), p.safe ? "safe" : "not safe"),
-            p.cap ? h("span", { class: "sp-mark" + (p.cap < need ? " sp-warn" : ""), title: p.cap < need ? "Group has " + need + " values: " + (need - p.cap) + " would go to Other" : "Enough colors for group's " + need + " values" }, p.cap < need ? icon("triangle-alert", "sm") : null, p.cap + " colors") : h("span", { class: "sp-mark" }, "continuous"));
-        const draw = () => {
-            list.replaceChildren();
-            ["categorical", "sequential", "diverging"].filter((k) => kind === "all" || kind === k).forEach((k) => {
-                list.append(h("div", { class: "sp-head" }, k[0].toUpperCase() + k.slice(1)));
-                PALETTES.filter((p) => p.kind === k).forEach((p) => list.append(item({ lead: strip(p), label: p.name, selected: p.id === cur, desc: p.kind === "categorical" ? null : "for a number", trail: marks(p), onPick: () => { cur = p.id; draw(); AB.announce("Palette: " + p.name); } })));
+                grid.append(cell);
             });
         };
-        const seg = h("span", { class: "k-seg k-seg-fill", role: "radiogroup", "aria-label": "Palette kind", style: "margin:8px 16px;display:flex" });
-        [["all", "All"], ["categorical", "Categories"], ["sequential", "Sequential"], ["diverging", "Diverging"]].forEach(([k, label]) => {
-            const b = h("span", { role: "radio", tabindex: "0", "aria-checked": String(k === kind) }, label);
-            const on = () => { kind = k; seg.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === b))); draw(); };
-            b.addEventListener("click", on);
-            b.addEventListener("keydown", (e) => e.key === "Enter" && on());
-            seg.append(b);
+        draw("");
+        grid.filter = draw;
+        return grid;
+    }
+    const pop = (anchor, title, body, o) => AB.popover(Object.assign({ anchor, title, body, width: 280 }, o || {}));
+
+    // ---------- "+": the shared menu on the real button (no local copy) ----------
+    // The state presses the section's "+" in the inspector. With several unset properties it opens
+    // the shared dark menu; picking one adds the line there, live. Leaving the menu leaves the state.
+    function pressPlus(sectionTitle, oneLeft) {
+        requestAnimationFrame(() => {
+            const hd = headOf(sectionTitle);
+            const b = hd && hd.querySelector(".ab-plus");
+            if (!b) return AB.flash(sectionTitle + " has nothing left to add");
+            b.click();
+            if (!oneLeft) leaveWithMenu();
         });
+    }
+    function leaveWithMenu() {
+        const layer = document.getElementById("ab-overlay"), here = location.hash;
+        const mo = new MutationObserver(() => { if (!layer.querySelector(".ab-menu")) { mo.disconnect(); if (location.hash === here) AB.close(); } });
+        mo.observe(layer, { childList: true });
+    }
+
+    // ---------- From data: the dark list the bind icon opens ----------
+    const L = () => AB.fx.datasets.lesmis;
+    function fromDataItems(kind, current, onPick) {
+        const lm = L();
+        // The one type glyph set (Data place, table headers): Abc for text and categories, # for numbers
+        const TYPE = { text: ["cat", "Text"], category: ["cat", "Category"], integer: ["num", "Whole number"], number: ["num", "Number"] };
+        const it = (name, type, detail, extra) => Object.assign({ label: h("span", { class: "sp-ml" }, AB.typeGlyph(TYPE[type][0]), name), desc: TYPE[type][1] + (detail ? ", " + detail : ""), check: name === current, onClick: () => onPick(name, type) }, extra || {});
+        const attrs = [
+            it("label", "text", lm.nodes + " values, the Name attribute"),
+            it("group", "category", Object.keys(lm.attributes.find((a) => a.name === "group").values).length + " values"),
+            it("degree", "integer", "1 to " + lm.stats.maxDegree),
+            it("betweenness", "number", "0 to 0.57"),
+        ].filter((x) => kind === "text" || x.desc.indexOf("Text") !== 0);
+        const results = [it("PageRank", "number", "0.0033 to 0.0754"), it("Louvain", "category", "6 groups")];
+        const notes = [it("Note count", "integer", null, { disabled: true, desc: null }), kind === "text" ? it("Latest note", "text", null, { disabled: true, desc: null }) : null].filter(Boolean);
+        return [{ heading: "Node attributes" }].concat(attrs, { heading: "Results" }, results, { heading: "Notes" }, notes);
+    }
+    // One needs mark for the Notes group, on its heading; its items and heading hide with design notes
+    function markNotes(m) {
+        const hd = [...m.querySelectorAll(".k-menu-label")].find((x) => x.textContent === "Notes");
+        if (!hd) return;
+        hd.append(AB.needsElement("A notes store in graphty-element with a notes.* path a binding can read (count, latest), and a repaint when a note is added."));
+        let n = hd.nextElementSibling;
+        hd.setAttribute("data-needs", "");
+        while (n && n.classList.contains("k-menu-item")) { n.setAttribute("data-needs", ""); n = n.nextElementSibling; }
+    }
+    // ---------- Binding: one popover for every bound value ----------
+    function binding(el, diverging) {
+        const B = diverging
+            ? { source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", total: "3,000", unit: "accounts" }
+            : { source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], total: "77", unit: "nodes" };
+        let palId = B.pal, reversed = false;
+        const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
+        const palName = h("span", { class: "k-ellipsis" });
+        const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
+        drawPal();
+        const srcText = h("span", null, B.source);
+        const src = AB.field(srcText, { caret: true, onClick: () => { const m = AB.openMenu(src, fromDataItems("color", srcText.textContent, (n) => { srcText.textContent = n; AB.announce("Source: " + n); })); markNotes(m); } });
+        src.setAttribute("aria-label", "Source");
+        const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, go: ["style-pickers", "palette"] });
+        palField.setAttribute("aria-label", "Palette");
+        const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
+        rev.setAttribute("aria-pressed", "false");
+        const typed = h("span", { style: "display:flex;gap:6px;align-items:center;flex:1" }, input({ label: "From", num: true, value: B.range[0] }), "to", input({ label: "To", num: true, value: B.range[1] }));
+        const typedRow = row("Range", typed);
+        const fitted = row("Range", h("span", { class: "sp-eff", "data-tip": B.range[0] + " to " + B.range[1] + ", the lowest and highest value" }, B.range[0] + " to " + B.range[1]));
+        typedRow.hidden = true;
+        const body = [
+            row("Source", src),
+            row("Scale", dropdown("Scale", "linear", Object.fromEntries(SCALES_FOR[B.type].map((k) => [k, SCALES[k]])), { unset: true, src: DEF + " for a number" })),
+            row("Palette", palField, rev),
+            row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; fitted.hidden = v === "typed"; fitted.querySelector(".sp-eff").textContent = v === "pct" ? "5th to 95th percentile" : B.range[0] + " to " + B.range[1]; }, "Values from")),
+            fitted, typedRow,
+            row("Clamp", check("Clamp values outside the range", true)),
+            diverging ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid })) : null,
+            row("No value", AB.field(h("span", { class: "sp-eff" }, "Nothing"), { go: ["style-pickers", "color"] })),
+            h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, tip: "Keep the current colors as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their colors", { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
+        ];
+        const noValue = body[body.length - 2].querySelector(".k-field");
+        AB.tip(noValue, "Nothing, the default: rows beneath show through", { label: false });
+        noValue.setAttribute("aria-label", "No value: Nothing");
+        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Color from " + B.source, body, { width: 340 }));
+    }
+
+    // ---------- Palette: one picker, pre-filtered by the binding's type ----------
+    function palettePicker(el) {
+        let cur = "ylorbr";
+        const list = h("div", { role: "listbox", "aria-label": "Palettes" });
+        const draw = () => {
+            list.replaceChildren();
+            ["sequential", "diverging"].forEach((k) => {
+                list.append(h("div", { class: "sp-head" }, k === "sequential" ? "Sequential" : "Diverging"));
+                PALETTES.filter((p) => p.kind === k).forEach((p) => {
+                    const it = h("div", { class: "sp-item", role: "option", tabindex: p.id === cur ? "0" : "-1", "aria-selected": String(p.id === cur) },
+                        h("span", { class: "sp-ck" }, p.id === cur ? icon("check", "sm") : null),
+                        h("span", { class: "sp-strip", "aria-hidden": "true" }, p.colors.map((c) => h("span", { style: "background:" + c }))),
+                        h("span", { class: "k-grow k-ellipsis" }, p.name),
+                        p.safe ? null : AB.tip(h("span", { class: "sp-mark", tabindex: "-1" }, icon("triangle-alert", "sm")), "Not color-blind safe"));
+                    const pick = () => { cur = p.id; draw(); list.querySelector("[aria-selected=true]").focus(); AB.announce("Palette: " + p.name); };
+                    it.addEventListener("click", pick);
+                    it.addEventListener("keydown", (e) => {
+                        const all = [...list.querySelectorAll(".sp-item")], i = all.indexOf(it);
+                        const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key];
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+                        else if (to != null && all[to]) { e.preventDefault(); all[to].focus(); }
+                    });
+                    list.append(it);
+                });
+            });
+        };
         draw();
-        const body = [h("div", { class: "sp-cap" }, "Bound to group (" + need + " values). A palette with fewer colors paints the rest as one Other color."), seg, list,
-            oq("List a palette too small for the attribute with its shortfall (as now), or hide it?")];
         const foot = [AB.button("Custom palette", { kind: "secondary", icon: "plus", go: ["style-pickers", "palette-custom"] })];
-        el.append(beside(AB.popover({ title: "Palette", body, foot, width: 380 }), ["#ab-right .ab-bound", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
+        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Palette", list, { foot, width: 300 }));
     }
     function customPalette(el) {
-        const src = PALETTES.find((p) => p.id === "okabe-ito");
-        const seg = h("span", { class: "k-seg", role: "radiogroup", "aria-label": "Kind" });
-        ["Categories", "Sequential", "Diverging"].forEach((k, i) => {
-            const b = h("span", { role: "radio", tabindex: "0", "aria-checked": String(i === 0) }, k);
-            b.addEventListener("click", () => seg.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === b))));
-            seg.append(b);
-        });
-        const safe = h("span", { class: "k-switch", role: "switch", tabindex: "0", "aria-checked": "false", "aria-label": "I checked it is color-blind safe" });
-        safe.addEventListener("click", () => safe.setAttribute("aria-checked", String(safe.getAttribute("aria-checked") !== "true")));
+        const src = pal("ylorbr");
+        const name = input({ label: "Palette name", value: "Orange to brown 2" });
+        setTimeout(() => name.select(), 60);
+        const stops = swatches(src.colors, () => AB.go("style-pickers", "color"));
         const body = [
-            h("div", { class: "sp-row" }, h("label", null, "Name"), h("input", { class: "sp-in", type: "text", placeholder: "Name this palette", "aria-label": "Palette name" })),
-            h("div", { class: "sp-row" }, h("label", null, "Kind"), seg),
-            h("div", { class: "sp-row" }, h("label", null, "Starts from"), AB.field(src.name, { caret: true, go: ["style-pickers", "palette"] })),
-            h("div", { class: "sp-head" }, "Colors, in order"),
-            h("div", { class: "sp-stops" }, src.colors.map((c) => h("span", Object.assign({ class: "k-chit", style: "background:" + c, role: "button", title: c, "aria-label": "Edit " + c }, AB.act({ go: ["style-pickers", "color"] })))), AB.iconButton("plus", "Add a color", { go: ["style-pickers", "color"] })),
-            h("div", { class: "sp-row" }, h("label", null, "Color-blind safe"), h("span", { style: "display:flex;align-items:center;gap:8px" }, safe, h("span", { class: "k-secondary" }, "your claim"))),
-            h("div", { class: "sp-cap" }, "The element keeps the claim as given and does not test it. ", AB.needsElement("A color-blind check for a registered palette (simulating the three deficiencies) is not in graphty-element.")),
+            row("Name", name),
+            row("Kind", segLive([["categorical", "Categories"], ["sequential", "Sequential"], ["diverging", "Diverging"]], "sequential", () => {}, "Kind")),
+            row("Starts from", AB.field(src.name, { caret: true, go: ["style-pickers", "palette"] })),
+            h("div", { class: "k-section-head", style: "padding:0 16px" }, h("span", { class: "ab-sec-h" }, "Colors, in order"), h("span", { class: "k-grow" }), AB.plus({ label: "Add a color", items: ["Color"], onAdd: () => stops.append(Object.assign(AB.chit(src.colors[src.colors.length - 1]), { tabIndex: 0 })) })),
+            stops,
         ];
-        const foot = [h("span", { class: "sp-foot-note" }, "Saved with the style"), AB.button("Cancel", { kind: "ghost", go: ["style-pickers", "palette"] }), AB.button("Add palette", { onClick: () => { done("Palette added. It is listed under Custom and saved with this style."); AB.go("style-pickers", "palette"); } })];
-        el.append(beside(AB.popover({ title: "Custom palette", body, foot, width: 360 }), ["#ab-right .ab-bound", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
+        const foot = [AB.button("Add palette", { onClick: () => { AB.go("style-pickers", "palette"); AB.flash("Added Orange to brown 2, saved with this style"); } })];
+        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Custom palette", body, { foot, width: 340 }));
     }
 
-    // ---------- choice pickers ----------
-    function shapePicker(el) {
-        el.append(beside(AB.popover({ title: "Shape", width: 300, body: choiceList({ title: "Shape", noun: "shape", choices: nodeCh(), current: "icosphere", glyph: shapeGlyph, grid: true, filter: true, nowTrail: h("span", { class: "k-secondary" }, "25 shapes") }) }), ["#ab-right .ab-sv .k-caret", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
-    }
-    function arrowPicker(el) {
-        const seg = h("span", { class: "k-seg", role: "radiogroup", "aria-label": "Which end" });
-        ["Head", "Tail"].forEach((k, i) => {
-            const b = h("span", { role: "radio", tabindex: "0", "aria-checked": String(i === 0) }, k);
-            b.addEventListener("click", () => { seg.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === b))); el.querySelector(".k-popover-head .k-grow").textContent = "Arrow " + k.toLowerCase(); });
-            seg.append(b);
-        });
-        el.append(beside(AB.popover({ title: "Arrow head", width: 240, body: choiceList({ title: "Arrow type", noun: "arrow", choices: arrowCh(), current: "normal", glyph: arrowGlyph, nowTrail: seg, after: h("div", { class: "sp-cap" }, "Drawn on any graph, directed or not.") }) }), ["#ab-right .ab-sv .k-caret", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
-    }
-    function patternPicker(el) {
-        const cav = AB.CHANNELS.edge.find((c) => c.id === "edge.patternCount").caveat;
-        el.append(beside(AB.popover({ title: "Line pattern", width: 240, body: choiceList({ title: "Line pattern", noun: "pattern", choices: lineCh(), current: "solid", glyph: lineGlyph, after: h("div", { class: "sp-cap" }, "Pattern count sets how many marks: ", cav) }) }), ["#ab-right .ab-sv .k-caret", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
-    }
-
-    // ---------- color: a value popover for a color line ----------
-    function colorPicker(el) {
-        const fx = AB.fx.datasets.lesmis.groupColors;
-        const cur = fx["2"];
-        const chit = AB.chit(cur);
-        const hex = h("input", { class: "sp-in k-mono", type: "text", value: cur.slice(1), "aria-label": "Hex color", maxlength: "6" });
-        hex.addEventListener("input", () => /^[0-9a-f]{6}$/i.test(hex.value) && (chit.style.background = "#" + hex.value));
-        const doc = [...new Set(Object.values(fx))];
-        const body = [
-            h("div", { class: "sp-row" }, h("label", null, "Hex"), h("span", { class: "sp-color" }, chit, hex)),
-            h("div", { class: "sp-row" }, h("label", null, "Opacity"), h("input", { class: "sp-in", type: "number", min: "0", max: "100", value: "100", "aria-label": "Opacity, percent" })),
-            h("div", { class: "sp-head" }, "In this graph"),
-            h("div", { class: "sp-stops" }, doc.map((c) => { const s = h("span", { class: "k-chit", style: "background:" + c, role: "button", tabindex: "0", title: c, "aria-label": "Use " + c }); s.addEventListener("click", () => { hex.value = c.slice(1); chit.style.background = c; }); return s; })),
-            h("div", { class: "sp-cap" }, "Named colors, ramps and swatch libraries are in ", AB.link("inspector-group-set-path-row", "picker-libraries", "the full color picker"), "."),
-        ];
-        el.append(beside(AB.popover({ title: "Color", width: 260, body }), ["#ab-right .ab-sv .k-chit", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-    }
-
-    // ---------- label style: one popover, six tabs ----------
-    // Field names are LABEL_STYLE_FIELDS; the kind and choices of each are typed here (the gap).
-    const LS = {
-        Text: [["font", "text", "Font"], ["sizePx", "number", "Size, px"], ["weight", ["normal", "bold", "300", "500", "700"], "Weight"], ["color", "color", "Color"], ["lineHeight", "number", "Line height"], ["textAlign", ["left", "center", "right"], "Alignment", "seg"], ["outline", "color", "Outline"], ["outlineWidth", "number", "Outline width"], ["shadow", "bool", "Shadow"], ["shadowColor", "color", "Shadow color"], ["shadowBlur", "number", "Shadow blur"], ["shadowOffsetX", "number", "Shadow x"], ["shadowOffsetY", "number", "Shadow y"]],
-        Panel: [["background", "color", "Background"], ["padding", "number", "Padding"], ["cornerRadius", "number", "Corner radius"], ["borderWidth", "number", "Border width"], ["borderColor", "color", "Border color"], ["gradient", "bool", "Gradient"], ["gradientType", ["linear", "radial"], "Gradient type", "seg"], ["gradientDirection", ["vertical", "horizontal", "diagonal"], "Direction"], ["gradientColors", "colors", "Gradient colors"], ["marginTop", "number", "Margin top"], ["marginBottom", "number", "Margin bottom"], ["marginLeft", "number", "Margin left"], ["marginRight", "number", "Margin right"]],
-        Placement: [["location", "loc", "Location"], ["attachOffset", "number", "Offset"], ["depthFade", "bool", "Depth fade"], ["depthFadeNear", "number", "Fade starts"], ["depthFadeFar", "number", "Fade ends"]],
-        Pointer: [["pointer", "bool", "Pointer"], ["pointerDirection", ["auto", "top", "bottom", "left", "right"], "Direction"], ["pointerWidth", "number", "Width"], ["pointerHeight", "number", "Height"], ["pointerOffset", "number", "Offset"], ["pointerCurve", "bool", "Curved"]],
-        Effects: [["animation", ["none", "pulse", "bounce", "shake", "glow", "fill"], "Animation"], ["animationSpeed", "number", "Speed"]],
-        Badge: [["badge", ["none", "notification", "label", "label-success", "label-warning", "label-danger", "count", "icon", "progress", "dot"], "Badge"], ["icon", "text", "Icon"], ["iconPosition", ["left", "right"], "Icon side", "seg"], ["progress", "number", "Progress, 0 to 1"], ["smartOverflow", "bool", "Shorten big numbers"], ["maxNumber", "number", "Largest number"], ["overflowSuffix", "text", "Past it, show"]],
+    // ---------- Color: Custom | Libraries ----------
+    // the hue the square shows, from the current hex
+    const hueOf = (hex) => {
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+        const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+        if (!d) return 0;
+        const x = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return Math.round((x * 60 + 360) % 360);
     };
+    function colorBody(o) {
+        const fx = L().groupColors;
+        o.hue = hueOf(o.hex || "#D55E00");
+        const v = colorValue({ name: o.name || "Color", hex: o.hex, pct: o.pct, onChange: o.onChange, focus: true });
+        const custom = () => [
+            h("div", { class: "sp-sv", style: "background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent),hsl(" + (o.hue || 36) + ",100%,50%)", role: "img", "aria-label": "Saturation and brightness" }, h("i", { style: "left:100%;top:10%" })),
+            h("div", { class: "sp-hue", role: "slider", tabindex: "0", "aria-label": "Hue", "aria-valuenow": String(o.hue || 36), "aria-valuemin": "0", "aria-valuemax": "360" }, h("i", { style: "left:" + ((o.hue || 36) / 3.6) + "%" })),
+            row("Hex", v.el),
+            h("div", { class: "sp-head" }, "In this graph"),
+            swatches([...new Set(Object.values(fx))], v.set),
+        ];
+        // A single-color row: each library lists its swatches; pick one color
+        const libs = () => [row("Hex", v.el)].concat(...PALETTES.filter((p) => !/highlight/.test(p.id)).map((p) => [h("div", { class: "sp-head" }, p.name), swatches(p.colors, v.set)]));
+        const box = h("div");
+        const show = (t) => box.replaceChildren(...(t === "Libraries" ? libs() : custom()));
+        show(o.tab || "Custom");
+        return [h("div", { class: "sp-tabs" }, AB.tabs(["Custom", "Libraries"], o.tab || "Custom", show)), box];
+    }
+    function colorPicker(el, tab) {
+        const ln = takeOpener().line;
+        if (ln === "node.glow") return glowPicker(el);
+        const ch = ln && /color|outline/i.test(ln) ? ln : "node.color";
+        const name = (AB.CHANNELS.node.concat(AB.CHANNELS.edge).find((c) => c.id === ch) || { name: "Color" }).name;
+        // the value the line shows: its hex and percent
+        const sv = document.querySelector(lineAt(ch)) || document.querySelector(lineAt("node.color"));
+        const hex = ((sv && sv.textContent) || "").match(/[0-9A-F]{6}/i) || ["D55E00"];
+        const pctEl = sv && sv.querySelector(".k-secondary");
+        const pct = pctEl ? pctEl.textContent.replace("%", "") : null;
+        el.append(pop(find(lineAt(ch), lineAt("node.color")), name, colorBody({ hex: "#" + hex[0], pct: pct === "100" ? null : pct, tab, hue: 21 })));
+    }
+
+    // ---------- Glow: color and strength ----------
+    function glowPicker(el) {
+        const strength = input({ label: "Glow strength", num: true, value: "1" });
+        el.append(pop(find(lineAt("node.glow"), headSel("Effects")), "Glow", [
+            row("Color", AB.colorField({ name: "Glow color", hex: "#FFD700" })),
+            row(AB.scrub(h("span", null, "Strength"), strength), strength),
+        ]));
+    }
+
+    // ---------- Shape: three columns with names, a filter, closes on pick ----------
+    function shapePicker(el, current, title) {
+        const grid = glyphGrid("Shape", chChoices("node.shape"), current || "icosphere", shapeGlyph, (c) => { AB.close(); AB.announce("Shape: " + AB.plain("shape", c)); }, "shape");
+        const q = input({ label: "Find a shape" });
+        q.setAttribute("placeholder", "Find a shape");
+        q.setAttribute("data-autofocus", "");
+        q.addEventListener("input", () => grid.filter(q.value.trim().toLowerCase()));
+        q.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); const f = grid.querySelector(".sp-cell"); if (f) f.focus(); } });
+        el.append(pop(find(lineAt("node.shape"), headSel("Shape")), title || "Shape", [title ? h("div", { class: "sp-scope" }, "Writes to Overrides") : null, h("div", { class: "sp-filter" }, icon("search", "sm"), q), grid], { width: 320 }));
+    }
+
+    // ---------- Pattern: nine glyphs; Count only where the pattern uses it ----------
+    function patternPicker(el) {
+        const NO_COUNT = ["solid", "zigzag", "sinewave"];
+        const count = row("Count", input({ label: "Pattern count", num: true, eff: "Spaced to fit", src: "the edge's length decides (graphty-element sets no default; 2 or more)" }));
+        const grid = glyphGrid("Pattern", chChoices("edge.style"), "dash", lineGlyph, (c) => { count.hidden = NO_COUNT.includes(c); }, "pattern");
+        el.append(pop(find(lineAt("edge.style"), lineAt("edge.color"), headSel("Line")), "Pattern", [grid, count]));
+    }
+
+    // ---------- Arrow head (or tail): type, size, color with opacity, caption ----------
+    function arrowPicker(el) {
+        const tail = takeOpener().line === "edge.arrowTail";
+        const end = tail ? "Tail" : "Head";
+        const lineColor = "#D55E00"; // this row's Line color (the path row paints its edges #D55E00)
+        const size = input({ label: end + " size", num: true, value: "1" });
+        // The caption is a label: its value opens the one Label popover, like the Style tab's Label line
+        const cap = AB.field(h("span", { class: "sp-eff" }, "None"), { go: ["style-pickers", "label-style"] });
+        cap.setAttribute("aria-label", end + " caption: none");
+        cap.setAttribute("aria-haspopup", "dialog");
+        el.append(pop(find(lineAt("edge.arrow" + end), headSel("Arrows")), end, [
+            glyphGrid("Arrow type", chChoices("edge.arrowHead").filter((c) => c !== "none"), tail ? "dot" : "normal", arrowGlyph, () => {}, "arrow"),
+            row(AB.scrub(h("span", null, "Size"), size), size),
+            row("Color", AB.colorField({ name: end + " color", eff: lineColor })),
+            row("Caption", cap),
+        ], { width: 300 }));
+    }
+
+    // ---------- Label style: preview, the fields this row sets, "+" for the rest ----------
+    // [key, kind, plain name, effective value]. Kinds and plain names are the app's (the element
+    // publishes names only); effective values from RichTextLabel's defaults where it has one.
+    const GROUPS = [
+        ["Placement", [["location", "loc", "Location", "automatic"], ["attachOffset", "number", "Offset", "0"], ["depthFade", "bool", "Depth fade", false], ["depthFadeNear", "number", "Fade starts"], ["depthFadeFar", "number", "Fade ends"]]],
+        ["Text", [["font", "text", "Font", "Verdana"], ["sizePx", "number", "Size", "48"], ["weight", ["300", "normal", "500", "bold"], "Weight", "normal"], ["color", "color", "Color", "#000000"], ["lineHeight", "number", "Line height", "1.2"], ["textAlign", ["left", "center", "right"], "Alignment", "center"]]],
+        ["Outline and shadow", [["outline", "color", "Outline"], ["outlineWidth", "number", "Outline width"], ["shadow", "bool", "Shadow", false], ["shadowColor", "color", "Shadow color"], ["shadowBlur", "number", "Shadow blur"], ["shadowOffsetX", "number", "Shadow x"], ["shadowOffsetY", "number", "Shadow y"]]],
+        ["Panel", [["background", "color", "Background"], ["padding", "number", "Padding"], ["cornerRadius", "number", "Corner radius"], ["borderWidth", "number", "Border width"], ["borderColor", "color", "Border color"], ["gradient", "bool", "Gradient", false], ["gradientType", ["linear", "radial"], "Gradient type", "linear"], ["gradientDirection", ["vertical", "horizontal", "diagonal"], "Direction"], ["marginTop", "number", "Margin top"], ["marginBottom", "number", "Margin bottom"], ["marginLeft", "number", "Margin left"], ["marginRight", "number", "Margin right"]]],
+        ["Pointer", [["pointer", "bool", "Pointer", false], ["pointerDirection", ["auto", "top", "bottom", "left", "right"], "Direction", "auto"], ["pointerWidth", "number", "Width"], ["pointerHeight", "number", "Height"], ["pointerOffset", "number", "Offset"], ["pointerCurve", "bool", "Curved", false]]],
+        ["Effects", [["animation", ["none", "pulse", "bounce", "shake", "glow", "fill"], "Animation", "none"], ["animationSpeed", "number", "Speed"]]],
+        ["Badge", [["badge", ["notification", "label", "label-success", "label-warning", "label-danger", "count", "icon", "progress", "dot"], "Badge"], ["icon", "text", "Icon"], ["iconPosition", ["left", "right"], "Icon side", "left"], ["progress", "number", "Progress, 0 to 1"]]],
+    ];
     const LOCS = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
-    function lsControl(f) {
-        const [key, kind, name, look] = f;
-        const aria = { "aria-label": name, title: key };
-        if (kind === "bool") {
-            const sw = h("span", Object.assign({ class: "k-switch", role: "switch", tabindex: "0", "aria-checked": "false" }, aria));
-            const flip = () => sw.setAttribute("aria-checked", String(sw.getAttribute("aria-checked") !== "true"));
-            sw.addEventListener("click", flip);
-            sw.addEventListener("keydown", (e) => (e.key === " " || e.key === "Enter") && (e.preventDefault(), flip()));
-            return sw;
-        }
-        if (kind === "number") return h("input", Object.assign({ class: "sp-in", type: "number", placeholder: "default" }, aria));
-        if (kind === "text") return h("input", Object.assign({ class: "sp-in", type: "text", placeholder: "default" }, aria));
-        if (kind === "color" || kind === "colors") return h("span", { class: "sp-color" }, AB.field(h("span", { class: "k-tertiary" }, kind === "colors" ? "none" : "default"), { span: true, go: ["style-pickers", "color"] }));
+    function lsControl(f, value, onChange) {
+        const [key, kind, name, eff] = f;
+        const effText = eff == null ? "Not set" : String(eff);
+        if (kind === "bool") return check(name, value == null ? eff : value, onChange);
+        if (kind === "number" || kind === "text") return input({ label: name, num: kind === "number", value, eff: effText, onInput: onChange });
+        if (kind === "color") return AB.colorField({ name, hex: value, eff: eff || null, pct: value ? 100 : null });
         if (kind === "loc") {
             const g = h("span", { class: "sp-loc", role: "radiogroup", "aria-label": name });
-            LOCS.forEach((l) => { const c = h("span", { role: "radio", tabindex: "0", "aria-checked": "false", "aria-label": l, title: l }); c.addEventListener("click", () => g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === c)))); g.append(c); });
-            const auto = h("span", { class: "k-seg" }, h("span", { role: "radio", tabindex: "0", "aria-checked": "true" }, "automatic"));
-            g.addEventListener("click", () => auto.firstChild.setAttribute("aria-checked", "false"));
-            auto.addEventListener("click", () => { auto.firstChild.setAttribute("aria-checked", "true"); g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", "false")); });
-            return h("span", { style: "display:flex;gap:8px;align-items:center;padding:4px 0" }, g, auto);
+            LOCS.forEach((l) => { const c = AB.tip(h("span", { role: "radio", tabindex: l === value ? "0" : "-1", "aria-checked": String(l === value) }), nice(l)); c.addEventListener("click", () => { g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === c))); onChange(l); }); g.append(c); });
+            return h("span", { style: "display:flex;gap:8px;align-items:center;padding:2px 0" }, g, value ? null : h("span", { class: "sp-eff", "data-tip": "Automatic, " + DEF }, "automatic"));
         }
-        if (look === "seg") {
-            const seg = h("span", { class: "k-seg", role: "radiogroup", "aria-label": name });
-            kind.forEach((v) => { const b = h("span", { role: "radio", tabindex: "0", "aria-checked": "false" }, v); b.addEventListener("click", () => seg.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === b)))); seg.append(b); });
-            return seg;
-        }
-        return h("select", Object.assign({ class: "sp-in" }, aria), h("option", { value: "" }, "default"), kind.map((v) => h("option", { value: v }, v)));
+        return dropdown(name, value || eff || "", Object.fromEntries(kind.map((k) => [k, key === "weight" ? AB.plain("weight", k) : AB.plain("", k)])), { unset: value == null, onChange });
     }
-    function labelStyle(el) {
-        const lsTab = (name) => LS[name].map((f) => h("div", { class: "sp-row" }, h("label", null, f[2]), lsControl(f)));
-        const body = h("div");
-        const show = (name) => body.replaceChildren(...lsTab(name));
-        show("Text");
-        const enabled = h("span", { class: "k-switch", role: "switch", tabindex: "0", "aria-checked": "true", "aria-label": "Show labels" });
-        enabled.addEventListener("click", () => enabled.setAttribute("aria-checked", String(enabled.getAttribute("aria-checked") !== "true")));
-        const content = [
-            h("div", { class: "sp-preview", "aria-label": "Preview" }, h("b", null, "Valjean")),
-            h("div", { class: "sp-row" }, h("label", null, "Show label"), enabled),
-            h("div", { class: "sp-tabs" }, AB.tabs(Object.keys(LS), "Text", show)),
-            body,
-            h("div", { class: "sp-cap" }, "Empty fields use graphty-element's defaults. Names come from the element; kinds, ranges and plain names here are the app's. ", AB.needsElement("graphty-element publishes only the label-style field names (LABEL_STYLE_FIELDS); full descriptors with kind, choices, range, default and plain name are filed.")),
-            oq("The same popover serves node label, tooltip, edge label and both arrow captions: does a field that one of them ignores (Pointer on a caption?) show disabled or hide?"),
-        ];
-        el.append(beside(AB.popover({ title: "Node label style", body: content, width: 372 }), ["#ab-right .ab-aa", "#ab-right .ab-sline", "#ab-right .k-tabs"]));
-        el.querySelector(".k-popover").classList.add("sp-pop", "sp-menu-surface");
+    // The one Label popover: what the label says (typed text, a field, a result or a note) on top, its style below.
+    // The Style tab's Label value, its bind icon and an arrow end's Caption all open it.
+    function labelStyle(el, openSource) {
+        const set = { location: "top", sizePx: 24, background: "#FFFFFF" }; // what this row's label style sets
+        const prevText = h("b", { style: "background:#FFFFFF;color:#000000;box-shadow:0 0 0 1px #00000026" }, "Valjean");
+        const fields = h("div");
+        const all = GROUPS.flatMap(([, fs]) => fs);
+        const paint = () => { prevText.style.background = set.background || "transparent"; prevText.style.fontSize = Math.min(20, Math.max(10, (set.sizePx || 13) / 1.6)) + "px"; prevText.style.fontWeight = set.weight === "bold" ? "700" : ""; prevText.style.color = set.color || "#000000"; };
+        let sectionEl;
+        const draw = (focusKey) => {
+            const items = [];
+            GROUPS.forEach(([g, fs]) => { const left = fs.filter((f) => !(f[0] in set)); if (left.length) items.push({ heading: g }, ...left.map((f) => ({ label: f[2], f }))); });
+            const plus = AB.plus({ label: "Add a label field", items, onAdd: (it) => { set[it.f[0]] = it.f[3] == null || it.f[1] === "color" ? (it.f[1] === "color" ? "#FFFFFF" : null) : it.f[3]; draw(it.f[0]); paint(); } });
+            fields.replaceChildren(...all.filter((f) => f[0] in set).map((f) => {
+                const minus = AB.iconButton("minus", "Remove " + f[2], { onClick: () => { delete set[f[0]]; draw(); paint(); AB.notice("Removed " + f[2], { label: "Undo", onClick: () => { set[f[0]] = f[3]; draw(); } }); } });
+                const r = row(f[2], h("span", { class: "sp-lsctl" }, lsControl(f, set[f[0]], (v) => { set[f[0]] = v; paint(); })), h("span", { class: "sp-minus" }, minus));
+                r.classList.add("sp-lsrow");
+                r.dataset.key = f[0];
+                return r;
+            }));
+            if (!Object.keys(set).length) fields.append(AB.empty("Nothing set here. Every field uses the default look."));
+            const head = sectionEl.querySelector(".k-section-head");
+            const old = head.querySelector(".ab-plus");
+            if (old) old.replaceWith(plus); else head.append(plus);
+            if (focusKey) requestAnimationFrame(() => { const f = fields.querySelector(`[data-key="${focusKey}"] :is(input, [tabindex='0'], .k-check)`); if (f) f.focus(); });
+        };
+        // The design note sits under the fields, as on the Style tab; the header keeps only "+"
+        sectionEl = AB.section({ title: "Style", editable: true }, fields, h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary" }, "Field list:", AB.needsElement("graphty-element publishes only the label-style field names; full descriptors (kind, choices, range, default, plain name) are filed. A maximum width and a same-size-at-any-distance option are not label fields yet.")));
+        draw();
+        paint();
+        // Text: where the words come from. A field or result is a chip (type glyph and name), never typed text.
+        let src = { name: "label", type: "cat" };
+        const srcText = h("span", { class: "sp-ml" });
+        const drawSrc = () => { srcText.replaceChildren(src.type ? AB.typeGlyph(src.type) : null, src.name); prevText.textContent = src.type ? "Valjean" : src.name || "Text"; };
+        const srcField = AB.field(srcText, { caret: true, onClick: () => openSrc() });
+        srcField.setAttribute("aria-label", "Text");
+        srcField.setAttribute("aria-haspopup", "menu");
+        srcField.setAttribute("data-autofocus", "");
+        const openSrc = () => {
+            const items = [{ label: "Typed text", check: !src.type, onClick: () => { src = { name: "", type: null }; drawSrc(); AB.flash("Type the label in the field (not wired in the skeleton)"); } }, { sep: true }]
+                .concat(fromDataItems("text", src.name, (name, type) => { src = { name, type: /integer|number/.test(type) ? "num" : "cat" }; drawSrc(); AB.announce("Label shows " + name); }));
+            markNotes(AB.openMenu(srcField, items));
+        };
+        drawSrc();
+        el.append(pop(find(lineAt("node.label"), headSel("Label")), "Label", [row("Text", srcField), h("div", { class: "sp-preview", role: "img", "aria-label": "Preview" }, prevText), sectionEl], { width: 320 }));
+        if (openSource) requestAnimationFrame(() => requestAnimationFrame(openSrc));
     }
 
-    // ---------- token edit: a value from "Why this look", written to Overrides ----------
-    function tokenEdit(el) {
-        const tok = document.querySelector("#ab-right .ab-token");
-        const line = tok && tok.closest(".ab-why-line");
-        const prop = (tok && tok.textContent) || "color";
-        const from = (line && line.querySelector(".ab-why-name") && line.querySelector(".ab-why-name").textContent) || "Group 2";
-        const raw = tok && tok.title && tok.title !== prop ? tok.title : "";
-        const hexIn = raw.match(/#[0-9a-f]{6}/i);
-        const value = hexIn ? hexIn[0] : raw.split(",")[0].trim() || (prop === "color" ? AB.fx.datasets.lesmis.groupColors["2"] : "");
-        const isColor = /^#[0-9a-f]{6}$/i.test(value);
-        const chit = isColor ? AB.chit(value) : null;
-        const inp = h("input", { class: "sp-in" + (isColor ? " k-mono" : ""), type: "text", value: isColor ? value.slice(1) : value, "aria-label": prop + " for Valjean", placeholder: "value" });
-        if (isColor) inp.addEventListener("input", () => /^[0-9a-f]{6}$/i.test(inp.value) && (chit.style.background = "#" + inp.value));
-        setTimeout(() => inp.select(), 0);
-        const body = [
-            h("div", { class: "sp-row" }, h("label", null, "Now"), h("span", { class: "k-secondary k-ellipsis" }, "from " + from)),
-            h("div", { class: "sp-row" }, h("label", null, prop[0].toUpperCase() + prop.slice(1)), isColor ? h("span", { class: "sp-color" }, chit, inp) : inp),
-            h("div", { class: "sp-cap" }, "Changes Valjean only. " + from + " keeps its value for its other members."),
-            oq("If Overrides already sets " + prop + " on Valjean, does Apply replace that value, or ask?"),
-        ];
-        const foot = [h("span", { class: "sp-foot-note" }, icon("layers", "sm"), " Writes to Overrides"), AB.button("Cancel", { kind: "ghost", onClick: () => AB.close() }), AB.button("Apply", { onClick: () => { done("Valjean's " + prop + " is set in Overrides, the top row of the tree."); AB.go("inspector-node", "edited"); } })];
-        el.append(beside(AB.popover({ title: prop[0].toUpperCase() + prop.slice(1) + " on Valjean", body, foot, width: 280 }), ["#ab-right .ab-token", "#ab-right .ab-why"]));
+    // ---------- a "Why this look" token: its property's own popover, written to Overrides ----------
+    function tokenPopover(el) {
+        const t = takeOpener().token || { prop: "Color", tip: "#662506, 0.0754, highest" };
+        const anchor = find(`#ab-right .ab-token[aria-label="${t.prop} from PageRank"]`, "#ab-right .ab-token", "#ab-right .ab-why");
+        const title = "Valjean only -- writes to Overrides";
+        const toEdited = () => { if (AB.route) AB.route.closeTo = { id: "inspector-node", state: "edited" }; };
+        if (t.prop === "Shape") return shapePicker(el, (t.tip.match(/^[a-z_-]+/) || ["icosphere"])[0], title);
+        const hex = (t.tip.match(/#[0-9a-f]{6}/i) || [null])[0];
+        let body;
+        if (t.prop === "Color") body = colorBody({ name: "Color", hex: hex || "#662506", hue: 22, onChange: toEdited });
+        else {
+            const n = (t.tip.match(/^[\d.]+/) || [""])[0];
+            body = [row(t.prop, input({ label: t.prop + " for Valjean", num: true, value: n, onInput: toEdited }), t.prop === "Opacity" ? "%" : null)];
+        }
+        el.append(pop(anchor, title, body, { width: 300 }));
     }
 
+    // ---------- states, frames and routes ----------
+    const G2 = (s) => "inspector-group-set-path-row/" + s;
+    const RIGHT = {
+        "plus-menu": G2("style"), "plus-one-left": G2("style"), "label-show": G2("style"), glow: G2("style"), shape: G2("style"),
+        bind: G2("label-bound"), "label-style": G2("label-bound"), color: G2("fill-set"), "color-libraries": G2("fill-set"),
+        pattern: G2("edges-side"), arrow: G2("arrows"),
+        binding: "inspector-measure-row/style", "binding-diverging": "inspector-measure-row/risk-score", palette: "inspector-measure-row/style", "palette-custom": "inspector-measure-row/style",
+        "token-color": "inspector-node/why-this-look",
+    };
+    // Old ids keep working: they render the state that replaced them
+    const ALIAS = { "plus-menu-search": "plus-menu", choice: "shape", "token-edit": "token-color" };
+    const stateOf = (s) => ALIAS[s] || s;
     const RENDER = {
-        "plus-menu": (el) => plusMenu(el, ""),
-        "plus-menu-search": (el) => plusMenu(el, "dash"),
-        bind: bindPicker,
+        "plus-menu": () => pressPlus("Effects"),
+        "plus-one-left": () => pressPlus("Tooltip", true),
+        "label-show": () => pressPlus("Label"),
+        bind: (el) => labelStyle(el, true),
+        binding: (el) => binding(el, false),
+        "binding-diverging": (el) => binding(el, true),
         palette: palettePicker,
         "palette-custom": customPalette,
-        shape: shapePicker,
-        choice: shapePicker,
-        arrow: arrowPicker,
+        color: (el) => colorPicker(el, "Custom"),
+        "color-libraries": (el) => colorPicker(el, "Libraries"),
+        glow: glowPicker,
+        shape: (el) => shapePicker(el),
         pattern: patternPicker,
-        color: colorPicker,
+        arrow: arrowPicker,
         "label-style": labelStyle,
-        "token-edit": tokenEdit,
+        "token-color": tokenPopover,
     };
+    const stateNow = () => stateOf(decodeURIComponent((location.hash.split("/")[2] || "plus-menu")));
 
     registerSection({
         id: "style-pickers",
         title: "Style pickers",
         region: "overlay",
         rail: "graph",
-        frame: (state) => (state === "token-edit" ? { left: "graph-place/at-rest", right: "inspector-node/why-this-look" } : { left: "graph-place/at-rest", right: "inspector-group-set-path-row/style" }),
-        // Esc and an outside click return to the inspector that opened the popover
-        get closeTo() { return /token-edit/.test(location.hash) ? "inspector-node/why-this-look" : "inspector-group-set-path-row/style"; },
+        frame: (state) => {
+            const right = RIGHT[stateOf(state)] || RIGHT["plus-menu"];
+            return { left: /risk-score/.test(right) ? "data-place/attributes" : "graph-place/at-rest", right };
+        },
+        // Esc and an outside click return to the inspector that opened the picker
+        get closeTo() { return RIGHT[stateNow()] || RIGHT["plus-menu"]; },
         states: [
-            { id: "plus-menu", label: "Add a property" },
-            { id: "plus-menu-search", label: "Add a property: typed \"dash\"" },
-            { id: "bind", label: "Bind to data" },
+            { id: "plus-menu", label: "\"+\" menu (Effects)" },
+            { id: "plus-one-left", label: "\"+\" with one left (Tooltip)" },
+            { id: "label-show", label: "Label's \"+\" with Show" },
+            { id: "bind", label: "Label: its Text menu (fields, results, notes)" },
+            { id: "binding", label: "Binding" },
+            { id: "binding-diverging", label: "Binding, diverging" },
             { id: "palette", label: "Palette" },
             { id: "palette-custom", label: "Custom palette" },
-            { id: "shape", label: "Shape" },
-            { id: "arrow", label: "Arrow type" },
-            { id: "pattern", label: "Line pattern" },
             { id: "color", label: "Color" },
-            { id: "choice", label: "Choice list (a shape)" },
-            { id: "label-style", label: "Label style" },
-            { id: "token-edit", label: "Edit a value (Why this look)" },
+            { id: "color-libraries", label: "Color: Libraries" },
+            { id: "glow", label: "Glow" },
+            { id: "shape", label: "Shape" },
+            { id: "pattern", label: "Pattern" },
+            { id: "arrow", label: "Arrows: Head" },
+            { id: "label-style", label: "Label (text and style)" },
+            { id: "token-color", label: "Token: Color on Valjean" },
         ],
         render(el, state) {
-            (RENDER[state] || RENDER["plus-menu"])(el);
+            const s = stateOf(state);
+            (RENDER[s] || RENDER["plus-menu"])(el);
+            el.querySelectorAll(":scope > .k-popover").forEach((p) => p.classList.add("sp-pop"));
+            // the popover's own first field takes focus (before the shell's generic first-focusable)
+            requestAnimationFrame(() => { const f = el.querySelector(".k-popover [data-autofocus]"); if (f && f.isConnected) f.focus(); });
         },
     });
 })();

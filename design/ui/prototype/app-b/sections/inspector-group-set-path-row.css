@@ -1,31 +1,7 @@
 /* Inspector: a group, set or path row. Loaded by inspector-group-set-path-row.js. Plain ASCII. */
 .igs .k-data .k-name { flex: none; }
 .igs .k-data .k-value { flex: 1 1 auto; min-width: 0; white-space: normal; }
-.igs-paints { padding: 6px 8px 6px 16px; line-height: 16px; border-bottom: 1px solid var(--cm-border); }
-.igs-order { padding: 4px 0 8px; border-top: 1px solid var(--cm-border); }
-.igs-line { padding: 2px 8px 2px 16px; line-height: 16px; }
-.igs-oq { display: flex; gap: 6px; align-items: flex-start; padding: 4px 8px 6px 16px; color: var(--cm-text-secondary); line-height: 16px; }
 .igs-hops { padding: 0 8px 0 40px; color: var(--cm-text-secondary); line-height: 20px; font-size: 11px; }
+.igs-all { padding: 2px 16px 4px; line-height: 20px; }
+.igs-q { padding: 2px 16px 6px; }
 .igs-hot { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; border-radius: 5px; }
-
-/* The color picker, opened from a swatch: to the left of the inspector, as in Figma */
-.igs-cp { position: fixed; z-index: 60; width: 240px; max-height: calc(100vh - 16px); display: flex; flex-direction: column; }
-.igs-cp .k-popover-head { gap: 4px; padding-inline: 8px; }
-.igs-cp-body { padding: 8px 0 0; overflow-y: auto; min-height: 0; }
-.igs-sb { position: relative; width: 208px; height: 160px; margin: 0 16px; border-radius: 5px; }
-.igs-ret { position: absolute; width: 12px; height: 12px; margin: -6px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0, 0, 0, .25); }
-.igs-sl { position: relative; height: 16px; margin: 8px 16px 0 16px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); }
-.igs-hue { background: linear-gradient(90deg, red, yellow, lime, cyan, blue, magenta, red); }
-.igs-sl > span { position: absolute; top: 0; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; box-shadow: inset 0 0 0 4px #fff, 0 0 0 1px rgba(0, 0, 0, .2); }
-.igs-val { display: flex; gap: 4px; margin: 8px 8px 0 16px; }
-.igs-val .k-field { padding: 0 6px; }
-.igs-val .igs-hex { flex: 1 1 auto; min-width: 0; }
-.igs-val .igs-op { width: 48px; flex: none; }
-.igs-sw { display: grid; grid-template-columns: repeat(9, 16px); gap: 8px; margin-top: 8px; padding: 8px 16px 12px; border-top: 1px solid var(--cm-border); }
-.igs-sw .k-chit, .igs-pal .k-chit { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong); }
-.igs-pal .k-chit { width: 8px; height: 12px; border-radius: 1px; }
-.igs-sw .k-chit[aria-pressed="true"] { outline: 2px solid var(--cm-border-selected); outline-offset: 1px; }
-.igs-libs { padding: 0 0 8px; }
-.igs-gl { padding: 8px 16px 4px; color: var(--cm-text-secondary); }
-.igs-pal { display: inline-flex; gap: 1px; width: 72px; flex: none; margin-right: 4px; }
-.igs-rampbar { display: inline-block; flex: none; margin-right: 4px; width: 72px; height: 12px; border-radius: 2px; }

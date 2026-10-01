@@ -1,19 +1,18 @@
-/* Table dock and time slider. The bottom dock: tabs Nodes, Edges and one item tab per open run,
-   the column header menu, "Show members in table" as a removable chip, and the time slider on
-   data with a time attribute (the transfers). Styles are injected once below (no shared file is
-   edited). Plain ASCII.
+/* Table dock and time slider. The bottom dock: tabs Nodes, Edges and one item tab per open run
+   (named and marked like the run's tree row), the column header menu, "Show members in table" as
+   a removable chip, and the time slider on data with a time attribute (the transfers). Styles
+   are injected once below (no shared file is edited). Plain ASCII.
 
    Numbers: Les Miserables nodes (label, group, degree, betweenness) and the transfers (accounts,
    first transfer rows, the timestamp range) come from kit/fixtures.json. Not in the fixtures, and
    computed here from graphty-element's examples/data/miserables.json with networkx 3.1:
    - Louvain weighted by value, resolution 1.0, seed 7 (the run the Graph tree shows: 6
      communities of 25, 17, 10, 10, 9 and 6; Community 3 is Myriel's), with each community's
-     edges inside, edges leaving, density (edges inside over possible pairs) and members, and the
-     weighted modularity 0.565;
+     edges inside, edges leaving, density (edges inside over possible pairs) and members;
    - the 20 heaviest edges by value;
    - Adamic-Adar link prediction, the 8 highest-scoring unlinked pairs.
-   Note counts per element match the Notes place (Valjean 2, Javert 1, Napoleon 1, Community 3 2,
-   Louvain 1). */
+   Note counts per element match the Notes place (Valjean 2, Javert 1, Napoleon 1, the edge
+   Javert - Valjean 1, Community 3 2). */
 (function () {
     "use strict";
     const { h, icon } = AB;
@@ -24,39 +23,35 @@
 .td-tabs .ab-tablist { min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .td-tab { gap: 6px; cursor: pointer; white-space: nowrap; }
 .td-tab .k-i { color: var(--cm-icon-secondary); }
-.td-tab-x { display: inline-flex; margin-inline-end: -4px; padding: 2px; border-radius: 3px; color: var(--cm-icon-secondary); }
+.td-tab-x { display: inline-flex; margin: -4px -8px -4px -2px; padding: 4px; border-radius: 3px; color: var(--cm-icon-secondary); cursor: pointer; }
 .td-tab-x:hover { background: var(--cm-bg-hover); }
 .td-scope { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 24px; }
-.td-scope .ab-link, .td-act { font-weight: 550; cursor: pointer; }
 .td-chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 2px 0 6px; border-radius: 5px; background: var(--cm-bg-selected); color: var(--cm-text); }
 .td-chip .k-chit { margin: 0; }
-.td .k-table th { cursor: pointer; vertical-align: top; padding-top: 4px; padding-bottom: 4px; height: auto; }
+.td .k-table th { cursor: pointer; white-space: nowrap; }
 .td .k-table th:hover { background: var(--cm-bg-hover); }
 .td-th { display: flex; align-items: center; gap: 4px; }
-.td-th .td-type { display: inline-flex; color: var(--cm-icon-secondary); }
-.td-th .td-sort { color: var(--cm-icon-secondary); }
+.td-th .td-type, .td-th .td-sort { display: inline-flex; color: var(--cm-icon-secondary); }
 .td-th .td-caret { display: inline-flex; margin-inline-start: auto; padding: 2px; border-radius: 3px; color: var(--cm-icon-secondary); opacity: 0; }
 .td .k-table th:hover .td-caret, .td .k-table th[data-open] .td-caret, .td-th .td-caret:focus-visible { opacity: 1; }
 .td .k-table th[data-open] { background: var(--cm-bg-selected); }
-.td .k-table td { cursor: default; }
 .td .k-table tbody tr { cursor: pointer; }
-.td-notes { display: inline-flex; align-items: center; gap: 3px; color: var(--cm-text-secondary); }
-.td-zero { color: var(--cm-text-tertiary); }
-.td-rowact { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; height: 22px; border-radius: 5px; color: var(--cm-text-secondary); font-weight: 550; }
-.td-rowact:hover { background: var(--cm-bg-hover); color: var(--cm-text); }
+.td .k-table td[data-edit] { cursor: text; }
+.td .k-table td input { width: 100%; min-width: 48px; font: inherit; color: inherit; background: var(--cm-bg); border: 0; outline: 1px solid var(--cm-border-selected); border-radius: 2px; padding: 0 2px; }
+.td .k-table tr[data-member] td { background: transparent; }
+.td .k-table tr[data-member] td:first-child { box-shadow: inset 3px 0 0 var(--cm-border-selected); }
 .td-slider .k-track { cursor: pointer; min-width: 96px; }
 .td-slider .k-window { cursor: grab; }
-.td-slider .td-end { flex: none; }
-.td-slider .k-field { flex: none; }
-.td-foot { display: flex; align-items: center; gap: 8px; padding: 4px 16px; border-top: 1px solid var(--cm-border); color: var(--cm-text-secondary); flex: none; }
-@container main (max-width: 900px) { .td-hide-narrow { display: none; } }
-@container main (max-width: 640px) { .td-hide-tight { display: none; } }
+.td-slider .k-field { flex: none; cursor: pointer; }
 `;
     if (!document.getElementById("td-style")) document.head.append(h("style", { id: "td-style" }, CSS));
 
-    const oq = (text) => h("span", { class: "k-annot-tag", title: text, "aria-label": "Open question: " + text }, "Open question");
     const fmt = (n) => Number(n).toLocaleString("en-US");
     const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
+    const plural = (n, one, many) => fmt(n) + " " + (n === 1 ? one : many || one + "s");
+    // Sort arrows (lucide arrow-up and arrow-down, ISC): the kit sprite has neither
+    const ARROW = { up: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>', down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>' };
+    const arrow = (d) => { const s = h("svg", { class: "k-i k-i-sm", "aria-hidden": "true", viewBox: "0 0 24 24" }); s.innerHTML = ARROW[d]; return s; };
 
     // ---------- data not in the fixtures (see the header comment) ----------
     const COMMUNITIES = [
@@ -67,86 +62,157 @@
         { n: 5, size: 9, inside: 29, leaving: 10, density: 0.806, color: "#D55E00", members: ["Fantine", "Tholomyes", "Dahlia", "Favourite", "Fameuil", "Blacheville", "Listolier", "Zephine", "Marguerite"] },
         { n: 6, size: 6, inside: 15, leaving: 8, density: 1, color: "#CC79A7", members: ["Bamatabois", "Brevet", "Champmathieu", "Judge", "Chenildieu", "Cochepaille"] },
     ];
-    const MODULARITY = 0.565;
     const EDGES = [["Cosette", "Valjean", 31], ["Marius", "Cosette", 21], ["Marius", "Valjean", 19], ["Courfeyrac", "Enjolras", 17], ["Javert", "Valjean", 17], ["Combeferre", "Enjolras", 15], ["Courfeyrac", "Combeferre", 13], ["Thenardier", "Mme.Thenardier", 13], ["Bossuet", "Courfeyrac", 12], ["Marius", "Gillenormand", 12], ["Thenardier", "Valjean", 12], ["Bossuet", "Enjolras", 10], ["Mme.Magloire", "Myriel", 10], ["Bossuet", "Combeferre", 9], ["Courfeyrac", "Marius", 9], ["Fantine", "Valjean", 9], ["Mlle.Gillenormand", "Gillenormand", 9], ["Fauchelevent", "Valjean", 8], ["Mlle.Baptistine", "Myriel", 8], ["Courfeyrac", "Gavroche", 7]];
     const PAIRS = [["Gavroche", "Eponine", 3.34, 8], ["Gavroche", "Claquesous", 3.2, 8], ["Prouvaire", "Mabeuf", 3.11, 8], ["Prouvaire", "Marius", 3.11, 8], ["Mabeuf", "Grantaire", 3.11, 8], ["Marius", "Grantaire", 3.11, 8], ["Valjean", "Eponine", 2.88, 7], ["Montparnasse", "Mme.Thenardier", 2.71, 7]];
     const NODE_NOTES = { Valjean: 2, Javert: 1, Napoleon: 1 };
-    const EDGE_NEED = "graphty-element has no edge update yet, so edge values cannot be edited in the table; an edge update API is filed.";
-    const edgeReadOnly = () => h("span", { class: "k-secondary" }, "Edge values are read-only. ", AB.needsElement(EDGE_NEED));
+    const EDGE_NOTES = { "Javert|Valjean": 1 };
 
-    const RUN = "Louvain, resolution 1.0";
-    const ITEM_TAB = "Communities: Louvain";
-    const PAIR_TAB = "Likely links: Adamic-Adar";
+    // Item tabs carry the run row's icon and short name; the full name is the tooltip
+    const RUN = { label: "Louvain", full: "Louvain, resolution 1.0", icon: AB.ICON.run };
+    const PAIR_RUN = { label: "Adamic-Adar", full: "Adamic-Adar likely links", icon: AB.ICON.run };
 
     // ---------- small pieces ----------
-    const typeIcon = { text: "type", cat: "type", num: "hash", time: "calendar", bool: "circle-check", color: "palette", notes: "message-square" };
-    const typeTitle = { text: "Text", cat: "Category", num: "Number", time: "Date and time", bool: "Yes or no", color: "Color", notes: "Notes" };
-    function notesCell(n, go) {
-        if (!n) return h("span", { class: "td-zero k-num" }, "0");
-        return h("span", Object.assign({ class: "td-notes k-num", title: n + (n === 1 ? " note" : " notes") }, AB.act({ go: go || ["notes-place", "all"] })), icon("message-square", "sm"), String(n));
+    const typeTitle = { text: "Text", cat: "Category", num: "Number", time: "Date and time", bool: "Yes or no" };
+    // The tree's note badge; blank at zero
+    function notesCell(n) {
+        if (!n) return "";
+        // A pointer shortcut inside a focusable row: the row is the Tab stop (its notes are in the inspector)
+        const b = h("span", Object.assign({ class: "ab-tnotes k-num", role: "link" }, AB.act({ go: ["notes-place", "all"] })), icon(AB.ICON.note, "sm"), String(n));
+        b.tabIndex = -1;
+        return AB.tip(b, plural(n, "note"));
     }
+    const notesCol = { key: "notes", label: "Notes", n: true, cell: (r) => notesCell(r.notes) };
     const current = () => /^#\/table-dock(\/|$)/.test(location.hash);
 
     /* A sortable table. cols: [{ key, label, type, n (numeric), profile, menu (true: the caret opens
-       the column menu state), cell(row) }]. rows: objects. onRow(row, event). */
+       the column menu state), cell(row), edit (true: double-click edits the value in place) }].
+       The Notes column is added only when a row has a note. */
     function table(cols, rows, o) {
         o = o || {};
+        if (rows.some((r) => r.notes)) cols = cols.concat(notesCol);
         let sortKey = o.sort || null, dir = o.dir || -1;
         const tbody = h("tbody");
         const heads = {};
+        const cellOf = (c, r) => (c.cell ? c.cell(r) : String(r[c.key]));
+        function editCell(td, c, r, who) {
+            const old = r[c.key];
+            const inp = h("input", { value: String(old), "aria-label": c.label + " of " + who });
+            let done = false;
+            const finish = (save) => {
+                if (done) return;
+                done = true;
+                const v = c.n ? Number(inp.value) : inp.value;
+                if (save && inp.value !== String(old) && !(c.n && Number.isNaN(v))) {
+                    r[c.key] = v;
+                    AB.notice("Changed " + c.label + " of " + who, { label: "Undo", onClick: () => { r[c.key] = old; fill(); } });
+                }
+                td.replaceChildren(cellOf(c, r));
+                td.closest("tr").focus();
+            };
+            inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
+            inp.addEventListener("blur", () => finish(true));
+            inp.addEventListener("click", (e) => e.stopPropagation());
+            td.replaceChildren(inp);
+            inp.focus();
+            inp.select();
+        }
         const fill = () => {
             const sorted = sortKey ? rows.slice().sort((a, b) => {
                 const x = a[sortKey], y = b[sortKey];
                 return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
             }) : rows;
             tbody.replaceChildren(...sorted.map((r) => {
-                const tr = h("tr", { id: o.rowId ? "td-row-" + o.rowId(r) : null, tabindex: "0", "aria-selected": r.selected ? "true" : null, "data-member": r.member ? "" : null }, cols.map((c) => h("td", { class: (c.n ? "k-n " : "") + (c.id ? "k-id" : "") }, c.cell ? c.cell(r) : String(r[c.key]))));
+                const who = o.who ? o.who(r) : "";
+                const tr = h("tr", { id: o.rowId ? "td-row-" + o.rowId(r) : null, tabindex: "0", "data-member": r.member ? "" : null },
+                    cols.map((c) => {
+                        const td = h("td", { class: (c.n ? "k-n " : "") + (c.id ? "k-id" : ""), "data-edit": c.edit ? "" : null }, cellOf(c, r));
+                        if (c.edit) td.addEventListener("dblclick", (e) => { e.stopPropagation(); editCell(td, c, r, who); });
+                        return td;
+                    }));
+                if (r.member) AB.tip(tr, "Inside the time window", { label: false });
                 if (o.onRow) {
-                    tr.addEventListener("click", (e) => { if (!e.target.closest("[role=button],[role=link],a")) o.onRow(r, e); });
-                    tr.addEventListener("keydown", (e) => e.key === "Enter" && o.onRow(r, e));
+                    // On an editable cell, wait out a double-click before opening the row
+                    let wait = 0;
+                    tr.addEventListener("click", (e) => {
+                        if (e.target.closest("[role=button],[role=link],a,input")) return;
+                        clearTimeout(wait);
+                        if (e.detail > 1) return;
+                        if (e.target.closest("td[data-edit]")) wait = setTimeout(() => o.onRow(r, e), 300); else o.onRow(r, e);
+                    });
+                    tr.addEventListener("dblclick", () => clearTimeout(wait));
+                    tr.addEventListener("keydown", (e) => e.target === tr && e.key === "Enter" && o.onRow(r, e));
                 }
-                if (o.onRowMenu) tr.addEventListener("contextmenu", (e) => { e.preventDefault(); o.onRowMenu(r); });
-                if (o.onCellEdit) tr.addEventListener("dblclick", (e) => { e.stopPropagation(); o.onCellEdit(r); });
+                if (o.onRowMenu) {
+                    tr.addEventListener("contextmenu", (e) => { e.preventDefault(); o.onRowMenu(r); });
+                    tr.addEventListener("keydown", (e) => { if (e.target === tr && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); o.onRowMenu(r); } });
+                }
                 return tr;
             }));
-            cols.forEach((c) => { if (heads[c.key]) heads[c.key].querySelector(".td-sort").replaceChildren(sortKey === c.key ? icon(dir < 0 ? "chevron-down" : "chevron-up", "sm") : ""); });
-        };
-        const thead = h("tr", null, cols.map((c) => {
-            const caret = h("span", Object.assign({ class: "td-caret", role: "button", tabindex: "0", "aria-label": "Column menu for " + c.label, title: "Column menu" }, c.menu ? AB.act({ go: ["table-dock", "column-menu"] }) : AB.act({ onClick: flash("The " + c.label + " column menu") })), icon("chevron-down", "sm"));
-            const th = h("th", { id: "td-col-" + c.key, class: c.n ? "k-n" : null, scope: "col", "data-open": o.openMenu === c.key ? "" : null, title: "Sort by " + c.label + ". The caret opens the column menu." },
-                h("span", { class: "td-th" }, c.type ? h("span", { class: "td-type", title: typeTitle[c.type] }, icon(typeIcon[c.type], "sm")) : null, h("span", null, c.label), h("span", { class: "td-sort" }), caret),
-                c.profile ? h("span", { class: "k-profile" }, c.profile) : null);
-            th.addEventListener("click", (e) => {
-                if (e.target.closest(".td-caret")) return;
-                if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = c.n ? -1 : 1; }
-                fill();
+            cols.forEach((c) => {
+                const th = heads[c.key];
+                if (!th) return;
+                th.querySelector(".td-sort").replaceChildren(sortKey === c.key ? arrow(dir < 0 ? "down" : "up") : "");
+                th.setAttribute("aria-sort", sortKey === c.key ? (dir < 0 ? "descending" : "ascending") : "none");
             });
-            th.addEventListener("contextmenu", (e) => { e.preventDefault(); if (c.menu) AB.go("table-dock", "column-menu"); else flash("The " + c.label + " column menu")(); });
+        };
+        const openMenu = (c) => (c.menu ? AB.go("table-dock", "column-menu") : flash("The " + c.label + " column menu")());
+        const thead = h("tr", null, cols.map((c) => {
+            // One Tab stop per header: the caret is for the pointer; the keyboard opens the menu from the header (Alt+Down, Shift+F10)
+            const caret = AB.tip(h("span", Object.assign({ class: "td-caret", role: "button" }, AB.act({ onClick: () => openMenu(c) }), { tabindex: "-1" }), icon("chevron-down", "sm")), "Column menu", { key: "Alt+Down" });
+            const th = h("th", { id: "td-col-" + c.key, class: c.n ? "k-n" : null, scope: "col", tabindex: "0", "data-open": o.openMenu === c.key ? "" : null },
+                h("span", { class: "td-th" }, c.type ? h("span", { class: "td-type" }, AB.typeGlyph(c.type)) : null, h("span", null, c.label), h("span", { class: "td-sort" }), caret));
+            AB.tip(th, [c.type ? typeTitle[c.type] : null, c.profile].filter(Boolean).join(", ") || c.label, { label: false });
+            const sort = () => { if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = c.n ? -1 : 1; } fill(); };
+            th.addEventListener("click", (e) => { if (!e.target.closest(".td-caret")) sort(); });
+            th.addEventListener("keydown", (e) => {
+                if (e.target !== th) return;
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sort(); }
+                else if ((e.altKey && e.key === "ArrowDown") || (e.shiftKey && e.key === "F10") || e.key === "ContextMenu") { e.preventDefault(); openMenu(c); }
+            });
+            th.addEventListener("contextmenu", (e) => { e.preventDefault(); openMenu(c); });
             heads[c.key] = th;
             return th;
         }));
         fill();
-        return h("div", { class: "k-table-wrap", tabindex: "0", role: "region", "aria-label": o.label || "Table" }, h("table", { class: "k-table" }, h("thead", null, thead), tbody));
+        return h("div", { class: "k-table-wrap", role: "region", "aria-label": o.label || "Table" }, h("table", { class: "k-table" }, h("thead", null, thead), tbody));
     }
+
+    // The scope line: the count; usage hints live in its tooltip
+    function scope(text, hint, ...more) {
+        const count = h("span", null, text);
+        if (hint) AB.tip(count, text, { second: hint, label: false });
+        return h("div", { class: "k-scope td-scope" }, count, ...more);
+    }
+    const ROW_HINT = "Shift-click a row: add it to the selection";
 
     // ---------- the tab strip ----------
     function tabStrip(state, tabsOpen, active, onPick, optionsState) {
         const list = h("span", { role: "tablist", class: "ab-tablist" });
         tabsOpen.forEach((t) => {
-            const el = h("span", { class: "k-tab td-tab", role: "tab", tabindex: "0", "aria-selected": String(t.id === active), title: t.title || null }, t.icon ? icon(t.icon, "sm") : null, t.label,
-                t.close ? h("span", { class: "td-tab-x", role: "button", "aria-label": "Close the " + t.label + " tab", title: "Close tab (the run stays in the Graph tree)", on: { click: (e) => { e.stopPropagation(); t.close(); } } }, icon("x", "sm")) : null);
+            // One Tab stop for the strip (arrows move); a closable tab closes with Delete. Its x is a
+            // pointer shortcut with a 24 px target, not a second control inside the tab.
+            const x = t.close ? h("span", { class: "td-tab-x", "aria-hidden": "true", "data-tip": "Close tab", "data-key": "Del", on: { click: (e) => { e.stopPropagation(); t.close(); } } }, icon("x", "sm")) : null;
+            const el = h("span", { class: "k-tab td-tab", role: "tab", tabindex: t.id === active ? "0" : "-1", "aria-selected": String(t.id === active), "aria-keyshortcuts": t.close ? "Delete" : null }, t.icon ? icon(t.icon, "sm") : null, t.label, x);
+            if (t.full) AB.tip(el, t.full, { label: false });
             const pick = () => onPick(t);
             el.addEventListener("click", pick);
-            el.addEventListener("keydown", (e) => e.key === "Enter" && pick());
+            el.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+                else if (e.key === "Delete" && t.close) { e.preventDefault(); t.close(); }
+                else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                    const all = [...list.querySelectorAll(".td-tab")], i = all.indexOf(el);
+                    const to = all[(i + (e.key === "ArrowRight" ? 1 : -1) + all.length) % all.length];
+                    e.preventDefault(); all.forEach((y) => (y.tabIndex = y === to ? 0 : -1)); to.focus();
+                }
+            });
             list.append(el);
         });
         const closed = state === "closed";
         const toggle = current()
-            ? AB.iconButton(closed ? "chevron-up" : "chevron-down", closed ? "Open the table (Shift+T)" : "Collapse the table (Shift+T)", { go: ["table-dock", closed ? "nodes" : "closed"] })
+            ? AB.iconButton(closed ? "chevron-up" : "chevron-down", closed ? "Show table (Shift+T)" : "Hide table (Shift+T)", { go: ["table-dock", closed ? "nodes" : "closed"] })
             : AB.dockToggle();
         return h("div", { class: "k-dock-tabs td-tabs" }, list, h("span", { class: "k-grow" }),
-            AB.iconButton("search", "Find in table", { go: ["commands-and-search", "find"] }),
-            AB.iconButton("ellipsis", "Table options", { go: ["table-dock", optionsState || "table-options"] }),
+            AB.iconButton(AB.ICON.options, "Table options", { go: ["table-dock", optionsState || "table-options"] }),
             toggle);
     }
 
@@ -161,102 +227,123 @@
         const src = members ? members.map(nodeRow) : Lx.rows;
         const rows = src.map((r) => ({ label: r.label, group: r.group, degree: r.degree, betweenness: r.betweenness, notes: NODE_NOTES[r.label] || 0 }));
         const cols = [
-            { key: "label", label: "label", type: "text", id: true, profile: Lx.nodes + " values" },
-            { key: "group", label: "group", type: "cat", profile: Object.keys(Lx.groupColors).length + " values", cell: (r) => [AB.chit(groupColor(r.group)), String(r.group)] },
+            { key: "label", label: "label", type: "text", id: true, edit: true, profile: Lx.nodes + " values" },
+            { key: "group", label: "group", type: "cat", edit: true, profile: Object.keys(Lx.groupColors).length + " values", cell: (r) => [AB.chit(groupColor(r.group)), String(r.group)] },
             { key: "degree", label: "degree", type: "num", n: true, menu: true, profile: "1 to " + Lx.stats.maxDegree },
             { key: "betweenness", label: "betweenness", type: "num", n: true, profile: "0 to 0.57" },
-            { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes, r.notes ? ["notes-place", "all"] : null) },
         ];
-        return table(cols, rows, { sort: "degree", label: "Nodes", openMenu, onRow: openNode, rowId: (r) => r.label.replace(/[^A-Za-z0-9]/g, ""),
-            onRowMenu: () => AB.go("table-dock", "row-menu"),
-            onCellEdit: (r) => AB.flash("Editing a value of " + r.label + " (not wired in the skeleton)") });
+        return table(cols, rows, { sort: "degree", label: "Nodes", openMenu, onRow: openNode, who: (r) => r.label, rowId: (r) => r.label.replace(/[^A-Za-z0-9]/g, ""),
+            onRowMenu: () => AB.go("context-menus", "table-row") });
     }
 
     function edgesTable() {
-        const rows = EDGES.map(([a, b, v]) => ({ source: a, target: b, value: v, notes: 0 }));
+        const rows = EDGES.map(([a, b, v]) => ({ source: a, target: b, value: v, notes: EDGE_NOTES[a + "|" + b] || 0 }));
         const cols = [
             { key: "source", label: "source", type: "text", id: true },
             { key: "target", label: "target", type: "text", id: true },
-            { key: "value", label: "value", type: "num", n: true, profile: "chapters shared" },
-            { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
+            { key: "value", label: "value", type: "num", n: true, edit: true, profile: "chapters shared, 1 to 31" },
         ];
-        return table(cols, rows, { sort: "value", label: "Edges", onRow: () => AB.go("inspector-edge", "style"), onCellEdit: () => AB.flash("Edge values are read-only: " + EDGE_NEED) });
+        return table(cols, rows, { sort: "value", label: "Edges", who: (r) => r.source + " - " + r.target, onRow: () => AB.go("inspector-edge", "style"), onRowMenu: () => AB.go("context-menus", "edge") });
     }
 
-    function communitiesTable(showMembers) {
-        const rows = COMMUNITIES.map((c) => ({ c, name: "Community " + c.n, n: c.n, size: c.size, density: c.density, inside: c.inside, leaving: c.leaving, notes: c.notes || 0, selected: false }));
+    function communitiesTable() {
+        const rows = COMMUNITIES.map((c) => ({ c, n: c.n, size: c.size, density: c.density, inside: c.inside, leaving: c.leaving, notes: c.notes || 0 }));
         const cols = [
-            { key: "n", label: "community", type: "cat", cell: (r) => [AB.chit(r.c.color, true), r.name] },
+            { key: "n", label: "community", type: "cat", cell: (r) => [AB.chit(r.c.color, true), "Community " + r.n] },
             { key: "size", label: "size", type: "num", n: true, profile: "6 to 25" },
             { key: "density", label: "density", type: "num", n: true, profile: "0.147 to 1", cell: (r) => r.density.toFixed(3) },
             { key: "inside", label: "edges inside", type: "num", n: true },
             { key: "leaving", label: "edges leaving", type: "num", n: true },
-            { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
         ];
-        // A row opens that community (and selects its members); "Show members in table" is in the row menu
-        return table(cols, rows, { sort: "size", label: ITEM_TAB, onRow: (r) => AB.go("inspector-group-set-path-row", "community-" + r.n), onRowMenu: () => AB.go("context-menus", "row") });
+        return table(cols, rows, { sort: "size", label: RUN.label, onRow: (r) => AB.go("inspector-group-set-path-row", "community-" + r.n), onRowMenu: () => AB.go("context-menus", "row") });
     }
 
     function pairsTable() {
-        const rows = PAIRS.map(([a, b, s, k]) => ({ a, b, score: s, common: k, notes: 0 }));
+        const rows = PAIRS.map(([a, b, s, k]) => ({ a, b, score: s, common: k }));
         const cols = [
             { key: "a", label: "node", type: "text", id: true },
             { key: "b", label: "node", type: "text", id: true },
             { key: "score", label: "score", type: "num", n: true, cell: (r) => r.score.toFixed(2) },
             { key: "common", label: "shared neighbors", type: "num", n: true },
-            { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
         ];
-        return table(cols, rows, { sort: "score", label: PAIR_TAB, onRow: () => AB.go("inspector-several-elements", "two-nodes") });
+        return table(cols, rows, { sort: "score", label: PAIR_RUN.label, onRow: () => AB.go("inspector-several-elements", "two-nodes") });
     }
 
     // ---------- transfers tables and the time slider ----------
     const T = () => AB.fx.datasets.transactions;
-    const inWindow = (ts) => ts >= "2026-03-09" && ts < "2026-03-16";
-    const shortTime = (ts) => { const d = new Date(ts); return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }); };
+    // March 2026; the window is [start, start + len) in days
+    const win = { start: 9, len: 7 };
+    const inWindow = (ts) => { const d = new Date(ts).getUTCDate(); return d >= win.start && d < win.start + win.len; };
+    const shortTime = (ts) => new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
 
     function transferEdges(windowed) {
-        const rows = T().firstRows.map((r) => ({ from: r.from_account, to: r.to_account, amount: Number(r.amount), timestamp: r.timestamp, notes: 0, member: windowed && inWindow(r.timestamp) }));
+        const rows = T().firstRows.map((r) => ({ from: r.from_account, to: r.to_account, amount: Number(r.amount), timestamp: r.timestamp, member: windowed && inWindow(r.timestamp) }));
         const cols = [
             { key: "from", label: "from_account", type: "text", id: true },
             { key: "to", label: "to_account", type: "text", id: true },
-            { key: "amount", label: "amount", type: "num", n: true, cell: (r) => r.amount.toFixed(2) },
+            { key: "amount", label: "amount", type: "num", n: true, edit: true, cell: (r) => r.amount.toFixed(2) },
             { key: "timestamp", label: "timestamp", type: "time", profile: "Mar 1 to Mar 31", cell: (r) => shortTime(r.timestamp) },
-            { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
         ];
-        return table(cols, rows, { label: "Edges", onRow: (r) => AB.flash("Selects the transfer " + r.from + " to " + r.to + " (not wired in the skeleton)"), onCellEdit: () => AB.flash("Edge values are read-only: " + EDGE_NEED) });
+        return table(cols, rows, { label: "Edges", who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the transfer " + r.from + " - " + r.to + " (not wired in the skeleton)") });
     }
     function transferNodes() {
         const Tx = T();
-        const rows = Tx.rows.map((r) => ({ id: r.id, kind: r.kind, country: r.country, riskScore: r.riskScore, flagged: r.flagged ? "yes" : "no", degree: r.degree, notes: 0 }));
+        const rows = Tx.rows.map((r) => ({ id: r.id, kind: r.kind, country: r.country, riskScore: r.riskScore, flagged: r.flagged ? "yes" : "no", degree: r.degree }));
         const risk = Tx.attributes.find((a) => a.name === "riskScore");
         const cols = [
             { key: "id", label: "id", type: "text", id: true, profile: fmt(Tx.nodes) + " values" },
-            { key: "kind", label: "kind", type: "cat", profile: "3 values" },
-            { key: "country", label: "country", type: "cat" },
-            { key: "riskScore", label: "riskScore", type: "num", n: true, profile: risk.range[0] + " to " + risk.range[1] },
-            { key: "flagged", label: "flagged", type: "bool" },
+            { key: "kind", label: "kind", type: "cat", edit: true, profile: "3 values" },
+            { key: "country", label: "country", type: "cat", edit: true },
+            { key: "riskScore", label: "riskScore", type: "num", n: true, edit: true, profile: risk.range[0] + " to " + risk.range[1] },
+            { key: "flagged", label: "flagged", type: "bool", edit: true },
             { key: "degree", label: "degree", type: "num", n: true, profile: "1 to " + fmt(Tx.stats.maxDegree) },
-            { key: "notes", label: "Notes", type: "notes", n: true, cell: (r) => notesCell(r.notes) },
         ];
-        return table(cols, rows, { sort: "degree", label: "Nodes", onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+        return table(cols, rows, { sort: "degree", label: "Nodes", who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
     }
-    function timeSlider(onHide) {
-        const play = AB.iconButton("play", "Play through the windows", {});
+
+    // Play, the track, the window readout, the window length, close
+    const LENGTHS = [[1, "1 day"], [7, "1 week"], [31, "1 month"]];
+    function timeSlider(onHide, onMove) {
+        const readout = h("span", { class: "k-strong k-num" });
+        const winEl = h("span", { class: "k-window" });
+        const track = h("span", { class: "k-track", role: "slider", tabindex: "0", "aria-label": "Time window", "aria-valuemin": "1", "aria-valuemax": "31" }, winEl);
+        const lenField = AB.field("", { caret: true });
+        lenField.setAttribute("role", "button");
+        lenField.setAttribute("tabindex", "0");
+        const show = () => {
+            const end = Math.min(31, win.start + win.len - 1);
+            const text = win.len === 1 ? "Mar " + win.start : "Mar " + win.start + " to Mar " + end;
+            readout.textContent = text;
+            winEl.style.cssText = `left:${((win.start - 1) / 31) * 100}%;width:${(Math.min(win.len, 32 - win.start) / 31) * 100}%`;
+            track.setAttribute("aria-valuenow", String(win.start));
+            track.setAttribute("aria-valuetext", text + ", 2026");
+            lenField.replaceChildren(LENGTHS.find((l) => l[0] === win.len)[1], icon("chevron-down", "sm"));
+            lenField.setAttribute("aria-label", "Window length: " + LENGTHS.find((l) => l[0] === win.len)[1]);
+        };
+        const move = (start) => { win.start = Math.max(1, Math.min(32 - win.len, start)); show(); onMove(); };
+        track.addEventListener("keydown", (e) => {
+            const step = { ArrowLeft: -1, ArrowRight: 1, PageDown: -win.len, PageUp: win.len }[e.key];
+            if (e.key === "Home") move(1); else if (e.key === "End") move(32 - win.len); else if (step) move(win.start + step); else return;
+            e.preventDefault();
+        });
+        track.addEventListener("click", (e) => { if (e.target === track) { const r = track.getBoundingClientRect(); move(Math.round(((e.clientX - r.left) / r.width) * 31 + 1 - win.len / 2)); } });
+        winEl.addEventListener("click", flash("Dragging the window or its ends"));
+        const pickLen = () => AB.openMenu(lenField, LENGTHS.map(([d, label]) => ({ label, check: d === win.len, onClick: () => { win.len = d; move(win.start); lenField.focus(); } })));
+        lenField.addEventListener("click", pickLen);
+        lenField.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " " || (e.altKey && e.key === "ArrowDown")) { e.preventDefault(); pickLen(); } });
         let playing = false;
-        play.addEventListener("click", () => { playing = !playing; play.replaceChildren(icon(playing ? "pause" : "play")); play.setAttribute("aria-label", playing ? "Pause" : "Play through the windows"); });
-        // March 2026: 31 days; the window Mar 9 to Mar 15 starts on day 9
-        const win = h("span", { class: "k-window", style: `left:${(8 / 31) * 100}%;width:${(7 / 31) * 100}%`, title: "Drag to move the window. Drag an end to resize it." });
-        const track = h("span", { class: "k-track", role: "slider", tabindex: "0", "aria-label": "Time window", "aria-valuetext": "Mar 9 to Mar 15, 2026", on: { click: flash("Moving the window") } }, win);
-        return h("div", { class: "k-timeslider td-slider", role: "group", "aria-label": "Time slider (T)" },
-            h("span", { class: "td-type", title: "Time attribute: timestamp (edge)" }, icon("clock", "sm")),
-            play,
-            h("span", { class: "td-hide-tight" }, AB.iconButton("chevron-left", "Previous window", { onClick: flash("Previous window") })),
-            h("span", { class: "td-hide-tight" }, AB.iconButton("chevron-right", "Next window", { onClick: flash("Next window") })),
-            h("span", { class: "td-end k-secondary k-num td-hide-tight" }, "Mar 1"), track, h("span", { class: "td-end k-secondary k-num td-hide-tight" }, "Mar 31"),
-            h("span", { class: "k-strong k-num" }, "Mar 9 to Mar 15"),
-            AB.field("Window: 1 week", { caret: true, onClick: flash("Window length: a day, a week, a month, or everything so far") }),
-            h("span", { class: "td-hide-narrow" }, oq("The default window length, and whether a window shows everything up to its end")),
-            AB.iconButton("x", "Hide the time slider (T)", { onClick: onHide }));
+        const play = AB.iconButton("play", "Play", {});
+        play.addEventListener("click", () => {
+            playing = !playing;
+            play.replaceChildren(icon(playing ? "pause" : "play"));
+            AB.tip(play, playing ? "Pause" : "Play");
+            play.setAttribute("aria-label", playing ? "Pause" : "Play");
+            if (playing) move(win.start + win.len > 31 ? 1 : win.start + win.len);
+        });
+        show();
+        return h("div", { class: "k-timeslider td-slider", role: "group", "aria-label": "Time slider" },
+            play, track, readout, lenField,
+            AB.iconButton("x", "Hide the time slider", { onClick: onHide }));
     }
 
     // the transfers states and whether each shows the time slider
@@ -264,25 +351,30 @@
 
     // ---------- the dock ----------
     function dock(el, state) {
-        const lesmisTabs = (extra) => [
-            { id: "nodes", label: "Nodes", icon: "circle-dot" },
-            { id: "edges", label: "Edges", icon: "spline" },
-            { id: "communities", label: ITEM_TAB, icon: "group", title: "One row per community from " + RUN, close: () => AB.go("table-dock", "nodes") },
-        ].concat(extra || []);
-
+        // Old links: the row menu is the node's context menu; Remove from data no longer asks
+        if (state === "row-menu" || state === "remove-confirm") {
+            setTimeout(() => AB.go.apply(null, state === "row-menu" ? ["context-menus", "table-row"] : ["table-dock", "nodes"]), 0);
+            return;
+        }
         if (current()) {
             const main = document.getElementById("ab-main");
             if (main && main.dataset.dock !== "none") main.dataset.dock = state === "closed" ? "closed" : "open";
         }
         const root = h("div", { class: "td" });
+        // Find (Ctrl+F) searches the table when it has focus
+        root.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); AB.go("commands-and-search", "find"); } });
         el.append(root);
 
         if (TRANSFERS[state] !== undefined) return transfersDock(root, TRANSFERS[state]);
 
         let members = state === "members-of-row" ? COMMUNITIES[2] : null;
-        const pairTab = { id: "pairs", label: PAIR_TAB, icon: "waypoints", title: "One row per pair from the likely-links run", close: () => AB.go("table-dock", "communities") };
-        const tabsOpen = lesmisTabs(state === "pair-run" ? [pairTab] : null);
-        let active = { nodes: "nodes", closed: "nodes", "members-of-row": "nodes", "column-menu": "nodes", "table-options": "nodes", "row-menu": "nodes", "remove-confirm": "nodes", edges: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
+        const pairTab = { id: "pairs", label: PAIR_RUN.label, full: PAIR_RUN.full, icon: PAIR_RUN.icon, close: () => AB.go("table-dock", "communities") };
+        const tabsOpen = [
+            { id: "nodes", label: "Nodes", icon: "circle-dot" },
+            { id: "edges", label: "Edges", icon: "spline" },
+            { id: "communities", label: RUN.label, full: RUN.full, icon: RUN.icon, close: () => AB.go("table-dock", "nodes") },
+        ].concat(state === "pair-run" ? [pairTab] : []);
+        let active = { edges: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
 
         const draw = () => {
             root.replaceChildren(tabStrip(state, tabsOpen, active, (t) => {
@@ -291,30 +383,24 @@
             }));
             if (state === "closed" && current()) return;
             const Lx = L();
-            if (active === "nodes") {
-                if (members) {
-                    const m = members;
-                    root.append(h("div", { class: "k-scope td-scope" },
-                        h("span", { class: "td-chip", title: "The table shows this row's members. Nothing is filtered or recomputed." }, icon("group", "sm"), AB.chit(m.color, true), "Community " + m.n,
-                            h("span", { class: "td-tab-x", role: "button", tabindex: "0", "aria-label": "Show all nodes again", title: "Remove: show all " + Lx.nodes + " nodes", on: { click: () => (current() ? AB.go("table-dock", "nodes") : (members = null, draw())) } }, icon("x", "sm"))),
-                        h("span", null, m.size + " of " + Lx.nodes + " nodes, members of Community " + m.n + " in ", AB.link("graph-place", "louvain-open", RUN), ". A view of the table: the graph and its filters are unchanged.")));
-                    root.append(nodesTable(m.members));
-                } else {
-                    root.append(h("div", { class: "k-scope td-scope" }, h("span", null, "Full graph: " + Lx.nodes + " nodes. Sorted by degree."), h("span", { class: "k-secondary" }, "Shift-click adds to the selection. Double-click a value to edit it; right-click a row for its menu.")));
-                    root.append(nodesTable(null, state === "column-menu" ? "degree" : null));
-                }
+            if (active === "nodes" && members) {
+                const m = members;
+                const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Show all nodes");
+                AB.nav(x, "table-dock", "nodes");
+                root.append(h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, m.size + " of " + Lx.nodes + " nodes")));
+                root.append(nodesTable(m.members));
+            } else if (active === "nodes") {
+                root.append(scope(plural(Lx.nodes, "node"), ROW_HINT));
+                root.append(nodesTable(null, state === "column-menu" ? "degree" : null));
             } else if (active === "edges") {
-                root.append(h("div", { class: "k-scope td-scope" }, h("span", null, "Full graph: " + fmt(Lx.edges) + " edges, undirected. Sorted by value; the 20 heaviest shown here."), edgeReadOnly()));
+                root.append(scope(plural(Lx.edges, "edge"), ROW_HINT));
                 root.append(edgesTable());
             } else if (active === "communities") {
-                root.append(h("div", { class: "k-scope td-scope" },
-                    h("span", null, COMMUNITIES.length + " communities from ", AB.link("inspector-run-row", "style", RUN), ", weighted by value. Modularity " + MODULARITY + "."),
-                    h("span", { class: "k-secondary" }, "Colors are the ones the run paints; a row opens that community.")));
+                root.append(scope(plural(COMMUNITIES.length, "community", "communities")));
                 root.append(communitiesTable());
             } else if (active === "pairs") {
-                root.append(h("div", { class: "k-scope td-scope" },
-                    h("span", null, "The " + PAIRS.length + " most likely links between characters who never share a chapter. A pair has nothing to paint; selecting one selects its two nodes."),
-                    oq("How many pairs a run keeps, and whether pairs can be shown as dashed edges")));
+                root.append(scope(plural(PAIRS.length, "pair"), "Selecting a pair selects its two nodes",
+                    AB.openQuestion("How many pairs a run keeps, and whether pairs can be shown as dashed edges")));
                 root.append(pairsTable());
             }
         };
@@ -324,39 +410,38 @@
     // withSlider false: the transfers table under the Data place, with the time slider not shown
     function transfersDock(root, withSlider) {
         const Tx = T();
-        let active = "edges", slider = withSlider;
+        win.start = 9; win.len = 7;
+        let active = "edges";
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        let tableHost = null;
+        const drawTable = () => {
+            if (!tableHost) return;
+            tableHost.replaceChildren(active === "edges" ? transferEdges(withSlider) : transferNodes());
+        };
         const draw = () => {
-            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, slider ? "slider-options" : "transfers-options"));
-            if (slider) root.append(timeSlider(() => { slider = false; draw(); AB.flash("Time slider hidden. T shows it again."); }));
+            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, withSlider ? "slider-options" : "transfers-options"));
+            if (withSlider) root.append(timeSlider(() => AB.go("table-dock", "transfers"), drawTable));
             if (active === "edges") {
-                root.append(h("div", { class: "k-scope td-scope" },
-                    h("span", null, Tx.file + ": " + fmt(Tx.edges) + " transfers, directed." + (slider ? " Transfers inside the window are highlighted." : " The time slider (T) steps through them by date.")),
-                    edgeReadOnly(),
-                    slider ? oq("Whether the table lists only the window's transfers") : null));
-                root.append(transferEdges(slider));
+                root.append(scope(plural(Tx.edges, "edge"), null, withSlider ? AB.openQuestion("Whether the table lists only the window's transfers") : null));
             } else {
-                root.append(h("div", { class: "k-scope td-scope" }, h("span", null, fmt(Tx.nodes) + " accounts, joined from " + Tx.accountsFile + ". Sorted by degree."), AB.link("data-place", "at-rest", "Sources in Data")));
-                root.append(transferNodes());
+                root.append(scope(plural(Tx.nodes, "node"), null, h("span", { class: "k-secondary" }, "from the node file " + Tx.accountsFile)));
             }
+            tableHost = h("div", { style: "display:contents" });
+            root.append(tableHost);
+            drawTable();
         };
         draw();
     }
 
     // ---------- menus drawn in the overlay region ----------
-    const NEW_ATTR = "graphty-element has no computed attributes yet; an expression attribute is filed.";
-    const MERGE = "graphty-element has no merge API yet; merging two nodes into one is filed.";
     function optionsMenu(el, time) {
         // time: null (no time attribute), "off" or "on"
         el.append(AB.menu({
             anchor: "#ab-dock [aria-label='Table options']", place: "below-end",
             items: [
-                { label: "New attribute...", disabled: true, desc: AB.needsElement(NEW_ATTR) },
-                { label: "Merge nodes...", disabled: true, desc: AB.needsElement(MERGE) },
-                { sep: true },
-                { label: "Show columns..." },
-                time ? { label: "Time slider", shortcut: "T", check: time === "on", desc: "Steps through timestamp by date", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
-                    : { label: "Time slider", shortcut: "T", disabled: true, desc: "This data has no time attribute" },
+                { label: "Show columns...", onClick: flash("Choosing the columns") },
+                time ? { label: "Time slider", check: time === "on", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
+                    : { label: "Time slider", disabled: "This data has no time attribute" },
                 { sep: true },
                 { label: "Export table as CSV...", go: ["export-dialog", "table"] },
             ],
@@ -367,47 +452,25 @@
             el.append(AB.menu({
                 anchor: "#td-col-degree", place: "above-start",
                 items: [
+                    // The attribute's menu, word for word (context-menus "attribute"); only the last "Show in" differs
                     { heading: "degree" },
-                    { label: "Color by", desc: "Adds a Degree row to the Graph tree", go: ["inspector-measure-row", "style"] },
+                    { label: "Color by", go: ["inspector-measure-row", "style"] },
                     { label: "Size by", go: ["inspector-measure-row", "style"] },
-                    { label: "Show as groups", disabled: true, desc: "For a category or text column" },
+                    { label: "Label by", onClick: flash("Label by degree") },
+                    { label: "Show as groups", disabled: "For a category or text column" },
+                    { label: "Place by", needs: "graphty-element places nodes only by position attributes; an attribute as an axis needs a layout that reads any attribute" },
                     { sep: true },
-                    { label: "Filter to...", desc: "Adds a filter step in Data", go: ["data-place", "filters"] },
+                    { label: "Filter to...", go: ["data-place", "filters"] },
+                    { label: "Create set where this is...", go: ["select-where", "where"] },
+                    { sep: true },
+                    { label: "Read as...", go: ["inspector-attribute-and-filter-step", "attribute"] },
+                    { sep: true },
                     { label: "Show in Data", go: ["data-place", "attributes"] },
                 ],
             }));
         } else if (state === "table-options") optionsMenu(el, null);
         else if (state === "transfers-options") optionsMenu(el, "off");
         else if (state === "slider-options") optionsMenu(el, "on");
-        else if (state === "row-menu") {
-            el.append(AB.menu({
-                anchor: "#td-row-Valjean", place: "above-start",
-                items: [
-                    { heading: "Valjean" },
-                    { label: "Inspect", go: ["inspector-node", "why-this-look"] },
-                    AB.cmd("neighborhood"),
-                    AB.cmd("frame-selection"),
-                    { sep: true },
-                    AB.cmd("hide-on-canvas"),
-                    AB.cmd("add-note"),
-                    { sep: true },
-                    { label: "Remove from data...", desc: "Deletes the node and its edges; Hide on canvas keeps them", go: ["table-dock", "remove-confirm"] },
-                ],
-            }));
-        } else if (state === "remove-confirm") {
-            const v = nodeRow("Valjean");
-            el.append(AB.modal({
-                title: "Remove Valjean from the data?",
-                body: h("div", { style: "padding:0 16px" },
-                    h("p", null, "This deletes Valjean and the " + v.degree + " edges that touch Valjean from the graph. Runs that read them go out of date and show Rerun."),
-                    h("p", { class: "k-secondary" }, "Valjean's 2 notes: ", oq("Whether notes on a removed node are kept, detached or deleted")),
-                    h("p", { class: "k-secondary" }, "To keep the data and only stop drawing Valjean, use Hide on canvas. You can undo this with Ctrl+Z.")),
-                foot: [
-                    AB.button("Cancel", { kind: "secondary", go: ["table-dock", "nodes"] }),
-                    AB.button("Remove from data", { onClick: () => { AB.go("table-dock", "nodes"); AB.flash("Valjean removed (not wired in the skeleton)"); } }),
-                ],
-            }));
-        }
     }
 
     registerSection({
@@ -419,19 +482,17 @@
             if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
             if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
             if (state === "communities") return { left: "graph-place/louvain-open", right: "inspector-run-row/style" };
-            if (state === "members-of-row") return { left: "graph-place/louvain-open" };
-            if (state === "column-menu" || state === "table-options" || state === "row-menu" || state === "remove-confirm") return { overlay: "table-dock/" + state };
+            if (state === "members-of-row") return { left: "graph-place/louvain-open", right: "inspector-group-set-path-row/community-3" };
+            if (state === "column-menu" || state === "table-options") return { overlay: "table-dock/" + state };
             return {};
         },
         states: [
             { id: "nodes", label: "Nodes tab" },
             { id: "edges", label: "Edges tab" },
-            { id: "communities", label: "Item tab (Communities: Louvain)" },
+            { id: "communities", label: "Item tab (Louvain)" },
             { id: "members-of-row", label: "Members of a row (chip shown)" },
             { id: "column-menu", label: "Column header menu open" },
             { id: "table-options", label: "Table options menu" },
-            { id: "row-menu", label: "Row menu (right-click a row)" },
-            { id: "remove-confirm", label: "Remove from data confirmation" },
             { id: "pair-run", label: "Item tab of a pair run" },
             { id: "time-slider", label: "Time slider (transfers)" },
             { id: "transfers", label: "Transfers table (Data place)" },

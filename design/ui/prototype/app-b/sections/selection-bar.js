@@ -1,52 +1,19 @@
-/* Selection bar: while something is selected and no tool is armed, a second row sits directly
-   above the toolbar (never beside the selection, so it never covers it). Verbs only; the same
-   verbs are in the selection's context menu. One node: Steps away. Two nodes: Path between
-   (Shortest path, Most flow, Weakest cut), with direction and weight meaning shown before Run.
-   Expand is not drawn: with the data loaded it was Neighborhood at one hop, and its real meaning
-   (fetching neighbors) needs a source the element does not have.
+/* Selection bar, version 3: while something is selected, a second bar sits directly above the
+   toolbar, drawn with the same 32 px icon buttons, tooltip and separators. Five verbs, in the node
+   menu's order: Neighborhood, Path between, Create set, Hide on canvas (or Show on canvas), Add note. The same verbs are in
+   the selection's context menu. The Neighborhood popover grows the one-hop selection to 1 to 3
+   hops (and Out, In or Both on a directed graph) and commits as a filter step or as step groups.
    This section also patches the canvas it sits on: the drawing for the selection, and the "not
    drawn" line after Hide on canvas. Plain ASCII. */
 (function () {
     "use strict";
     const act = AB.act;
-    const CSS = [
-        ".sb-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; }",
-        ".sb-bar { gap: 2px; padding: 4px; height: 40px; max-width: 100%; }",
-        ".sb-bar .k-btn { height: 32px; padding: 0 8px; gap: 6px; white-space: nowrap; }",
-        ".sb-bar .k-btn[aria-current='true'] { background: var(--cm-bg-hover); }",
-        ".sb-bar .sb-needs .sb-label { color: var(--cm-text-tertiary); }",
-        ".sb-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--cm-border); }",
-        "@container main (max-width: 760px) { .sb-bar .sb-label { display: none; } }",
-        ".sb-pop { position: absolute; bottom: calc(100% + 8px); z-index: 6; max-width: calc(100vw - 32px); }",
-        ".sb-pop .k-popover-body { padding: 8px 16px 12px; display: flex; flex-direction: column; gap: 10px; }",
-        ".sb-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }",
-        ".sb-line > .sb-name { width: 72px; flex: none; color: var(--cm-text-secondary); }",
-        ".sb-line > .k-grow { color: var(--cm-text-secondary); }",
-        ".sb-help { color: var(--cm-text-secondary); }",
-        ".sb-actions { display: flex; flex-wrap: wrap; gap: 8px; }",
-        ".sb-choices { display: flex; flex-direction: column; gap: 2px; }",
-        ".sb-choice { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }",
-        ".sb-choice:hover { background: var(--cm-bg-hover); }",
-        ".sb-choice[aria-checked='true'] { background: var(--cm-bg-selected, var(--cm-bg-hover)); box-shadow: inset 0 0 0 1px var(--cm-border-brand, var(--cm-border)); }",
-        ".sb-choice .sb-desc { grid-column: 2; color: var(--cm-text-secondary); }",
-        ".sb-choice b { font-weight: 600; }",
-        ".sb-k-off { opacity: .45; cursor: not-allowed; }",
-        ".sb-meaning { padding: 8px; border-radius: 6px; background: var(--cm-bg-secondary); }",
-        ".sb-oq { display: inline-block; max-width: 300px; white-space: normal; }",
-        ".sb-oqs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 100%; }",
-        ".sb-notdrawn-float { position: absolute; left: 12px; bottom: 12px; z-index: 4; padding: 6px 10px; border-radius: 8px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }",
-    ].join("\n");
-    if (!document.getElementById("sb-css")) document.head.append(h("style", { id: "sb-css" }, CSS));
+    const C = (id) => AB.COMMANDS[id];
 
-    const oq = (text) => h("span", { class: "k-annot-tag sb-oq", title: "Open question: " + text }, "Open question: " + text);
-    const HIDE_REASON = "graphty-element has no draw-only hide: today a hidden node also leaves the layout and the measures";
-
-    // The canvas drawing that shows each state's selection (fixture drawings only).
-    const VALJEAN = ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Valjean selected"];
+    // The canvas drawing that shows each Les Miserables state's selection (fixture drawings only).
     const DRAWING = {
-        "one-node": VALJEAN,
+        "one-node": ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Valjean selected"],
         "two-nodes": ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Valjean and Javert selected"],
-        "path-between-open": ["lesmis-groups-valjean", "Les Miserables colored by PageRank, Valjean and Javert selected"],
         neighborhood: ["lesmis-neighbors", "Les Miserables, Valjean selected with his 36 neighbors"],
         hidden: ["lesmis-groups-rest", "Les Miserables colored by PageRank, Valjean not drawn"],
     };
@@ -63,191 +30,100 @@
         const rings = circles.filter((c) => at(c, V[0], V[1]) && c.getAttribute("fill") === "none" && c.getAttribute("stroke-width") === "2");
         rings.forEach((r) => { const k = r.cloneNode(); k.setAttribute("cx", J[0]); k.setAttribute("cy", J[1]); k.setAttribute("r", String(+r.getAttribute("r") + dr)); r.parentNode.append(k); });
     }
+    // Hidden on canvas: Valjean, his ring, his label and his edges are not drawn
+    function hideValjean(doc) {
+        const V = ["698.7", "394.3"];
+        doc.querySelectorAll("circle").forEach((c) => { if (c.getAttribute("cx") === V[0] && c.getAttribute("cy") === V[1]) c.remove(); });
+        doc.querySelectorAll("line").forEach((l) => { if ((l.getAttribute("x1") === V[0] && l.getAttribute("y1") === V[1]) || (l.getAttribute("x2") === V[0] && l.getAttribute("y2") === V[1])) l.remove(); });
+        doc.querySelectorAll("text").forEach((t) => { if (t.textContent.trim() === "Valjean") t.remove(); });
+    }
     function patchCanvas(state) {
         const cv = document.getElementById("ab-canvas");
-        if (!cv) return;
         const d = DRAWING[state];
+        if (!cv || !d) return;
         const imgs = cv.querySelectorAll(".k-stage img");
-        const two = state === "two-nodes" || state === "path-between-open";
-        if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], d[1], null, two ? ringJavert : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
-        cv.querySelectorAll(".sb-notdrawn, .sb-notdrawn-float").forEach((n) => n.remove());
-        if (state !== "hidden") return;
-        const line = h("div", { class: "k-notdrawn sb-notdrawn", role: "status" }, "1 node not drawn: hidden on canvas (Valjean). ",
-            h("a", Object.assign({ role: "button" }, act({ go: ["selection-bar", "one-node"] })), "Select hidden"), ", ",
-            h("a", Object.assign({ role: "button" }, act({ go: AB.COMMANDS["show-hidden"].go })), AB.COMMANDS["show-hidden"].label), " ",
-            AB.needsElement(HIDE_REASON));
-        const card = cv.querySelector(".k-legend-card");
-        if (card) card.append(line);
-        else cv.append(h("div", { class: "sb-notdrawn-float" }, line));
+        if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], d[1], null, state === "two-nodes" ? ringJavert : state === "hidden" ? hideValjean : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
+        // "1 node not drawn" is said once, in the tree footer (graph-place), not again on the legend card
     }
 
-    // One verb; label and key come from the command table where the command has several doors.
-    function verb(ic, label, key, target, o) {
-        o = o || {};
-        const b = AB.button(h("span", { class: "sb-label" }, label), Object.assign({ kind: "ghost", icon: ic }, target));
-        b.title = (key ? label + " (" + key + ")" : label) + (o.needs ? ". Needs graphty-element: " + o.needs : "");
-        b.setAttribute("aria-label", label);
-        if (key) b.setAttribute("aria-keyshortcuts", key.replace(/Ctrl/g, "Control"));
-        if (o.current) b.setAttribute("aria-current", "true");
-        if (o.popup) b.setAttribute("aria-haspopup", "dialog");
-        if (o.needs) { b.classList.add("sb-needs"); b.setAttribute("aria-description", "needs graphty-element: " + o.needs); }
-        return b;
+    // Who is selected in each state
+    const L = () => AB.fx.datasets.lesmis;
+    const T = () => AB.fx.datasets.transactions.setsAndPaths;
+    function subject(state) {
+        if (state === "two-nodes") return { names: "Valjean, Javert", n: 2 };
+        if (state === "five-nodes") return { names: "Valjean, Javert, Thenardier, Fantine, Cosette", n: 5 };
+        if (state === "neighborhood-directed") return { names: T().merchant.id, n: 1, directed: true };
+        return { names: "Valjean", n: 1 };
     }
-    const C = (id) => AB.COMMANDS[id];
+
+    // After a commit: the result is the selected row; the notice keeps only Undo. The shell clears
+    // the notice slot on every route, so the notice is raised once the new route has drawn.
+    function commit(to, text, undo) {
+        window.addEventListener("hashchange", () => AB.notice(text, { label: "Undo", go: undo }), { once: true });
+        AB.go(to[0], to[1]);
+    }
 
     function bar(state) {
-        const two = state === "two-nodes" || state === "path-between-open";
+        const s = subject(state);
         const hidden = state === "hidden";
-        const setMsg = two ? "Set of 2 nodes (Valjean, Javert) added to the top of the tree" : "Set of 1 node (Valjean) added to the top of the tree";
-        return h("div", { class: "k-secondary-bar sb-bar", role: "toolbar", "aria-label": "Selection: " + (two ? "Valjean, Javert" : "Valjean") },
-            verb("bookmark-plus", C("create-set").label, C("create-set").shortcut, { onClick: () => { AB.flash(setMsg); AB.go("graph-place", "at-rest"); } }),
-            h("span", { class: "sb-sep" }),
-            verb("waypoints", C("neighborhood").label, C("neighborhood").shortcut, { go: ["selection-bar", "neighborhood"] }, { current: state === "neighborhood", popup: true }),
-            two
-                ? verb("route", "Path between", null, { go: ["selection-bar", "path-between-open"] }, { current: state === "path-between-open", popup: true })
-                : verb("layers", "Steps away", null, { onClick: () => { AB.flash("Steps away from Valjean added to the top of the tree: one group per step, breadth-first"); AB.go("graph-place", "at-rest"); } }),
+        const back = state === "neighborhood-directed" ? ["selection-bar", "neighborhood-directed"] : ["selection-bar", state === "two-nodes" ? "two-nodes" : "one-node"];
+        const setText = "Created set of " + s.n + (s.n === 1 ? " node" : " nodes");
+        // The node menu's order (explore, then organize, then visibility, then notes), one command record per verb
+        return AB.toolbarBar([
+            AB.toolbarButton("target", C("neighborhood").label, { key: C("neighborhood").shortcut, popup: "dialog", open: state.startsWith("neighborhood"), go: ["selection-bar", s.directed ? "neighborhood-directed" : "neighborhood"] }),
+            AB.toolbarButton("route", C("find-paths").label.replace(/\.\.\.$/, ""), { key: C("find-paths").shortcut, popup: "dialog", go: C("find-paths").go }),
+            "sep",
+            AB.toolbarButton(AB.ICON.createSet, C("create-set").label, { key: C("create-set").shortcut, onClick: () => commit(["graph-place", "at-rest"], setText, back) }),
             hidden
-                ? verb("eye", "Show on canvas", C("hide-on-canvas").shortcut, { go: ["selection-bar", "one-node"] }, { needs: HIDE_REASON })
-                : verb("eye-off", C("hide-on-canvas").label, C("hide-on-canvas").shortcut, { go: ["selection-bar", "hidden"] }, { needs: HIDE_REASON }),
-            h("span", { class: "sb-sep" }),
-            verb("sticky-note", C("add-note").label, C("add-note").shortcut, { go: ["notes-place", "writing"] }),
-            verb("flask-conical", "Analyze these...", null, { go: ["analyze-popover", "open"] }, { popup: true }),
-        );
+                ? AB.toolbarButton(AB.ICON.shown, "Show on canvas", { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "one-node"] })
+                : AB.toolbarButton(AB.ICON.hidden, C("hide-on-canvas").label, { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "hidden"] }),
+            "sep",
+            AB.toolbarButton(AB.ICON.addNote, C("add-note").label, { key: C("add-note").shortcut, go: C("add-note").go }),
+        ], "Selection: " + s.names);
     }
 
-    function seg(label, items, pick, onPick) {
-        return h("span", { class: "k-seg", role: "radiogroup", "aria-label": label }, items.map((it) => {
-            const off = !!it.off;
-            return h("span", Object.assign({ role: "radio", tabindex: off ? "-1" : "0", "aria-checked": String(it.id === pick), "aria-disabled": off ? "true" : null, class: off ? "sb-k-off" : null, title: it.title || null },
-                act({ onClick: (e) => {
-                    if (off) { AB.flash(it.title); return; }
-                    const g = e.currentTarget.parentNode;
-                    g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === e.currentTarget)));
-                    if (onPick) onPick(it.id);
-                } })), it.label);
-        }));
-    }
-    const NO_DIRECTION = "Les Miserables has no edge direction: every edge counts both ways";
-
-    // ---------- Neighborhood: one hop is selected on G; the popover grows it in place ----------
-    function neighborhoodPopover() {
-        const L = AB.fx.datasets.lesmis;
-        let k = 1;
-        const said = h("div", { class: "sb-help", role: "status" });
-        const stepName = h("b");
-        function setK(n) {
-            k = n;
-            said.textContent = k === 1
-                ? "Selected: Valjean and his " + L.valjeanNeighbors + " neighbors."
-                : "Selected: everyone within " + k + " hops of Valjean.";
-            stepName.textContent = "Neighbors of Valjean, within " + k + (k === 1 ? " hop" : " hops");
-        }
-        setK(1);
-        const back = () => AB.go("selection-bar", "one-node");
-        return h("div", { class: "k-popover sb-pop", role: "dialog", "aria-label": "Neighborhood of Valjean", style: "width:300px" },
-            h("div", { class: "k-popover-head" }, h("span", { class: "k-grow" }, "Neighborhood of Valjean"), AB.iconButton("x", "Close", { onClick: back })),
-            h("div", { class: "k-popover-body" },
-                h("div", { class: "sb-line" }, h("span", { class: "sb-name" }, "Hops"), seg("Hops", [1, 2, 3].map((n) => ({ id: n, label: String(n) })), 1, setK)),
-                h("div", { class: "sb-line" }, h("span", { class: "sb-name" }, "Direction"),
-                    seg("Direction", [{ id: "in", label: "In", off: true, title: NO_DIRECTION }, { id: "out", label: "Out", off: true, title: NO_DIRECTION }, { id: "both", label: "Both" }], "both")),
-                said,
-                h("div", { class: "sb-actions" },
-                    AB.button("Filter to neighbors", { icon: "funnel", onClick: () => { AB.flash("Filter step added: " + stepName.textContent + ". Ctrl+Z removes it."); AB.go("data-place", "filters"); } }),
-                    AB.button("Done", { kind: "ghost", onClick: back })),
-                h("div", { class: "sb-help" }, "Filter to neighbors adds one step, ", stepName, ", to ", link("data-place", "filters", "Filters"), ". Everything outside it leaves the canvas and the measures until you undo or turn the step off."),
-            ),
-        );
-    }
-
-    // ---------- Path between: three questions about two nodes ----------
-    const CHOICES = {
-        shortest: {
-            icon: "route", label: "Shortest path",
-            desc: "The fewest steps from Valjean to Javert, or the least total weight.",
-            runs: "graphty-element's Dijkstra (Bellman-Ford when a weight is negative)",
-            weights: [{ id: "none", label: "None" }, { id: "value", label: "value" }],
-            weight: "none",
-            meaning: { none: "Every edge counts as one step.", value: "A higher value means farther apart: the path avoids characters who share many chapters." },
-            lands: ["Path added: Valjean to Javert, 1 edge. It paints on top of the tree.", ["inspector-group-set-path-row", "path-lesmis"]],
-        },
-        flow: {
-            icon: "arrow-right", label: "Most flow",
-            desc: "How much can move from Valjean to Javert when each edge carries up to its weight.",
-            runs: "graphty-element's max flow",
-            weights: [{ id: "value", label: "value" }],
-            weight: "value",
-            meaning: { value: "A higher value means more capacity: an edge can carry as many units as the chapters the two share." },
-            lands: ["Most flow from Valjean to Javert added to the top of the tree: the edges that carry it paint.", ["graph-place", "at-rest"]],
-        },
-        cut: {
-            icon: "scissors", label: "Weakest cut",
-            desc: "The cheapest set of edges whose removal separates Valjean from Javert.",
-            runs: "graphty-element's min cut",
-            weights: [{ id: "none", label: "None" }, { id: "value", label: "value" }],
-            weight: "value",
-            meaning: { none: "Every edge costs one to cut: the fewest edges.", value: "A higher value costs more to cut: the cut goes where the fewest chapters are shared." },
-            lands: ["Weakest cut between Valjean and Javert added to the top of the tree: the cut edges paint.", ["graph-place", "at-rest"]],
-        },
-    };
-
-    function pathPopover() {
-        let pick = "shortest";
-        let weight = CHOICES[pick].weight;
-        const back = () => AB.go("selection-bar", "two-nodes");
-        const choiceList = h("div", { class: "sb-choices", role: "radiogroup", "aria-label": "Question" });
-        const weightBox = h("span");
-        const meaning = h("div", { class: "sb-meaning", role: "status" });
-        const runsLine = h("div", { class: "sb-help" });
-        const runBtn = AB.button("Run", { icon: "play", onClick: () => { const c = CHOICES[pick]; AB.flash(c.lands[0]); AB.go(c.lands[1][0], c.lands[1][1]); } });
-
+    // ---------- Neighborhood: G selects one hop; the popover grows it in place ----------
+    function neighborhoodPopover(anchor, directed) {
+        const who = directed ? T().merchant.id : "Valjean";
+        let hops = 1, dir = "both";
+        const said = h("div", { role: "status", style: "color:var(--cm-text-secondary);padding:0 16px 8px" });
+        const hopsBox = h("span"), dirBox = h("span");
+        const stepName = () => "Neighbors of " + who + ", " + (hops === 1 ? "1 hop" : "1 to " + hops + " hops") + (directed && dir !== "both" ? ", " + dir : "");
         function paint() {
-            const c = CHOICES[pick];
-            choiceList.querySelectorAll(".sb-choice").forEach((x) => x.setAttribute("aria-checked", String(x.dataset.id === pick)));
-            weightBox.replaceChildren(seg("Weight", c.weights, weight, (w) => { weight = w; paintMeaning(); }));
-            paintMeaning();
-            runsLine.textContent = "Runs " + c.runs + " on the full graph, " + AB.fx.datasets.lesmis.nodes + " nodes. The result lands as a row on top of the tree.";
+            // AB.seg is redrawn on each pick; focus returns to the picked option so arrows keep working
+            const again = (box) => { paint(); const f = box.querySelector("[aria-checked='true']"); if (f) f.focus(); };
+            hopsBox.replaceChildren(AB.seg([1, 2, 3].map((n) => [n, String(n)]), hops, (n) => { hops = n; again(hopsBox); }, { label: "Hops" }));
+            if (directed) dirBox.replaceChildren(AB.seg([["out", "Out"], ["in", "In"], ["both", "Both"]], dir, (d) => { dir = d; again(dirBox); }, { label: "Direction" }));
+            // Counts only where the fixtures have them: Valjean's 36 neighbors; the 37 accounts that paid the merchant
+            if (!directed) said.textContent = hops === 1 ? "Selected: Valjean and his " + L().valjeanNeighbors + " neighbors." : "Selected: everyone within " + hops + " hops of Valjean.";
+            else if (hops === 1 && dir === "in") said.textContent = "Selected: " + who + " and the " + T().payers.count + " accounts that paid it.";
+            else said.textContent = "Selected: " + who + " and every account within " + (hops === 1 ? "1 hop" : hops + " hops") + (dir === "out" ? " it pays." : dir === "in" ? " that pays it." : ", either way.");
         }
-        function paintMeaning() {
-            meaning.replaceChildren(h("b", null, weight === "none" ? "No weight. " : "Weight: value, the chapters two characters share. "), CHOICES[pick].meaning[weight]);
-        }
-        Object.keys(CHOICES).forEach((id) => {
-            const c = CHOICES[id];
-            choiceList.append(h("div", Object.assign({ class: "sb-choice", role: "radio", tabindex: "0", "data-id": id, "aria-checked": "false" },
-                act({ onClick: () => { pick = id; weight = c.weight; paint(); } })),
-                icon(c.icon, "sm"), h("b", null, c.label), h("span", { class: "sb-desc" }, c.desc)));
-        });
         paint();
-
-        return h("div", { class: "k-popover sb-pop", role: "dialog", "aria-label": "Path between Valjean and Javert", style: "width:340px" },
-            h("div", { class: "k-popover-head" }, h("span", { class: "k-grow" }, "Valjean to Javert"), AB.iconButton("x", "Close", { onClick: back })),
-            h("div", { class: "k-popover-body" },
-                choiceList,
-                h("div", { class: "sb-line" }, h("span", { class: "sb-name" }, "Direction"),
-                    seg("Direction", [{ id: "follow", label: "Follow edges", off: true, title: NO_DIRECTION }, { id: "either", label: "Either way" }], "either")),
-                h("div", { class: "sb-line" }, h("span", { class: "sb-name" }, "Weight"), weightBox),
-                meaning,
-                runsLine,
-                h("div", { class: "sb-line" }, AB.needsElement("Reading a weight as strength (higher = closer) is not in graphty-element's path options; filed.")),
-                h("div", { class: "sb-actions" }, runBtn, AB.button("Cancel", { kind: "ghost", onClick: back })),
-                h("div", { class: "sb-help" }, "To pick the ends on the canvas instead, or to limit the scope, use ",
-                    h("a", Object.assign({ role: "button" }, act({ go: C("find-paths").go })), C("find-paths").label), " (" + C("find-paths").shortcut + ")."),
-            ),
-        );
-    }
-
-    // Keep a popover over the canvas, above its verb, never over the inspector.
-    function place(pop, barBox, b, label) {
-        requestAnimationFrame(() => {
-            const v = b.querySelector("[aria-label='" + label + "']");
-            const cv = document.getElementById("ab-canvas");
-            if (!v || !cv) return;
-            const box = barBox.getBoundingClientRect(), c = cv.getBoundingClientRect();
-            const want = box.left + v.offsetLeft;
-            const x = Math.max(c.left + 8, Math.min(want, c.right - pop.offsetWidth - 8));
-            pop.style.left = x - box.left + "px";
-            pop.style.maxHeight = Math.max(160, box.top - c.top - 16) + "px";
-            pop.style.overflow = "auto";
+        const back = ["selection-bar", directed ? "neighborhood-directed" : "neighborhood"];
+        const p = AB.popover({
+            anchor,
+            title: "Neighborhood of " + who,
+            width: 300,
+            body: [
+                AB.fieldRow("Hops", hopsBox, { popover: true }),
+                directed ? AB.fieldRow("Direction", dirBox, { popover: true }) : null, // hidden on an undirected graph
+                said,
+            ],
+            foot: [
+                AB.button("Add as steps", { kind: "secondary", onClick: () => commit(["graph-place", "at-rest"], "Added " + stepName() + ": one group per hop", back) }),
+                AB.button("Filter to neighbors", { onClick: () => commit(["data-place", "filters"], "Added filter step: " + stepName(), back) }),
+            ],
         });
+        // Closing keeps the selection (Esc never clears it). The shell's Esc does nothing here, because
+        // closeTo is this same section, and its X and outside click go to the Les Miserables bar; so
+        // Esc and the X are routed here, and the transfers popover closes to its own graph place.
+        const out = directed ? ["graph-place", "many-groups"] : ["selection-bar", "one-node"];
+        const shut = (e) => { e.preventDefault(); e.stopImmediatePropagation(); AB.go(out[0], out[1]); };
+        p.addEventListener("keydown", (e) => { if (e.key === "Escape") shut(e); });
+        const x = p.querySelector(".k-popover-head [aria-label='Close']");
+        if (x) x.addEventListener("click", shut, true);
+        return p;
     }
 
     registerSection({
@@ -255,32 +131,35 @@
         title: "Selection bar",
         region: "toolbar",
         rail: "graph",
-        closeTo: "graph-place",
+        closeTo: "selection-bar/one-node",
         states: [
-            { id: "one-node", label: "One node selected (Steps away)" },
-            { id: "two-nodes", label: "Two nodes selected (Path between)" },
-            { id: "path-between-open", label: "Path between: the three questions" },
-            { id: "neighborhood", label: "Neighborhood popover open" },
+            { id: "one-node", label: "One node selected" },
+            { id: "two-nodes", label: "Two nodes selected" },
+            { id: "five-nodes", label: "Five nodes selected" },
+            { id: "neighborhood", label: "Neighborhood popover, undirected" },
+            { id: "neighborhood-directed", label: "Neighborhood popover, directed (transfers)" },
             { id: "hidden", label: "After Hide on canvas" },
         ],
-        frame: (state) => Object.assign({
-            left: "graph-place/at-rest",
-            right: state === "two-nodes" || state === "path-between-open" ? "inspector-several-elements/two-nodes" : "inspector-node/why-this-look",
-        }, state === "path-between-open" || state === "neighborhood" ? { dock: false } : {}),
+        // The Neighborhood popover is this section's own overlay, so Esc, the X and a click outside close it
+        frame: (state) => state === "neighborhood-directed"
+            ? { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: false, overlay: "selection-bar/neighborhood-directed" }
+            : Object.assign({
+                left: "graph-place/at-rest",
+                right: state === "two-nodes" ? "inspector-several-elements/two-nodes" : state === "five-nodes" ? "inspector-several-elements/style" : "inspector-node/why-this-look",
+            }, state === "neighborhood" ? { dock: false, overlay: "selection-bar/neighborhood" } : {}),
         render(el, state, ctx) {
-            patchCanvas(state);
-            const wrap = h("div", { class: "sb-wrap" });
-            if (state === "hidden") {
-                wrap.append(
-                    AB.notice("Valjean hidden on canvas", { label: "Undo", go: ["selection-bar", "one-node"] }),
-                    h("div", { class: "sb-oqs" }, oq("does a hidden node stay selected, keeping this bar")),
-                );
+            if (ctx.region === "overlay") {
+                el.append(neighborhoodPopover(document.querySelector("#ab-toolbar [data-tool='Neighborhood']"), state === "neighborhood-directed"));
+                return;
             }
+            patchCanvas(state);
             const b = bar(state);
-            const barBox = h("div", { style: "position:relative;max-width:100%" }, b);
-            if (state === "neighborhood") { const p = neighborhoodPopover(); barBox.append(p); place(p, barBox, b, "Neighborhood"); }
-            if (state === "path-between-open") { const p = pathPopover(); barBox.append(p); place(p, barBox, b, "Path between"); }
-            wrap.append(barBox);
+            const wrap = h("div", { style: "display:flex;flex-direction:column;align-items:center;gap:8px;max-width:100%" });
+            if (state === "hidden") {
+                AB.notice("Valjean hidden on canvas", { label: "Undo", go: ["selection-bar", "one-node"] });
+                wrap.append(AB.openQuestion("Does a hidden node stay selected, keeping this bar?"));
+            }
+            wrap.append(b);
             el.append(wrap);
             ctx.renderSection("toolbar/at-rest", el);
         },

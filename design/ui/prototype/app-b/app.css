@@ -65,7 +65,6 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-main[data-dock="none"] .ab-dock { display: none; }
 .ab-dock .k-dock-tabs { border-bottom: 0; }
 .ab-tablist { display: inline-flex; gap: 4px; }
-@container main (max-width: 650px) { .ab-toolbar:not([data-labels="always"]) .ab-tlabel { display: none; } .ab-toolbar:not([data-labels="always"]) .k-tool.k-tool-label { padding: 0; width: 32px; justify-content: center; } }
 .ab-workspace, .ab-full { display: none; }
 .ab-app[data-workspace="true"] .ab-left, .ab-app[data-workspace="true"] .ab-main, .ab-app[data-workspace="true"] .ab-right { display: none; }
 .ab-app[data-workspace="true"] .ab-workspace { display: flex; flex-direction: column; grid-column: 2 / -1; grid-row: 1; min-width: 0; min-height: 0; overflow: auto; background: var(--k-canvas); }
@@ -79,7 +78,6 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-overlay .k-popover, .ab-overlay .k-menu { z-index: 1; }
 .ab-modal-wrap { inset: 0; display: grid; place-items: center; background: var(--cm-modal-backdrop); }
 .ab-pop-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--cm-border); }
-.ab-flash { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 100; padding: 8px 16px; border-radius: 13px; background: var(--cm-bg-toolbar); color: var(--cm-text-menu); box-shadow: var(--cm-elevation-toast); color-scheme: dark; font-weight: 550; }
 
 /* ---------- left panel ---------- */
 .ab-place-head { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px 0 16px; flex: none; font-size: 13px; line-height: 22px; }
@@ -88,6 +86,17 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-switch-btn:hover { background: var(--cm-bg-hover); }
 .ab-treebar { display: flex; align-items: center; gap: 4px; padding: 4px 8px 8px 16px; border-bottom: 1px solid var(--cm-border); flex: none; }
 .ab-treebar .k-field { flex: 1 1 auto; color: var(--cm-text-tertiary); }
+/* graphHead(): the Graph and Data places' title line; treebar(): the find line under it */
+.ab-graph-head { gap: 2px; padding-inline-start: 16px; }
+.ab-switch-pre { color: var(--cm-text-secondary); font-weight: 400; margin-inline-end: 2px; }
+.ab-graph-head .ab-switch-btn { padding: 0 6px; gap: 4px; }
+.ab-switch-notes { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 4px; border-radius: 5px; color: var(--cm-text-secondary); }
+.ab-switch-notes:hover { background: var(--cm-bg-hover); }
+.ab-find { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 6px; border-radius: 5px; background: var(--cm-bg-secondary, var(--cm-bg-hover)); color: var(--cm-icon-secondary); }
+.ab-find:focus-within { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+.ab-find input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; font: inherit; color: var(--cm-text); outline: none; padding: 0; }
+.ab-find input::placeholder { color: var(--cm-text-tertiary); }
+.k-icon-btn[data-open] { background: var(--cm-bg-pressed, var(--cm-bg-hover)); }
 
 /* The paint tree */
 .ab-tree { list-style: none; margin: 0; padding: 4px 8px 8px; }
@@ -108,16 +117,13 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-tname { flex: 1 1 auto; min-width: 64px; }
 .ab-tcount { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto !important; }
 .ab-insp-head .k-name { flex: 0 1 auto; min-width: 0; }
-.ab-tcount, .ab-tnotes, .ab-tinside { flex: none; color: var(--cm-text-secondary); display: inline-flex; align-items: center; gap: 2px; }
-.ab-tinside { padding: 0 4px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
+.ab-tcount, .ab-tnotes { flex: none; color: var(--cm-text-secondary); display: inline-flex; align-items: center; gap: 2px; }
 .ab-eye, .ab-eye-slot { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; flex: none; color: var(--cm-icon-secondary); }
 .ab-eye:hover { background: var(--cm-bg-hover); color: var(--cm-icon); }
 .ab-eye[aria-pressed="true"] { color: var(--cm-icon-tertiary, var(--cm-icon-secondary)); }
 
 /* ---------- inspector ---------- */
 .ab-insp { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
-/* Header: line 1 (24 px) icon and name; line 2 (20 px) kind, provenance, "...". Then the optional
-   state bar, then the 32 px tab strip or, for a single body, an empty spacer of the same height. */
 .ab-insp-head { display: flex; align-items: center; gap: 8px; height: 24px; margin-top: 8px; padding: 0 8px 0 16px; flex: none; }
 .ab-insp-head .k-name { cursor: text; }
 .ab-insp-sub { display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px 0 40px; flex: none; min-width: 0; margin-bottom: 4px; }
@@ -125,9 +131,7 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-prov { min-width: 0; font-size: 11px; }
 .ab-changed { width: 6px; height: 6px; border-radius: 50%; background: var(--cm-bg-brand); flex: none; }
 .ab-statebar { display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 8px 4px 16px; background: var(--cm-bg-secondary); border-top: 1px solid var(--cm-border); flex: none; }
-.ab-insp-meta { padding: 0 16px 8px; flex: none; }
 .ab-insp-tabs { display: flex; align-items: center; height: 32px; box-sizing: border-box; padding: 0 8px 0 12px; border-bottom: 1px solid var(--cm-border); flex: none; }
-.ab-insp-spacer { color: var(--cm-text-disabled); }
 .ab-insp-body { flex: 1 1 auto; }
 .ab-bars { display: flex; align-items: flex-end; gap: 1px; height: 40px; padding: 4px 16px 2px; }
 .ab-bars span { flex: 1 1 0; background: var(--cm-icon-secondary); border-radius: 1px 1px 0 0; }
@@ -139,7 +143,6 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-legend .k-lg-row[data-nav]:hover, .ab-lg-size:hover { background: var(--cm-bg-hover); border-radius: 4px; }
 .ab-lg-size { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .ab-dot { display: inline-block; border-radius: 50%; background: var(--cm-icon-secondary); }
-.ab-zoom { position: absolute; top: 12px; right: 12px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
 @container main (max-height: 360px) { .ab-legend { display: none; } }
 
 /* ---------- review-only placeholders ---------- */
@@ -154,58 +157,15 @@ body[data-page="map"] .ab-app { display: none; }
 /* Rename in place: the field is exactly the row's height */
 .ab-rename { flex: 1 1 auto; min-width: 64px; height: 22px; box-sizing: border-box; margin: 0; padding: 0 4px; font: inherit; color: var(--cm-text); background: var(--cm-bg); border: 1px solid var(--cm-border-selected); border-radius: 4px; outline: none; }
 .ab-insp-head .ab-rename { height: 24px; font-weight: 550; }
-.ab-tprog { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--cm-text-secondary); white-space: nowrap; }
-.ab-tprog .k-progress { width: 40px; flex: none; }
-/* The one mark for a control graphty-element cannot back yet */
-.ab-needs { color: var(--cm-text-tertiary); font-size: 11px; line-height: 16px; text-decoration: underline dotted; text-underline-offset: 2px; white-space: nowrap; cursor: help; }
 /* Collapsible sections */
 .ab-sec-toggle { padding-inline-start: 8px; gap: 4px; }
 .ab-sec-sum { padding: 0 16px 8px 28px; margin-top: -8px; }
-/* The Style tab */
-.ab-style-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; }
-.ab-style-filter { width: 100%; box-sizing: border-box; height: 24px; padding: 0 8px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; box-shadow: var(--cm-field-shadow); }
-.ab-sline { display: grid; grid-template-columns: 60px minmax(0, 1fr) 24px 24px; align-items: center; gap: 4px; height: 24px; padding: 0 8px 0 24px; }
-.ab-sline[data-unset] { grid-template-columns: minmax(0, 1fr) 24px; }
-.ab-sline[data-inherited] { grid-template-columns: 60px minmax(0, 1fr) 24px; }
-.ab-sname { color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ab-sv { min-width: 0; }
-.ab-inh { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.ab-bound { color: var(--cm-text-brand); }
-.ab-aa { font-weight: 600; font-size: 11px; width: 16px; text-align: center; flex: none; }
-.ab-serr { padding: 0 8px 4px 28px; font-size: 11px; line-height: 16px; }
-.ab-style-body .k-section { padding-bottom: 4px; }
-.ab-style-head .k-seg > * { display: inline-flex; align-items: center; gap: 4px; }
-/* Inspector density: section headers 32 px, data rows 24 px */
-.ab-insp .k-section-head { height: 32px; }
-/* Why this look */
-.ab-why { padding: 4px 0 8px; }
-.ab-why-line { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; min-width: 0; }
-.ab-why-line .k-chit, .ab-why-line .ab-ramp { width: 12px; height: 12px; flex: none; }
-.ab-why-line[data-dim] .ab-why-name { color: var(--cm-text-secondary); }
-.ab-why-name { flex: 0 1 auto; min-width: 0; }
-.ab-why-tokens { display: inline-flex; gap: 4px; margin-inline-start: auto; flex: none; }
-.ab-token { padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 16px; background: var(--cm-bg-secondary); color: var(--cm-text); }
-.ab-token:hover { background: var(--cm-bg-hover); }
-.ab-why-more { color: var(--cm-text-secondary); padding-inline-start: 12px; }
-/* Canvas corner: the layout chip left of the Camera menu face */
-.ab-canvas-corner { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px; z-index: 4; }
-.ab-canvas-corner .ab-zoom { position: static; }
-.ab-zoom { display: inline-flex; align-items: center; gap: 4px; height: 32px; }
-.ab-layout-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); white-space: nowrap; }
-.ab-layout-chip[data-state="settled"] { color: var(--cm-text-secondary); }
-/* Legend close and the chip that brings it back */
-.ab-legend-x { float: right; margin: -4px -8px 0 4px; }
-.ab-legend-x .k-icon-btn { width: 20px; height: 20px; }
-.ab-legend-chip { position: absolute; left: 12px; top: 12px; z-index: 4; background: var(--cm-bg); box-shadow: var(--cm-elevation-200); }
 /* The Views place: 16:10 thumbnail rows */
 .ab-view-row { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 8px 4px 16px; border-radius: 5px; }
 .ab-view-row:hover { background: var(--cm-bg-hover); }
 .ab-view-row[aria-selected="true"] { background: var(--cm-bg-selected); }
 .ab-view-thumb { width: 48px; aspect-ratio: 16 / 10; flex: none; border-radius: 3px; overflow: hidden; background: var(--k-canvas); box-shadow: inset 0 0 0 1px var(--cm-border); }
 .ab-view-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* Toolbar labels: Settings > Appearance (auto hides them on a narrow canvas, above) */
-.ab-toolbar[data-labels="never"] .ab-tlabel { display: none; }
-.ab-toolbar[data-labels="never"] .k-tool.k-tool-label { padding: 0; width: 32px; justify-content: center; }
 .ab-pulse { box-shadow: 0 0 0 2px var(--cm-border-selected); }
 
 /* ---------- review fixes ---------- */
@@ -217,36 +177,17 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-sec-h { display: contents; font: inherit; }
 .ab-sec-btn { display: inline-flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer; }
 .ab-sec-toggle { cursor: pointer; }
-/* Design notes (review only, never product UI): one dashed chip in the annotation color for every
-   "Open question" and "needs graphty-element" mark. The review bar's switch hides them all. */
-html body :is(.ab-design-note, .ab-needs, .k-annot-tag, .gp-oq, .isr-oq, .pm-oq, .ex-oq, .ls-oq, .imr-open, .ss-oq, .as-open, .fcm-oq, .xi-oq, .dp-oq, .ab-oq, .ins-oq, .gs-oq, .rr-oq, .xv-oq, .sv-oq, .main-oq) {
-    display: inline-flex; align-items: center; width: auto; height: auto; min-height: 16px; margin: 0; padding: 0 5px;
-    border: 1px dashed var(--k-annot) !important; border-radius: 4px; background: transparent !important; box-shadow: none !important;
-    color: var(--k-annot-ink) !important; font-size: 10px; line-height: 14px; font-weight: 500; font-style: normal;
-    text-decoration: none; white-space: normal; cursor: help; vertical-align: middle;
-}
-html[data-design-notes-hidden] body :is(.ab-design-note, .ab-needs, .k-annot-tag, .gp-oq, .isr-oq, .pm-oq, .ex-oq, .ls-oq, .imr-open, .ss-oq, .as-open, .fcm-oq, .xi-oq, .dp-oq, .ab-oq, .ins-oq, .gs-oq, .rr-oq, .xv-oq, .sv-oq, .main-oq, .igs-oq, .sp-oq, .src-oq, .cm-oq) { display: none !important; }
 /* The selected row's fill matches the weight of the hover fill in dark mode */
 :root[data-theme="dark"] .ab-trow[aria-selected="true"] { background: color-mix(in srgb, var(--cm-bg-selected) 55%, transparent); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ab-trow[aria-selected="true"] { background: color-mix(in srgb, var(--cm-bg-selected) 55%, transparent); } }
-/* An inspector's status line opens its body (the header stays two lines) */
-.ab-insp-meta { padding: 8px 16px 0; }
-html body .ab-needs { white-space: nowrap; }
 
 /* The one Paints line (spec 5.1 item 4) */
 .ab-paints { display: flex; align-items: flex-start; gap: 6px; padding: 6px 16px 8px; color: var(--cm-text-secondary); line-height: 16px; }
 .ab-paints > .k-i { flex: none; margin-top: 0; }
-.ab-paints .ab-needs { white-space: normal; }
 /* Tree columns line up on every row: disclosure 16, type icon 16, swatch 20, then the name */
 .ab-trow > .ab-kind { width: 16px; min-width: 16px; }
 .ab-sw-slot { display: inline-flex; align-items: center; width: 20px; flex: none; }
 .ab-sw-slot > .ab-ramp { width: 16px; }
-/* Why this look: layer names read as text, and underline only on hover */
-.ab-why-head { padding: 0 8px 0 16px; }
-.ab-why .ab-link.ab-why-name { color: var(--cm-text); text-decoration: none; }
-.ab-why .ab-link.ab-why-name:hover, .ab-why .ab-link.ab-why-name:focus-visible { text-decoration: underline; }
-/* A design note sits inline after its label, within the row */
-.ab-sline .ab-needs, .k-data .ab-needs, .k-fieldrow .ab-needs { margin-inline-start: 4px; }
 .ab-skip { position: absolute; left: -9999px; }
 .ab-skip:focus { position: static; }
 
@@ -257,7 +198,6 @@ html body .ab-needs { white-space: nowrap; }
 .ab-trow .ab-tcount { margin-inline-start: auto; text-align: end; }
 .ab-trow .ab-tnotes { min-width: 28px; justify-content: flex-end; }
 .ab-tname { flex: 1 1 0; }
-.ab-why-hidden { font-size: 11px; flex: none; }
 /* Modal titles are real headings, drawn at the header's size */
 .ab-modal-title { margin: 0; font: inherit; font-weight: 550; }
 /* The header's name is a heading holding the rename button */
@@ -268,8 +208,240 @@ html body .ab-needs { white-space: nowrap; }
 .ab-h1, .ab-place-title { margin: 0; font: inherit; min-width: 0; display: inline-flex; }
 .ab-place-title { font-weight: 550; outline-offset: 2px; }
 .ab-insp-sub > .k-secondary { display: inline-flex; align-items: center; gap: 4px; flex: none; }
-/* A measure's ramp reads as a ramp, not a solid chip */
-.ab-why-line .ab-ramp { width: 16px; height: 10px; }
 /* The place heading takes focus on a direct link (screen readers start there); it is not a control */
 .ab-place-title:focus { outline: none; }
 .ab-place-head > .ab-place-title { flex: none; }
+
+/* ---------- version 3: one pattern per job (spec 2.5) ---------- */
+.ab-insp .k-section-head { height: 32px; }
+.k-btn-danger { background: var(--cm-bg-danger, #d13b3b); color: #fff; }
+
+/* The one tooltip: a light bubble, name then key chip; a second line only for a disabled reason or a gesture */
+.ab-tip { position: fixed; z-index: 200; max-width: 260px; padding: 4px 8px; border-radius: 5px; background: var(--cm-bg); color: var(--cm-text); box-shadow: var(--cm-elevation-300); font-size: 11px; line-height: 16px; pointer-events: auto; }
+.ab-tip[hidden] { display: none; }
+.ab-tip-l1 { display: flex; align-items: center; gap: 8px; }
+.ab-tip-l2 { color: var(--cm-text-secondary); }
+.ab-kbd { padding: 0 4px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--cm-border-strong); color: var(--cm-text-secondary); white-space: nowrap; }
+
+/* Toolbar: icons only. Blue fill = pressed (a toggle that is on); gray fill = its flyout or popover is open */
+.k-tool[data-open], .k-tool[aria-expanded="true"] { background: var(--cm-bg-pressed, var(--cm-bg-hover)); box-shadow: inset 0 0 0 1px var(--cm-border); }
+.k-tool[aria-disabled="true"] { color: var(--cm-icon-disabled, var(--cm-text-disabled)); cursor: default; }
+.k-tool[aria-disabled="true"]:hover { background: transparent; }
+.k-tool[aria-disabled="true"][aria-pressed="true"] { background: var(--cm-bg-selected, var(--cm-bg-hover)); color: var(--cm-icon-disabled, var(--cm-text-disabled)); }
+.ab-pulse { box-shadow: 0 0 0 2px var(--cm-border-selected); }
+
+/* Header: the main menu button sits left of the project name */
+.ab-top > #ab-rail-menu { margin-inline-end: -8px; }
+
+/* The one notice slot: placed by AB.placeNotice() 8 px above the lowest bar */
+.ab-notice-slot { position: fixed; z-index: 90; }
+.ab-notice-slot:empty { display: none; }
+
+/* Field rows: label column 88 px in the inspector, 96 px in popovers; 24 px rows, 8 px gap */
+.ab-frow { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; align-items: start; min-height: 24px; padding: 0 16px; margin-bottom: 8px; }
+.ab-frow-pop { grid-template-columns: 96px minmax(0, 1fr); }
+.ab-flabel { line-height: 24px; color: var(--cm-text-secondary); }
+.ab-fctl { min-width: 0; display: flex; align-items: center; min-height: 24px; gap: 4px; }
+
+/* Empty states: one gray line, the verb a link */
+.ab-empty { padding: 4px 16px 8px; color: var(--cm-text-secondary); }
+.ab-empty .ab-link { cursor: pointer; }
+
+/* Design notes (review only, never product UI): one dashed chip for "needs graphty-element" and
+   "Open question". The review bar's switch hides every chip and everything marked data-needs. */
+.ab-design-note { display: inline-flex; align-items: center; min-height: 16px; margin-inline-start: 4px; padding: 0 5px; border: 1px dashed var(--k-annot-ink); border-radius: 4px; color: var(--k-annot-ink); font-size: 10px; line-height: 14px; font-weight: 500; white-space: nowrap; cursor: help; vertical-align: middle; flex: none; }
+html[data-design-notes-hidden] :is(.ab-design-note, [data-needs], .k-annot-tag, .ab-review-only) { display: none !important; }
+
+/* Menus: one line per item; the second line only says why an item is disabled */
+.k-menu-item .ab-design-note { margin-inline-start: 8px; }
+.ab-menu-find { margin: 4px 8px 6px; width: calc(100% - 16px); box-sizing: border-box; height: 24px; padding: 0 8px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text-menu); background: rgba(255, 255, 255, 0.08); }
+.ab-menu-none .ab-empty { color: var(--k-menu-ink2, #aaa); padding: 4px 12px; }
+.ab-plus[aria-haspopup] { }
+
+/* Inspector header mirrors the tree row: kind icon, swatch, name, lock */
+.ab-insp-head .ab-kind { display: grid; place-items: center; width: 16px; color: var(--cm-icon-secondary); flex: none; }
+.ab-insp-head .ab-sw-slot { width: auto; }
+.ab-insp-sub { padding-inline-start: 40px; }
+.ab-lock { display: inline-grid; place-items: center; color: var(--cm-icon-secondary); flex: none; }
+.ab-insp-single .ab-insp-body { border-top: 1px solid var(--cm-border); }
+.ab-statebar > .k-grow { min-width: 0; }
+
+/* Paints line and paint-order line (spec 5.1 item 4) */
+.ab-paints { padding: 8px 16px 0; color: var(--cm-text); }
+.ab-paint-order { padding: 0 16px 4px; line-height: 16px; }
+
+/* The tree (spec 3.3): fixed trailing slots count | note count | lock-or-eye; status in the kind slot;
+   the only line under a row is a running progress bar */
+.ab-trow { position: relative; }
+.ab-trow .ab-tcount { min-width: 16px; }
+.ab-le { display: grid; place-items: center; width: 24px; height: 24px; flex: none; }
+.ab-le > * { grid-area: 1 / 1; }
+.ab-le .ab-eye { visibility: hidden; }
+.ab-trow:is(:hover, :focus-within, [aria-selected="true"], [data-eye-off], [data-solo]) .ab-le .ab-eye { visibility: visible; }
+.ab-trow[data-locked]:not(:hover):not(:focus-within) .ab-le .ab-eye:not([aria-pressed="false"]) { visibility: hidden; }
+.ab-trow[data-locked]:is(:hover, :focus-within) .ab-le .ab-lock { visibility: hidden; }
+.ab-trow:not([data-locked]) .ab-le .ab-lock { display: none; }
+.ab-status { color: var(--cm-icon); }
+.ab-status[data-status="error"] { color: var(--cm-text-danger); }
+.ab-status[data-status="running"] svg { animation: ab-spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ab-status[data-status="running"] svg { animation: none; } }
+@keyframes ab-spin { to { transform: rotate(360deg); } }
+.ab-tbar { position: absolute; left: calc(var(--lvl) * 16px + 40px); right: 8px; bottom: 1px; height: 2px; border-radius: 1px; background: var(--cm-border); overflow: hidden; }
+.ab-tbar > i { display: block; height: 100%; background: var(--cm-bg-brand); }
+.ab-tree-foot { padding: 4px 16px 8px 40px; line-height: 16px; }
+
+/* The Style tab (spec 16): sections always open, no counts; a line is name then value; bind and "-"
+   show on hover, focus within and the selected line; a bound line keeps bind visible */
+.ab-style-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 16px; }
+.ab-style-head .k-seg > * { display: inline-flex; align-items: center; gap: 4px; }
+.ab-sdot { width: 5px; height: 5px; border-radius: 50%; background: var(--cm-bg-brand); }
+.ab-style-body .k-section { padding-bottom: 4px; }
+.ab-sline { position: relative; display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; margin-bottom: 4px; border-radius: 4px; }
+.ab-sact { position: absolute; right: 8px; top: 0; display: flex; padding-inline-start: 4px; background: var(--cm-bg); border-radius: 4px; }
+.ab-sact .k-icon-btn { width: 24px; height: 24px; }
+.ab-sact { visibility: hidden; }
+.ab-sline:is(:hover, :focus-within, [data-selected]) .ab-sact { visibility: visible; }
+/* A bound line keeps bind visible and pressed (and leaves room for it) */
+.ab-sline[data-bound] .ab-sact { visibility: visible; }
+.ab-sline[data-bound]:not(:hover):not(:focus-within):not([data-selected]) .ab-sact .k-icon-btn:not([aria-pressed="true"]) { display: none; }
+.ab-sline[data-bound] .ab-sv { margin-inline-end: 28px; }
+.ab-sname { color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ab-scrub { cursor: ew-resize; touch-action: none; user-select: none; }
+.ab-sv { min-width: 0; display: flex; align-items: center; gap: 4px; }
+.ab-sv.k-field { gap: 6px; }
+.ab-sin { flex: 1 1 auto; min-width: 0; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); }
+.ab-sin:focus { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
+.ab-bound { color: var(--cm-text); }
+.ab-bound .ab-ramp { width: 24px; }
+.ab-aa { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font-weight: 600; font-size: 11px; flex: none; box-shadow: inset 0 0 0 1px var(--cm-border); }
+.ab-aa:hover { background: var(--cm-bg-hover); }
+.ab-serr { padding: 0 8px 4px 108px; font-size: 11px; line-height: 16px; }
+
+/* Why this look (spec 5.4): one grid -- swatch, name, marks, tokens (right), coverage, "-" */
+.ab-why { padding: 0 0 8px; }
+.ab-why-line { display: grid; grid-template-columns: 16px minmax(0, max-content) auto 1fr 24px; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; }
+.ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(0, max-content) auto 1fr 56px 24px; }
+.ab-why-line .k-chit, .ab-why-line .ab-ramp { width: 12px; height: 12px; }
+.ab-why-line .ab-ramp { width: 16px; height: 10px; }
+.ab-why .ab-link.ab-why-name { color: var(--cm-text); text-decoration: none; }
+.ab-why .ab-link.ab-why-name:is(:hover, :focus-visible) { text-decoration: underline; }
+.ab-why-marks { display: inline-flex; gap: 4px; color: var(--cm-icon-secondary); }
+.ab-why-tokens { display: inline-flex; gap: 4px; justify-self: end; }
+.ab-why-cov-n { text-align: end; }
+.ab-token { padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 16px; background: var(--cm-bg-secondary); color: var(--cm-text); }
+.ab-token:hover { background: var(--cm-bg-hover); }
+.ab-why-line > .k-icon-btn { visibility: hidden; width: 24px; height: 24px; }
+.ab-why-line:is(:hover, :focus-within) > .k-icon-btn { visibility: visible; }
+
+/* The legend card: top left, no close button (the toolbar's Legend button and L are its doors) */
+.ab-legend .k-lg-title[data-nav]:hover { background: var(--cm-bg-hover); border-radius: 4px; }
+.ab-confirm { margin: 0; padding: 0 16px; }
+/* Counts are short and never truncate; the name gives way first. A text kind glyph (Abc) and a
+   stacked swatch take the width they need. */
+.ab-trow .ab-tcount { flex: none !important; }
+.ab-trow .ab-tname { min-width: 32px; }
+.ab-trow > .ab-kind { width: auto; min-width: 16px; }
+.ab-trow .ab-sw-slot { width: auto; min-width: 20px; }
+/* The tree in a 240 px panel: give the name the room the fixed slots do not need */
+.ab-tree { padding: 4px 4px 8px; }
+.ab-trow { gap: 3px; }
+.ab-trow .ab-tnotes { min-width: 22px; }
+.ab-trow .ab-le { width: 20px; }
+.ab-trow .ab-tcount { justify-content: flex-end; min-width: 18px; }
+/* Why this look: a name never truncates to one letter; tokens wrap under their own column instead */
+.ab-why-line, .ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(72px, max-content) auto 1fr 24px; height: auto; min-height: 24px; }
+.ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(72px, max-content) auto 1fr 56px 24px; }
+.ab-why-tokens { flex-wrap: wrap; justify-content: flex-end; }
+.ab-trow[data-locked][data-eye-off] .ab-le .ab-lock { visibility: hidden; } /* a hidden locked row shows its eye-off; the lock returns with the eye */
+
+/* ---------- review fixes, round 4 ---------- */
+/* Why this look: one grid on every line -- swatch, name, one mark slot, tokens on one line (right), coverage, "-" */
+.ab-why-line, .ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(48px, 1fr) 16px max-content 24px; height: 24px; min-height: 24px; }
+.ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(48px, 1fr) 16px max-content 48px 24px; }
+.ab-why-tokens { flex-wrap: nowrap; white-space: nowrap; }
+.ab-why-name[data-dim] { color: var(--cm-text-tertiary) !important; font-style: italic; }
+/* The Style tab: no empty band where a Nodes | Edges switch would go; the one design note sits under the sections */
+.ab-style-head:empty { display: none; }
+.ab-style-note { padding-top: 4px; }
+/* Fields are borderless until hover, focus or open, in the panel and in popovers alike (Figma) */
+.k-field { box-shadow: none; }
+.k-field:is(:hover, :focus-visible, [data-open], [aria-expanded="true"]) { box-shadow: var(--cm-field-shadow); }
+/* A bound value: ramp or type glyph, then the name; the pressed bind icon keeps a narrow slot */
+.ab-bound .ab-ramp { width: 12px; }
+/* A bound line follows the one rule (bind and "-" on hover, focus or the selected line): the chip's ramp or
+   type glyph already says it is bound, and a permanent bind icon cost the value its palette name */
+.ab-sline[data-bound] .ab-sv { margin-inline-end: 0; }
+.ab-sline[data-bound]:not(:hover):not(:focus-within):not([data-selected]) .ab-sact { visibility: hidden; }
+.ab-sline[data-bound]:is(:hover, :focus-within, [data-selected]) .ab-sv { margin-inline-end: 52px; }
+.ab-why-notes { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 16px 4px; }
+.ab-bound .ab-abc, .ab-bound .k-i { color: var(--cm-icon-secondary); flex: none; }
+/* Touch: no hover, so bind and "-" always show */
+@media (pointer: coarse) { .ab-sact { visibility: visible !important; } .ab-sline .ab-sact .k-icon-btn { display: inline-grid !important; } }
+/* Focus on a filled (pressed or selected) control: the ring sits outside it, with a light inner ring */
+:is([aria-pressed="true"], .k-tool[data-open]):focus-visible { outline-offset: 2px; box-shadow: 0 0 0 2px var(--cm-bg); }
+/* The table dock while collapsed: only its tab strip exists (nothing laid out below the window or in the Tab order) */
+.ab-main[data-dock="closed"] :is(.ab-dock, .ab-dock > .td) > :not(.k-dock-tabs, .td, .ab-notice) { display: none !important; }
+.ab-sv.ab-bound { padding: 0 6px; gap: 4px; }
+
+/* ---------- review fixes, round 5 ---------- */
+/* One segmented look everywhere, the tab's: the chosen option is a gray fill, the rest are plain text */
+.k-seg { background: transparent; gap: 2px; }
+.k-seg > * { color: var(--cm-text-secondary); }
+.k-seg > :hover { background: var(--cm-bg-hover); }
+.k-seg > [aria-pressed="true"], .k-seg > [role="radio"][aria-checked="true"], .k-seg > [data-pressed] { background: var(--cm-bg-secondary); color: var(--cm-text); box-shadow: none; font-weight: 550; }
+/* Dark theme: a light popover (edits a value) sits one step lighter than a dark menu (chooses), so the two surfaces stay apart */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .k-popover { background: #383838; }
+    :root:not([data-theme="light"]) .k-popover :is(.k-field, .ab-sin, .sp-preview, .k-seg > [aria-checked="true"]) { background: #2c2c2c; }
+}
+:root[data-theme="dark"] .k-popover { background: #383838; }
+:root[data-theme="dark"] .k-popover :is(.k-field, .ab-sin, .sp-preview, .k-seg > [aria-checked="true"]) { background: #2c2c2c; }
+/* Header chips: one style (the privacy chip's), the filter chip included */
+#ab-filter { gap: 4px; }
+/* In-panel object links underline only on hover or focus, so three stacked links do not shout */
+:is(.ab-insp-sub, .ab-paints, .ab-paint-order) .ab-link { text-decoration: none; }
+:is(.ab-insp-sub, .ab-paints, .ab-paint-order) .ab-link:is(:hover, :focus-visible) { text-decoration: underline; }
+/* The out-of-date mark in an inspector header: the shared triangle, never a dot */
+.ab-changed { width: auto; height: auto; background: none; border-radius: 0; display: inline-grid; place-items: center; color: var(--cm-icon-secondary); }
+/* Rows dimmed by "show only this row": secondary text (4.5:1), the struck swatch carries the state */
+.ab-trow[data-struck] .ab-tname { opacity: 1; color: var(--cm-text-secondary); }
+/* 24 px targets: the tree footer's links, the dock's tab buttons, the switcher's place word */
+.ab-tree-foot :is(.ab-link, a) { display: inline-block; min-height: 24px; line-height: 24px; padding: 0 2px; }
+.ab-dock .k-dock-tabs .k-icon-btn { min-width: 24px; min-height: 24px; }
+.ab-switch-pre { min-height: 24px; display: inline-flex; align-items: center; }
+/* Why this look: the name column gets the room; the "-" slot takes space only on a line that has an override */
+.ab-why-line, .ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(64px, 1fr) auto max-content auto; gap: 6px; }
+.ab-why-cov .ab-why-line { grid-template-columns: 16px minmax(64px, 1fr) auto max-content 40px auto; }
+.ab-why-x { width: 0; }
+.ab-why-marks:empty { width: 0; }
+.ab-why-line > svg.k-i { width: 12px; height: 12px; color: var(--cm-icon-secondary); }
+/* The legend is read-only: no hover, no pointer */
+.ab-legend .k-lg-row, .ab-legend .k-lg-title { cursor: default; }
+/* The one color field: swatch, hex, percent */
+.ab-color-field .k-chit { flex: none; }
+/* bind and "-" float over the value's end on every line, bound or not: no line ever changes width on hover */
+.ab-sline[data-bound]:is(:hover, :focus-within, [data-selected]) .ab-sv { margin-inline-end: 0; }
+/* A state bar's text never hides its meaning: it may take a second line rather than truncate */
+.ab-statebar > .k-ellipsis { white-space: normal; overflow: visible; line-height: 16px; }
+.ab-statebar { height: auto; min-height: 32px; padding-top: 4px; padding-bottom: 4px; }
+
+/* ---------- streamline fixes, round 3 review ---------- */
+/* A focus ring only for the keyboard: after a pointer input, focus moved by script (a menu opened with
+   the mouse focusing its first item) draws no ring. The next key press brings rings back. */
+html[data-input="pointer"] :focus-visible { outline: none; }
+/* Links: a link that is a whole line or value underlines on hover; a link inside a sentence is always
+   underlined, so it is not marked by color alone (WCAG 1.4.1). */
+.ab-paint-order .ab-link, .ab-insp-sub .ab-link { text-decoration: underline; }
+.k-data[data-nav] .k-value { text-decoration: none; }
+.k-data[data-nav]:is(:hover, :focus-visible) .k-value { text-decoration: underline; }
+/* Rename fields are 24 px, the minimum target */
+.ab-rename { height: 24px; }
+.k-data > .ab-link:not(:hover):not(:focus-visible) { text-decoration: none; }
+/* Every popover fits the frame: capped to the overlay's height, its body scrolls inside */
+.ab-overlay > .ab-pop { max-height: calc(100% - 16px); display: flex; flex-direction: column; }
+.ab-overlay > .ab-pop > .k-popover-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* The same space under the Paints and paint-order lines on every kind, whether or not a Nodes | Edges switch follows */
+.ab-style > .ab-style-head:empty + .ab-style-body { padding-top: 8px; }
+/* Disabled = grayed, still focusable, reason in the tooltip: icon buttons too */
+.k-icon-btn[aria-disabled="true"] { color: var(--cm-icon-disabled, var(--cm-text-disabled)); cursor: default; }
+.k-icon-btn[aria-disabled="true"]:hover { background: transparent; }

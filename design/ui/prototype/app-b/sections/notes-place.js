@@ -1,167 +1,217 @@
-/* Notes place: every note in the project, newest first, with its filter, Find and Add note.
-   Whether notes show on the canvas is the Notes row's eye in the layer list, not a header control. Numbers and names come from kit/fixtures.json (Les Miserables). Plain ASCII.
-   Styles are injected once from this file (the shell's CSS is not ours to edit). */
+/* Notes place: every note in the project, newest first. Header: the title and "+" (Add note, N).
+   Treebar: Find in notes and a filter icon (All notes, About the selection, About this graph); a
+   filter on presses the icon and names itself as the list heading ("About Valjean").
+   Each note: text, chips (targets, then cited runs; an earlier run carries a history icon), and
+   the meta line (author, time, "..." in its trailing slot on hover). Clicking a note selects every
+   target; a chip selects only its own. Edit (double-click the text, or the menu) turns the note
+   into the editor in place; Delete acts at once with Undo.
+   Fixture counts (the same in the tree, the table and the inspectors): 7 notes; Valjean 2,
+   Javert 1, Napoleon 1, Community 3 2, Louvain 1, the edge Javert -- Valjean 1, the graph 1.
+   Styles are injected once from this file (the shell's CSS is not ours to edit). Plain ASCII. */
 (function () {
     "use strict";
     const CSS = `
-.np-bar { display: flex; align-items: center; gap: 4px; padding: 0 8px 8px 16px; border-bottom: 1px solid var(--cm-border); flex: none; position: relative; }
-.np-bar .k-field { flex: 1 1 auto; min-width: 0; background: var(--cm-bg-secondary); }
-.np-bar input { all: unset; flex: 1 1 auto; min-width: 0; color: var(--cm-text); }
-.np-bar input::placeholder { color: var(--cm-text-tertiary); }
-.np-filter { padding: 8px 8px 4px 16px; flex: none; position: relative; display: flex; align-items: center; gap: 6px; }
-.np-filter .k-menu { position: absolute; top: 34px; left: 16px; z-index: 6; min-width: 200px; }
+.np-find { flex: 1 1 auto; min-width: 0; }
+.np-find input { all: unset; flex: 1 1 auto; min-width: 0; color: var(--cm-text); }
+.np-find input::placeholder { color: var(--cm-text-tertiary); }
+.np-find:focus-within { box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
+.np-head { padding: 8px 16px 2px; color: var(--cm-text-secondary); font-weight: 550; }
 .np-list { list-style: none; margin: 0; padding: 4px 8px 8px; }
-.np-note { position: relative; display: grid; gap: 4px; padding: 8px; border-radius: 5px; }
+.np-note { display: grid; gap: 4px; padding: 8px; border-radius: 5px; cursor: default; }
 .np-note:hover { background: var(--cm-bg-hover); }
-.np-note[data-hidden] { display: none; }
-.np-meta { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--cm-text-secondary); }
-.np-acts { position: absolute; right: 4px; bottom: 4px; display: inline-flex; border-radius: 5px; background: var(--cm-bg-hover); visibility: hidden; }
-.np-note:hover .np-acts, .np-note:focus-within .np-acts { visibility: visible; }
+.np-note:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+.np-note[hidden] { display: none; }
 .np-text { color: var(--cm-text); overflow-wrap: anywhere; }
 .np-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .np-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text); box-shadow: inset 0 0 0 1px var(--cm-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.np-chip:hover { background: var(--cm-bg-hover); }
+.np-chip[role=link]:hover { background: var(--cm-bg-hover); }
 .np-chip .k-i { color: var(--cm-icon-secondary); flex: none; }
-.np-cite { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--cm-text-secondary); }
-.np-old { display: inline-flex; align-items: center; gap: 2px; color: var(--cm-text-warning, var(--cm-text-secondary)); font-style: italic; }
-.np-group { padding: 12px 16px 2px; color: var(--cm-text-secondary); font-weight: 550; }
-.np-group-sub { padding: 0 16px 4px; color: var(--cm-text-tertiary); }
-.np-empty { display: grid; gap: 8px; padding: 16px; color: var(--cm-text-secondary); }
-.np-empty .k-strong { color: var(--cm-text); }
-.np-editor { display: grid; gap: 8px; margin: 8px; padding: 8px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border-selected); background: var(--cm-bg); }
-.np-editor textarea { font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; padding: 6px 8px; min-height: 88px; resize: vertical; outline: none; }
+.np-chip .np-x { display: inline-flex; margin-right: -4px; border-radius: 3px; }
+.np-chip .np-x:hover { background: var(--cm-bg-hover); }
+.np-meta { display: flex; align-items: center; gap: 4px; min-width: 0; height: 20px; color: var(--cm-text-secondary); }
+.np-meta .np-acts { margin-left: auto; opacity: 0; } /* keyboard: Shift+F10 on the note opens the same menu */
+.np-meta .np-acts .k-icon-btn { width: 24px; height: 24px; margin: -2px 0; }
+.np-note:is(:hover, :focus-within, [aria-selected="true"]) .np-acts { opacity: 1; }
+.np-editor { display: grid; gap: 8px; margin: 4px 8px; padding: 8px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border-selected); background: var(--cm-bg); }
+.np-editor textarea { font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; padding: 6px 8px; min-height: 72px; resize: vertical; outline: none; }
 .np-editor textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
 .np-editor-foot { display: flex; align-items: center; gap: 8px; }
-.np-nohits { padding: 8px 16px; color: var(--cm-text-tertiary); }
+.np-sub { padding: 0 16px 4px; color: var(--cm-text-tertiary); }
 `;
     if (!document.getElementById("np-css")) document.head.append(h("style", { id: "np-css" }, CSS));
 
     const L = () => AB.fx.datasets.lesmis;
-    const node = (label) => L().rows.find((r) => r.label === label);
 
-    // Targets: what a note is about. go = where selecting it lands (its inspector, Data tab).
+    // What a note is about, or cites. go = what selecting it opens.
     const T = {
-        community3: { label: "Community 3", icon: "group", go: ["inspector-group-set-path-row", "data"], row: true },
-        pagerank: { label: "PageRank", icon: "chart-column", go: ["inspector-measure-row", "data"], row: true },
-        louvain: { label: "Louvain", icon: "layers", go: ["inspector-run-row", "data"], row: true },
+        community3: { label: "Community 3", icon: "circle-dot", go: ["inspector-group-set-path-row", "community-3"] },
+        louvain: { label: "Louvain", icon: AB.ICON.run, go: ["inspector-run-row", "data"] },
         valjean: { label: "Valjean", icon: "circle-dot", go: ["inspector-node", "data"] },
         javert: { label: "Javert", icon: "circle-dot", go: ["inspector-node", "data"] },
         napoleon: { label: "Napoleon", icon: "circle-dot", go: ["inspector-node", "data"] },
+        edge: { label: "Javert -- Valjean", icon: "spline", go: ["inspector-edge", "data"] },
         graph: { label: "Co-appearances", icon: "network", go: ["inspector-nothing-selected", "overview"] },
+        pagerank: { label: "PageRank", icon: "chart-column", go: ["inspector-measure-row", "data"] },
+        betweenness: { label: "Betweenness", icon: "chart-column", go: ["inspector-measure-row", "data"] },
     };
 
     function notes() {
-        const v = node("Valjean"), m = node("Myriel");
-        const step1 = L().filterSteps.steps[0];
+        const [v, next] = L().topByBetweenness;
         return [
-            { by: "Adam Powers", at: "Sep 30 2026, 09:12", about: [T.community3, T.pagerank], sel: false, graph: false,
-                text: "Community 3 is the cluster for the figure. Rank its members by PageRank, not by degree, and say so in the caption." },
-            { by: "Lin Chen", at: "Sep 29 2026, 17:40", about: [T.community3], cites: [{ label: "Louvain", go: ["inspector-run-row", "data"] }],
-                text: "Check this community against the file's own group column before calling it a finding." },
-            { by: "Adam Powers", at: "Sep 29 2026, 15:05", about: [T.louvain],
-                text: "Seed fixed, so the communities keep their numbers between sessions." },
-            { by: "Adam Powers", at: "Sep 29 2026, 11:20", about: [T.valjean], sel: true, element: true, cites: [{ label: "Betweenness", go: ["inspector-measure-row", "data"] }],
-                text: `Highest betweenness in the book, ${v.betweenness}. Next is ${m.label} at ${m.betweenness}.` },
-            { by: "Lin Chen", at: "Sep 28 2026, 16:02", about: [T.valjean, T.javert], sel: true, element: true, cites: [{ label: "PageRank", go: ["inspector-measure-row", "data"], earlier: true }],
+            { id: "n1", by: "Adam Powers", at: "Sep 30, 09:12", about: [T.community3],
+                text: "Myriel's household and the people he meets in Digne." },
+            { id: "n2", by: "Lin Chen", at: "Sep 29, 17:40", about: [T.community3, T.napoleon], cites: [T.louvain],
+                text: "Napoleon is here only because Myriel meets him once." },
+            { id: "n3", by: "Adam Powers", at: "Sep 29, 15:05", about: [T.louvain],
+                text: "Valjean and Javert land in the same community, with Marius and Cosette." },
+            { id: "n4", by: "Adam Powers", at: "Sep 29, 11:20", about: [T.valjean], cites: [T.betweenness],
+                text: `Highest betweenness in the book, ${v.betweenness}. Next is ${next.label} at ${next.betweenness}.` },
+            { id: "n5", by: "Lin Chen", at: "Sep 28, 16:02", about: [T.valjean, T.javert], cites: [Object.assign({ earlier: true }, T.pagerank)],
                 text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." },
-            { by: "Adam Powers", at: "Sep 28 2026, 10:14", about: [T.graph], graph: true,
-                text: "Edge value is the number of chapters two characters share. A weighted run should read it as strength, not distance." },
-            { by: "Lin Chen", at: "Sep 27 2026, 14:30", about: [T.napoleon], element: true, removedBy: step1,
-                text: `Napoleon appears with ${L().corpusDiffersFromPublished.published.napoleonNeighbors[0]} only. Leave him out of the cast figure.` },
+            { id: "n6", by: "Adam Powers", at: "Sep 28, 12:30", about: [T.edge],
+                text: "They share 17 chapters. This is the edge to keep in the pursuit figure." },
+            { id: "n7", by: "Adam Powers", at: "Sep 28, 10:14", about: [T.graph],
+                text: "Co-appearances counted per chapter, from Knuth's list." },
         ];
     }
 
-    const openQ = (why) => h("span", { class: "k-annot-tag", title: why }, "Open question");
+    // Where a click on the whole note lands: every target selected.
+    function selectAll(n) {
+        if (n.about.length === 1) return n.about[0].go;
+        if (n.about.every((t) => t.icon === "circle-dot" && t !== T.community3)) return ["inspector-several-elements", "two-nodes"];
+        return ["inspector-several-elements", "data"];
+    }
 
-    function chip(t) {
-        return h("span", Object.assign({ class: "np-chip", role: "link", title: "Select " + t.label }, AB.act({ go: t.go })), icon(t.icon, "sm"), t.label);
+    // One chip for targets and cited runs. onRemove adds an x (the editor).
+    function chip(t, o) {
+        o = o || {};
+        const words = (o.cite ? "Cites " : "") + t.label + (t.earlier ? ", an earlier run" : "");
+        if (o.onRemove) {
+            const x = AB.tip(h("span", Object.assign({ class: "np-x", role: "button" }, AB.act({ onClick: o.onRemove })), icon("x", "sm")), "Remove " + t.label);
+            return h("span", { class: "np-chip" }, icon(t.icon, "sm"), t.label, x);
+        }
+        const el = h("span", { class: "np-chip", role: "link", tabindex: "-1" }, icon(t.icon, "sm"), t.label, t.earlier ? icon("history", "sm") : null);
+        AB.tip(el, "Select " + t.label + (t.earlier ? ", an earlier run" : ""), { label: false });
+        el.setAttribute("aria-label", words);
+        const goTo = (e) => { e.stopPropagation(); AB.go(t.go[0], t.go[1]); };
+        el.addEventListener("click", goTo);
+        el.addEventListener("keydown", (e) => { if (e.key === "Enter") goTo(e); });
+        return el;
+    }
+
+    // The editor, in place of a note (edit) or at the top of the list (new). targets come from the selection.
+    function editor(o) {
+        const targets = o.targets.slice();
+        const chips = h("div", { class: "np-chips", "aria-label": "About" });
+        const drawChips = () => {
+            chips.replaceChildren(...(targets.length
+                ? targets.map((t, i) => chip(t, { onRemove: () => { targets.splice(i, 1); drawChips(); ta.focus(); } }))
+                : [chip(T.graph, { onRemove: null })]));
+        };
+        const ta = h("textarea", { "aria-label": "Note text", placeholder: "Write a note" });
+        ta.value = o.text || "";
+        const save = () => { AB.announce("Note saved"); o.done(true); };
+        const cancel = () => o.done(false);
+        ta.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); }
+        });
+        drawChips();
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
+        return h("div", { class: "np-editor", role: "group", "aria-label": o.text ? "Edit note" : "New note" },
+            chips,
+            ta,
+            h("div", { class: "np-editor-foot" },
+                AB.button("Save", { key: "Ctrl+Enter", onClick: save }),
+                AB.button("Cancel", { kind: "ghost", key: "Esc", onClick: cancel })));
     }
 
     function noteItem(n) {
-        const first = n.about[0];
-        const li = h("li", Object.assign({ class: "np-note", role: "listitem", "aria-label": n.text + ", " + n.by + ", " + n.at }, AB.act({ go: first.go })));
-        li.addEventListener("contextmenu", (e) => { e.preventDefault(); AB.go("context-menus", "note"); });
-        const acts = [];
-        if (n.element) acts.push(AB.iconButton("crosshair", "Show on the canvas", { go: ["canvas-and-states", "drawn"] }));
-        acts.push(AB.iconButton("ellipsis", "Note options", { go: ["context-menus", "note"] }));
-        const meta = h("div", { class: "np-meta k-secondary" }, h("span", { class: "k-ellipsis" }, n.by), h("span", null, "-"), h("span", { class: "k-num k-ellipsis" }, n.at), h("span", { class: "np-acts" }, acts));
-        AB.append(li, [
-            h("div", { class: "np-text" }, n.text),
-            h("div", { class: "np-chips", "aria-label": "About" }, n.about.map(chip)),
-            n.cites ? h("div", { class: "np-cite k-secondary" }, n.cites.map((c) => [
-                h("span", null, "Cites"),
-                AB.link(c.go[0], c.go[1], c.label, { on: { click: (e) => e.stopPropagation() } }),
-                c.earlier ? h("span", { class: "np-old", title: "PageRank was run again after this note was written. The note still cites the run it relied on." }, icon("history", "sm"), "cites an earlier run") : null,
-                c.earlier ? AB.link("inspector-measure-row", "data", "Open that run's settings", { on: { click: (e) => e.stopPropagation() } }) : null,
-            ])) : null,
-            meta,
+        const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": n.text + ", " + n.by + ", " + n.at });
+        const open = () => { const g = selectAll(n); AB.go(g[0], g[1]); };
+        const edit = () => {
+            const ed = editor({ targets: n.about, text: n.text, done: () => { ed.replaceWith(li); li.focus(); } });
+            li.replaceWith(ed);
+        };
+        const del = () => {
+            const parent = li.parentNode, next = li.nextSibling;
+            li.remove();
+            AB.deleted("the note", () => parent.insertBefore(li, next));
+        };
+        const options = (anchor) => AB.openMenu(anchor, [
+            { heading: n.text.split(/\s+/).slice(0, 6).join(" ") + "..." },
+            { label: "Edit", onClick: edit },
+            { label: "Copy link to note", onClick: () => AB.flash("Copied a link to the note") },
+            { sep: true },
+            { label: "Delete", shortcut: "Del", onClick: del },
         ]);
+        li.addEventListener("click", open);
+        li.addEventListener("keydown", (e) => {
+            if (e.target !== li) return;
+            if (e.key === "Enter") open();
+            else if (e.key === "Delete") del();
+            else if (e.key === "F10" && e.shiftKey) { e.preventDefault(); options(more); }
+            else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+                // The tree's keyboard model: the list is one Tab stop and arrows move between notes
+                const all = [...li.closest(".k-scroll").querySelectorAll(".np-note")];
+                const i = all.indexOf(li);
+                const to = all[{ ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key]];
+                if (to) { e.preventDefault(); all.forEach((x) => (x.tabIndex = x === to ? 0 : -1)); to.focus(); }
+            }
+        });
+        li.addEventListener("contextmenu", (e) => { e.preventDefault(); options(more); });
+        const text = h("div", { class: "np-text" }, n.text);
+        text.addEventListener("dblclick", (e) => { e.stopPropagation(); edit(); });
+        const more = AB.iconButton(AB.ICON.options, "Note options", { onClick: () => options(more) });
+        more.setAttribute("aria-haspopup", "menu");
+        more.tabIndex = -1; // keyboard: Shift+F10 on the note, as on a tree row
+        AB.append(li, [
+            text,
+            h("div", { class: "np-chips", "aria-label": "About" }, n.about.map((t) => chip(t)), (n.cites || []).map((t) => chip(t, { cite: true }))),
+            h("div", { class: "np-meta k-secondary" }, h("span", { class: "k-ellipsis" }, n.by), h("span", null, "-"), h("span", { class: "k-num k-ellipsis" }, n.at), h("span", { class: "np-acts" }, more)),
+        ]);
+        n.li = li;
+        n.edit = edit;
         return li;
     }
 
-    const FILTERS = [
-        { id: "all", label: "All notes" },
-        { id: "about-selection", label: "About the selection" },
-        { id: "about-graph", label: "About this graph" },
-    ];
+    // Filters: the selection is Valjean, or the edge Javert -- Valjean in the edge-note state.
+    const FILTERS = { all: null, "about-selection": "valjean", "edge-note": "edge", "about-graph": "graph" };
+    const heading = { valjean: "About Valjean", edge: "About Javert -- Valjean", graph: "About this graph" };
 
-    function filterRow(cur) {
-        const f = FILTERS.find((x) => x.id === cur) || FILTERS[0];
-        const wrap = h("div", { class: "np-filter" });
-        let menuEl = null;
-        const btn = h("span", { class: "k-chip k-chip-btn", role: "button", tabindex: "0", "aria-haspopup": "menu", "aria-expanded": "false" }, f.label, h("span", { class: "k-caret" }, icon("chevron-down", "sm")));
-        const toggle = (e) => {
-            e.stopPropagation();
-            if (menuEl) { menuEl.remove(); menuEl = null; btn.setAttribute("aria-expanded", "false"); return; }
-            menuEl = h("div", { class: "k-menu", role: "menu" }, FILTERS.map((x) =>
-                h("div", Object.assign({ class: "k-menu-item", role: "menuitemradio", "aria-checked": String(x.id === f.id) }, AB.act({ go: ["notes-place", x.id] })), h("span", { class: "k-check-col" }, x.id === f.id ? icon("check", "sm") : null), h("span", null, x.label))));
-            wrap.append(menuEl);
-            btn.setAttribute("aria-expanded", "true");
+    function filterButton(state) {
+        const f = FILTERS[state] || null;
+        const sel = state === "edge-note" ? "edge-note" : "about-selection";
+        // A menu button (a Tab stop), never a pressed toggle: its name carries the active filter
+        const now = !f ? "All notes" : f === "graph" ? "About this graph" : "About the selection";
+        const b = AB.iconButton("list-filter", "Show notes: " + now, { onClick: () => open() });
+        b.setAttribute("aria-haspopup", "menu");
+        b.setAttribute("aria-expanded", "false");
+        const open = () => {
+            AB.openMenu(b, [
+                { label: "All notes", check: !f, onClick: () => AB.go("notes-place", "all") },
+                { label: "About the selection", check: f === "valjean" || f === "edge", onClick: () => AB.go("notes-place", sel) },
+                { label: "About this graph", check: f === "graph", onClick: () => AB.go("notes-place", "about-graph") },
+            ]);
         };
-        btn.addEventListener("click", toggle);
-        btn.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && toggle(e));
-        wrap.append(btn);
-        if (cur === "about-selection") wrap.append(h("span", { class: "k-secondary k-ellipsis" }, "Valjean"));
-        return wrap;
+        return b;
     }
 
-    function search(list) {
+    function findField(list) {
         const input = h("input", { type: "search", placeholder: "Find in notes", "aria-label": "Find in notes" });
-        const none = h("div", { class: "np-nohits", hidden: true }, "No notes match.");
+        let none = null;
         input.addEventListener("input", () => {
             const q = input.value.trim().toLowerCase();
             let shown = 0;
             list.querySelectorAll(".np-note").forEach((li) => {
                 const hit = !q || li.textContent.toLowerCase().includes(q);
-                li.toggleAttribute("data-hidden", !hit);
+                li.hidden = !hit;
                 if (hit) shown++;
             });
-            none.hidden = shown > 0;
+            if (none) { none.remove(); none = null; }
+            if (!shown) list.append(none = AB.noMatch(input.value.trim()));
         });
-        return { field: h("span", { class: "k-field" }, icon("search", "sm"), input), none };
-    }
-
-    function head() {
-        return AB.placeHead("Notes", [AB.iconButton("plus", "Add note (N)", { go: ["notes-place", "writing"] })]);
-    }
-
-    function editor() {
-        const back = () => AB.go("notes-place", "all");
-        const ta = h("textarea", { "aria-label": "Note text", placeholder: "Write a note about Valjean" });
-        ta.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); AB.flash("Note saved"); back(); }
-            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); back(); }
-        });
-        requestAnimationFrame(() => ta.focus());
-        return h("div", { class: "np-editor", role: "group", "aria-label": "New note" },
-            h("div", { class: "np-cite k-secondary" }, "About", chip(T.valjean), openQ("The spec takes the targets from the selection. It does not say whether a target can be removed or added here before saving.")),
-            ta,
-            h("div", { class: "np-editor-foot" },
-                AB.button("Save", { onClick: () => { AB.flash("Note saved"); back(); } }),
-                AB.button("Cancel", { kind: "ghost", onClick: back }),
-                h("span", { class: "k-grow" }),
-                h("span", { class: "k-tertiary" }, h("span", { class: "k-kbd" }, "Ctrl"), "+", h("span", { class: "k-kbd" }, "Enter"))),
-        );
+        return h("label", { class: "ab-find np-find" }, icon("search", "sm"), input); // the shared find field (lib treebar)
     }
 
     registerSection({
@@ -171,48 +221,51 @@
         rail: "notes",
         states: [
             { id: "all", label: "All notes" },
-            { id: "about-selection", label: "About the selection" },
+            { id: "about-selection", label: "About the selection (Valjean)" },
             { id: "about-graph", label: "About this graph" },
             { id: "writing", label: "Writing a note" },
+            { id: "editing", label: "Editing a note in place" },
+            { id: "edge-note", label: "A note about an edge" },
             { id: "empty", label: "Empty" },
             { id: "filter-step-on", label: "A filter step removes a target" },
         ],
         frame(state) {
             if (state === "about-selection" || state === "writing") return { right: "inspector-node/data" };
+            if (state === "edge-note") return { right: "inspector-edge/data" };
             return {};
         },
         render(el, state) {
-            el.append(head());
+            // While a note is being written, "+" returns to it rather than starting a second draft
+            const add = AB.plus({ label: "Add note (N)", items: ["Note"], onAdd: () => { const d = state === "writing" && el.querySelector("textarea, [contenteditable]"); if (d) { d.focus(); AB.announce("Writing a note"); } else AB.go("notes-place", "writing"); } });
+            el.append(AB.placeHead("Notes", [add]));
             if (state === "empty") {
-                el.append(h("div", { class: "np-empty" },
-                    h("div", { class: "k-strong" }, "No notes yet."),
-                    h("div", null, "Add a note about the selection, or about the graph when nothing is selected."),
-                    h("div", null, AB.button("Add note", { icon: "plus", kind: "secondary", go: ["notes-place", "writing"] })),
-                    h("div", { class: "k-tertiary" }, "Notes are saved in the project and travel in project files and findings reports.")));
+                el.append(AB.empty("No notes.", { verb: "Add note", key: "N", go: ["notes-place", "writing"] }));
                 return;
             }
             const all = notes();
-            const filterOn = state === "filter-step-on";
-            let shown = all;
-            if (state === "about-selection") shown = all.filter((n) => n.sel);
-            if (state === "about-graph") shown = all.filter((n) => n.graph);
-            const main = filterOn ? shown.filter((n) => !n.removedBy) : shown;
-            const removed = filterOn ? shown.filter((n) => n.removedBy) : [];
+            const f = FILTERS[state] || null;
+            const shown = f ? all.filter((n) => n.about.includes(T[f])) : all;
+            // Filter to degree >= 2 removes Napoleon (degree 1): his note is kept, listed apart.
+            const removedNote = state === "filter-step-on" ? (n) => n.about.includes(T.napoleon) : () => false;
 
-            const list = h("div", { class: "k-scroll" });
-            const s = search(list);
-            el.append(h("div", { class: "np-bar" }, s.field), filterRow(FILTERS.some((f) => f.id === state) ? state : "all"));
-            if (state === "writing") list.append(editor());
-            list.append(h("ul", { class: "np-list", role: "list", "aria-label": "Notes, newest first" }, main.map(noteItem)));
-            if (removed.length) {
-                const step = removed[0].removedBy;
-                list.append(
-                    h("div", { class: "np-group" }, "About elements not in this filter step"),
-                    h("div", { class: "np-group-sub" }, AB.link("inspector-attribute-and-filter-step", "filter-step", step), " leaves " + L().filterSteps.after.step1 + " of " + L().nodes + " nodes."),
-                    h("ul", { class: "np-list", role: "list", "aria-label": "Notes about elements not in this filter step" }, removed.map(noteItem)));
+            const scroll = h("div", { class: "k-scroll" });
+            el.append(h("div", { class: "ab-treebar" }, findField(scroll), filterButton(state)), scroll);
+            if (f) scroll.append(h("div", { class: "np-head" }, heading[f]));
+            if (state === "writing") {
+                scroll.append(editor({ targets: [T.valjean], done: () => AB.go("notes-place", "all") }));
             }
-            list.append(s.none);
-            el.append(list);
+            scroll.append(h("ul", { class: "np-list", "aria-label": "Notes, newest first" }, shown.filter((n) => !removedNote(n)).map(noteItem)));
+            const removed = shown.filter(removedNote);
+            if (removed.length) {
+                const step = L().filterSteps.steps[0];
+                scroll.append(
+                    h("div", { class: "np-head" }, "About elements not in this filter step"),
+                    h("div", { class: "np-sub" }, AB.link("inspector-attribute-and-filter-step", "filter-step", step), " leaves " + L().filterSteps.after.step1 + " of " + L().nodes + " nodes."),
+                    h("ul", { class: "np-list", "aria-label": "Notes about elements not in this filter step" }, removed.map(noteItem)));
+            }
+            const first = scroll.querySelector(".np-note");
+            if (first) first.tabIndex = 0; // one Tab stop for the whole list
+            if (state === "editing") all.find((n) => n.id === "n5").edit();
         },
     });
 })();

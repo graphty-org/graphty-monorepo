@@ -1,45 +1,41 @@
-/* Assistant place: the rail's last place. A list of conversations, the open conversation and a
-   composer. Provider setup lives only in Settings > Assistant; with no provider set, this place
-   links there one way and has no provider control of its own. The composer sends, stops while an
-   answer streams, retries after a failure, and takes voice input. Tool calls show as they stream.
-   Layers the assistant adds are ordinary rows whose provenance reads "from the assistant".
-   Conversations are app state, not project objects. Plain ASCII. */
+/* Assistant place: the rail's last place. With no AI provider: one empty line linking to
+   Settings > Assistant, and nothing else. With one: a switcher row (the open conversation, a
+   chevron listing the others and New conversation), the conversation, and the composer pinned at
+   the bottom (microphone and Send). A tool line is one sentence with the object as a chip, the
+   same chip Notes uses for its targets. A failed answer carries Retry inside it; the composer stays
+   empty. Layers the assistant adds are ordinary rows marked "from the assistant". Plain ASCII. */
 (function () {
     const CSS = `
 .as-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
-.as-empty { padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 18px; color: var(--cm-text-secondary); }
-.as-empty .k-strong { color: var(--cm-text); font-size: 13px; }
 .as-conv { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 12px; line-height: 18px; }
 .as-q { align-self: flex-end; max-width: 85%; padding: 6px 10px; border-radius: 8px; background: var(--cm-bg-secondary); color: var(--cm-text); }
 .as-a { color: var(--cm-text); display: flex; flex-direction: column; gap: 6px; }
 .as-a ol { margin: 0; padding-left: 18px; }
-.as-a .k-link { cursor: pointer; }
-.as-tools { display: flex; flex-direction: column; gap: 2px; border-left: 2px solid var(--cm-border); padding-left: 8px; }
-.as-tool { display: flex; align-items: center; gap: 6px; min-height: 20px; color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; }
-.as-tool svg { flex: none; }
-.as-tool.is-running svg { animation: as-spin 1s linear infinite; }
-.as-tool.is-failed { color: var(--cm-text-danger); }
-.as-tool .k-link { font-size: 11px; }
+.as-tools { display: flex; flex-direction: column; gap: 2px; }
+.as-tool { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 22px; white-space: nowrap; color: var(--cm-text-secondary); }
+.as-tool > svg { flex: none; }
+.as-tool.is-running > svg { animation: as-spin 1s linear infinite; }
+.as-tool.is-failed > svg { color: var(--cm-text-danger); }
 @keyframes as-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .as-tool.is-running svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .as-tool.is-running > svg { animation: none; } }
+/* The object chip: the same look as a note's target chip in the Notes place. */
+.as-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--cm-bg-secondary); color: var(--cm-text); box-shadow: inset 0 0 0 1px var(--cm-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.as-chip:hover { background: var(--cm-bg-hover); }
+.as-chip .k-i { color: var(--cm-icon-secondary); flex: none; }
 .as-caret::after { content: ""; display: inline-block; width: 6px; height: 12px; margin-left: 2px; vertical-align: -2px; background: var(--cm-text-secondary); animation: as-blink 1s steps(2) infinite; }
 @keyframes as-blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .as-caret::after { animation: none; } }
 .as-err { display: flex; gap: 6px; align-items: flex-start; color: var(--cm-text-danger); }
-.as-err svg { flex: none; margin-top: 3px; }
-.as-open { display: inline-block; align-self: flex-start; padding: 2px 6px; border-radius: 5px; font-size: 11px; line-height: 16px; background: var(--cm-bg-secondary); color: var(--cm-text-secondary); box-shadow: inset 0 0 0 1px var(--cm-border-strong); }
+.as-err > svg { flex: none; margin-top: 3px; }
 .as-composer { flex: none; border-top: 1px solid var(--cm-border); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .as-composer textarea { font: inherit; font-size: 12px; resize: none; min-height: 56px; padding: 6px 8px; border-radius: 5px; border: 0; background: var(--cm-bg-secondary); color: var(--cm-text); }
 .as-composer textarea:disabled { opacity: 0.6; }
-.as-composer-foot { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.as-composer-foot .k-caption { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-composer-foot { display: flex; align-items: center; gap: 6px; }
 .as-mic { border: 0; background: none; padding: 0; font: inherit; }
 .as-mic:disabled { opacity: 0.4; }
 .as-mic[aria-pressed="true"] { color: var(--cm-text-danger); }
 `;
     if (!document.getElementById("as-css")) document.head.append(h("style", { id: "as-css" }, CSS));
-
-    const openQ = (text) => h("span", { class: "as-open", title: text }, "Open question: " + text);
 
     /* The kit's sprite has no microphone; this is lucide's "mic", drawn inline. */
     function micIcon() {
@@ -61,126 +57,92 @@
     ];
     const LAYER = "Size by betweenness";
 
-    /* mode: "off" (no provider), "idle", "streaming", "failed" */
+    /* The object chip: a kind icon and the object's name; a click selects it. */
+    function chip(iconName, label, target) {
+        const c = h("span", Object.assign({ class: "as-chip", role: "link" }, AB.act({ go: target })), icon(iconName, "sm"), label);
+        return AB.tip(c, "Select " + label, { label: false });
+    }
+    const CHIPS = {
+        graph: () => chip("table", "Les Miserables", ["data-place", "attributes"]),
+        run: () => chip(AB.ICON.run, "Betweenness", ["inspector-measure-row", "data"]),
+        layer: () => chip(AB.ICON.run, LAYER, ["graph-place", "at-rest"]),
+    };
+
+    /* One tool line: a status icon and one sentence. status: "done", "running", "failed". */
+    function tool(status, ...words) {
+        const ic = { done: "circle-check", running: "loader-circle", failed: "circle-x" }[status];
+        return h("div", { class: "as-tool is-" + status }, icon(ic, "sm"), words);
+    }
+
+    /* The switcher row: the open conversation; its menu lists the others and New conversation. */
+    function switcher() {
+        const btn = h("span", { class: "ab-switch-btn", role: "button", tabindex: "0", "aria-haspopup": "menu", "aria-expanded": "false" },
+            icon(AB.ICON.note), h("span", { class: "k-ellipsis" }, CONVERSATIONS[0]), icon("chevron-down", "sm"));
+        const open = () => AB.openMenu(btn, [
+            ...CONVERSATIONS.map((t, i) => ({ label: t, check: i === 0, onClick: () => i && AB.flash("Open conversation: " + t) })),
+            { sep: true },
+            { label: "New conversation", onClick: () => AB.flash("New conversation") },
+        ]);
+        btn.addEventListener("click", open);
+        btn.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " " || (e.altKey && e.key === "ArrowDown")) && (e.preventDefault(), open()));
+        return h("div", { class: "ab-switcher" }, btn);
+    }
+
+    /* mode: "idle", "streaming" */
     function composer(mode) {
-        const off = mode === "off";
-        const ta = h("textarea", {
-            "aria-label": "Ask the Assistant",
-            placeholder: off ? "Set up the Assistant in Settings to ask a question" : "Ask about this graph",
-            disabled: off || mode === "streaming" ? "" : null,
-        });
-        if (mode === "failed") ta.value = CONVERSATIONS[0];
+        const busy = mode === "streaming";
+        const ta = h("textarea", { "aria-label": "Ask the Assistant", placeholder: "Ask about this graph", disabled: busy ? "" : null });
         const mic = h("button", {
-            class: "k-icon-btn as-mic", type: "button", "aria-label": "Voice input", "aria-pressed": "false",
-            title: off ? "Voice input needs an AI provider" : "Voice input",
-            disabled: off || mode === "streaming" ? "" : null,
+            class: "k-icon-btn as-mic", type: "button", "aria-pressed": "false", disabled: busy ? "" : null,
             on: {
                 click: () => {
                     const on = mic.getAttribute("aria-pressed") !== "true";
                     mic.setAttribute("aria-pressed", String(on));
-                    ta.placeholder = on ? "Listening... speak your question" : "Ask about this graph";
+                    ta.placeholder = on ? "Listening..." : "Ask about this graph";
                     AB.announce(on ? "Listening" : "Stopped listening");
                 },
             },
         }, micIcon());
-        const caption = {
-            off: "No AI provider",
-            idle: "Les Miserables, 77 nodes, 254 edges",
-            streaming: "Answering...",
-            failed: "The answer did not finish",
-        }[mode];
-        const action = {
-            off: AB.button("Send", { icon: "arrow-right", disabled: true }),
-            idle: AB.button("Send", { icon: "arrow-right", go: ["assistant-place", "streaming"] }),
-            streaming: AB.button("Stop", { icon: "square", kind: "secondary", go: ["assistant-place", "conversation"] }),
-            failed: AB.button("Retry", { icon: "refresh-cw", go: ["assistant-place", "streaming"] }),
-        }[mode];
-        return h("div", { class: "as-composer" },
-            ta,
-            h("div", { class: "as-composer-foot" },
-                mic,
-                h("span", { class: "k-caption" }, caption),
-                h("span", { class: "k-grow" }),
-                action,
-            ),
-        );
-    }
-
-    function list(active) {
-        return AB.section({ title: "Conversations", count: active == null ? 0 : CONVERSATIONS.length },
-            active == null
-                ? h("div", { class: "as-empty" }, "No conversations yet.")
-                : CONVERSATIONS.map((t, i) => AB.row({
-                    icon: "message-square", label: t, selected: i === active,
-                    onClick: i === active ? undefined : () => AB.flash("Open conversation (not wired in the skeleton)"),
-                })),
-        );
+        AB.tip(mic, "Voice input");
+        const action = busy
+            ? AB.button("Stop", { icon: "square", kind: "secondary", go: ["assistant-place", "conversation"] })
+            : AB.button("Send", { icon: "arrow-right", key: "Enter", go: ["assistant-place", "streaming"] });
+        return h("div", { class: "as-composer" }, ta, h("div", { class: "as-composer-foot" }, mic, h("span", { class: "k-grow" }), action));
     }
 
     function nodeLink(n) {
         return h("span", null, AB.link("inspector-node", "why-this-look", n.label, { class: "k-link" }), " (" + n.betweenness + ")");
     }
 
-    /* One tool call line. status: "done", "running", "failed", "stopped". */
-    function tool(status, label, extra) {
-        const ic = { done: "circle-check", running: "loader-circle", failed: "circle-x", stopped: "circle-x" }[status];
-        return h("div", { class: "as-tool is-" + status },
-            icon(ic, "sm"), h("span", null, label), extra ? [h("span", null, " -- "), extra] : null);
-    }
-
-    const layerLink = () => AB.link("graph-place", "at-rest", LAYER + ", from the assistant", { class: "k-link" });
-
     /* stage: "done", "streaming", "failed" */
     function conversation(stage) {
         const top = AB.fx.datasets.lesmis.topByBetweenness.slice(0, 3);
         const valjean = top[0];
+        const read = tool("done", "Read ", CHIPS.graph());
         const tools = {
-            done: [
-                tool("done", "Read the graph's attributes"),
-                tool("done", "Ran Betweenness"),
-                tool("done", "Added a layer", layerLink()),
-            ],
-            streaming: [
-                tool("done", "Read the graph's attributes"),
-                tool("done", "Ran Betweenness"),
-                tool("running", "Adding a layer: " + LAYER),
-            ],
-            failed: [
-                tool("done", "Read the graph's attributes"),
-                tool("failed", "Run Betweenness"),
-            ],
+            done: [read, tool("done", "Ran ", CHIPS.run()), tool("done", "Added ", CHIPS.layer())],
+            streaming: [read, tool("done", "Ran ", CHIPS.run()), tool("running", "Adding ", CHIPS.layer())],
+            failed: [read, tool("failed", "Betweenness did not run")],
         }[stage];
         const answer = {
             done: [
                 h("div", null, "By betweenness, these characters lie on the most shortest paths between the others:"),
                 h("ol", null, top.map((n) => h("li", null, nodeLink(n)))),
                 h("div", null, valjean.label + " also has the most connections, " + valjean.degree + "."),
-                h("div", { class: "k-caption" }, "The layer is a row in the Graph tree like any other. Hide, edit or delete it there."),
             ],
             streaming: [
                 h("div", { class: "as-caret" }, "By betweenness, these characters lie on the most shortest paths between the others:"),
-                openQ("when Stop lands mid-answer, do layers already added stay?"),
+                h("div", null, AB.openQuestion("When Stop lands mid-answer, do layers already added stay?")),
             ],
             failed: [
                 h("div", { class: "as-err", role: "alert" }, icon("triangle-alert", "sm"),
-                    h("span", null, "The AI provider stopped responding before the answer finished. Nothing was added to the graph.")),
-                h("div", { class: "k-caption" }, "Retry sends the same question again. To change the provider, go to ",
-                    AB.link("settings", "assistant", "Settings > Assistant", { class: "k-link" }), "."),
+                    h("span", null, "The AI provider stopped responding. Nothing was added to the graph.")),
+                h("div", null, AB.button("Retry", { icon: "refresh-cw", kind: "secondary", go: ["assistant-place", "streaming"] })),
             ],
         }[stage];
         return h("div", { class: "as-conv", "aria-live": stage === "streaming" ? "polite" : null },
             h("div", { class: "as-q" }, CONVERSATIONS[0]),
             h("div", { class: "as-a" }, h("div", { class: "as-tools", "aria-label": "Tool calls" }, tools), answer),
-        );
-    }
-
-    function noProvider() {
-        return h("div", { class: "as-empty" },
-            icon("bot", "lg"),
-            h("span", { class: "k-strong" }, "What can I ask?"),
-            h("span", null, "Ask about the graph in plain words: who connects the groups, why a node looks the way it does, what a run found. The Assistant can run algorithms and add layers for you; each one lands in the Graph tree marked from the assistant."),
-            h("span", null, "It needs an AI provider first. ",
-                AB.link("settings", "assistant", "Set one up in Settings > Assistant", { class: "k-link" }), "."),
         );
     }
 
@@ -196,20 +158,17 @@
             { id: "failed-retry", label: "Answer failed, Retry" },
         ],
         render(el, state) {
-            const off = state === "no-provider";
-            const mode = off ? "off" : state === "streaming" ? "streaming" : state === "failed-retry" ? "failed" : "idle";
-            const stage = mode === "streaming" ? "streaming" : mode === "failed" ? "failed" : "done";
-            const plus = AB.iconButton("plus", "New conversation", {
-                onClick: () => AB.flash(off ? "New conversation needs an AI provider" : "New conversation (not wired in the skeleton)"),
-            });
-            if (off) { plus.setAttribute("aria-disabled", "true"); plus.title = "New conversation needs an AI provider"; }
+            if (state === "no-provider") {
+                el.append(AB.placeHead("Assistant"),
+                    AB.empty("The Assistant needs an AI provider.", { verb: "Set one up in Settings", go: ["settings", "assistant"] }));
+                return;
+            }
+            const stage = state === "streaming" ? "streaming" : state === "failed-retry" ? "failed" : "done";
             el.append(
-                AB.placeHead("Assistant", plus),
-                h("div", { class: "as-body" },
-                    list(off ? null : 0),
-                    off ? noProvider() : conversation(stage),
-                ),
-                composer(mode),
+                AB.placeHead("Assistant"),
+                switcher(),
+                h("div", { class: "as-body" }, conversation(stage)),
+                composer(stage === "streaming" ? "streaming" : "idle"),
             );
         },
     });

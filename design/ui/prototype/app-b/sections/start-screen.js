@@ -1,14 +1,14 @@
 /* Start screen and the usage-data opt-in. Shown when no project is open. Plain ASCII.
-   Layout: a header line (name, privacy line, Settings gear), three columns (ways in, recent
-   projects, samples), and on first launch a non-blocking usage-data card at the foot.
-   The ways in are the empty state of Data > Sources (no project exists yet), not a second home.
+   Layout: a header line (name, privacy line, Settings gear), three columns (two ways in and a
+   drop hint, recent projects, samples), and on first launch a non-blocking usage-data card at the
+   foot. URL and Paste are source choices inside the one load dialog, so they have no row here.
+   Design note (not on the screen): connectors (databases, APIs) wait until graphty-element can
+   load from them.
    Styles: start-screen.css, loaded below (section-local, not shared). */
 (function () {
     if (!document.querySelector("link[data-ss-css]")) {
         document.head.append(h("link", { rel: "stylesheet", href: "sections/start-screen.css", "data-ss-css": "" }));
     }
-
-    const openQ = (text) => h("span", { class: "ss-oq", title: text }, "Open question: " + text);
 
     // Samples: the fixtures' datasets, each with one line on what it is good for.
     const SAMPLES = [
@@ -38,15 +38,15 @@
     }
 
     function door(o) {
-        return h("div", Object.assign({ class: "k-row ss-door", role: "button" }, AB.act(o)), icon(o.icon), h("span", { class: "k-grow k-ellipsis" }, o.label), o.key ? h("span", { class: "k-kbd" }, o.key) : null, o.hint ? h("span", { class: "k-secondary ss-hint" }, o.hint) : null);
+        return h("div", Object.assign({ class: "k-row ss-door", role: "button" }, AB.act(o)), icon(o.icon), h("span", { class: "k-grow k-ellipsis" }, o.label), o.key ? h("span", { class: "k-kbd" }, o.key) : null);
     }
 
     function header(privacy) {
         return h("div", { class: "ss-head" },
             h("span", { class: "ss-brand" }, icon("network"), "graphty"),
             h("span", { class: "k-grow" }),
-            link("settings", "privacy", [icon(privacy === "Local only" ? "lock" : "share", "sm"), privacy], { class: "ab-link ss-privacy", title: "Change this in Settings > Privacy" }),
-            AB.iconButton("settings", "Settings (Ctrl+,)", { go: ["settings", "you"] }),
+            link("settings", "privacy", [icon(privacy === "Local only" ? "lock" : "share", "sm"), privacy], { class: "ab-link ss-privacy", "data-tip": "Change this in Settings > Privacy" }),
+            AB.iconButton("settings", "Settings (Ctrl+,)", { go: ["settings", "general"] }),
         );
     }
 
@@ -58,7 +58,6 @@
         const details = h("details", { class: "ss-what", open: expanded || null },
             h("summary", null, icon("chevron-right", "sm"), "What is collected"),
             h("ul", null, COLLECTED.map((t) => h("li", null, t))),
-            h("p", { class: "k-secondary" }, "With a project open, ", link("data-place", "sent-and-saved", "Data > Sent and saved"), " lists what has been sent."),
             h("p", { class: "ss-strong" }, "No file contents ever leave your computer."),
         );
         return h("aside", { class: "ss-card", role: "region", "aria-label": "Usage data" },
@@ -75,29 +74,6 @@
         );
     }
 
-    // Open from URL: graphty-element's loadFromUrl. The file is fetched by this browser, then the
-    // same load step as a dropped file. Studio decision: a small dialog on the start screen, since
-    // no project (and so no Data > Sources) exists yet.
-    function urlDialog() {
-        const back = () => AB.go("start-screen", "returning");
-        const box = h("div", { class: "k-modal ss-url", role: "dialog", "aria-label": "Open from URL" },
-            h("div", { class: "k-modal-head" }, h("span", { class: "k-grow" }, "Open from URL"), AB.iconButton("x", "Close", { onClick: back })),
-            h("div", { class: "k-modal-body" },
-                h("label", { class: "ss-url-label", for: "ss-url-in" }, "Address of a graph file"),
-                h("input", { id: "ss-url-in", class: "ss-url-input", type: "url", value: "https://example.org/data/lesmis.graphml", spellcheck: "false" }),
-                h("p", { class: "k-secondary" }, "CSV, GraphML, GEXF, GML, DOT, Pajek or JSON. The format is read from the file. This browser fetches it; nothing is sent to us."),
-                h("p", { class: "k-secondary" }, "The source keeps its address, so Data > Sources can refresh it later."),
-                openQ("a server that refuses the browser (CORS): say so plainly, and offer to download the file and drop it"),
-            ),
-            h("div", { class: "k-modal-foot" },
-                h("span", { class: "k-grow" }),
-                AB.button("Cancel", { kind: "secondary", onClick: back }),
-                AB.button("Read", { go: ["load-step", "preview"] }),
-            ),
-        );
-        return h("div", Object.assign({ class: "ss-url-wrap" }, { on: { click: (e) => { if (e.target === e.currentTarget) back(); } } }), box);
-    }
-
     registerSection({
         id: "start-screen",
         title: "Start screen",
@@ -110,21 +86,18 @@
             { id: "declined", label: "Answered: no thanks" },
             { id: "returning", label: "Returning, with recent projects" },
             { id: "drop-target", label: "File dragged over the window" },
-            { id: "open-url", label: "Open from URL..." },
         ],
         render(el, state) {
             const fx = AB.fx.datasets;
             const firstLaunch = state === "first-run" || state === "disclosure";
-            const hasRecents = state === "returning" || state === "drop-target" || state === "open-url";
+            const hasRecents = state === "returning" || state === "drop-target";
             const privacy = state === "answered" ? "Usage data on, content masked" : "Local only";
 
+            // A project file opens the project; a data file opens the load dialog, as a drop does.
             const doors = column("Start",
-                door({ icon: "folder-open", label: "Open...", key: "Ctrl+O", go: ["load-step", "preview"] }),
-                door({ icon: "file-plus", label: "New project", go: ["graph-place", "empty"] }),
-                door({ icon: "upload", label: "Drop a file anywhere", hint: "on this window", go: ["start-screen", "drop-target"] }),
-                door({ icon: "copy", label: "Paste data", key: "Ctrl+V", go: ["load-step", "preview"] }),
-                door({ icon: "link", label: "Open from URL...", go: ["start-screen", "open-url"] }),
-                h("div", { class: "ss-note" }, openQ("connectors (databases, APIs) wait until graphty-element can load from them")),
+                door({ icon: "folder-open", label: "Open project or file...", key: "Ctrl+O", go: ["graph-place", "at-rest"] }),
+                door({ icon: "file-plus", label: "New from data...", go: ["load-step", "preview"] }),
+                h("p", Object.assign({ class: "k-secondary ss-line ss-drop-hint" }, AB.act({ go: ["start-screen", "drop-target"] })), icon("upload", "sm"), "or drop a file anywhere in this window"),
                 h("p", { class: "k-secondary ss-line" }, icon("lock", "sm"), "Files are read on this computer and never uploaded."),
             );
 
@@ -165,12 +138,10 @@
                             h("p", { class: "k-secondary" }, "CSV, GraphML, GEXF, GML, DOT, Pajek, JSON. The file is read here and never uploaded."),
                         ))
                     : null,
-                state === "open-url" ? urlDialog() : null,
             );
             el.append(screen);
-            if (state === "open-url") screen.querySelector(".ss-url-input").focus();
             // Esc leaves the drop target, as releasing the drag outside the window would.
-            if (state === "drop-target" || state === "open-url") {
+            if (state === "drop-target") {
                 const esc = (e) => { if (e.key === "Escape") { window.removeEventListener("keydown", esc); AB.go("start-screen", "returning"); } };
                 window.addEventListener("keydown", esc);
                 window.addEventListener("hashchange", () => window.removeEventListener("keydown", esc), { once: true });

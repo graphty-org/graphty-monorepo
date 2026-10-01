@@ -10,7 +10,7 @@
     const REGION_LABEL = { left: "Left panel", right: "Inspector", canvas: "Canvas", toolbar: "Toolbar", dock: "Table dock", overlay: "Menu or dialog", workspace: "Full canvas", full: "Whole window" };
     // What the frame's other regions show when the section works on the transfers data, not Les Miserables
     const DATASET_FRAME = { transactions: { canvas: "canvas-and-states/transfers", right: "inspector-nothing-selected/transfers", dock: "table-dock/transfers" } };
-    const PLACES = { graph: ["Graph", "network", "graph-place"], data: ["Data", "database", "data-place"], views: ["Views", "bookmark", "views-place"], notes: ["Notes", "sticky-note", "notes-place"], assistant: ["Assistant", "bot", "assistant-place"] };
+    const PLACES = { graph: ["Graph", "network", "graph-place"], data: ["Data", "database", "data-place"], views: ["Views", "bookmark", "views-place"], notes: ["Notes", "message-square", "notes-place"], assistant: ["Assistant", "bot", "assistant-place"] };
 
     // ---------- persistent viewer conveniences (never required) ----------
     const store = {
@@ -19,7 +19,7 @@
     };
     // The table dock starts closed at rest; counts, "Show in table" and Shift+T open it
     const shell = { dock: store.get("dock") || "closed", panels: "shown" };
-    AB.store = store; // Settings > Appearance writes "toolbarLabels" (auto, always, never)
+    AB.store = store;
 
     function setTheme(t) {
         if (t) document.documentElement.setAttribute("data-theme", t);
@@ -31,7 +31,8 @@
         return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
     if (store.get("theme")) document.documentElement.setAttribute("data-theme", store.get("theme"));
-    // Review only: "Design notes" (open questions and "needs graphty-element" marks) can be hidden for the persona build
+    // Review only: "Design notes" (open questions, "needs graphty-element" marks, and menu items and
+    // controls marked as needing graphty-element) can be hidden for the user-test build
     const notesHidden = () => store.get("designNotes") === "hidden";
     const applyNotes = () => document.documentElement.toggleAttribute("data-design-notes-hidden", notesHidden());
     applyNotes();
@@ -41,6 +42,9 @@
         const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
         return { id: parts[0] || "graph-place", state: parts.slice(1).join("/") || null };
     }
+    // Old routes in design notes keep working: the Camera menu folded into the View flyout, and the
+    // path pick mode into the Path popover
+    const REDIRECT = [[(id) => id === "camera-menu", "#/view-flyout/3d"], [(id) => /^path-tool/.test(id), "#/path-popover/from-selection"]];
     function refOf(v) {
         if (!v) return null;
         const [id, ...rest] = String(v).split("/");
@@ -48,37 +52,36 @@
     }
     let route = null;
     let prevLeft = null;
+    let prevRight = null;
     // Focus goes back to the control that opened an overlay when the overlay closes
     let opener = null;
     let closedOverlay = null; // the overlay section open before this render
     // The control that opens an overlay section: any element whose target is that section
     function refocusOpener(id) {
         if (!id || (document.activeElement && document.activeElement !== document.body)) return;
-        const el = document.querySelector(`[data-nav^="#/${id}"]`) || (id === "camera-menu" && document.getElementById("ab-zoom")) || (id === "project-menu" && document.getElementById("ab-project")) || (id === "main-menu" && document.getElementById("ab-rail-menu"));
+        const el = document.querySelector(`[data-nav^="#/${id}"]`) || (id === "view-flyout" && document.querySelector("[data-tool='View']")) || (id === "project-menu" && document.getElementById("ab-project")) || (id === "main-menu" && document.getElementById("ab-rail-menu"));
         if (el) el.focus();
     }
-    const describe = (el) => el && el !== document.body ? { id: el.id || null, nav: el.dataset && el.dataset.nav || null, label: el.getAttribute("aria-label"), row: el.closest && el.closest("[data-row]") && el.closest("[data-row]").dataset.row } : null;
+    const describe = (el) => el && el !== document.body ? { el, id: el.id || null, nav: el.dataset && el.dataset.nav || null, label: el.getAttribute("aria-label"), row: el.closest && el.closest("[data-row]") && el.closest("[data-row]").dataset.row } : null;
     function refocus(d) {
         if (!d) return false;
         const q = (sel) => { try { return document.querySelector(sel); } catch (e) { return null; } };
-        const el = (d.id && document.getElementById(d.id)) || (d.row && q(`#ab-left [data-row="${d.row}"]`)) || (d.nav && q(`[data-nav="${d.nav}"]`)) || (d.label && q(`[aria-label="${d.label}"]`));
+        const el = (d.el && d.el.isConnected && d.el) || (d.id && document.getElementById(d.id)) || (d.row && q(`#ab-left [data-row="${d.row}"]`)) || (d.nav && q(`[data-nav="${d.nav}"]`)) || (d.label && q(`[aria-label="${d.label}"]`));
         if (el) el.focus();
         return !!el;
     }
 
+    // Closing an overlay keeps the panels as they are (no redraw), so focus returns to the very control
+    // that opened it and a popover's live changes stay on screen
     AB.close = function () {
         if (!route) return;
+        if (route.frame.overlay) AB.keepLeft = AB.keepRight = true;
         go(route.closeTo.id, route.closeTo.state);
     };
     AB.toggleDock = function () {
         shell.dock = shell.dock === "open" ? "closed" : "open";
         store.set("dock", shell.dock);
         render();
-    };
-    AB.flash = function (text) {
-        const f = h("div", { class: "ab-flash" }, text);
-        document.body.append(f);
-        setTimeout(() => f.remove(), 2200);
     };
     AB.renderSection = function (ref, el) {
         const r = typeof ref === "string" ? refOf(ref) : ref;
@@ -97,12 +100,12 @@
             const groups = L.frame.legend.rows.map((g) => ({ name: "Group " + g.label, kindIcon: "circle-dot", swatch: AB.chit(g.color, true), count: g.count, eye: true, go: ["inspector-group-set-path-row", "group-" + g.label], menu: ["context-menus", "row"] }));
             groups.push({ name: L.frame.legend.other.title, kindIcon: "circle-dot", swatch: AB.chit(L.frame.legend.other.color, true), count: L.frame.legend.other.count, eye: true, go: ["inspector-group-set-path-row", "other"], menu: ["context-menus", "row"] });
             const rows = [
-                { name: "Selection", kindIcon: "scan", pinned: true, builtin: true, count: "Nothing selected", eye: true, go: ["inspector-selection-and-everything", "selection"] },
-                { name: "Notes", kindIcon: "message-square", pinned: true, builtin: true, count: "2 nodes", eye: true, go: ["inspector-selection-and-everything", "notes"], menu: ["context-menus", "notes-row"] },
+                { name: "Selection", kindIcon: "scan", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "selection"] },
+                { name: "Notes", kindIcon: "message-square", pinned: true, builtin: true, count: 2, eye: true, go: ["inspector-selection-and-everything", "notes"], menu: ["context-menus", "notes-row"] },
                 { name: "Betweenness", kindIcon: "chart-column", swatch: AB.ramp(), eye: false, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
                 { name: "Degree", kindIcon: "hash", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
                 { name: "group", kindIcon: h("span", { class: "ab-abc" }, "Abc"), swatch: h("span", { class: "ab-multi" }, L.frame.legend.rows.slice(0, 3).map((g) => AB.chit(g.color, true))), count: "10 groups", eye: true, open: false, children: groups, go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"] },
-                { name: "Everything", kindIcon: "square-filled", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "everything"] },
+                { name: "Everything", kindIcon: "base-layer", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "everything"] },
             ];
             el.append(
                 placeHead("Graph"),
@@ -118,10 +121,10 @@
                 AB.inspector({
                     icon: "network", title: f.graphRow, kind: "Graph", provenance: [f.file, "data-place", "sources-menu"], menu: ["context-menus", "canvas"],
                     body: [
-                        AB.section({ title: "Overview", collapsible: true, key: "graph.overview" },
+                        AB.section({ title: "Summary", collapsible: true, key: "graph.summary" },
                             AB.data("Nodes", String(L.nodes)), AB.data("Edges", L.edges + " (undirected)"), AB.data("Density", String(L.stats.density)),
                             AB.data(f.componentsName, f.components), AB.data("Isolated nodes", String(L.stats.isolated)), AB.data("Average degree", String(L.stats.averageDegree)),
-                            h("div", { class: "ab-bars", title: f.degreeLabel }, f.degreeBars.map((b) => h("span", { style: `height:${Math.max(1, (b / max) * 100)}%` }))),
+                            AB.tip(h("div", { class: "ab-bars" }, f.degreeBars.map((b) => h("span", { style: `height:${Math.max(1, (b / max) * 100)}%` }))), f.degreeLabel, { label: false }),
                             h("div", { class: "ab-cap k-secondary" }, f.degreeName + ". " + f.degreeLabel + "."),
                             AB.data("Edge weight", "value", { go: ["inspector-attribute-and-filter-step", "attribute"] }),
                             AB.data("Attributes", String(f.attributes), { go: ["data-place", "attributes"] })),
@@ -135,39 +138,23 @@
                 }),
             );
         },
+        // The canvas carries no controls: the drawing, the legend card (top left) and state cards
         canvas(el) {
             const L = fxl(), f = L.frame, a = L.anchors.selected;
             const stage = h("div", { class: "k-stage" }, AB.drawing("lesmis-groups-rest", f.altSized));
-            const hot = h("span", { class: "ab-hot", style: `left:${a.x}%;top:${a.y}%`, title: a.id + ": group 2, degree 36", "aria-label": a.id });
+            const hot = AB.tip(h("span", { class: "ab-hot" , style: `left:${a.x}%;top:${a.y}%` }), a.id, { second: "group 2, degree 36" });
             AB.nav(hot, "inspector-node", "why-this-look");
             hot.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); go("context-menus", "node"); });
             stage.append(hot);
-            const legend = h("div", { class: "k-legend-card ab-legend" },
-                h("div", { class: "k-lg-title" }, "group"),
-                f.legend.rows.map((r) => AB.nav(h("div", { class: "k-lg-row" }, AB.chit(r.color), r.label, h("span", { class: "k-value" }, r.count)), "inspector-group-set-path-row", "group-" + r.label)),
-                AB.nav(h("div", { class: "k-lg-row" }, AB.chit(f.legend.other.color), "Other", h("span", { class: "k-value" }, f.legend.other.count)), "inspector-group-set-path-row", "other"),
-                h("div", { class: "k-lg-sub" }, "Other: " + f.legend.other.title),
-                AB.nav(h("div", { class: "k-lg-title ab-lg-size" }, "Size: Degree ", f.sizeMarks.map((m) => h("span", { class: "ab-dot", style: `width:${m.px / 2}px;height:${m.px / 2}px`, title: "degree " + m.degree }))), "inspector-measure-row", "style"),
-            );
-            legend.prepend(h("span", { class: "ab-legend-x" }, AB.legendClose(legend)));
-            const corner = h("div", { class: "ab-canvas-corner" }, AB.layoutChip("running"), AB.cameraFace());
-            const help = h("span", Object.assign({ class: "k-help", role: "button", "aria-label": "Keyboard shortcuts" }, act({ go: ["commands-and-search", "shortcuts"] })), icon("circle-help"));
-            el.append(stage, legend, corner, help);
+            const legend = AB.legendCard([
+                { title: "Color: group", go: ["inspector-run-row", "style"], rows: f.legend.rows.map((r) => ({ swatch: r.color, label: "Group " + r.label, count: r.count, go: ["inspector-group-set-path-row", "group-" + r.label] })).concat([{ swatch: f.legend.other.color, label: "Other", count: f.legend.other.count, go: ["inspector-group-set-path-row", "other"] }]) },
+                { title: h("span", { class: "ab-lg-size" }, "Size: Degree ", f.sizeMarks.map((m) => AB.tip(h("span", { class: "ab-dot", style: `width:${m.px / 2}px;height:${m.px / 2}px` }), "degree " + m.degree, { label: false }))), go: ["inspector-measure-row", "style"] },
+            ]);
+            append(el, [stage, legend]);
             el.addEventListener("contextmenu", (e) => { e.preventDefault(); go("context-menus", "canvas"); });
         },
         toolbar(el) {
-            const C = AB.COMMANDS;
-            const tool = (name, c, o) => h("span", Object.assign({ class: "k-tool k-tool-label", role: "button", "data-tool": o && o.tool || c.label.replace(/\.+$/, ""), "aria-pressed": o && o.pressed ? "true" : "false", title: c.label.replace(/\.+$/, "") + (c.shortcut ? " (" + c.shortcut + ")" : "") }, act({ go: c.go })), icon(name, "lg"), h("span", { class: "ab-tlabel" }, o && o.face || c.label.replace(/\.+$/, "")));
-            const caret = (label, target) => h("span", Object.assign({ class: "k-tool-caret", role: "button", "aria-label": label, "aria-haspopup": "menu" }, act({ go: target })), icon("chevron-down", "sm"));
-            const mode = (AB.route && AB.route.frame.mode) || "3d";
-            el.append(h("div", { class: "k-toolbar", role: "toolbar", "aria-label": "Tools" },
-                tool("mouse-pointer-2", C.select, { pressed: true }),
-                tool("flask-conical", C.analyze),
-                h("span", { class: "k-toolbar-sep" }),
-                tool("zap", C["quick-actions"]),
-                h("span", { class: "k-toolbar-sep" }),
-                tool(mode === "2d" ? "square" : "box", C["view-mode"], { face: mode === "2d" ? "2D" : "3D", tool: "View mode" }), caret("View mode", ["toolbar", "view-mode"]),
-            ));
+            el.append(AB.mainToolbar());
         },
         dock(el) {
             const L = fxl();
@@ -234,22 +221,29 @@
         return h("div", Object.assign({ class: "k-rail-btn", role: "button", "aria-pressed": String(route.rail === key), "data-place": key }, act({ go: [target] })), h("span", { class: "k-rail-pill" }, icon(ic)), label);
     }
     function renderRail(el) {
-        el.append(
-            h("div", Object.assign({ id: "ab-rail-menu", class: "k-rail-btn", role: "button", "aria-label": "Main menu", title: "Main menu" }, act({ go: ["main-menu", "file"] })), h("span", { class: "k-rail-pill" }, icon("menu"))),
-            h("div", { class: "k-rail-sep" }),
-            railButton("graph"), railButton("data"), railButton("views"), railButton("notes"), railButton("assistant"),
-        );
+        el.append(railButton("graph"), railButton("data"), railButton("views"), railButton("notes"), railButton("assistant"));
     }
+    // Header, left to right (spec 9): main menu, project name, undo and redo, privacy chip, filter chip
     function renderTop(el) {
         const D = AB.fx.datasets[route.frame.dataset] || fxl();
-        el.append(
-            h("h1", { class: "ab-h1" }, h("span", Object.assign({ id: "ab-project", class: "ab-project", role: "button", "aria-haspopup": "menu" }, act({ go: ["project-menu", "open"] })), h("span", { class: "k-ellipsis" }, D.frame.project), icon("chevron-down", "sm"))),
-            h("span", Object.assign({ class: "ab-privacy", role: "link" }, act({ go: ["data-place", "sent-and-saved"] })), icon("lock", "sm"), "Local only"),
-            h("span", Object.assign({ id: "ab-filter", class: "k-chip k-chip-btn", role: "button", title: "Filters: what the graph is computed and drawn on" }, act({ go: ["data-place", "filters"] })), icon("funnel", "sm"), route.frame.chip, h("span", { class: "k-caret" }, icon("chevron-down", "sm"))),
+        const menuBtn = AB.iconButton("menu", "Main menu", { go: ["main-menu", "open"] });
+        menuBtn.id = "ab-rail-menu"; // the id is kept from version 2, when the button sat in the rail
+        menuBtn.setAttribute("aria-haspopup", "menu");
+        const project = h("span", Object.assign({ id: "ab-project", class: "ab-project", role: "button", "aria-label": D.frame.project + ", project menu", "aria-haspopup": "menu", "aria-keyshortcuts": "F2" }, act({ go: ["project-menu", "open"] })), h("span", { class: "k-ellipsis" }, D.frame.project), icon("chevron-down", "sm"));
+        // Double-click or F2 renames the project in place, like every other name
+        project.addEventListener("dblclick", (e) => { e.stopPropagation(); go("project-menu", "rename"); });
+        AB.tip(project, "Project menu", { key: "F2", second: "Double-click or F2: rename", label: false });
+        project.addEventListener("keydown", (e) => { if (e.key === "F2") { e.preventDefault(); go("project-menu", "rename"); } });
+        append(el, [
+            menuBtn,
+            h("h1", { class: "ab-h1" }, project),
+            AB.iconButton("undo-2", "Undo", { key: "Ctrl+Z", onClick: () => AB.flash("Nothing to undo") }),
+            AB.iconButton("redo-2", "Redo", { key: "Ctrl+Shift+Z", onClick: () => AB.flash("Nothing to redo") }),
+            AB.tip(h("span", Object.assign({ class: "ab-privacy", role: "link" }, act({ go: ["settings", "privacy"] })), icon(AB.ICON.local, "sm"), "Local only"), "Privacy settings", { label: false }),
+            // A status chip, shown only while a filter is on; a click opens Data > Filters (it is a link, not a menu)
+            route.frame.chip && route.frame.chip !== "Full graph" ? AB.tip(h("span", Object.assign({ id: "ab-filter", class: "ab-privacy", role: "link" }, act({ go: ["data-place", "filters"] })), icon("funnel", "sm"), route.frame.chip), "Filters", { label: false }) : null,
             h("span", { class: "k-grow" }),
-            AB.iconButton("undo-2", "Undo (Ctrl+Z)", { onClick: () => AB.flash("Nothing to undo") }),
-            AB.iconButton("redo-2", "Redo (Ctrl+Shift+Z)", { onClick: () => AB.flash("Nothing to redo") }),
-        );
+        ]);
     }
     function renderReview(el, sec, state) {
         const place = PLACES[route.rail] ? PLACES[route.rail][0] : "";
@@ -261,11 +255,11 @@
         crumbs.forEach((c, i) => { if (i) bc.append(h("span", { class: "ab-sep" }, ">")); bc.append(c); });
         const states = h("span", { class: "ab-states" }, sec.states.length > 1 ? [h("span", { class: "ab-rv-label" }, "States:"), sec.states.map((s) => h("a", { href: href(sec.id, s.id), class: "ab-state", "aria-current": s.id === st.id ? "true" : null }, s.label))] : null);
         el.append(
-            h("a", { href: "#/map", class: "ab-rv-title", title: "Site map" }, "Refined B skeleton"),
+            h("a", { href: "#/map", class: "ab-rv-title" }, "Refined B skeleton"),
             bc, states, h("span", { class: "k-grow" }),
             h("a", { href: "#/map", class: "ab-rv-btn" }, "Site map"),
             h("span", { class: "ab-rv-btn", role: "button", tabindex: "0", on: { click: () => { setTheme(currentTheme() === "dark" ? "light" : "dark"); } } }, icon(currentTheme() === "dark" ? "sun" : "moon", "sm"), currentTheme() === "dark" ? "Light" : "Dark"),
-            h("span", { class: "ab-rv-btn", role: "switch", tabindex: "0", "aria-checked": String(notesHidden()), title: "Hide open questions and needs graphty-element marks (the persona build)", on: { click: () => { store.set("designNotes", notesHidden() ? "" : "hidden"); applyNotes(); renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state); } } }, notesHidden() ? "Show design notes" : "Hide design notes"),
+            h("span", { class: "ab-rv-btn", role: "switch", tabindex: "0", "aria-checked": String(notesHidden()), on: { click: () => { store.set("designNotes", notesHidden() ? "" : "hidden"); applyNotes(); renderReview(($("ab-review").replaceChildren(), $("ab-review")), route.sec, route.state); } } }, notesHidden() ? "Show design notes" : "Hide design notes"),
             h("a", { href: "../index.html", class: "ab-rv-btn" }, "Gallery"),
         );
     }
@@ -275,12 +269,13 @@
         const main = $("ab-page");
         main.replaceChildren();
         const byRegion = {};
-        AB.order.forEach((id) => { const s = AB.sections[id]; if (s) (byRegion[s.region] = byRegion[s.region] || []).push(s); });
+        // Every registered section: the manifest's, then any a section file registers beside its own (a popover)
+        AB.order.concat(Object.keys(AB.sections).filter((id) => !AB.order.includes(id))).forEach((id) => { const s = AB.sections[id]; if (s) (byRegion[s.region] = byRegion[s.region] || []).push(s); });
         const order = ["full", "left", "right", "canvas", "toolbar", "dock", "overlay", "workspace"];
         main.append(h("h1", { class: "ab-map-h1" }, "Refined B skeleton: every section"),
-            h("p", { class: "ab-map-lede" }, h("a", { href: "START-HERE.html" }, "Start here: answers to the owner's eleven questions, with links into the skeleton")),
+            h("p", { class: "ab-map-lede" }, h("a", { href: "START-HERE.html" }, "Start here: answers to the owner's ten questions of the third review, with links into the skeleton")),
             h("p", { class: "k-secondary ab-map-lede" }, "Click a section to open it inside the app frame; each state below it opens that state." + (AB.order.some((id) => AB.sections[id] && typeof AB.sections[id].render !== "function") ? " Sections marked \"not built yet\" show the frame at rest with a placeholder." : "")),
-            h("p", { class: "k-secondary ab-map-lede" }, "Two data sets: the Graph place, Notes and most inspectors show Les Miserables; the Data place, the Path tool, version history and the many-groups states show the card and transfer data. The project name at the top left says which one is open, and the canvas, inspector and table follow it."));
+            h("p", { class: "k-secondary ab-map-lede" }, "Two data sets: the Graph place, Notes and most inspectors show Les Miserables; the Data place, the Path popover, version history and the many-groups states show the card and transfer data. The project name at the top left says which one is open, and the canvas, inspector and table follow it."));
         order.filter((r) => byRegion[r]).forEach((r) => {
             main.append(h("h2", { class: "ab-map-h2" }, REGION_LABEL[r] || r));
             const ul = h("ul", { class: "ab-map-list" });
@@ -294,6 +289,8 @@
     function render() {
         const p = parse();
         if (p.id === "map") return renderMap();
+        const moved = REDIRECT.find(([test]) => test(p.id));
+        if (moved) { location.replace(moved[1]); return; }
         document.body.dataset.page = "app";
         let sec = AB.sections[p.id];
         if (!sec) { location.replace("#/map"); return; }
@@ -320,7 +317,10 @@
         if (frame.overlay && !hadOverlay) opener = describe(document.activeElement);
         route = { id: sec.id, state, sec, frame, rail: railKey, closeTo };
         // A notice belongs to the screen that raised it
-        document.querySelectorAll(".ab-flash, .gp-offer").forEach((f) => f.remove());
+        document.querySelectorAll(".gp-offer").forEach((f) => f.remove());
+        $("ab-notice").replaceChildren();
+        // A canvas section showing a state card sets this while it draws ("Nothing is drawn")
+        AB.toolbarDisabled = null;
         AB.route = route; // sections read route.frame to agree with their neighbors (the tree marks the row the inspector shows)
 
         const app = $("ab-app");
@@ -331,10 +331,16 @@
         $("ab-main").dataset.dock = !frame.dock ? "none" : shell.dock;
 
         const keepLeft = AB.keepLeft && prevLeft && leftRef && prevLeft.id === leftRef.id;
-        AB.keepLeft = false;
+        const keepRight = AB.keepRight && prevRight && prevRight === frame.right;
+        AB.keepLeft = AB.keepRight = false;
         prevLeft = leftRef;
+        prevRight = frame.right;
         const fill = (id, region) => {
-            if (region === "left" && keepLeft) return;
+            if ((region === "left" && keepLeft) || (region === "right" && keepRight)) {
+                // the overlay that opened from here is gone: nothing in the kept panel is "open" any more
+                $(id).querySelectorAll("[data-open]").forEach((x) => { x.removeAttribute("data-open"); if (x.getAttribute("aria-expanded") === "true") x.setAttribute("aria-expanded", "false"); });
+                return;
+            }
             const el = $(id);
             el.replaceChildren();
             const ref = refOf(frame[region]);
@@ -349,7 +355,6 @@
         $("ab-rail").replaceChildren();
         $("ab-rail").hidden = !frame.rail;
         if (frame.rail) renderRail($("ab-rail"));
-        $("ab-toolbar").dataset.labels = store.get("toolbarLabels") || "auto";
         ["left", "right", "canvas", "toolbar", "dock", "workspace", "full", "overlay"].forEach((r) => fill("ab-" + r, r));
         // An overlay section that draws nothing (a "closed" state, a rename in place) lets clicks through.
         // Some overlays draw a frame later (they wait for the regions' boxes), so check again then.
@@ -375,6 +380,9 @@
         };
         setInert();
         requestAnimationFrame(setInert);
+        // Controls that write data-tip by hand get their label and key; the notice sits over the new bars
+        AB.tipSweep(document.getElementById("ab-app"));
+        requestAnimationFrame(() => { AB.tipSweep(document.getElementById("ab-app")); AB.placeNotice(); });
         // Focus was lost to the redraw (a toolbar toggle, a direct link): put it back where it was,
         // or on the place's heading, never on the page body
         if (!frame.overlay && !hadOverlay) setTimeout(() => {
@@ -401,21 +409,23 @@
         const mod = e.ctrlKey || e.metaKey;
         const free = (t === document.body || (t && t.closest && t.closest("#ab-canvas"))) && store.get("singleKeys") !== "off";
         // App keys never use W, A, S, D, Q, E, the arrows, = or -: graphty-element's canvas keys.
-        // F2 (rename) belongs to the tree and the inspector header.
+        // F2 (rename) belongs to the tree, the inspector header and the project name. Ctrl+G (create
+        // set) belongs to the selection bar. T is not a key: the time slider opens from the table's options.
         const keys = [
-            [() => mod && !e.shiftKey && e.key === ",", () => go("settings", "you")],
+            [() => mod && !e.shiftKey && e.key === ",", () => go("settings", "general")],
             [() => mod && !e.shiftKey && (e.key === "k" || e.key === "K"), () => go("commands-and-search", "quick-actions")],
             [() => mod && !e.shiftKey && (e.key === "b" || e.key === "B"), () => { shell.panels = shell.panels === "shown" ? "hidden" : "shown"; render(); AB.announce(shell.panels === "shown" ? "Panels shown" : "Panels hidden. Ctrl+B shows them"); }],
             [() => free && !mod && e.shiftKey && (e.key === "A" || e.key === "a"), () => go("analyze-popover", "open")],
-            [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "p" || e.key === "P"), () => go("path-tool", "armed")],
+            [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "p" || e.key === "P"), () => go("path-popover", "from-selection")],
+            [() => free && !mod && !e.shiftKey && !e.altKey && (e.key === "l" || e.key === "L"), () => AB.setLegend(!AB.legendOn())],
             [() => free && !mod && e.key === "?", () => go("commands-and-search", "shortcuts")],
-            [() => free && !mod && !e.altKey && e.key === "5", () => { const b = document.querySelector('[data-tool="View mode"]'); if (b) { b.classList.add("ab-pulse"); setTimeout(() => b.classList.remove("ab-pulse"), 900); } AB.flash("View mode switches 2D and 3D (not wired in the skeleton)"); }],
+            [() => free && !mod && !e.altKey && e.key === "5", () => { const b = document.querySelector('[data-tool="View"]'); if (b) { b.classList.add("ab-pulse"); setTimeout(() => b.classList.remove("ab-pulse"), 900); } AB.flash("5 switches 2D and 3D (not wired in the skeleton)"); }],
             [() => free && !mod && e.shiftKey && e.key === "T", () => AB.toggleDock()],
         ];
         // F6 / Shift+F6: move between regions in their visual order (spec 3.8)
         if (e.key === "F6" && !mod) {
             e.preventDefault();
-            const order = ["ab-rail", "ab-left", "ab-canvas", "ab-toolbar", "ab-dock", "ab-right"].map($).filter((r) => r && !r.hidden && r.offsetParent !== null);
+            const order = ["ab-top", "ab-rail", "ab-left", "ab-canvas", "ab-toolbar", "ab-dock", "ab-right"].map($).filter((r) => r && !r.hidden && r.offsetParent !== null);
             const cur = order.findIndex((r) => r.contains(document.activeElement));
             const next = order[(cur + (e.shiftKey ? -1 : 1) + order.length) % order.length];
             const target = next && (next.querySelector("[tabindex='0'], a[href], input") || next);
@@ -430,7 +440,7 @@
         // A click on empty canvas clears the selection: back to the place at rest (nothing selected)
         $("ab-canvas").addEventListener("click", (e) => {
             const t = e.target;
-            if (!route || t.closest(".pt-picking") || route.id === "path-tool" || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
+            if (!route || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
             const place = PLACES[route.rail] ? PLACES[route.rail][2] : "graph-place";
             if (route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected" || route.id !== place) go(place);
         });

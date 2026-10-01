@@ -1,6 +1,6 @@
 /* Refined B skeleton: shared helpers for section files. Plain ASCII.
    Every helper is on window.AB; the common ones are also globals (h, icon, link, ...).
-   Read README.md before adding a section. */
+   Version 3: one helper per job (spec section 2.5). Read README.md before adding a section. */
 (function () {
     "use strict";
     const AB = (window.AB = window.AB || {});
@@ -24,9 +24,9 @@
 
     // ---------- DOM builder ----------
     // h("div", { class: "x", on: { click: fn }, style: "...", "aria-label": "..." }, child, [children], "text")
+    const SVG_TAGS = ["svg", "use", "path", "rect", "circle", "line", "g", "text", "polyline"];
     function h(tag, attrs, ...kids) {
-        const svg = tag === "svg" || tag === "use" || tag === "path" || tag === "rect" || tag === "circle" || tag === "line" || tag === "g" || tag === "text" || tag === "polyline";
-        const el = svg ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
+        const el = SVG_TAGS.includes(tag) ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
         if (attrs && (typeof attrs !== "object" || attrs instanceof Node || Array.isArray(attrs))) {
             kids.unshift(attrs);
             attrs = null;
@@ -52,8 +52,17 @@
     const EXTRA_ICONS = {
         headset: '<path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm0 0a9 9 0 1 1 18 0m0 0v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"/><path d="M21 16v2a4 4 0 0 1-4 4h-5"/>',
         accessibility: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>',
-        // Everything: a filled square (spec 3.2), so it never reads as an empty checkbox
-        "square-filled": '<rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor"/>',
+        // Everything: the base layer, a frame with its bottom band filled -- never a second swatch
+        "base-layer": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="currentColor"/>',
+        // Local only: this computer
+        laptop: '<path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z"/><path d="M20.054 15.987H3.946"/>',
+        "circle-plus": '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
+        list: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+        command: '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>',
+        "arrow-left-right": '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+        "message-square-plus": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+        // Create set: the set glyph (circle-check) with a plus at its top right
+        "circle-check+plus": '<path d="M20.9 13A9 9 0 1 1 13 3.1"/><path d="m7.5 12 3.5 3.5 5-5" stroke-width="2.75"/><path d="M19 1.5v7"/><path d="M15.5 5h7"/>',
     };
     function icon(name, size) {
         const cls = "k-i" + (size === "sm" ? " k-i-sm" : size === "lg" ? " k-i-lg" : "");
@@ -62,6 +71,8 @@
         s.append(h("use", { href: "kit/icons.svg#" + name }));
         return s;
     }
+    // One meaning per icon (spec 2.5). Use these names rather than typing an icon for these jobs.
+    const ICON = { view: "bookmark", set: "circle-check", createSet: "circle-check+plus", run: "layers", legend: "list", note: "message-square", addNote: "message-square-plus", filter: "funnel", options: "ellipsis", swap: "arrow-left-right", mode3d: "box", mode2d: "square", hidden: "eye-off", shown: "eye", quickActions: "zap", local: "laptop" };
 
     // ---------- navigation ----------
     function href(sectionId, state) {
@@ -76,38 +87,155 @@
     }
     // Make any element navigate on click (and Enter/Space): nav(el, "inspector-node", "valjean")
     function nav(el, sectionId, state) {
-        el.setAttribute("role", el.getAttribute("role") || "link");
+        el.setAttribute("role", el.getAttribute("role") && el.getAttribute("role") !== "img" ? el.getAttribute("role") : "link");
         el.tabIndex = 0;
         el.dataset.nav = href(sectionId, state);
-        el.addEventListener("click", (e) => {
-            e.stopPropagation();
-            go(sectionId, state);
-        });
-        el.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                go(sectionId, state);
-            }
-        });
+        el.addEventListener("click", (e) => { e.stopPropagation(); go(sectionId, state); });
+        el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(sectionId, state); } });
         return el;
     }
     // Action target: { go: [id, state] } or { onClick: fn }. Returns attrs for h().
     function act(o) {
         if (!o) return {};
-        if (o.go) return { tabindex: "0", "data-nav": href(o.go[0], o.go[1]), on: { click: (e) => { e.stopPropagation(); go(o.go[0], o.go[1]); }, keydown: (e) => { if (e.key === "Enter") go(o.go[0], o.go[1]); } } };
-        if (o.onClick) return { tabindex: "0", on: { click: (e) => { e.stopPropagation(); o.onClick(e); }, keydown: (e) => { if (e.key === "Enter") o.onClick(e); } } };
+        if (o.go) return { tabindex: "0", "data-nav": href(o.go[0], o.go[1]), on: { click: (e) => { e.stopPropagation(); go(o.go[0], o.go[1]); }, keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(o.go[0], o.go[1]); } } } };
+        if (o.onClick) return { tabindex: "0", on: { click: (e) => { e.stopPropagation(); o.onClick(e); }, keydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); o.onClick(e); } } } };
         return {};
     }
 
+    // ---------- viewer conveniences kept in this browser (never required; a private window just forgets) ----------
+    const mem = {
+        get(k) { try { return localStorage.getItem("ab." + k); } catch (e) { return null; } },
+        set(k, v) { try { localStorage.setItem("ab." + k, v); } catch (e) { /* fine */ } },
+    };
+
+    // ---------- input modality: focus rings only for the keyboard (app.css, html[data-input]) ----------
+    // Until the first key press the page counts as pointer-driven, so a state opened from a link draws no stray ring
+    document.documentElement.dataset.input = "pointer";
+    document.addEventListener("pointerdown", () => { document.documentElement.dataset.input = "pointer"; }, true);
+    document.addEventListener("keydown", (e) => { if (!["Shift", "Control", "Alt", "Meta"].includes(e.key)) document.documentElement.dataset.input = "key"; }, true);
+    const byKeyboard = () => document.documentElement.dataset.input !== "pointer";
+
+    // ---------- the one tooltip (spec 2.5) ----------
+    // tip(el, name, { key, second, label }) : the name becomes el's aria-label (unless label: false,
+    // for a control whose visible text already names it), the key its aria-keyshortcuts. The bubble is
+    // drawn by one document-level delegate from data-tip / data-key / data-tip2, so a section may
+    // write those attributes directly. Never use the native title attribute.
+    const KEYLIKE = /^(Ctrl|Shift|Alt|Mod|Cmd|Esc|Del|Delete|Enter|Space|Tab|F\d{1,2}|[A-Z0-9?/,.\]\[])(\+\S+)*$/;
+    function tip(el, name, o) {
+        o = o || {};
+        let key = o.key;
+        // "Undo (Ctrl+Z)" -> name "Undo", key "Ctrl+Z"
+        const m = !key && typeof name === "string" && name.match(/^(.*\S) \(([^()]+)\)$/);
+        if (m && KEYLIKE.test(m[2])) { name = m[1]; key = m[2]; }
+        if (!name) return el;
+        el.dataset.tip = name;
+        if (key) { el.dataset.key = key; el.setAttribute("aria-keyshortcuts", key); }
+        // The second line (a disabled reason, a gesture) also reaches screen readers: the bubble is aria-hidden
+        if (o.second) { el.dataset.tip2 = o.second; el.setAttribute("aria-description", o.second); }
+        if (o.label !== false && !el.hasAttribute("aria-label")) {
+            el.setAttribute("aria-label", name);
+            // a name on a plain span or div needs a role that allows one
+            if (!el.hasAttribute("role") && !el.hasAttribute("tabindex") && /^(SPAN|DIV)$/.test(el.tagName)) el.setAttribute("role", "img");
+        }
+        el.removeAttribute("title");
+        return el;
+    }
+    const TIP = { el: null, cur: null, timer: 0, hideTimer: 0, lastHide: 0, touchShown: false };
+    function tipBubble() {
+        if (TIP.el && TIP.el.isConnected) return TIP.el;
+        TIP.el = h("div", { class: "ab-tip", "aria-hidden": "true", hidden: true });
+        TIP.el.addEventListener("pointerenter", () => clearTimeout(TIP.hideTimer)); // WCAG 1.4.13: the pointer may rest on it
+        TIP.el.addEventListener("pointerleave", () => hideTipSoon());
+        document.body.append(TIP.el);
+        return TIP.el;
+    }
+    function showTip(t, byFocus) {
+        TIP.byFocus = !!byFocus;
+        clearTimeout(TIP.timer);
+        clearTimeout(TIP.hideTimer);
+        if (!t || !t.isConnected || !t.dataset.tip) return;
+        const b = tipBubble();
+        b.replaceChildren();
+        append(b, [h("div", { class: "ab-tip-l1" }, h("span", null, t.dataset.tip), t.dataset.key ? h("span", { class: "ab-kbd" }, t.dataset.key) : null), t.dataset.tip2 ? h("div", { class: "ab-tip-l2" }, t.dataset.tip2) : null]);
+        b.hidden = false;
+        TIP.cur = t;
+        const r = t.getBoundingClientRect(), B = b.getBoundingClientRect();
+        let y = r.top - B.height - 6;
+        if (y < 4) y = r.bottom + 6;
+        const x = Math.max(4, Math.min(r.left + r.width / 2 - B.width / 2, innerWidth - B.width - 4));
+        b.style.left = x + "px";
+        b.style.top = y + "px";
+    }
+    function hideTip() {
+        clearTimeout(TIP.timer);
+        clearTimeout(TIP.hideTimer);
+        if (TIP.el && !TIP.el.hidden) { TIP.el.hidden = true; TIP.lastHide = Date.now(); }
+        TIP.cur = null;
+    }
+    function hideTipSoon() { clearTimeout(TIP.hideTimer); TIP.hideTimer = setTimeout(hideTip, 120); }
+    const tipTarget = (n) => (n && n.closest ? n.closest("[data-tip]") : null);
+    document.addEventListener("pointerover", (e) => {
+        if (e.pointerType === "touch") return;
+        const t = tipTarget(e.target);
+        if (!t || t === TIP.cur) { if (t) clearTimeout(TIP.hideTimer); return; }
+        clearTimeout(TIP.timer);
+        // A neighbor within 1 s of the last tooltip hiding shows at once
+        const quick = TIP.cur || Date.now() - TIP.lastHide < 1000;
+        if (TIP.cur) hideTip();
+        TIP.timer = setTimeout(() => showTip(t), quick ? 0 : 500);
+    });
+    document.addEventListener("pointerout", (e) => {
+        if (e.pointerType === "touch") return;
+        const t = tipTarget(e.target);
+        const to = e.relatedTarget;
+        if (t && to && (t.contains(to) || (TIP.el && TIP.el.contains(to)))) return;
+        clearTimeout(TIP.timer);
+        if (TIP.cur) hideTipSoon();
+    });
+    document.addEventListener("focusin", (e) => {
+        const t = tipTarget(e.target);
+        if (t && t.matches(":focus-visible") && byKeyboard()) showTip(t, true);
+        else hideTip();
+    });
+    document.addEventListener("focusout", () => hideTip());
+    document.addEventListener("keydown", (e) => {
+        // A hover tooltip takes one Esc; one shown by keyboard focus hides and lets Esc close the popover too
+        if (e.key === "Escape" && TIP.el && !TIP.el.hidden) { const pass = TIP.byFocus; hideTip(); if (!pass) { e.preventDefault(); e.stopPropagation(); } }
+    }, true);
+    // Touch: a tap acts; a 500 ms long press shows the tooltip without acting, until the next tap
+    document.addEventListener("pointerdown", (e) => {
+        if (TIP.touchShown) { TIP.touchShown = false; hideTip(); }
+        if (e.pointerType !== "touch") return;
+        const t = tipTarget(e.target);
+        if (!t) return;
+        TIP.timer = setTimeout(() => { showTip(t); TIP.touchShown = true; TIP.swallow = true; }, 500);
+    });
+    ["pointerup", "pointercancel"].forEach((ev) => document.addEventListener(ev, (e) => { if (e.pointerType === "touch" && !TIP.touchShown) clearTimeout(TIP.timer); }));
+    document.addEventListener("click", (e) => { if (TIP.swallow) { TIP.swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    window.addEventListener("hashchange", hideTip);
+    // After a redraw: a section that wrote data-tip by hand on an icon-only control gets its label and key
+    function tipSweep(root) {
+        (root || document).querySelectorAll("[data-tip]").forEach((el) => {
+            if (!el.hasAttribute("aria-label") && !el.textContent.trim()) el.setAttribute("aria-label", el.dataset.tip);
+            if (el.dataset.key && !el.hasAttribute("aria-keyshortcuts")) el.setAttribute("aria-keyshortcuts", el.dataset.key);
+        });
+    }
+
     // ---------- small builders ----------
+    // button(label, { kind: "secondary" | "ghost" | "danger", icon, go, onClick, disabled: true | "reason", tip, key, block })
     function button(label, o) {
         o = o || {};
-        const cls = "k-btn" + (o.kind === "secondary" ? " k-btn-secondary" : o.kind === "ghost" ? " k-btn-ghost" : "") + (o.block ? " k-btn-block" : "");
-        return h("span", Object.assign({ class: cls, role: "button", "aria-disabled": o.disabled ? "true" : null }, act(o)), o.icon ? icon(o.icon, "sm") : null, label);
+        const cls = "k-btn" + (o.kind === "secondary" ? " k-btn-secondary" : o.kind === "ghost" ? " k-btn-ghost" : o.kind === "danger" ? " k-btn-danger" : "") + (o.block ? " k-btn-block" : "");
+        const b = h("span", Object.assign({ class: cls, role: "button", "aria-disabled": o.disabled ? "true" : null }, o.disabled ? { tabindex: "0" } : act(o)), o.icon ? icon(o.icon, "sm") : null, label);
+        const reason = typeof o.disabled === "string" ? o.disabled : null;
+        if (o.tip || o.key || reason) tip(b, o.tip || label, { key: o.key, second: reason, label: false });
+        return b;
     }
+    // iconButton(icon, name, { go, onClick, pressed, key, disabled: "reason", second })
     function iconButton(name, label, o) {
         o = o || {};
-        return h("span", Object.assign({ class: "k-icon-btn", role: "button", "aria-label": label, title: label, "aria-pressed": o.pressed == null ? null : String(!!o.pressed) }, act(o)), icon(name));
+        const b = h("span", Object.assign({ class: "k-icon-btn", role: "button", "aria-pressed": o.pressed == null ? null : String(!!o.pressed), "aria-disabled": o.disabled ? "true" : null }, o.disabled ? { tabindex: "0" } : act(o)), icon(name));
+        return tip(b, label, { key: o.key, second: typeof o.disabled === "string" ? o.disabled : o.second });
     }
     function chit(color, round) {
         return h("span", { class: "k-chit" + (round ? " k-chit-round" : ""), style: "background:" + color });
@@ -116,32 +244,31 @@
     function ramp(from, to) {
         return h("span", { class: "ab-ramp", style: `background:linear-gradient(90deg,${from || "#d6e6f4"},${to || "#0072B2"})` });
     }
-    // Viewer conveniences kept in this browser (never required; a private window just forgets)
-    const mem = {
-        get(k) { try { return localStorage.getItem("ab." + k); } catch (e) { return null; } },
-        set(k, v) { try { localStorage.setItem("ab." + k, v); } catch (e) { /* fine */ } },
-    };
-    // A section block: section("Overview", child, ...) or
-    // section({ title, count, actions:[nodes], collapsed, collapsible, summary, key, remember }, ...)
-    // collapsible: the head toggles the body in place; closed, `summary` shows as one line.
-    // The open or closed choice is remembered per `key` (default: the title) in this browser.
+
+    // ---------- sections: collapsible only when read-only (spec 2.5) ----------
+    // section("Overview", child, ...) or
+    // section({ title, actions: node, collapsible, collapsed, summary, key, remember, editable }, ...children)
+    // collapsible: the head toggles the body in place; closed, `summary` shows as one line. The choice
+    // is remembered per `key`, which names the KIND, not the thing ("why.node", "data.run.made-with").
+    // editable: true marks a body that edits values; it is always open (no accordion in anything editable).
     function section(head, ...kids) {
-        const o = typeof head === "string" ? { title: head } : head;
-        const s = h("section", { class: "k-section", "data-collapsed": o.collapsed ? "" : null });
-        const count = o.count != null ? h("span", { class: "k-count k-num" }, " " + o.count) : null;
+        const o = typeof head === "string" ? { title: head } : Object.assign({}, head);
+        if (o.editable && o.collapsible) { console.warn("section(" + o.title + "): an editable section is never collapsible"); o.collapsible = false; }
+        const s = h("section", { class: "k-section" + (o.editable ? " ab-editable" : ""), "data-collapsed": o.collapsed && !o.editable ? "" : null });
         if (!o.collapsible) {
-            s.append(h("div", { class: "k-section-head" }, o.title, count, h("span", { class: "k-grow" }), o.actions || null));
-            if (!o.collapsed) append(s, kids);
+            s.append(h("div", { class: "k-section-head" }, h("span", { role: "heading", "aria-level": "3", class: "ab-sec-h" }, o.title), h("span", { class: "k-grow" }), o.actions || null));
+            if (!o.collapsed || o.editable) append(s, kids);
             return s;
         }
         const key = "sec." + (o.key || o.title);
         const saved = o.remember === false ? null : mem.get(key);
         let open = saved == null ? !o.collapsed : saved === "1";
         const disc = h("span", { class: "ab-disc" });
-        const btn = h("span", { class: "ab-sec-btn", role: "button", tabindex: "0", "aria-label": o.countLabel ? o.title + ", " + o.countLabel : null }, disc, o.title, count);
+        const btn = h("span", { class: "ab-sec-btn", role: "button", tabindex: "0" }, disc, o.title);
         const hd = h("div", { class: "k-section-head ab-sec-toggle" }, h("span", { role: "heading", "aria-level": "3", class: "ab-sec-h" }, btn), h("span", { class: "k-grow" }), o.actions || null);
         const body = append(h("div", { class: "ab-sec-body" }), kids);
-        const sum = o.summary ? h("div", { class: "ab-sec-sum k-secondary", title: typeof o.summary === "string" ? o.summary : null }, o.summary) : null;
+        const sum = o.summary ? h("div", { class: "ab-sec-sum k-secondary" }, o.summary) : null;
+        if (sum && typeof o.summary === "string") tip(sum, o.summary, { label: false });
         const paint = () => {
             disc.replaceChildren(icon(open ? "chevron-down" : "chevron-right", "sm"));
             btn.setAttribute("aria-expanded", String(open));
@@ -150,23 +277,16 @@
             if (sum) sum.hidden = open;
         };
         const flip = () => { open = !open; mem.set(key, open ? "1" : "0"); paint(); };
-        hd.addEventListener("click", flip);
+        hd.addEventListener("click", (e) => { if (!e.target.closest(".k-icon-btn, a, .ab-design-note")) flip(); });
         btn.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), e.stopPropagation(), flip()));
         append(s, [hd, sum, body]);
         paint();
         return s;
     }
-    // The Notes section every inspector ends with: a count and "Open in Notes" (adding a note
-    // lives on N, the selection bar and context menus, never on a "+" here).
-    function notesSection(count, target) {
-        const t = target || ["notes-place", "about-selection"];
-        return section({ title: "Notes", count: count || null, collapsible: true, key: "notes", summary: count ? count + (count === 1 ? " note" : " notes") : "No notes yet" }, h("div", { class: "k-data" }, h("span", { class: "k-name" }, count ? count + (count === 1 ? " note" : " notes") : "No notes yet"), count ? h("span", { class: "k-value" }, link(t[0], t[1], "Open in Notes")) : null));
-    }
-    // The Paints line every painting row opens its Style tab with (spec 5.1 item 4): an icon, a
-    // plain sentence of what the row's selector covers, then the count link. paintsLine(...kids, { title })
-    function paintsLine(...kids) {
-        const o = kids.length && kids[kids.length - 1] && kids[kids.length - 1].constructor === Object ? kids.pop() : {};
-        return h("div", { class: "ab-paints", title: o.title || null }, icon("target", "sm"), h("span", { class: "k-grow" }, "Paints ", kids));
+    // A label column and a control: the one field row (88 px label in the inspector, 96 px in popovers)
+    function fieldRow(label, control, o) {
+        o = o || {};
+        return h("div", { class: "ab-frow" + (o.popover ? " ab-frow-pop" : "") }, h("span", { class: "ab-flabel" }, label), h("span", { class: "ab-fctl" }, control));
     }
     function data(name, value, o) {
         return h("div", Object.assign({ class: "k-data" }, act(o)), h("span", { class: "k-name" }, name), h("span", { class: "k-value" }, value));
@@ -178,6 +298,84 @@
     function field(value, o) {
         o = o || {};
         return h("span", Object.assign({ class: "k-field" + (o.span ? " k-span" : ""), role: o.go || o.onClick ? "button" : null }, act(o)), o.icon ? icon(o.icon, "sm") : null, h("span", { class: "k-grow k-ellipsis" }, value), o.caret ? h("span", { class: "k-caret" }, icon("chevron-down", "sm")) : null);
+    }
+
+    // ---------- one empty state (spec 2.5) ----------
+    // empty("No notes.", { verb: "Add note", key: "N", go | onClick }) -> "No notes. Add note (N)"
+    function empty(text, o) {
+        o = o || {};
+        const verb = o.verb ? h("span", Object.assign({ class: "ab-link", role: o.go ? "link" : "button" }, act(o)), o.verb) : null;
+        return h("div", { class: "ab-empty" }, text, verb ? [" ", verb, o.key ? " (" + o.key + ")" : null] : null);
+    }
+    const noMatch = (q) => empty('No match for "' + q + '"');
+
+    // ---------- one "+" (spec 2.5): only in a section or list header ----------
+    // plus({ label: "Add to Line", items: ["Width", { label, desc, needs }], onAdd(item), go })
+    // One item: "+" adds it. Two or more: a dark menu (a filter field past 15). None: nothing.
+    // `go` sends "+" to a route instead of the local menu (a picker section that draws its own).
+    function plus(o) {
+        o = o || {};
+        const items = (o.items || []).map((x) => (typeof x === "string" ? { label: x } : x));
+        if (!items.length && !o.go) return null;
+        const b = iconButton("plus", o.label || (items.length === 1 ? "Add " + items[0].label : "Add"), {
+            onClick: () => {
+                if (items.length === 1 && !o.go) return o.onAdd && o.onAdd(items[0]);
+                if (o.go) return go(o.go[0], o.go[1]);
+                openMenu(b, items.map((it) => Object.assign({}, it, { onClick: () => o.onAdd && o.onAdd(it) })), { search: items.length > 15 });
+            },
+        });
+        b.classList.add("ab-plus");
+        if (items.length > 1 || o.go) b.setAttribute("aria-haspopup", "menu");
+        return b;
+    }
+    // A new item opens into rename with its name selected: createThenRename(rowEl, { onSave })
+    function createThenRename(el, o) {
+        const nameEl = el.querySelector(".ab-tname, .k-name, [data-name]") || el;
+        renameInPlace(nameEl, Object.assign({ focusAfter: el }, o || {}));
+    }
+
+    // ---------- notes ----------
+    // The Notes section every inspector ends with (read-only, so collapsible): "2 notes -- Open in
+    // Notes", or "No notes. Add note (N)". Folders, attributes, sources and saved views have none.
+    const NO_NOTES = ["folder", "attribute", "source", "saved-view", "view"];
+    function notesSection(count, target, kind) {
+        if (NO_NOTES.includes(kind)) { console.warn("notesSection: a " + kind + " cannot be a note's subject"); return null; }
+        const t = target || ["notes-place", "about-selection"];
+        const n = count ? count + (count === 1 ? " note" : " notes") : null;
+        // The count names what it opens: one link, the notes about this thing (no second "Open in" link)
+        return section({ title: "Notes", collapsible: true, key: "notes." + (kind || "any"), summary: n || "No notes" },
+            n ? h("div", { class: "k-data" }, link(t[0], t[1], n, { class: "ab-link" }))
+                : empty("No notes.", { verb: "Add note", key: "N", go: ["notes-place", "writing"] }));
+    }
+    // The Paints line and the paint-order line that open every painting row's Style tab (spec 5.1).
+    // paintsLine("Paints 10 nodes", ["table-dock", "nodes"]) : the count is a link that selects.
+    // (Version 2's paintsLine("10 nodes: ", link, { title }) still draws, prefixed "Paints ".)
+    function paintsLine(...args) {
+        if (typeof args[0] === "string" && (args.length === 1 || Array.isArray(args[1])) && /^Paints\b/.test(args[0])) {
+            const t = args[0].replace(/^(Paints [\d,]+ nodes?) and /, "$1, ");
+            return h("div", { class: "ab-paints" }, args[1] ? link(args[1][0], args[1][1], t, { class: "ab-link ab-paints-link" }) : t);
+        }
+        const o = args.length && args[args.length - 1] && args[args.length - 1].constructor === Object ? args.pop() : {};
+        const el = h("div", { class: "ab-paints" }, h("span", null, "Paints ", args));
+        if (o.title) tip(el, o.title, { label: false });
+        return el;
+    }
+    // One line, one grammar: "Covered for Color by PageRank". The long form (how many, what scope) is its tooltip.
+    function paintOrderLine(text) {
+        if (!text) return null;
+        // The same rule for a line built with a link: ["Covered by ", link, " for Color on 10 of 10"]
+        if (Array.isArray(text) && text[0] === "Covered by " && typeof text[2] === "string") {
+            const m2 = text[2].match(/^ for ([A-Za-z ]+?)(?: on .*)?$/);
+            if (m2) {
+                const el = h("div", { class: "ab-paint-order k-secondary k-ellipsis" }, "Covered for " + m2[1] + " by ", text[1], text.slice(3));
+                return tip(el, "Covered by " + text[1].textContent + text[2] + text.slice(3).map((x) => (x && x.textContent) || x || "").join(""), { label: false });
+            }
+        }
+        const m = typeof text === "string" && text.match(/^Covered by (.+?) for ([A-Za-z ,]+?)(?: on [^.]*)?\.?(?:\s.*)?$/);
+        const short = m ? "Covered for " + m[2] + " by " + m[1] : text;
+        const el = h("div", { class: "ab-paint-order k-secondary k-ellipsis" }, short);
+        if (typeof text === "string") tip(el, text, { label: false });
+        return el;
     }
 
     // tabs(["Style", "Data"], "Style", onChange) -> tablist; switches in place
@@ -201,6 +399,26 @@
         });
         return list;
     }
+    // A segmented control: one Tab stop, arrows move and select. seg([["node", "Nodes"], ...], value, onChange, { label })
+    function seg(options, value, onChange, o) {
+        const g = h("span", { class: "k-seg", role: "radiogroup", "aria-label": (o && o.label) || null });
+        const btns = options.map(([v, label, extra]) => {
+            const b = h("span", { role: "radio", tabindex: v === value ? "0" : "-1", "aria-checked": String(v === value) }, label, extra || null);
+            b.addEventListener("click", () => onChange(v));
+            return b;
+        });
+        g.addEventListener("keydown", (e) => {
+            const i = btns.indexOf(document.activeElement);
+            const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+            if (i < 0 || !d) return;
+            e.preventDefault();
+            const n = btns[(i + d + btns.length) % btns.length];
+            n.focus();
+            n.click();
+        });
+        append(g, btns);
+        return g;
+    }
 
     // ---------- live announcements and rename in place ----------
     function announce(text) {
@@ -210,11 +428,11 @@
         setTimeout(() => (live.textContent = text), 30);
     }
     // Turn a name element into a text field, text selected. Enter or blur saves, Esc cancels,
-    // an empty name restores the old one. o: { onSave(name), onTab(dir) } ; returns nothing.
+    // an empty name restores the old one. o: { onSave(name), onTab(dir), focusAfter }
     function renameInPlace(nameEl, o) {
         o = o || {};
         const old = nameEl.textContent;
-        const input = h("input", { class: "ab-rename", type: "text", value: old, "aria-label": "Rename " + old, title: "Enter saves" + (o.onTab ? ", Tab renames the next row" : "") + ", Esc cancels", spellcheck: "false" });
+        const input = h("input", { class: "ab-rename", type: "text", value: old, "aria-label": "Rename " + old, spellcheck: "false" });
         let done = false;
         const finish = (save, dir) => {
             if (done) return;
@@ -247,43 +465,53 @@
         return null;
     }
 
-    // ---------- "needs graphty-element": the one mark for every element-gap control ----------
-    function needsElement(reason) {
-        return h("span", { class: "ab-needs ab-design-note", tabindex: "0", title: reason, "aria-label": "needs graphty-element: " + reason }, "needs graphty-element");
+    // ---------- design notes: one chip for "needs graphty-element" and "Open question" ----------
+    // Placed after the control it qualifies; its text is the tooltip. "Hide design notes" in the review
+    // bar hides every chip, every menu item marked `needs` and every control marked data-needs.
+    function designNote(word, text) {
+        const c = h("span", { class: "ab-design-note", tabindex: "0", role: "note", "aria-label": word + ": " + text }, word);
+        return tip(c, text, { label: false });
     }
+    const needsElement = (reason) => designNote("needs graphty-element", reason);
+    const openQuestion = (text) => designNote("Open question", text);
 
-    // The inspector: one frame for every kind of selected thing.
-    // inspector({ icon, title, kind, meta, provenance: [label, id, state], menu: [id, state],
-    //   stateBar: { text, actions: [{ label, go|onClick }] }, changed, builtin, renameDisabled,
+    // ---------- the inspector: one frame for every kind of selected thing (spec 5.1) ----------
+    // inspector({ icon, swatch, title, kind, kindKey, locked, provenance: [label, id, state], menu: [id, state],
+    //   stateBar: { text, why, actions: [{ label, go|onClick }] (at most two) }, changed, builtin, renameDisabled,
     //   onRename(name), tabs: { Style: fn|node, Data: fn|node }, tab, body })
-    // Header line 1: icon and name (double-click renames). Line 2: kind, provenance link, "...".
-    // The state bar sits under the header on every tab and is the only button a body may hold.
-    // Two or more tabs draw the tab strip; one tab or `body` draws a 32 px spacer instead, so a
-    // single body starts at the same height as tab bodies. Tab functions run each time shown.
+    // Line 1 mirrors the tree row: kind icon, swatch, name, lock. Line 2: kind word, provenance, "...".
+    // Tabs draw only with two or more; a single body starts right under the header (no spacer).
+    // The tab last chosen is remembered per kind.
     const lastTab = {};
     let inspSeq = 0;
     function inspector(o) {
-        const wrap = h("div", { class: "ab-insp", "data-changed": o.changed || o.stateBar ? "" : null });
-        const canRename = !(o.builtin || o.renameDisabled);
-        const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", role: canRename ? "button" : null, "aria-label": canRename ? "Rename " + o.title : null, "aria-keyshortcuts": canRename ? "F2" : null, title: canRename ? "Double-click or F2 to rename" : null }, o.title);
-        const startRename = () => {
-            const no = renameRefusal(o);
-            if (no) return AB.flash(no);
-            renameInPlace(name, { onSave: o.onRename, focusAfter: name });
-        };
+        if (o.meta) console.warn("inspector(" + o.title + "): meta is gone; open the Style tab with paintsLine()");
+        const wrap = h("div", { class: "ab-insp", "data-changed": o.changed ? "" : null });
+        const no = renameRefusal(o);
+        const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", role: no ? null : "button", "aria-label": no ? null : "Rename " + o.title, "aria-keyshortcuts": no ? null : "F2" }, o.title);
+        if (no) tip(name, no, { label: false });
+        const startRename = () => (no ? announce(no) : renameInPlace(name, { onSave: o.onRename, focusAfter: name }));
         name.addEventListener("dblclick", (e) => { e.stopPropagation(); startRename(); });
-        name.addEventListener("keydown", (e) => { if (e.key === "F2") { e.preventDefault(); startRename(); } });
-        wrap.append(h("div", { class: "ab-insp-head", role: "heading", "aria-level": "2" }, o.icon ? (typeof o.icon === "string" ? icon(o.icon) : o.icon) : null, name,
-            o.changed || o.stateBar ? h("span", { class: "ab-changed", role: "img", title: "Changed since it was last computed", "aria-label": "changed since it was last computed" }) : null));
-        const prov = o.provenance ? link(o.provenance[1], o.provenance[2], o.provenance[0], { class: "ab-link ab-prov k-ellipsis", title: o.provenance[0] }) : null;
+        name.addEventListener("keydown", (e) => { if (e.key === "F2" || (e.key === "Enter" && !no)) { e.preventDefault(); startRename(); } });
+        // The shared out-of-date mark (the tree's and the Data place's triangle); a dot means only "this side sets something"
+        const changed = o.changed ? tip(h("span", { class: "ab-changed", role: "img" }, icon("triangle-alert", "sm")), typeof o.changed === "string" ? o.changed : "Out of date: changed since it was last computed") : null;
+        wrap.append(h("div", { class: "ab-insp-head", role: "heading", "aria-level": "2" },
+            o.icon ? h("span", { class: "ab-kind" }, typeof o.icon === "string" ? icon(o.icon) : o.icon) : null,
+            o.swatch ? h("span", { class: "ab-sw-slot" }, typeof o.swatch === "string" ? chit(o.swatch) : o.swatch) : null,
+            name, o.locked ? tip(h("span", { class: "ab-lock", role: "img" }, icon("lock", "sm")), "Locked") : null, changed));
+        const prov = o.provenance ? link(o.provenance[1], o.provenance[2], o.provenance[0], { class: "ab-link ab-prov k-ellipsis" }) : null;
+        if (prov) tip(prov, o.kind ? o.kind + " " + o.provenance[0] : o.provenance[0], { label: false }); // a long source name is never lost to the ellipsis
         wrap.append(h("div", { class: "ab-insp-sub" }, o.kind ? h("span", { class: "k-secondary" }, o.kind) : null, prov, h("span", { class: "k-grow" }),
-            o.menu ? iconButton("ellipsis", "More actions (Shift+F10)", { go: o.menu }) : null));
-        if (o.stateBar) wrap.append(h("div", { class: "ab-statebar", role: "status" }, h("span", { class: "k-grow" }, o.stateBar.text),
-            (o.stateBar.actions || []).map((a, i) => button(a.label, Object.assign({ kind: i ? "ghost" : "secondary" }, a)))));
+            o.menu ? iconButton("ellipsis", "More actions", { key: "Shift+F10", go: o.menu }) : null));
+        if (o.stateBar) {
+            const txt = h("span", { class: "k-grow k-ellipsis" }, o.stateBar.text);
+            if (o.stateBar.why || typeof o.stateBar.text === "string") tip(txt, o.stateBar.why || o.stateBar.text, { label: false });
+            wrap.append(h("div", { class: "ab-statebar", role: "status" }, txt,
+                (o.stateBar.actions || []).slice(0, 2).map((a, i) => button(a.label, Object.assign({ kind: i ? "ghost" : "secondary" }, a)))));
+        }
         const body = h("div", { class: "k-scroll ab-insp-body" });
         const names = o.tabs ? Object.keys(o.tabs) : [];
-        // The header is two lines on every kind (spec 5.1), so a status line (o.meta) opens the body
-        const put = (c) => append(body, [o.meta ? h("div", { class: "ab-insp-meta k-secondary" }, o.meta) : null, typeof c === "function" ? c() : c]);
+        const put = (c) => append(body, [typeof c === "function" ? c() : c]);
         if (names.length >= 2) {
             const key = o.kindKey || o.kind || o.title;
             let cur = o.tab || lastTab[key] || names[0];
@@ -298,30 +526,65 @@
             wrap.append(h("div", { class: "ab-insp-tabs" }, strip));
             show(cur);
         } else {
-            wrap.append(h("div", { class: "ab-insp-tabs ab-insp-spacer", "aria-hidden": "true" }));
+            wrap.classList.add("ab-insp-single");
             put(names.length ? o.tabs[names[0]] : o.body);
         }
         wrap.append(body);
         return wrap;
     }
+    // Every Data tab uses these section names, in this order, any empty one left out (spec 5.1 item 5)
+    const dataVocab = ["Summary", "Members", "Values", "Sizes", "Memberships", "Painted by", "Made with", "Notes"];
+    // dataTab({ Summary: [nodes] | { summary, body }, "Made with": ..., Notes: { count, target } }, { kind })
+    // Sections are read-only, so collapsible, remembered per kind ("data.run.made-with").
+    function dataTab(parts, o) {
+        o = o || {};
+        const kind = o.kind || "any";
+        const names = Object.keys(parts).filter((k) => parts[k] != null && parts[k] !== false);
+        const rank = (n) => (dataVocab.includes(n) ? dataVocab.indexOf(n) : dataVocab.length - 1.5);
+        names.sort((a, b) => rank(a) - rank(b));
+        return names.map((n) => {
+            const v = parts[n];
+            if (n === "Notes") return notesSection(v.count || 0, v.target, kind);
+            const body = Array.isArray(v) || v instanceof Node ? v : v.body;
+            return section({ title: n, collapsible: true, key: "data." + kind + "." + n.toLowerCase().replace(/\s+/g, "-"), summary: v.summary || null }, body);
+        });
+    }
 
-    // ---------- the paint tree ----------
-    // tree(rows, opts) ; row = { id, kindIcon, swatch (node), name, count, notes, notesInside, eye: true|false|null,
-    //   locked, pinned, children:[...], open, selected, go:[id,state], menu:[id,state] (context menu route), dim,
-    //   builtin (keeps its name), renameDisabled: "reason" (needs graphty-element), onRename(name),
-    //   queued, partial, progress (each: text, or true; drawn in the progress slot) }
-    // Rename: double-click the name, or F2 on the focused row. Tab and Shift+Tab rename the next
-    // and previous row. A single click still navigates; a double-click on the eye, disclosure,
-    // swatch or count does what one click does.
+    // ---------- the paint tree (spec 3.3, 3.10) ----------
+    // tree(rows, { label, onEye, go }) ; row = { id, kindIcon, swatch, name, count, notes, notesInside, eye: true|false|null,
+    //   locked, pinned, builtin, renameDisabled: "reason", onRename(name), onDelete(), children, open, selected, dim,
+    //   go: [id, state], menu: [id, state], status: "running"|"queued"|"partial"|"stale"|"error"|"filtered", statusText,
+    //   progress: 0..1 (the running bar under the row) }
+    // Fixed trailing slots: count, note count, one slot shared by lock and eye. Status replaces the kind icon.
+    // Keyboard (one Tab stop): arrows, Home, End, Left/Right collapse and expand, Enter opens, Space the eye,
+    // F2 renames, Delete deletes (with Undo), Shift+F10 the row menu, Mod+] and Mod+[ move the row.
+    const STATUS = { running: ["loader-circle", "running"], queued: ["clock", "queued"], partial: ["triangle-alert", "partial"], stale: ["triangle-alert", "out of date"], error: ["circle-x", "failed"], filtered: ["triangle-alert", "computed before the current filter"] }; // the funnel is for data filters only
+    function statusOf(r) {
+        if (r.status) return r.status;
+        if (typeof r.progress === "number" || typeof r.progress === "string") return "running";
+        if (r.queued) return "queued";
+        if (r.partial) return "partial";
+        return null;
+    }
     function tree(rows, opts) {
         opts = opts || {};
+        opts.rootRows = opts.rootRows || rows;
         const ul = h("ul", { class: "ab-tree", role: "tree", "aria-label": opts.label || "Paint order" });
         const all = [];
+        opts.el = ul; // the tree on screen: an Undo after a redraw replaces that one, not this
+        const rebuild = (focusId) => {
+            const cur = opts.el && opts.el.isConnected ? opts.el : ul;
+            const fresh = tree(opts.rootRows, opts);
+            cur.replaceWith(fresh);
+            const f = focusId && fresh.querySelector(`[data-row="${CSS.escape(focusId)}"]`);
+            if (f) { fresh.querySelectorAll(".ab-trow").forEach((x) => (x.tabIndex = x === f ? 0 : -1)); f.focus(); }
+            return fresh;
+        };
+        const rowId = (r) => String(r.id || r.name);
         const startRename = (entry) => {
             const no = renameRefusal(entry.r);
-            if (no) return AB.flash(no);
-            const nameEl = entry.li.querySelector(".ab-tname");
-            renameInPlace(nameEl, {
+            if (no) return announce(no);
+            renameInPlace(entry.li.querySelector(".ab-tname"), {
                 focusAfter: entry.li,
                 onSave: (name) => { entry.r.name = name; entry.r.onRename && entry.r.onRename(name); },
                 onTab: (dir) => {
@@ -332,27 +595,34 @@
                 },
             });
         };
-        const build = (r, level, parentUl) => {
-            const li = h("li", { class: "ab-trow", role: "treeitem", "aria-level": String(level), "aria-selected": r.selected ? "true" : "false", "data-dim": r.dim ? "" : null, "data-pinned": r.pinned ? "" : null, style: `--lvl:${level - 1}`, tabindex: "0", "aria-keyshortcuts": r.eye == null ? "F2" : "Space Alt+Space F2" });
+        const build = (r, level, siblings, parent) => {
+            const st = statusOf(r);
+            const words = st ? STATUS[st][1] : null;
+            const li = h("li", { class: "ab-trow", role: "treeitem", "data-row": rowId(r), "aria-level": String(level), "aria-selected": r.selected ? "true" : "false", "aria-label": r.name + (words ? ", " + words : ""), "aria-expanded": r.children && r.children.length ? String(!!r.open) : null, "data-dim": r.dim ? "" : null, "data-pinned": r.pinned ? "" : null, "data-locked": r.locked ? "" : null, "data-eye-off": r.eye === false ? "" : null, style: `--lvl:${level - 1}`, tabindex: "-1" });
             const hasKids = r.children && r.children.length;
             const disc = h("span", { class: "ab-disc" }, hasKids ? icon(r.open ? "chevron-down" : "chevron-right", "sm") : null);
-            const eye = r.eye == null ? h("span", { class: "ab-eye-slot" }) : h("span", { class: "ab-eye", role: "button", tabindex: "-1", "aria-label": "Show " + r.name + " on the canvas", "aria-pressed": String(!!r.eye), title: "Show or hide this row's paint. Alt-click: solo" }, icon(r.eye ? "eye" : "eye-off"));
-            const progText = (v, word) => (v === true ? word : v);
-            const prog = r.progress != null || r.queued || r.partial
-                ? h("span", { class: "ab-tprog k-num" }, r.progress != null && typeof r.progress === "number" ? h("span", { class: "k-progress", role: "progressbar", "aria-valuenow": String(Math.round(r.progress * 100)), "aria-label": r.name + " progress" }, h("i", { style: `width:${Math.round(r.progress * 100)}%` })) : null,
-                    typeof r.progress === "string" ? r.progress : null, r.queued ? progText(r.queued, "Queued") : null, r.partial ? progText(r.partial, "Partial") : null)
-                : null;
+            const kind = st
+                ? tip(h("span", { class: "ab-kind ab-status", "data-status": st }, icon(STATUS[st][0])), r.statusText || (typeof r.progress === "string" ? r.progress : typeof r.queued === "string" ? r.queued : typeof r.partial === "string" ? r.partial : r.name + " is " + words), { label: false })
+                : h("span", { class: "ab-kind" }, r.kindIcon ? (typeof r.kindIcon === "string" ? icon(r.kindIcon) : r.kindIcon) : null);
             const nameEl = h("span", { class: "ab-tname k-ellipsis" }, r.name);
-            append(li, [disc, r.kindIcon ? h("span", { class: "ab-kind" }, typeof r.kindIcon === "string" ? icon(r.kindIcon) : r.kindIcon) : null, h("span", { class: "ab-sw-slot" }, r.swatch || null), nameEl, prog, r.count != null ? h("span", { class: "ab-tcount k-num" }, r.count) : null, r.notes ? h("span", { class: "ab-tnotes k-num", title: r.notes + " notes" }, icon("message-square", "sm"), r.notes) : null, r.notesInside && !r.open ? h("span", { class: "ab-tinside k-num", title: r.notesInside + " notes inside" }, r.notesInside + " inside") : null, r.locked ? icon("lock", "sm") : null, eye]);
+            const no = renameRefusal(r);
+            if (no) tip(nameEl, no, { label: false });
+            const noteN = r.notes || (!r.open && r.notesInside) || null;
+            const notes = h("span", { class: "ab-tnotes k-num" }, noteN ? [icon(ICON.note, "sm"), noteN] : null);
+            if (noteN) tip(notes, r.notes ? noteN + (noteN === 1 ? " note" : " notes") : noteN + " notes inside", { label: false });
+            const eye = r.eye == null ? null : h("span", { class: "ab-eye", role: "button", tabindex: "-1", "aria-pressed": String(!!r.eye) }, icon(r.eye ? "eye" : "eye-off"));
+            if (eye) tip(eye, (r.eye ? "Hide " : "Show ") + r.name, { second: "Alt-click or Alt+Space: show only this row" });
+            const le = h("span", { class: "ab-le" }, r.locked ? tip(h("span", { class: "ab-lock" }, icon("lock", "sm")), "Locked", { label: false }) : null, eye);
+            append(li, [disc, kind, h("span", { class: "ab-sw-slot" }, r.swatch || null), nameEl,
+                r.countTip && r.count != null ? tip(h("span", { class: "ab-tcount k-num", role: "img", "aria-label": r.count + " " + r.countTip.toLowerCase() }, r.count), r.count + " " + r.countTip.toLowerCase(), { label: false }) : h("span", { class: "ab-tcount k-num" }, r.count != null ? r.count : null), notes, le,
+                typeof r.progress === "number" ? h("span", { class: "ab-tbar", role: "progressbar", "aria-valuenow": String(Math.round(r.progress * 100)), "aria-label": r.name + " progress" }, h("i", { style: `width:${Math.round(r.progress * 100)}%` })) : null]);
             ul.append(li);
-            const entry = { li, r };
+            const entry = { li, r, siblings, parent };
             all.push(entry);
+            li._entry = entry;
             // One click selects in place and the shell keeps the left panel, so the real dblclick lands here
             nameEl.addEventListener("dblclick", (e) => { e.stopPropagation(); startRename(entry); });
-            li.addEventListener("keydown", (e) => {
-                if (e.key === "F2" && e.target === li) { e.preventDefault(); startRename(entry); }
-            });
-            if (r.eye != null)
+            if (eye)
                 eye.addEventListener("click", (e) => {
                     e.stopPropagation();
                     if (e.detail > 1) return; // the second click of a double-click: one toggle only
@@ -365,6 +635,9 @@
                     r.eye = !r.eye;
                     eye.replaceChildren(icon(r.eye ? "eye" : "eye-off"));
                     eye.setAttribute("aria-pressed", String(!!r.eye));
+                    li.toggleAttribute("data-eye-off", !r.eye);
+                    tip(eye, (r.eye ? "Hide " : "Show ") + r.name, { second: "Alt-click or Alt+Space: show only this row" });
+                    announce(r.name + (r.eye ? " shown" : " hidden"));
                     opts.onEye && opts.onEye(r);
                 });
             if (hasKids)
@@ -372,30 +645,82 @@
                     e.stopPropagation();
                     if (e.detail > 1) return;
                     r.open = !r.open;
-                    const fresh = tree(opts.rootRows || rows, opts);
-                    ul.replaceWith(fresh);
+                    rebuild(rowId(r));
                 });
             const target = r.go || opts.go;
             if (target) {
                 li.dataset.nav = href(target[0], target[1]);
                 li.addEventListener("click", (e) => {
                     if (e.detail > 1) return;
-                    all.forEach((x) => x.li.setAttribute("aria-selected", String(x.li === li)));
+                    all.forEach((x) => { x.li.setAttribute("aria-selected", String(x.li === li)); x.li.tabIndex = x.li === li ? 0 : -1; });
                     if (location.hash !== li.dataset.nav) { AB.keepLeft = true; go(target[0], target[1]); }
                 });
-                li.addEventListener("keydown", (e) => e.key === "Enter" && go(target[0], target[1]));
             }
             if (r.menu) li.addEventListener("contextmenu", (e) => { e.preventDefault(); go(r.menu[0], r.menu[1]); });
-            if (hasKids && r.open) r.children.forEach((c) => build(c, level + 1));
+            if (hasKids && r.open) r.children.forEach((c) => build(c, level + 1, r.children, r));
         };
-        opts.rootRows = opts.rootRows || rows;
-        rows.forEach((r) => build(r, 1));
+        rows.forEach((r) => build(r, 1, rows, null));
+        // Roving focus: the selected row (or the first) is the tree's one Tab stop
+        const sel = all.find((x) => x.r.selected) || all[0];
+        if (sel) sel.li.tabIndex = 0;
+        ul.addEventListener("keydown", (e) => {
+            const li = e.target.closest && e.target.closest(".ab-trow");
+            if (!li || e.target !== li) return;
+            const entry = li._entry, r = entry.r;
+            const items = [...ul.querySelectorAll(".ab-trow")];
+            const i = items.indexOf(li);
+            const mod = e.ctrlKey || e.metaKey;
+            const move = (n) => { if (!n) return; items.forEach((x) => (x.tabIndex = x === n ? 0 : -1)); n.focus(); };
+            const k = e.key;
+            if (k === "ArrowDown") move(items[i + 1]);
+            else if (k === "ArrowUp") move(items[i - 1]);
+            else if (k === "Home") move(items[0]);
+            else if (k === "End") move(items[items.length - 1]);
+            else if (k === "ArrowRight" && r.children && r.children.length) { if (!r.open) { r.open = true; rebuild(rowId(r)); } else move(items[i + 1]); }
+            else if (k === "ArrowLeft") { if (r.open && r.children && r.children.length) { r.open = false; rebuild(rowId(r)); } else if (entry.parent) move(ul.querySelector(`[data-row="${CSS.escape(rowId(entry.parent))}"]`)); }
+            else if (k === "Enter") { if (li.dataset.nav) li.click(); }
+            // Space flips the eye; Alt+Space is "Show only this row" (the row menu's command; Alt-click is its accelerator)
+            else if (k === " ") { const eye = li.querySelector(".ab-eye"); if (eye) { e.preventDefault(); eye.dispatchEvent(new MouseEvent("click", { altKey: e.altKey, bubbles: true, detail: 1 })); } }
+            else if (k === "F2") startRename(entry);
+            else if (k === "F10" && e.shiftKey || k === "ContextMenu") { if (r.menu) go(r.menu[0], r.menu[1]); }
+            else if (k === "Delete" || k === "Backspace") {
+                if (r.builtin || r.pinned) { announce(r.name + " is built in and cannot be deleted"); }
+                else {
+                    const at = entry.siblings.indexOf(r);
+                    entry.siblings.splice(at, 1);
+                    r.onDelete && r.onDelete();
+                    const near = entry.siblings[Math.min(at, entry.siblings.length - 1)] || entry.parent;
+                    rebuild(near ? rowId(near) : null);
+                    deleted(r.name, () => { entry.siblings.splice(at, 0, r); rebuild(rowId(r)); });
+                }
+            }
+            else if (mod && (k === "]" || k === "[")) {
+                const sib = entry.siblings, at = sib.indexOf(r), to = at + (k === "]" ? -1 : 1);
+                if (r.pinned || to < 0 || to >= sib.length || sib[to].pinned) return announce(r.name + " cannot move further");
+                sib.splice(at, 1);
+                sib.splice(to, 0, r);
+                rebuild(rowId(r));
+                announce("Moved " + r.name + (k === "]" ? " up" : " down"));
+            }
+            else return;
+            e.preventDefault();
+            e.stopPropagation();
+        });
         return ul;
+    }
+    // One line under the tree; pass candidates most specific first and the first one wins:
+    // treeFooter([["1 hidden row still paints.", linkNode], ["Analyze (Shift+A) to add results here", null]])
+    function treeFooter(text, lnk) {
+        const c = Array.isArray(text) ? text.find((x) => x && x[0]) : [text, lnk];
+        if (!c) return null;
+        return h("div", { class: "ab-tree-foot k-secondary" }, c[0], c[1] ? [" ", c[1]] : null);
     }
 
     // ---------- overlays ----------
     // Position `el` (already in the overlay layer) next to `anchor` (element or selector).
-    // place: "below-start" | "below-end" | "above" | "above-start" | "right-start" | "center"
+    // place: "below-start" | "below-end" | "above" | "above-start" | "right-start" | "center"  (menus, modals)
+    //        "auto" (popovers): above the toolbar for an anchor in the toolbar or selection bar; left of the
+    //        inspector, level with the anchor, for an anchor in the inspector; below-start elsewhere.
     function position(el, anchor, place) {
         const layer = document.getElementById("ab-overlay");
         const run = () => {
@@ -403,16 +728,26 @@
             const E = el.getBoundingClientRect();
             const a = typeof anchor === "string" ? document.querySelector(anchor) : anchor;
             let x, y;
-            if (!a || place === "center") {
+            let p = place || "below-start";
+            if (p === "auto") p = !a ? "center" : a.closest("#ab-toolbar") ? "above-toolbar" : a.closest("#ab-right") ? "left-of-inspector" : "below-start";
+            if (!a || p === "center") {
                 x = (L.width - E.width) / 2;
                 y = Math.max(16, (L.height - E.height) / 3);
             } else {
                 const A = a.getBoundingClientRect();
                 const ax = A.left - L.left, ay = A.top - L.top;
-                if (place === "below-end") { x = ax + A.width - E.width; y = ay + A.height + 4; }
-                else if (place === "above") { x = ax + A.width / 2 - E.width / 2; y = ay - E.height - 8; }
-                else if (place === "above-start") { x = ax; y = ay - E.height - 8; }
-                else if (place === "right-start") { x = ax + A.width + 4; y = ay; }
+                if (p === "above-toolbar") {
+                    const T = document.getElementById("ab-toolbar").getBoundingClientRect();
+                    x = ax + A.width / 2 - E.width / 2;
+                    y = T.top - L.top - E.height - 8;
+                } else if (p === "left-of-inspector") {
+                    const R = document.getElementById("ab-right").getBoundingClientRect();
+                    x = R.left - L.left - E.width - 8;
+                    y = ay - 8;
+                } else if (p === "below-end") { x = ax + A.width - E.width; y = ay + A.height + 4; }
+                else if (p === "above") { x = ax + A.width / 2 - E.width / 2; y = ay - E.height - 8; }
+                else if (p === "above-start") { x = ax; y = ay - E.height - 8; }
+                else if (p === "right-start") { x = ax + A.width + 4; y = ay; }
                 else { x = ax; y = ay + A.height + 4; }
             }
             x = Math.max(8, Math.min(x, L.width - E.width - 8));
@@ -425,341 +760,726 @@
         requestAnimationFrame(run);
         return el;
     }
-    // popover({ anchor, place, title, body, width, foot }) -> element; append it to the overlay el you were given
+    // The one light popover for editing a value: popover({ anchor, title, body, foot, width, place })
+    // A title and an X; each change applies live; Esc or a click outside closes it; focus starts on the
+    // first field and returns to the anchor on close (the shell keeps the panels). `foot` only when the
+    // popover creates something. Placement is "auto" unless `place` names a fixed one.
     function popover(o) {
         const p = h("div", { class: "k-popover ab-pop", role: "dialog", "aria-label": o.title || "", style: o.width ? `width:${o.width}px` : null });
-        if (o.title) p.append(h("div", { class: "k-popover-head" }, h("span", { class: "k-grow" }, o.title), iconButton("x", "Close", { onClick: () => AB.close() })));
-        p.append(append(h("div", { class: "k-popover-body" }), [o.body]));
+        if (o.title) p.append(h("div", { class: "k-popover-head" }, h("span", { class: "k-grow k-ellipsis" }, o.title), iconButton("x", "Close", { key: "Esc", onClick: () => AB.close() })));
+        const body = append(h("div", { class: "k-popover-body" }), [o.body]);
+        p.append(body);
         if (o.foot) p.append(append(h("div", { class: "ab-pop-foot" }), [o.foot]));
-        return position(p, o.anchor, o.place);
+        if (!p.querySelector("[data-autofocus]")) {
+            const f = body.querySelector("input, select, textarea, [tabindex='0']");
+            if (f) f.setAttribute("data-autofocus", "");
+        }
+        return position(p, o.anchor, o.place || "auto");
     }
-    // menu({ anchor, place, items }) ; item = { label, shortcut, go:[id,state], onClick, sub:true, check, disabled, desc }
-    //   | { sep: true } | { heading: "..." }
+    // menu({ anchor, place, label, items, back: [id, state], onClose })
+    // item = { label, shortcut, go:[id,state], onClick, sub: true, check, disabled: true | "reason", desc, needs: "reason",
+    //   toggle: [label when on, label when off], on } | { sep: true } | { heading: "..." }
+    // One line per item; `desc` becomes the item's tooltip; a second line only says why an item is disabled.
+    // Keyboard: Up, Down, Home, End, typeahead; Right or Enter opens a submenu, Left closes it (goes `back`);
+    // Esc closes one level (`back`, else the shell's close). Hovering a submenu item opens it after 200 ms.
     function menu(o) {
-        const m = h("div", { class: "k-menu ab-menu", role: "menu" });
+        const m = h("div", { class: "k-menu ab-menu", role: "menu", "aria-label": o.label || null });
         (o.items || []).forEach((it) => {
             if (it.sep) return m.append(h("div", { class: "k-menu-sep", role: "separator" }));
             if (it.heading) return m.append(h("div", { class: "k-menu-label" }, it.heading));
-            const target = it.go || it.onClick ? it : { onClick: () => AB.flash(it.label + " (not wired in the skeleton)") };
-            m.append(h("div", Object.assign({ class: "k-menu-item", role: "menuitem", "aria-disabled": it.disabled ? "true" : null, "data-described": it.desc ? "" : null, "aria-keyshortcuts": it.shortcut || null }, it.disabled ? {} : act(target)), h("span", { class: "k-check-col" }, it.check ? icon("check", "sm") : null), it.desc ? h("span", null, it.label, h("span", { class: "k-menu-desc" }, it.desc)) : h("span", null, it.label), it.shortcut ? h("span", { class: "k-shortcut", "aria-hidden": "true" }, it.shortcut) : null, it.sub ? h("span", { class: "k-sub" }, icon("chevron-right", "sm")) : null));
+            const label = it.toggle ? (it.on ? it.toggle[0] : it.toggle[1]) : it.label;
+            const dis = !!(it.disabled || it.needs);
+            const reason = it.needs ? null : typeof it.disabled === "string" ? it.disabled : it.disabled && it.desc ? it.desc : null;
+            const target = it.go || it.onClick ? it : { onClick: () => AB.flash(label + " (not wired in the skeleton)") };
+            const el = h("div", Object.assign({ class: "k-menu-item", role: it.check != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.check != null ? String(!!it.check) : null, "aria-disabled": dis ? "true" : null, "data-described": reason ? "" : null, "data-needs": it.needs ? "" : null, "aria-haspopup": it.sub ? "menu" : null, "aria-keyshortcuts": it.shortcut || null }, dis ? {} : act(target)),
+                h("span", { class: "k-check-col" }, it.check ? icon("check", "sm") : null),
+                reason ? h("span", null, label, h("span", { class: "k-menu-desc", "aria-hidden": "true" }, reason)) : h("span", null, label),
+                it.needs ? needsElement(it.needs) : null,
+                it.shortcut ? h("span", { class: "k-shortcut", "aria-hidden": "true" }, it.shortcut) : null,
+                it.sub ? h("span", { class: "k-sub" }, icon("chevron-right", "sm")) : null);
+            el.tabIndex = -1;
+            if (reason) el.setAttribute("aria-description", reason);
+            if (reason && typeof label === "string") el.setAttribute("aria-label", label);
+            if (it.desc && !reason) tip(el, it.desc, { label: false });
+            if (it.sub && !dis) {
+                let t = 0;
+                el.addEventListener("pointerenter", () => { t = setTimeout(() => el.click(), 200); });
+                el.addEventListener("pointerleave", () => clearTimeout(t));
+            }
+            m.append(el);
+        });
+        m.addEventListener("keydown", (e) => {
+            const items = [...m.querySelectorAll(".k-menu-item")];
+            const cur = e.target.closest(".k-menu-item");
+            const i = items.indexOf(cur);
+            const to = (n) => { if (n) { n.focus(); } };
+            const k = e.key;
+            if (k === "ArrowDown") to(items[(i + 1) % items.length]);
+            else if (k === "ArrowUp") to(items[(i - 1 + items.length) % items.length]);
+            else if (k === "Home") to(items[0]);
+            else if (k === "End") to(items[items.length - 1]);
+            else if (k === "ArrowRight" && cur && cur.getAttribute("aria-haspopup") === "menu") cur.click();
+            else if (k === " " && cur) cur.click();
+            else if (k === "Tab") { if (o.onClose) o.onClose(); else if (o.back) go(o.back[0], o.back[1]); else AB.close(); }
+            else if ((k === "ArrowLeft" || k === "Escape") && (o.back || o.onClose)) { if (o.onClose) o.onClose(); else go(o.back[0], o.back[1]); }
+            else if (k.length === 1 && /\S/.test(k) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                const rest = items.slice(i + 1).concat(items.slice(0, i + 1));
+                to(rest.find((x) => x.textContent.trim().toLowerCase().startsWith(k.toLowerCase())));
+                if (e.target.tagName === "INPUT") return;
+            } else return;
+            e.preventDefault();
+            e.stopPropagation();
         });
         return position(m, o.anchor, o.place);
     }
+    // A local dark menu that is not a route (the "+" menu): openMenu(anchor, items, { search })
+    let localMenu = null;
+    function closeMenu(refocus) {
+        if (!localMenu) return;
+        const { el, anchor, off } = localMenu;
+        localMenu = null;
+        el.remove();
+        const layer = document.getElementById("ab-overlay");
+        if (layer && !layer.childElementCount) layer.hidden = true;
+        document.removeEventListener("pointerdown", off, true);
+        if (refocus && anchor.isConnected) anchor.focus();
+    }
+    function openMenu(anchor, items, o) {
+        o = o || {};
+        closeMenu();
+        const layer = document.getElementById("ab-overlay");
+        const wrapItems = (list) => list.map((it) => (it.sep || it.heading ? it : Object.assign({}, it, { onClick: () => { closeMenu(true); it.onClick && it.onClick(); } })));
+        const m = menu({ anchor, place: "below-end", items: wrapItems(items), onClose: () => closeMenu(true), label: anchor.getAttribute("aria-label") });
+        if (o.search) {
+            const inp = h("input", { class: "ab-menu-find", type: "search", placeholder: "Find", "aria-label": "Find" });
+            inp.addEventListener("input", () => {
+                const q = inp.value.trim().toLowerCase();
+                m.querySelectorAll(".k-menu-item").forEach((x) => (x.hidden = q && !x.textContent.toLowerCase().includes(q)));
+                const none = m.querySelector(".ab-menu-none");
+                const any = [...m.querySelectorAll(".k-menu-item")].some((x) => !x.hidden);
+                if (!any && !none) m.append(h("div", { class: "ab-menu-none" }, noMatch(inp.value.trim())));
+                else if (any && none) none.remove();
+            });
+            inp.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); const f = [...m.querySelectorAll(".k-menu-item")].find((x) => !x.hidden); if (f) f.focus(); } });
+            m.prepend(inp);
+        }
+        const off = (e) => { if (!m.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) closeMenu(); };
+        localMenu = { el: m, anchor, off };
+        layer.hidden = false; // the shell hides the layer while no overlay section shows
+        layer.append(m);
+        document.addEventListener("pointerdown", off, true);
+        requestAnimationFrame(() => requestAnimationFrame(() => { const f = m.querySelector("input, .k-menu-item"); if (f) f.focus(); }));
+        return m;
+    }
+    window.addEventListener("hashchange", () => closeMenu());
+    // One focus rule for overlays: Tab stays inside a modal (it wraps); Tab off either end of a light
+    // popover closes it, and focus goes back to the control that opened it.
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "Tab") return;
+        const layer = document.getElementById("ab-overlay");
+        if (!layer || layer.querySelector(".ab-menu")) return; // a dark menu has its own Tab rule
+        const modalBox = [...layer.querySelectorAll('[aria-modal="true"]')].pop();
+        const pop = modalBox ? null : [...layer.querySelectorAll(".k-popover")].find((p) => p.contains(document.activeElement));
+        const box = modalBox || pop;
+        if (!box) return;
+        const stops = [...box.querySelectorAll('input:not([disabled]):not([type="hidden"]), textarea, select, [tabindex="0"], a[href]')].filter((x) => x.getClientRects().length && !x.closest("[hidden]"));
+        if (!stops.length) return;
+        const i = stops.indexOf(document.activeElement);
+        const atEnd = e.shiftKey ? i <= 0 : i === stops.length - 1 || i < 0;
+        if (!atEnd) return;
+        e.preventDefault();
+        if (modalBox) (e.shiftKey ? stops[stops.length - 1] : stops[0]).focus();
+        else AB.close();
+    }, true);
     // modal({ title, body, foot, wide }) -> backdrop element (append to overlay el)
     function modal(o) {
         const tid = "ab-modal-title-" + ++inspSeq;
         const box = h("div", { class: "k-modal" + (o.wide ? " k-modal-wide" : ""), role: "dialog", "aria-modal": "true", "aria-labelledby": tid, on: { click: (e) => e.stopPropagation() } });
-        box.append(h("div", { class: "k-modal-head" }, h("h2", { id: tid, class: "k-grow ab-modal-title" }, o.title), iconButton("x", "Close", { onClick: () => AB.close() })));
+        box.append(h("div", { class: "k-modal-head" }, h("h2", { id: tid, class: "k-grow ab-modal-title" }, o.title), iconButton("x", "Close", { key: "Esc", onClick: () => AB.close() })));
         box.append(append(h("div", { class: "k-modal-body" }), [o.body]));
         if (o.foot) box.append(append(h("div", { class: "k-modal-foot" }), [o.foot]));
         return h("div", { class: "ab-modal-wrap" }, box);
     }
-    // A dark notice above the toolbar; action = { label, go|onClick }
+    // The one confirmation left (Forget all keys): "[Verb] [thing]?", one sentence on what is lost, Cancel and the verb
+    function confirm(o) {
+        return modal({
+            title: o.verb + " " + o.thing + "?",
+            body: h("p", { class: "ab-confirm" }, o.loss),
+            foot: [button("Cancel", { kind: "secondary", onClick: () => AB.close() }), button(o.verb, { kind: "danger", onClick: () => (o.onConfirm ? o.onConfirm() : AB.close()) })],
+        });
+    }
+
+    // ---------- one notice (spec 2.5) ----------
+    // notice(text, { label, go | onClick }) shows in the shell's one slot, centered 8 px above the lowest
+    // bar, for 6 s (paused while hovered), with at most one action. It returns an empty placeholder, so a
+    // section that appends the result somewhere still gets the notice in the one slot.
+    let noticeTimer = 0;
+    function placeNotice() {
+        const slot = document.getElementById("ab-notice");
+        if (!slot || !slot.firstChild) return;
+        const tb = document.getElementById("ab-toolbar");
+        const T = tb && !tb.hidden && tb.offsetParent !== null && tb.childElementCount ? tb.getBoundingClientRect() : null;
+        const N = slot.getBoundingClientRect();
+        const app = document.getElementById("ab-app").getBoundingClientRect();
+        slot.style.left = Math.max(8, (T ? T.left + T.width / 2 : app.left + app.width / 2) - N.width / 2) + "px";
+        slot.style.top = (T ? T.top - N.height - 8 : app.bottom - N.height - 24) + "px";
+    }
     function notice(text, action) {
-        return h("div", { class: "k-toast" }, text, action ? h("span", Object.assign({ class: "k-toast-action", role: "button" }, act(action)), action.label) : null);
+        const slot = document.getElementById("ab-notice");
+        const n = h("div", { class: "k-toast ab-notice", role: "status" }, text);
+        if (action) {
+            const run = action.onClick;
+            n.append(h("span", Object.assign({ class: "k-toast-action", role: "button" }, act(action.go ? { go: action.go } : { onClick: (e) => { hide(); run && run(e); } })), action.label));
+        }
+        const hide = () => { clearTimeout(noticeTimer); n.remove(); };
+        const arm = () => { clearTimeout(noticeTimer); noticeTimer = setTimeout(hide, 6000); };
+        n.addEventListener("pointerenter", () => clearTimeout(noticeTimer));
+        n.addEventListener("pointerleave", arm);
+        if (!slot) return n;
+        slot.replaceChildren(n);
+        requestAnimationFrame(placeNotice);
+        arm();
+        const ph = document.createComment("notice: " + text);
+        ph.remove = function () { hide(); if (this.parentNode) this.parentNode.removeChild(this); };
+        return ph;
+    }
+    // A control the skeleton does not model: the same notice, no action
+    const flash = (text) => notice(text);
+    // After any delete: "Deleted Louvain. Undo"
+    function deleted(what, onUndo) {
+        return notice("Deleted " + what, { label: "Undo", onClick: () => { onUndo && onUndo(); announce("Restored " + what); } });
     }
     // The table dock's collapse toggle; put it at the end of your dock's tab strip.
     function dockToggle() {
         const open = !document.querySelector(".ab-main[data-dock='closed']");
-        return iconButton(open ? "chevron-down" : "chevron-up", open ? "Collapse the table (Shift+T)" : "Open the table (Shift+T)", { onClick: () => AB.toggleDock() });
+        return iconButton(open ? "chevron-down" : "chevron-up", open ? "Collapse the table" : "Open the table", { key: "Shift+T", onClick: () => AB.toggleDock() });
     }
     // The canvas drawing, both themes: drawing("lesmis-groups-rest", "alt text")
     function drawing(name, alt) {
         return [h("img", { class: "k-light-only", src: `kit/canvas/${name}-light.svg`, alt }), h("img", { class: "k-dark-only", src: `kit/canvas/${name}-dark.svg`, alt })];
     }
 
+    // ---------- the toolbar (spec 2.3): five 32 px icon buttons, no text ----------
+    // toolbarButton(icon, name, { key, popup: "dialog" | "menu", pressed, open, disabled: "reason", go, onClick, tool })
+    // Blue fill = pressed (a toggle that is on); gray fill = open (its flyout or popover shows). `open`
+    // defaults to "the overlay on screen is this button's go target". While a state card shows,
+    // AB.toolbarDisabled ("Nothing is drawn") disables every button except Quick actions.
+    function toolbarButton(ic, name, o) {
+        o = o || {};
+        const dis = o.disabled || (AB.toolbarDisabled && name !== "Quick actions" ? AB.toolbarDisabled : null);
+        const ov = AB.route && AB.route.frame && AB.route.frame.overlay;
+        const open = o.open != null ? o.open : !!(o.go && ov && ov.split("/")[0] === o.go[0]);
+        const b = h("span", Object.assign({ class: "k-tool", role: "button", "data-tool": o.tool || name, "aria-disabled": dis ? "true" : null, "aria-haspopup": o.popup || null, "aria-expanded": o.popup ? String(!!open) : null, "aria-pressed": o.pressed == null ? null : String(!!o.pressed), "data-open": open ? "" : null }, dis ? {} : act(o)), icon(ic));
+        b.tabIndex = -1;
+        tip(b, name, { key: o.key, second: typeof dis === "string" ? dis : o.second });
+        b.addEventListener("keydown", (e) => {
+            if (dis) return;
+            if (e.key === " " || (e.key === "ArrowDown" && e.altKey)) { e.preventDefault(); b.click(); }
+        });
+        return b;
+    }
+    // toolbarBar([button, "sep", button, ...], label) -> the bar: one Tab stop, arrow keys between buttons
+    function toolbarBar(items, label) {
+        const bar = h("div", { class: "k-toolbar", role: "toolbar", "aria-label": label || "Tools" }, items.map((x) => (x === "sep" ? h("span", { class: "k-toolbar-sep" }) : x)));
+        rove(bar);
+        return bar;
+    }
+    function rove(bar) {
+        const btns = [...bar.querySelectorAll(".k-tool, .k-tool-caret")];
+        if (!btns.some((b) => b.tabIndex === 0)) btns.forEach((b, i) => (b.tabIndex = i ? -1 : 0));
+    }
+    document.addEventListener("keydown", (e) => {
+        const bar = e.target.closest && e.target.closest("[role='toolbar']");
+        if (!bar || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key) || e.altKey) return;
+        const btns = [...bar.querySelectorAll(".k-tool, .k-tool-caret")].filter((b) => b.offsetParent !== null);
+        const i = btns.indexOf(e.target.closest(".k-tool, .k-tool-caret"));
+        if (i < 0) return;
+        const n = btns[{ ArrowLeft: (i - 1 + btns.length) % btns.length, ArrowRight: (i + 1) % btns.length, Home: 0, End: btns.length - 1 }[e.key]];
+        e.preventDefault();
+        btns.forEach((b) => (b.tabIndex = b === n ? 0 : -1));
+        n.focus();
+    });
+    // Legend and layout state (spec 9): the legend is on by default and remembered per project; the
+    // toolbar's Legend button and L are its only doors. The layout is running, paused or settled.
+    const projectKey = () => (AB.route && AB.route.frame && AB.route.frame.dataset) || "lesmis";
+    function legendOn() { return mem.get("legend." + projectKey()) !== "0"; }
+    function setLegend(on) {
+        mem.set("legend." + projectKey(), on ? "1" : "0");
+        announce(on ? "Legend shown" : "Legend hidden");
+        if (AB.render) AB.render();
+    }
+    AB.layoutState = "settled";
+    function layoutButton() {
+        const running = AB.layoutState === "running";
+        return toolbarButton(running ? "pause" : "play", running ? "Pause layout" : "Resume layout", { tool: "Layout", onClick: () => setLayout(running ? "paused" : "running") });
+    }
+    function setLayout(state) {
+        AB.layoutState = state;
+        document.querySelectorAll("[data-tool='Layout']").forEach((old) => {
+            const had = document.activeElement === old;
+            const b = layoutButton();
+            b.tabIndex = old.tabIndex;
+            old.replaceWith(b);
+            if (had) b.focus();
+        });
+        announce(state === "paused" ? "Layout paused" : state === "running" ? "Layout running" : "Layout settled");
+    }
+    const legendButton = () => toolbarButton(ICON.legend, "Legend", { key: "L", pressed: legendOn(), onClick: () => setLegend(!legendOn()) });
+    // The standard bar: Analyze | Layout, View, Legend | Quick actions
+    function mainToolbar() {
+        const mode = (AB.route && AB.route.frame.mode) || "3d";
+        return toolbarBar([
+            toolbarButton("flask-conical", "Analyze", { key: "Shift+A", popup: "dialog", go: ["analyze-popover", "open"] }),
+            "sep",
+            layoutButton(),
+            toolbarButton(mode === "2d" ? ICON.mode2d : ICON.mode3d, "View", { popup: "menu", go: ["view-flyout", mode] }),
+            legendButton(),
+            "sep",
+            toolbarButton(ICON.quickActions, "Quick actions", { key: "Ctrl+K", popup: "dialog", go: ["commands-and-search", "quick-actions"] }),
+        ]);
+    }
+    // The legend card, top left of the canvas: legendCard([{ title: "Color: group", go, rows: [{ swatch, label, count, go }],
+    //   more: "28 more communities", sub }]). Returns null while the legend is off.
+    function legendCard(parts) {
+        if (!legendOn()) return null;
+        // A pressed Legend button always draws a card: with nothing bound, it says so in one line
+        if (!parts.length) parts = [{ title: "Nothing is colored or sized by a row" }];
+        // Read-only: the canvas carries no controls, and the tree row is the one door to a row's inspector
+        const card = h("div", { class: "k-legend-card ab-legend", role: "img", "aria-label": "Legend: " + parts.map((p) => p.title).join("; ") });
+        parts.forEach((p) => {
+            card.append(h("div", { class: "k-lg-title" }, p.title));
+            (p.rows || []).forEach((r) => {
+                const el = h("div", { class: "k-lg-row" }, typeof r.swatch === "string" ? chit(r.swatch) : r.swatch || null, h("span", { class: "k-ellipsis" }, r.label), r.count != null ? h("span", { class: "k-value" }, String(r.count)) : null);
+                card.append(el);
+            });
+            if (p.more) card.append(h("div", { class: "k-lg-sub" }, p.more));
+            if (p.sub) card.append(h("div", { class: "k-lg-sub" }, p.sub));
+        });
+        return card;
+    }
+
     // ---------- the style properties ----------
     // STAND-IN for graphty-element's channelsFor('node' | 'edge') descriptor list
     // (graphty-element/src/session/styles/channels.ts, CHANNEL_DESCRIPTORS). The real app reads it
     // from the element and never types it. Ids, value kinds, ranges and choice lists follow the
-    // element; `name` drops the "Node" and "Edge" prefix of its plainName because the Nodes | Edges
-    // switch already says it. `section` is NOT in the element's descriptors (needs graphty-element:
-    // a `section` and `order` per descriptor); until then it is this app-side list.
+    // element. `section` and `fold` are NOT in the element's descriptors (needs graphty-element: a
+    // section and order per descriptor); until then they are this app-side list. A folded channel has
+    // no line of its own: it is edited in the popover of the line it folds into (opacity in Color,
+    // pattern count in Pattern, an arrow's size, color and caption in Head or Tail).
     const NODE_SHAPES = ["box", "sphere", "cylinder", "cone", "capsule", "torus", "torus-knot", "tetrahedron", "octahedron", "dodecahedron", "icosahedron", "rhombicuboctahedron", "triangular_prism", "pentagonal_prism", "hexagonal_prism", "square_pyramid", "pentagonal_pyramid", "triangular_dipyramid", "pentagonal_dipyramid", "elongated_square_dipyramid", "elongated_pentagonal_dipyramid", "elongated_pentagonal_cupola", "goldberg", "icosphere", "geodesic"];
     const ARROWS = ["normal", "inverted", "dot", "sphere-dot", "open-dot", "none", "tee", "open-normal", "diamond", "open-diamond", "crow", "box", "half-open", "vee"];
     const LINES = ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
     const ch = (id, name, kind, section, extra) => Object.assign({ id, name, kind, section }, extra || {});
     const CHANNELS = {
         node: [
-            ch("node.color", "Color", "color", "Fill"),
-            ch("node.opacity", "Opacity", "number", "Fill", { range: [0, 1] }),
-            ch("node.shape", "Shape", "choice", "Shape", { choices: NODE_SHAPES }),
-            ch("node.size", "Size", "number", "Shape", { range: [0, null] }),
-            ch("node.outline", "Outline", "color", "Effects", { caveat: "An outline is a color with no width: every outline on screen is one width." }),
-            ch("node.glow", "Glow", "color", "Effects"),
-            ch("node.glowStrength", "Glow strength", "number", "Effects", { range: [0, null] }),
-            ch("node.wireframe", "Wireframe", "boolean", "Effects"),
-            ch("node.flat", "Flat shading", "boolean", "Effects"),
-            ch("node.label", "Text", "text", "Label"),
-            ch("node.labelStyle", "Label style", "labelStyle", "Label"),
-            ch("node.tooltip", "Text", "text", "Tooltip", { caveat: "Drawn on hover only." }),
-            ch("node.tooltipStyle", "Tooltip style", "labelStyle", "Tooltip", { caveat: "Drawn on hover only." }),
+            ch("node.color", "Color", "color", "Fill", { opacity: "node.opacity", picker: "color", def: "#808080" }),
+            ch("node.opacity", "Opacity", "number", "Fill", { range: [0, 1], fold: "node.color" }),
+            ch("node.shape", "Shape", "choice", "Shape", { choices: NODE_SHAPES, picker: "shape", def: "sphere" }),
+            ch("node.size", "Size", "number", "Shape", { range: [0, null], def: 1 }),
+            ch("node.outline", "Outline", "color", "Effects", { picker: "color", def: "#1A1A1A", caveat: "An outline is a color with no width: every outline on screen is one width." }),
+            ch("node.glow", "Glow", "color", "Effects", { picker: "color", def: "#FFD700" }),
+            ch("node.glowStrength", "Glow strength", "number", "Effects", { range: [0, null], fold: "node.glow" }),
+            ch("node.wireframe", "Wireframe", "boolean", "Effects", { def: true }),
+            ch("node.flat", "Flat shading", "boolean", "Effects", { def: true }),
+            ch("node.label", "Text", "text", "Label", { style: "node.labelStyle", def: "" }),
+            ch("node.labelStyle", "Label style", "labelStyle", "Label", { fold: "node.label" }),
+            ch("node.labelShow", "Show", "boolean", "Label", { def: false, onlyWithout: "node.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
+            ch("node.tooltip", "Text", "text", "Tooltip", { style: "node.tooltipStyle", def: "", caveat: "Drawn on hover only." }),
+            ch("node.tooltipStyle", "Tooltip style", "labelStyle", "Tooltip", { fold: "node.tooltip" }),
             ch("node.marker", "Marker", "nothing", null, { drawn: false, caveat: "graphty-element draws no marker yet." }),
         ],
         edge: [
-            ch("edge.color", "Color", "color", "Line"),
-            ch("edge.width", "Width", "number", "Line", { range: [0, null] }),
-            ch("edge.opacity", "Opacity", "number", "Line", { range: [0, 1] }),
-            ch("edge.style", "Pattern", "choice", "Line", { choices: LINES }),
-            ch("edge.patternCount", "Pattern count", "number", "Line", { range: [2, null], caveat: "Counts the marks of a patterned line; solid, zigzag and sinewave ignore it." }),
-            ch("edge.curvature", "Curve", "boolean", "Line", { caveat: "A switch, not an amount." }),
-            ch("edge.animationSpeed", "Flow speed", "number", "Line", { range: [0, null] }),
-            ch("edge.arrowHead", "Type", "choice", "Arrow head", { choices: ARROWS }),
-            ch("edge.arrowHeadSize", "Size", "number", "Arrow head", { range: [0, null] }),
-            ch("edge.arrowHeadColor", "Color", "color", "Arrow head"),
-            ch("edge.arrowHeadOpacity", "Opacity", "number", "Arrow head", { range: [0, 1] }),
-            ch("edge.arrowHeadText", "Caption", "text", "Arrow head"),
-            ch("edge.arrowHeadTextStyle", "Caption style", "labelStyle", "Arrow head"),
-            ch("edge.arrowTail", "Type", "choice", "Arrow tail", { choices: ARROWS }),
-            ch("edge.arrowTailSize", "Size", "number", "Arrow tail", { range: [0, null] }),
-            ch("edge.arrowTailColor", "Color", "color", "Arrow tail"),
-            ch("edge.arrowTailOpacity", "Opacity", "number", "Arrow tail", { range: [0, 1] }),
-            ch("edge.arrowTailText", "Caption", "text", "Arrow tail"),
-            ch("edge.arrowTailTextStyle", "Caption style", "labelStyle", "Arrow tail"),
-            ch("edge.label", "Text", "text", "Label"),
-            ch("edge.labelStyle", "Label style", "labelStyle", "Label"),
+            ch("edge.color", "Color", "color", "Line", { opacity: "edge.opacity", picker: "color", def: "#808080" }),
+            ch("edge.width", "Width", "number", "Line", { range: [0, null], def: 1 }),
+            ch("edge.opacity", "Opacity", "number", "Line", { range: [0, 1], fold: "edge.color" }),
+            ch("edge.style", "Pattern", "choice", "Line", { choices: LINES, picker: "pattern", def: "solid" }),
+            ch("edge.patternCount", "Pattern count", "number", "Line", { range: [2, null], fold: "edge.style", caveat: "Counts the marks of a patterned line; solid, zigzag and sinewave ignore it." }),
+            ch("edge.curvature", "Curve", "boolean", "Line", { def: true, caveat: "A switch, not an amount." }),
+            ch("edge.animationSpeed", "Flow speed", "number", "Line", { range: [0, null], def: 1 }),
+            ch("edge.arrowHead", "Head", "choice", "Arrows", { choices: ARROWS, picker: "arrow", def: "normal" }),
+            ch("edge.arrowHeadSize", "Head size", "number", "Arrows", { range: [0, null], fold: "edge.arrowHead" }),
+            ch("edge.arrowHeadColor", "Head color", "color", "Arrows", { fold: "edge.arrowHead" }),
+            ch("edge.arrowHeadOpacity", "Head opacity", "number", "Arrows", { range: [0, 1], fold: "edge.arrowHead" }),
+            ch("edge.arrowHeadText", "Head caption", "text", "Arrows", { fold: "edge.arrowHead" }),
+            ch("edge.arrowHeadTextStyle", "Head caption style", "labelStyle", "Arrows", { fold: "edge.arrowHead" }),
+            ch("edge.arrowTail", "Tail", "choice", "Arrows", { choices: ARROWS, picker: "arrow", def: "normal" }),
+            ch("edge.arrowTailSize", "Tail size", "number", "Arrows", { range: [0, null], fold: "edge.arrowTail" }),
+            ch("edge.arrowTailColor", "Tail color", "color", "Arrows", { fold: "edge.arrowTail" }),
+            ch("edge.arrowTailOpacity", "Tail opacity", "number", "Arrows", { range: [0, 1], fold: "edge.arrowTail" }),
+            ch("edge.arrowTailText", "Tail caption", "text", "Arrows", { fold: "edge.arrowTail" }),
+            ch("edge.arrowTailTextStyle", "Tail caption style", "labelStyle", "Arrows", { fold: "edge.arrowTail" }),
+            ch("edge.label", "Text", "text", "Label", { style: "edge.labelStyle", def: "" }),
+            ch("edge.labelStyle", "Label style", "labelStyle", "Label", { fold: "edge.label" }),
+            ch("edge.labelShow", "Show", "boolean", "Label", { def: false, onlyWithout: "edge.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
         ],
     };
-    const SECTIONS = { node: ["Fill", "Shape", "Effects", "Label", "Tooltip", "More"], edge: ["Line", "Arrow head", "Arrow tail", "Label", "More"] };
+    const SECTIONS = { node: ["Fill", "Shape", "Effects", "Label", "Tooltip", "More"], edge: ["Line", "Arrows", "Label", "More"] };
     const chanOf = (id) => CHANNELS.node.concat(CHANNELS.edge).find((c) => c.id === id);
     const secOf = (c) => (c.section && SECTIONS[c.id.split(".")[0]].includes(c.section) ? c.section : "More");
+    const lineChannels = (kind) => CHANNELS[kind].filter((c) => !c.fold && c.drawn !== false);
+    // Plain names for the element's choice values. STAND-IN: the element's descriptors carry `values`
+    // (its ids, "icosphere", "open-normal") but no plain name per value (needs graphty-element: a
+    // plainName per enum value, as each channel already has). A reader never sees an element id.
+    const PLAIN = {
+        shape: { icosphere: "Faceted sphere", goldberg: "Goldberg sphere", geodesic: "Geodesic sphere", "torus-knot": "Knot", box: "Cube" },
+        arrow: { normal: "Arrow", inverted: "Reversed arrow", dot: "Dot", "sphere-dot": "Ball", "open-dot": "Ring", none: "None", tee: "Bar", "open-normal": "Open arrow", diamond: "Diamond", "open-diamond": "Open diamond", crow: "Crow's foot", box: "Square", "half-open": "Half arrow", vee: "Chevron" },
+        pattern: { solid: "Solid", dot: "Dotted", star: "Stars", box: "Squares", dash: "Dashed", diamond: "Diamonds", "dash-dot": "Dash and dot", sinewave: "Wave", zigzag: "Zigzag" },
+        weight: { 300: "Light", normal: "Regular", 500: "Medium", bold: "Bold", 700: "Bold" },
+    };
+    function plain(family, v) {
+        if (v == null || v === "") return "";
+        const t = PLAIN[family] && PLAIN[family][v];
+        if (t) return t;
+        const w = String(v).replace(/[_-]/g, " ");
+        return w.charAt(0).toUpperCase() + w.slice(1);
+    }
     function fmtValue(c, v) {
         if (v === true) return "On";
         if (v === false) return "Off";
-        if (c.kind === "labelStyle") return typeof v === "string" ? v : "Custom";
-        return String(v).replace(/_/g, " ");
+        if (v == null || v === "") return "";
+        return c.picker ? plain(c.picker, v) : String(v).replace(/_/g, " ");
     }
+    // The one color field, in the Style tab and in every popover: swatch, six-digit hex, opacity percent
+    // in one borderless field; a click opens the Color popover (which holds the hex and percent editors).
+    // colorField({ name, hex, pct (0..100, or null for no opacity), eff: "#hex" (unset: shown gray), go })
+    function colorField(o) {
+        const hex = o.hex || o.eff || "";
+        const sw = chit(hex || "transparent");
+        if (!o.hex) sw.style.opacity = ".5";
+        const hx = String(hex).replace(/^#/, "").toUpperCase();
+        const name = (o.name || "Color") + ", " + (o.hex ? "#" + hx : hx ? "not set, #" + hx + " from below" : "not set") + (o.pct != null ? ", " + o.pct + "% opacity" : "");
+        const f = h("span", Object.assign({ class: "k-field ab-sv ab-color-field", role: "button", "aria-haspopup": "dialog", "aria-label": name, "data-error": o.error ? "" : null }, act({ go: o.go || ["style-pickers", "color"] })),
+            sw, h("span", { class: "k-grow k-ellipsis k-num" + (o.hex ? "" : " k-secondary") }, hx),
+            o.pct != null ? h("span", { class: "k-secondary k-num" }, o.pct + "%") : null);
+        return f;
+    }
+    // Drag a number's name to scrub it: scrub(nameEl, input, { range, onSet(v) })
+    function scrub(nameEl, inp, o) {
+        o = o || {};
+        nameEl.classList.add("ab-scrub");
+        nameEl.addEventListener("pointerdown", (e) => {
+            const x0 = e.clientX, v0 = Number(inp.value) || Number(inp.placeholder) || 0;
+            const step = o.range && o.range[1] === 1 ? 0.01 : 0.1;
+            nameEl.setPointerCapture(e.pointerId);
+            const mv = (ev) => {
+                let v = v0 + Math.round((ev.clientX - x0) / 2) * step;
+                if (o.range) { if (o.range[0] != null) v = Math.max(o.range[0], v); if (o.range[1] != null) v = Math.min(o.range[1], v); }
+                inp.value = String(Math.round(v * 100) / 100);
+                if (o.onSet) o.onSet(+inp.value);
+            };
+            const up = () => { nameEl.removeEventListener("pointermove", mv); nameEl.removeEventListener("pointerup", up); };
+            nameEl.addEventListener("pointermove", mv);
+            nameEl.addEventListener("pointerup", up);
+        });
+        return nameEl;
+    }
+    const pct = (v) => Math.round((v == null ? 1 : Number(v)) * 100) + "%";
 
-    // The one Style tab, used by every row that paints.
-    // styleTab({ kinds: ["node","edge"], set: {channelId: value}, bound: {channelId: "bound to"},
-    //   inherited: {channelId: [value, fromRowName]}, openSection, collapseAll, error: {channelId: message},
-    //   kind: the side shown first, noBind: true (Selection: no bind, no "-"), extra: node after the head,
-    //   blocks: {channelId: () => node} -- a binding block drawn under that bound line })
-    // Every row gets the Nodes | Edges switch with counts, so any row can style either (the owner's
-    // "styling is left to the user"). Only what the row sets is shown; an empty section is a header
-    // with "+". Lines: name, value, bind, "-". A collapsed section's summary is "name value" pairs.
+    // The one Style tab, for every row that paints, Everything included (spec 16).
+    // styleTab({ kinds: ["node","edge"], kind, set: {channelId: value}, base: {channelId: value}, changed: [channelId],
+    //   bound: {channelId: "field" | { field, palette, ramp: [from, to], range }}, mixed: {channelId: [a, b]},
+    //   error: {channelId: message}, selected: channelId, noBind: true (Selection: no bind, "-" or "+"),
+    //   paints: "Paints 10 nodes" | [text, go], order: "Covered by PageRank for Color on 10 of 10",
+    //   extra: node, blocks: {channelId: () => node} })
+    // No counts. Sections are always open. A section with nothing set is its header and "+". A line is the
+    // name and the value; bind and "-" show on hover, on focus within and on the selected line. `base` is
+    // graphty-element's defaults (Everything): drawn as lines with no "-" until changed.
     let lastStyleKind = "node";
     function styleTab(o) {
         o = o || {};
-        const kinds = ["node", "edge"];
+        ["inherited", "openSection", "collapseAll", "all"].forEach((k) => { if (o[k]) console.warn("styleTab: '" + k + "' is gone in version 3"); });
+        const kinds = o.kinds || ["node", "edge"];
         const set = Object.assign({}, o.set || {});
-        // o.all: the base row (Everything) shows every property with its effective value. Values not
-        // given fall back to "None" or Off; the real app reads each descriptor's default (section 19).
-        if (o.all) CHANNELS.node.concat(CHANNELS.edge).forEach((c) => { if (!(c.id in set) && c.drawn !== false) set[c.id] = c.id in o.all ? o.all[c.id] : c.kind === "boolean" ? false : "None"; });
-        const bound = o.bound || {};
-        const inherited = o.inherited || {};
+        const base = o.base || {};
+        const changed = new Set(o.changed || []);
+        const bound = Object.assign({}, o.bound || {});
+        const mixed = o.mixed || {};
         const errors = o.error || {};
-        let kind = o.kind || (o.kinds && o.kinds.length === 1 ? o.kinds[0] : lastStyleKind);
-        let filter = null;
+        let selected = o.selected || null;
+        let kind = o.kind || (kinds.length === 1 ? kinds[0] : kinds.includes(lastStyleKind) ? lastStyleKind : kinds[0]);
         const wrap = h("div", { class: "ab-style" });
-        const counts = (k) => CHANNELS[k].filter((c) => c.id in set || c.id in bound).length;
-        const valueCtl = (c, v) => {
-            if (c.id in bound) return h("span", Object.assign({ class: "k-field ab-sv ab-bound", role: "button", title: "Bound to " + bound[c.id] }, act({ go: ["style-pickers", "bind"] })), h("span", { class: "k-ellipsis" }, bound[c.id]));
-            if (c.kind === "boolean") {
-                const sw = h("span", { class: "k-switch", role: "switch", tabindex: "0", "aria-checked": String(!!v), "aria-label": c.name });
-                const flip = (e) => { e.stopPropagation(); set[c.id] = !set[c.id]; sw.setAttribute("aria-checked", String(!!set[c.id])); };
-                sw.addEventListener("click", flip);
-                sw.addEventListener("keydown", (e) => (e.key === " " || e.key === "Enter") && (e.preventDefault(), flip(e)));
-                return h("span", { class: "ab-sv" }, sw);
+        const has = (id) => id in set || id in bound || id in base || id in mixed;
+        const valueOf = (id) => (id in set ? set[id] : base[id]);
+        const sets = (k) => CHANNELS[k].some((c) => c.id in set || c.id in base || c.id in bound || changed.has(c.id) || c.id in mixed);
+        let focusId = null;
+        const add = (c) => {
+            set[c.id] = c.id in base ? base[c.id] : c.def != null ? c.def : "";
+            selected = focusId = c.id;
+            drawBody();
+        };
+        const remove = (c) => {
+            const was = { v: set[c.id], b: bound[c.id], ch: changed.has(c.id) };
+            if (c.id in base) { set[c.id] = base[c.id]; changed.delete(c.id); } else delete set[c.id];
+            delete bound[c.id];
+            drawBody();
+            notice("Removed " + c.name, { label: "Undo", onClick: () => { if (was.v !== undefined) set[c.id] = was.v; if (was.b) bound[c.id] = was.b; if (was.ch) changed.add(c.id); drawBody(); } });
+        };
+        const pickerGo = (c) => ["style-pickers", c.picker || (c.kind === "choice" ? "choice" : "token-edit")];
+        const valueCtl = (c) => {
+            if (c.id in bound) {
+                const b = typeof bound[c.id] === "string" ? { field: bound[c.id] } : bound[c.id];
+                const text = b.palette || b.range || b.field;
+                // A bound value is a chip, never typed text: the ramp for a color, else the field's type glyph and name
+                const glyph = c.kind === "color" ? ramp(b.ramp && b.ramp[0], b.ramp && b.ramp[1]) : typeGlyph(b.type || (c.kind === "number" ? "num" : "cat"));
+                const v = h("span", Object.assign({ class: "k-field ab-sv ab-bound", role: "button", "aria-haspopup": "dialog", "aria-label": c.name + ": " + text + (text === b.field ? "" : ", from " + b.field) }, act({ go: ["style-pickers", c.style ? "label-style" : b.go || "binding"] })), glyph, h("span", { class: "k-grow k-ellipsis" }, text));
+                return tip(v, "From " + b.field, { label: false });
             }
-            const target = c.kind === "color" ? "color" : c.kind === "choice" ? "choice" : c.kind === "labelStyle" ? "label-style" : "token-edit";
-            return h("span", Object.assign({ class: "k-field ab-sv", role: "button", "data-error": errors[c.id] ? "" : null }, act({ go: ["style-pickers", target] })),
-                c.kind === "color" ? chit(v) : c.kind === "labelStyle" ? h("span", { class: "ab-aa" }, "Aa") : null,
-                h("span", { class: "k-grow k-ellipsis" }, fmtValue(c, v)), c.kind === "choice" ? h("span", { class: "k-caret" }, icon("chevron-down", "sm")) : null);
+            if (c.id in mixed) {
+                const [a, b2] = mixed[c.id];
+                const v = h("span", Object.assign({ class: "k-field ab-sv", role: "button" }, act({ go: pickerGo(c) })), c.kind === "color" ? [chit(a), chit(b2)] : null, h("span", { class: "k-grow" }, "Mixed"));
+                return tip(v, "A change applies to both rows", { label: false });
+            }
+            const v = valueOf(c.id);
+            if (c.kind === "boolean") {
+                const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!v), "aria-label": c.name });
+                const flip = (e) => { e.stopPropagation(); set[c.id] = !valueOf(c.id); if (c.id in base) changed.add(c.id); box.setAttribute("aria-checked", String(!!set[c.id])); };
+                box.addEventListener("click", flip);
+                box.addEventListener("keydown", (e) => e.key === " " && (e.preventDefault(), flip(e)));
+                return h("span", { class: "ab-sv" }, box);
+            }
+            // A label's text: clicking the value opens the one Label popover (its text source on top, its style below)
+            if (c.style) {
+                const lbl = h("span", Object.assign({ class: "k-field ab-sv", role: "button", "aria-haspopup": "dialog", "aria-label": c.name + ": " + (v ? v : "none") }, act({ go: ["style-pickers", "label-style"] })),
+                    h("span", { class: "k-grow k-ellipsis" + (v ? "" : " k-secondary") }, v ? String(v) : "None"));
+                return lbl;
+            }
+            if (c.kind === "number" || c.kind === "text") {
+                const inp = h("input", { class: "ab-sin" + (c.kind === "number" ? " k-num" : ""), type: "text", inputmode: c.kind === "number" ? "decimal" : null, value: v == null ? "" : String(v), "aria-label": c.name, spellcheck: "false" });
+                const commit = () => { const t = inp.value.trim(); set[c.id] = c.kind === "number" && t !== "" && !isNaN(+t) ? +t : t; if (c.id in base) changed.add(c.id); };
+                inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { commit(); inp.blur(); } else if (e.key === "Escape") { inp.value = v == null ? "" : String(v); inp.blur(); } });
+                inp.addEventListener("change", commit);
+                return h("span", { class: "ab-sv" }, inp);
+            }
+            if (c.kind === "color") return colorField({ name: c.name, hex: v, pct: c.opacity ? parseInt(pct(valueOf(c.opacity)), 10) : null, error: errors[c.id], go: pickerGo(c) });
+            return h("span", Object.assign({ class: "k-field ab-sv", role: "button", "aria-haspopup": "dialog", "aria-label": c.name + ": " + fmtValue(c, v), "data-error": errors[c.id] ? "" : null }, act({ go: pickerGo(c) })),
+                h("span", { class: "k-grow k-ellipsis" }, fmtValue(c, v)));
         };
         const line = (c) => {
-            const isSet = c.id in set || c.id in bound;
-            const inh = !isSet && inherited[c.id];
-            const li = h("div", { class: "ab-sline", "data-inherited": inh ? "" : null, "data-unset": !isSet && !inh ? "" : null, title: c.caveat || null });
-            if (!isSet && !inh) {
-                // a search hit on a property the row does not set: offer to add it
-                append(li, [h("span", { class: "ab-sname" }, c.name, h("span", { class: "k-tertiary" }, " (" + secOf(c) + ")")), h("span", { class: "k-grow" }), iconButton("plus", "Add " + c.name, { go: ["style-pickers", "plus-menu"] })]);
-                return li;
-            }
-            if (inh) {
-                append(li, [h("span", { class: "ab-sname" }, c.name), h("span", { class: "ab-sv ab-inh k-secondary", title: fmtValue(c, inh[0]) + ", from " + inh[1] }, icon("link", "sm"), h("span", { class: "k-ellipsis" }, fmtValue(c, inh[0]))), iconButton("plus", "Set " + c.name + " on this row", { go: ["style-pickers", "token-edit"] })]);
-                return li;
-            }
-            if (o.noBind) { append(li, [h("span", { class: "ab-sname" }, c.name), valueCtl(c, set[c.id])]); return li; }
-            append(li, [h("span", { class: "ab-sname" }, c.name), valueCtl(c, set[c.id]),
-                iconButton("database", c.id in bound ? "Change what " + c.name + " is bound to" : "Bind " + c.name + " to an attribute or result", { go: ["style-pickers", "bind"], pressed: c.id in bound }),
-                iconButton("minus", "Remove " + c.name + " (inherit from below)", { onClick: () => { delete set[c.id]; draw(); } })]);
+            const isBase = c.id in base;
+            const canRemove = !o.noBind && (!isBase || changed.has(c.id) || c.id in bound);
+            const nameEl = h("span", { class: "ab-sname" }, c.name);
+            if (isBase && !changed.has(c.id)) tip(nameEl, "The default look; change it to override", { label: false });
+            else if (c.caveat) tip(nameEl, c.caveat, { label: false });
+            const numInp = () => nameEl.parentNode && nameEl.parentNode.querySelector("input");
+            const li = h("div", { class: "ab-sline", "data-ch": c.id, "data-bound": c.id in bound ? "" : null, "data-selected": selected === c.id ? "" : null, "data-base": isBase && !changed.has(c.id) ? "" : null },
+                nameEl, valueCtl(c),
+                // bind and "-" float over the value's end (the 240 px panel has no room for two more columns)
+                o.noBind ? null : h("span", { class: "ab-sact" },
+                    bindButton(c),
+                    canRemove ? iconButton("minus", "Remove " + c.name, { onClick: () => remove(c) }) : null));
+            li.addEventListener("focusin", () => { if (selected !== c.id) { wrap.querySelectorAll(".ab-sline[data-selected]").forEach((x) => x.removeAttribute("data-selected")); selected = c.id; li.setAttribute("data-selected", ""); } });
+            const ni = numInp();
+            if (c.kind === "number" && !(c.id in bound) && ni) scrub(nameEl, ni, { range: c.range, onSet: (v) => { set[c.id] = v; } });
             const out = [li];
             if (o.blocks && o.blocks[c.id] && c.id in bound) out.push(o.blocks[c.id]());
             if (errors[c.id]) out.push(h("div", { class: "ab-serr k-danger", role: "alert" }, errors[c.id]));
             return out;
         };
-        const draw = () => {
-            wrap.replaceChildren();
-            const head = h("div", { class: "ab-style-head" });
-            {
-                const seg = h("span", { class: "k-seg", role: "radiogroup", "aria-label": "What the row paints" });
-                kinds.forEach((k) => {
-                    const b = h("span", { role: "radio", tabindex: "0", "aria-checked": String(k === kind) }, (k === "node" ? "Nodes " : "Edges ") , h("span", { class: "k-num k-secondary" }, String(counts(k))));
-                    const pick = () => { kind = lastStyleKind = k; draw(); };
-                    b.addEventListener("click", pick);
-                    b.addEventListener("keydown", (e) => e.key === "Enter" && pick());
-                    seg.append(b);
-                });
-                head.append(seg);
-            }
-            head.append(h("span", { class: "k-grow" }), iconButton("search", "Find a style property", { pressed: filter != null, onClick: () => { filter = filter == null ? "" : null; draw(); } }));
-            wrap.append(head);
-            if (o.all) wrap.append(h("div", { class: "ab-cap" }, needsElement("The values shown are stand-ins: graphty-element's style descriptors carry no default yet, and Everything cannot be edited until it can write the element's base style (section 19).")));
-            if (o.extra) wrap.append(o.extra);
-            if (filter != null) {
-                const inp = h("input", { class: "ab-style-filter", type: "search", placeholder: "Find a property", "aria-label": "Find a style property", value: filter });
-                inp.addEventListener("input", () => { filter = inp.value; drawBody(); });
-                inp.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); filter = null; draw(); } });
-                wrap.append(h("div", { class: "ab-pad" }, inp));
-                setTimeout(() => inp.focus(), 0);
-            }
-            const body = h("div", { class: "ab-style-body" });
-            wrap.append(body);
-            const drawBody = () => {
-                body.replaceChildren();
-                const q = (filter || "").trim().toLowerCase();
-                SECTIONS[kind].forEach((sn) => {
-                    const chans = CHANNELS[kind].filter((c) => secOf(c) === sn && c.drawn !== false);
-                    const shown = q ? chans.filter((c) => (c.name + " " + sn).toLowerCase().includes(q)) : chans.filter((c) => c.id in set || c.id in bound || inherited[c.id]);
-                    if (q && !shown.length) return;
-                    const setHere = chans.filter((c) => c.id in set || c.id in bound);
-                    // Everything shows every property already, so "+" has nothing to add there
-                    const plus = o.all ? null : iconButton("plus", "Add to " + sn, { go: ["style-pickers", "plus-menu"] });
-                    // More holds only what no section places: hidden while the element reports nothing unplaced
-                    if (!shown.length && (o.all || sn === "More")) return;
-                    if (!shown.length) return body.append(section({ title: sn, actions: plus, collapsed: true }));
-                    const open = q ? true : o.openSection ? o.openSection === sn : !o.collapseAll;
-                    // Summary: name and value; on Everything only values that are not None or Off
-                    const isDefault = (c) => o.all && !(c.id in bound) && (set[c.id] === false || set[c.id] === "None" || set[c.id] === 0 || set[c.id] === "0" || set[c.id] === "Default");
-                    const counted = setHere.filter((c) => !isDefault(c));
-                    const pairs = counted.map((c) => c.name + " " + (c.id in bound ? bound[c.id] : fmtValue(c, set[c.id])));
-                    const summary = pairs.join(" . ") || (o.all ? "Defaults" : "inherited");
-                    const nSet = counted.length;
-                    body.append(section({ title: sn, count: nSet || null, countLabel: nSet ? nSet + (nSet === 1 ? " property" : " properties") : null, actions: plus, collapsible: !q, collapsed: !open, summary, key: "style." + kind + "." + sn, remember: !o.openSection && !o.collapseAll }, shown.map(line)));
-                });
-                // Everything carries its one mark at the top
-                if (!o.all) body.append(h("div", { class: "ab-cap" }, needsElement("Every property comes from graphty-element's list; a section shows only what this row sets. The descriptors have no section yet, so this grouping is the app's until graphty-element publishes one.")));
-            };
-            drawBody();
+        // bind opens a popover (the Label popover for a label, else Binding); it is never a pressed toggle
+        const bindButton = (c) => {
+            const b = iconButton("database", "Use a field or result for " + c.name, { go: ["style-pickers", c.style ? "label-style" : "binding"] });
+            b.setAttribute("aria-haspopup", "dialog");
+            b.setAttribute("aria-expanded", "false");
+            return b;
         };
-        draw();
+        const body = h("div", { class: "ab-style-body" });
+        const head = h("div", { class: "ab-style-head" });
+        const drawHead = () => {
+            head.replaceChildren();
+            if (kinds.length > 1) {
+                const dot = (k) => (sets(k) ? tip(h("span", { class: "ab-sdot" }), "This row sets " + (k === "node" ? "node" : "edge") + " properties", { label: false }) : null);
+                head.append(seg(kinds.map((k) => [k, k === "node" ? "Nodes" : "Edges", dot(k)]), kind, (k) => { kind = lastStyleKind = k; drawHead(); drawBody(); head.querySelector("[aria-checked='true']").focus(); }, { label: "What the row paints" }));
+            }
+        };
+        const drawBody = () => {
+            body.replaceChildren();
+            const chans = lineChannels(kind);
+            SECTIONS[kind].forEach((sn) => {
+                const inSec = chans.filter((c) => secOf(c) === sn);
+                const shown = inSec.filter((c) => has(c.id));
+                const unset = o.noBind ? [] : inSec.filter((c) => !has(c.id) && !(c.onlyWithout && has(c.onlyWithout)));
+                if (sn === "More" && !shown.length) return; // More holds only what no section places
+                if (o.noBind && !shown.length) return;
+                const actions = plus({ label: "Add to " + sn, items: unset.map((c) => ({ label: c.name, ch: c })), onAdd: (it) => add(it.ch) });
+                body.append(section({ title: sn, editable: true, actions }, shown.map(line)));
+            });
+            // One design note for the whole tab, outside every control (hidden in the user-test build)
+            // It names what it qualifies, so it never reads as a note on the last section above it
+            if (!o.noBind) body.append(h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary" }, "Sections and their order:", needsElement("The sections and their order are the app's list until graphty-element's style descriptors carry a section and an order.")));
+            if (focusId) {
+                const l = body.querySelector(`.ab-sline[data-ch="${focusId}"]`);
+                focusId = null;
+                const f = l && l.querySelector("input, .ab-sv[role=button], .k-check");
+                if (f) requestAnimationFrame(() => f.focus());
+            }
+            drawHead();
+        };
+        if (o.paints) wrap.append(Array.isArray(o.paints) ? paintsLine(o.paints[0], o.paints[1]) : typeof o.paints === "string" ? paintsLine(o.paints) : o.paints);
+        if (o.order) wrap.append(paintOrderLine(o.order));
+        wrap.append(head);
+        wrap.append(body);
+        // A design note goes under the sections, never above them
+        if (o.extra) wrap.append(o.extra);
+        drawBody();
         return wrap;
     }
 
-    // "Why this look": one 24 px line per layer that wins at least one property.
-    // lines: [{ name, swatch: node|color, go: [id,state], wins: ["color", ...], values: {prop: "resolved"},
-    //   locked, coverage: "14 of 20" }] ; a line with no wins is covered.
-    // opts: { coverage: true, coverageReason }
+    // "Why this look" (spec 5.4): a collapsible, read-only section (remembered per kind) listing every
+    // layer that wins at least one property on this element, top first, on one grid: swatch, name link,
+    // tokens right-aligned, and for several elements a coverage column.
+    // whyThisLook(lines, { kind: "node" | "edge" | "several", element: "Valjean", coverage, coverageReason, tokenGo(prop, line) })
+    // line = { name, swatch: node|color, go: [id,state], wins: ["Color", ...], values: {prop: "resolved"}, locked,
+    //   hiddenRow, overrides, coverage: "14 of 20" }. Lines with no wins are not listed (Memberships lists those).
     function whyThisLook(lines, opts) {
         opts = opts || {};
-        // One component on every kind: a heading, the winning rows, the covered line, then any mark
-        const outer = h("div", { class: "ab-why" }, h("div", { class: "k-section-head ab-why-head", role: "heading", "aria-level": "3" }, "Why this look"));
-        const wrap = h("div", { role: "list", "aria-label": "Why this look: the rows that paint it, top first" });
-        outer.append(wrap);
+        const cap = (p) => p.charAt(0).toUpperCase() + p.slice(1);
         const winners = lines.filter((l) => l.wins && l.wins.length);
-        const covered = lines.filter((l) => !l.wins || !l.wins.length);
-        const mark = opts.coverage && (h("div", { class: "ab-cap" }, needsElement("Counts say how many of the selected elements each row wins. " + (opts.coverageReason || "explain() takes one node or edge; an explain over a set, returning coverage, is filed."))));
-        const lineOf = (l, dim) => {
-            const sw = typeof l.swatch === "string" ? chit(l.swatch) : l.swatch || h("span", { class: "ab-sw-empty" });
-            const name = l.locked || !l.go ? h("span", { class: "ab-why-name k-ellipsis" }, l.name) : link(l.go[0], l.go[1], l.name, { class: "ab-link ab-why-name k-ellipsis" });
-            return h("div", { class: "ab-why-line", role: "listitem", "data-dim": dim ? "" : null }, sw, name, l.locked ? h("span", { title: "Owned by graphty-element; not a row you can select" }, icon("lock", "sm")) : null,
-                l.hiddenRow ? h("span", { class: "k-secondary ab-why-hidden", title: "This row is hidden from the list but still paints. The link opens the list with hidden rows shown." }, "hidden row") : null,
-                h("span", { class: "ab-why-tokens" }, (l.wins || []).map((p) => h("span", Object.assign({ class: "ab-token", role: "button", title: (l.values && l.values[p]) || p, "aria-label": p + " from " + l.name + ((l.values && l.values[p]) ? ", " + l.values[p] : "") }, act({ go: ["style-pickers", "token-edit"] })), p))),
-                l.coverage ? h("span", { class: "k-num k-secondary" }, l.coverage) : null);
-        };
-        winners.forEach((l) => wrap.append(lineOf(l)));
-        if (covered.length) {
-            const box = h("div", { hidden: true, role: "list", "aria-label": "Rows that match but are covered" }, covered.map((l) => lineOf(l, true)));
-            const disc = h("span", { class: "ab-disc" }, icon("chevron-right", "sm"));
-            const more = h("div", { class: "ab-why-line ab-why-more", role: "button", tabindex: "0", "aria-expanded": "false" }, disc, covered.length + " more " + (covered.length === 1 ? "row matches" : "rows match") + " but " + (covered.length === 1 ? "is" : "are") + " covered");
-            const flip = () => { box.hidden = !box.hidden; more.setAttribute("aria-expanded", String(!box.hidden)); disc.replaceChildren(icon(box.hidden ? "chevron-right" : "chevron-down", "sm")); };
-            more.addEventListener("click", flip);
-            more.addEventListener("keydown", (e) => e.key === "Enter" && flip());
-            outer.append(more, box);
-        }
-        if (mark) outer.append(mark);
-        return outer;
+        const list = h("div", { class: "ab-why" + (opts.coverage ? " ab-why-cov" : ""), role: "list", "aria-label": "Rows that paint it, top first" });
+        winners.forEach((l) => {
+            const sw = typeof l.swatch === "string" ? chit(l.swatch) : l.swatch || h("span");
+            // A row hidden from the list is drawn as the tree draws it with Show hidden rows on: dimmed
+            // italic. The eye-off glyph means only "not drawn", here as in the tree.
+            const name = l.locked || !l.go ? h("span", { class: "ab-why-name k-ellipsis", "data-dim": l.hiddenRow ? "" : null }, l.name) : link(l.go[0], l.go[1], l.name, { class: "ab-link ab-why-name k-ellipsis", "data-dim": l.hiddenRow ? "" : null });
+            if (l.hiddenRow) tip(name, "Hidden from the list; it still paints", { label: false, second: "Hidden from the list; it still paints" });
+            // One fixed mark slot (lock), so every line's tokens start at the same place
+            const marks = h("span", { class: "ab-why-marks" },
+                l.locked ? tip(h("span", null, icon("lock", "sm")), "Owned by graphty-element; not a row you can select", { label: false }) : null);
+            // Tokens stay on one line: at most two, else the first and "+N" (the rest in its tooltip and name)
+            const tok = (p) => {
+                const P = cap(p);
+                const t = h("span", Object.assign({ class: "ab-token", role: "button", "aria-label": P + " from " + l.name }, act({ go: opts.tokenGo ? opts.tokenGo(P, l) : ["style-pickers", "token-edit"] })), P);
+                return tip(t, (l.values && (l.values[p] || l.values[P])) || P, { label: false });
+            };
+            const shown = l.wins.length > 2 ? l.wins.slice(0, 1) : l.wins;
+            const rest = l.wins.slice(shown.length).map(cap);
+            const more = rest.length ? tip(h("span", Object.assign({ class: "ab-token ab-token-more", role: "button", "aria-label": rest.join(", ") + " from " + l.name }, act({ go: opts.tokenGo ? opts.tokenGo(rest[0], l) : ["style-pickers", "token-edit"] })), "+" + rest.length), rest.join(", "), { label: false }) : null;
+            const tokens = h("span", { class: "ab-why-tokens" }, shown.map(tok), more);
+            const row = h("div", { class: "ab-why-line", role: "listitem", "data-overrides": l.overrides ? "" : null }, sw, name, marks, tokens,
+                opts.coverage ? h("span", { class: "ab-why-cov-n k-num k-secondary" }, l.coverage || "") : null,
+                l.overrides ? iconButton("minus", "Clear " + (opts.element ? opts.element + "'s" : "this") + " override", { onClick: () => { const at = row.nextSibling; row.remove(); deleted("the override", () => list.insertBefore(row, at)); } }) : h("span", { class: "ab-why-x" }));
+            list.append(row);
+        });
+        // Design notes about the list open the section, never loose under it (hidden in the user-test build)
+        // One Tab stop for the whole list: arrows move between its names, tokens and "-"
+        const stops = () => [...list.querySelectorAll("a, [role=button], .k-icon-btn")];
+        stops().forEach((x, i) => (x.tabIndex = i ? -1 : 0));
+        list.addEventListener("keydown", (e) => {
+            const all = stops(), i = all.indexOf(document.activeElement);
+            const to = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key];
+            if (i < 0 || to == null || !all[to]) return;
+            e.preventDefault();
+            all.forEach((x) => (x.tabIndex = -1));
+            all[to].tabIndex = 0;
+            all[to].focus();
+        });
+        // At most ONE design note, and it opens the section (several notes merge into one chip)
+        const texts = [opts.coverage ? "Coverage counts how many of the selected elements each row wins. " + (opts.coverageReason || "explain() takes one node or edge; an explain over a set, returning coverage, is filed.") : null]
+            .concat((opts.notes || []).map((n) => (n && n.dataset ? (n.textContent === "Open question" ? "Open question: " : "") + n.dataset.tip : n))).filter(Boolean);
+        const notes = texts.length ? [needsElement(texts.join(" "))] : [];
+        return section({ title: "Why this look", collapsible: true, key: "why." + (opts.kind || "node"), summary: winners.map((l) => l.name).join(", ") }, notes.length ? h("div", { class: "ab-why-notes" }, notes) : null, list);
     }
 
-    // ---------- one command table (spec section 17): every door draws its label and key from here ----------
-    // { label, shortcut, home, disabledReason, go } ; only commands with two or more doors.
+    // ---------- one command table (spec 17): every door draws its label and key from here ----------
+    // { label, shortcut, home: "Place > Control", disabledReason, go | onClick, more: true (asks for input, so "..."),
+    //   toggle: [label when on, label when off], on: () => bool }
     const COMMANDS = {
-        select: { label: "Select", shortcut: "V", home: "Toolbar > Select", go: ["toolbar", "at-rest"] },
-        analyze: { label: "Analyze...", shortcut: "Shift+A", home: "Toolbar > Analyze", go: ["analyze-popover", "open"] },
+        analyze: { label: "Analyze...", shortcut: "Shift+A", home: "Toolbar > Analyze", more: true, go: ["analyze-popover", "open"] },
         "quick-actions": { label: "Quick actions", shortcut: "Ctrl+K", home: "Toolbar > Quick actions", go: ["commands-and-search", "quick-actions"] },
-        "view-mode": { label: "Switch 2D / 3D", shortcut: "5", home: "Toolbar > View mode", go: ["toolbar", "view-mode"] },
-        "enter-vr": { label: "Enter VR", home: "Toolbar > View mode", disabledReason: "No headset connected", go: ["toolbar", "view-mode-headset"] },
-        "enter-ar": { label: "Enter AR", home: "Toolbar > View mode", disabledReason: "No AR device connected", go: ["toolbar", "view-mode-headset"] },
-        "find-paths": { label: "Find paths...", shortcut: "P", home: "Selection bar > Path between", go: ["path-tool", "armed"] },
-        neighborhood: { label: "Neighborhood", shortcut: "G", home: "Selection bar > Neighborhood", go: ["selection-bar", "neighborhood"] },
+        layout: { toggle: ["Pause layout", "Resume layout"], on: () => AB.layoutState === "running", home: "Toolbar > Layout", onClick: () => setLayout(AB.layoutState === "running" ? "paused" : "running") },
+        "rerun-layout": { label: "Re-run layout", home: "Canvas menu > Re-run layout", go: ["context-menus", "canvas"] },
+        "view-mode": { toggle: ["Switch to 2D", "Switch to 3D"], on: () => ((AB.route && AB.route.frame.mode) || "3d") === "3d", shortcut: "5", home: "Toolbar > View", go: ["view-flyout", "3d"] },
+        "enter-vr": { label: "Enter VR", home: "Toolbar > View", disabledReason: "No headset connected", go: ["view-flyout", "3d"] },
+        "enter-ar": { label: "Enter AR", home: "Toolbar > View", disabledReason: "No AR device connected", go: ["view-flyout", "3d"] },
+        fit: { label: "Fit", shortcut: "0", home: "Toolbar > View", go: ["view-flyout", "3d"] },
+        "frame-selection": { label: "Frame selection", shortcut: "F", home: "Toolbar > View", go: ["view-flyout", "3d"] },
+        "frame-members": { label: "Frame members", home: "Row menu > Frame members", go: ["context-menus", "row"] },
+        legend: { toggle: ["Hide legend", "Show legend"], on: () => legendOn(), shortcut: "L", home: "Toolbar > Legend", onClick: () => setLegend(!legendOn()) },
+        "find-paths": { label: "Path between...", shortcut: "P", home: "Selection bar > Path between", more: true, go: ["path-popover", "from-selection"] },
+        neighborhood: { label: "Neighborhood...", home: "Selection bar > Neighborhood", more: true, go: ["selection-bar", "neighborhood"] },
         "create-set": { label: "Create set", shortcut: "Ctrl+G", home: "Selection bar > Create set", go: ["selection-bar", "two-nodes"] },
         "hide-on-canvas": { label: "Hide on canvas", shortcut: "Ctrl+Shift+H", home: "Selection bar > Hide on canvas", go: ["selection-bar", "hidden"] },
-        "show-hidden": { label: "Show hidden elements", home: "Main menu > Edit", go: ["canvas-and-states", "drawn"] },
+        "show-hidden": { label: "Show hidden elements", home: "Main menu > Show hidden elements", go: ["canvas-and-states", "drawn"] },
+        "reselect-previous": { label: "Reselect previous", home: "Canvas menu > Reselect previous", go: ["context-menus", "canvas"] },
         "add-note": { label: "Add note", shortcut: "N", home: "Selection bar > Add note", go: ["notes-place", "writing"] },
-        fit: { label: "Fit", shortcut: "0", home: "Camera menu", go: ["camera-menu", "3d"] },
-        "frame-selection": { label: "Frame selection", shortcut: "F", home: "Camera menu", go: ["camera-menu", "3d"] },
-        "reset-camera": { label: "Reset camera", shortcut: "Shift+0", home: "Camera menu", go: ["camera-menu", "3d"] },
-        "save-view": { label: "Save camera view...", home: "Views > Save camera view...", go: ["views-place", "saving"] },
+        "label-by": { label: "Label by", home: "Attribute menu > Label by", go: ["context-menus", "attribute"] },
+        "run-as-copy": { label: "Run as copy", home: "Run row menu > Run as copy", go: ["context-menus", "run-row"] },
+        "clear-graph-data": { label: "Clear graph data", home: "Canvas menu > Clear graph data", onClick: () => notice("Cleared graph data", { label: "Undo", onClick: () => announce("Graph data restored") }) },
+        "save-view": { label: "Save view", home: "Views > Save view", go: ["views-place", "saving"] },
         present: { label: "Present", home: "Views > Present", go: ["present-mode", "presenting"] },
-        "record-tour": { label: "Record tour...", home: "Views > Record tour", go: ["export-video", "tour"] },
-        "rerun-layout": { label: "Re-run layout", home: "Layout chip", go: ["canvas-and-states", "loading"] },
-        "pause-layout": { label: "Pause layout", home: "Layout chip", go: ["canvas-and-states", "drawn"] },
-        "toggle-table": { label: "Show or hide the table", shortcut: "Shift+T", home: "Table dock", onClick: () => AB.toggleDock() },
-        legend: { label: "Show or hide the legend", shortcut: "L", home: "Legend card" },
-        export: { label: "Export...", shortcut: "Ctrl+E", home: "Export dialog", go: ["export-image", "image"] },
-        "export-image": { label: "Export image...", home: "Export dialog > Image", go: ["export-image", "image"] },
-        "export-video": { label: "Record video...", home: "Export dialog > Video", go: ["export-video", "still"] },
-        "add-data": { label: "Add data...", home: "Data > Sources +", go: ["data-place", "sources-menu"] },
-        "version-history": { label: "Version history", home: "Project menu", go: ["full-canvas-modes", "version-history"] },
-        settings: { label: "Settings...", shortcut: "Ctrl+,", home: "Settings", go: ["settings", "you"] },
-        shortcuts: { label: "Keyboard shortcuts", shortcut: "?", home: "Help > Keyboard shortcuts", go: ["commands-and-search", "shortcuts"] },
-        rename: { label: "Rename", shortcut: "F2", home: "Double-click the name" },
-        find: { label: "Find...", shortcut: "/", home: "Graph > Find rows", go: ["commands-and-search", "find"] },
-        undo: { label: "Undo", shortcut: "Ctrl+Z", home: "Header" },
-        redo: { label: "Redo", shortcut: "Ctrl+Shift+Z", home: "Header" },
+        "record-tour": { label: "Record tour...", home: "Views > Record tour", more: true, go: ["export-video", "tour"] },
+        "toggle-table": { toggle: ["Hide table", "Show table"], on: () => !document.querySelector(".ab-main[data-dock='closed']"), shortcut: "Shift+T", home: "Table dock > Collapse", onClick: () => AB.toggleDock() },
+        export: { label: "Export...", shortcut: "Ctrl+E", home: "Project menu > Export", more: true, go: ["export-dialog"] },
+        "add-data": { label: "Add data...", home: "Data > Sources +", more: true, go: ["load-step"] },
+        "version-history": { label: "Version history", home: "Project menu > Version history", go: ["full-canvas-modes", "version-history"] },
+        settings: { label: "Settings...", shortcut: "Ctrl+,", home: "Main menu > Settings", more: true, go: ["settings", "general"] },
+        shortcuts: { label: "Keyboard shortcuts", shortcut: "?", home: "Main menu > Keyboard shortcuts", go: ["commands-and-search", "shortcuts"] },
+        rename: { label: "Rename", shortcut: "F2", home: "Row menu > Rename" },
+        find: { label: "Find...", shortcut: "/", home: "Graph > Find rows", more: true, go: ["commands-and-search", "find"] },
+        undo: { label: "Undo", shortcut: "Ctrl+Z", home: "Header > Undo" },
+        redo: { label: "Redo", shortcut: "Ctrl+Shift+Z", home: "Header > Redo" },
     };
-    // The project's saved views, in the Views place's order. Every door (Camera menu jump list,
-    // Export, Present, Quick actions) reads this one list.
+    // The project's saved views, in the Views place's order. Every door (the View flyout, Export,
+    // Present, Quick actions) reads this one list.
     const SAVED_VIEWS = ["Whole cast", "Valjean's circle", "From above"];
-    // cmd(id, extra?) -> a menu item for menu() ({ label, shortcut, go|onClick, disabled, desc, home })
+    // cmd(id, extra?) -> a menu item for menu() ({ label, shortcut, go|onClick, disabled, home, toggle, on })
     function cmd(id, extra) {
         const c = COMMANDS[id];
         if (!c) throw new Error("Unknown command " + id);
-        const it = { label: c.label, shortcut: c.shortcut, home: c.home };
+        const label = c.toggle ? (c.on() ? c.toggle[0] : c.toggle[1]) : c.label;
+        if (/\.\.\.$/.test(label) && !c.more) console.warn("cmd(" + id + "): '" + label + "' ends in '...' but asks for no more input");
+        const it = { label, shortcut: c.shortcut, home: c.home };
         if (c.go) it.go = c.go;
         if (c.onClick) it.onClick = c.onClick;
-        if (c.disabledReason && !(extra && extra.enabled)) { it.disabled = true; it.desc = c.disabledReason; }
+        if (c.disabledReason && !(extra && extra.enabled)) it.disabled = c.disabledReason;
         return Object.assign(it, extra || {});
     }
 
-    // ---------- canvas furniture shared by every canvas section ----------
-    // The Camera menu face at the top right: camera icon, the view's name, "moved", 2D zoom, caret
-    function cameraFace(o) {
-        o = Object.assign({}, o || {});
-        const mode = o.mode || (AB.route && AB.route.frame && AB.route.frame.mode) || "3d";
-        // A 3D graph opens at the element's Front view (spec 9); 2D has no built-in views
-        if (o.view == null) o.view = mode === "2d" ? "Unsaved view" : "Front";
-        return h("span", Object.assign({ id: "ab-zoom", class: "k-btn k-btn-ghost ab-zoom", role: "button", "aria-haspopup": "menu", "aria-label": "Camera menu, " + o.view + (o.moved ? ", moved" : ""), title: "Camera menu: Fit, Frame selection, Reset" + (mode === "2d" ? ", zoom" : ", the built-in views (Front, Side, Top, Isometric)") + ", Save camera view..., your saved views, Export image" }, act({ go: ["camera-menu", mode] })),
-            icon("camera", "sm"), h("span", null, o.view, o.moved ? h("span", { class: "k-secondary" }, ", moved") : null), mode === "2d" && o.zoom ? h("span", { class: "k-secondary k-num" }, " " + o.zoom) : null, icon("chevron-down", "sm"));
+    // ---------- the Graph and Data places' title line (spec 3): a quiet place word, then the graphs switcher ----------
+    // graphHead("Graph", "Co-appearances", { trail }) -- one line, 40 px, like placeHead
+    function graphHead(place, name, o) {
+        o = o || {};
+        const btn = h("span", Object.assign({ class: "ab-switch-btn", role: "button", "aria-haspopup": "menu", "aria-label": name + ", graphs in this project" }, act({ go: ["graphs-switcher", "open"] })), h("span", { class: "k-ellipsis" }, name), icon("chevron-down", "sm"));
+        tip(btn, "Graphs in this project", { label: false });
+        // No note bubble here: one speech-bubble count beside the tree's Notes row was a second meaning
+        // for one glyph on one screen; the graph's notes are in its Data tab
+        return h("div", { class: "ab-place-head ab-graph-head" }, h("h2", { class: "ab-place-title ab-switch-pre", tabindex: "-1" }, place), btn, h("span", { class: "k-grow" }), o.trail || null);
     }
-    // The layout chip beside it: "running" | "paused" | "settled"
-    function layoutChip(state) {
-        const s = state || "running";
-        const label = s === "paused" ? ["Paused", "Resume"] : s === "settled" ? ["Settled", "Re-run"] : ["Laying out...", "Pause"];
-        const chip = h("span", { id: "ab-layout-chip", class: "k-chip ab-layout-chip", "data-state": s, role: "status" }, s === "running" ? icon("loader-circle", "sm") : null, label[0]);
-        if (label[1]) chip.append(h("span", Object.assign({ class: "ab-link", role: "button" }, act({ onClick: () => chip.replaceWith(layoutChip(s === "running" ? "paused" : "running")) })), label[1]));
-        return chip;
-    }
-    // A legend card's close button: hides the card and leaves a "Legend" chip that brings it back
-    function legendClose(card) {
-        return iconButton("x", "Close the legend (L)", { onClick: () => {
-            const chip = h("span", Object.assign({ class: "k-chip k-chip-btn ab-legend-chip", role: "button", title: "Show the legend (L)" }, act({ onClick: () => { chip.remove(); card.hidden = false; } })), icon("layers", "sm"), "Legend");
-            card.hidden = true;
-            card.after(chip);
-        } });
+    // The tree's find line: the search field and the list options (an ellipsis). Every left-panel list uses it.
+    // treebar({ placeholder, value, onKey(e, input), menuGo: [id, state], menuOpen })
+    function treebar(o) {
+        o = o || {};
+        const ph = o.placeholder || "Find rows and notes";
+        const input = h("input", { type: "search", placeholder: ph, "aria-label": ph, value: o.value || null });
+        if (o.onKey) input.addEventListener("keydown", (e) => o.onKey(e, input));
+        if (o.onInput) input.addEventListener("input", () => o.onInput(input));
+        let more = null;
+        if (o.menuGo) {
+            more = iconButton(ICON.options, "List options", { go: o.menuGo });
+            more.id = "ab-list-btn";
+            more.setAttribute("aria-haspopup", "menu");
+            more.setAttribute("aria-expanded", String(!!o.menuOpen));
+            if (o.menuOpen) more.setAttribute("data-open", "");
+        }
+        return h("div", { class: "ab-treebar" }, h("label", { class: "ab-find" }, icon("search", "sm"), input), more);
     }
 
-    Object.assign(AB, { registerSection, h, append, icon, href, go, link, nav, act, button, iconButton, chit, ramp, section, notesSection, data, row, field, paintsLine, tabs, inspector, tree, position, popover, menu, modal, notice, dockToggle, drawing, announce, renameInPlace, needsElement, CHANNELS, SECTIONS, styleTab, whyThisLook, COMMANDS, SAVED_VIEWS, cmd, cameraFace, layoutChip, legendClose, mem });
+    // One glyph per attribute type everywhere (Data place, table headers, Read as): Abc Category, # Number, calendar Time
+    function typeGlyph(type) {
+        if (type === "time") return icon("calendar", "sm");
+        if (type === "bool") return icon("circle-check", "sm");
+        return h("span", { class: "ab-abc" }, type === "num" ? "#" : "Abc");
+    }
+
+    Object.assign(AB, {
+        graphHead, treebar, typeGlyph,
+        registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,
+        tip, tipSweep, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
+        empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine,
+        announce, renameInPlace, needsElement, openQuestion,
+        inspector, dataVocab, dataTab, tree, treeFooter, footer: treeFooter,
+        position, popover, menu, openMenu, closeMenu, modal, confirm, notice, placeNotice, flash, deleted, dockToggle, drawing,
+        toolbarButton, toolbarBar, mainToolbar, layoutButton, legendButton, setLayout, legendOn, setLegend, legendCard,
+        CHANNELS, SECTIONS, styleTab, whyThisLook, COMMANDS, SAVED_VIEWS, cmd, plain, colorField, scrub,
+    });
     Object.assign(window, { registerSection, h, icon, link });
 })();

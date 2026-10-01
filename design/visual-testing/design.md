@@ -356,7 +356,7 @@ the changes from the owner's tiers explained.
  audit of the pushed range, and a drift capture of the projects the range can affect
 ```
 
-Approval rests on one thing: the passkey registered in `visual-review.passkeys.json`, checked by
+Approval rests on one thing: the passkey registered in `visual-review/passkeys.json`, checked by
 the gate (section 8). The workflow split drawn here is a later hardening step; until it lands,
 capture and the gate run in `ci.yml` (section 1a).
 
@@ -669,9 +669,16 @@ shows the entry to add:
 ```
 
 `publicKey` is the key `getPublicKey()` returns, which `node:crypto` reads directly. The entry
-goes into `visual-review.passkeys.json` through a pull request the owner merges. The passkey is in
-iCloud Keychain, so it is on the owner's iPhone, iPad and Mac, and a lost device loses nothing. To
-replace or add a key, the owner registers again and merges the change.
+goes into `visual-review/passkeys.json` through a pull request the owner merges. The passkey is in
+iCloud Keychain, so it is on the owner's iPhone, iPad and Mac, and a lost device loses nothing.
+
+The first key is trusted because the owner merged it: Apple's passkeys give no attestation, so
+the server cannot tell a key made on the owner's device from one a program posted to the page.
+The page shows the new credential id, and the owner merges only the pull request that names it,
+right after pressing Register. Once master holds a key, the gate fails any pull request that
+changes `passkeys.json`, and the server trusts only master's keys, never one registered since.
+Adding or replacing a key is then an administrator's merge past the failing gate, a deliberate
+act no pull request can make on its own.
 
 ### The record
 
@@ -722,20 +729,43 @@ comment.
 
 ### The gate
 
-The CI gate (`visual-review/trusted/gate.mjs`) already requires every changed baseline and
-excluding settings file to be named, with its new hash, by a record the pull request adds. It also
-requires, for each such record, with `node:crypto` alone:
+The CI gate (`visual-review/trusted/gate.mjs`) requires, for each record the pull request adds,
+with `node:crypto` alone:
 
-1. `approval.credentialId` names a key in `visual-review.passkeys.json` as it is on the base branch;
+1. `approval.credentialId` names a key in `passkeys.json` as it is on the base branch;
 2. clientDataJSON's `type` is `webauthn.get`, its `challenge` is the hash recomputed from the
-   record as committed, and its `origin` is an https origin on the key's `rpId`;
+   record as committed (in canonical JSON, which refuses numbers with two spellings, such as
+   `1e999` and `-0`), and its `origin` is an https origin whose host is exactly the key's `rpId`,
+   on any port;
 3. authenticatorData begins with the SHA-256 of the key's `rpId`, and its user-verified flag (UV,
    bit 2) is set, so Face ID, Touch ID or the device passcode ran;
 4. the ECDSA P-256 signature verifies over `authenticatorData || SHA-256(clientDataJSON)` with the
-   key.
+   key;
+5. the record is version 2, names this pull request or none (a seed), and is not a copy of a
+   record already on the base branch.
+
+A record that fails counts for nothing. Then every changed baseline PNG, every added or changed
+settings file, and (once master holds a key) `passkeys.json` must be accounted for: the verified
+records' items, replayed oldest `reviewedAt` first, each moving a path only `from` its current
+hash `to` another, must take the file from its base branch hash to its hash in the pull request.
+Tying each item to the contents it was approved over is what stops a replay: an old seed record
+copied into a later pull request, or a decision the owner replaced later in the same pull
+request, moves nothing. If master changes the same baselines between Finish and merge, the
+record no longer starts from master's contents and the owner reviews again; git would conflict
+on those files anyway.
+
+The gate also fails a story compared at a `diffThreshold` above 0.8 (at 1 nothing reads as
+changed; 0.8 is the highest any story uses) and a pull request that moves the baselines
+directory in its config (capture follows the pull request's config; the record check, the base
+branch's).
+
+CI runs the gate, and the capture, as the base branch has them (`git archive HEAD^1`), never the
+pull request's copy, so a pull request cannot loosen the code that judges it.
 
 An accept without a valid approval does not count, whoever wrote it. Test vectors cover each
-failure: an edited record, a wrong rpId, UV clear, an unknown key, a bad signature.
+failure: an edited record, a wrong rpId, UV clear, an unknown key, a bad signature, an origin on
+another host, a replayed seed, a decision replaced later, a copied record, a swapped key and a
+loosening settings file.
 
 **Existing records.** The milestone 1 and 2 records stay as they are, unproven history; the
 baselines they accepted are grandfathered and are not approved again. From the day the gate starts
@@ -744,13 +774,29 @@ checking approvals, every new accept needs one.
 ### Limits
 
 This proves the owner's device approved the record; it does not show that the owner looked at
-every image. It does not defend against a tampered review page: the page is served from the
-machine agents run on, so a page an agent altered could show one set of images and ask Face ID to
-approve another. That is out of scope; moving the approval step to a separate signing origin that
-agents cannot change is a possible later step. The gate also runs from `ci.yml`, which a pull
-request can edit; `CLAUDE.md` forbids agents to edit it, `gate.mjs` or `visual-review.passkeys.json`, and code
-review is the backstop. Separately, the owner should consider giving agents a fine-grained token
-without administrator rights, since today's token lets an agent merge around any check.
+every image. What it does not defend against:
+
+- **A tampered review page.** The page is served from the machine agents run on, so a page an
+  agent altered could show one set of images and ask Face ID to approve another.
+- **Any other page on the rpId's host.** The rpId `dev.ato.ms` is shared by every server
+  servherd starts there (Storybook, the graphty app, agents' own servers), each on its own port.
+  Any of them, a story in a pull request included, can ask for an assertion over a record hash it
+  chose, and the Face ID sheet names only the host. The gate refuses subdomains but cannot tell
+  ports apart. A host that serves only the review page (for example `review.dev.ato.ms`), with
+  the gate pinned to it, closes this; it is the owner's decision, since it needs DNS and a
+  certificate, and changing the rpId means registering a new passkey.
+- **`ci.yml` itself.** A pull request can edit the workflow and drop the gate step; the base
+  branch's gate code does not help when the step is gone. Closing it needs a check the pull
+  request cannot edit: a ruleset-required workflow. `CLAUDE.md` forbids agents to edit it and
+  code review is the backstop.
+- **A story's own code**, which runs in the capture browser and could draw the stored baseline
+  instead of itself, and its `parameters.chromatic.diffThreshold` (capped at 0.8).
+- **An approved seed that was never merged.** Its record names no pull request and starts from
+  master's contents, so another pull request could apply exactly the images the owner approved
+  for it. Abandoned seed branches should be deleted.
+
+Separately, the owner should consider giving agents a fine-grained token without administrator
+rights, since today's token lets an agent merge around any check.
 
 ## 9. History, git hashes and dirty state
 
@@ -1089,13 +1135,16 @@ contention measurement passes, the same day if possible (about 10 to 20 minutes 
 
 ### This week: passkey approval
 
+Built: items 1 and 2 below, with the gate and the capture run from the base branch's code in CI,
+and the replay, settings and key-swap checks of section 8. Item 3 is the owner's.
+
 1. `trusted/lib/approval.mjs`: the record hash and the assertion checks of section 8, with
    `node:crypto` alone, and a test vector for each failure; `gate.mjs` counts an accept only with
    a valid approval.
 2. The review page: Register passkey, and Face ID at Finish; the server verifies the assertion
    before it commits.
 3. The owner registers the passkey on the review page and merges the pull request that adds it
-   to `visual-review.passkeys.json`. From then on every new accept needs an approval; existing
+   to `visual-review/passkeys.json`. From then on every new accept needs an approval; existing
    baselines are grandfathered.
 
 Later hardening, none of it a prerequisite: capture and verification moved into

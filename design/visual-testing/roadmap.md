@@ -99,7 +99,7 @@ shortcut to make a check pass.
 - **Milestone 3:** Finish asks for the owner's passkey and Face ID on the review page and stores
   the WebAuthn assertion, over a hash of the decision record, in the record. The CI gate counts an
   accept only when the assertion verifies against the passkey registered in
-  `visual-review.passkeys.json`: signature, rpId, the user-verified flag and the recomputed hash.
+  `visual-review/passkeys.json`: signature, rpId, the user-verified flag and the recomputed hash.
   The git signature on Finish's commit is not the proof, since agents hold that key. Existing
   baselines are grandfathered; their unproven records stay as history.
 - **Limits.** This proves the owner's device approved the record. It does not defend against a
@@ -185,12 +185,18 @@ label is documented as a rollback only.
 
 ## Milestone 3: owner-only approval (this week)
 
+**Status.** Built and in review: the pull request "feat(visual-review): require the owner's
+passkey approval for every accept". The gate enforces nothing until the owner does the two owner
+actions below. Owner decisions still open: a host that serves only the review page (today any
+server on `dev.ato.ms` can ask for the passkey), and a ruleset-required workflow so a pull request
+cannot drop the gate step from `ci.yml`.
+
 **Delivers.** P0: Register passkey and Face ID at Finish on the review page; the gate verifies each
 accept's assertion against the registered passkey, and an accept without a valid one does not
 count.
 
 **Owner actions.** Register the passkey on the review page, and merge the pull request that adds
-it to `visual-review.passkeys.json`.
+it to `visual-review/passkeys.json`.
 
 **Exit criteria.** A pull request that changes a baseline without a valid approval cannot merge;
 tests prove that an edited record, a wrong rpId, an approval without user verification and an

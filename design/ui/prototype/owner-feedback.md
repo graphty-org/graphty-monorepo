@@ -119,3 +119,21 @@ The owner wants a clickable, layout-complete skeleton of refined B to review BEF
 - the right sidebars are getting cluttered and complex, and are overloading what they can do. we need common interaction patterns for the right sidebars -- similar looks and feels and modes of interaction. we probably need one well thought out right sidebar per layer type, and we need to think about how the layouts are the same or different across different layers. we also need to think about what belongs in the right-hand side. for example "re-run layout" is an action, but I think at one point we said that the right-hand sidebars were just for reading data, not running actions.
 "take your time and answer each question. come back to me with a new updated refined B so I can review it before it goes to the personas / study group review."
 Owner principle stated here: styling should be unopinionated and left to the user.
+
+## 2026-09-30 -- the owner's third review of the refined B skeleton (verbatim; answer every item)
+
+"great progress! more feedback for the design team."
+- why does the edge styling say "Line 5", "Arrow head 4"? what do the numbers mean?
+- many of the values in styling nodes and edges are going to be empty / unset. what's the interaction pattern for that? should we have '+' to add a row (even if there can be only one)? or should we have pop overs display advanced options like figma does? popovers might be preferable to accordions (again, drawing from Figma's interaction patterns)
+- it looks like the "Everything" right-hand panel styling is different than "For the report", even though they are styling the same things?
+- why add "show legend" and the camera controls as their own buttons in the top left and top right of the canvas? why not follow the interaction pattern of using the toolbar
+- the toolbar shouldn't have text on it, it should have tooltips that get shown after an on-hover delay so that users can understand them without taking up the space of text
+- the data sidebar is getting rather complex. are we trying to do too much in too small of a space?
+- research tableau's data loading, joins, etc. determine how much of their functionality we should copy for our design.
+- how do users set a label on a node to be a field from that node's data source? can they also set it to be the content of a note or the number of notes on node?
+- can users set notes on edges?
+- "why this look" should be collapsable
+
+"as a primary focus of the next round of the design studio go through every screen, every component, every interaction. what can we simplify? what can we refine? what can we polish? where can we make interaction patterns the same?"
+"let's see if we can streamline things a bit before our next round of user testing. return the next set of skeleton wireframes to me to review before we move on."
+Owner decisions stated here: the toolbar carries icons only, no text, with tooltips shown after a hover delay. "Why this look" is collapsible. The skeleton comes back to the owner for review before any user testing.

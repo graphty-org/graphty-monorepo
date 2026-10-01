@@ -19,6 +19,7 @@ import {
     type AccelerationStatus,
     createGraphSession,
     type DataSourceInput,
+    type FieldBand,
     type GraphSession,
     type GraphStatistics,
     type Histogram,
@@ -792,6 +793,8 @@ function fixtureResult(input: {
     readonly count: number;
     /** The graph-level fields, for a run that publishes any. */
     readonly graph?: Readonly<Record<string, unknown>>;
+    /** The band each graph-level field is in. Canned: where the bands lie is graphty-element's call. */
+    readonly bands?: Readonly<Record<string, FieldBand>>;
     /** The groups, largest first, for a run that partitions. */
     readonly groups?: readonly { readonly group: number; readonly size: number }[];
     /**
@@ -851,6 +854,7 @@ function fixtureResult(input: {
         histogram: () => fixtureHistogram(ascending),
         top: () => ({ entries: [], leftOut: null, reason: input.topReason ?? null }),
         graph: input.graph ?? {},
+        band: (field: string) => input.bands?.[field],
     } as unknown as RunResult;
 }
 
@@ -1090,6 +1094,7 @@ function installNovicePathGraph(container: HTMLElement, options: NovicePathOptio
                 values: communityAssignment(),
                 count: nodes.size,
                 graph: { modularity: STUB_MODULARITY },
+                bands: { modularity: { id: "clear", plainName: "Clearly separated", description: "", above: 0.3 } },
                 groups: STUB_GROUP_SIZES.map((size, group) => ({ group, size })),
             });
         }

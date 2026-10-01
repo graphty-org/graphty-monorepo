@@ -152,6 +152,7 @@ function fakeRunResult(): RunResult {
         }),
         top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
         graph: {},
+        band: () => undefined,
     } as unknown as RunResult;
 }
 

@@ -17,12 +17,20 @@ const meta: Meta<typeof Graphty> = {
         // Provide default empty layers array to prevent "e is not iterable" error
         layers: [],
     },
+    // One box per story, sized by its `box` parameter. A story-level decorator would sit INSIDE
+    // this one, so a larger story box overflowed the default 800 x 600 and widened the page.
     decorators: [
-        (Story) => (
-            <div style={{ width: "800px", height: "600px" }}>
-                <Story />
-            </div>
-        ),
+        (Story, { parameters }) => {
+            const { width, height } = (parameters.box as { width: number; height: number } | undefined) ?? {
+                width: 800,
+                height: 600,
+            };
+            return (
+                <div style={{ width: `${width}px`, height: `${height}px` }}>
+                    <Story />
+                </div>
+            );
+        },
     ],
 };
 
@@ -32,21 +40,10 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 
 export const Small: Story = {
-    decorators: [
-        (Story) => (
-            <div style={{ width: "400px", height: "300px" }}>
-                <Story />
-            </div>
-        ),
-    ],
+    parameters: { box: { width: 400, height: 300 } },
 };
 
+// The largest 4:3 box that fits the 1200 x 900 viewport inside the centered layout's padding.
 export const Large: Story = {
-    decorators: [
-        (Story) => (
-            <div style={{ width: "1200px", height: "800px" }}>
-                <Story />
-            </div>
-        ),
-    ],
+    parameters: { box: { width: 1100, height: 825 } },
 };

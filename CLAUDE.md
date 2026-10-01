@@ -683,6 +683,17 @@ that starts the same server from the owner's own shell, which is how the owner s
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
   page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
   behalf.
+- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
+  with the owner's passkey approval (Face ID) over exactly that record and that pull request.
+  Agents never edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
+  `visual-review/trusted/lib/approval.mjs` or the gate step in ci.yml, never register a passkey,
+  and never call the page's passkey, Finish or finish-prepare routes. Only the owner registers keys
+  and approves.
+- A gate line about a missing or invalid approval is fixed only by the owner reviewing again
+  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
+  record.
+- Never create a passkey or a virtual authenticator against a real review server; Chromium's
+  virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the

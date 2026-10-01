@@ -6,6 +6,7 @@ import type { Preview, StoryContext } from "@storybook/react";
 import eruda from "eruda";
 import React from "react";
 
+import { pinErudaTopRight } from "../src/lib/eruda";
 import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
@@ -16,7 +17,7 @@ initSentry();
 // Initialize eruda for mobile debugging
 eruda.init();
 eruda.show("console");
-eruda.position({ x: window.innerWidth - 60, y: 20 });
+pinErudaTopRight(eruda);
 
 /**
  * Determines the Mantine color scheme based on Storybook globals.

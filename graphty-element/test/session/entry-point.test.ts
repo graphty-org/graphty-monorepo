@@ -13,8 +13,12 @@ import {
     type NoteCiteStatus,
     type NoteId,
     type NoteInput,
+    type NoteListOptions,
+    type NoteMergeOptions,
     type NotePatch,
     type NotesApi,
+    type NotesDocument,
+    type NotesReport,
     type NoteStatus,
     type NoteTarget,
     type NoteTargetInput,
@@ -75,6 +79,10 @@ type PublishedNoteTypes = [
     NoteCiteStatus,
     NoteChange,
     NotesApi,
+    NoteListOptions,
+    NoteMergeOptions,
+    NotesDocument,
+    NotesReport,
 ];
 
 /** The same record type from the package root, so the two entry points cannot drift apart. */
@@ -109,13 +117,13 @@ describe("the ./session entry point", () => {
     });
 
     it("publishes the note vocabulary, session.notes and the note:changed event", () => {
-        const names: PublishedNoteTypes["length"] = 12;
+        const names: PublishedNoteTypes["length"] = 16;
         const event: keyof SessionEventMap = "note:changed";
         const session = createGraphSession();
         const published = (api: SameNote): SameNote => api;
         const notes = published(session.notes);
 
-        assert.strictEqual(names, 12);
+        assert.strictEqual(names, 16);
         assert.strictEqual(event, "note:changed");
         const id = notes.add({ text: "Bridges the two halves.", targets: [{ node: 11 }] });
         assert.strictEqual(notes.get(id)?.text, "Bridges the two halves.");

@@ -19,18 +19,43 @@ export type NoteId = string;
  * from `notes.status()`.
  */
 export type NoteTarget =
-    | { readonly graph: true }
-    | { readonly node: NodeId }
-    | { readonly edge: EdgeMember }
-    | { readonly set: SetId; readonly name?: string }
-    | { readonly result: ResultId }
-    | { readonly item: ResultItem };
+    | {
+          /** The whole graph. */
+          readonly graph: true;
+      }
+    | {
+          /** One node, by its id. `11` and `"11"` name the same node. */
+          readonly node: NodeId;
+      }
+    | {
+          /** One edge: its two ends plus the file's edge id, or its position among the edges joining them. */
+          readonly edge: EdgeMember;
+      }
+    | {
+          /** A kept set. */
+          readonly set: SetId;
+          /** The set's name when the note was written, for display once the set is gone. */
+          readonly name?: string;
+      }
+    | {
+          /** A run's result as a whole, followed across re-runs. */
+          readonly result: ResultId;
+      }
+    | {
+          /** One group or path a run found, pinned to that run. */
+          readonly item: ResultItem;
+      };
 
 /**
  * A target as `add`, `update` and `list` accept it: any {@link NoteTarget}, or an edge by its
  * session `EdgeId`. An item may leave out `run`, which means the result's current run.
  */
-export type NoteTargetInput = NoteTarget | { readonly edge: EdgeId };
+export type NoteTargetInput =
+    | NoteTarget
+    | {
+          /** An edge by the id the element gave it (from the selection or a click); saved by its ends. */
+          readonly edge: EdgeId;
+      };
 
 /** A result a note's claim rests on, pinned to the run it was written against. */
 export interface NoteCite {
@@ -67,10 +92,15 @@ export interface Note {
 
 /** What `notes.add` takes. `id`, `time`, `author` and `edited` are graphty-element's to stamp. */
 export interface NoteInput {
+    /** Plain text, stored exactly as given; not blank, at most 65,536 characters. */
     readonly text: string;
+    /** What the note is about: one to 64. */
     readonly targets: readonly NoteTargetInput[];
-    /** Each cite is pinned to the result's current finished run. */
-    readonly cites?: readonly { readonly result: ResultId }[];
+    /** Results the claim rests on. Each cite is pinned to the result's current finished run. */
+    readonly cites?: readonly {
+        /** The result. */
+        readonly result: ResultId;
+    }[];
     /** `type/subtype`, optionally with parameters in visible ASCII; at most 255 characters. */
     readonly mediaType?: string;
     /** Plain JSON under reverse-domain keys, at most 32 levels deep and 64 KB saved. */
@@ -79,10 +109,18 @@ export interface NoteInput {
 
 /** A field left out is unchanged. `null` clears an optional field; `cites: []` clears the cites. */
 export interface NotePatch {
+    /** The new text. */
     readonly text?: string;
+    /** The new targets, replacing the old ones. */
     readonly targets?: readonly NoteTargetInput[];
-    readonly cites?: readonly { readonly result: ResultId }[];
+    /** The new cites; `[]` clears them. A cite left unchanged keeps its run. */
+    readonly cites?: readonly {
+        /** The result. */
+        readonly result: ResultId;
+    }[];
+    /** The new media type; `null` clears it. */
     readonly mediaType?: string | null;
+    /** The new extensions, replacing the old ones; `null` clears them. */
     readonly extensions?: Readonly<Record<string, unknown>> | null;
 }
 
@@ -98,6 +136,7 @@ export interface NoteTargetStatus {
 export interface NoteCiteStatus {
     /** OPEN UNION. */
     readonly state: "current" | "earlier-run" | "missing" | "unsupported";
+    /** Text to show for it, never markup. Display text, not a contract. */
     readonly label: string;
 }
 
@@ -108,11 +147,17 @@ export interface NoteStatus {
     /** One per entry of `note.cites`, in the same order; empty when the note cites nothing. */
     readonly cites: readonly NoteCiteStatus[];
     /** Present when the note came from an opened file: which one, and when. */
-    readonly source?: { readonly name?: string; readonly opened: string };
+    readonly source?: {
+        /** The source's name: the `name` given to `mergeDocument`, or the document's. */
+        readonly name?: string;
+        /** When it was opened, as `Date.prototype.toISOString()` writes it. */
+        readonly opened: string;
+    };
 }
 
 /** One note a write touched, published as `note:changed`. Frozen. */
 export interface NoteChange {
+    /** The note. */
     readonly id: NoteId;
     /** OPEN UNION. */
     readonly change: "created" | "updated" | "removed";
@@ -146,7 +191,9 @@ export interface NoteListOptions {
  * bare member is also a valid `.graphty.json` file.
  */
 export interface NotesDocument {
+    /** Always `"graphty-notes"`. */
     readonly kind: "graphty-notes";
+    /** Always 1. */
     readonly version: 1;
     /** At most 1,024 characters. */
     readonly name?: string;
@@ -164,7 +211,9 @@ export interface Problem {
     readonly what: string;
     /** One sentence a person can act on. */
     readonly reason: string;
+    /** More about it, by code. */
     readonly details?: Readonly<Record<string, unknown>>;
+    /** The error or warning code. */
     readonly code: GraphtyErrorCode | GraphtyWarningCode;
 }
 
@@ -186,7 +235,12 @@ export interface NotesReport {
     /** Notes whose content a held note already had. */
     readonly unchanged: number;
     /** `"keep-both"`: saved notes whose id was held with other content, added under a new id. */
-    readonly renamed: readonly { readonly from: NoteId; readonly to: NoteId }[];
+    readonly renamed: readonly {
+        /** The id in the document. */
+        readonly from: NoteId;
+        /** The new id it was added under. */
+        readonly to: NoteId;
+    }[];
     /** `"keep-both"`: saved notes a held note is a later edit of; not added. */
     readonly older: readonly NoteId[];
     /** `"replace"`: held notes the saved ones replaced. */
@@ -229,7 +283,14 @@ export interface NotesApi {
     /** @returns The distinct authors of the session's notes, in the order of their first note. */
     authors(): readonly string[];
     /** @returns How many notes, and how many distinct nodes and edges in the graph have at least one. */
-    counts(): { readonly notes: number; readonly nodes: number; readonly edges: number };
+    counts(): {
+        /** How many notes. */
+        readonly notes: number;
+        /** How many nodes in the graph at least one note names. */
+        readonly nodes: number;
+        /** How many edges in the graph at least one note names. */
+        readonly edges: number;
+    };
     /**
      * Write a note. One undoable step, labeled "Added note".
      * @param input - The note.

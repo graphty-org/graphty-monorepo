@@ -922,6 +922,10 @@ jobs:
                       artifact: build-storybook-element
                     - project: layout
                       artifact: build-storybook-layout
+                    - project: algorithms
+                      artifact: build-storybook-algorithms
+                    - project: graphty
+                      artifact: build-storybook-app
         steps:
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
             # LFS objects by default); this job alone fetches them, and only its own project's. The objects
@@ -975,9 +979,9 @@ jobs:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.project }}/storybook-static/
 
-            # Seeding is per story: a story with no baseline that looks as it does in master's newest capture is
-            # "unseeded" and does not block this pull request; one that differs, or is new, blocks until the
-            # owner accepts it. Without a reference (none downloaded) every story with no baseline is "new".
+            # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
+            # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.
+            # Without a reference (none downloaded) every story with no baseline is "new".
             - name: Download master's newest capture
               id: reference
               if: github.event_name == 'pull_request'
@@ -1059,10 +1063,11 @@ jobs:
                   echo "All checks passed!"
 
             # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
-            # with baselines on the base branch fails here when its newest capture (the highest attempt
-            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged,
-            # excluded or unseeded items (unseeded: no baseline yet, and this pull request does not
-            # change it), or when that capture is missing, unfinished or invalid. It also fails when
+            # of the base branch's or this pull request's visual-review.config.json, or with baselines on the
+            # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
+            # excluded items (so every story without an approved baseline blocks, unseeded included),
+            # or when that capture is missing, unfinished or invalid. It also fails when
             # a baseline PNG or an excluding settings file differs from the base without a review record
             # added in the pull request that names its new hash. So it shows the captures match the pull
             # request's baselines and that each baseline change is named (path and new hash) in a record;

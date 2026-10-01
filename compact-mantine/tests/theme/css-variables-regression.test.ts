@@ -587,10 +587,7 @@ describe("Feedback Component CSS Variable Regression Tests", () => {
         });
 
         it("styles object has label fontSize 9", () => {
-            const styles = feedbackComponentExtensions.Progress.styles as Record<
-                string,
-                Record<string, unknown>
-            >;
+            const styles = feedbackComponentExtensions.Progress.styles as Record<string, Record<string, unknown>>;
             expect(styles.label.fontSize).toBe(9);
         });
     });

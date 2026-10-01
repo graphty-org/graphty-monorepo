@@ -29,11 +29,11 @@ works in light and dark schemes, and works in right-to-left languages.
 - [Quick start](#quick-start)
 - [The compact theme](#the-compact-theme)
 - [The components](#the-components)
-  - [Building a panel](#building-a-panel)
-  - [Editing a value](#editing-a-value)
-  - [Showing data](#showing-data)
-  - [Floating panels](#floating-panels)
-  - [Glyphs](#glyphs)
+    - [Building a panel](#building-a-panel)
+    - [Editing a value](#editing-a-value)
+    - [Showing data](#showing-data)
+    - [Floating panels](#floating-panels)
+    - [Glyphs](#glyphs)
 - [A worked example](#a-worked-example)
 - [The panel grid](#the-panel-grid)
 - [Handling events](#handling-events)
@@ -77,7 +77,7 @@ export function App() {
             <Button>Save</Button>
 
             {/* This package's own components, for a 280px panel. */}
-            <div style={{width: 280}}>
+            <div style={{ width: 280 }}>
                 <ControlSection label="Node size">
                     <FieldRow>
                         <PanelField label="Smallest" glyph="sizeSmallest" defaultValue="1.0" />
@@ -102,11 +102,11 @@ strings.
 sets default props and styles on 41 Mantine components, so that a component you
 already know renders small without being told to.
 
-| Token | Values |
-|-------|--------|
+| Token       | Values                                      |
+| ----------- | ------------------------------------------- |
 | `fontSizes` | xs 10px, sm 11px, md 13px, lg 14px, xl 16px |
-| `spacing` | xs 4px, sm 6px, md 8px, lg 12px, xl 16px |
-| `radius` | xs 2px, sm 4px, md 6px, lg 8px, xl 12px |
+| `spacing`   | xs 4px, sm 6px, md 8px, lg 12px, xl 16px    |
+| `radius`    | xs 2px, sm 4px, md 6px, lg 8px, xl 12px     |
 
 Inputs default to a 24px height and an 11px face, and are drawn without a
 border at rest so that a column of them reads as a list of values rather than a
@@ -119,15 +119,15 @@ Pass no `size` prop and these render compact. Pass a size token and they step
 along a compact scale: an input field is 20, 24, 30, 36 and 44px tall at `xs`,
 `sm` (the default), `md`, `lg` and `xl`.
 
-| Group | Components |
-|-------|------------|
-| Inputs (14) | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
-| Buttons (3) | Button, ActionIcon, CloseButton |
-| Controls (6) | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl |
-| Display (7) | Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill |
-| Navigation (6) | Tabs, NavLink, Pagination, Stepper, Anchor, Burger |
-| Feedback (3) | Loader, Progress, RingProgress |
-| Overlays (4) | Menu, Tooltip, Popover, HoverCard |
+| Group          | Components                                                                                                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs (14)    | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, ColorInput, InputClearButton |
+| Buttons (3)    | Button, ActionIcon, CloseButton                                                                                                                                             |
+| Controls (6)   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                              |
+| Display (7)    | Badge, Text, Avatar, ThemeIcon, Indicator, Kbd, Pill                                                                                                                        |
+| Navigation (6) | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                                          |
+| Feedback (3)   | Loader, Progress, RingProgress                                                                                                                                              |
+| Overlays (4)   | Menu, Tooltip, Popover, HoverCard                                                                                                                                           |
 
 ### Making it your own
 
@@ -138,10 +138,13 @@ your own on top of it:
 import { createTheme, MantineProvider, mergeMantineTheme } from "@mantine/core";
 import { compactTheme } from "@graphty/compact-mantine";
 
-const theme = mergeMantineTheme(compactTheme, createTheme({
-    primaryColor: "teal",
-    fontFamily: "Inter, sans-serif",
-}));
+const theme = mergeMantineTheme(
+    compactTheme,
+    createTheme({
+        primaryColor: "teal",
+        fontFamily: "Inter, sans-serif",
+    }),
+);
 
 <MantineProvider theme={theme}>{children}</MantineProvider>;
 ```
@@ -154,7 +157,7 @@ for `mergeThemeOverrides()`:
 import { createTheme, mergeThemeOverrides } from "@mantine/core";
 import { compactThemeOverride } from "@graphty/compact-mantine";
 
-const override = mergeThemeOverrides(compactThemeOverride, createTheme({primaryColor: "teal"}));
+const override = mergeThemeOverrides(compactThemeOverride, createTheme({ primaryColor: "teal" }));
 ```
 
 ### A compact region inside a normal-sized app
@@ -167,7 +170,7 @@ make one region dense -- which is the common case for a sidebar or an inspector.
     <TextInput label="Normal size" />
 
     <MantineProvider theme={compactTheme}>
-        <aside style={{width: 280}}>
+        <aside style={{ width: 280 }}>
             <TextInput label="Compact" />
         </aside>
     </MantineProvider>
@@ -186,44 +189,44 @@ examples, and every prop is documented in your editor.
 
 ### Building a panel
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| `ControlSection` | a run of controls needs a name, a rule above it and a chevron that folds it away. The workhorse container for a property panel. It can show a dot when something inside it is non-default, an empty state with a single "+", an explanation bubble, and buttons of its own in the header. |
-| `ControlGroup` | the same, but it must never fold, or its rule has to bleed out to the edges of a padded container such as a pop-out. |
-| `ControlSubGroup` | a handful of rarely-opened settings belong under a section you already have. Quieter than a section: no rule, a smaller chevron. |
-| `FieldRow` | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up. |
-| `TrailingSlot` | you are laying out a row by hand and need the fixed 24px slot every row ends with, so that rows with a trailing control end level with rows without one. |
-| `AdvancedButton` | a row or a section has settings most people never change. The gear opens them in a pop-out, and marks itself when something behind it is no longer default. |
+| Component         | Reach for it when                                                                                                                                                                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ControlSection`  | a run of controls needs a name, a rule above it and a chevron that folds it away. The workhorse container for a property panel. It can show a dot when something inside it is non-default, an empty state with a single "+", an explanation bubble, and buttons of its own in the header. |
+| `ControlGroup`    | the same, but it must never fold, or its rule has to bleed out to the edges of a padded container such as a pop-out.                                                                                                                                                                      |
+| `ControlSubGroup` | a handful of rarely-opened settings belong under a section you already have. Quieter than a section: no rule, a smaller chevron.                                                                                                                                                          |
+| `FieldRow`        | one or two fields share a line. It owns the widths and the gaps, so a column of rows lines up.                                                                                                                                                                                            |
+| `TrailingSlot`    | you are laying out a row by hand and need the fixed 24px slot every row ends with, so that rows with a trailing control end level with rows without one.                                                                                                                                  |
+| `AdvancedButton`  | a row or a section has settings most people never change. The gear opens them in a pop-out, and marks itself when something behind it is no longer default.                                                                                                                               |
 
 ### Editing a value
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| `PanelField` | a value is typed, picked from a list or dragged. A real text box, number box or select, 24px tall, whose caption is a 16px drawing inside the box instead of a word above it. |
-| `CompoundRow` | two or three values are one thing seen several ways -- a colour and its opacity, a width and its unit -- and must read as one control. |
-| `IconGroupRow` | two to six mutually exclusive options whose difference can be drawn: node shapes, edge routing, scale curves. A `SegmentedControl` underneath, so arrow keys work. |
-| `ToggleRow` | a setting is a plain yes or no that no picture could stand for. |
-| `ToggleRowGroup` | you have two or more of those. It packs them at a 24px pitch and warns you in development if you give it only one. |
-| `RampRow` | a range is better drawn than described: a size wedge or a colour ramp with its two endpoints. |
-| `CompactColorInput` | a colour and its opacity, on one 24px line, with a picker in a pop-out. Needs a [`PopoutManager`](#floating-panels). |
-| `GradientEditor` | a multi-stop linear gradient: colours, positions, angle. Needs a `PopoutManager`. |
-| `StyleNumberInput` | a number that has a sensible default, and you want the panel to show at a glance whether the reader has overridden it. `undefined` means "not set" and shows the default in italics with no reset button. |
-| `StyleSelect` | the same idea for a dropdown. |
-| `ToggleWithContent` | a feature is a yes or no that brings its own settings with it. Turning it off takes its settings off the screen. |
+| Component           | Reach for it when                                                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PanelField`        | a value is typed, picked from a list or dragged. A real text box, number box or select, 24px tall, whose caption is a 16px drawing inside the box instead of a word above it.                             |
+| `CompoundRow`       | two or three values are one thing seen several ways -- a colour and its opacity, a width and its unit -- and must read as one control.                                                                    |
+| `IconGroupRow`      | two to six mutually exclusive options whose difference can be drawn: node shapes, edge routing, scale curves. A `SegmentedControl` underneath, so arrow keys work.                                        |
+| `ToggleRow`         | a setting is a plain yes or no that no picture could stand for.                                                                                                                                           |
+| `ToggleRowGroup`    | you have two or more of those. It packs them at a 24px pitch and warns you in development if you give it only one.                                                                                        |
+| `RampRow`           | a range is better drawn than described: a size wedge or a colour ramp with its two endpoints.                                                                                                             |
+| `CompactColorInput` | a colour and its opacity, on one 24px line, with a picker in a pop-out. Needs a [`PopoutManager`](#floating-panels).                                                                                      |
+| `GradientEditor`    | a multi-stop linear gradient: colours, positions, angle. Needs a `PopoutManager`.                                                                                                                         |
+| `StyleNumberInput`  | a number that has a sensible default, and you want the panel to show at a glance whether the reader has overridden it. `undefined` means "not set" and shows the default in italics with no reset button. |
+| `StyleSelect`       | the same idea for a dropdown.                                                                                                                                                                             |
+| `ToggleWithContent` | a feature is a yes or no that brings its own settings with it. Turning it off takes its settings off the screen.                                                                                          |
 
 ### Showing data
 
-| Component | Reach for it when |
-|-----------|-------------------|
-| `DataRow` | the string is the reader's own -- an id, a node label, a filename -- with a number beside it. The one row here that keeps a text label, because data cannot be drawn. Selectable, double-clickable, and it can carry a trailing control. |
-| `DataRowHeader` | a run of data rows needs a caption, so the rows below can drop the unit word they would otherwise repeat. Give it `onSortChange` and it becomes a sort control. |
-| `RankChip` | a rank belongs beside a row: `#6`, rather than a sentence saying "rank 6 of 318". |
-| `MetricRow` | one reading has a percentile and a rank. Draws the name, a bar filled to the percentile, the number, and the chip. |
-| `HistogramRow` | a distribution would otherwise be spelled as the four numbers that summarise it. 64px tall. |
-| `SparklineRow` | a series is going somewhere and you want to see which way. 32px tall. |
-| `ProseBlock` | the panel has to say something in words: a plain-language reading, a caveat about how a result falls short, or a record of the last run. |
-| `ActionRow` | a row reports a state and offers verbs. The state is always visible; the verbs appear on hover, on focus, and always on a touch screen. |
-| `DataTable` | you have columns rather than rows: thousands of them, sortable, searchable, selectable, with only the visible rows in the document. |
+| Component       | Reach for it when                                                                                                                                                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DataRow`       | the string is the reader's own -- an id, a node label, a filename -- with a number beside it. The one row here that keeps a text label, because data cannot be drawn. Selectable, double-clickable, and it can carry a trailing control. |
+| `DataRowHeader` | a run of data rows needs a caption, so the rows below can drop the unit word they would otherwise repeat. Give it `onSortChange` and it becomes a sort control.                                                                          |
+| `RankChip`      | a rank belongs beside a row: `#6`, rather than a sentence saying "rank 6 of 318".                                                                                                                                                        |
+| `MetricRow`     | one reading has a percentile and a rank. Draws the name, a bar filled to the percentile, the number, and the chip.                                                                                                                       |
+| `HistogramRow`  | a distribution would otherwise be spelled as the four numbers that summarise it. 64px tall.                                                                                                                                              |
+| `SparklineRow`  | a series is going somewhere and you want to see which way. 32px tall.                                                                                                                                                                    |
+| `ProseBlock`    | the panel has to say something in words: a plain-language reading, a caveat about how a result falls short, or a record of the last run.                                                                                                 |
+| `ActionRow`     | a row reports a state and offers verbs. The state is always visible; the verbs appear on hover, on focus, and always on a touch screen.                                                                                                  |
+| `DataTable`     | you have columns rather than rows: thousands of them, sortable, searchable, selectable, with only the visible rows in the document.                                                                                                      |
 
 ### Floating panels
 
@@ -247,7 +250,7 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
             <Popout.Trigger>
                 <PopoutButton icon={<UiGlyph name="gear" />} aria-label="Display settings" />
             </Popout.Trigger>
-            <Popout.Panel width={280} header={{variant: "title", title: "Display settings"}}>
+            <Popout.Panel width={280} header={{ variant: "title", title: "Display settings" }}>
                 <Popout.Content>{/* anything */}</Popout.Content>
             </Popout.Panel>
         </Popout>
@@ -255,15 +258,15 @@ import { Popout, PopoutButton, PopoutManager, UiGlyph } from "@graphty/compact-m
 </PopoutManager>;
 ```
 
-| Component | What it is |
-|-----------|------------|
-| `PopoutManager` | The shared floating layer. Required, once, near the root. |
-| `Popout` | One pop-out: its trigger and its panel. Also namespaces `Popout.Trigger`, `Popout.Panel`, `Popout.Content` and `Popout.Anchor`. |
-| `Popout.Trigger` | Wraps the single element that opens the panel. Give it a real button. |
-| `Popout.Panel` | The panel itself: a width, an optional header or tab strip, and its content. |
-| `Popout.Anchor` | Wraps a sidebar so every panel opened inside it lines up with that sidebar's edge instead of with its own button. |
-| `PopoutButton` | An icon button that stays lit while its panel is open. |
-| `InfoCircle` | A circled "i" that reveals an explanation on hover, focus or tap. |
+| Component        | What it is                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `PopoutManager`  | The shared floating layer. Required, once, near the root.                                                                       |
+| `Popout`         | One pop-out: its trigger and its panel. Also namespaces `Popout.Trigger`, `Popout.Panel`, `Popout.Content` and `Popout.Anchor`. |
+| `Popout.Trigger` | Wraps the single element that opens the panel. Give it a real button.                                                           |
+| `Popout.Panel`   | The panel itself: a width, an optional header or tab strip, and its content.                                                    |
+| `Popout.Anchor`  | Wraps a sidebar so every panel opened inside it lines up with that sidebar's edge instead of with its own button.               |
+| `PopoutButton`   | An icon button that stays lit while its panel is open.                                                                          |
+| `InfoCircle`     | A circled "i" that reveals an explanation on hover, focus or tap.                                                               |
 
 The rules a `PopoutManager` enforces, so you do not have to: Escape closes the
 innermost panel; a click outside closes everything; opening a panel closes its
@@ -312,7 +315,7 @@ import {
     ToggleRowGroup,
 } from "@graphty/compact-mantine";
 
-function NodeSizeSection({openAdvanced}: {openAdvanced: () => void}) {
+function NodeSizeSection({ openAdvanced }: { openAdvanced: () => void }) {
     return (
         <ControlSection
             label="Node size"
@@ -335,9 +338,9 @@ function NodeSizeSection({openAdvanced}: {openAdvanced: () => void}) {
                 hybrid
                 defaultValue="sqrt"
                 options={[
-                    {value: "sqrt", label: "Square root", icon: <FieldGlyph name="scaleSqrt" />},
-                    {value: "linear", label: "Linear", icon: <FieldGlyph name="scaleLinear" />},
-                    {value: "log", label: "Logarithmic", icon: <FieldGlyph name="scaleLog" />},
+                    { value: "sqrt", label: "Square root", icon: <FieldGlyph name="scaleSqrt" /> },
+                    { value: "linear", label: "Linear", icon: <FieldGlyph name="scaleLinear" /> },
+                    { value: "log", label: "Logarithmic", icon: <FieldGlyph name="scaleLog" /> },
                 ]}
             />
 
@@ -393,7 +396,7 @@ primary colour for free.
 ```tsx
 import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
 
-<div style={{height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME}}>Custom row</div>;
+<div style={{ height: PANEL_GRID.ROW_PITCH, color: PANEL_INK.CHROME }}>Custom row</div>;
 ```
 
 You do not have to use a 280px column. Nothing enforces the width; the numbers
@@ -419,9 +422,16 @@ That matches Mantine, and it means a change made in code is expressible as
 modifier keys, call `preventDefault()`, or find the element that was activated:
 
 ```tsx
-<AdvancedButton label="Advanced" onClick={(event) => {
-    if (event.shiftKey) { openInNewPanel(); } else { open(); }
-}} />
+<AdvancedButton
+    label="Advanced"
+    onClick={(event) => {
+        if (event.shiftKey) {
+            openInNewPanel();
+        } else {
+            open();
+        }
+    }}
+/>
 ```
 
 Rows whose selection behaviour depends on how they were activated -- `DataRow`,
@@ -433,7 +443,7 @@ so, rather than making you sniff the event:
     label="Mr_Whiskers"
     value={12}
     onClick={(event, meta) => {
-        select(id, {add: meta.source === "pointer" && event.shiftKey});
+        select(id, { add: meta.source === "pointer" && event.shiftKey });
     }}
 />
 ```
@@ -481,16 +491,16 @@ forwarded.
 A handful of names appear on most components, and each one means exactly one
 thing everywhere.
 
-| Prop | What it always means |
-|------|----------------------|
-| `label` | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the [`showLabels` preference](#showing-a-word-beside-every-drawing). `ChartRow`'s label is never drawn, `PanelField`'s is drawn only with the preference on, `ControlSection`'s always is. |
-| `value` / `defaultValue` / `onChange` | The state a control holds. Supply `value` with `onChange` to drive it yourself, or `defaultValue` to let it remember. On the display-only rows -- `DataRow` and `MetricRow` -- `value` is the reading drawn on the row and there is no `onChange`. |
-| `trailing` | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row. |
-| `actions` | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster. |
-| `disabled` | The control is present but cannot be used: dimmed, skipped by Tab, announced as unavailable. |
-| `selected` / `selectedIds` | Which row of a list the reader has picked. Not the same as a control's own value. |
-| `busy` / `live` | The content arrives from something that finishes later. See [Handling events](#handling-events). |
-| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes. |
+| Prop                                        | What it always means                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`                                     | What the thing is called. It is always the accessible name; whether it is also drawn depends on the component and on the [`showLabels` preference](#showing-a-word-beside-every-drawing). `ChartRow`'s label is never drawn, `PanelField`'s is drawn only with the preference on, `ControlSection`'s always is. |
+| `value` / `defaultValue` / `onChange`       | The state a control holds. Supply `value` with `onChange` to drive it yourself, or `defaultValue` to let it remember. On the display-only rows -- `DataRow` and `MetricRow` -- `value` is the reading drawn on the row and there is no `onChange`.                                                              |
+| `trailing`                                  | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row.                                                                                                                                                                                      |
+| `actions`                                   | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster.                                                                                                                                                                                        |
+| `disabled`                                  | The control is present but cannot be used: dimmed, skipped by Tab, announced as unavailable.                                                                                                                                                                                                                    |
+| `selected` / `selectedIds`                  | Which row of a list the reader has picked. Not the same as a control's own value.                                                                                                                                                                                                                               |
+| `busy` / `live`                             | The content arrives from something that finishes later. See [Handling events](#handling-events).                                                                                                                                                                                                                |
+| `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes.                                                                                                                                                                                                                                                                                 |
 
 ## Internationalization
 
@@ -534,7 +544,7 @@ for your own use:
 ```tsx
 import { useCollator, useNumberFormatter, useOrdinalFormatter } from "@graphty/compact-mantine";
 
-const format = useNumberFormatter({maximumFractionDigits: 2});
+const format = useNumberFormatter({ maximumFractionDigits: 2 });
 format.format(1234.5678); // "1,234.57" in en, "1.234,57" in de
 ```
 
@@ -623,19 +633,19 @@ Some components overlap, and a few sit beside a Mantine component that looks
 as though it would do. This table names the one to reach for, and what it is
 being chosen over where that choice is not obvious.
 
-| If you have | Use | Instead of |
-|-------------|-----|------------|
-| A label and a reading on one line | `DataRow`, with the reading already formatted | -- it draws `value` verbatim and gives the pair no accessible name, so run a number through `useNumberFormatter().format(n)` yourself, and name the pair yourself where a reader has to hear the two together |
-| A gear that opens advanced settings | `AdvancedButton`, with `changed` | -- |
-| A group of controls that folds away | `ControlSection` | -- |
-| A group of controls that must not fold, or whose rule has to bleed to the edges of a padded container | `ControlGroup` | -- |
-| A checkbox on its own line | `ToggleRow` inside a `ToggleRowGroup` | -- |
-| A checkbox that reveals the settings it turns on | `ToggleWithContent` | -- |
-| A dropdown in a panel row | `PanelField` with `kind="select"` | -- |
-| A dropdown with a default the reader can override | `StyleSelect` | -- |
-| Two to six drawable options in a panel row | `IconGroupRow` | a bare Mantine `SegmentedControl`, which `IconGroupRow` is built on and adds the panel grid, the glyphs and the `showLabels` preference to |
-| An icon button that opens a pop-out | `PopoutButton`, inside `Popout.Trigger` | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open |
-| An explanation bubble | `InfoCircle` | a Mantine `Popover`, which does not share this library's dismissal rules |
+| If you have                                                                                           | Use                                           | Instead of                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A label and a reading on one line                                                                     | `DataRow`, with the reading already formatted | -- it draws `value` verbatim and gives the pair no accessible name, so run a number through `useNumberFormatter().format(n)` yourself, and name the pair yourself where a reader has to hear the two together |
+| A gear that opens advanced settings                                                                   | `AdvancedButton`, with `changed`              | --                                                                                                                                                                                                            |
+| A group of controls that folds away                                                                   | `ControlSection`                              | --                                                                                                                                                                                                            |
+| A group of controls that must not fold, or whose rule has to bleed to the edges of a padded container | `ControlGroup`                                | --                                                                                                                                                                                                            |
+| A checkbox on its own line                                                                            | `ToggleRow` inside a `ToggleRowGroup`         | --                                                                                                                                                                                                            |
+| A checkbox that reveals the settings it turns on                                                      | `ToggleWithContent`                           | --                                                                                                                                                                                                            |
+| A dropdown in a panel row                                                                             | `PanelField` with `kind="select"`             | --                                                                                                                                                                                                            |
+| A dropdown with a default the reader can override                                                     | `StyleSelect`                                 | --                                                                                                                                                                                                            |
+| Two to six drawable options in a panel row                                                            | `IconGroupRow`                                | a bare Mantine `SegmentedControl`, which `IconGroupRow` is built on and adds the panel grid, the glyphs and the `showLabels` preference to                                                                    |
+| An icon button that opens a pop-out                                                                   | `PopoutButton`, inside `Popout.Trigger`       | `AdvancedButton`, which is for a row's or a section's advanced settings and does not light up while a panel is open                                                                                           |
+| An explanation bubble                                                                                 | `InfoCircle`                                  | a Mantine `Popover`, which does not share this library's dismissal rules                                                                                                                                      |
 
 A lone boolean is not a row: put it in the trailing slot of the row it modifies,
 or make it one tile of an `IconGroupRow`. `ToggleRowGroup` warns in development

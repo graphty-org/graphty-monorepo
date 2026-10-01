@@ -75,8 +75,14 @@ describe("multi-value and native inputs follow the size scale (Browser)", () => 
     }
 
     it("a field holding a pill keeps its size's height", () => {
-        for (const [size, px] of [["xs", 20], [undefined, 24], ["xl", 44]] as const) {
-            expect(measure("MultiSelect", <MultiSelect size={size} label="Field" data={["A", "B"]} value={["A"]} />)).toBe(px);
+        for (const [size, px] of [
+            ["xs", 20],
+            [undefined, 24],
+            ["xl", 44],
+        ] as const) {
+            expect(
+                measure("MultiSelect", <MultiSelect size={size} label="Field" data={["A", "B"]} value={["A"]} />),
+            ).toBe(px);
             expect(measure("TagsInput", <TagsInput size={size} label="Field" value={["A"]} />)).toBe(px);
         }
     });

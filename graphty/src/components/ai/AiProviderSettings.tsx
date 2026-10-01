@@ -246,7 +246,7 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
     const [openProvider, setOpenProvider] = useState<ProviderType | null>(() => {
         const connected = AI_PROVIDERS.find((entry) => entry.requiresKey && hasKey(entry.type));
 
-        return (defaultProvider ?? connected?.type) ?? AI_PROVIDERS[0].type;
+        return defaultProvider ?? connected?.type ?? AI_PROVIDERS[0].type;
     });
 
     /* What is typed but not yet committed. A provider with no entry here is showing
@@ -457,7 +457,10 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                             color: PANEL_INK.CHROME,
                                         }}
                                     >
-                                        <UiGlyph name={open ? "chevronDown" : "chevronRight"} size={PANEL_GRID.CHEVRON} />
+                                        <UiGlyph
+                                            name={open ? "chevronDown" : "chevronRight"}
+                                            size={PANEL_GRID.CHEVRON}
+                                        />
                                     </Box>
                                 )}
                                 <Box component="span" style={{ fontWeight: 500 }}>
@@ -711,8 +714,8 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                         component="span"
                         style={{ fontSize: READING_FONT_SIZE, lineHeight: 1.4, color: PANEL_INK.PROSE }}
                     >
-                        Keys are encrypted and stored in this browser only. They are sent to the provider you choose
-                        and nowhere else.
+                        Keys are encrypted and stored in this browser only. They are sent to the provider you choose and
+                        nowhere else.
                     </Box>
                 </Box>
             </Box>

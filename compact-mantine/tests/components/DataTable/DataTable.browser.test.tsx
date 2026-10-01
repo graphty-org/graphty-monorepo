@@ -150,12 +150,7 @@ describe("DataTable geometry", () => {
             <DirectionProvider initialDirection="rtl" detectDirection={false}>
                 <MantineProvider theme={compactTheme}>
                     <div style={{ width: 400 }}>
-                        <DataTable
-                            columns={COLUMNS}
-                            data={NODES}
-                            getRowId={(node) => node.id}
-                            height={VIEWPORT}
-                        />
+                        <DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />
                     </div>
                 </MantineProvider>
             </DirectionProvider>,

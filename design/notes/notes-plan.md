@@ -37,7 +37,9 @@ There are two pull requests:
 | 0 | Not started. |
 | 1, 2 | Built (2026-10-01), with the changes listed under "As built" in each. |
 | 3 | `status`, `counts` and the `missing` filter built with step 2; the `unsupported` rows wait for step 4 (see step 3). |
-| 4 to 9 | Not started. |
+| 4, 5 | Not started. |
+| 6 | Built (2026-10-01), with the changes listed under "As built". |
+| 7 to 9 | Not started. |
 
 ---
 
@@ -212,10 +214,9 @@ item across a re-run and a removal; cites `current`, `earlier-run` and `missing`
 `"11"`; `counts()` with multi-target notes; every `list` filter and `authors()`. Still to do here:
 
 - The `unsupported` target and cite states, once step 4 can open a note holding one.
-- `sets.restore` of a set that only a note names fails today ("nothing named it any more, so its
-  record was not kept"), because the set's tombstone keeps its record only while a layer, a
-  filter or another set names it. Step 6, which makes notes users of the sets they name, must also
-  count them there, so a set a note names can be restored.
+- Done in step 6: a set a note names is restorable, because notes are now among the set's users
+  and a removed set keeps its record while anything uses it. Conformance note-18 (an edge saved
+  by position binds whichever edge of the pair now holds that position) is tested here too.
 
 ---
 
@@ -315,6 +316,32 @@ targets, with one `missing` target counted in `skipped`; `target: 0`. `test/sess
 
 **Done when:** an application can select a note's targets and ask a set's notes without computing
 either itself.
+
+**As built:**
+
+- `src/session/notes/select.ts` turns a note's targets into snapshot rows and scopes;
+  `selection/targets.ts` has the `{ note, target? }` arm, fed by the session through a `note`
+  source beside `scope`, `match` and `find`. Nothing in `graphty-element.ts` or `Graph.ts` changed:
+  `el.select` already forwards every target.
+- `SelectionDelta.skipped` is present for a note target only (0 when nothing was skipped), and
+  absent for every other target, the way `unmatched` is absent when it has nothing to say.
+- Skipped means a target reading `missing` or `unsupported`, or an item from an earlier run whose
+  members were never captured (a note opened from a file about a run this session never had).
+  A `filtered` target is in the graph, so it is selected.
+- `{ graph: true }` and `{ result }` targets name no elements: they select nothing and are not
+  skipped. Selecting the whole graph for a graph note would hide the note's other targets in it.
+- An item target is resolved as `{ kind: "rule", where: { kind: "item", item }, reading:
+  "clipped" }`, so a group selects its nodes and the edges the result places in it, and a path
+  its nodes and edges.
+- An item from an earlier run selects what that run held: a note's item targets are added to the
+  holders captured before a re-run (`captureHeld` in `GraphSession.ts`), as a kept rule's are.
+- A `target` position that is not a whole number inside the note's targets is `E_OPTION_RANGE`
+  (`details.option: "target"`); an unknown note id is `E_BAD_COMMAND`, `reason: "unknown-id"`, as
+  `notes.status` refuses it.
+- `usedBy` labels a note with its first line that has any characters, trimmed and cut to 80
+  code points.
+- The tests are in `test/session/notes/select.test.ts` rather than `test/session/selection/` and
+  `test/session/sets/`, beside the notes harness they use.
 
 ---
 

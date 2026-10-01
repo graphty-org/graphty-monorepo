@@ -1069,10 +1069,11 @@ jobs:
             # excluded items (so every story without an approved baseline blocks, unseeded included),
             # or when that capture is missing, unfinished or invalid. It also fails when
             # a baseline PNG or an excluding settings file differs from the base without a review record
-            # added in the pull request that names its new hash. So it shows the captures match the pull
-            # request's baselines and that each baseline change is named (path and new hash) in a record;
-            # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
-            # (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
+            # added in the pull request that names its new hash. Once visual-review/passkeys.json on the
+            # base branch holds a key, every record the pull request adds must also carry the owner's
+            # passkey approval (Face ID) over exactly that record and this pull request number, by a key
+            # read from the base branch, never from the pull request; a pull request that would leave no
+            # key fails (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
             # (standard library only), run from this checkout rather than with npx as the package's
             # template does, so a change to the gate is tested by its own pull request; it reads
@@ -1097,4 +1098,4 @@ jobs:
 
             - name: Check visual changes were accepted
               if: github.event_name == 'pull_request'
-              run: node visual-review/trusted/cli.mjs gate --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD
+              run: node visual-review/trusted/cli.mjs gate --captures "$RUNNER_TEMP/visual" --pr "${{ github.event.pull_request.number }}" --base HEAD^1 --head HEAD

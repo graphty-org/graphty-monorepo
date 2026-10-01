@@ -90,6 +90,18 @@ async function withFixtureSet(session: GraphSession): Promise<void> {
     });
 }
 
+/** The note the note fixtures edit: its id is minted, so it is known once `withFixtureNote` ran. */
+const FIXTURE_NOTE = { id: "" };
+
+/**
+ * Write the fixture note, about node `n1`, as a step of its own.
+ * @param session - The session.
+ */
+async function withFixtureNote(session: GraphSession): Promise<void> {
+    FIXTURE_NOTE.id = session.notes.add({ text: "Fixture note", targets: [{ node: "n1" }] });
+    await Promise.resolve();
+}
+
 /** A 5 by 5 PNG a skybox can be built from without a network. */
 export const SKYBOX_PNG =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
@@ -404,6 +416,51 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             await session.execute({ op: "set.remove", id: FIXTURE_SET });
         },
         command: { op: "set.restore", id: FIXTURE_SET },
+    },
+    {
+        name: "note.add",
+        tags: ["session"],
+        before: async (session) => {
+            await session.config.set({ author: "Fixture author" });
+            await session.runs.start("degree", undefined, { as: "deg", style: false });
+        },
+        command: {
+            op: "note.add",
+            note: {
+                text: "A fixture note\nover two lines",
+                targets: [
+                    { node: "n1" },
+                    { edge: { source: "n1", target: "n2", ordinal: 0, among: 1 } },
+                    { graph: true },
+                ],
+                cites: [{ result: "deg" }],
+                mediaType: "text/markdown",
+                extensions: { "com.example.fixture": { done: true } },
+            },
+        },
+    },
+    {
+        name: "note.update",
+        tags: ["session"],
+        before: withFixtureNote,
+        command: {
+            op: "note.update",
+            get id() {
+                return FIXTURE_NOTE.id;
+            },
+            patch: { text: "Edited fixture note", targets: [{ node: "n2" }], mediaType: "text/plain" },
+        },
+    },
+    {
+        name: "note.remove",
+        tags: ["session"],
+        before: withFixtureNote,
+        command: {
+            op: "note.remove",
+            get id() {
+                return FIXTURE_NOTE.id;
+            },
+        },
     },
     {
         name: "view.save",

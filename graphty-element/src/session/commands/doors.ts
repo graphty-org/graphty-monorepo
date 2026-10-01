@@ -326,6 +326,34 @@ async function withTemplateDegree(target: object): Promise<() => Promise<unknown
     return () => config.set({ runAlgorithmsOnLoad: false, data: { algorithms: [] } });
 }
 
+/** The note the notes doors write. */
+const DOOR_NOTE_INPUT = { text: "door note", targets: [{ node: "d1" }] };
+
+/** The id of the note a notes door edits: minted, so known only once `around` has added it. */
+const DOOR_NOTE = { id: "" };
+
+/**
+ * A notes door that acts on a note, added before the spy is attached.
+ * @param args - The arguments, read once the note exists.
+ * @param expect - The commands the call must dispatch; their `id` reads the note's.
+ * @returns The door.
+ */
+function withDoorNote(args: () => readonly unknown[], expect: readonly unknown[]): Door {
+    return {
+        kind: "dispatches",
+        op: (expect[0] as { op: string }).op,
+        call: {
+            kind: "call",
+            args,
+            around: (target) => {
+                DOOR_NOTE.id = (target as { add(input: unknown): string }).add(DOOR_NOTE_INPUT);
+                return Promise.resolve(() => Promise.resolve());
+            },
+        },
+        expect,
+    };
+}
+
 /** The rows of `GraphSession`, shared with the element's wider form of it. */
 const SESSION: Readonly<Record<string, Door>> = {
     data: READ,
@@ -333,6 +361,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     results: READ,
     scope: READ,
     sets: READ,
+    notes: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -1493,6 +1522,42 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 },
                 expect: [{ op: "set.restore", id: "set_door-kept" }],
             },
+        },
+    },
+    {
+        name: "NotesApi",
+        file: "src/session/notes/types.ts",
+        half: "session",
+        doors: {
+            list: READ,
+            get: READ,
+            status: READ,
+            authors: READ,
+            counts: READ,
+            add: calls([DOOR_NOTE_INPUT], [{ op: "note.add", note: DOOR_NOTE_INPUT }]),
+            update: withDoorNote(
+                () => [DOOR_NOTE.id, { text: "door edited" }],
+                [
+                    {
+                        op: "note.update",
+                        get id() {
+                            return DOOR_NOTE.id;
+                        },
+                        patch: { text: "door edited" },
+                    },
+                ],
+            ),
+            remove: withDoorNote(
+                () => [DOOR_NOTE.id],
+                [
+                    {
+                        op: "note.remove",
+                        get id() {
+                            return DOOR_NOTE.id;
+                        },
+                    },
+                ],
+            ),
         },
     },
     {

@@ -234,6 +234,26 @@ export type {
 } from "./src/session/sets/types";
 
 // ---------------------------------------------------------------------------------------------
+// Notes: text people write about the graph and what is in it, as `session.notes`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    Note,
+    NoteChange,
+    NoteCite,
+    NoteCiteStatus,
+    NoteId,
+    NoteInput,
+    NoteListOptions,
+    NotePatch,
+    NotesApi,
+    NoteStatus,
+    NoteTarget,
+    NoteTargetInput,
+    NoteTargetStatus,
+} from "./src/session/notes/types";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 

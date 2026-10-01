@@ -44,6 +44,7 @@ import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionSt
 import type { ImportReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
 import type {
@@ -689,12 +690,19 @@ export interface SessionEventMap {
      * re-reads them on the events it already watches and on this one.
      */
     "set:changed": SetChange;
+    /**
+     * A note was added, edited or removed: one event per note a write touched, after the write
+     * committed. A write that was refused, or that changed nothing, publishes nothing.
+     */
+    "note:changed": NoteChange;
 }
 
 /**
  * The parts of a project. Everything a project file saves lives in one of these, and a change
  * to any of them is undoable; nothing outside them (camera, hover, the selection, a run still
  * computing) is.
+ *
+ * OPEN UNION: slices may be added in a minor release; handle one you do not know.
  */
 export type ProjectSlice =
     | "graph"
@@ -706,7 +714,8 @@ export type ProjectSlice =
     | "styles"
     | "visibility"
     | "sets"
-    | "views";
+    | "views"
+    | "notes";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -858,6 +867,12 @@ export interface CommandOutcomeMap {
     "set.remove": Promise<void>;
     /** Settles once the restore is recorded. */
     "set.restore": Promise<void>;
+    /** The new note's id, once it is recorded. */
+    "note.add": Promise<NoteId>;
+    /** Settles once the edit is recorded. */
+    "note.update": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "note.remove": Promise<void>;
     /** Settles once the views are recorded. */
     "view.save": Promise<void>;
     /** Settles once the removal is recorded. */
@@ -1075,6 +1090,12 @@ export interface GraphSession {
      * and `scope.count({ set: id })`; every change is published as `set:changed`.
      */
     readonly sets: SetsApi;
+    /**
+     * The notes: text people write about the graph, its nodes and edges, kept sets and results.
+     * Every write is one undoable step and is published as `note:changed`; graphty-element stores
+     * a note's text exactly as given and never interprets it.
+     */
+    readonly notes: NotesApi;
     /**
      * What is selected: two sets, five set operations, one selection for the whole session.
      *

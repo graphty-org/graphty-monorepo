@@ -55,6 +55,8 @@ import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
+import { createNotesApi } from "./notes/NotesApi";
+import type { NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
@@ -247,6 +249,7 @@ const TX_PARTS = [
     "results",
     "scope",
     "sets",
+    "notes",
     "selection",
     "visibility",
     "styles",
@@ -284,6 +287,8 @@ interface SessionParts {
     readonly scope: ScopeApi;
     /** The kept sets. */
     readonly sets: SetsApi;
+    /** The notes. */
+    readonly notes: NotesApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -378,6 +383,7 @@ class Session implements ElementSession {
     readonly results: ResultsApi;
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
+    readonly notes: NotesApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -425,6 +431,7 @@ class Session implements ElementSession {
         this.results = parts.results;
         this.scope = parts.scope;
         this.sets = parts.sets;
+        this.notes = parts.notes;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -555,7 +562,8 @@ class Session implements ElementSession {
                         code: "E_BAD_COMMAND",
                         message: `A set's ${minted.join(", ")} ${minted.length === 1 ? "is" : "are"} minted by the element; leave ${minted.length === 1 ? "it" : "them"} out of set.create.`,
                         source: "data",
-                        details: { fields: minted },
+                        // The same reason a note's element-made fields are refused with.
+                        details: { fields: minted, reason: "element-field" },
                     }),
                 ) as CommandOutcome<C>;
             }
@@ -2180,6 +2188,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         entries: () => runs.list().map((run) => toResultsEntry(run)),
     });
 
+    // Notes, published as `session.notes`: a result a note names is known while its run is, and
+    // a cite or an item pins the token of its current finished run.
+    const noteResult = (id: RunId): { readonly execution: string | undefined } | undefined =>
+        runs.get(id) === undefined ? undefined : { execution: executionOf(id) };
+    const notes = createNotesApi({
+        dispatcher,
+        edgeMember,
+        status: {
+            snapshot,
+            visible: {
+                node: (row: number) => visibility.masks.nodes().has(row),
+                edge: (row: number) => visibility.masks.edges().has(row),
+            },
+            set: (id: SetId) => keptSets.get(id),
+            result: noteResult,
+        },
+        onChange: (change) => {
+            publish(watchers, "note:changed", change);
+        },
+    });
+
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
@@ -2391,6 +2420,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results,
         scope,
         sets,
+        notes,
         selection,
         visibility,
         styles,

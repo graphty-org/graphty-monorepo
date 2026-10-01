@@ -6,10 +6,10 @@
  * sabotage suite measures, bitwise (ratioOf(|a - b|, 0): any mismatch is Infinity): the `dist` bit patterns against
  * the f32 Bellman-Ford oracle, `predArc` against the host's PD-27 tight-subgraph rule, `reachedCount` and the flag on
  * the uniform-weight grid from both corners and on the negative DAG, the flag on the planted cycle, and -- the row
- * the compare-exchange result guards -- the fan-in under a retry bound of ONE, where the real kernel's losing lanes
- * exhaust the bound (a failed exchange is a lost update the next round repairs, so `dist` never misses; only the
- * bound witnesses the contention) and a kernel that ignores the exchange result never does. A driver refusal is the
- * maximal miss.
+ * the compare-exchange result guards -- the descending fan, whose one round before the decision round leaves no room
+ * to repair a lost update: the real kernel applies every candidate and says false, a kernel that ignores the exchange
+ * result loses all but one per SIMD group and the decision round reads that as a negative cycle. A driver refusal is
+ * the maximal miss.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -83,8 +83,9 @@ export const GRID_WITH_CYCLE_NODES = 903;
  * but the first fails its exchange: under a retry bound of one they exhaust it (measured on lavapipe and the RTX
  * 4070 SUPER: exactly one batch for every k from 8 to 4,096), and under the default bound the reloaded value is the
  * smallest candidate, so no lane retries past its first failure. The DESCENDING order is the adversarial one (each
- * winner is the largest remaining candidate): a 32-lane subgroup then needs 31 attempts, above the default bound,
- * which the driver survives by running on; it is not used here.
+ * winner is the largest remaining candidate): a 32-lane subgroup then needs 31 attempts (`descendingFan`,
+ * `racingCycle`); since issue #470 those lost exchanges never count against the bound, which counts spurious
+ * failures only.
  * @param k - the fan width
  * @returns the edges
  */
@@ -95,6 +96,40 @@ export function fanIn(k: number): EdgeSpec[] {
     }
     for (let i = 1; i <= k; i++) {
         edges.push([i, k + 1, i]);
+    }
+    return edges;
+}
+
+/**
+ * The descending fan: `k` PARALLEL arcs `0 -> 1` at weights `k, k - 1, ..., 1` (directed, 2 nodes), so the one round
+ * before the decision round offers every candidate at once, largest first, from adjacent lanes. The real kernel
+ * applies them all (`dist[1]` 1, no negative cycle); a kernel that drops a lost exchange leaves `dist[1]` above 1, and
+ * the decision round's repair reads as a negative cycle.
+ * @param k - the parallel arcs
+ * @returns the edges
+ */
+export function descendingFan(k: number): EdgeSpec[] {
+    return Array.from({ length: k }, (_, i): EdgeSpec => [0, 1, k - i]);
+}
+
+/**
+ * Issue #470's race: a negative cycle `1 -> 2 -> 1` (weights 1 and -3) hanging off the source by `0 -> 1`, and `k`
+ * PARALLEL arcs `1 -> 3` at weights `k, k - 1, ..., 1`, DESCENDING with the edge index (directed, 4 nodes). The cycle
+ * lowers `dist[1]` every round, so in every round -- the decision round included -- all `k` candidates for node 3
+ * improve on it, and adjacent lanes of one SIMD group load the same `dist[1]` and offer them largest first: each
+ * exchange is won by the largest remaining candidate, so a lane can lose `k - 1` times in one round (31 on a 32-wide
+ * subgroup) without any spurious failure.
+ * @param k - the parallel arcs into node 3
+ * @returns the edges
+ */
+export function racingCycle(k: number): EdgeSpec[] {
+    const edges: EdgeSpec[] = [
+        [0, 1, 1],
+        [1, 2, 1],
+        [2, 1, -3],
+    ];
+    for (let i = 0; i < k; i++) {
+        edges.push([1, 3, k - i]);
     }
     return edges;
 }
@@ -187,8 +222,8 @@ async function runReports(
 
 /**
  * The sabotage check of `bf-relax` (spec 11.9 item 1): the uniform-weight grid from both corners (undirected: the
- * reverse direction of every edge), the negative DAG, the planted negative cycle (the flag), and the fan-in under a
- * retry bound of one (the compare-exchange result: the real kernel's losing lanes exhaust the bound at least once).
+ * reverse direction of every edge), the negative DAG, the planted negative cycle (the flag), and the descending fan
+ * (the compare-exchange result: a lost exchange the next round cannot repair before the decision round).
  * @param ctx - the context
  * @returns the report
  */
@@ -208,27 +243,10 @@ export async function bellmanFordReport(ctx: GpuContext): Promise<CheckReport> {
     });
     reports.push(...(await runReports(ctx, "plantedCycle", cycle, 0, undefined, {})));
     ctx.release(cycle);
-    // the compare-exchange result: under maxRetries 1 every lane whose exchange fails exhausts the bound, and a lane
-    // whose exchange fails exists whenever the lanes of one SIMD group load the same value before any of them
-    // exchanges (the 4,096 candidates for the sink, in one round)
-    const fan = snapshotOf(fanIn(4096), { directed: true, label: "bf-report-fan" });
-    try {
-        const run = await bellmanFordWithTuning(ctx, fan, 0, undefined, { maxRetries: 1 });
-        reports.push({
-            worst: ratioOf(run.retryExhaustedRounds >= 1 ? 0 : 1, 0),
-            worstLabel: "fanIn4096.retryExhaustedRounds (maxRetries 1)",
-            samples: 1,
-        });
-        reports.push(
-            ...bitwiseReports("fanIn4096.dist", bitsOf(run.result.dist), bitsOf(bellmanFordOracle(fan, 0).dist)),
-        );
-    } catch (err) {
-        if (isWebGpuGraphError(err) && (err.code === "E_VALIDATION" || err.code === "E_UNSUPPORTED")) {
-            reports.push({ worst: Infinity, worstLabel: `fanIn4096.dist (${err.message})`, samples: 1 });
-        } else {
-            throw err;
-        }
-    }
+    // the compare-exchange result: 4,096 descending candidates for node 1 in the one round before the decision round;
+    // a dropped lost exchange leaves dist[1] above its minimum and the decision round flags a negative cycle
+    const fan = snapshotOf(descendingFan(4096), { directed: true, label: "bf-report-fan" });
+    reports.push(...(await runReports(ctx, "descendingFan4096", fan, 0, undefined, {})));
     ctx.release(fan);
     return mergeReports(reports);
 }

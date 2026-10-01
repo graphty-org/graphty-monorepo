@@ -190,7 +190,8 @@ describe("kamadaKawai", () => {
     });
 
     it("starts a 3D layout from seed 42 by default", () => {
-        // recorded output on a 4-node path; a change to the default 3D start moves it
+        // layout 1.x's kamadaKawaiLayout on a 4-node path; a change to the default 3D start (a float32 start
+        // included) moves it
         const s = fromEdgeArrays({
             directed: false,
             nodeCount: 4,
@@ -198,9 +199,9 @@ describe("kamadaKawai", () => {
             dst: Uint32Array.of(1, 2, 3),
         });
         const expected = [
-            -0.7830331325531006, -0.6201992034912109, -0.047009311616420746, -0.2615945339202881, -0.20616191625595093,
-            -0.013450900092720985, 0.26123684644699097, 0.20655201375484467, 0.014248745515942574, 0.7833908200263977,
-            0.6198091506958008, 0.04621146619319916,
+            -0.7827755212783813, -0.6205906271934509, -0.04614920914173126, -0.2621605694293976, -0.20552997291088104,
+            -0.011746840551495552, 0.2619185447692871, 0.2061464488506317, 0.008163494989275932, 0.7830175161361694,
+            0.6199741363525391, 0.04973255842924118,
         ];
         const actual = Array.from(layout.kamadaKawai(s, { dim: 3 }).positions);
         assert.equal(actual.length, expected.length);

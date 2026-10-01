@@ -831,6 +831,9 @@ This demo integrates:
                         system-ui,
                         -apple-system,
                         sans-serif;
+                    /* The page's own 16px margin plus this box, padding included, is exactly the
+                       viewport: content-box sizing added the padding on top and scrolled the page. */
+                    box-sizing: border-box;
                     height: calc(100vh - 32px);
                     background: #f5f5f5;
                 }

@@ -300,16 +300,6 @@ jobs:
                   # exists solely to auto-answer the publish prompt, and skipping
                   # publishing means there is no prompt to answer. Versioning,
                   # changelog and the GitHub release never consult it.
-                  # nx.json's graphty-element-by-version-plan group versions graphty-element
-                  # ONLY from a plan file under .nx/version-plans/; with the group left in place
-                  # and no plan, graphty-element silently gets no release at all. The group was
-                  # added for the 3.1.0 minor and must be removed once that release has happened
-                  # (see "Release versioning" in CLAUDE.md), so refuse to release until it is.
-                  if node -e 'process.exit(require("./nx.json").release.groups?.["graphty-element-by-version-plan"] ? 0 : 1)' \
-                      && ! ls .nx/version-plans/*.md >/dev/null 2>&1; then
-                      echo "::error::nx.json still has the graphty-element-by-version-plan release group but no version plan is left: delete release.groups from nx.json"
-                      exit 1
-                  fi
                   pnpm exec nx release --skip-publish --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -374,7 +364,14 @@ jobs:
                   #
                   # --nxBail=false is nx's default already (it reads NX_BAIL when the flag is absent); it is
                   # spelled out so one package's failed publish never stops the packages behind it.
-                  pnpm exec nx release publish --nxBail=false
+                  #
+                  # A failed publish does not fail this step: the next step, which polls the registry, decides.
+                  # npm answers a retry inside its propagation window (up to about 7.5 minutes after it accepted
+                  # an upload) with E409 "Cannot publish over previously staged version" (npm/cli#9889), which
+                  # failed the 3.1.0 release although every version it refused was already published. Any other
+                  # failure leaves a version missing, and the next step fails on it.
+                  pnpm exec nx release publish --nxBail=false ||
+                      echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   # OIDC trusted publishing - npm will use the GitHub Actions OIDC token
@@ -388,8 +385,9 @@ jobs:
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
             # dependency failed. So the last word is the registry: every non-private package's version at the
-            # version commit must be installable. npm takes a little while to serve a fresh version, hence the
-            # bounded poll (10 tries, 30 s apart) against the registry before calling a package missing.
+            # version commit must be installable. npm takes a while to serve a fresh version (up to about 7.5
+            # minutes), hence the bounded poll (20 tries, 30 s apart) against the registry before calling a
+            # package missing.
             - name: Check every version is on npm
               run: |
                   missing() {
@@ -398,7 +396,7 @@ jobs:
                               [ "$(npm view "$spec" version 2>/dev/null)" = "${spec##*@}" ] || echo "$spec"
                           done
                   }
-                  for try in 1 2 3 4 5 6 7 8 9 10; do
+                  for try in $(seq 1 20); do
                       absent=$(missing)
                       [ -n "$absent" ] || { echo "every package version is on npm"; exit 0; }
                       echo "try ${try}: not on npm yet: ${absent//$'\n'/ }"

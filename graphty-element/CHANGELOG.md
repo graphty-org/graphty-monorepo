@@ -1,3 +1,22 @@
+## 3.1.2 (2026-10-01)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.17
+- Updated @graphty/remote-logger to 1.3.15
+- Updated graph-samples to 0.1.11
+- Updated graph-format to 1.2.3
+- Updated algorithms to 3.1.1
+- Updated graph-io to 0.3.13
+- Updated layout to 2.0.3
+
+## 3.1.1 (2026-10-01)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.16
+- Updated algorithms to 3.1.0
+
 ## 3.1.0 (2026-09-30)
 
 ### 🚀 Features

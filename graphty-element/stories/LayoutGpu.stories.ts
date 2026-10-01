@@ -79,8 +79,10 @@ function captionLine(status: AccelerationStatus): string {
  * @returns The container to hand back to Storybook.
  */
 function withCaption(element: Graphty): HTMLElement {
+    // The element keeps its own full-width 2:1 frame under the caption, the frame every other
+    // story draws in. A container of 100vh made the canvas taller than the others and pushed the
+    // page past the viewport by the caption's height.
     const container = document.createElement("div");
-    container.style.cssText = "display: flex; flex-direction: column; height: 100vh;";
 
     const caption = document.createElement("div");
     caption.id = "acceleration-caption";
@@ -99,7 +101,6 @@ function withCaption(element: Graphty): HTMLElement {
         refresh(element.session.capabilities.acceleration);
     });
 
-    element.style.cssText = "flex: 1; display: block; min-height: 0;";
     container.append(caption, element);
 
     return container;

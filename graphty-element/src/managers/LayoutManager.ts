@@ -1998,8 +1998,16 @@ export class LayoutManager implements Manager {
         // would abort the rest of that pass -- its repaint -- over a layout that cannot place the
         // graph as it stands: bfs over nodes whose edges have not arrived yet is disconnected
         // until they do. A frame that cannot step is reported the same way.
+        // A layout built over an empty graph still owes its pre-steps, and the first frame spends
+        // them over every node and edge there is by then. Blind steps here would run first, over
+        // whatever part of the graph has arrived -- the nodes without their edges, when the edges
+        // come in a later pass -- and start the pre-steps from a different arrangement: the same
+        // data and seed then settled somewhere else than when the layout was built over it.
         try {
-            this.layoutEngine.updatePositions(nodes);
+            if (!this.preStepsOwed) {
+                this.layoutEngine.updatePositions(nodes);
+            }
+
             this.layoutEngine.publishPositions();
         } catch (error) {
             this.reportLayoutFailure(this.layoutEngine.type, error, "stepped");

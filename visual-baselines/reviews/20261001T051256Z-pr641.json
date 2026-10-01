@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "unproven": true,
+  "pr": 641,
+  "subject": {
+    "builtMerge": "aa5e971cc70ce460b85f570df6c2ee54986302b5",
+    "head": "91673c185ec42c96000014d724b087849c28b11c",
+    "runId": 36811846137,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "aa5e971cc70ce460b85f570df6c2ee54986302b5"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/algorithms/centrality--betweenness.png",
+      "from": "f92f249afc73b79e37f919fbb697cc088d615b4ae7e202b2c7fb35413622a9d6",
+      "to": "b432d654bebab40b44c1b2ba71449c94ae7819e0c064967cf3948611ddf3103f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/centrality--page-rank.png",
+      "from": "3bf42a007e17d30dc8e51e204444d977fc840eb871a01c69d2c9c5bb22116143",
+      "to": "114fcaaf6922b512d56c96803d398f1e051baa0d9e0879122c084666abb8382e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/clustering--spectral.png",
+      "from": "6ae5bbe0b8042a51bb8a8dda781a10399ee681b9e19aada3a351e1fc968e6316",
+      "to": "d351f9def233bbc4176119041406d2b20c895d6f80e9b68892af35ad1b5f50b3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/community--label-propagation.png",
+      "from": "5d6fcf7a18e1d84c282dbf6f40d5143254c5a5ec37f03c65e600a75a49892445",
+      "to": "1d12ad42934f95a7f744c00e65dcbe554c9d6f1c879dd939d91d456225535323",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/community--louvain.png",
+      "from": "d1f7a05b67e235a9bba86dec40e0f9d5ca0dbbc20eb9aaeb2ef9472c16aa06e2",
+      "to": "0ff216c37424caf0b166867ee4476a2bcff21330c0734880379e7986200daa30",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/matching--bipartite.png",
+      "from": "1a22d74dbf8a58507c10bb1c31ab5fe9a0f8aee173b227f123a66f639b8ae655",
+      "to": "cb6043a7d1374cf87a9d36a0781a7387ac41272fc7cb0ad2fe1203abc1e9e47a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/matching--isomorphism.png",
+      "from": "607b85ea91ac24372d58199e56d78bc040e944218610d14b8fdab7c163684521",
+      "to": "34749d769437dec1f86b2f867653d3e36676d1c06692ad1c9b144bf4f82c452d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/algorithms/mst--prim.png",
+      "from": "c74d2755b55f7b0434b2967004c884107f00dba6d4a96849f2abf97a92d570c7",
+      "to": "389722dd60a45e80b1cf46c4137ebf7be10a4d0642bf38de8beae53356dd38c2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/algorithms-combined--centrality-vs-community.png",
+      "from": "e363ce872a5811a492fce6c17b590bb797bedaf1d0f8715712c0a1e41ab298ec",
+      "to": "88c1a87d82b6e11b4f8b4bb4338cef56f89555737b0bf80db41da89ab4826210",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/algorithms-combined--community-structure-with-path.png",
+      "from": "eb19b1cebcbfa3e30032b9b7bae6c68aa60dfce9906ba30f7c2e9df890ba1d16",
+      "to": "bc9f7eed50e1b9dca3d915217bd0d449f4ce5e666babadbd3cddd5cdadf33f62",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/algorithms-community--louvain.png",
+      "from": "62ff5c06364d3058848cd2bd8853db6e7c4d58c592cda5de6a1171a8ecdab093",
+      "to": "4c09f4070e9b5419b812ae89118edd129741a8ec9e9d9425a4f00cf26ccfdf6e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--arf.png",
+      "from": "32e5d084ab8dcb0d36035cdd98acd3a5e3733dc45e887d469805b3403dfb2b9b",
+      "to": "871f6be5010df1b0222f2d79555d5c6dc8b90fb10dd6586db583e664531029e8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-acceleration--on.light.png",
+      "from": null,
+      "to": "e69f0c2fe970c69636d83d02888968e3e6664b862c19bdf1280045b7450ac379",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/layout/layout2d--spring.png",
+      "from": "fddf5726dfdb05927d67497a12fd82617fea8ca3ac01ebbdcd0ae2b5472c6bbe",
+      "to": "3cfad698705c4333324d2f200ccff8225bdcb7aa82c696feddc8189ef1ef64bb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/layout/layout3d--spherical.png",
+      "from": "dd9446abdd930cf60108854d875fb525af6f682937012d003b6796329ba6d126",
+      "to": "e9c8a39cb67fa54be5db100d2de3e67b8ff690fa806390fea8e4468603f0c333",
+      "reason": null
+    }
+  ],
+  "reviewedAt": "2026-10-01T05:12:56.627Z"
+}

@@ -54,10 +54,17 @@ const VIEWPORT = { width: 1200, height: 900 };
 /** Device pixels per CSS pixel, as Chromatic captures; recorded in results.json as `scale`. */
 const SCALE = 2;
 const RENDER_TIMEOUT = 30_000;
-const CHROMIUM_ARGS = [
+/**
+ * Chromium's switches for every capture. `--disable-gpu-rasterization` draws the page's text and
+ * shapes on the CPU: rasterized through SwiftShader, a glyph that sits on a sub-pixel boundary
+ * landed on either side of it from one render to the next, so a story with nothing moving read
+ * `unstable` (the README, "Why captures rasterize on the CPU"). WebGL still runs on SwiftShader.
+ */
+export const CHROMIUM_ARGS = [
     "--use-gl=angle",
     "--use-angle=swiftshader",
     "--enable-unsafe-swiftshader",
+    "--disable-gpu-rasterization",
     "--force-color-profile=srgb",
     "--disable-lcd-text",
     "--font-render-hinting=none",
@@ -499,7 +506,10 @@ async function loadReference(dir) {
     if (!results || validateResults(results).length > 0 || !results.complete) {
         return { images, runId: null };
     }
-    for (const item of results.items.filter((i) => i.status === "new")) {
+    // Both statuses mean "captured with no baseline, hash recorded". Reading only `new` made a story
+    // alternate: a run that matched its reference says `unseeded`, so the next run found no image
+    // for it and said `new` again.
+    for (const item of results.items.filter((i) => i.status === "new" || i.status === "unseeded")) {
         const bytes = await readFile(join(dir, item.file)).catch(() => null);
         if (bytes && sha256(bytes) === item.capture) {
             images.set(item.file, bytes);

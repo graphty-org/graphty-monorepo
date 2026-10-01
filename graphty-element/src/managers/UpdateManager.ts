@@ -659,7 +659,7 @@ export class UpdateManager implements Manager {
      * @returns One phrase naming the thing that is still moving.
      */
     whyFrameIsNotStable(): string {
-        if (this.layoutManager.running) {
+        if (this.layoutIsMoving()) {
             return "the layout is still running";
         }
 
@@ -689,11 +689,25 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the layout can still move anything on screen.
+     *
+     * A layout is built running whether or not the graph has nodes, and the frame loop stops it
+     * only once it settles over a graph that HAS nodes -- an empty graph has nothing to settle and
+     * announces nothing. So on an element nobody has loaded data into, `running` stays true for
+     * good. That is not a moving picture: a layout with no nodes moves nothing, and an empty graph
+     * is a finished one.
+     * @returns True when the layout is running over at least one node.
+     */
+    private layoutIsMoving(): boolean {
+        return this.layoutManager.running && this.dataManager.nodes.size > 0;
+    }
+
+    /**
      * Whether the state this pass leaves behind is a picture that will not change again.
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
-        if (this.layoutManager.running) {
+        if (this.layoutIsMoving()) {
             return false;
         }
 

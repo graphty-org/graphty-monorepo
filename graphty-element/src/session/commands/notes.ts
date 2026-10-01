@@ -13,7 +13,7 @@ import type { EdgeId, EdgeMember, ResultId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { planMerge, readMember } from "../notes/document";
 import { mintNoteId, noteTime } from "../notes/ids";
-import type { NoteId, NoteInput, NoteMergeOptions, NotePatch, NotesReport } from "../notes/types";
+import type { Note, NoteId, NoteInput, NoteMergeOptions, NotePatch, NotesReport } from "../notes/types";
 import { buildNote, codePoints, type NoteContext, patchNote, refuseNote } from "../notes/validate";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { NoteEntry } from "../project/state";
@@ -54,6 +54,8 @@ export interface NoteService {
     edgeMember(id: EdgeId): EdgeMember | undefined;
     /** A result: undefined when unknown; else the token of its current finished run, if any. */
     result(id: ResultId): { readonly execution: string | undefined } | undefined;
+    /** Notes as `toDocument` writes them, so a merge compares a held note in its saved form. */
+    saved(notes: readonly Note[]): Note[];
     /** Told the id each `note.add` minted, as it is written: how `session.notes.add` returns it. */
     added(id: NoteId): void;
     /** Told what each `note.merge` did, its missing count still to work out: how `mergeDocument` reports. */
@@ -210,7 +212,11 @@ const noteMerge: UndoableDefinition<NoteMergeCommand> = {
 
         const now = Date.now();
         const read = readMember(command.document, now);
-        const plan = planMerge(read.notes, ctx.state.notes, onConflict, () => mintNoteId(now));
+        // A held note compares in its saved form, so opening what `toDocument` just wrote adds nothing.
+        const entries = [...ctx.state.notes];
+        const saved = serviceOf(ctx).saved(entries.map(([, entry]) => entry.note));
+        const held = new Map(entries.map(([id, entry], at) => [id, { ...entry, note: saved[at] }]));
+        const plan = planMerge(read.notes, held, onConflict, () => mintNoteId(now));
         const total = ctx.state.notes.size + plan.added.length;
         if (total > 10_000) {
             throw refuseNote("E_TOO_LARGE", "notes", "A session holds at most 10,000 notes.", { count: total });

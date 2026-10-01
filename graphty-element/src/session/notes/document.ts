@@ -267,6 +267,15 @@ function isCiteForm(cite: object): boolean {
 const SESSION_EDGE_ID = /^graphty:e\d+$/;
 
 /**
+ * Whether an edge id is one graphty-element made up for an edge added in a session.
+ * @param id - The id.
+ * @returns True when it is.
+ */
+export function isSessionEdgeId(id: unknown): boolean {
+    return typeof id === "string" && SESSION_EDGE_ID.test(id);
+}
+
+/**
  * Edge targets read from a file that name an edge by a session-made id. That id means nothing in
  * this session, so the target binds nothing (notes.md, "Binding" rule 2). Kept per frozen target,
  * so a renamed copy or a text edit keeps it, and new targets written by `update` drop it.
@@ -397,7 +406,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
     const targets = objectsOf(raw.targets, "targets");
     for (const target of targets) {
         const { edge } = target as { edge?: unknown };
-        if (isPlain(edge) && typeof edge.id === "string" && SESSION_EDGE_ID.test(edge.id)) {
+        if (isPlain(edge) && isSessionEdgeId(edge.id)) {
             sessionEdgesFromFiles.add(target);
         }
     }

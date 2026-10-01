@@ -10,8 +10,11 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
+import type { EdgeId } from "../../../src/catalog/types";
 import { createGraphSession } from "../../../src/session/GraphSession";
-import type { ElementSession } from "../../../src/session/types";
+import type { NotesDocument } from "../../../src/session/notes/types";
+import { edgeSpaceOf } from "../../../src/session/scope/ScopeApi";
+import type { ElementSession, GraphSession } from "../../../src/session/types";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { notesHarness, refusalOf } from "./harness";
 
@@ -153,17 +156,121 @@ describe("format review: binding by identity only", () => {
         assert.strictEqual(session.notes.status("note_m").targets[0].state, "missing");
         assert.deepEqual(session.notes.counts(), { notes: 1, nodes: 0, edges: 0 });
     });
+});
 
-    // notes.md "Targets" rule 2: an edge the session added has no position, so its made-up id is
-    // written; it binds in this session, and reads missing once opened from a file.
-    it("saves a session edge by its made-up id, which binds here and not from a file", () => {
-        const h = notesHarness();
-        const id = h.session.notes.add({ text: "x", targets: [{ edge: edgeBetween(h, "a", "b") }] });
-        assert.strictEqual(h.session.notes.status(id).targets[0].state, "present");
-        const saved = JSON.parse(JSON.stringify(h.session.notes.toDocument())) as unknown;
-        const other = notesHarness().session;
-        other.notes.mergeDocument(saved);
-        assert.strictEqual(other.notes.status(id).targets[0].state, "missing");
+/**
+ * A session holding nodes a, b and c and the given edges, loaded from a file as one load.
+ * @param edges - The edges, as `[source, target]`.
+ * @returns The session.
+ */
+async function loaded(edges: readonly (readonly [string, string])[]): Promise<GraphSession> {
+    const session = createGraphSession();
+    const data = JSON.stringify({
+        nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+        edges: edges.map(([src, dst]) => ({ src, dst })),
+    });
+    await session.execute({ op: "data.import", source: { type: "json", config: { data } }, mode: "replace" });
+    return session;
+}
+
+/**
+ * The ids of the edges between two nodes, in row order.
+ * @param session - The session.
+ * @param source - One end.
+ * @param target - The other end.
+ * @returns The edge ids.
+ */
+function edgesBetween(session: GraphSession, source: string, target: string): EdgeId[] {
+    const snapshot = session.data.snapshot();
+    const space = edgeSpaceOf(snapshot);
+    const ids: EdgeId[] = [];
+    for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+        const ends = [snapshot.edgeSource(edge), snapshot.edgeTarget(edge)].map((row) => snapshot.ids.idOf(row));
+        if (ends.includes(source) && ends.includes(target)) {
+            ids.push(space.idOf(edge));
+        }
+    }
+
+    return ids;
+}
+
+/**
+ * The notes a session holds about one edge.
+ * @param session - The session.
+ * @param edge - The edge id.
+ * @returns Their texts.
+ */
+function textsAbout(session: GraphSession, edge: EdgeId): string[] {
+    return session.notes.list({ target: { edge } }).map((note) => note.text);
+}
+
+describe("format review: an edge added in the session", () => {
+    // notes.md "Targets" rule 2: an edge the session added is saved by its position among the edges
+    // now between its two ends, never by the id graphty-element made up for it, so the note finds
+    // its edge in the graph reopened from this one.
+    it("is saved by its position, and its note finds it in a fresh session holding the same graph", async () => {
+        const first = await loaded([["a", "b"]]);
+        await first.data.addEdges([{ src: "a", dst: "b" }]);
+        const [, added] = edgesBetween(first, "a", "b");
+        first.notes.add({ text: "added", targets: [{ edge: added }] });
+
+        const saved = JSON.parse(JSON.stringify(first.notes.toDocument())) as NotesDocument;
+        assert.deepEqual(schemaErrors(saved), []);
+        assert.notInclude(JSON.stringify(saved), "graphty:");
+        assert.deepEqual(saved.notes[0].targets, [{ edge: { source: "a", target: "b", ordinal: 1, among: 2 } }]);
+
+        // Opening what was just written into the same session adds nothing.
+        const again = first.notes.mergeDocument(saved);
+        assert.strictEqual(again.unchanged, 1);
+        assert.deepEqual(again.added, []);
+
+        const second = await loaded([
+            ["a", "b"],
+            ["a", "b"],
+        ]);
+        const report = second.notes.mergeDocument(saved);
+        assert.strictEqual(report.missing, 0);
+        const [loadedEdge, reopened] = edgesBetween(second, "a", "b");
+        assert.deepEqual(textsAbout(second, reopened), ["added"]);
+        assert.deepEqual(textsAbout(second, loadedEdge), []);
+        const [note] = second.notes.list();
+        assert.strictEqual(second.notes.status(note.id).targets[0].state, "present");
+    });
+
+    it("keeps each of two parallel added edges' notes on its own edge", async () => {
+        const first = await loaded([]);
+        await first.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "a", dst: "b" },
+        ]);
+        const [one, two] = edgesBetween(first, "a", "b");
+        first.notes.add({ text: "one", targets: [{ edge: one }] });
+        first.notes.add({ text: "two", targets: [{ edge: two }] });
+        const saved = JSON.parse(JSON.stringify(first.notes.toDocument())) as NotesDocument;
+
+        const second = await loaded([
+            ["a", "b"],
+            ["a", "b"],
+        ]);
+        assert.strictEqual(second.notes.mergeDocument(saved).missing, 0);
+        const [first2, second2] = edgesBetween(second, "a", "b");
+        assert.deepEqual(textsAbout(second, first2), ["one"]);
+        assert.deepEqual(textsAbout(second, second2), ["two"]);
+    });
+
+    it("reads missing once the edge is removed, here and in the saved file", async () => {
+        const first = await loaded([["a", "b"]]);
+        await first.data.addEdges([{ src: "a", dst: "b" }]);
+        const [, added] = edgesBetween(first, "a", "b");
+        const id = first.notes.add({ text: "gone", targets: [{ edge: added }] });
+        await first.data.removeEdges([added]);
+        assert.strictEqual(first.notes.status(id).targets[0].state, "missing");
+
+        const saved = JSON.parse(JSON.stringify(first.notes.toDocument())) as NotesDocument;
+        const second = await loaded([["a", "b"]]);
+        assert.strictEqual(second.notes.mergeDocument(saved).missing, 1);
+        assert.strictEqual(second.notes.status(id).targets[0].state, "missing");
+        assert.deepEqual(second.notes.counts(), { notes: 1, nodes: 0, edges: 0 });
     });
 });
 

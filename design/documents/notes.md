@@ -96,9 +96,11 @@ one note about two things.
    both a number and a string with the same text, a target binds to the one of its own type.
 2. **An edge** is saved by its two ends plus the file's edge id, or, for an edge without one, its
    position among the edges between the same two nodes (`ordinal`, out of `among`). An edge added
-   in the session without a file id has no position in any load, so it is saved by the id
-   graphty-element made up for it (`graphty:e<n>`), which binds nothing once opened ("Binding"
-   rule 2). An edge saved by position finds no
+   in the session without a file id is saved the same way, its position counted when the notes are
+   saved, among the edges then between its two ends in the order the graph holds them, so it
+   binds in the graph saved with it. It is never saved by the id graphty-element made up for it
+   (`graphty:e<n>`), except for an edge removed before the notes were saved, which has no position
+   and reads `missing` once opened ("Binding" rule 2). An edge saved by position finds no
    edge once the pair has a different number of edges; if one edge of a pair is removed and another
    added, the position names the new one.
 3. **A set** is saved by its id, plus its name for display. The name is never used to bind.
@@ -179,7 +181,8 @@ Opened notes bind **by identity only**; nothing is attached to a different eleme
 1. A node target binds to the node with that id ("Targets" rule 1).
 2. An edge target binds to the one edge its ends and id identify, or by position while the pair
    still has `among` edges. An edge id graphty-element made up during a session (`graphty:e<n>`)
-   means nothing in another session, so such a target reads `missing`.
+   means nothing in another session, so such a target reads `missing`. graphty-element writes one
+   only for an edge removed before the notes were saved.
 3. Set and result ids are short names that two unrelated projects can share (two people's sets named
    "Suspects" are both `set_suspects`). So a `{ set }`, `{ result }` or `{ item }` target, or a cite,
    read from a file binds only when the same file also carries what it names -- in version 1, a

@@ -15,7 +15,7 @@ import type { NoteEntry } from "../project/state";
 import { canonicalize } from "../runs/runId";
 import { newestFirst, noteRowsOf } from "./countIndex";
 import { supportedTarget, writeMember } from "./document";
-import { statusOf, type StatusSources } from "./status";
+import { savedForms, statusOf, type StatusSources } from "./status";
 import type { Note, NoteChange, NoteId, NoteInput, NotePatch, NotesApi, NotesReport, NoteTarget } from "./types";
 import { refuseNote, targetKey } from "./validate";
 
@@ -115,6 +115,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
     dispatcher.services.notes = {
         edgeMember: (id: EdgeId) => dependencies.edgeMember(id),
         result: (id: ResultId) => dependencies.status.result(id),
+        saved: (list) => savedForms(list, dependencies.status.snapshot()),
         added: (id: NoteId) => {
             added = id;
         },
@@ -270,7 +271,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
             dispatch({ op: "note.remove", id });
         },
 
-        toDocument: (options = {}) => writeMember(notes(), options),
+        toDocument: (options = {}) => writeMember(savedForms(notes(), dependencies.status.snapshot()), options),
 
         mergeDocument(document, options) {
             merged = undefined;

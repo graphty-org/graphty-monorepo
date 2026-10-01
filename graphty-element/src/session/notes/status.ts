@@ -15,7 +15,7 @@ import type { EdgeMember, NodeId, ResultId, SetId } from "../../catalog/types";
 import { pairsOrdered } from "../../data/edgeIdentity";
 import type { NoteEntry } from "../project/state";
 import { bindEdgeMembers } from "../sets/resolve";
-import { namesForeignSessionEdge, supportedCite, supportedTarget } from "./document";
+import { isSessionEdgeId, namesForeignSessionEdge, supportedCite, supportedTarget } from "./document";
 import type { Note, NoteCiteStatus, NoteStatus, NoteTarget, NoteTargetStatus } from "./types";
 
 /** What a status reads of the session. */
@@ -72,6 +72,81 @@ export function edgeRowsOf(snapshot: GraphSnapshot, members: readonly EdgeMember
     };
     const bound = members.map((member) => ({ ...member, source: end(member.source), target: end(member.target) }));
     return bindEdgeMembers({}, bound, { snapshot });
+}
+
+/**
+ * Notes as they are saved (design/documents/notes.md, "Targets" rule 2). An edge target naming an
+ * edge the session added by the id graphty-element made up for it is written as that edge's
+ * position among the edges now between its two ends, counted in row order, which is how a load of
+ * this graph counts it: so the note finds its edge once the graph is reopened. An edge that is gone
+ * has no position and keeps its made-up id, which reads missing once opened. Every other note is
+ * returned as it is held.
+ * @param notes - The notes.
+ * @param snapshot - The snapshot.
+ * @returns The notes to write, in the same order.
+ */
+export function savedForms(notes: readonly Note[], snapshot: GraphSnapshot): Note[] {
+    const minted: { readonly note: number; readonly target: number; readonly edge: EdgeMember }[] = [];
+    notes.forEach((note, n) => {
+        note.targets.forEach((target, t) => {
+            if (
+                "edge" in target &&
+                supportedTarget(target) &&
+                !namesForeignSessionEdge(target) &&
+                isSessionEdgeId(target.edge.id)
+            ) {
+                minted.push({ note: n, target: t, edge: target.edge });
+            }
+        });
+    });
+    if (minted.length === 0) {
+        return [...notes];
+    }
+
+    const rows = edgeRowsOf(
+        snapshot,
+        minted.map((entry) => entry.edge),
+    );
+    const ordered = pairsOrdered(snapshot);
+    const pairOf = (row: number): string => {
+        const s = snapshot.edgeSource(row);
+        const t = snapshot.edgeTarget(row);
+        return ordered || s <= t ? `${String(s)},${String(t)}` : `${String(t)},${String(s)}`;
+    };
+    // One pass over the edges for every pair a saved note names; rows ascend, so each list is in
+    // row order.
+    const peers = new Map<string, number[]>();
+    for (const row of rows) {
+        if (row >= 0) {
+            peers.set(pairOf(row), []);
+        }
+    }
+
+    for (let row = 0; row < snapshot.edgeCount; row++) {
+        peers.get(pairOf(row))?.push(row);
+    }
+
+    const out = [...notes];
+    const targets = new Map<number, NoteTarget[]>();
+    minted.forEach((entry, k) => {
+        const row = rows[k];
+        const pair = row >= 0 ? peers.get(pairOf(row)) : undefined;
+        if (pair === undefined) {
+            return;
+        }
+
+        const list = targets.get(entry.note) ?? [...notes[entry.note].targets];
+        targets.set(entry.note, list);
+        const { source, target } = entry.edge;
+        list[entry.target] = Object.freeze({
+            edge: Object.freeze({ source, target, ordinal: pair.indexOf(row), among: pair.length }),
+        });
+    });
+    for (const [n, list] of targets) {
+        out[n] = Object.freeze({ ...notes[n], targets: Object.freeze(list) });
+    }
+
+    return out;
 }
 
 /**

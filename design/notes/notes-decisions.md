@@ -51,6 +51,15 @@ name.
    columns. An export of a session holding notes reports that its notes were left out
    (`W_GRAPHTY_NOTES`).
 
+10. **A note about an edge added in the session is saved like a note about a loaded edge**: by
+    its two ends plus its position among the parallel edges between them (`ordinal`, out of
+    `among`), counted when the notes are saved, in the order the graph holds the edges -- the rule
+    a load uses for an edge without a file id. It is never saved by the id graphty-element made up
+    for it (`graphty:e<n>`), so the note finds its edge again once the project is reopened. Only an
+    edge removed before the notes are saved, which has no position, keeps that id, and its note
+    reads `missing`. This replaces the design's earlier rule that a session-added edge is saved by
+    its made-up id and binds nothing once opened.
+
 Also from the owner on the same day: graphty-element treats note text as plain text so that other
 applications can interpret it their own way (HTML, Markdown, ...); the graphty app renders it as
 Markdown. The app's notes work is a follow-up and is not part of the plan.

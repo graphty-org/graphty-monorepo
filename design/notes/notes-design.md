@@ -254,8 +254,12 @@ How each target keeps pointing at the same thing:
 - **An edge** is saved by its two ends plus the file's edge id or, for an edge without one, its
   position among the edges between the same two nodes (`ordinal`, out of `among`). A session
   `EdgeId` passed to `add` is turned into this form, because an `EdgeId` is renumbered on every
-  load; an edge added in the session without a file id has no position in any load, so it is saved
-  by its made-up id (`graphty:e<n>`), which binds nothing once opened (section 7.5). An edge saved by position finds no edge once the pair has a different number of edges; if
+  load. An edge added in the session without a file id is saved the same way: when the notes are
+  saved, its position is counted among the edges then between its two ends, in the order the graph
+  holds them, which is how a load of the saved graph counts it, so the note finds the edge once the
+  project is reopened. It is never saved by the id graphty-element made up for it
+  (`graphty:e<n>`); only an edge already removed when the notes are saved, which has no position,
+  keeps that id and reads `missing` once opened (section 7.5). An edge saved by position finds no edge once the pair has a different number of edges; if
   one edge of a pair is removed and another added, the position can name the new edge. Give edges
   ids in your data when notes about them matter.
 - **A set** is saved by its id, plus its name for display.
@@ -700,7 +704,8 @@ guessing:
 - A node target binds to the node with that id (by text, section 3.3).
 - An edge target binds to the one edge its ends and id identify, or by position while the pair
   still has `among` edges. An edge id graphty-element made up during a session (`graphty:e<n>`)
-  means nothing in another session, so such a target reads `missing`.
+  means nothing in another session, so such a target reads `missing`. graphty-element writes one
+  only for an edge removed before the notes were saved.
 - Set and result ids are short names that two unrelated projects can share (two people's sets
   named "Suspects" are both `set_suspects`). So a `{ set }`, `{ result }` or `{ item }` target or
   a cite read from a file binds only when the same file also carries what it names -- in version 1,
@@ -1073,8 +1078,8 @@ and compares case-insensitively.
 
 **Binding across projects.** Set, result and item targets and cites from a file bind only to what
 the same file carries (recipe results in version 1); otherwise they read `missing` and keep a
-label (set targets carry `name`). Session-made edge ids (`graphty:e<n>`) read `missing` when
-opened. Run pins are stated as local to a session, and item labels are built synchronously from
+label (set targets carry `name`). An edge added in the session is saved by its position
+at save time; session-made edge ids (`graphty:e<n>`) read `missing` when opened. Run pins are stated as local to a session, and item labels are built synchronously from
 the stored key.
 
 **Merging.** All or nothing, with the final count checked first. Content matching any held note

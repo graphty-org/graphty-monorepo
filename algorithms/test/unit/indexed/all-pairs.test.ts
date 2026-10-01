@@ -535,6 +535,26 @@ describe("indexed.allPairsShortestPath -- paths", () => {
         s.validate({ checksum: true });
     });
 
+    it("keeps the diagonal 0 under a positive self-loop on every strategy (issue #568)", () => {
+        // 2.x floydWarshall let A->A 5 overwrite the zero diagonal.
+        const s = checksummedSnapshot(
+            directed(
+                [
+                    ["a", "a", 5],
+                    ["a", "b", 2],
+                ],
+                true,
+            ),
+        );
+        for (const method of ["auto", "floyd-warshall", "per-source"] as const) {
+            const r = allPairsShortestPath(s, { method, paths: true });
+            expect([...r.dist], method).toEqual([0, 2, Infinity, 0]);
+            expect([...r.pathTo(0, 0)], method).toEqual([0]);
+            expect(r.pathEdges(0, 0).length, method).toBe(0);
+        }
+        s.validate({ checksum: true });
+    });
+
     it("has no predArc and throwing accessors without paths: true", () => {
         const s = square(1);
         const r = allPairsShortestPath(s);

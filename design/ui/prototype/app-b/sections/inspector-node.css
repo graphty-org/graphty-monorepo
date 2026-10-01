@@ -1,0 +1,14 @@
+/* Inspector: one node. Loaded by inspector-node.js. Plain ASCII. */
+.inn-empty { padding: 2px 16px 4px; }
+.inn-val { display: inline-block; max-width: 100%; vertical-align: bottom; }
+.inn-whole { cursor: pointer; }
+.inn-tree { padding: 2px 16px 4px 48px; line-height: 20px; font-size: 11px; }
+.inn-tree details > :not(summary) { padding-left: 12px; }
+.inn-tree summary { cursor: pointer; }
+.inn-why-problem { grid-column: 1 / -1; margin: 2px 0 4px; }
+/* A value never pushes its attribute's name out: the name keeps its middle ellipsis, the value its end one */
+/* (the name is already cut to its budget in the middle, so it never shrinks further; the value takes the rest) */
+.inn-more .ab-fl-name { flex: 0 0 auto; max-width: 62%; }
+.inn-more .ab-fl-trail { flex: 0 1 auto; min-width: 0; }
+.inn-more .inn-val { flex: 1 1 0; min-width: 0; text-align: right; }
+.inn-more .ab-fl-trail { min-width: 7em; } /* a date or a category stays readable beside a long name */

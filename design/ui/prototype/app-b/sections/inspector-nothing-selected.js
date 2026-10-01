@@ -14,6 +14,9 @@
    fixtures; they were computed with networkx 3.1 on les_miserables_graph(), the published graph the
    fixtures cite. Methods, size ratings, engines, engine options and the six pacing fields are
    graphty-element's (catalog/layouts.ts, config/GraphBehavior.ts). Plain ASCII.
+   Version 5 (state-matrix.md): `empty-graph` (no data: the one empty line, its verb Add data...),
+   `wide` (the hosts, weight bytes_total_24h; also every wide, nested and plain JSON frame's right
+   region, drawn for AB.route.frame.dataset) and `nested` (the research network in its own frame).
    Styles are injected once from this file (the shell's CSS is not ours to edit). */
 (function () {
     "use strict";
@@ -228,6 +231,14 @@
                     h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }))] },
             };
         }
+        if (state === "empty-graph") {
+            // A graph with no data yet: nothing to summarize; the one empty line's verb is Add data
+            return {
+                title: L().frame.graphRow, provenance: null, notes: 0,
+                overview: { summary: "No data", body: AB.empty("No nodes or edges.", { verb: AB.cmd("add-data").label, go: ["data-page", "entries"] }) },
+            };
+        }
+        if (isOther(state)) return otherView(otherDs(state));
         const D = L(), f = D.frame, s = D.stats;
         if (state === "reading") return { title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: 1, overview: { summary: "Reading...", body: h("div", { class: "ins-reading", role: "status" }, "Reading...") } };
         const filtered = state === "filtered";
@@ -252,11 +263,62 @@
         AB.tip(r.lastChild, "Set when the data was loaded: each " + type + " weighs its " + column + "; a type with no weight column weighs 1. Change it on the Data page.", { label: false });
         return r;
     }
-    // The weight chosen at load, read-only here: the Data page is its one home (higher weight means Stronger on both fixtures)
-    function weight(column, dataState) {
-        const r = AB.data("Weight", AB.link("data-page", dataState, column + ", stronger", { class: "ab-link" }));
-        AB.tip(r.lastChild, "Set when the data was loaded: a higher " + column + " means a stronger tie. Every run uses it unless it picks another. Change it on the Data page.", { label: false });
+    // The weight chosen at load, read-only here: the Data page is its one home (higher weight means Stronger on every fixture)
+    // `table`: the one edge table that carries it, when the graph has several (the others weigh 1)
+    function weight(column, dataState, table) {
+        const r = AB.data("Weight", AB.link("data-page", dataState, column + (table ? " (" + table + ")" : "") + ", stronger", { class: "ab-link" }));
+        AB.tip(r.lastChild, "Set when the data was loaded: a higher " + column + " means a stronger tie" + (table ? "; edges from other tables have no weight and count 1" : "") + ". Every run uses it unless it picks another. Change it on the Data page.", { label: false });
         return r;
+    }
+
+    // ---------- the wide, nested and plain JSON projects (kit/wide-nested.json) ----------
+    // The shell's DATASET_FRAME sends all three to the `wide` state, which draws the project in the frame;
+    // `nested` is the same view with the nested project named in its own frame.
+    const OTHER = ["wide", "nested", "plainJson"];
+    const isOther = (s) => s === "wide" || s === "nested";
+    const otherDs = (s) => { const ds = AB.route && AB.route.frame.dataset; return OTHER.includes(ds) ? ds : s; };
+    const notComputedAll = () => h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }));
+    function otherView(ds) {
+        const D = AB.fx.datasets[ds];
+        if (ds === "wide") {
+            // hosts.csv and connections.csv joined on id; the stats are the fixture's
+            return {
+                title: D.frame.graphRow, provenance: ["from 2 tables", "data-page", "wide-hosts"], notes: 0,
+                overview: { summary: n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
+                    AB.data("Nodes", n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("bytes_total_24h", "wide-hosts"),
+                    ifNot0("Isolated nodes", D.stats.isolated),
+                    AB.data("Average total degree", String(D.stats.averageDegree)), AB.data("Highest total degree", n(D.stats.maxDegree)),
+                    notComputedAll()] },
+            };
+        }
+        if (ds === "plainJson") {
+            return {
+                title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "json-plain"], notes: 0,
+                overview: { summary: n(D.nodes) + " nodes, " + n(D.edges) + " edges, undirected", body: [
+                    AB.data("Nodes", n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Undirected", "Read from " + D.file),
+                    weight("weight", "json-plain"),
+                    notComputedAll()] },
+            };
+        }
+        // The nested document as the last Load left it (AB.nestedLoaded: the reader's choices on the Data
+        // page): researchers and institutions are the node tables, addresses too when made Several rows;
+        // co-authors (514 listed, 4 pairs from both sides), affiliations (Several rows) and links are the
+        // edges. ponytail: the edge counts are the preview's figures until the element reports them
+        const A = D.recordArrays, NL = AB.nestedLoaded();
+        const res = NL.researchers ? A["data.researchers[]"] : 0, inst = NL.institutions ? A["data.institutions[]"] : 0;
+        const addr = NL.researchers && NL.addr === "rows" ? (D.paths.find((p) => p.path === "data.researchers[].attributes.profile.contact.addresses[]") || {}).count || 0 : 0;
+        const EDGES = [["co-author " + (NL.coPer === "item" ? "items" : "pairs"), NL.researchers && NL.co === "edges" ? (NL.coPer === "item" ? 514 : 510) : 0], ["affiliations", NL.researchers && NL.aff === "rows" ? 242 : 0], ["address links", addr], ["links", NL.links ? A["links[]"] : 0]].concat(NL.researchers ? (NL.idLinks || []).map((x) => [x.name + " links", x.n]) : []).filter(([, k]) => k);
+        const edges = EDGES.reduce((a, [, k]) => a + k, 0);
+        const e = AB.data("Edges", n(edges));
+        AB.tip(e.lastChild, EDGES.map(([w, k]) => n(k) + " " + w).join(", ") || "No edges", { label: false });
+        const dir = NL.direction === "directed" ? "Directed" : "Undirected";
+        return {
+            title: D.frame.graphRow, provenance: ["from " + D.file, "data-page", "json-tree"], notes: 0,
+            overview: { summary: n(res + inst + addr) + " nodes, " + n(edges) + " edges, " + dir.toLowerCase(), body: [
+                AB.data("Nodes", n(res + inst + addr)), res ? AB.data("researcher", n(res)) : null, inst ? AB.data("institution", n(inst)) : null, addr ? AB.data("address", n(addr)) : null, e,
+                direction(dir, "Chosen at load: a JSON document does not say"), NL.links && NL.weight ? weight(NL.weight, "json-tree", "links") : AB.data("Weight", AB.link("data-page", "json-tree", "None (each edge counts 1)", { class: "ab-link" })),
+                notComputedAll()].filter(Boolean) },
+        };
     }
 
     const TRANSFERS_FRAME = { dataset: "transactions", left: "graph-place/many-groups" };
@@ -268,7 +330,9 @@
         rail: "graph",
         frame: (state) => {
             const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : state === "door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : state === "filtered" ? { chip: "Filtered: 60 of 77 nodes" }
-                : state === "reading" ? { left: "graph-place/empty", canvas: "canvas-and-states/loading" } : {};
+                : state === "reading" ? { left: "graph-place/empty", canvas: "canvas-and-states/loading" }
+                : state === "empty-graph" ? { left: "graph-place/empty", canvas: "canvas-and-states/empty", dock: false }
+                : isOther(state) ? { dataset: state } : {};
             if (POP[state]) fr.overlay = SELF + "/" + state;
             return fr;
         },
@@ -283,10 +347,15 @@
             { id: "transfers-methods", label: "Layout popover, transfers (three methods carry the cost mark)" },
             { id: "reading", label: "While loading: Reading..." },
             { id: "door-entries", label: "Door entries (three tables joined)" },
+            { id: "empty-graph", label: "Empty graph: no data" },
+            { id: "wide", label: "Hosts (wide: 69 and 26 attributes), weight bytes_total_24h" },
+            { id: "nested", label: "Research network (nested JSON), weight on links" },
         ],
         render(el, state, ctx) {
             if (ctx.region === "overlay") {
-                const p = state === "background" ? backgroundPopover() : layoutPopover(state === "transfers-methods" ? T().nodes : L().nodes);
+                const ds = AB.route && AB.route.frame.dataset, D = AB.fx.datasets[ds];
+                const nodes = state === "transfers-methods" ? T().nodes : ds === "nested" ? 200 : D && typeof D.nodes === "number" ? D.nodes : L().nodes;
+                const p = state === "background" ? backgroundPopover() : layoutPopover(nodes);
                 p.classList.add("ins-pop");
                 el.append(p);
                 return;

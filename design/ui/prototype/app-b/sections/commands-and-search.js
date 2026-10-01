@@ -186,7 +186,8 @@
                 // the hand-off: Quick actions finds commands and places; rows and notes are Find's
                 list.append(h("div", { class: "qs-head" }, "Rows and notes"));
                 const find = h("div", { class: "k-result", role: "option", "aria-selected": "false" }, icon("search"), h("span", { class: "qs-name" }, 'Find "' + q.trim() + '"'), h("span", { class: "qs-why" }, AB.COMMANDS.find.home), h("span", { class: "k-kbd qs-key" }, "/"));
-                find._run = () => AB.go("commands-and-search", "find");
+                // the skeleton's one Find with results is "Jav"; anything else is Find's no-match line
+                find._run = () => AB.go("commands-and-search", /^jav/i.test(q.trim()) ? "find" : "find-no-match");
                 find.addEventListener("click", find._run);
                 list.append(find);
             }
@@ -317,7 +318,10 @@
         title: "Quick actions, Find and shortcuts",
         region: "overlay",
         rail: "graph",
-        frame: (state) => (state === "find" ? { left: "graph-place/find" } : { left: "graph-place/at-rest" }),
+        // Find is the tree's search field, so both Find states draw the Graph place's own Find. No match is the
+        // field list's empty line, `No match for "xyz"` and Clear; Find lists rows and notes, never attributes,
+        // so an attribute name (middle ellipsis, AB.truncMiddle) only shows in the field list's own find.
+        frame: (state) => (state === "find" || state === "find-no-match" ? { left: "graph-place/" + state } : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
             { id: "quick-actions", label: "Quick actions, empty" },
@@ -326,11 +330,13 @@
             { id: "quick-actions-layout", label: "Quick actions, typed \"layout\"" },
             { id: "quick-actions-settings", label: "Quick actions, typed \"settings\"" },
             { id: "find", label: "Find, row and note results" },
+            { id: "find-no-match", label: "Find, no match" },
             { id: "shortcuts", label: "Keyboard shortcuts panel" },
         ],
         render(el, state) {
             if (state === "shortcuts") shortcuts(el);
             else if (state === "find") setTimeout(findNotes, 0); // the Graph place draws Find's field and rows
+            else if (state === "find-no-match") return; // the Graph place draws the field and its no-match line
             else quick(el, { "quick-actions-results": "field", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");
         },
     });

@@ -6,6 +6,9 @@
    No verbs: Rename, Ungroup, Lock, Hide in list and Delete are in "...", the folder's context menu.
    The folder "For the report" holds the same three rows as the Graph tree: Group 2,
    Group 8 and Betweenness (its eye is off).
+   States: folder (typical); empty (a folder just made with the list menu's New folder, no rows
+   yet: the one empty line in Members); long-name (a 60-character name: the header's end
+   ellipsis, the full name in its tooltip).
    Plain ASCII. */
 (function () {
     registerSection({
@@ -14,8 +17,8 @@
         region: "right",
         rail: "graph",
         frame: { left: "graph-place/at-rest" },
-        states: [{ id: "folder", label: "Folder" }],
-        render(el) {
+        states: [{ id: "folder", label: "Folder" }, { id: "empty", label: "Empty folder" }, { id: "long-name", label: "Long name" }],
+        render(el, state) {
             const L = AB.fx.datasets.lesmis;
             const g = (label) => L.frame.legend.rows.find((r) => r.label === label);
             const g2 = g("2"), g8 = g("8");
@@ -26,17 +29,25 @@
                 { id: "bt", name: "Betweenness", kindIcon: "chart-column", swatch: AB.ramp(), eye: false, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
             ];
 
-            el.append(AB.inspector({
+            const isEmpty = state === "empty";
+            const title = state === "long-name" ? "For the March board report: Valjean, Javert at the barricade" : isEmpty ? "New folder" : "For the report";
+            const insp = AB.inspector({
                 icon: "folder-open",
-                title: "For the report",
+                title,
                 kind: "Folder",
                 kindKey: "folder",
                 menu: ["context-menus", "folder"],
                 body: [
-                    AB.paintsLine("Paints nothing itself; each row inside paints its own members"),
-                    AB.section({ title: "Members", editable: true }, AB.tree(rows, { label: "Rows in For the report" })),
+                    AB.paintsLine(isEmpty ? "Paints nothing: it holds no rows" : "Paints nothing itself; each row inside paints its own members"),
+                    AB.section({ title: "Members", editable: true }, isEmpty
+                        ? AB.empty("No rows. Drag rows from the tree into this folder.")
+                        : AB.tree(rows, { label: "Rows in " + title })),
                 ],
-            }));
+            });
+            // A name too long for the header keeps its full text in the tooltip (end ellipsis, as for any prose name)
+            const nameEl = insp.querySelector(".ab-insp-head .k-name");
+            if (nameEl && state === "long-name") AB.tip(nameEl, title, { label: false });
+            el.append(insp);
         },
     });
 })();

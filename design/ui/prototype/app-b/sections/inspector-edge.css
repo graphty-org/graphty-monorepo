@@ -1,0 +1,6 @@
+/* Inspector: one edge. Loaded by inspector-edge.js. Plain ASCII.
+   The wide connection's "N more attributes" uses the node inspector's list styles (inspector-node.css). */
+/* the weight line: name and role tag stay whole; the value drops to its own line when the panel is narrow */
+.ie-keep { flex-wrap: wrap; }
+.ie-keep .k-name { flex: 0 1 auto; overflow: visible; }
+.ie-keep .k-value { margin-inline-start: auto; }

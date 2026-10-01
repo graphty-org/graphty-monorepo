@@ -10,9 +10,6 @@
 
     const CSS = `
 .fcm { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; background: var(--cm-bg); }
-.fcm-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px 0 8px; border-bottom: 1px solid var(--cm-border); flex: none; min-width: 0; }
-.fcm-title { font-weight: 550; white-space: nowrap; }
-.fcm-hint { color: var(--cm-text-secondary); white-space: nowrap; }
 .fcm-body { flex: 1 1 auto; min-height: 0; display: grid; }
 .fcm-vh { grid-template-columns: minmax(0, 1fr) 360px; }
 .fcm-cmp { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); }
@@ -57,22 +54,15 @@
   .fcm-vh { grid-template-columns: minmax(0, 1fr) 320px; }
   .fcm-cmp { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 260px; }
   .fcm-pick .k-field { width: 210px; }
-  .fcm-hint { display: none; }
 }
 `;
     if (!document.getElementById("fcm-style")) document.head.append(h("style", { id: "fcm-style" }, CSS));
 
     const fmt = (n) => Number(n).toLocaleString("en-US");
     const flash = (what) => () => AB.flash(what + " (not wired in the skeleton)");
-    const GRAPH = ["graph-place", "at-rest"];
 
-    // The one full-canvas header: back arrow, the mode's name, the Esc hint
-    function head(title, backTip) {
-        return h("div", { class: "fcm-head" },
-            AB.iconButton("arrow-left", backTip || "Back to the graph", { key: "Esc", go: GRAPH }),
-            h("span", { class: "fcm-title" }, title),
-            h("span", { class: "fcm-hint" }, h("span", { class: "k-kbd" }, "Esc"), " to leave"));
-    }
+    // The one workspace-page header (AB.pageHead): back arrow, the mode's name, the Esc hint
+    const head = (title, backTip) => AB.pageHead(title, { backTip: backTip || "Back to the graph" });
 
     // The shared legend card for one month's Louvain colors
     function legendFor(lg, sub) {
@@ -85,6 +75,7 @@
     // =====================================================================
     function versionHistory(state, fx) {
         const A = fx.datasets.transactionsApril, M = fx.datasets.transactions, D = A.versionDiff, L = A.louvain, W = A.watchlist;
+        if (state === "no-versions") return firstLoadOnly(fx);
         const past = state === "past-version", recipeOpen = state === "recipe-detail";
         const wrap = h("div", { class: "fcm" }, head("Version history"));
         const body = h("div", { class: "fcm-body fcm-vh" });
@@ -174,6 +165,34 @@
         return wrap;
     }
 
+    // Version history right after the first load: the March data is the one version, nothing
+    // is run yet, and the log says what would add a second version
+    function firstLoadOnly(fx) {
+        const M = fx.datasets.transactions;
+        const wrap = h("div", { class: "fcm" }, head("Version history"));
+        const body = h("div", { class: "fcm-body fcm-vh" });
+        const cv = h("div", { class: "k-canvas fcm-stagewrap", role: "region", "aria-label": "March data" },
+            h("div", { class: "k-stage", role: "img", "aria-label": "The transfers in March, drawn unstyled" }, AB.drawing("transactions-plain", "")),
+            h("div", { class: "fcm-banner" }, h("span", { class: "k-grow" }, h("b", null, "March data"), h("span", { class: "k-secondary" }, ", the current and only version."))),
+            AB.legendCard([]));
+        const entry = (ic, text, sub, go) => h("li", Object.assign({ class: "fcm-entry" }, AB.act({ go })), icon(ic, "sm"), h("span", null, text), h("span", { class: "fcm-entry-sub" }, sub));
+        const replace = AB.cmd("replace-file");
+        const log = h("div", { class: "fcm-col", role: "region", "aria-label": "Log" },
+            h("div", { class: "fcm-colhead" }, h("span", { class: "k-grow" }, "Log"),
+                AB.needsElement("Data versions and what changed between them need graphty-element; edits come from its undo history (session.history.steps)")),
+            h("ul", { class: "fcm-log", "aria-label": "Log, newest first" },
+                h("li", { class: "fcm-ver", "aria-current": "true", tabindex: "0", "aria-label": "March data, current, open" },
+                    icon("history", "sm"), h("span", { class: "fcm-ver-name k-ellipsis" }, "March data"), h("span", { class: "k-badge k-secondary" }, "current"),
+                    h("span", { class: "fcm-ver-sub k-num" }, "Read " + M.file + ", joined " + M.accountsFile + ", Sep 28"),
+                    h("span", { class: "fcm-ver-sub k-num" }, fmt(M.nodes) + " accounts, " + fmt(M.edges) + " transfers")),
+                entry("table", "Joined " + M.accountsFile, fmt(M.nodes) + " of " + fmt(M.nodes) + " accounts matched.", ["data-place", "at-rest"]),
+                entry("file-plus", "Read " + M.file, "Directed.", ["data-place", "at-rest"])),
+            AB.empty("No earlier versions. Replacing the data adds one.", { verb: replace.label, go: replace.go }));
+        body.append(cv, log);
+        wrap.append(body);
+        return wrap;
+    }
+
     // =====================================================================
     // Compare: two drawings, one panel, one button (Keep as row)
     // =====================================================================
@@ -256,6 +275,7 @@
             { id: "version-history", label: "Version history" },
             { id: "past-version", label: "Version history: an older version" },
             { id: "recipe-detail", label: "Version history: an applied recipe open" },
+            { id: "no-versions", label: "Version history: only the first load" },
             { id: "comparison", label: "Compare" },
             { id: "kept", label: "Compare: kept as a row" },
         ],

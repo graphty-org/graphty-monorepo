@@ -112,7 +112,8 @@
         const a = L().anchors.selected;
         const v = byLabel("Valjean");
         const node = AB.tip(h("span", { class: "ab-hot", style: `left:${a.x}%;top:${a.y}%` }), "Valjean", { second: `group ${v.group}, degree ${v.degree}` });
-        AB.nav(node, "inspector-node", "why-this-look");
+        // a click selects him as the walk does, so Shift+Arrow goes on from Valjean
+        AB.selectHot(node, "lesmis", L().rows.indexOf(v));
         node.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
         // midpoint of Fantine (626.4, 181) to Valjean (698.7, 394.3) in the 1200 x 800 drawing.
         // graphty-element cannot pick edges (Edge.ts: isPickable = false): the edge opens from the table.
@@ -184,9 +185,19 @@
         const edited = AB.route && AB.route.frame.right === "inspector-node/edited";
         const labelTwo = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-two";
         const labelBy = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-by";
-        stage.append(...AB.lesmisDrawing("lesmis-groups-rest", alt + (labelTwo ? "; Group 2 labeled with names above and degree below" : labelBy ? "; every node labeled with its degree above it" : ""), state === "hidden-on-canvas" ? hideGroup0 : labelTwo ? groupTwoLabels : labelBy ? degreeLabels : null, edited ? valjeanOverride : null));
+        // The node a Shift+Arrow walk selected carries the selection ring (the drawing's circles are in row order)
+        const w = AB.walked && AB.walked.dataset === "lesmis" ? AB.walked.index : -1, rk = "walk" + w;
+        if (w >= 0) stage.setAttribute("aria-label", alt + "; " + AB.walked.name + " selected");
+        const walkRing = w < 0 ? null : { [rk]: (doc, theme) => { const p = nodePairs(doc)[w]; if (p) new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${ringSvg(p.x, p.y, +p.c.getAttribute("r"), theme)}</svg>`, "image/svg+xml").documentElement.childNodes.forEach((c) => doc.documentElement.append(doc.importNode(c, true))); } }[rk];
+        const imgs = AB.lesmisDrawing("lesmis-groups-rest", alt + (labelTwo ? "; Group 2 labeled with names above and degree below" : labelBy ? "; every node labeled with its degree above it" : "") + (w >= 0 ? "; " + AB.walked.name + " selected" : ""), state === "hidden-on-canvas" ? hideGroup0 : labelTwo ? groupTwoLabels : labelBy ? degreeLabels : null, edited ? valjeanOverride : walkRing);
+        stage.append(...imgs);
+        // The selection bar swaps in its Valjean-selected drawing for any one-node selection (selection-bar.js
+        // patchCanvas); a walked node is not Valjean, so the walked drawing is put back after it
+        if (w >= 0) setTimeout(() => stage.querySelectorAll("img").forEach((img, i) => { if (imgs[i] && img !== imgs[i]) img.replaceWith(imgs[i]); }), 0);
         stage.append(...hotspots());
         AB.append(el, [stage, pagerankLegend()]);
+        // The walked route opens as the second Shift+Arrow left it: focus on the drawing, the node announced
+        if (state === "walked" && AB.walked) setTimeout(() => { if (stage.isConnected) { stage.focus({ preventScroll: true }); AB.announce(AB.walked.name + ", " + AB.walked.neighbors + (AB.walked.neighbors === 1 ? " neighbor" : " neighbors")); } }, 100);
         if (state === "less-detail") AB.notice("More than 10,000 nodes: drawn with less detail.", { label: "Limits", go: ["settings", "performance"] });
         if (state === "waiting-to-settle") AB.notice("Waiting for the layout to settle before capturing the image.", { label: "Cancel", go: ["export-image", "image"] });
     }
@@ -241,12 +252,14 @@
                 if (asNodes) mids.push([(xy[0] + B[b][0]) / 2, (xy[1] + B[b][1]) / 2]);
             });
         }
+        doorFirst = dots[0]; // Ana Ruiz, the first person: the drawing's hot spot
         const dot = ([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#808080"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.75" fill="none" stroke="${bg}" stroke-width="1.5"/>`;
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/>` +
             `<g stroke="#808080" stroke-width="0.6" stroke-opacity="0.22">${lines.join("")}</g>` +
             `<g fill="#808080" fill-opacity="0.7">${mids.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8"/>`).join("")}</g>${dots.concat(B).map(dot).join("")}</svg>`;
     }
     const doorUrl = {};
+    let doorFirst = null;
     function door(el) {
         const D = AB.fx.datasets.doorEntries;
         const alt = D.graphName + ": " + n(D.loadedTypes().total) + " nodes (" + (D.loadedTypes().entry ? "people, buildings and entries" : "people and buildings") + ") and " + n(D.loadedEdges()) + " edges, unstyled";
@@ -264,6 +277,9 @@
             svg.innerHTML = `<polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="#D55E00" stroke-width="3"/>` + pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7" fill="#D55E00"/>`).join("");
             stage.append(svg);
         }
+        if (!doorFirst) doorSvg("light", false);
+        const hot = hotNode("doorEntries", doorFirst, 4, 0);
+        if (hot) stage.append(hot);
         AB.append(el, [stage, AB.legendCard(pth ? [pth.legend] : [])]);
     }
     // The path a Find path just added on the door entries or the transfers, while the tree shows it
@@ -326,6 +342,131 @@
         }));
     }
 
+    // The selection ring (the kit's --k-mark-out over --k-mark-in, as SVG colors per theme)
+    function ringSvg(x, y, r, theme) {
+        const [out, inn] = theme === "dark" ? ["#ffffff", "#1a1a1a"] : ["#1a1a1a", "#ffffff"];
+        return `<circle cx="${x}" cy="${y}" r="${r + 3}" fill="none" stroke="${inn}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="${r + 5}" fill="none" stroke="${out}" stroke-width="2"/>`;
+    }
+
+    // ---------- the wide, nested and plain JSON projects (kit/wide-nested.json) ----------
+    // One route draws the project in AB.route.frame.dataset, unstyled (gray, as the door entries): the
+    // hosts and their connections, the nested document's researchers and institutions with every id
+    // link, or the 12-node plain JSON graph. The kit has no drawing of these, so the layout is made
+    // here and never changes: each node sits in a sunflower spiral around its cluster (a host's role,
+    // a researcher's first institution, with the institution at the center); clusters sit on an
+    // ellipse; nodes with no edges on an outer ring. Node order is the walk's (the shell's walkNodes),
+    // so the walked node gets the ring. `sized` sizes the hosts by the 46-character attribute.
+    // ponytail: positions are made up, not graphty-element's layout; the element draws the real one.
+    const LONG = "vuln_count_critical_unremediated_over_30_days";
+    const VULN_RANGE = [0.5, 3]; // the measure row's Size range (inspector-measure-row/long-name)
+    const graphs = new Map();
+    function otherGraph(ds) {
+        const D = AB.fx.datasets[ds];
+        const NL = ds === "nested" ? AB.nestedLoaded() : null, ck = ds + (NL ? JSON.stringify(NL) : "");
+        if (graphs.has(ck)) return graphs.get(ck);
+        let ids, keys, pairs;
+        if (ds === "wide") {
+            ids = D.nodeRows.map((r) => r.id);
+            keys = D.nodeRows.map((r) => r.role);
+            pairs = D.edgeRows.map((e) => [e.source, e.target]);
+        } else if (ds === "nested") {
+            const R = D.document.data.researchers, I = D.document.data.institutions;
+            ids = R.map((r) => r.id).concat(I.map((i) => i.id));
+            keys = R.map((r) => (r.attributes.affiliations[0] || {}).institution_id || "none").concat(I.map((i) => i.id));
+            pairs = [];
+            // the edges the last Load made: co-authors (Several edges), affiliations (Several rows), links
+            R.forEach((r) => {
+                if (NL.co === "edges") r.relationships.coauthor_ids.forEach((c) => { if (r.id < c) pairs.push([r.id, c]); });
+                if (NL.aff === "rows") r.attributes.affiliations.forEach((a) => pairs.push([r.id, a.institution_id]));
+            });
+            if (NL.links) D.document.links.forEach((l) => pairs.push([l.source, l.target]));
+        } else {
+            ids = D.document.nodes.map((r) => r.id);
+            keys = ids.map(() => "all");
+            pairs = D.document.links.map((l) => [l.source, l.target]);
+        }
+        const at = new Map(ids.map((id, i) => [id, i]));
+        const edges = pairs.map(([a, b]) => [at.get(a), at.get(b)]).filter(([a, b]) => a != null && b != null);
+        const deg = ids.map(() => 0);
+        edges.forEach(([a, b]) => { deg[a]++; deg[b]++; });
+        // clusters in first-seen order; a nested institution leads its own cluster (the spiral's center)
+        const clusters = new Map();
+        const order = ds === "nested" ? ids.map((_, i) => i).sort((a, b) => (ids[b] === keys[b]) - (ids[a] === keys[a])) : ids.map((_, i) => i);
+        order.forEach((i) => { if (deg[i] === 0 && ds !== "plainJson") return; const k = keys[i]; if (!clusters.has(k)) clusters.set(k, []); clusters.get(k).push(i); });
+        const pos = [], C = Array.from(clusters.values());
+        const one = C.length === 1, gap = ds === "nested" ? 11 : 9;
+        C.forEach((members, c) => {
+            const a = (c / C.length) * 2 * Math.PI - Math.PI / 2;
+            const cx = one ? 600 : 600 + 420 * Math.cos(a), cy = one ? 400 : 400 + 270 * Math.sin(a);
+            members.forEach((i, k) => {
+                if (one) { const b = (k / members.length) * 2 * Math.PI - Math.PI / 2; pos[i] = [600 + 260 * Math.cos(b), 400 + 260 * Math.sin(b)]; return; }
+                const r = gap * Math.sqrt(k), t = k * 2.39996;
+                pos[i] = [cx + r * Math.cos(t), cy + r * Math.sin(t)];
+            });
+        });
+        const iso = ids.map((_, i) => i).filter((i) => !pos[i]);
+        iso.forEach((i, k) => { const a = (k / iso.length) * 2 * Math.PI - Math.PI / 4; pos[i] = [600 + 560 * Math.cos(a), 400 + 370 * Math.sin(a)]; });
+        const g = { pos, edges, size: ds === "wide" ? D.nodeRows.map((r) => r[LONG]) : null };
+        graphs.set(ck, g);
+        return g;
+    }
+    function otherSvg(ds, theme, sized, walked, fill) {
+        const g = otherGraph(ds), bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5", f = (x) => x.toFixed(1);
+        const rad = (i) => (sized ? 4 * (VULN_RANGE[0] + (g.size[i] / 6) * (VULN_RANGE[1] - VULN_RANGE[0])) : ds === "plainJson" ? 7 : 4);
+        const lines = g.edges.map(([a, b]) => `<line x1="${f(g.pos[a][0])}" y1="${f(g.pos[a][1])}" x2="${f(g.pos[b][0])}" y2="${f(g.pos[b][1])}"/>`).join("");
+        // the largest last, so a small node is never hidden under a large one
+        const order = g.pos.map((_, i) => i).sort((a, b) => rad(b) - rad(a));
+        const dots = order.map((i) => `<circle cx="${f(g.pos[i][0])}" cy="${f(g.pos[i][1])}" r="${rad(i)}" fill="${(fill && fill[i]) || "#808080"}" stroke="${bg}" stroke-width="1.5"/>`).join("");
+        const ring = walked >= 0 && g.pos[walked] ? ringSvg(f(g.pos[walked][0]), f(g.pos[walked][1]), rad(walked), theme) : "";
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/>` +
+            `<g stroke="#808080" stroke-width="${ds === "plainJson" ? 1.5 : 0.6}" stroke-opacity="${ds === "plainJson" ? 0.6 : 0.25}">${lines}</g>${dots}${ring}</svg>`;
+    }
+    const otherUrl = {};
+    // The nested project's kept set (graph-place/nested-set): machine learning researchers with more
+    // than 500 citations in 5 years, read from the fixture as the set's inspector reads them
+    const SET = { name: "Machine learning researchers, more than 500 cites in 5 years", color: "#009E73", go: ["inspector-group-set-path-row", "long-name"] };
+    const setMembers = (D) => D.document.data.researchers.map((r, i) => (r.attributes.profile.field === "machine learning" && r.attributes.profile.metrics.citations.last_5_years > 500 ? i : -1)).filter((i) => i >= 0);
+    // One node per drawing is a hot spot, as Valjean is on Les Miserables: a click selects it (its node
+    // inspector and the selection bar), the same selection the canvas walk makes
+    const HOT = { wide: (D) => D.nodeRows.findIndex((r) => r.hostname === "monitor-prod-iad-03"), nested: () => 0, plainJson: () => 0 };
+    function hotNode(ds, xy, r, idx) {
+        const i = idx != null ? idx : HOT[ds] ? HOT[ds](AB.fx.datasets[ds]) : -1, w = AB.walkList(ds)[i];
+        if (!w || !xy) return null;
+        const hot = AB.tip(h("span", Object.assign({ class: "ab-hot", role: "button", style: `left:${(xy[0] / 12).toFixed(2)}%;top:${(xy[1] / 8).toFixed(2)}%;width:${Math.max(14, r * 2 + 6)}px;height:${Math.max(14, r * 2 + 6)}px` }, AB.act({ onClick: () => AB.selectNode(ds, i) }))), w.name, { second: w.neighbors + (w.neighbors === 1 ? " neighbor" : " neighbors") });
+        hot.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
+        return hot;
+    }
+    function hosts(el, state) {
+        const ds = state === "nested-set" ? "nested" : ["nested", "plainJson"].includes(AB.route && AB.route.frame.dataset) ? AB.route.frame.dataset : "wide";
+        const D = AB.fx.datasets[ds], sized = state === "hosts-legend" && ds === "wide";
+        const walked = AB.walked && AB.walked.dataset === ds ? AB.walked.index : -1;
+        const NL = AB.nestedLoaded();
+        const how = [NL.co === "edges" && "co-authorship", NL.aff === "rows" && "affiliation", NL.links && "links"].filter(Boolean);
+        const what = ds === "wide" ? n(D.nodes) + " hosts and " + n(D.edges) + " connections"
+            : ds === "nested" ? n((NL.researchers ? D.recordArrays["data.researchers[]"] : 0) + (NL.institutions ? D.recordArrays["data.institutions[]"] : 0)) + " researchers and institutions" + (how.length ? ", linked by " + how.join(", ").replace(/, ([^,]*)$/, " and $1") : "")
+            : n(D.nodes) + " nodes and " + n(D.edges) + " edges";
+        const set = state === "nested-set" ? setMembers(D) : null;
+        const fill = set ? Object.fromEntries(set.map((i) => [i, SET.color])) : null;
+        const alt = D.frame.project + ": " + what + (sized ? ", sized by " + LONG : set ? ", " + set.length + " researchers in the set colored green" : ", unstyled") + (walked >= 0 ? "; " + AB.walked.name + " selected" : "");
+        const imgs = ["light", "dark"].map((t) => {
+            const k = [ds, JSON.stringify(ds === "nested" ? NL : ""), t, sized, walked, !!set].join("-");
+            return h("img", { class: "k-" + t + "-only", alt, src: otherUrl[k] || (otherUrl[k] = URL.createObjectURL(new Blob([otherSvg(ds, t, sized, walked, fill)], { type: "image/svg+xml" }))) });
+        });
+        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs);
+        const g0 = otherGraph(ds), hotI = HOT[ds] ? HOT[ds](D) : -1;
+        const hot = hotNode(ds, g0.pos[hotI], sized ? 4 * (VULN_RANGE[0] + (g0.size[hotI] / 6) * (VULN_RANGE[1] - VULN_RANGE[0])) : ds === "plainJson" ? 7 : 4);
+        if (hot) stage.append(hot);
+        if (set) { AB.append(el, [stage, AB.legendCard([{ title: "Color: sets", go: SET.go, rows: [{ swatch: SET.color, label: SET.name, count: n(set.length), go: SET.go }] }])]); return; }
+        if (!sized) { AB.append(el, [stage, AB.legendCard([])]); return; }
+        // The legend's title is the row's name, the attribute: middle ellipsis, the full name in its tooltip and accessible name
+        const go = ["inspector-measure-row", "long-name"], g = otherGraph(ds);
+        const dot = (v) => { const px = 4 * (VULN_RANGE[0] + (v / 6) * (VULN_RANGE[1] - VULN_RANGE[0])); return h("span", { class: "ab-dot", style: `width:${px}px;height:${px}px` }); };
+        const lo = Math.min(...g.size), hi = Math.max(...g.size);
+        const card = AB.legendCard([{ title: "Size: " + LONG, go, rows: [{ swatch: h("span", { class: "cs-dots" }, [lo, Math.round((lo + hi) / 2), hi].map(dot)), label: lo + " to " + hi, go }] }]);
+        if (card) card.querySelector(".k-lg-title").replaceChildren("Size: ", AB.truncMiddle(LONG, 30));
+        AB.append(el, [stage, card]);
+    }
+
     const OLD = { "too-large": "refused-too-large", "layout-running": "drawn", "layout-paused": "drawn", "layout-settled": "drawn", "legend-open": "drawn", "camera-moved": "drawn" };
     const TRANSFERS = ["transfers", "transfers-communities", "selection-full"];
     registerSection({
@@ -348,6 +489,10 @@
             if (state === "transfers") return { left: "data-place/at-rest" };
             if (state === "transfers-communities") return { left: "graph-place/many-groups", right: "inspector-run-row/many-groups" };
             if (state === "selection-full") return { dataset: "transactions", left: "graph-place/many-groups", right: false, dock: "table-dock/transfers" };
+            if (state === "hosts") { const was = AB.route && AB.route.frame.dataset, ds = ["nested", "plainJson"].includes(was) ? was : "wide"; return { dataset: ds, left: "graph-place/" + { wide: "wide", nested: "nested", plainJson: "plain-json" }[ds] }; }
+            if (state === "hosts-legend") return { dataset: "wide", left: "graph-place/wide-sized", right: "inspector-measure-row/long-name" };
+            if (state === "nested-set") return { dataset: "nested", left: "graph-place/nested-set", right: "inspector-group-set-path-row/long-name" };
+            if (state === "walked") return { left: "graph-place/at-rest", right: "inspector-node/why-this-look", walk: 2 };
             return { left: "graph-place/at-rest" };
         },
         states: [
@@ -367,6 +512,10 @@
             { id: "door-entries", label: "Door entries, as loaded (unstyled)" },
             { id: "door-entries-loading", label: "Loading the door-entries tables" },
             { id: "transfers-loading", label: "Loading the transfers" },
+            { id: "hosts", label: "Hosts (wide project), unstyled; the nested project's canvas too" },
+            { id: "hosts-legend", label: "Hosts sized by a 46-character attribute, its legend" },
+            { id: "nested-set", label: "Research network: a kept set of 23 researchers colored green" },
+            { id: "walked", label: "Les Miserables after two Shift+Arrow steps" },
         ],
         render(el, state) {
             state = OLD[state] || state;
@@ -382,6 +531,7 @@
                 setTimeout(() => { if (location.hash === here) AB.go(to[0], to[1]); }, 1500);
             }
             else if (state === "door-entries") door(el);
+            else if (state === "hosts" || state === "hosts-legend" || state === "nested-set") hosts(el, state);
             else if (state === "empty") empty(el);
             else if (state === "refused-too-large") refused(el);
             else if (state === "gpu-lost") gpuLost(el);

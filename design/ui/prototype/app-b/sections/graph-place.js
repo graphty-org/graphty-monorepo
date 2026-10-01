@@ -13,7 +13,9 @@
    6; Community 3 is Myriel's), shortest paths Valjean-Javert and Myriel-Valjean-Javert. Note
    counts follow the Notes place's seven notes: one about Louvain, two about Community 3, one about
    the graph, and the Notes row paints the 3 nodes and 1 edge notes are about. The many-groups
-   state uses the transfers March Louvain run from the fixtures (35 communities). */
+   state uses the transfers March Louvain run from the fixtures (35 communities). Les Miserables is
+   one connected component, so Connected components finds 1 group of 77 (the one-group state). The
+   wide, nested and plain JSON projects (kit/wide-nested.json) are just loaded: no rows yet. */
 (function () {
     "use strict";
     const CSS = `
@@ -108,9 +110,29 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         return rows;
     }
 
+    // The wide, nested and plain JSON projects: just loaded, unstyled, so only the built-in rows
+    const LOADED = ["wide", "nested", "plainJson"];
+    // Each loaded project's place has a state of its own (the rail and a canvas click open it), and one
+    // with the first row a reader adds: the hosts sized by the 46-character attribute (wide-sized), the
+    // researchers' kept set (nested-set). What the field lists call "in use" follows these rows.
+    const LOADED_STATE = { wide: "wide", "wide-sized": "wide", nested: "nested", "nested-set": "nested", "plain-json": "plainJson" };
+    const loadedDs = (state) => LOADED_STATE[state] || (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset) ? AB.route.frame.dataset : null);
+    const VULN = "vuln_count_critical_unremediated_over_30_days";
+    function loadedModel(state) {
+        const ins = fromInspector();
+        const rows = [selectionRow(ins && ins.sel), notesRow(true, null), everythingRow(true)];
+        if (state === "wide-sized") rows.splice(2, 0, { id: "vuln", name: VULN, kindIcon: "hash", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), eye: true, go: ["inspector-measure-row", "long-name"], menu: ["context-menus", "measure-row"] });
+        if (state === "nested-set") rows.splice(2, 0, { id: "ml-set", name: "Machine learning researchers, more than 500 cites in 5 years", kindIcon: AB.ICON.set, swatch: AB.chit("#009E73", true), count: 23, eye: true, go: ["inspector-group-set-path-row", "long-name"], menu: ["context-menus", "row"] });
+        if (ins && ins.row) rows.forEach((r) => { r.selected = r.id === ins.row; });
+        return rows;
+    }
+    // Two 60-character names, drawn with the end ellipsis; the full name is in the tooltip
+    const LONG = { folder: "Characters Valjean meets before the barricade, for the paper", watchlist: "Watchlist: Javert, Thenardier and the people they hunt, 1832" };
+
     // ---------- the rows, in paint order ----------
     function model(state) {
         if (DOOR.includes(state) || TRANSFERS.includes(state)) return projectModel(state);
+        if (loadedDs(state)) return loadedModel(state);
         const L = AB.fx.datasets.lesmis;
         const g = (label) => L.frame.legend.rows.find((r) => r.label === label);
         const g2 = g("2"), g8 = g("8");
@@ -128,6 +150,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const bt = { id: "betweenness-new", name: "Betweenness", kindIcon: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] };
         if (state === "running" || state === "queued") rows.push(Object.assign(bt, { swatch: null, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"] }));
         if (state === "finished") rows.push(bt);
+        // A run that found one group: its one child, and the footer's "1 group"
+        if (state === "one-group") rows.push({ id: "components", name: "Connected components", kindIcon: AB.ICON.run, swatch: AB.chit("#0072B2", true), count: 77, eye: true, open: true, renameDisabled: RUN_LABEL, go: ["inspector-nothing-selected", "overview"], menu: ["context-menus", "run-row"],
+            children: [{ id: "cc1", name: "Component 1", kindIcon: AB.chit("#0072B2", true), count: 77, eye: true, renameDisabled: GROUP_LABEL, go: ["inspector-nothing-selected", "overview"], menu: ["context-menus", "row"] }] });
         if (state === "failed") rows.push({ id: "failed", name: "Closeness", kindIcon: "chart-column", eye: null, status: "error", statusText: "Failed: the GPU device was lost during the run. Nothing was computed on the CPU.", renameDisabled: RUN_LABEL, go: ["inspector-run-row", "failed"], menu: ["context-menus", "run-row"] });
         const filtered = state === "scope-mark" ? { status: "filtered", statusText: "Ran on 77 nodes; a filter now leaves 60" } : {};
         rows.push(Object.assign({ id: "pagerank", name: "PageRank", kindIcon: "chart-column", swatch: AB.ramp("#ef7818", "#662506"), eye: true, go: ["inspector-measure-row", state === "scope-mark" ? "scope-mark" : "style"], menu: ["context-menus", "measure-row"] }, filtered,
@@ -166,6 +191,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const mark = (list) => list.forEach((r) => {
             r.selected = r.id === selRow;
             if (renamed[r.id]) r.name = renamed[r.id];
+            else if (state === "long-names" && LONG[r.id]) r.name = LONG[r.id];
             r.onRename = (name) => { renamed[r.id] = name; };
             if (r.children) mark(r.children);
         });
@@ -201,7 +227,8 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     // ---------- the footer line: one line, the most specific message first ----------
     function footer(state) {
         const L = (id, st, label) => AB.link(id, st, label);
-        if (state === "empty" || state === "door-entries" || (state === "transfers-loaded")) return AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
+        if (state === "one-group") return AB.treeFooter([["Connected components found 1 group."]]);
+        if (state === "empty" || loadedDs(state) || state === "door-entries" || (state === "transfers-loaded")) return AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
         return AB.treeFooter([
             state === "everything-hidden" && ["Everything is hidden. Unpainted nodes still take part in the layout. To leave them out, filter.", L("data-place", "filters", "Filter...")],
             hiddenOnCanvas() && [AB.h("span", null, hiddenOnCanvas() + " hidden on canvas. ", h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => AB.flash("Selects the hidden elements (not wired in the skeleton)") })), "Select"), ", ", L("canvas-and-states", "drawn", "Show")), AB.needsElement("a draw-only hide that also hides incident edges")],
@@ -244,20 +271,30 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const tGraph = many || TRANSFERS.includes(state) || (state === "empty" && AB.route && AB.route.frame.dataset === "transactions");
         // the graph being loaded names the head too (the door-entries loading screen draws the empty place)
         const doorGraph = DOOR.includes(state) || (state === "empty" && AB.route && AB.route.frame.dataset === "doorEntries");
-        const head = AB.graphHead("Graph", tGraph ? AB.fx.datasets.transactions.graphName : doorGraph ? AB.fx.datasets.doorEntries.graphName : L.frame.graphRow, { notes: state === "empty" || tGraph || doorGraph ? 0 : 1 });
+        const ds = loadedDs(state);
+        const head = AB.graphHead("Graph", ds ? AB.fx.datasets[ds].frame.graphRow : tGraph ? AB.fx.datasets.transactions.graphName : doorGraph ? AB.fx.datasets.doorEntries.graphName : L.frame.graphRow, { notes: state === "empty" || tGraph || doorGraph || ds ? 0 : 1 });
+        const finding = state === "find" || state === "find-no-match";
         const bar = AB.treebar({
-            value: state === "find" ? "Jav" : null,
+            value: state === "find" ? "Jav" : state === "find-no-match" ? "xyz" : null,
             onKey: (e, input) => {
-                if (e.key === "Enter" && input.value) AB.go("graph-place", "find");
-                if (e.key === "Escape" && state === "find") AB.go("graph-place", "at-rest");
+                // the skeleton's one search with results is "Jav"; anything else finds nothing
+                if (e.key === "Enter" && input.value) AB.go("graph-place", /^jav/i.test(input.value) ? "find" : "find-no-match");
+                if (e.key === "Escape" && finding) AB.go("graph-place", "at-rest");
             },
-            onInput: (input) => { if (!input.value && state === "find") AB.go("graph-place", "at-rest"); },
+            onInput: (input) => { if (!input.value && finding) AB.go("graph-place", "at-rest"); },
             menuGo: ["graph-place", state === "list-menu" ? "at-rest" : "list-menu"],
             menuOpen: state === "list-menu",
         });
         const scroll = h("div", { class: "k-scroll" });
         el.append(head, bar, scroll);
         if (state === "find") { drawFind(scroll); return; }
+        if (state === "find-no-match") {
+            const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ go: ["graph-place", "at-rest"] })), "Clear");
+            scroll.append(h("div", { class: "ab-fl-none" }, AB.noMatch("xyz"), " ", clear)); // the field list's no-match line
+            AB.announce('No match for "xyz"');
+            requestAnimationFrame(() => { const i = bar.querySelector("input"); if (i) i.focus(); });
+            return;
+        }
 
         const tree = AB.tree(many ? manyModel() : model(state), { label: "Paint order, top wins" });
         const manyRun = many || (TRANSFERS.includes(state) && !freshT(state));
@@ -289,6 +326,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         const f2 = (id) => requestAnimationFrame(() => { const li = row(id); if (li) { li.focus(); li.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", bubbles: true })); } });
         const hover = (id) => setTimeout(() => { const n = row(id) && row(id).querySelector(".ab-tname"); if (n) n.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" })); }, 60);
         if (state === "rename") f2("g2");
+        if (state === "long-names") {
+            Object.keys(LONG).forEach((id) => { const n = row(id) && row(id).querySelector(".ab-tname"); if (n) AB.tip(n, LONG[id], { label: false }); });
+            hover("watchlist");
+        }
+        if (state === "one-group") AB.announce("Connected components found 1 group");
         if (state === "rename-chain") { f2("g8"); AB.announce("Renamed to Valjean's family. Renaming Group 8"); }
         // A name that cannot change ignores the gesture; its tooltip says why
         if (state === "rename-run-group") hover("c3");
@@ -303,6 +345,16 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         region: "left",
         rail: "graph",
         frame(state) {
+            // The wide project: the shell brings the hosts canvas, the graph inspector and the table.
+            // The rail's Graph opens at-rest in that project, so at-rest names no inspector there.
+            if (state === "wide") return { dataset: "wide" };
+            if (state === "nested") return { dataset: "nested" };
+            if (state === "plain-json") return { dataset: "plainJson" };
+            if (state === "wide-sized") return { dataset: "wide", canvas: "canvas-and-states/hosts-legend", right: "inspector-measure-row/long-name" };
+            if (state === "nested-set") return { dataset: "nested", canvas: "canvas-and-states/nested-set", right: "inspector-group-set-path-row/long-name" };
+            if (state === "at-rest" && AB.route && LOADED.includes(AB.route.frame.dataset)) return {};
+            if (state === "find-no-match" || state === "one-group") return { right: "inspector-nothing-selected/overview" };
+            if (state === "long-names") return { right: "inspector-measure-row/style" };
             if (state === "empty") return { right: "inspector-nothing-selected", canvas: "canvas-and-states/empty", dock: false };
             if (state === "door-entries") return { dataset: "doorEntries" }; // the shell brings its canvas, inspector and table
             // After Find path or Run on the door entries or the transfers: the new row, and for a path its inspector
@@ -354,6 +406,14 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             { id: "rename-builtin", label: "Rename refused: built-in row" },
             { id: "rename-run-disabled", label: "Rename refused: a run" },
             { id: "notes-eye-off", label: "Notes row hidden" },
+            { id: "find-no-match", label: "Find: no match" },
+            { id: "one-group", label: "A run that found 1 group" },
+            { id: "long-names", label: "60-character row and folder names" },
+            { id: "wide", label: "Hosts (wide project), at rest" },
+            { id: "wide-sized", label: "Hosts with a Size row on the 46-character attribute" },
+            { id: "nested", label: "Research network (nested JSON), just loaded" },
+            { id: "nested-set", label: "Research network with a kept set of 23 researchers" },
+            { id: "plain-json", label: "Coauthors (plain JSON graph), just loaded" },
         ],
         render,
     });

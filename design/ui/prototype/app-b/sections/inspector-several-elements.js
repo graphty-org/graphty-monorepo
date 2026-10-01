@@ -125,16 +125,75 @@
         el.append(insp);
     }
 
+    // ---------- the wide project: five hosts, the in-use attributes as ranges, then the rest ----------
+    // The five hosts with the most critical vulnerabilities open past 30 days (the attribute Size reads).
+    // Every count comes from kit/wide-nested.json; in use is the field list's own (fieldsOf usedBy).
+    function wideFive(el) {
+        const W = AB.fx.datasets.wide;
+        const SIZE = "vuln_count_critical_unremediated_over_30_days";
+        const hosts = [...W.nodeRows].sort((a, b) => b[SIZE] - a[SIZE]).slice(0, 5);
+        const ids = new Set(hosts.map((x) => x.id));
+        let among = 0, leaving = 0;
+        W.edgeRows.forEach((e) => { const s = ids.has(e.source), t = ids.has(e.target); if (s && t) among++; else if (s || t) leaving++; });
+        const fields = AB.fieldsOf("wide").find((g) => g.element === "node").fields;
+        const inUse = fields.filter((f) => f.usedBy);
+        const empties = fields.filter((f) => hosts.every((x) => x[f.name] == null)).length;
+        const more = fields.length - inUse.length;
+        const tally = (vals) => {
+            const c = {};
+            vals.forEach((v) => { c[v] = (c[v] || 0) + 1; });
+            return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([v, k]) => v + " " + k).join(", ");
+        };
+        // One value line per in-use attribute: numbers as a range, times as a date range, categories tallied
+        const valueOf = (f) => {
+            const vals = hosts.map((x) => x[f.name]).filter((v) => v != null);
+            if (!vals.length) return "no value";
+            if (f.type === "num") return range(vals);
+            if (f.type === "time") return range(vals.map((v) => String(v).slice(0, 10)));
+            if (f.type === "cat" || f.type === "bool") return tally(vals);
+            return plural(new Set(vals).size, "value");
+        };
+        const size = h("span", null, "5 nodes, " + plural(among, "edge"));
+        AB.tip(size, hosts.map((x) => x.hostname).join(", "), { label: false });
+        const all = "5 of 5";
+        const style = () => [AB.whyThisLook([
+            { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
+        ], { kind: "several", element: "5 nodes", coverage: true })];
+        const rest = AB.section({ title: more + " more attributes", collapsible: true, collapsed: true, key: "data.several.more",
+            summary: empties ? empties + " empty on all five" : null },
+        AB.fieldList({ size: "panel", dataset: "wide", element: "node", label: "Host attributes",
+            onPick: (name) => AB.flash("Shows " + name + " for the five hosts") }));
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: "5 nodes, " + plural(among, "edge") + " among them, " + leaving + " leaving",
+                body: [
+                    AB.data("Size", size),
+                    AB.data("Edges leaving", String(leaving)),
+                    ...inUse.map((f) => AB.data(AB.truncMiddle(f.name, 22), valueOf(f))),
+                    rest,
+                ],
+            },
+            Notes: { count: 0, target: ["notes-place", "empty"] },
+        }, { kind: "several" });
+        const insp = AB.inspector({ icon: "circle-dot", title: "5 nodes", kind: "Elements", kindKey: "several",
+            renameDisabled: "A selection has no name. Create set (Ctrl+G) keeps it as a row you can name.",
+            menu: ["context-menus", "several"], tab: "Data", tabs: { Style: style, Data: data } });
+        insp.classList.add("ise");
+        el.append(insp);
+    }
+
     registerSection({
         id: "inspector-several-elements",
         title: "Inspector: several elements",
         region: "right",
         rail: "graph",
         closeTo: "graph-place",
-        states: [{ id: "style", label: "Style tab (why this look)" }, { id: "data", label: "Data tab" }, { id: "two-nodes", label: "Two nodes selected" }, { id: "door-two", label: "Door entries: Ana Ruiz and B1" }],
-        frame: (state) => (state === "two-nodes" ? { left: "graph-place/at-rest", toolbar: "selection-bar/two-nodes" } : state === "door-two" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : { left: "graph-place/at-rest" }),
+        states: [{ id: "style", label: "Style tab (why this look)" }, { id: "data", label: "Data tab" }, { id: "two-nodes", label: "Two nodes selected" }, { id: "door-two", label: "Door entries: Ana Ruiz and B1" }, { id: "wide", label: "Five hosts: in-use attributes, then the rest" }],
+        frame: (state) => (state === "two-nodes" ? { left: "graph-place/at-rest" } : state === "door-two" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : state === "wide" ? { dataset: "wide", left: "graph-place/at-rest" } : { left: "graph-place/at-rest" }),
         render(el, state) {
             if (state === "door-two") return doorTwo(el);
+            if (state === "wide") return wideFive(el);
             const L = AB.fx.datasets.lesmis;
             const S = pick(L, state === "two-nodes");
             const insp = AB.inspector({

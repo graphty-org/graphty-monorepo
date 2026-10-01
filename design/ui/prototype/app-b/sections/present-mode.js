@@ -42,6 +42,9 @@
         { name: "Valjean's neighbors", pic: "lesmis-neighbors", alt: "Les Miserables, Valjean and the characters who share a chapter with him",
             caption: "The characters who share at least one chapter with Valjean." },
     ];
+    // present-mode/long-caption: the same view with a caption at the 300-character limit, which
+    // wraps inside the caption box; the name keeps its one line and the stepper keeps its place.
+    const LONG_CAPTION = "Valjean sits where most of the story's communities meet: the convicts of Toulon, the Thenardiers and their inn, the students of the ABC cafe, and the household on the Rue Plumet. Remove him and the graph falls apart into islands, which is why the novel needs him in nearly every one of its five volumes.";
     const LOCK_KEY = "present-lock:Les Miserables"; // per project
     const HIDE_MS = 2000;
 
@@ -103,7 +106,7 @@
             canvas.setAttribute("aria-label", locked ? "Graph, locked" : "Graph");
             box.setAttribute("aria-checked", String(locked));
             name.textContent = v.name;
-            cap.textContent = v.caption;
+            cap.textContent = state === "long-caption" && i === 1 ? LONG_CAPTION : v.caption;
             count.textContent = (i + 1) + " of " + VIEWS.length;
             setDisabled(prev, i === 0);
             setDisabled(next, i === VIEWS.length - 1);
@@ -143,6 +146,7 @@
             { id: "presenting", label: "Stepping: view 2 of 3" },
             { id: "locked", label: "Canvas locked" },
             { id: "first-view", label: "First view" },
+            { id: "long-caption", label: "A 300-character caption, wrapped" },
         ],
         render,
     });

@@ -1,9 +1,14 @@
-# Refined structure B: the complete specification (version 4)
+# Refined structure B: the complete specification (version 5)
 
 This page specifies the app structure that round 7 tests: one tree of paint rows on the left,
 the canvas in the middle, an inspector on the right with Style and Data tabs, a table dock at the
 bottom, and an icon-only toolbar. It is the reference for the clickable skeleton that goes to the
 owner and, without waiting for the owner's review, to the user studies (owner, 2026-10-01).
+
+Version 5 carries the owner's decision of 2026-10-01: before the next user study, a state matrix
+for the skeleton, a design that holds up with dozens of attributes per node and per edge, and a
+design for loading nested JSON. The studio's decisions are in `owner-questions-5.md`; the matrix is
+`state-matrix.md`; what graph-io and graphty-element must add is in `element-requirements-5.md`.
 
 Version 4 carries the owner's decisions after reviewing version 3: notes become part of
 graphty-element's API; a note's time and target are required and its author's name is optional
@@ -11,9 +16,37 @@ and usually empty; the "+" next to Label starts empty and a node can carry sever
 several data sources load and join on any key column; and weight is a field chosen when the
 data is loaded. The studio's decisions on them, with reasons, are in `owner-questions-4.md`; the
 notes API is `element-notes-api.md`; every graphty-element capability the design waits on is in
-`element-requirements-4.md`. Earlier answers are in `owner-questions-3.md` and
+`element-requirements-5.md`. Earlier answers are in `owner-questions-3.md` and
 `owner-questions-2.md`; the version 3 streamlining is `streamline-3.md`, whose correction sections
 win over this page where they disagree, except on a line version 4 changes.
+
+**Changed in version 5:**
+
+- **One field list** shows and picks attributes everywhere: Data > Attributes, every field picker
+  (bind, Label, Color by, Size by, Width by, a filter step, a link's "by" column, Go to column),
+  the inspectors' "N more attributes" and the table's column chooser. Search past 15 items,
+  matching the start of words; groups by table, open; "In use" first as an order, never a toggle;
+  folders only from the data's nesting; a middle ellipsis on every attribute name (sections 2.5,
+  7).
+- **The table** freezes its key column and shows the key and the in-use attributes by default;
+  "Columns: 8 of 69" opens the field list with checkboxes, replacing "Show columns..." (section 6).
+- **The inspectors' Data tab** shows the in-use attributes, then "N more attributes" with empty
+  values counted (section 5.2).
+- **The Data page at width**: roles stay under the column headers; the default role reads in
+  quiet text; columns with a role pin left; Go to column (section 11.3).
+- **Nested JSON** loads on the Data page: the document's arrays of records are tables, proposed by
+  graphty-element; sub-objects become dotted columns at every depth; an array becomes One value,
+  Several values, Several edges or Several rows; links may point at several types; plain graph
+  JSON still loads in one step (section 11.4).
+- **One path reader** after the load, and a path that reads nothing is an error (section 11.4).
+- **The state matrix** (`state-matrix.md`) holds every surface against ten states, checked by
+  `study.mjs --matrix`; the skeleton gains the wide and nested projects, a `@1024` window suffix
+  and the problem block (section 13).
+- **Made explicit**: Shift+Arrow selects the next node on any dataset, and the selection bar is
+  raised by the one place a selection is set, so every door shows it (section 2.3; the last check
+  found the skeleton did neither).
+- **Removed**: Data > Attributes' "Find attribute only when the list is longer than the panel";
+  the "+" menu's own search field (a list past 15 items is the field list); "Show columns...".
 
 **Changed in version 4:**
 
@@ -41,7 +74,7 @@ win over this page where they disagree, except on a line version 4 changes.
   "the weight is not a role"; the Repeated pairs field; the source inspector; Add columns by
   key... as its own command; the reserved notes layer; a Label line pre-bound to Name; the
   appendix of version 3 review changes (their outcomes are in the body). Section 19 now points to
-  `element-requirements-4.md`.
+  `element-requirements-5.md`.
 
 Each decision below is labeled with its author:
 
@@ -148,6 +181,12 @@ From the owner's decisions after reviewing version 3 (2026-10-01):
   design must work well without it.
 - **A note's time and its target are required; everything else is optional.**
 - The next study round runs on this skeleton without waiting for the owner's review.
+
+From the owner on scale, nested data and states (2026-10-01):
+
+- **Before the next user study: a state matrix for the skeleton, a design that holds up with
+  dozens of attributes per node and per edge, and a design for loading nested JSON** (paths
+  through several layers of sub-objects and arrays).
 
 Studio decision carried from earlier rounds: no avatar in the top right. With no accounts it
 implies multiplayer, and the author name already shows on notes.
@@ -382,7 +421,11 @@ what the inspector shows whatever holds focus. Esc closes a popover or bar first
 stop with arrow keys between buttons; Alt+Down, Enter or Space opens a flyout; F6 cycles the
 regions (rail, left panel, canvas, toolbar, table, inspector).
 
-**The selection bar.** While something is selected, a bar attaches directly above the toolbar,
+**The selection bar.** While something is selected -- by a click on the canvas, Shift+Arrow, the
+table, Select where or any other door -- a bar attaches directly above the toolbar. It is raised
+by the one place a selection is set, never by each door. **Shift+Arrow** selects the next
+node in that direction on any dataset, through that same place, and announces it ("Valjean, 36
+connections"); plain arrows keep orbiting and panning (owner). The bar is
 drawn with the same 32 px icon buttons, tooltip and separators, in the node menu's order
 (explore, organize, visibility, notes):
 
@@ -462,7 +505,9 @@ are later (issue #643).
   Weight apply without a reload where graphty-element allows.
 - **Read as** -- an attribute's data type (Category, Number, Time) -- belongs to the attribute and
   is changed in its inspector, with no reload. The Data page shows the type glyph under each
-  header, read-only, linking to the attribute.
+  header, read-only. While a loaded source is edited it links to the attribute; before Load it
+  is a mark only (the attribute does not exist yet, and leaving would drop the load), its tooltip
+  saying Read as is changed in the attribute after Load.
 - The attribute's inspector shows its roles as read-only tags ("Weight, set when loaded"; "Name
   for person"), each a link that opens the Data page at that column.
 - **A run's weight** defaults to the loaded weight. A run may override it in Analyze; the
@@ -519,9 +564,12 @@ every screen; a screen that breaks one is a defect.
 | Job | The one pattern |
 |---|---|
 | Show an unset value | A property not set is not drawn. Its section's "+" adds it. Inside a popover only, an unset field shows its effective value in gray, its source in the tooltip ("Verdana, graphty-element default"); typing sets it. |
-| Add | "+" in the header of the list or section it adds to, nowhere else. One possible item: "+" adds it. Several: "+" opens a dark menu (searchable only past 15 items). None left: the "+" disappears. The new item gets a default name and opens into rename, its value focused. |
+| Add | "+" in the header of the list or section it adds to, nowhere else. One possible item: "+" adds it. Several: "+" opens a dark menu; past 15 items it is the field list's menu size instead. None left: the "+" disappears. The new item gets a default name and opens into rename, its value focused. |
 | Edit a value | Numbers and text in the field (drag the name to scrub a number; Enter commits, Esc reverts). Colors and choices: click the value to open its picker. |
 | Advanced options | In the popover the value opens, never an accordion in anything editable. A line whose value is typed in place (Label text) has a swatch that opens its popover. |
+| Find or pick an attribute | **The field list**, one component in two sizes: panel (Data > Attributes, the inspectors' "N more attributes", the table's columns) and menu (bind, Label, Color by, Size by, Width by, a filter step, a link's "by" column, Go to column, the Weight line of Analyze, the Path popover and a run's Made with, a recipe's binding choice, and Select where's Insert attribute). An attribute picker is the field list at every length, drawn as a dark menu with its groups, so it never changes form when the data grows. Search past 15 items, matching the start of words (names split at `_`, `.`, `-`, spaces and case changes; "vu cr", "cpu p95"); groups by table, open; inside each, "In use (n)" first (painted by a row, in a label, filtered on, read by a run, or holding a role) with what uses each, from graphty-element's `usedBy`, then computed, then by name; folders only from the data's nesting; a typed picker lists unsuitable attributes last, disabled with the reason, suitability coming from graphty-element (a list or a value kept whole is not one value, so Color by and Size by list it as unsuitable: "tags holds several values; use Show as groups"). Focus stays in the find field over a listbox (the Quick actions pattern). Any other list past 15 items (Shape's 25 shapes, the label style's fields) uses the same find field and word-start matching over its own items; other menus of 15 or fewer stay dark menus. |
+| Truncation | A middle ellipsis on every attribute name and path (`cpu_util...p95_pct`); an end ellipsis on prose (node names, notes, source names, row names). The full text is always in the tooltip and the accessible name. |
+| A problem | One block, what happened and what to do, with at most one action: the Data page's refusals, a failed save, a binding that reads nothing. |
 | Read-only blocks | Collapsible, with a chevron, a one-line summary when closed, and the state remembered per kind ("Why this look", Data tab sections, Notes). |
 | Surfaces | **Dark menu**: choose a command or one item; no title; closes on the pick; one line per item, a second line only for why an item is disabled. **Light popover**: edit a value; a title and an X; applies each change live; Esc or a click outside closes it; a footer button only when it creates something. **Page**: takes the workspace while the rail and header stay (the Data page, Version history, Compare). **Modal**: takes over the screen (export, apply a file, settings, shortcuts) or confirms what cannot be undone. |
 | Popover placement | One helper: left of the inspector (or above the toolbar for toolbar popovers), level with the anchor; focus to the first field; on close, focus back to the anchor without redrawing the panel. |
@@ -905,8 +953,8 @@ in table and every other verb live in the thing's "..." menu, which is its conte
 | Selection | Tabs | Style | Data sections |
 |---|---|---|---|
 | **Nothing** (the graph) | Style, Data | Canvas, Layout (5.3) | Overview, Notes |
-| **One node** | Style, Data | **Why this look** (5.4) | Summary (attributes, then results with rank; Degree is the link that selects the neighbors), Memberships, Notes |
-| **One edge** (from the table, a row, or a node's inspector; edges cannot be picked on the canvas) | Style, Data | Why this look | Summary (Direction, attributes with the weight marked by a small icon, results once there are any), Memberships, Notes |
+| **One node** | Style, Data | **Why this look** (5.4) | Summary (the attributes in use, then results with rank; Degree is the link that selects the neighbors; then one disclosure, "61 more attributes", that opens the field list in place, with attributes that have no value on this node counted, "12 empty", not listed; a value kept whole shows as a collapsed tree), Memberships, Notes |
+| **One edge** (from the table, a row, or a node's inspector; edges cannot be picked on the canvas) | Style, Data | Why this look | Summary (Direction, the attributes in use with the weight marked by a small icon, results once there are any, then "N more attributes" as on a node), Memberships, Notes |
 | **Several elements** | Style, Data | Why this look with coverage | Summary (the names list as the Size row's tooltip, induced and cut edges, the same rows in the same order as a node's), Memberships ("3 of 5"), Notes |
 | **Group, set, path row** | Style, Data | fixed values | Summary, Members (top 10 by the run's ranking or by degree), Made with, Notes |
 | **Measure row** | Style, Data | the bound property (section 16.5) | Values (histogram with the caption "77 of 77 have a value, 0.0033 to 0.0754, median 0.0124"), Top 10 (Show all in table is in "..."), Made with, Notes |
@@ -983,6 +1031,8 @@ v Why this look
   line "Valjean only -- writes to Overrides". Hovering a token shows the resolved value.
 - An **Overrides** line has "-" on hover, which clears that property on this element (with Undo).
 - A row hidden from the list that still paints is marked with the tree's eye-off glyph.
+- Its length follows the rows that win a property, at most one per property, never the number of
+  attributes; attribute names in its values take the middle ellipsis.
 - Rows that match but win nothing are not listed: the Data tab's **Memberships** is the one home
   for "which rows contain this element".
 - The list comes whole from graphty-element's `session.styles.explain()`. Element-owned layers the
@@ -1007,6 +1057,11 @@ open run, named with the run row's name and icon. Canvas, table and inspector sh
 | Editing | the thing's own settings | node and edge cell values (the element's `updateNodes` and `updateEdges`, each one undoable step) |
 
 - **The scope line is the count** ("77 nodes"). Usage hints are in the table's tooltip.
+- **Columns** (version 5). The key column is frozen on the left. By default the table shows the key
+  and the attributes in use. One button at the end of the tab strip, "Columns: 8 of 69", opens the
+  field list (panel size) with a checkbox per row; the key cannot be unchecked. Which columns show
+  belongs to this table view and never changes data. It is the only place an attribute can be
+  hidden. It replaces "Show columns...".
 - **Column headers are one line**: type glyph, name, sort arrow (arrow up or down), and a menu
   caret on hover. The column's profile ("77 values, 1 to 36") is the header's tooltip.
 - **Column menu**: the attribute's own menu, minus Show in table: Color by, Size by, Label by, Show
@@ -1091,8 +1146,14 @@ rules (section 2.5).
      as an axis needs graphty-element), Filter to..., Create set where this is..., Read as..., Edit
      on the Data page, Show in table.
    - **"+"** is New attribute (an expression column), drawn disabled: needs graphty-element.
-   - **Find attribute** appears only when the list is longer than the panel.
-   - The list, types, completeness and ranges come from the element's `session.data.attributes()`.
+   - **The list is the field list, panel size** (section 2.5): Find past 15 attributes; inside
+     each group "In use (6)" first, each row tagged with what uses it, then computed, then by name;
+     a row shows its fill ("20%") when not every element has a value; a nested attribute sits under
+     its parent's subhead, named by the full stored path (`attributes.profile.contact` > `email`; Find matches the stored name, `attributes.orcid`), collapsed unless something under it is in
+     use. No toggle, no hiding, no hand-made folders.
+   - The list, types, completeness and ranges come from the element's `session.data.attributes()`;
+     what uses each attribute, its parent and the node type or edge table it belongs to need
+     graphty-element (`element-requirements-5.md` section 7).
 
 Graph-level readings are not attributes: they are on the run's Data tab and the graph's Overview.
 
@@ -1247,6 +1308,9 @@ About)
   row, "Selection: Replace | Add | Remove | Within"; the match count updates live; the primary
   button carries it ("Select 2,610"). Pressing it lands on the usual picture of a selection (the
   Selection row's count, the selection bar, the several-elements inspector).
+  The Query tab's hint names no attributes (with 69 it would be a wall); its one link, **Insert
+  attribute...**, opens the field list, menu size, and inserts the picked attribute's stored path
+  at the cursor (quoted when a name holds a dot). Version 5.
 
 ### 10.2 Project-name menu (header)
 
@@ -1366,7 +1430,7 @@ every check green and focus on Load, so a clean drop is still one Enter.
    and then its other unique columns ("person by id (Key)", "person by badge"), so a link joins on
    any unique column of any name without changing that type's Key. When the page holds no node
    table, From and To both default to one new type, "node", so a plain edge list loads with one
-   Enter as it does today. Beside the role, the column's type glyph, read-only, linking to the attribute; it is not a Tab
+   Enter as it does today. Beside the role, the column's type glyph, read-only, linking to the attribute once it exists (editing a loaded source; before Load it is a mark); it is not a Tab
    stop (the keyboard reaches the attribute from Data > Attributes). Weight works like a radio button
    within a table: choosing it on a second column moves it there, and a notice says so. On an
    **edge** table the Weight role carries its meaning beside it, **Higher means: Stronger |
@@ -1397,7 +1461,7 @@ every check green and focus on Load, so a clean drop is still one Enter.
      output, time (earliest), keeps the Time role (Time-dependent features read it); time
      (latest) is an attribute.
    - Category: Most common (default), Leave out. Never First, for the same reason as Time; Most
-     common needs a new `mode` reducer (`element-requirements-4.md` section 3).
+     common needs a new `mode` reducer (`element-requirements-5.md` section 3).
    - **Under Pair, count becomes the Weight only when the table has no Weight yet.** A Number
      weight the reader set keeps its role and combines by its Combine (Sum by default), so the
      transfers keep amount, summed. Choosing Weight on count afterwards moves it there, with the
@@ -1517,15 +1581,149 @@ file...** as the primary button when no setting can fix it; one load at a time (
 from graphty-element's format catalog (`FORMAT_DESCRIPTORS`, each option's `plainName`). After
 Load, the Graph place shows Selection, Notes and Everything and the canvas is drawn in 3D.
 
+**At width (version 5; the wide sample: hosts with 69 columns, connections with 26).** Roles stay
+under the column headers, their one home. Three changes keep 69 headers from reading as 69
+controls:
+
+- A column whose role is the default reads "Attribute" in quiet text, not drawn as a dropdown; it
+  is the same role control (Enter or a click opens the role menu).
+- Columns with a role pin to the left, after the frozen Key column, so Key, Name, From, To and
+  Weight are seen without scrolling.
+- **Go to column** above the grid, shown past 15 columns: the field list, menu size, with the
+  columns that have a role first; picking one scrolls to its header and focuses it.
+
+A link's "by" submenu is the field list too: the type's Key first, then its other unique columns.
+Rejected: a strip of role slots above the grid (it would replace the header control, and with
+eleven roles and "Links to" on any number of columns it grows per column); a role control shown
+only on hover (a keyboard user cannot find it).
+
 **Keyboard.** The tables list is one Tab stop (arrows move). The column-header roles are one Tab
 stop: Left and Right move between columns; Enter or Alt+Down opens the role menu. Each segmented
 control is one Tab stop.
 
-**Needs graphty-element** (`element-requirements-4.md`, "Several tables" and "Weight"): the
+**Needs graphty-element** (`element-requirements-5.md`, "Several tables" and "Weight"): the
 multi-table load description, types and links, rows as nodes, One edge per Pair with combining,
 the match report object and key suggestions, the saved sources record, which table each record
 came from, and the weight per table with each edge table's meaning. The page is drawn in full in the skeleton,
 with one design note after its Load button, the control that waits on it.
+
+---
+
+### 11.4 Nested JSON on the Data page (version 5)
+
+**Studio decision: a nested JSON document is a source of tables. An array of records inside it is
+a table; from there every choice uses a control the Data page already has.** Precedents: Tableau's
+JSON connector (tick the levels of a schema tree), Power Query's expand, Neo4j's UNWIND (an array
+is often edges, not rows). The example is the nested sample, a research-network API response:
+`meta`, then `data.researchers` (170), `data.institutions` (30) and `links` (160), with sub-objects
+four levels deep and arrays of values, ids and records.
+
+- **Plain graph JSON loads in one step.** A file graph-io recognizes (node-link, d3, JGF,
+  Cytoscape, graphology, vis, the NetworkX forms) is a graph file: one row, roles set by the file
+  and shown locked, every check green, focus on Load. graphty-element's JSON source must read
+  through graph-io's dialect detection for this (`element-requirements-5.md` section 8). A
+  sub-object inside a graph file's node or edge records is flattened by the same rule as below,
+  with no question asked, so a nested attribute never costs plain graph JSON a second step.
+- **Any other document: the structure in Tables.** Its row expands into a tree of its objects and
+  arrays only, each array with its item count (`data.researchers [170]`), never its leaf values,
+  which are the grid's columns once their table is in use. Paths are shown dotted with `[]` and a
+  middle ellipsis, never typed. The tree is the tables list's own tree: one Tab stop, arrows move,
+  Right and Left expand and collapse, Space toggles.
+- **graphty-element proposes the tables**, already ticked: arrays of records with a unique id-like
+  field as node tables, and arrays whose records carry two fields whose values match those node
+  tables' keys as edge tables. The match is on values, not field names, so `from` and `to`,
+  `src` and `dst` or `person` and `org` are found as readily as `source` and `target`. An array of
+  records outside every used table has a **Use as table** checkbox on its tree row. What the load
+  leaves unread (`meta`) is one line in the match report.
+- **Nodes and edges** are picked with the header strip the page has: Each row is: a node | an
+  edge, Type, Key, and the roles under the column headers.
+- **Sub-objects become columns at every depth**, named by their full path inside the record
+  (`attributes.profile.metrics.citations.total`) and grouped in the grid under a header for their
+  parent. The parent header's menu has the one alternative, **Keep as one value**, which stores the
+  sub-object whole (shown in a cell as `{3 fields}`, its contents in the tooltip, and in the
+  inspector as a collapsed tree). Flattening an object never multiplies rows, so nothing asks
+  before it. Stored names are never shortened: a shortened name would change when a column is
+  added and break saved bindings and notes.
+- **An array in a record becomes one of four things**, in its column's role menu, each item
+  showing the count it produces, from graphty-element's preview:
+
+  | Choice | What it makes | Offered when the items are | Default for |
+  |---|---|---|---|
+  | One value | the array kept as one value; stored as its single item when no record holds more than one | values or records | arrays of records |
+  | Several values | a list attribute; a filter step matches when any item does; on a list of categories Show as groups makes overlapping groups (a cover); a list of numbers is kept, shown and exported, never drawn (the conceptual model's numeric vectors) | values | arrays of values whose items match no node table's keys (`tags`) |
+  | Several edges | the Links to role on a list column: "Links to -> researcher, each item (514 edges)"; the link submenu's New type... makes each distinct value a node (`tags` as tag nodes) | values | arrays of ids whose items match a proposed node table's keys (`coauthor_ids`), as `element-requirements-5.md` section 8 proposes |
+  | Several rows | a child table under its parent in Tables, its first column "researcher (parent)" locked and linked to the parent's type | records | -- |
+
+  A choice that does not fit is disabled with its reason ("Several rows needs records; these
+  items are single values"). `affiliations` as Several rows has two linking columns (the parent
+  and `institution_id`), so its header strip offers "Each row is: an edge": researcher to
+  institution edges, `role` and `since` as edge attributes, the door-entries pattern again. A
+  child table's one home is its column's role menu: its row in Tables has no checkbox, and Remove
+  on it is disabled with "Choose another outcome under affiliations in researchers".
+  Rejected: "first item" (it drops data without saying so and depends on file order; 59
+  researchers in the sample have two or more addresses); a confirmation dialog before a large
+  expansion (the count is on the item; a load too large to draw is refused as today).
+- **Other shapes, the same controls** (the sample shows one shape; these are the others the design
+  must take, each read by graph-io and proposed by graphty-element, never walked by the app):
+  - **Records keyed by id** (`"packages": { "lodash": {...}, "react": {...} }`, the JGF way): an
+    object whose values share one record shape is a table on the tree, `packages {1,204}`, its
+    object key the table's Key column, named `key`.
+  - **A document that is one array, or JSON Lines** (`.jsonl`, `.ndjson`, one record per line):
+    the tree's root is the table.
+  - **Arrays of arrays** (`[["a", "b", 3], ...]`): a table whose columns are named `column1`,
+    `column2`, ..., as graph-io names a headerless CSV's; From and To are set under the headers
+    as for any edge list.
+  - **An object of values keyed by ids inside a record** (`"dependencies": { "react": "^18" }`): the
+    same four-way role menu as an array, with Several edges to the key's type, the value becoming
+    the edge's `value` attribute.
+  - **A reference held in a sub-object** (`author: { id, name }`): `author.id` is an ordinary
+    flattened column and takes Links to like any column.
+  - **Arrays inside a child table** get the same role menu, at any depth.
+  - **An array whose items differ in shape** offers One value only; the report names how many
+    records hold each shape.
+  Route: `data-page/json-keyed`, a package registry (records keyed by name, `dependencies` as an
+  object keyed by package name, `maintainers` as an array of records), a second domain beside the
+  research network.
+- **Links to more than one type.** A link's submenu gains **Any of these types...**, which ticks
+  the types a column may point at. In `links`, `target` is a researcher in 118 records and an
+  institution in 42; the report counts each and refuses a value that matches two types. Reading the
+  target type from a column stays out of scope (section 11.3).
+- **Pairs listed from both sides.** When two records list each other in an id array, the report
+  says so ("4 co-author pairs are listed by both researchers") with version 4's control for
+  repeated links on the line, **One edge per: Item | Pair** (Item is Row's counterpart for a list
+  column), Pair by default on an undirected graph, so degree is not counted twice. It is the same
+  control as the edge table's One edge per, not a second one with new words.
+- **The match report** gains the lines above and the unread block; **the model strip** reads
+  `researcher (170) --coauthor (510)--> researcher; institution (30); researcher --links (160)-->
+  researcher | institution` with the defaults, and gains `researcher --affiliations (242)-->
+  institution (30)` or `address (179) --addresses--> researcher` when those arrays are made
+  Several rows. An edge table always reads with its ends. Everything shown before Load comes from
+  `session.data.preview()`.
+- **Weight is proposed at load** (the owner's decision: weight is defined when a source is
+  loaded). A numeric column named `weight` on an edge table, nested or plain, is proposed as the
+  table's Weight, marked "auto", like a proposed Key.
+- **Where Load lands is one rule for every format.** Load on "Open as a new graph" lands on the
+  new project's Graph place (a CSV, a graph file, nested or plain JSON alike; a large file shows
+  the loading canvas first). Apply after Edit source or Replace returns to the Data place it was
+  opened from.
+- **Load leaves what the reader chose.** The loaded project's Data place lists the tables the load
+  made (a child table among them), its field lists hold the columns those choices made (a
+  sub-object kept as one value is one field; an array made Several edges or Several rows is no
+  longer an attribute), and the graph inspector counts the nodes and edges they make.
+- **Refusals**, one per typed error, on the tree row they concern: not valid JSON (line and
+  column); no array of records found (the tree still shows; Choose another file... is primary); a
+  ticked array that no longer exists after Edit source.
+- **After the load** every value is an ordinary column, read by one path reader in bindings,
+  selectors, filters and labels. Stored paths use names, `.`, `[*]` (every item of an array), `.*` (every value of an object keyed by id) and quoted names
+  (`"address.city"`). This is graphty-element's own path grammar, not JMESPath or RFC 9535 JSONPath:
+  every `[*]` and `.*` flattens, so `a[*].b[*]` is one row per inner item. A path that reads
+  nothing raises graphty-element's error, shown on the Binding popover and in Why this look,
+  instead of painting nothing.
+
+Routes: `data-page/json-plain`, `json-tree`, `json-researchers`, `json-keep-value`,
+`json-array-menu`, `json-affiliations`, `json-any-type`, `json-report`, `json-invalid`,
+`json-no-records`, `json-path-gone`, `json-keyed` (`state-matrix.md`). Needs graph-io and graphty-element:
+`element-requirements-5.md` section 8.
 
 ---
 
@@ -1684,6 +1882,22 @@ disabled with that phrase and the reason; "Hide design notes" hides them all for
 12. **Canvas states**: loading, empty, refused, GPU lost; the notices.
 13. **Full-canvas modes**: Version history and Compare.
 
+**Added in version 5** (every state is a route in `state-matrix.md`):
+
+14. **The state matrix**: each surface's Empty, Loading, Error, Partial, One, Typical, Many, Long
+    text, Narrow and Waiting routes. `study.mjs` reads a `@1024` suffix and sizes the window to
+    1024 x 768, and `study.mjs --matrix` checks the whole matrix (one browser, a fresh context per
+    25 routes).
+15. **The wide and nested projects**: frames with `dataset: "wide"` and `"nested"` get their own
+    canvas, graph inspector, table and paint tree, as the door entries do. `fromDataItems` stops
+    offering Les Miserables attributes on every dataset: every field picker reads the project on
+    screen through the field list.
+16. **Two helpers in `lib.js`**: `AB.fieldList` (the field list, both sizes) and `AB.problem`
+    (what happened, what to do). `openMenu` loses its search mode.
+17. **Wide data** on every attribute surface and **nested JSON** on the Data page (sections 7,
+    11.3, 11.4), with a small package-registry document built in `data-page.js` for the other
+    document shapes (`data-page/json-keyed`).
+
 Skeleton files this changes, in `../../app-b/`: `lib.js` (the tooltip, popover and menu helpers;
 `section`, `styleTab` and `whyThisLook`; the notice slot; the field-row grid), `app.js` (the header
 and canvas furniture), and in `sections/`: every inspector, `style-pickers.js`, `toolbar.js`,
@@ -1740,6 +1954,13 @@ area; flagged for the owner):
   Data page.
   Folders are app organization, not model objects, and are not note targets. **Notes are
   graphty-element objects** whose time and targets are required and whose author is optional.
+- **Conceptual model (version 5)**: an attribute may hold a list. A list of categories is the
+  model's existing cover and a list of numbers its existing numeric vector (kept and exported,
+  never analyzed or encoded), so neither is new. A **value kept whole** (a sub-object the reader
+  chose not to flatten) is new: flagged for section 3.4 as an opaque value, shown and exported,
+  never encoded, like a numeric vector. A child table is an ordinary node type or edge table,
+  and a link to several types is still one edge table whose ends are matched by value, so
+  neither changes the model.
 - The glossary gains "measure row" as a document-only word beside the screen word "metric".
 - **Top tasks** (`top-tasks.md`): loading several tables joined on any key column becomes a top
   task (owner: a primary task); the recipe bookend confirms only a run's overridden weight
@@ -1863,10 +2084,11 @@ a row lists only what it sets.**
 
 ### 16.3 Binding a value to data
 
-- **The bind icon opens the From data list** (a dark menu with a filter field): the element's own
-  attributes in their file spelling, then run results under their row names, then a **Notes**
-  group (section 16.6), each with its type glyph. The list is filtered by what the property can
-  take (a text property lists everything; a color lists everything with a scale).
+- **The bind icon opens the From data list**, which is the field list, menu size (section 2.5):
+  the element's own attributes in their file spelling, then run results under their row names,
+  then a **Notes** group (section 16.6), each with its type glyph. Attributes the property cannot
+  take are listed last, disabled with the reason, never hidden; which ones suit a property comes
+  from graphty-element (`AttributeDescriptor.domainKind`, `element-requirements-5.md` section 7).
 - **A bound line shows what the reader needs**: the ramp and the palette's name for a color
   ("Orange to Brown"), the range for a size ("0.5 to 6 px"), the field for text ("name"). The
   bound field's name is shown only when it differs from the row's own name.
@@ -1962,7 +2184,7 @@ Label                                  +
   path.
 - **To label only noted elements**, put the label on the Notes row (Notes > Label > + > Note
   count). Note count on Everything draws "0" on every node; that is the reader's choice, and a
-  number format that hides zero (`element-requirements-4.md`, number formatting) lets the reader
+  number format that hides zero (`element-requirements-5.md`, number formatting) lets the reader
   turn the zeros off. The skeleton's worked example is the owner's own: name above, degree
   below.
 - **Show** stays one checkbox for the whole section, offered only while the row has no label line
@@ -1978,7 +2200,7 @@ Label                                  +
   "sizes below" is the owner's own example.
 - The words Above, Below, Left, Right, Center and the corners come from graphty-element's
   descriptors, never typed by the app. **Needs graphty-element**: labels keyed by position and the
-  rest of `element-requirements-4.md`, "Labels"; until then the skeleton's position table carries a
+  rest of `element-requirements-5.md`, "Labels"; until then the skeleton's position table carries a
   comment naming the missing channels.
 - Edges have no tooltip (`edge.tooltip` was withdrawn in 2.0), so a note shows on an edge only as
   paint or a bound label.
@@ -2272,7 +2494,7 @@ Each capability has exactly one disposition:
 | Time attribute config slots (read by nothing) | Gap | an element defect |
 | Dynamic GEXF time data | Home | kept on records; windowing by spells is a gap |
 | Custom data sources (`DataSource.register`) | Catalog | registered formats appear on the Data page |
-| Several tables: types, keys and links on any column, rows as nodes or edges, the match report | Gap | the Data page, drawn in full (`element-requirements-4.md`) |
+| Several tables: types, keys and links on any column, rows as nodes or edges, the match report | Gap | the Data page, drawn in full (`element-requirements-5.md`) |
 | Which table a record came from; remove one table | Gap | Remove on the Sources row and the Data page, marked |
 | What a replacing load does to runs and bound layers | Gap | the out-of-date state is drawn |
 | An attribute as a layout axis | Gap | Place by offers position attributes only |
@@ -2349,7 +2571,8 @@ live in Settings and are not in this register.
 ## 19. What graphty-element needs (to file, not to build in the app)
 
 The complete list -- each capability, its proposed API and the screens that wait on it -- is
-`element-requirements-4.md`. It holds the version 4 rows (notes, several labels, several tables,
+`element-requirements-5.md`. It holds the version 5 rows (wide data and nested JSON, for graph-io,
+graph-format and graphty-element), the version 4 rows (notes, several labels, several tables,
 weight at load) and every row carried from version 3. Each is filed as a graphty-element issue
 with type, priority and effort labels before its screen ships, and nothing on it is built in the
 app.
@@ -2363,7 +2586,7 @@ Changes from the ontology and generality review, each a studio decision, reversi
 - **A cite names a result, not only a run.** graphty-element's `run.rerun()` keeps the run's id,
   so a cite stored as a run id alone could never show "cites an earlier run". The element now
   stamps each cite with the cited result's `startedAt` and reads it back with `replaced: true`
-  after a rerun or removal (`element-notes-api.md` 2 and 2.3; `element-requirements-4.md`
+  after a rerun or removal (`element-notes-api.md` 2 and 2.3; `element-requirements-5.md`
   section 1, new row; section 2.1 here).
 - **A note about one group of a run survives a rerun honestly.** A rerun may number groups
   differently, so a `{ run, group }` target is stamped the same way and reads `replaced` instead of
@@ -2375,7 +2598,7 @@ Changes from the ontology and generality review, each a studio decision, reversi
 - **Notes on a filter step are enabled.** Version 4 kept them disabled, which broke "every note
   control is enabled". Stable step ids are part of the notes proposal, so the `E_UNSUPPORTED`
   refusal is withdrawn (section 2.1; `owner-questions-4.md` section 1; `element-notes-api.md`
-  4.1; `element-requirements-4.md` section 1). Only noting an edge picked on the canvas keeps the
+  4.1; `element-requirements-5.md` section 1). Only noting an edge picked on the canvas keeps the
   mark, since edge picking is a separate capability.
 - **The `note:changed` cause** was typed as the history cause, which has no `load` and has
   `restore` and `rollback`. It is now the same open union as `set:changed`: command, load, undo,
@@ -2387,11 +2610,11 @@ Changes from the ontology and generality review, each a studio decision, reversi
 - **A link can match any unique column of its type, not only the type's Key.** With one Key per
   type, two tables that refer to the same people by different columns (an id and a badge number)
   could not both link. The link role's submenu lists each type's unique columns ("person by
-  badge"); the load description gains `on` (section 11.3; `element-requirements-4.md` section 3,
+  badge"); the load description gains `on` (section 11.3; `element-requirements-5.md` section 3,
   new row; `owner-questions-4.md` section 4).
 - **A plain edge list still loads with one Enter.** Version 4 did not say what type From and To
   take when no node table exists. Both default to one new type, "node" (section 11.3;
-  `element-requirements-4.md` section 3).
+  `element-requirements-5.md` section 3).
 - **A node table that links to its own type** (an org chart's manager_id) is added to the
   generality cases checked in text (section 11.3).
 - **The Notes place empty state** now follows section 2.5's pattern ("No notes. Add note (N)"),
@@ -2411,7 +2634,7 @@ from its own page), each a studio decision, reversible with an edit:
 - **Edge targets carry their ends' types.** graphty-element's `EdgeMember` stores its ends as bare
   node ids, so "stored in the stable node form" was not true. Two optional members,
   `sourceType` and `targetType`, are added; `EdgeMember` is open to optional members, so no
-  reader breaks (`element-notes-api.md` 3.1; `element-requirements-4.md` section 1).
+  reader breaks (`element-notes-api.md` 3.1; `element-requirements-5.md` section 1).
 - **Editing a note about a deleted node is not refused.** An `update` may keep a target the note
   already has while it reads missing; only new targets must exist (`element-notes-api.md` 4.1).
 - **Who keeps the author name between visits** is now stated: the project. The name is the
@@ -2421,11 +2644,11 @@ from its own page), each a studio decision, reversible with an edit:
 - **Type-qualified identity in kept sets is marked as a one-way door.** Kept sets publish
   `nodes: NodeId[]` today, so returning `{ type, key }` there is a breaking change; the row gives
   the additive alternative and asks for confirmation on the graphty-element pull request
-  (`element-requirements-4.md` section 3).
+  (`element-requirements-5.md` section 3).
 - **The empty label line waits on nothing.** "Empty text draws nothing" listed the "+" line's
   "Pick a field" as waiting on it, but that line writes nothing (16.6). The rows that wait are a
   Latest note label on an unnoted node and any field absent on some nodes
-  (`element-requirements-4.md` section 2).
+  (`element-requirements-5.md` section 2).
 - **", edited" marks any change to a note**, as the API sets `edited` on every update, not only
   when the text changes (section 8; `element-notes-api.md` 2.3).
 - **Door entries as nodes set Type "entry".** Without it the type defaults to the table name
@@ -2446,13 +2669,13 @@ each a studio decision, reversible with an edit:
   writes nothing (`E_BAD_LAYER`) and a layer paints nodes or edges, never both. The Notes row now
   holds no layer until the reader gives it a look, and its first look on a side adds that side's
   layer -- the Everything row's existing pattern, so no new pattern and no element change (section
-  3.7, 16.7; `element-notes-api.md` 6; `element-requirements-4.md` section 1). The element's
+  3.7, 16.7; `element-notes-api.md` 6; `element-requirements-5.md` section 1). The element's
   existing `LayerSource` value `reason: "notes"` stays published and unused.
 - **One author property for notes and recipes: `author`, not `noteAuthor`.** The owner's decision
   takes a note's author and a recipe's "saved by" from the same setting; a note-only property would
   have left the app stamping recipes itself. `session.notes.setAuthor` is replaced by
   `session.author`, and a "Recipe authorship" row is added (`element-notes-api.md` 1, 5, 9;
-  `element-requirements-4.md` section 1; section 12.3 here). The name is saved with the project:
+  `element-requirements-5.md` section 1; section 12.3 here). The name is saved with the project:
   the owner's 2026-09-28 words say "the project's author setting" and the 2026-10-01 words say
   "enters it in settings and we store it", and section 12.3, `element-notes-api.md` 5 and the
   skeleton's Settings > General all say the same.
@@ -2465,22 +2688,22 @@ each a studio decision, reversible with an edit:
 - **Reserved paths are exact.** Only `notes.count`, `notes.latest`, `notes.latestTime`,
   `table.type` and `table.name` are reserved; a bare `notes` or any other `notes.<x>` still reads
   an attribute, and the one reader whose result changes is named (`element-notes-api.md` 6;
-  `element-requirements-4.md` section 3).
+  `element-requirements-5.md` section 3).
 - **`ProjectSlice` gaining `"notes"`** is flagged: the union is not marked OPEN today, so the
   release must mark it or be a major (`element-notes-api.md` 7).
 - **The load description matches today's API.** `data.import` keeps `mode` in `ImportOptions`,
   still resolves to nothing, and its report is still `data.lastImport()`; the tables form is a new
   shape of `DataSourceInput`. The Name role's key is `displayName` (it collided with the table's
   `name`) and is documented as `nodeLabelPath` per type, not the drawn label (owner: labels are
-  picked in styling) (`element-requirements-4.md` section 3).
+  picked in styling) (`element-requirements-5.md` section 3).
 - **One way to say "repeated links".** One edge per Row or Pair now explicitly subsumes the
   element's existing `repeated-edges` setting (keep, first, last, sum, min, max, error), translated
-  inside the element (`element-requirements-4.md` section 3).
+  inside the element (`element-requirements-5.md` section 3).
 - **Weight extends what exists.** A run's existing `caveats.weight` (`{ attribute, meaning }`) gains
   `source` and `converted` instead of a new shape, and `defineAlgorithm`'s weight meaning gains
-  `"capacity"` (`element-requirements-4.md` section 4).
+  `"capacity"` (`element-requirements-5.md` section 4).
 - **Label style type named correctly**: `LabelStyle`, the element's public type, not the internal
-  `RichTextStyle` (`element-requirements-4.md` section 2).
+  `RichTextStyle` (`element-requirements-5.md` section 2).
 
 Changes from the second review of the version 4 skeleton (graphty-element API, ontology,
 accessibility, interaction, Figma and Tableau readings), each a studio decision, reversible with
@@ -2492,14 +2715,14 @@ an edit. Where a line below contradicts an earlier review line in this appendix,
   pinned to the run the note was written against, the opaque token a pinned `ResultItem`
   holds) or `{ step, at }`; a group target is `{ item: ResultItem }`; a whole result is
   `{ result }`. Following a group by overlap after a rerun is the documented reading rule for an
-  unpinned item (`element-notes-api.md` 2, 3, 3.1; `element-requirements-4.md` section 1).
+  unpinned item (`element-notes-api.md` 2, 3, 3.1; `element-requirements-5.md` section 1).
 - **`{ layer, group }` is withdrawn.** It tied a note about a data value ("group 2") to a style
   layer's id, so deleting and remaking "Show as groups" orphaned the note. Such a note now
   stores the rule, `{ where: Query }`, the form rule sets already use (`element-notes-api.md` 3).
 - **The Category role is renamed Subtype** (`subtype: "<column>"`, `table.subtype`). Category is
   already a column's data type (graphty-element's `"category"` attribute type and the Abc glyph),
   and a published API must not use one word for two things. Subtype is the conceptual model's own
-  word (section 11.3; `element-requirements-4.md` section 3; the skeleton's role menu).
+  word (section 11.3; `element-requirements-5.md` section 3; the skeleton's role menu).
 - **Notes belong to one graph.** graphty-element's session holds one graph, so each graph keeps
   its notes and the Notes place lists the current graph's (section 8, section 14;
   `element-notes-api.md` 2.4). Flagged for `conceptual-model.md`, which puts notes on the project.
@@ -2511,9 +2734,9 @@ an edit. Where a line below contradicts an earlier review line in this appendix,
   (`element-notes-api.md` 4.3).
 - **A weight is one object**: `weight: { column } or { derived: "count" }`, with its `meaning`
   inside, so a meaning cannot exist without a weight. The derived count is graph-format's
-  existing `"count"` reducer (`element-requirements-4.md` sections 3 and 4).
+  existing `"count"` reducer (`element-requirements-5.md` sections 3 and 4).
 - **`node.label` is shorthand for the slot its location names**, so there is one way to put a
-  label above a node and no collision rule (`element-requirements-4.md` section 2).
+  label above a node and no collision rule (`element-requirements-5.md` section 2).
 - **Section 14 now matches the body** on cites (results and filter steps), the weight's meaning
   (per edge table) and node type (the table's type; subtype is a role).
 - **Node weight has one truth.** Analyze and the floors inspector name the same candidate reader,
@@ -2537,4 +2760,120 @@ an edit. Where a line below contradicts an earlier review line in this appendix,
   item; a marked note uses `aria-current`; each note declares its keys; and every shortcut's
   `aria-keyshortcuts` is written in valid form ("Control+Enter Meta+Enter" for Mod+Enter).
 - **Two more graphty-element rows**: a direction option on shortest path, and a tour stop that
-  names a saved view and a hold time (`element-requirements-4.md` section 5).
+  names a saved view and a hold time (`element-requirements-5.md` section 5).
+
+---
+
+## Review changes (version 5)
+
+Changes from the method review of version 5 against this round's criteria (one wide-data pattern
+everywhere, nested JSON that is general, plain graph JSON in one step, a complete state matrix,
+nothing in the app that graph-io or graphty-element should do). Each is a studio decision,
+reversible with an edit.
+
+- **Every attribute picker is the field list, at every length.** Four pickers that choose an
+  attribute were outside the field list's list and would have stayed plain menus at 26 or 69
+  attributes: the Weight line (Analyze, the Path popover, a run's Made with), a recipe's binding
+  choice, and Select where. They are now in it (section 2.5). The rule "menus of 15 or fewer stay
+  dark menus" no longer applies to attribute pickers: Color by is the same component with 4 rows
+  on Les Miserables and 69 on the hosts, drawn as a dark menu with its groups, Find shown past 15.
+  Otherwise one picker would change form as the data grew, two patterns for one job.
+- **Select where stops listing attributes in its hint.** With 69 attributes the hint would be a
+  wall; its one link, Insert attribute..., opens the field list and inserts the stored path at the
+  cursor (section 10.1).
+- **Typed pickers take suitability from graphty-element.** A `list` or kept-whole attribute is not
+  one value, so Color by and Size by list it as unsuitable with the reason; which attributes a
+  scale accepts comes from a new `AttributeDescriptor.domainKind`, matching the element's
+  `ScaleDescriptor.domainKind`, so the app does not copy the element's type-to-scale rules
+  (`element-requirements-5.md` section 7).
+- **Nested JSON is not the sample's shape.** Section 11.4 gains the other common shapes, each
+  handled by an existing control: records keyed by id, a document that is one array and JSON
+  Lines, arrays of arrays (`column1` ... as a headerless CSV), an object of values keyed by ids
+  inside a record (the array role menu), a reference in a sub-object, arrays inside a child table,
+  and arrays whose items differ in shape. The stored path syntax gains `.*` (the values of an
+  object), in graphty-element's own path grammar (every wildcard flattens; it matches neither
+  JMESPath nor JSONPath exactly). graph-io's `describeJson` reports these
+  shapes (`element-requirements-5.md` section 8). A second domain, a package registry, shows them
+  on `data-page/json-keyed`.
+- **Plain graph JSON stays one step when its records are nested**: a sub-object in a graph file's
+  node or edge records is flattened with no question asked (section 11.4).
+- **The state matrix gains five surfaces it missed**: the note editor, the Data page's role menu,
+  the Layout popover, the time slider and the Neighborhood popover, each with its existing routes
+  and three new routes to build (`notes-place/editing-long`, `analyze-popover/wide-weight`,
+  `data-page/json-keyed`).
+- **Regression (a) is checked on two datasets**, Les Miserables and the door entries, because the
+  defect was a walk that worked on one dataset only.
+- **Confirmed in the skeleton source, before the build**: (a) Shift+Arrow still jumps to Valjean on
+  Les Miserables only (`app.js`, the canvas key handler), so it is not fixed; (b), (c) and (d)
+  stand as `state-matrix.md` records them, each to be confirmed on its route. 85 routes named in
+  the matrix (88 with this review's three) and every Narrow cell still wait on the build and on
+  `study.mjs` reading the `@1024` suffix, so criterion 1 does not yet hold; the matrix says so
+  cell by cell.
+
+Changes from the API review of version 5 against graphty-element's, graph-io's and graph-format's
+current source:
+
+- **graph-format already has a `list` data type** (offsets plus one child column), and graph-io
+  already writes one for Cytoscape's `classes`. The requirement for a new, one-way-door data type
+  is withdrawn; what remains is inference, so an array of scalars becomes a `list` column instead
+  of an opaque `json` one (`element-requirements-5.md` section 8, graph-format;
+  `owner-questions-5.md` sections 6 and "Still open").
+- **Grouping by table needs the element to say which table an attribute belongs to.**
+  `AttributeDescriptor` has `kind` (node or edge) but no node type or edge table, so the field
+  list's "groups by table" would have made the app guess. New row: `elementType`, with one
+  descriptor per type that carries a path (section 7 above; `element-requirements-5.md` section 7).
+- **"In use" tags come from the element.** `usedBy` entries gain `channel`, so "Color",
+  "Weight" or "Filter" is read from graphty-element, not worked out from the app's copy of the
+  layers.
+- **One pattern for picking a field.** The bind icon's From data list was still "a dark menu with
+  a filter field" that hid the fields a property cannot take; it is now the field list, with
+  those fields listed last and disabled with the element's reason (section 16.3). Section 2.5's
+  "any list past 15 items" now says how the non-attribute lists past 15 (Shape, the label style's
+  fields) search: the same find field and matching, over their own items.
+- **Nested JSON is general, not tied to the sample.** Edge tables are proposed when two fields'
+  values match node tables' keys, not when their names look like ids, so `from` and `to` or
+  `person` and `org` are found (section 11.4). Child tables carry their parent's row number when
+  the parent has no key, at any depth. A consumer's existing `node.path` written in fuller
+  JMESPath keeps working, deprecated, until the next major release.
+- **The exported `AttributeType` gains `"list"` and `"json"`**, which breaks a consumer's
+  exhaustive switch at compile time: named in `element-requirements-5.md` section 7 and in
+  `owner-questions-5.md`'s list of names to confirm on the pull request.
+- **The state matrix gains two shared components**: the "+" menu (one item, a few, and past 15
+  the field list) and the design-note chip.
+- **Not changed, to build**: `app-b/README.md` still documents `plus()` as "a dark menu, with a
+  filter field past 15", and `lib.js` has no `AB.fieldList` yet; the menu past 15 must become the
+  field list, menu size, for one pattern per job to hold in the skeleton.
+
+Changes from the ontology and generality review of version 5 (the conceptual model, every
+domain, and the one-home rule). Each is a studio decision, reversible with an edit.
+
+- **Repeated links keep one control.** Pairs that two records both list in an id array were
+  offered as "One edge | Two edges", new words for a job version 4 already gives one control: the
+  edge table's **One edge per: Row | Pair**. The report line now carries that control, **One edge
+  per: Item | Pair** (Item is Row's counterpart for a list column), Pair by default on an
+  undirected graph (section 11.4; `owner-questions-5.md` section 3; `element-requirements-5.md`
+  section 8, where `onePer` already used these values).
+- **A list of values can become nodes with no new control.** Several edges uses version 4's link
+  submenu, so New type... turns `tags` into tag nodes, one edge per item (section 11.4). This is
+  the general case behind "an array of values that names things".
+- **Lists and values kept whole are placed in the conceptual model.** A list of categories is the
+  model's cover (Show as groups); a list of numbers is its numeric vector, kept, shown and
+  exported, never drawn; a value kept whole is new and flagged for the model as an opaque value
+  (sections 11.4 and 14). Typed pickers list both last, disabled with the element's reason, so no
+  picker invents a way to draw them.
+- **"In use" counts runs.** An attribute read by a run's weight override is in use, tagged with
+  the run's name; `usedBy` gains the kind `"run"`, and section 2.5 now says what "in use" means
+  and that it comes from graphty-element (`element-requirements-5.md` section 7).
+- **Every N/A in the state matrix has its reason.** 102 cells in 20 rows (the menus, the dialogs
+  and the shared components) read a bare "N/A", which criterion 1 does not allow; each now says
+  why the state does not apply. Eight cells named a route that does not exist yet without the
+  BUILD mark; they now carry it, so `study.mjs --matrix` cannot read them as built.
+- **The field list on nested data has a route**: `style-pickers/nested-color-by` shows the parent
+  subheads and `tags` and a sub-object kept whole listed last and disabled with their reasons
+  (`state-matrix.md`).
+
+Status after the build (2026-10-01): every route `state-matrix.md` names is built, the matrix
+carries no BUILD mark, and `study.mjs --matrix` passes all 312 of its routes, Narrow ones at
+1024 x 768 included. Regressions (a) to (d) are confirmed fixed on their routes. The bind
+icon's old From data menu helper, which had no caller left, is removed, so the field list has
+one entry point (`AB.openFieldList`).

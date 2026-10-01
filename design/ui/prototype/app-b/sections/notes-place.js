@@ -44,12 +44,14 @@
 .np-meta .np-acts .k-icon-btn { width: 24px; height: 24px; margin: -2px 0; }
 .np-note:is(:hover, :focus-within, [aria-current="true"]) .np-acts { opacity: 1; }
 .np-editor { display: grid; gap: 8px; margin: 4px 8px; padding: 8px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cm-border-selected); background: var(--cm-bg); }
-.np-editor textarea { font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; padding: 6px 8px; min-height: 72px; resize: vertical; outline: none; }
+.np-editor textarea { font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); border: 0; border-radius: 5px; padding: 6px 8px; min-height: 72px; max-height: 240px; field-sizing: content; resize: vertical; outline: none; }
 .np-editor textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--cm-border-selected); }
 .np-editor-foot { display: flex; align-items: center; gap: 8px; }
 .np-chip.np-gone { text-decoration: line-through; color: var(--cm-text-secondary); }
 .np-edit-li { list-style: none; }
 .np-sub { padding: 0 16px 4px; color: var(--cm-text-tertiary); }
+.np-chip > .np-label { min-width: 0; }
+.np-editor, .np-note { grid-template-columns: minmax(0, 1fr); }
 `;
     if (!document.getElementById("np-css")) document.head.append(h("style", { id: "np-css" }, CSS));
 
@@ -74,7 +76,7 @@
         const [v, next] = L().topByBetweenness;
         const c3 = state === "earlier-group" ? Object.assign({}, T.community3, { earlierGroup: true }) : T.community3;
         const nap = state === "missing-target" ? Object.assign({}, T.napoleon, { gone: true }) : T.napoleon;
-        return savedIn("lesmis").concat([
+        const list = [
             { id: "n1", by: state === "two-authors" || state === "one-author" ? "Ada Okafor" : null, at: "2 h ago", full: "Wednesday, September 30, 2026, 09:12", about: [c3],
                 text: "Myriel's household and the people he meets in Digne." },
             { id: "n2", by: state === "two-authors" ? "Lin Chen" : null, at: "Yesterday", full: "Tuesday, September 29, 2026, 17:40", about: [c3, nap], cites: [T.louvain],
@@ -89,7 +91,11 @@
                 text: "They share 17 chapters. This is the edge to keep in the pursuit figure." },
             { id: "n7", at: "Sep 28", full: "Monday, September 28, 2026, 10:14", about: [T.graph],
                 text: "Co-appearances counted per chapter, from Knuth's list." },
-        ]);
+        ];
+        // One: the project holds only its note about the graph; the graph inspector beside it reads "1 note"
+        if (state === "one-note") return savedIn("lesmis").concat(list.filter((n) => n.id === "n7"));
+        if (state === "long-note" || state === "editing-long") list.unshift(longNote());
+        return savedIn("lesmis").concat(list);
     }
     // The door-entries project: two node types, so each node chip names its type ("Ana Ruiz . person");
     // an edge chip names its table; B12 was left out by the match report, so its note reads missing
@@ -105,15 +111,41 @@
             { id: "d3", at: "Yesterday", full: "Wednesday, September 30, 2026, 16:05", about: [{ label: "B12 . building", icon: "circle-dot", gone: true }], text: "B12 is not in buildings.csv. Ask Facilities whether it is new." },
         ]);
     }
+    // Long text: a 60-character set name and a 600-character note (state matrix, Long text)
+    const LONG_SET = { label: "Pursuers of Valjean: Javert, the Thenardiers, Patron-Minette", icon: AB.ICON.set, go: ["inspector-group-set-path-row", "data"] };
+    const LONG_TEXT = "Valjean's pursuers form a chain that the co-appearance counts hide. Javert shares 17 chapters with Valjean, more than anyone else in the pursuit, but Thenardier keeps finding him too: at the inn in Montfermeil, in the Gorbeau tenement and finally in the sewers. Check whether the Louvain run puts Thenardier in Valjean's community or with his own family, and whether Betweenness ranks him above Javert once the minor characters are filtered out. If he lands with the family, this set is the better figure for the pursuit chapter, because it keeps all three pursuers in one color across the whole book.";
+    const longNote = () => ({ id: "n0", at: "Just now", full: "Thursday, October 1, 2026, 11:02", about: [LONG_SET, T.valjean], text: LONG_TEXT });
+    // Many: forty notes on the transfers, one per account in the fixture's rows, newest first.
+    // Each text reads only that row's values. A chip selects its account through the canvas walk.
+    function transferNotes() {
+        const D = AB.fx.datasets.transactions;
+        const day = (i) => new Date(Date.UTC(2026, 9, 1, 10 - i * 5));
+        return D.rows.slice(0, 40).map((r, i) => {
+            const d = day(i), ago = Math.round((Date.UTC(2026, 9, 1, 11) - d) / 36e5);
+            const at = ago < 24 ? ago + " h ago" : ago < 48 ? "Yesterday" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+            const full = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) + ", " + String(d.getUTCHours()).padStart(2, "0") + ":00";
+            const text = r.riskScore >= 70 ? `Risk score ${r.riskScore} and not flagged. Ask the bank why no alert rule fired for this ${r.country} account.`
+                : r.kind === "business" ? `A business in ${r.country} with ${r.degree} counterparties. Check whether this is payroll or a supplier before the review.`
+                : r.degree === 1 ? `One counterparty in March. Leave it out of the ring search.`
+                : `${r.country}, ${r.degree} counterparties, risk score ${r.riskScore}. Nothing unusual in March.`;
+            return { id: "t" + i, at, full, about: [{ label: r.id, icon: "circle-dot", go: ["inspector-node", "why-this-look"], walk: i + 1 }], text };
+        });
+    }
+    // The list a state shows; "selected" keeps the list it was opened from
+    const OWN_LIST = ["one-note", "many", "long-note", "editing-long", "chip-removed-saved"];
+    let listState = null;
+
     // Notes saved in this page view (newest first), the note the list marks, and what it selected
     const saved = AB.sessionNotes; // the one in-session store: every Notes count reads it too
     // Each saved note belongs to the project it was written in (its ds)
     const savedIn = (ds) => saved.filter((n) => (n.ds || "lesmis") === ds);
     // The project on screen, and the notes it holds: the transfers have none in the fixture
     const projectOf = () => (AB.route && AB.route.frame.dataset) || "lesmis";
-    let selNote = "n4", selRight = "inspector-node/data", focusNote = null;
-    const show = (noteId, right) => {
-        selNote = noteId; selRight = right; focusNote = noteId;
+    let selNote = "n4", selRight = "inspector-node/data", selWalk = null, focusNote = null;
+    // walk: a transfers account is selected through the shell's canvas walk (frame.walk), which
+    // names the account in the node inspector; the skeleton has no per-account inspector state
+    const show = (noteId, right, walk) => {
+        selNote = noteId; selRight = right; selWalk = walk || null; focusNote = noteId;
         if (location.hash === AB.href("notes-place", "selected")) AB.render(); else AB.go("notes-place", "selected");
     };
 
@@ -141,22 +173,24 @@
             const x = o.onRemove
                 ? AB.tip(h("span", Object.assign({ class: "np-x", role: "button" }, AB.act({ onClick: o.onRemove })), icon("x", "sm")), "Remove " + t.label)
                 : AB.tip(h("span", { class: "np-x", role: "button", tabindex: "0", "aria-disabled": "true" }, icon("x", "sm")), "Remove " + t.label, { second: "Select something to change what this note is about" });
-            return h("span", { class: "np-chip" }, look(t), t.label, x);
+            const name = h("span", { class: "np-label k-ellipsis" }, t.label);
+            if (t.label.length > 30) AB.tip(name, t.label, { label: false }); // a long subject keeps its full name in the tooltip
+            return h("span", { class: "np-chip" }, look(t), name, x);
         }
         const cls = "np-chip" + (o.cite ? " np-cite" : "");
         if (t.gone) {
-            const g = h("span", { class: cls + " np-gone", tabindex: "-1" }, look(t), t.label);
+            const g = h("span", { class: cls + " np-gone", tabindex: "-1" }, look(t), h("span", { class: "np-label k-ellipsis" }, t.label));
             AB.tip(g, "Not in the current data", { label: false });
             g.setAttribute("aria-label", t.label + ", not in the current data");
             return g;
         }
         const why = t.earlier ? "Cites an earlier run" : t.earlierGroup ? "About an earlier result" : null;
-        const el = h("span", { class: cls, role: "link", tabindex: "-1" }, look(t), t.label, why ? icon("history", "sm") : null);
+        const el = h("span", { class: cls, role: "link", tabindex: "-1" }, look(t), h("span", { class: "np-label k-ellipsis" }, t.label), why ? icon("history", "sm") : null);
         AB.tip(el, why || (o.cite ? "Cites " + t.label + ": open the run" : "Select " + t.label), { label: false });
         el.setAttribute("aria-label", (o.cite ? "Cites " : "") + t.label + (why ? ", " + why.toLowerCase() : ""));
         // An earlier group may be numbered differently now: its chip opens the run, not today's group
         const target = t.earlierGroup ? ["inspector-run-row", "data"] : t.go;
-        const goTo = (e) => { e.stopPropagation(); clearTimeout(pending); show(o.note || null, target.join("/")); };
+        const goTo = (e) => { e.stopPropagation(); clearTimeout(pending); show(o.note || null, target.join("/"), t.walk); };
         el.addEventListener("click", goTo);
         el.addEventListener("keydown", (e) => { if (e.key === "Enter") goTo(e); });
         return el;
@@ -207,7 +241,7 @@
         // The spoken name carries what the note is about and cites, since the label replaces the row's content
         const label = () => [n.text, "about " + n.about.map((t) => t.label).join(", "), n.cites ? "cites " + n.cites.map((t) => t.label).join(", ") : null, by, n.full + (n.edited ? ", edited" : "")].filter(Boolean).join("; ");
         const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": label(), "aria-keyshortcuts": "ArrowRight Delete Shift+F10" });
-        const open = () => { const to = selectAll(n); if (to) show(n.id, to.join("/")); else AB.notice(n.about.map((t) => t.label).join(", ") + ": not in the current data, so nothing is selected"); };
+        const open = () => { const to = selectAll(n); if (to) show(n.id, to.join("/"), n.about.length === 1 ? n.about[0].walk : null); else AB.notice(n.about.map((t) => t.label).join(", ") + ": not in the current data, so nothing is selected"); };
         const edit = () => {
             clearTimeout(pending);
             // The editor stays a list item, so the list keeps its structure
@@ -355,6 +389,12 @@
             { id: "two-authors", label: "Two people named their notes" },
             { id: "one-author", label: "Only one person named their notes" },
             { id: "door-entries", label: "Door entries: chips name each node's type" },
+            { id: "find-no-match", label: "Find with no match" },
+            { id: "one-note", label: "One note (about the graph)" },
+            { id: "many", label: "Forty notes on the transfers" },
+            { id: "long-note", label: "A 600-character note and a long subject" },
+            { id: "editing-long", label: "Editing a 600-character note" },
+            { id: "chip-removed-saved", label: "A subject removed, then saved" },
         ],
         frame(state) {
             // After Save the inspector the note was written from stays (AB.addNote's contract)
@@ -367,7 +407,9 @@
             }
             if (state === "all" && keep) return Object.assign({ right: keep.right }, keep.dataset !== "lesmis" ? { dataset: keep.dataset } : {});
             // A selected note keeps the project it belongs to on screen
-            if (state === "selected") return Object.assign({ right: selRight }, projectOf() !== "lesmis" ? { dataset: projectOf() } : {});
+            if (state === "selected") return Object.assign({ right: selRight }, projectOf() !== "lesmis" ? { dataset: projectOf() } : {}, selWalk ? { walk: selWalk } : {});
+            if (state === "one-note") return { right: "inspector-nothing-selected/overview" };
+            if (state === "many") return { dataset: "transactions" };
             if (state === "edge-note") return { right: "inspector-edge/data" };
             return {};
         },
@@ -381,7 +423,9 @@
                 el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() }));
                 return;
             }
-            const all = ds === "doorEntries" ? doorNotes() : ds === "transactions" ? savedIn("transactions") : notes(state);
+            if (OWN_LIST.includes(state)) listState = state; else if (state !== "selected") listState = null;
+            const list = state === "selected" ? listState || state : state;
+            const all = ds === "doorEntries" ? doorNotes() : ds === "transactions" ? (list === "many" ? transferNotes() : []).concat(savedIn("transactions")) : ds === "lesmis" ? notes(list) : savedIn(ds); // a just-loaded project has only the notes written in it
             if (!all.length && state !== "writing") { el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() })); return; }
             const names = showNames(all);
             const f = FILTERS[state] || null;
@@ -430,6 +474,20 @@
             focusNote = null;
             if (keep) { first.tabIndex = -1; keep.tabIndex = 0; setTimeout(() => keep.focus(), 0); }
             if (state === "editing") all.find((n) => n.id === "n5").edit();
+            if (state === "editing-long") all.find((n) => n.id === "n0").edit();
+            if (state === "chip-removed-saved") {
+                // Regression: remove Javert from a two-subject note and Save, with the real controls
+                all.find((n) => n.id === "n5").edit();
+                const ed = scroll.querySelector(".np-editor");
+                ed.querySelectorAll(".np-chip")[1].querySelector(".np-x").click();
+                [...ed.querySelectorAll(".k-btn")].find((b) => b.textContent.trim().startsWith("Save")).click();
+            }
+            if (state === "find-no-match") {
+                const q = el.querySelector(".np-find input");
+                q.value = "Thenardier";
+                q.dispatchEvent(new Event("input"));
+                setTimeout(() => q.focus(), 0);
+            }
             if (state === "note-menu") requestAnimationFrame(() => all[0].options());
         },
     });

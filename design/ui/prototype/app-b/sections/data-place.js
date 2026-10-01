@@ -27,10 +27,9 @@
 .dp .ab-trow[data-dragging] { opacity: 0.5; }
 .dp .ab-trow[data-drop] { box-shadow: inset 0 2px 0 var(--cm-bg-brand); }
 .dp .ab-tcount .k-badge { font-size: 11px; color: var(--cm-text-secondary); }
-.dp-find { padding: 0 16px 4px; }
-.dp-find input { width: 100%; box-sizing: border-box; }
+.dp-prob { list-style: none; padding: 0 8px 6px calc(var(--lvl, 0) * 16px + 24px); }
+.dp-count { font-size: 11px; color: var(--cm-text-secondary); margin-right: 4px; white-space: nowrap; }
 .dp-oq { padding: 0 16px 8px 20px; }
-.dp-sub { padding: 4px 16px 2px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); display: flex; align-items: center; gap: 6px; }
 .dp-mark { display: grid; place-items: center; color: var(--cm-icon); }
 .dp .ab-trow > .ab-kind { width: 24px; min-width: 24px; justify-items: start; }
 .dp .ab-trow > .ab-kind:empty { display: none; }
@@ -40,23 +39,17 @@
     const T = () => AB.fx.datasets.transactions;
     const D = () => AB.fx.datasets.doorEntries;
     const L = () => AB.fx.datasets.lesmis;
+    const W = () => AB.fx.datasets.wide;
+    const N = () => AB.fx.datasets.nested;
+    const P = () => AB.fx.datasets.plainJson;
+    const LONG_NAME = "accounts-structuring-review-export-q1-2026-final-checked.csv"; // 60 characters
+    const VULN = "vuln_count_critical_unremediated_over_30_days";
     const n = (x) => Number(x).toLocaleString("en-US");
     const URL_NAME = "alerts.bank.example/structuring/2026-03.json";
     const GEXF = "miserables.gexf";
     const FILTERS_TIP = "Filters change what is computed; the eye in the Graph tree only hides.";
     const KIND = { node: "circle-dot", edge: "spline", file: "network" };
     const KIND_WORD = { node: "node table", edge: "edge table", file: "graph file" };
-
-    // One glyph and one word per type (spec 2.4): Abc Category, # Number, calendar Time
-    const TYPE = { cat: "Category", num: "Number", time: "Time" };
-    const glyph = (type) => AB.tip(AB.typeGlyph(type), "Read as: " + TYPE[type], { label: false });
-    // The one role tag; its tooltip says what the role does
-    const ROLE_WHY = {
-        Key: "set when loaded -- links match on it",
-        Name: "set when loaded -- labels and lists show it",
-        Time: "set when loaded -- the time slider reads it",
-        Weight: "set when loaded -- every run uses it unless the run picks another",
-    };
 
     // Decorate tree rows: a quiet line under a row (not a tree item; read through aria-description)
     function quiet(li, text) {
@@ -69,11 +62,31 @@
         li.setAttribute("aria-description", (li.getAttribute("aria-description") || "") + ". " + text);
         li.querySelector(".ab-le").append(AB.tip(h("span", { class: "dp-mark", role: "img", "aria-label": "warning" }, icon("triangle-alert", "sm")), text, { label: false }));
     }
+    // The problem block under its row (after the row's quiet line), indented to the row's level
+    function problemUnder(li, p) {
+        const after = li.nextElementSibling && li.nextElementSibling.classList.contains("dp-quiet") ? li.nextElementSibling : li;
+        after.after(h("li", { class: "dp-prob", role: "none", style: li.getAttribute("style") }, AB.problem(p)));
+    }
     const goItem = (label, to, extra) => Object.assign({ label, onClick: () => AB.go(to[0], to[1]) }, extra || {});
 
     // ---------- the lists for one render ----------
     function initialSteps(cfg) {
         if (cfg.steps === "none") return [];
+        if (cfg.steps === "wide") {
+            // The hosts: counts read from the sample's rows (a stand-in for the element's filter plan)
+            const rows = W().nodeRows, prod = rows.filter((r) => r.environment === "prod");
+            const hit = prod.filter((r) => r[VULN] >= 1).length;
+            return [
+                { id: "w1", name: "environment is prod", outcome: `${n(rows.length)} to ${n(prod.length)} nodes`, on: true },
+                { id: "w2", name: VULN + " is at least 1", attr: VULN, rest: " is at least 1", outcome: `${n(prod.length)} to ${n(hit)} nodes`, on: true },
+            ];
+        }
+        if (cfg.steps === "one") return [{ id: "s1", name: "amount is at least 1,000", outcome: `${n(T().nodes)} to 812 nodes`, on: true, notes: 1 }];
+        if (cfg.steps === "gone") return [
+            // The step was made on the old file's amount_usd; the replacing file names that column amount
+            { id: "s1", name: "amount_usd is at least 1,000", outcome: null, on: true, notes: 1, gone: "amount_usd" },
+            { id: "s2", name: "kind is not merchant", outcome: null, on: false },
+        ];
         const steps = [
             { id: "s1", name: "amount is at least 1,000", outcome: `${n(T().nodes)} to 812 nodes`, on: cfg.steps !== "undone", notes: 1 },
             { id: "s2", name: "kind is not merchant", outcome: null, on: false },
@@ -84,6 +97,38 @@
 
     // Source rows per data set: { id, kind, name, quiet, warn, go, children, open }
     function sourceRows(cfg) {
+        if (cfg.ds === "none") return [];
+        if (cfg.ds === "wide") {
+            const w = W();
+            return [
+                { id: "hosts", kind: "node", name: w.file, quiet: `host . ${n(w.nodes)} nodes`, go: ["data-page", "wide-hosts"], edit: ["data-page", "wide-hosts"] },
+                { id: "connections", kind: "edge", name: w.edgesFile, quiet: `connections . ${n(w.edges)} rows, ${n(w.edges)} edges`, go: ["data-page", "wide-hosts"], edit: ["data-page", "wide-hosts"] },
+            ];
+        }
+        if (cfg.ds === "nested") {
+            // The tables the last Load made (AB.nestedLoaded: the reader's choices on the Data page)
+            const d = N(), ra = d.recordArrays, go = ["data-page", "json-researchers"], NL = AB.nestedLoaded();
+            const cnt = (p) => (d.paths.find((q) => q.path === p) || {}).count || 0;
+            const addr = NL.researchers && NL.addr === "rows" ? cnt("data.researchers[].attributes.profile.contact.addresses[]") : 0;
+            const nodes = (NL.researchers ? ra["data.researchers[]"] : 0) + (NL.institutions ? ra["data.institutions[]"] : 0) + addr;
+            const co = NL.coPer === "item" ? 514 : 510;
+            return [{ id: "json", kind: "file", name: d.file, quiet: `${n(nodes)} nodes from ${n(d.records)} records`, go, edit: go, open: true,
+                children: [
+                    NL.researchers && { id: "json-researchers", kind: "node", name: "researchers", quiet: `researcher . ${n(ra["data.researchers[]"])} nodes` + (NL.co === "edges" ? `; coauthor_ids . ${n(co)} edges` : "") + (NL.idLinks || []).map((x) => `; ${x.col.split(".").pop()} . ${n(x.n)} edges`).join(""), go, noMenu: true },
+                    NL.researchers && NL.aff === "rows" && { id: "json-affiliations", kind: "edge", name: "affiliations", quiet: `affiliation . ${n(242)} rows, ${n(242)} edges`, go: ["data-page", "json-affiliations"], noMenu: true },
+                    addr && { id: "json-addresses", kind: "node", name: "addresses", quiet: `address . ${n(addr)} nodes`, go, noMenu: true },
+                    NL.institutions && { id: "json-institutions", kind: "node", name: "institutions", quiet: `institution . ${n(ra["data.institutions[]"])} nodes`, go, noMenu: true },
+                    NL.links && { id: "json-links", kind: "edge", name: "links", quiet: `link . ${n(ra["links[]"])} rows, ${n(ra["links[]"])} edges`, go, noMenu: true },
+                ].filter(Boolean) }];
+        }
+        if (cfg.ds === "plainJson") {
+            const d = P(), go = ["data-page", "json-plain"];
+            return [{ id: "json", kind: "file", name: d.file, quiet: `${n(d.nodes)} nodes, ${n(d.edges)} edges`, go, edit: go, open: true,
+                children: [
+                    { id: "json-nodes", kind: "node", name: "nodes", quiet: `node . ${n(d.nodes)} nodes`, go, noMenu: true },
+                    { id: "json-links", kind: "edge", name: "links", quiet: `links . ${n(d.edges)} rows, ${n(d.edges)} edges`, go, noMenu: true },
+                ] }];
+        }
         if (cfg.ds === "door") {
             const d = D(), r = d.report, tbl = (name) => d.tables.find((x) => x.name === name);
             const e = r.entries;
@@ -106,13 +151,18 @@
         }
         const t = T();
         const rows = [
-            { id: "accounts", kind: "node", name: t.accountsFile, quiet: `account . ${n(t.nodes)} nodes`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
+            { id: "accounts", kind: "node", name: cfg.longName ? LONG_NAME : t.accountsFile, quiet: `account . ${n(t.nodes)} nodes`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
             { id: "transfers", kind: "edge", name: t.file, quiet: `transfers . ${n(t.edges)} rows, ${n(t.edges)} edges${cfg.afterReplace ? ", replaced Sep 30" : ""}`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"] },
         ];
         if (cfg.url) {
             const flagged = t.attributes.find((a) => a.name === "flagged").values.true;
             rows.push({ id: "url", kind: "node", url: true, name: URL_NAME, quiet: `account . ${n(flagged)} rows`, go: ["data-page", "url"],
-                warn: cfg.urlChanged ? "The data at this address changed since Sep 29. Refresh is in its menu" : null });
+                warn: cfg.urlChanged ? "The data at this address changed since Sep 29. Refresh is in its menu" : null,
+                progress: cfg.url === "refreshing" ? 0.4 : undefined,
+                status: cfg.url === "failed" ? "error" : undefined,
+                statusText: cfg.url === "refreshing" ? "Refreshing: reading the address again; the graph keeps its copy until the new data is read"
+                    : cfg.url === "failed" ? "Refresh failed: the address did not answer" : undefined,
+                problem: cfg.url === "failed" ? { what: "alerts.bank.example did not answer, so nothing was refreshed.", todo: "The graph keeps the copy read Sep 29. Try again later, or check the address on the Data page.", action: { label: "Refresh", onClick: () => AB.flash("Refreshing " + URL_NAME) } } : null });
         }
         return rows;
     }
@@ -133,6 +183,7 @@
         const src = sourceRows(cfg);
         const treeRow = (s) => ({
             id: s.id, kindIcon: AB.tip(icon(KIND[s.kind]), KIND_WORD[s.kind], { label: false }), name: s.name, selected: cfg.select === s.id, go: s.go, open: s.open, waitDouble: true,
+            progress: s.progress, status: s.status, statusText: s.statusText,
             renameDisabled: s.noMenu ? "A table inside a graph file is named by the file" : null,
             children: s.children && s.children.map(treeRow),
         });
@@ -146,7 +197,7 @@
                 { sep: true },
                 AB.cmd("replace-file"),
                 AB.cmd("edit-source", { go: s.edit || (s.go[1] === "url" ? ["data-page", "url"] : AB.cmd("edit-source").go) }),
-                s.url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", onClick: () => AB.notice("Refreshed " + URL_NAME + ": nothing changed") } : null,
+                s.url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", onClick: () => AB.go("data-place", "refreshing") } : null,
                 { sep: true },
                 { label: "Remove", shortcut: "Del", needs: "graphty-element does not record which table each node and edge came from, so one table cannot be removed on its own; Clear graph data is in the graph's menu" },
             ].filter(Boolean));
@@ -156,6 +207,7 @@
             if (!li) return;
             quiet(li, s.quiet);
             if (s.warn) warn(li, s.warn);
+            if (s.problem) problemUnder(li, s.problem);
             if (s.info) { li.setAttribute("aria-description", (li.getAttribute("aria-description") || "") + ". " + s.info); AB.tip(li.querySelector(".ab-tname"), s.info, { label: false }); }
             li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(s, li); });
         });
@@ -177,7 +229,8 @@
             ],
             onAdd: (it) => AB.go(it.to[0], it.to[1]),
         });
-        return AB.section({ title: "Sources", editable: true, actions: plus }, h("div", { class: "dp-flat" }, ul));
+        return AB.section({ title: "Sources", editable: true, actions: plus },
+            src.length ? h("div", { class: "dp-flat" }, ul) : AB.empty("No data.", { verb: "Add data", go: AB.cmd("add-data").go }));
     }
 
     // ---------- Filters ----------
@@ -186,7 +239,9 @@
         // "+" adds a step at the end, named "New step", selected (create first, then edit its rule)
         const addStep = () => { const id = "s" + (steps.length + 1) + "-" + Date.now(); steps.push({ id, name: "New step", outcome: null, on: true, isNew: true }); model.selected = id; redraw(id); AB.announce("Added New step"); };
         const plus = AB.plus({ label: "Add filter step", items: [{ label: "filter step" }], onAdd: addStep });
-        const sec = AB.section({ title: "Filters", editable: true, actions: plus });
+        const on = steps.filter((s) => s.on).length;
+        const count = steps.length ? h("span", { class: "dp-count" }, `${steps.length} ${steps.length === 1 ? "step" : "steps"}, ${on} on`) : null;
+        const sec = AB.section({ title: "Filters", editable: true, actions: h("span", { style: "display:flex;align-items:center" }, count, plus) });
         if (!steps.length) {
             sec.append(AB.empty("No filters. " + FILTERS_TIP, { verb: "Add filter step", onClick: addStep }));
             return sec;
@@ -194,7 +249,8 @@
         // Once a step exists, the empty line becomes the header's tooltip
         AB.tip(sec.querySelector(".ab-sec-h"), FILTERS_TIP, { label: false });
 
-        const rows = steps.map((s) => ({ id: s.id, kindIcon: AB.ICON.filter, name: s.name, notes: s.notes || null, selected: model.selected === s.id, go: ["inspector-attribute-and-filter-step", "filter-step"], renameDisabled: "a step is named by its rule; Enter edits the rule" }));
+        const rows = steps.map((s) => ({ id: s.id, kindIcon: AB.ICON.filter, name: s.name, notes: s.notes || null,
+            status: s.gone ? "error" : undefined, statusText: s.gone ? "Skipped: " + s.gone + " is not in the data any more" : undefined, selected: model.selected === s.id, go: ["inspector-attribute-and-filter-step", "filter-step"], renameDisabled: "a step is named by its rule; Enter edits the rule" }));
         const ul = AB.tree(rows, { label: "Filter steps, in the order they apply" });
         const move = (s, d) => {
             const i = steps.indexOf(s), j = i + d;
@@ -231,7 +287,10 @@
             AB.tip(check, "Apply this step", { key: "Space", label: false });
             check.addEventListener("click", (e) => { e.stopPropagation(); flip(s); });
             li.querySelector(".ab-le").append(check);
+            // An attribute name in a rule keeps its start and its end (the middle ellipsis); the row's name is the full rule
+            if (s.attr) li.querySelector(".ab-tname").replaceChildren(AB.truncMiddle(s.attr, 14), s.rest);
             if (s.on && s.outcome) quiet(li, s.outcome);
+            if (s.gone) problemUnder(li, { what: `${s.gone} is not in ${T().file} any more, so this step is skipped.`, todo: "Pick another attribute in the step's rule, or delete the step.", action: { label: "Edit rule", go: ["inspector-attribute-and-filter-step", "filter-step"] } });
             li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(s, li); });
             // Drag the row to reorder (no grip)
             li.draggable = true;
@@ -278,121 +337,73 @@
     }
 
     // ---------- Attributes ----------
-    // Groups per data set: [{ head, label, edge, rows: [[name, type, role, extra]] }]
-    function attributeGroups(cfg) {
-        // The built-in type is named apart from any file column called "type" (graphty-element's table.type)
-        const TYPE_ATTR = ["type (built in)", "cat", null, { builtin: true, why: "Built in: the type of the table each row came from (table.type)" }];
-        if (cfg.ds === "door") {
-            return [
-                { head: "person", rows: [TYPE_ATTR, ["badge", "cat"], ["dept", "cat"], ["id", "cat", "Key"], ["name", "cat", "Name"]] },
-                { head: "building", rows: [TYPE_ATTR, ["bldg", "cat", "Key"], ["floors", "num", "Weight"], ["site", "cat", "Name"]] },
-                // as the last Load left One edge per: Pair adds count (the weight) and combines time;
-                // each entry as a node makes entry a node type with its time
-                D().loaded.per === "nodes" ? { head: "entry", rows: [TYPE_ATTR, ["time", "time", "Time"]] }
-                    : D().loaded.per === "row" ? { head: "entries", edge: true, rows: [TYPE_ATTR, ["time", "time", "Time"]] }
-                    : { head: "entries", edge: true, rows: [TYPE_ATTR, ["count", "num", "Weight", { why: "One edge per Pair: how many entries each pair made" }], ["time (earliest)", "time", "Time", { roleWhy: "from Pair: each pair's earliest time; time (latest) is an attribute" }], ["time (latest)", "time"]] },
-            ];
-        }
-        if (cfg.ds === "lesmis") {
-            return [
-                { head: "Nodes", rows: [["group", "cat"], ["label", "cat", "Name"]] },
-                { head: "Edges", edge: true, rows: [["value", "num", "Weight", { roleWhy: "set by the file -- every run uses it unless the run picks another" }]] },
-            ];
-        }
-        const t = T();
-        const scope = cfg.afterReplace ? "stale" : cfg.steps === "two" || cfg.steps === "new" ? "filtered" : null;
-        const pagerank = ["PageRank", "num", null, { computed: true,
-            mark: scope ? (scope === "stale" ? "Out of date: computed on the data before the replace. Rerun is in its menu"
-                : `Computed on ${n(t.nodes)} nodes; the filters now leave 812. Rerun is in its menu`) : null }];
-        return [
-            // One node type keeps the plain Nodes and Edges subheads. Computed first, then by name
-            { head: "Nodes", rows: [cfg.derived || cfg.fresh ? null : pagerank, ["alertRule", "cat"], ["alertTime", "time"], ["country", "cat"], ["flagged", "cat"], ["id", "cat", "Key"], ["kind", "cat"], ["riskScore", "num"]].filter(Boolean) },
-            { head: "Edges", edge: true, rows: [["amount", "num", "Weight"], ["timestamp", "time", "Time"]] },
-        ];
-    }
-
-    // The door entries' attributes that have an inspector: the two weights chosen at load
-    const DOOR_ATTR = { floors: "node-weight", count: "edge-weight" };
+    // The list is the field list at panel size (spec 2.5), over the project on screen: one group per
+    // table, "In use (n)" first with what uses each, fill figures, folders only from the data's nesting,
+    // Find past 15. Its rows are fieldsOf()'s, the stand-in for graphty-element's session.data.attributes().
+    // The attributes that have an inspector in the skeleton; the rest say so
+    const INSPECTOR = {
+        transactions: () => "attribute",
+        lesmis: (f) => (f.name === "label" ? "attribute-name-role" : "attribute"),
+        doorEntries: (f) => ({ floors: "node-weight", count: "edge-weight" })[f.name] || null,
+    };
+    const EDIT_ON = { doorEntries: ["data-page", "edit-entries"], lesmis: ["data-page", "edit-graph-file"], wide: ["data-page", "wide-hosts"], nested: ["data-page", "json-researchers"], plainJson: ["data-page", "json-plain"] };
+    const TABLE = { doorEntries: ["door-entries-nodes", "door-entries"], wide: ["wide", "wide"], nested: ["wide", "wide"], plainJson: ["wide", "wide"] };
     function attributes(cfg) {
-        const groups = attributeGroups(cfg);
-        const editOn = cfg.ds === "door" ? ["data-page", "edit-entries"] : cfg.ds === "lesmis" ? ["data-page", "edit-graph-file"] : ["data-page", "edit-source"];
-        const menuFor = (a, edge, li) => {
-            if (a.builtin) return AB.openMenu(li, [{ heading: a.name }, { label: "Color by", onClick: () => AB.flash("Color by type") }, { label: "Show as groups", onClick: () => AB.flash("Show as groups by type") }, { sep: true }, goItem("Show in table", ["table-dock", cfg.ds === "door" ? "door-entries-nodes" : "nodes"])]);
-            AB.openMenu(li, [
-                { heading: a.name },
-                { label: "Color by", onClick: () => AB.flash("Color by " + a.name) },
-                { label: edge ? "Width by" : "Size by", onClick: () => AB.flash((edge ? "Width by " : "Size by ") + a.name) },
-                AB.cmd("label-by", { go: null, onClick: () => AB.flash("Label by " + a.name) }),
-                { label: "Show as groups", onClick: () => AB.flash("Show as groups by " + a.name) },
-                { label: "Place by", needs: "graphty-element places nodes only by position attributes; " + a.name + " as an axis needs a layout that reads any attribute" },
-                { sep: true },
-                goItem("Filter to...", ["data-place", "filters"]),
-                goItem("Create set where this is...", ["select-where", "where"]),
-                { sep: true },
-                goItem("Read as...", ["inspector-attribute-and-filter-step", "attribute"]),
-                goItem("Edit on the Data page", editOn),
-                { sep: true },
-                goItem("Show in table", cfg.ds === "door" ? ["table-dock", edge ? "door-entries" : "door-entries-nodes"] : ["table-dock", edge ? "edges" : "nodes"]),
-            ]);
-        };
-        const list = (g) => {
-            const rows = g.rows.map(([name, type, role, x]) => Object.assign({ name, type, role }, x || {}));
-            const ul = AB.tree(rows.map((a) => ({
-                id: g.head + "/" + a.name, name: a.name, selected: cfg.select === a.name, builtin: a.builtin,
-                kindIcon: a.computed ? AB.tip(icon(AB.ICON.run), "Computed by PageRank. Read as: Number", { label: false }) : glyph(a.type),
-                // The door entries' attribute inspector is drawn for floors (node weight); the rest flash below
-                go: cfg.ds === "door" ? (DOOR_ATTR[a.name] ? ["inspector-attribute-and-filter-step", DOOR_ATTR[a.name]] : null)
-                    : (a.computed ? ["inspector-measure-row", "data"] : ["inspector-attribute-and-filter-step", a.role === "Name" ? "attribute-name-role" : "attribute"]),
-                renameDisabled: a.builtin ? "The built-in type is named by the table each row came from" : "an attribute is named by its column in the file",
-                count: a.role ? AB.roleTag(a.role, { go: editOn, second: a.roleWhy || ROLE_WHY[a.role] }) : null,
-            })), { label: g.head + " attributes" });
-            rows.forEach((a) => {
-                const li = rowEl(ul, g.head + "/" + a.name);
-                if (a.why) li.setAttribute("aria-description", a.why);
-                if (cfg.ds === "door" && !DOOR_ATTR[a.name]) li.addEventListener("click", (e) => { if (e.detail < 2) AB.flash("Opens " + a.name + "'s inspector (not wired in the skeleton)"); });
-                if (a.mark) {
-                    li.setAttribute("aria-description", a.mark);
-                    li.querySelector(".ab-le").append(AB.tip(h("span", { class: "dp-mark", role: "img", "aria-label": "out of date" }, icon("triangle-alert", "sm")), a.mark, { label: false }));
-                }
-                li.addEventListener("contextmenu", (e) => { e.preventDefault(); menuFor(a, g.edge, li); });
-            });
-            const by = (li) => rows.find((a) => g.head + "/" + a.name === li.dataset.row);
-            guardKeys(ul, {
-                Delete: () => AB.announce("An attribute comes from its source and cannot be deleted"),
-                Backspace: () => {},
-                "Shift+F10": (li) => menuFor(by(li), g.edge, li),
-                ContextMenu: (li) => menuFor(by(li), g.edge, li),
-            });
-            return h("div", { class: "dp-flat" }, ul);
-        };
-        // Types and edge tables are plain subheads, not a second level of disclosure inside the section
-        const sub = (g) => h("div", { class: "dp-sub", role: "heading", "aria-level": "4" }, g.head, g.oq ? AB.openQuestion(g.oq) : null);
+        const ds = DATASET[cfg.ds] || "transactions";
+        const editOn = EDIT_ON[ds] || ["data-page", "edit-source"];
+        const groups = AB.fieldsOf(ds);
+        const fieldOf = (name) => { for (const g of groups) { const f = g.fields.find((x) => x.name === name); if (f) return [f, g.element === "edge"]; } return [null, false]; };
+        const menuFor = (a, edge, anchor) => AB.openMenu(anchor, [
+            { heading: a.name },
+            { label: "Color by", onClick: () => AB.flash("Color by " + a.name) },
+            { label: edge ? "Width by" : "Size by", onClick: () => AB.flash((edge ? "Width by " : "Size by ") + a.name) },
+            AB.cmd("label-by", { go: null, onClick: () => AB.flash("Label by " + a.name) }),
+            { label: "Show as groups", onClick: () => AB.flash("Show as groups by " + a.name) },
+            { label: "Place by", needs: "graphty-element places nodes only by position attributes; " + a.name + " as an axis needs a layout that reads any attribute" },
+            { sep: true },
+            goItem("Filter to...", ["data-place", "filters"]),
+            goItem("Create set where this is...", ["select-where", "where"]),
+            { sep: true },
+            goItem("Read as...", ["inspector-attribute-and-filter-step", "attribute"]),
+            goItem("Edit on the Data page", editOn),
+            { sep: true },
+            goItem("Show in table", ["table-dock", (TABLE[ds] || ["nodes", "edges"])[edge ? 1 : 0]]),
+        ]);
         // "+" is grayed and focusable with its reason (it needs graphty-element, so the user-test build hides it)
         const plus = AB.iconButton("plus", "New attribute", { disabled: "A computed attribute needs graphty-element (filed). To add columns from a file, open the Data page" });
         plus.classList.add("ab-plus");
         plus.setAttribute("data-needs", "");
-        // Find appears only when the list is longer than the panel
-        // the shared find field (lib treebar's look): no focus border at rest
-        const input = h("input", { type: "search", placeholder: "Find attribute", "aria-label": "Find attribute" });
-        const find = h("div", { class: "dp-find", hidden: true }, h("label", { class: "ab-find" }, icon("search", "sm"), input));
-        const none = h("div", { hidden: true });
-        input.addEventListener("input", () => {
-            const q = input.value.trim().toLowerCase();
-            let any = false;
-            find.parentNode.querySelectorAll(".ab-trow").forEach((li) => { const hit = !q || li.dataset.row.split("/").pop().toLowerCase().includes(q); li.hidden = !hit; any = any || hit; });
-            none.replaceChildren(any ? "" : AB.noMatch(input.value.trim()));
-            none.hidden = any;
+        if (cfg.ds === "none") {
+            const sec = AB.section({ title: "Attributes", editable: true, actions: plus }, AB.empty("No attributes."));
+            sec.id = "dp-attributes";
+            return sec;
+        }
+        const list = AB.fieldList({
+            size: "panel", dataset: ds, label: "Attributes", current: cfg.select || null, query: cfg.query || undefined,
+            onPick(name, type, f) {
+                if (ds === "wide" || ds === "nested" || ds === "plainJson") return AB.openField(ds, f.name);
+                const st = INSPECTOR[ds] && INSPECTOR[ds](f);
+                if (st) AB.go("inspector-attribute-and-filter-step", st);
+                else AB.flash("Opens " + name + "'s inspector (not wired in the skeleton)");
+            },
         });
-        const sec = AB.section({ title: "Attributes", editable: true, actions: plus }, find, groups.map((g) => [sub(g), list(g)]), none);
+        // The row menu: right-click, Shift+F10 or the Menu key on the active row
+        const nameOf = (row) => row && row.matches(".ab-fl-opt") ? (row.getAttribute("aria-label") || "").split(",")[0] : null;
+        const openFor = (row) => { const [f, edge] = fieldOf(nameOf(row)); if (f) menuFor(f, edge, row); };
+        list.addEventListener("contextmenu", (e) => { const row = e.target.closest(".ab-fl-opt"); if (row) { e.preventDefault(); openFor(row); } });
+        list.addEventListener("keydown", (e) => { if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") { e.preventDefault(); e.stopPropagation(); openFor(list.querySelector("[data-fl-row][data-hover]")); } }, true);
+        const sec = AB.section({ title: "Attributes", editable: true, actions: plus }, list);
         sec.id = "dp-attributes";
-        return { sec, find };
+        return sec;
     }
 
     // ---------- the place ----------
     function build(region, cfg, model) {
         const el = h("div", { class: "dp" });
         region.replaceChildren(el);
-        const name = cfg.ds === "door" ? D().graphName : cfg.ds === "lesmis" ? L().title : cfg.derived ? T().graphName + " without merchants" : T().graphName;
+        const name = cfg.ds === "door" ? D().graphName : cfg.ds === "lesmis" ? L().title : cfg.ds === "none" ? L().frame.graphRow
+            : cfg.ds === "wide" ? W().graphName : cfg.ds === "nested" ? N().graphName : cfg.ds === "plainJson" ? P().graphName
+                : cfg.derived ? T().graphName + " without merchants" : T().graphName;
         el.append(AB.graphHead("Data", name));
         const scroll = h("div", { class: "dp-scroll" });
         el.append(scroll);
@@ -403,10 +414,9 @@
         };
         const fsec = filters(cfg, model, redraw);
         fsec.id = "dp-filters";
-        const a = attributes(cfg);
-        scroll.append(sources(cfg), fsec, a.sec);
+        const asec = attributes(cfg);
+        scroll.append(sources(cfg), fsec, asec);
         requestAnimationFrame(() => {
-            if (scroll.scrollHeight > scroll.clientHeight) a.find.hidden = false;
             if (cfg.scrollTo) { const s = el.querySelector("#" + cfg.scrollTo); if (s) scroll.scrollTop = s.offsetTop - scroll.offsetTop; }
         });
     }
@@ -424,13 +434,28 @@
         "after-replace": { steps: "none", select: "transfers", afterReplace: true },
         "new-step": { steps: "new", selectStep: "s3" },
         "empty-filters": { steps: "none", fresh: true }, // where the transfers Load lands: no result attributes yet
+        "no-sources": { ds: "none", steps: "none" },
+        refreshing: { steps: "two", select: "url", url: "refreshing" },
+        "refresh-failed": { steps: "two", select: "url", url: "failed" },
+        "long-source-name": { steps: "two", longName: true },
+        "step-attribute-gone": { steps: "gone", afterReplace: true },
+        "one-step": { steps: "one" },
+        "wide-filters": { ds: "wide", steps: "wide" },
+        "attributes-wide": { ds: "wide", steps: "none", scrollTo: "dp-attributes" },
+        "attributes-wide-search": { ds: "wide", steps: "none", scrollTo: "dp-attributes", query: "vu cr" },
+        "attributes-no-match": { ds: "wide", steps: "none", scrollTo: "dp-attributes", query: "xyz" },
+        "attributes-nested": { ds: "nested", steps: "none", scrollTo: "dp-attributes" },
+        "plain-json": { ds: "plainJson", steps: "none" },
     };
     const RIGHT = {
         filters: "inspector-attribute-and-filter-step/filter-step",
         attributes: "inspector-attribute-and-filter-step/attribute",
         "new-step": "inspector-attribute-and-filter-step/filter-step",
     };
-    const DATASET = { door: "doorEntries", lesmis: "lesmis" };
+    const DATASET = { door: "doorEntries", lesmis: "lesmis", none: "lesmis", wide: "wide", nested: "nested", plainJson: "plainJson" };
+    // What the steps that apply leave, for the header's filter chip
+    const CHIP = { two: () => "812 of " + n(T().nodes) + " nodes", new: () => "812 of " + n(T().nodes) + " nodes", one: () => "812 of " + n(T().nodes) + " nodes",
+        wide: () => { const s = initialSteps({ steps: "wide" }); return s[s.length - 1].outcome.split(" to ")[1].replace(" nodes", "") + " of " + n(W().nodes) + " nodes"; } };
 
     registerSection({
         id: "data-place",
@@ -440,8 +465,10 @@
         // The header's filter chip says what the steps that apply leave
         frame(state) {
             const c = CFG[state] || CFG["at-rest"];
-            const f = { dataset: DATASET[c.ds] || "transactions", chip: c.steps === "two" || c.steps === "new" ? "812 of " + n(T().nodes) + " nodes" : "Full graph" };
+            const f = { dataset: DATASET[c.ds] || "transactions", chip: CHIP[c.steps] ? CHIP[c.steps]() : "Full graph" };
             if (RIGHT[state]) f.right = RIGHT[state];
+            // A new project: nothing loaded, nothing drawn
+            if (c.ds === "none") Object.assign(f, { right: "inspector-nothing-selected", canvas: "canvas-and-states/empty", dock: false });
             return f;
         },
         states: [
@@ -457,11 +484,25 @@
             { id: "after-replace", label: "After Replace: out of date" },
             { id: "new-step", label: "Filters + : a new step" },
             { id: "empty-filters", label: "No filters" },
+            { id: "no-sources", label: "No data: a new project" },
+            { id: "refreshing", label: "A URL source refreshing" },
+            { id: "refresh-failed", label: "Refresh failed: the address did not answer" },
+            { id: "long-source-name", label: "A 60-character file name" },
+            { id: "step-attribute-gone", label: "After Replace: a step's attribute is gone" },
+            { id: "one-step", label: "One filter step" },
+            { id: "wide-filters", label: "Hosts: a step on a long attribute name" },
+            { id: "attributes-wide", label: "Hosts: 69 host and 26 connection attributes" },
+            { id: "attributes-wide-search", label: "Hosts: Find \"vu cr\"" },
+            { id: "attributes-no-match", label: "Hosts: Find with no match" },
+            { id: "attributes-nested", label: "Research network: nested attributes" },
+            { id: "plain-json", label: "Coauthors: a plain JSON graph" },
         ],
         render(el, state) {
             const cfg = CFG[state] || CFG["at-rest"];
             const model = { steps: initialSteps(cfg), selected: cfg.selectStep || null };
             build(el, cfg, model);
+            // A search on screen says its count, as typing it would
+            if (cfg.query) setTimeout(() => { const c = el.querySelector(".ab-fl-count"); AB.announce(c && c.textContent ? c.textContent : 'No match for "' + cfg.query + '"'); }, 0);
             if (cfg.undoNotice) setTimeout(() => AB.notice("Undone: amount is at least 1,000", { label: "Redo", go: ["data-place", "at-rest"] }), 0);
         },
     });

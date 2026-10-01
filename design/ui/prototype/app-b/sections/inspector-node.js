@@ -80,7 +80,9 @@
     const DOOR = { "door-ana": { type: "person", t: 0, key: "id", id: "1001" }, "door-b1": { type: "building", t: 1, key: "bldg", id: "B1" } };
     function doorNode(el, state) {
         const D = AB.fx.datasets.doorEntries, d = DOOR[state], tbl = D.tables[d.t];
-        const r = tbl.sample.find((x) => x[d.key] === d.id);
+        // A person or building reached by the canvas walk shows its own row, as the header names it
+        const W = AB.walked && AB.walked.dataset === "doorEntries" && AB.route && AB.route.frame.right === AB.walked.right ? AB.walked.name : null;
+        const r = (W && tbl.sample.find((x) => (d.type === "person" ? x.name : x.bldg) === W)) || tbl.sample.find((x) => x[d.key] === d.id);
         const title = d.type === "person" ? r.name : r.bldg;
         const style = () => AB.whyThisLook([
             { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
@@ -91,7 +93,7 @@
                 summary: d.type + ", " + tbl.columns.filter((c) => c !== d.key).map((c) => c + " " + (r[c] || "none")).join(", "),
                 body: [AB.data("type", d.type)].concat(tbl.columns.map((c) => AB.data(c, c === d.key ? h("span", { class: "k-mono" }, r[c]) : r[c] || "none"))),
             },
-            Notes: { count: AB.fx.datasets.doorEntries.hasNotes() ? 1 : 0, target: ["notes-place", "door-entries"] },
+            Notes: { count: r[d.key] === d.id && AB.fx.datasets.doorEntries.hasNotes() ? 1 : 0, target: ["notes-place", "door-entries"] },
         }, { kind: "node" });
         el.append(AB.inspector({
             icon: d.type === "person" ? "user" : "building-2", title, kind: "Node, " + d.type, kindKey: "node",
@@ -102,14 +104,213 @@
         }));
     }
 
+    // ---------- the wide hosts and the nested researchers (spec 5.2, version 5) ----------
+    // The Data tab: the attributes in use, then one disclosure, "N more attributes", holding the field
+    // list (panel size) of the attributes that have a value on this node, each with its value; the
+    // ones with no value are counted ("10 empty"), not listed. In use is the element's usedBy (the
+    // shell's USED_BY stand-in, through AB.fieldsOf), so every count here is read, never typed.
+    const VULN = "vuln_count_critical_unremediated_over_30_days";
+    const WIDE_HOST = "monitor-prod-iad-03"; // 6 critical vulnerabilities over 30 days, the most of any host
+    const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
+    const walkedOn = (ds) => {
+        const W = AB.walked;
+        return W && W.dataset === ds && AB.route && AB.route.frame.right === W.right ? W.index : null;
+    };
+    function wideRow() {
+        const D = AB.fx.datasets.wide, i = walkedOn("wide");
+        return i != null ? D.nodeRows[i] : D.nodeRows.find((r) => r.hostname === WIDE_HOST);
+    }
+    const fmt = (v) => (typeof v === "boolean" ? (v ? "yes" : "no") : /^\d{4}-\d\d-\d\dT/.test(String(v)) ? String(v).replace("T", " ").replace(/:\d\dZ$/, "") : String(v));
+    // A value at the end of a field list row: end ellipsis, the whole value in its tooltip
+    const valueTrail = (v) => AB.tip(h("span", { class: "inn-val k-ellipsis", tabindex: "-1" }, fmt(v)), fmt(v), { label: false });
+    // "N more attributes": read-only, so the shared collapsible section, open or closed remembered per kind
+    function moreSection(count, empty, list) {
+        return AB.section({ title: count + " more attributes", collapsible: true, key: "data.node.more", summary: empty + " empty, not listed" },
+            h("div", { class: "inn-empty k-secondary" }, empty + " empty, not listed"), h("div", { class: "inn-more" }, list));
+    }
+    // ponytail: the field list takes no subset of a project's fields, so the attributes with a value on
+    // this node (the shared field objects from AB.fieldsOf, fill dropped: one node has a value or not)
+    // are handed to it as a dataset of their own, already resolved; a `fields` option on AB.fieldList
+    // would replace this.
+    function ownDataset(key, table, fields) {
+        const D = AB.fx.datasets[key] || (AB.fx.datasets[key] = {});
+        // redefined every time: what is in use follows the tree on screen (a Size row added, or not)
+        Object.defineProperty(D, "_fields", { value: [{ table, element: "node", fields: fields.map((x) => Object.assign({}, x, { fill: null })) }], enumerable: false, configurable: true });
+        return key;
+    }
+    // What uses a field, after its value: the field list's In use tag
+    const usedTag = (x) => h("span", { class: "k-secondary", style: "white-space:nowrap" }, " . " + x.usedBy); // the tag stays one unit
+    // A flat record's Data tab (a host, a plain JSON node): in use, then "N more attributes"
+    function wideData(state, src = "wide", r = wideRow(), name = r.hostname) {
+        const g0 = AB.fieldsOf(src).find((g) => g.element === "node"), fields = g0.fields;
+        const inUse = fields.filter((x) => x.usedBy), rest = fields.filter((x) => !x.usedBy);
+        const empty = rest.filter((x) => isEmpty(r[x.name])), shown = rest.filter((x) => !isEmpty(r[x.name]));
+        const ds = ownDataset(src + ":" + r.id, g0.table, shown);
+        const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + name, empty: empty.map((x) => x.name), emptyWhere: "on " + name, query: state === "wide-more" ? "vu cr" : "", trail: (x) => valueTrail(r[x.name]), onPick: (n) => AB.openField(src, n) });
+        return AB.dataTab({
+            Summary: {
+                summary: inUse.filter((x) => x.name !== "id").map((x) => fmt(r[x.name])).join(", "),
+                body: inUse.map((x) => AB.data(AB.truncMiddle(x.name, 24), [x.name === "id" ? h("span", { class: "k-mono" }, r.id) : h("span", { style: "white-space:nowrap" }, fmt(r[x.name])), usedTag(x)]))
+                    .concat(moreSection(rest.length, empty.length, list)),
+            },
+            Notes: { count: 0, target: ["notes-place", "empty"] },
+        }, { kind: "node" });
+    }
+    function wideStyle(r) {
+        const sized = AB.route && AB.route.frame.left === "graph-place/wide-sized";
+        const why = AB.whyThisLook([
+            sized && { name: VULN, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "long-name"], wins: ["size"], values: { size: "Size by " + VULN + ": " + r[VULN] } },
+            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["opacity"], values: { opacity: "40%" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: sized ? ["shape"] : ["shape", "color", "size"], values: { shape: "Faceted sphere, the default look", color: "Gray, the default", size: "1, the default" } },
+        ].filter(Boolean), { kind: "node", element: r.hostname });
+        // An attribute name takes the middle ellipsis (spec 5.4): the row named for its attribute
+        why.querySelectorAll(".ab-why-name").forEach((n) => { if (n.textContent === VULN) n.replaceChildren(AB.truncMiddle(VULN, 22)); });
+        return why;
+    }
+    function wideNode(el, state) {
+        if (state === "wide-why") AB.mem.set("sec.why.node", "1");
+        else { AB.mem.set("sec.data.node.summary", "1"); AB.mem.set("sec.data.node.more", state === "wide-more" ? "1" : "0"); }
+        const r = wideRow();
+        el.append(AB.inspector({
+            icon: "cpu", title: r.hostname, kind: "Node, host", kindKey: "node",
+            menu: ["context-menus", "node"],
+            onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
+            tab: state === "wide-why" ? "Style" : "Data",
+            tabs: { Style: () => wideStyle(r), Data: () => wideData(state) },
+        }));
+        if (state === "wide-more") setTimeout(() => { const f = el.querySelector(".ab-fl-find input"); if (f) f.focus(); }, 0);
+    }
+
+    // The nested researchers: a sub-object's fields sit under their parent (dotted paths in Summary,
+    // the field list's folders in "N more"), tags is a list, and a value kept whole (affiliations,
+    // addresses) reads as a collapsed tree under its row.
+    function nestedRow() {
+        const R = AB.fx.datasets.nested.document.data.researchers, i = walkedOn("nested");
+        return i != null ? R[i] : R[0];
+    }
+    const at = (rec, rel) => rel.split(".").reduce((o, k) => (o == null ? o : o[k]), rec);
+    // A value kept whole: its item count, then the collapsed tree under its row (native disclosure)
+    function wholeTree(v) {
+        const lines = (o) => Object.keys(o).map((k) => (o[k] && typeof o[k] === "object"
+            ? h("details", { class: "inn-node" }, h("summary", null, Array.isArray(o) ? "item " + (+k + 1) : k, h("span", { class: "k-secondary" }, " " + sizeOf(o[k]))), lines(o[k]))
+            : h("div", { class: "inn-leaf" }, h("span", { class: "k-secondary" }, k), " ", o[k] == null ? "none" : fmt(o[k]))));
+        return h("div", { class: "inn-tree", role: "group" }, lines(v));
+    }
+    const sizeOf = (v) => (Array.isArray(v) ? (v.length === 1 ? "1 item" : v.length + " items") : "{" + Object.keys(v).length + " fields}");
+    function nestedTrail(rec) {
+        return (x) => {
+            const v = at(rec, x.name);
+            if (x.type === "list") return AB.tip(h("span", { class: "inn-val k-ellipsis" }, v.join(", ")), v.join(", "), { label: false });
+            if (x.type !== "whole") return valueTrail(v);
+            const btn = h("span", { class: "inn-val inn-whole ab-link", role: "button", tabindex: "0", "aria-expanded": "false" }, sizeOf(v));
+            AB.tip(btn, x.name + ", kept as one value", { label: false });
+            const flip = (e) => {
+                e.stopPropagation();
+                const row = btn.closest("[data-fl-row]"), next = row.nextElementSibling;
+                if (next && next.classList.contains("inn-tree")) { next.remove(); btn.setAttribute("aria-expanded", "false"); return; }
+                row.after(wholeTree(v));
+                btn.setAttribute("aria-expanded", "true");
+            };
+            btn.addEventListener("click", flip);
+            btn.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), flip(e)));
+            return btn;
+        };
+    }
+    function nestedData() {
+        const rec = nestedRow();
+        const fields = AB.fieldsOf("nested").find((g) => g.table === "researchers").fields;
+        const inUse = fields.filter((x) => x.usedBy);
+        const others = fields.filter((x) => !x.usedBy);
+        const empty = others.filter((x) => isEmpty(at(rec, x.name)));
+        const ds = ownDataset("nested:" + rec.id, "researchers", others.filter((x) => !isEmpty(at(rec, x.name))));
+        const dotted = (x) => (x.parent ? x.parent + "." + x.label : x.label);
+        const list = AB.fieldList({ size: "panel", dataset: ds, results: false, notes: false, label: "Attributes with a value on " + rec.id, empty: empty.map(dotted), emptyWhere: "on " + rec.id, trail: nestedTrail(rec), onPick: (name) => AB.openField("nested", name) });
+        // This state shows every folder open: open each in turn (a folder redraws the list when it opens)
+        for (let i = 0, f; i < 20 && (f = list.querySelector(".ab-fl-folder[data-open=false]")); i++) f.click();
+        return AB.dataTab({
+            Summary: {
+                summary: inUse.filter((x) => x.name !== "id").map((x) => fmt(at(rec, x.name))).join(", "),
+                body: inUse.map((x) => AB.data(AB.truncMiddle(dotted(x), 26), [x.name === "id" ? h("span", { class: "k-mono" }, rec.id) : fmt(at(rec, x.name)), usedTag(x)]))
+                    .concat(moreSection(others.length, empty.length, list)),
+            },
+            Notes: { count: 0, target: ["notes-place", "empty"] },
+        }, { kind: "node" });
+    }
+    function nestedNode(el) {
+        AB.mem.set("sec.data.node.summary", "1");
+        AB.mem.set("sec.data.node.more", "1");
+        const rec = nestedRow(), name = rec.attributes.name.given + " " + rec.attributes.name.family;
+        el.append(AB.inspector({
+            icon: "user", title: name, kind: "Node, researcher", kindKey: "node",
+            menu: ["context-menus", "node"],
+            onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
+            tab: "Data",
+            tabs: {
+                Style: () => AB.whyThisLook([
+                    { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+                    { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+                ], { kind: "node", element: name }),
+                Data: nestedData,
+            },
+        }));
+    }
+
+    // The plain JSON project (Coauthors): one node of its node-link file, the walk's or the first
+    function plainNode(el) {
+        AB.mem.set("sec.data.node.summary", "1");
+        const nodes = AB.fx.datasets.plainJson.document.nodes, i = walkedOn("plainJson");
+        const r = nodes[i != null ? i : 0];
+        el.append(AB.inspector({
+            icon: "circle-dot", title: r.name, kind: "Node", kindKey: "node",
+            menu: ["context-menus", "node"],
+            onRename: (n) => AB.flash("Renamed to " + n + " (sets this node's label; not wired in the skeleton)"),
+            tab: "Data",
+            tabs: {
+                Style: () => AB.whyThisLook([
+                    { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+                    { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+                ], { kind: "node", element: r.name }),
+                Data: () => wideData("plain-data", "plainJson", r, r.name),
+            },
+        }));
+    }
+
+    // ---------- a row bound to a path that reads nothing (spec 11.4) ----------
+    // graphty-element raises E_UNKNOWN_ATTRIBUTE with the path instead of painting nothing, and explain()
+    // reports it on the line of the row it concerns: the problem block sits under that line.
+    const BAD = { row: "Appearances", path: "appearances.total" };
+    function unknownPathStyle() {
+        const why = AB.whyThisLook([
+            { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"], wins: ["label below"], values: { "label below": "2, from Note count" } },
+            { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"], wins: ["color"], values: { color: PR_COLOR + ", 0.0754, highest" } },
+            { name: BAD.row, swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], wins: ["size"], values: { size: "Nothing: " + BAD.path + " reads nothing" } },
+            { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), go: ["inspector-group-set-path-row", "label-two"], wins: ["label above"], values: { "label above": "Valjean, from label" } },
+            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+        ], { kind: "node", element: "Valjean", notes: ["The error on a line needs graphty-element's styles.explain() to report E_UNKNOWN_ATTRIBUTE on the row it concerns."] });
+        const tok = why.querySelector('[aria-label="Size from ' + BAD.row + '"]');
+        const line = tok && tok.closest(".ab-why-line");
+        if (line) line.after(h("div", { role: "listitem", class: "inn-why-problem" }, AB.problem({
+            what: BAD.row + " reads nothing: no attribute at " + BAD.path,
+            todo: "Valjean keeps the size beneath it. Bind Size to an attribute that exists.",
+            action: { label: "Edit binding", go: ["style-pickers", "binding"] },
+        })));
+        return why;
+    }
+
+    const WIDE = { "wide-data": 1, "wide-more": 1, "wide-why": 1 };
     registerSection({
         id: "inspector-node",
         title: "Inspector: one node",
         region: "right",
         rail: "graph",
-        // One node selected: the selection bar (its verbs: Neighborhood, Path between, Create set, Hide, Add note)
-        // sits above the toolbar on every door that lands here, as selection-bar/one-node draws it
-        frame: (state) => (DOOR[state] ? { dataset: "doorEntries", left: "graph-place/door-entries" } : { left: "graph-place/at-rest", toolbar: "selection-bar/one-node" }),
+        // One node selected: the shell raises the selection bar (selection-bar/one-node) on every door that lands here
+        frame: (state) => (DOOR[state] ? { dataset: "doorEntries", left: "graph-place/door-entries" }
+            : state === "wide-why" ? { dataset: "wide", left: "graph-place/wide-sized", canvas: "canvas-and-states/hosts-legend" }
+            : WIDE[state] ? { dataset: "wide", left: "graph-place/at-rest" }
+                : state === "nested-data" ? { dataset: "nested", left: "graph-place/at-rest" }
+                    : state === "plain-data" ? { dataset: "plainJson", left: "graph-place/at-rest" }
+                    : { left: "graph-place/at-rest" }),
         closeTo: "graph-place",
         states: [
             { id: "why-this-look", label: "Style tab (why this look)" },
@@ -118,9 +319,19 @@
             { id: "edited", label: "A property edited (Overrides)" },
             { id: "door-ana", label: "Door entries: a person (Ana Ruiz)" },
             { id: "door-b1", label: "Door entries: a building (B1)" },
+            { id: "wide-data", label: "Hosts: Data tab, in use and \"N more attributes\"" },
+            { id: "wide-more", label: "Hosts: \"N more attributes\" open, searched \"vu cr\"" },
+            { id: "wide-why", label: "Hosts: Why this look with a long attribute name" },
+            { id: "nested-data", label: "Nested JSON: a researcher's Data tab" },
+            { id: "plain-data", label: "Plain JSON (Coauthors): a node's Data tab" },
+            { id: "why-unknown-path", label: "Why this look: a row whose path reads nothing" },
         ],
         render(el, state) {
+            if (!document.querySelector("link[data-inn]")) document.head.append(h("link", { rel: "stylesheet", href: "sections/inspector-node.css", "data-inn": "" }));
             if (DOOR[state]) return doorNode(el, state);
+            if (WIDE[state]) return wideNode(el, state);
+            if (state === "nested-data") return nestedNode(el);
+            if (state === "plain-data") return plainNode(el);
             // The review states pin the remembered open or closed choice so each one is reachable
             if (state === "why-closed") AB.mem.set("sec.why.node", "0");
             else if (state !== "data") AB.mem.set("sec.why.node", "1");
@@ -129,7 +340,7 @@
                 menu: ["context-menus", "node"],
                 onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
                 tab: state === "data" ? "Data" : "Style",
-                tabs: { Style: () => styleTab(state), Data: dataTab },
+                tabs: { Style: () => (state === "why-unknown-path" ? unknownPathStyle() : styleTab(state)), Data: dataTab },
             }));
         },
     });

@@ -57,6 +57,9 @@
         { id: "overlap", label: "Partly covered" },
         { id: "watchlist", label: "Set (Watchlist)" },
         { id: "rule-set", label: "Rule set" },
+        { id: "rule-set-empty", label: "Rule set matching no nodes" },
+        { id: "one-member", label: "Kept set of one node" },
+        { id: "long-name", label: "Long set name and label field (researchers)" },
         { id: "kept-2", label: "Kept set: Group 2, in a folder" },
         { id: "path-lesmis", label: "Path: Valjean to Javert" },
         { id: "path", label: "Path from Path between" },
@@ -159,6 +162,62 @@
             made: [["Rule", h("span", { class: "k-mono" }, "degree >= 13")]],
             all: [["Rule", h("span", { class: "k-mono" }, "degree >= 13")], ["Members", "Follow the data"], scope(L), version(L)],
             question: "On a rule set, does Keep as set (in \"...\") freeze today's " + n + " members as a plain set?",
+        };
+    }
+
+    // A rule set no node matches: Les Miserables' highest degree is 36 (Valjean), so "degree >= 40"
+    // paints nothing until the data changes. No order line: it covers and is covered on nothing.
+    function ruleSetEmptyModel() {
+        const L = L0();
+        const none = () => AB.empty("No node has degree 40 or more; the highest is " + L.stats.maxDegree + ".");
+        return {
+            title: "Degree 40 or more", color: "#F0E442", icon: "circle-check", kind: "Rule set",
+            provenance: ["from degree", "inspector-attribute-and-filter-step", "attribute"],
+            set: { "node.color": "#F0E442" },
+            paints: () => h("div", null, AB.paintsLine("Paints 0 nodes"), none()),
+            summary: [["Size", "0 nodes"]],
+            membersSummary: "None",
+            members: [none()],
+            made: [["Rule", h("span", { class: "k-mono" }, "degree >= 40")]],
+            all: [["Rule", h("span", { class: "k-mono" }, "degree >= 40")], ["Members", "Follow the data"], scope(L), version(L)],
+        };
+    }
+
+    // Group 6 kept as a set: its one member, Boulatruelle (degree 1), in the fixture's rows
+    function oneMemberModel() {
+        const L = L0(), r = L.rows.find((x) => String(x.group) === "6");
+        const m = keptModel("2");
+        return Object.assign(m, {
+            title: "Group 6", color: L.groupColors[6],
+            set: { "node.color": L.groupColors[6] },
+            paints: ["Paints 1 node", SELECT],
+            order: ["Covered by ", pr(), " for Color on 1 of 1"],
+            summary: [["Size", "1 node, 0 edges", SELECT], ["Groups", "6 (1 node)"]],
+            membersSummary: "1 node",
+            members: [memberRow(r.label, "degree " + r.degree)],
+        });
+    }
+
+    // The nested sample's researchers: a kept set with a 60-character name, labeled Above by the
+    // seven-segment path. Members and counts read from kit/wide-nested.json (field "machine learning"
+    // and attributes.profile.metrics.citations.last_5_years over 500: 23 of 170).
+    const LONG_FIELD = "attributes.profile.metrics.citations.last_5_years";
+    function longNameModel() {
+        const N = AB.fx.datasets.nested, R = N.document.data.researchers;
+        const cites = (r) => r.attributes.profile.metrics.citations.last_5_years;
+        const mem = R.filter((r) => r.attributes.profile.field === "machine learning" && cites(r) > 500).sort((a, b) => cites(b) - cites(a));
+        const n = mem.length, nm = (r) => r.attributes.name.given + " " + r.attributes.name.family;
+        return {
+            title: "Machine learning researchers, more than 500 cites in 5 years", color: "#009E73", icon: "circle-check", kind: "Set",
+            provenance: ["from the attribute profile.field", "inspector-attribute-and-filter-step", "attribute"],
+            set: { "node.color": "#009E73" }, labels: [{ pos: "Above", field: LONG_FIELD, type: "num" }],
+            paints: ["Paints " + n + " nodes", SELECT],
+            order: "Wins Color on " + n + " of " + n + ": nothing above it paints these researchers",
+            summary: [["Size", n + " nodes", SELECT], ["Of", R.length + " researchers"]],
+            membersSummary: "Top 10 of " + n + ", by " + LONG_FIELD,
+            members: mem.slice(0, 10).map((r) => AB.row({ label: nm(r), trail: cites(r).toLocaleString("en-US"), onClick: () => AB.flash("Selects " + nm(r) + " (not wired in the skeleton)") })),
+            made: [],
+            all: [["Members", "Fixed: they do not follow the data"], ["Scope", "Full graph, " + R.length + " researchers"], ["Data version", N.file + ", current"]],
         };
     }
 
@@ -326,6 +385,9 @@
         if (state === "overlap") return overlapModel();
         if (state === "watchlist") return watchlistModel();
         if (state === "rule-set") return ruleSetModel();
+        if (state === "rule-set-empty") return ruleSetEmptyModel();
+        if (state === "one-member") return oneMemberModel();
+        if (state === "long-name") return longNameModel();
         if (state === "path-lesmis" || state === "arrows") return lesmisPathModel();
         if (state === "path-lesmis-2") return lesmisPath2Model();
         if (state === "path" || state === "path-style") return pathModel();
@@ -339,7 +401,7 @@
 
     // ---------- Style tab ----------
     function styleTab(m, state) {
-        const o = { kinds: ["node", "edge"], set: Object.assign({}, m.set), kind: m.styleKind || "node", paints: m.paints, order: m.order };
+        const o = { kinds: ["node", "edge"], set: Object.assign({}, m.set), kind: m.styleKind || "node", paints: typeof m.paints === "function" ? m.paints() : m.paints, order: m.order };
         if (state === "fill-set") o.set["node.opacity"] = 0.8;
         if (state === "edges-side") { o.set["edge.color"] = m.set["node.color"]; o.kind = "edge"; }
         if (state === "arrows") { Object.assign(o.set, { "edge.arrowHead": "normal", "edge.arrowTail": "dot" }); o.kind = "edge"; o.selected = "edge.arrowHead"; }
@@ -358,6 +420,14 @@
             }
         }
         const tab = AB.styleTab(o);
+        // An attribute path takes the middle ellipsis (spec 2.5); the shared label line draws the end
+        // ellipsis, so the long field's value is redrawn here with AB.truncMiddle
+        // (again after every redraw of the tab's body). 16 characters fit the value column at 1024 wide.
+        const mid = () => tab.querySelectorAll('.ab-sline[data-ch="node.label"][data-bound] .k-grow.k-ellipsis').forEach((v) => {
+            const f = v.textContent;
+            if (f.length > 16) { v.classList.remove("k-ellipsis"); v.replaceChildren(AB.truncMiddle(f, 16)); }
+        });
+        if (labels) { mid(); new MutationObserver(mid).observe(tab, { childList: true, subtree: true }); }
         if (m.orderTip) { const ol = tab.querySelector(".ab-paint-order"); if (ol) AB.tip(ol, m.orderTip, { label: false }); }
         return tab;
     }
@@ -401,7 +471,8 @@
         region: "right",
         rail: "graph",
         frame: (state) => (/^path(-style)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false }
-            : baseOf(state) === "path-door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries-path", dock: false } : { left: "graph-place/at-rest" }),
+            : baseOf(state) === "path-door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries-path", dock: false }
+            : baseOf(state) === "long-name" ? { dataset: "nested", left: "graph-place/nested-set", canvas: "canvas-and-states/nested-set" } : { left: "graph-place/at-rest" }),
         // All options closes back to the row it opened from; everything else to the tree
         get closeTo() {
             const parts = location.hash.replace(/^#\/?/, "").split("/");

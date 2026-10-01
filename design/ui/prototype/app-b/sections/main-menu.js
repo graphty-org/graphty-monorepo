@@ -80,7 +80,7 @@
         region: "overlay",
         rail: "graph",
         frame: (state) => (state === "two-selected"
-            ? { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", toolbar: "selection-bar/two-nodes" }
+            ? { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes" }
             : state === "after-hide"
                 ? { left: "graph-place/at-rest", toolbar: "selection-bar/hidden" }
                 : { left: "graph-place/at-rest" }),

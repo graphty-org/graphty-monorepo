@@ -6,6 +6,7 @@
    context menu. Plain ASCII. See ../README.md. */
 (function () {
     "use strict";
+    if (!document.querySelector("link[data-ie]")) document.head.append(h("link", { rel: "stylesheet", href: "sections/inspector-edge.css", "data-ie": "" }));
     const EVERY = ["inspector-selection-and-everything", "everything"];
     const PATH = ["inspector-group-set-path-row", "path-lesmis"];
 
@@ -25,7 +26,7 @@
 
     function dataTab(E, state) {
         const node = (n) => link("inspector-node", n.label === "Valjean" ? "why-this-look" : "data", n.label);
-        const weight = AB.roleTag("Weight, set when loaded", { second: "every run uses it unless the run picks another. Change it on the Data page",
+        const weight = AB.roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another. Change it on the Data page",
             go: ["data-page", "edit-graph-file"] });
         const dir = E.directed ? "Directed" : "Undirected";
         const parts = AB.dataTab({
@@ -57,7 +58,7 @@
         const style = () => AB.whyThisLook([
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: EVERY, wins: ["width", "pattern"], values: { width: "1", pattern: "Solid" } },
         ], { kind: "edge", element: "this edge" });
-        const weight = AB.roleTag("Weight, set when loaded", { second: "every run uses it unless the run picks another. Change it on the Data page", go: ["data-page", "edit-entries"] });
+        const weight = AB.roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another. Change it on the Data page", go: ["data-page", "edit-entries"] });
         const data = () => AB.dataTab({
             Summary: {
                 summary: "directed, count " + p.count,
@@ -78,21 +79,92 @@
         }));
     }
 
+
+    // ---------- the IT estate: one connection, FL-271dc707, with 26 attributes ----------
+    // The attributes in use (the field list's own In use: the key, the ends, the weight, the color)
+    // come first; then one disclosure, "N more attributes", opening the field list in place with this
+    // connection's value at each row's end; attributes with no value here are counted ("N empty").
+    // The connection is one whose comment holds text. Counts are computed from the fixture.
+    const WIDE_ID = "FL-271dc707";
+    // a port, an id or a code is a label, not a quantity: no thousands separator
+    function wideValue(v, name) {
+        if (v == null) return null;
+        if (typeof v === "number") return /(^|_)(port|id|code|year)$/.test(name || "") ? String(v) : v.toLocaleString("en-US");
+        if (typeof v === "boolean") return v ? "true" : "false";
+        if (/^\d{4}-\d\d-\d\dT/.test(v)) return v.slice(0, 16).replace("T", " ");
+        return String(v);
+    }
+    function wideEdge(el) {
+        const D = AB.fx.datasets.wide, e = D.edgeRows.find((r) => r.id === WIDE_ID);
+        const hostOf = (id) => (D.nodeRows.find((n) => n.id === id) || {}).hostname || id;
+        const fields = AB.fieldsOf("wide").find((g) => g.element === "edge").fields;
+        const inUse = fields.filter((x) => x.usedBy && x.name !== "source" && x.name !== "target");
+        const rest = fields.filter((x) => !x.usedBy);
+        const filled = rest.filter((x) => e[x.name] != null), emptyN = rest.length - filled.length;
+        const dir = D.directed ? "Directed" : "Undirected", arrow = D.directed ? " -> " : " -- ";
+        const title = hostOf(e.source) + arrow + hostOf(e.target);
+        const weight = AB.roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another. Change it on the Data page", go: ["data-place", "attributes-wide"] });
+        // a value at the end of its row, end ellipsis, the whole value in its tooltip (as the node inspector)
+        const valueOf = (x) => { const v = wideValue(e[x.name], x.name) || "no value"; return AB.tip(h("span", { class: "inn-val k-ellipsis", tabindex: "-1" }, v), v, { label: false }); };
+        const used = inUse.map((x) => {
+            const isWeight = x.name === "bytes_total_24h";
+            const r = AB.data(isWeight ? h("span", { style: "display:inline-flex;align-items:center;gap:6px" }, x.name, weight) : x.name,
+                h("span", { class: x.name === "id" ? "k-mono" : "k-num" }, wideValue(e[x.name], x.name)));
+            if (isWeight) r.classList.add("ie-keep");
+            return r;
+        });
+        // "N more attributes": the node inspector's pattern -- the shared collapsible section holding
+        // the field list (panel size) of this connection's own fields, each value at its row's end
+        // the node inspector's styles for the same list (one layout for a node's and an edge's data)
+        if (!document.querySelector("link[data-inn]")) document.head.append(h("link", { rel: "stylesheet", href: "sections/inspector-node.css", "data-inn": "" }));
+        AB.mem.set("sec.data.edge.more", "1"); // open on this route, so the reader sees the values
+        const X = AB.fx.datasets, key = "wide-edge:" + e.id;
+        X[key] = X[key] || {};
+        Object.defineProperty(X[key], "_fields", { value: [{ table: "connections", element: "edge", fields: filled.map((x) => Object.assign({}, x, { fill: null })) }], enumerable: false, configurable: true });
+        const more = AB.section({ title: filled.length + " more attributes", collapsible: true, key: "data.edge.more", summary: emptyN + " empty, not listed" },
+            h("div", { class: "k-secondary inn-empty" }, emptyN + " empty, not listed"),
+            h("div", { class: "inn-more" }, AB.fieldList({ size: "panel", dataset: key, results: false, notes: false, label: "Attributes of this connection", empty: rest.filter((x) => e[x.name] == null).map((x) => x.name), emptyWhere: "on this connection", trail: valueOf, onPick: (name) => AB.openField("wide", name) })));
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: dir.toLowerCase() + ", " + e.protocol + ", " + wideValue(e.bytes_total_24h) + " bytes",
+                body: [
+                    AB.data("Direction", dir, { go: ["inspector-nothing-selected", "wide"] }),
+                    AB.data("Ends", h("span", { style: "white-space:normal" }, hostOf(e.source), arrow, hostOf(e.target))),
+                    ...used,
+                    more,
+                ],
+            },
+            Notes: { count: 0, target: ["notes-place", "empty"] },
+        }, { kind: "edge" });
+        const style = () => AB.whyThisLook([
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: EVERY, wins: ["color", "width"], values: { color: "graphty-element's default", width: "graphty-element's default" } },
+        ], { kind: "edge", element: "this connection" });
+        el.append(AB.inspector({
+            icon: "spline", title, kind: "Edge, connections", kindKey: "edge", menu: ["context-menus", "edge"],
+            renameDisabled: "An edge has no name field to store one in; the title is its two ends",
+            tabs: { Style: style, Data: data }, tab: "Data",
+        }));
+    }
+
     registerSection({
         id: "inspector-edge",
         title: "Inspector: one edge",
         region: "right",
         rail: "graph",
-        frame: (state) => (state === "door-pair" ? { dataset: "doorEntries", left: "graph-place/door-entries", dock: "table-dock/door-entries" } : { left: "graph-place/at-rest", dock: "table-dock/edges" }),
+        frame: (state) => (state === "door-pair" ? { dataset: "doorEntries", left: "graph-place/door-entries", dock: "table-dock/door-entries" }
+            : state === "wide-data" ? { dataset: "wide", left: "graph-place/at-rest", dock: "table-dock/wide" }
+            : { left: "graph-place/at-rest", dock: "table-dock/edges" }),
         closeTo: "graph-place",
         states: [
             { id: "style", label: "Style tab (why this look)" },
             { id: "data", label: "Data tab" },
             { id: "no-notes", label: "Data tab, no notes" },
             { id: "door-pair", label: "Door entries: the pair Ana Ruiz -> B1" },
+            { id: "wide-data", label: "IT estate: a connection with 26 attributes" },
         ],
         render(el, state) {
             if (state === "door-pair") return doorPair(el);
+            if (state === "wide-data") return wideEdge(el);
             const E = edge();
             el.append(AB.inspector({
                 icon: "spline",

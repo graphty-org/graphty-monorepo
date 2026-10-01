@@ -43,6 +43,14 @@
 .td-slider .k-track { cursor: pointer; min-width: 96px; }
 .td-slider .k-window { cursor: grab; }
 .td-slider .k-field { flex: none; cursor: pointer; }
+/* the key column stays put while the others scroll sideways */
+.td .k-table [data-frozen] { position: sticky; left: 0; z-index: 1; background: var(--cm-bg); box-shadow: inset -1px 0 0 var(--cm-border-strong); }
+.td .k-table th[data-frozen] { z-index: 2; }
+.td .k-table tr:hover td[data-frozen] { background: var(--cm-bg-hover); }
+.td .k-table tr[aria-selected="true"] td[data-frozen] { background: var(--cm-bg-selected); }
+.td .k-table td[data-refused] { outline: 2px solid var(--cm-border-danger-strong); outline-offset: -2px; }
+.td-cols { flex: none; white-space: nowrap; }
+.ab-pop .ab-fl-panel { max-height: min(420px, 50vh); overflow: auto; }
 `;
     if (!document.getElementById("td-style")) document.head.append(h("style", { id: "td-style" }, CSS));
 
@@ -85,100 +93,204 @@
     const current = () => /^#\/table-dock(\/|$)/.test(location.hash);
 
     /* A sortable table. cols: [{ key, label, type, n (numeric), profile, menu (true: the caret opens
-       the column menu state), cell(row), edit (true: double-click edits the value in place) }].
-       The Notes column is added only when a row has a note. */
-    function table(cols, rows, o) {
+       the column menu state), cell(row), val(row) (the value sorted on, default row[key]), field (the
+       attribute the column shows, default key), edit (true: double-click edits the value in place),
+       int (whole numbers only: graphty-element refuses anything else) }].
+       The Notes column is added only when a row has a note. o.columns ({ ds, element }) lets the
+       Columns button choose which attribute columns show (columnsView below); the first column is
+       frozen when it is the key. */
+    function table(allCols, rows, o) {
         o = o || {};
-        if (rows.some((r) => r.notes)) cols = cols.concat(notesCol);
         let sortKey = o.sort || null, dir = o.dir || -1;
-        const tbody = h("tbody");
-        const heads = {};
+        const wrap = h("div", { class: "k-table-wrap", role: "region", "aria-label": o.label || "Table" });
+        const cv = o.columns ? columnsView(allCols, o.columns) : null;
+        const valOf = (c, r) => (c.val ? c.val(r) : r[c.key]);
         const cellOf = (c, r) => (c.cell ? c.cell(r) : String(r[c.key]));
-        function editCell(td, c, r, who) {
-            const old = r[c.key];
-            const inp = h("input", { value: String(old), "aria-label": c.label + " of " + who });
-            let done = false;
-            const finish = (save) => {
-                if (done) return;
-                done = true;
-                const v = c.n ? Number(inp.value) : inp.value;
-                if (save && inp.value !== String(old) && !(c.n && Number.isNaN(v))) {
-                    r[c.key] = v;
-                    AB.notice("Changed " + c.label + " of " + who, { label: "Undo", onClick: () => { r[c.key] = old; fill(); } });
-                }
-                td.replaceChildren(cellOf(c, r));
-                td.closest("tr").focus();
+        const build = () => {
+            let cols = cv ? cv.visible() : allCols;
+            if (!o.raw && rows.some((r) => r.notes)) cols = cols.concat(notesCol); // raw records: a "notes" attribute is data, not a note count
+            const tbody = h("tbody");
+            // The rows are one Tab stop: the arrows, Home and End move between them (as the tree does)
+            tbody.addEventListener("keydown", (e) => {
+                const all = [...tbody.children], i = all.indexOf(e.target);
+                if (i < 0) return;
+                const to = all[{ ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key]];
+                if (!to) return;
+                e.preventDefault();
+                all.forEach((x) => (x.tabIndex = x === to ? 0 : -1));
+                to.focus();
+            });
+            const heads = {};
+            function editCell(td, c, r, who) {
+                const old = r[c.key];
+                const inp = h("input", { value: String(old), "aria-label": c.label + " of " + who });
+                let done = false;
+                const finish = (save) => {
+                    if (done) return;
+                    done = true;
+                    const v = c.n ? Number(inp.value) : inp.value;
+                    if (save && inp.value !== String(old) && c.int && !Number.isInteger(v)) refused(td, c, r, who, inp.value);
+                    else if (save && inp.value !== String(old) && !(c.n && Number.isNaN(v))) {
+                        r[c.key] = v;
+                        AB.notice("Changed " + c.label + " of " + who, { label: "Undo", onClick: () => { r[c.key] = old; fill(); } });
+                    }
+                    td.replaceChildren(cellOf(c, r));
+                    td.closest("tr").focus();
+                };
+                inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
+                inp.addEventListener("blur", () => finish(true));
+                inp.addEventListener("click", (e) => e.stopPropagation());
+                td.replaceChildren(inp);
+                inp.focus();
+                inp.select();
+            }
+            const fill = () => {
+                const sorted = sortKey ? rows.slice().sort((a, b) => {
+                    const sc = cols.find((c) => c.key === sortKey) || { key: sortKey };
+                    const x = valOf(sc, a), y = valOf(sc, b);
+                    if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1; // empty values last
+                    return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
+                }) : rows;
+                tbody.replaceChildren(...sorted.map((r) => {
+                    const who = o.who ? o.who(r) : "";
+                    const tr = h("tr", { id: o.rowId ? "td-row-" + o.rowId(r) : null, tabindex: "-1", "data-member": r.member ? "" : null, "aria-selected": o.selected && o.selected(r) ? "true" : null },
+                        cols.map((c, i) => {
+                            const td = h("td", { class: (c.n ? "k-n " : "") + (c.id ? "k-id" : ""), "data-edit": c.edit ? "" : null, "data-frozen": i === 0 && c.id ? "" : null }, cellOf(c, r));
+                            if (c.edit) td.addEventListener("dblclick", (e) => { e.stopPropagation(); editCell(td, c, r, who); });
+                            if (o.refuse && o.refuse(r) && c.key === o.refuse.col) setTimeout(() => refused(td, c, r, who, o.refuse.typed), 0);
+                            return td;
+                        }));
+                    if (r.member) AB.tip(tr, "Inside the time window", { label: false });
+                    if (o.onRow) {
+                        // On an editable cell, wait out a double-click before opening the row
+                        let wait = 0;
+                        tr.addEventListener("click", (e) => {
+                            if (e.target.closest("[role=button],[role=link],a,input")) return;
+                            clearTimeout(wait);
+                            if (e.detail > 1) return;
+                            // the row is marked at once; opening it waits out a double-click on an editable cell
+                            tr.parentNode.querySelectorAll("tr[aria-selected='true']").forEach((x) => x.removeAttribute("aria-selected"));
+                            tr.setAttribute("aria-selected", "true");
+                            [...tr.parentNode.children].forEach((x) => (x.tabIndex = x === tr ? 0 : -1));
+                            if (e.target.closest("td[data-edit]")) wait = setTimeout(() => o.onRow(r, e), 300); else o.onRow(r, e);
+                        });
+                        tr.addEventListener("dblclick", () => clearTimeout(wait));
+                        tr.addEventListener("keydown", (e) => e.target === tr && e.key === "Enter" && o.onRow(r, e));
+                    }
+                    if (o.onRowMenu) {
+                        tr.addEventListener("contextmenu", (e) => { e.preventDefault(); o.onRowMenu(r); });
+                        tr.addEventListener("keydown", (e) => { if (e.target === tr && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); o.onRowMenu(r); } });
+                    }
+                    return tr;
+                }));
+                const stop = tbody.querySelector("tr[aria-selected='true']") || tbody.firstElementChild;
+                if (stop) stop.tabIndex = 0;
+                cols.forEach((c) => {
+                    const th = heads[c.key];
+                    if (!th) return;
+                    th.querySelector(".td-sort").replaceChildren(sortKey === c.key ? arrow(dir < 0 ? "down" : "up") : "");
+                    th.setAttribute("aria-sort", sortKey === c.key ? (dir < 0 ? "descending" : "ascending") : "none");
+                });
             };
-            inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
-            inp.addEventListener("blur", () => finish(true));
-            inp.addEventListener("click", (e) => e.stopPropagation());
-            td.replaceChildren(inp);
-            inp.focus();
-            inp.select();
-        }
-        const fill = () => {
-            const sorted = sortKey ? rows.slice().sort((a, b) => {
-                const x = a[sortKey], y = b[sortKey];
-                return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
-            }) : rows;
-            tbody.replaceChildren(...sorted.map((r) => {
-                const who = o.who ? o.who(r) : "";
-                const tr = h("tr", { id: o.rowId ? "td-row-" + o.rowId(r) : null, tabindex: "0", "data-member": r.member ? "" : null },
-                    cols.map((c) => {
-                        const td = h("td", { class: (c.n ? "k-n " : "") + (c.id ? "k-id" : ""), "data-edit": c.edit ? "" : null }, cellOf(c, r));
-                        if (c.edit) td.addEventListener("dblclick", (e) => { e.stopPropagation(); editCell(td, c, r, who); });
-                        return td;
-                    }));
-                if (r.member) AB.tip(tr, "Inside the time window", { label: false });
-                if (o.onRow) {
-                    // On an editable cell, wait out a double-click before opening the row
-                    let wait = 0;
-                    tr.addEventListener("click", (e) => {
-                        if (e.target.closest("[role=button],[role=link],a,input")) return;
-                        clearTimeout(wait);
-                        if (e.detail > 1) return;
-                        // the row is marked at once; opening it waits out a double-click on an editable cell
-                        tr.parentNode.querySelectorAll("tr[aria-selected='true']").forEach((x) => x.removeAttribute("aria-selected"));
-                        tr.setAttribute("aria-selected", "true");
-                        if (e.target.closest("td[data-edit]")) wait = setTimeout(() => o.onRow(r, e), 300); else o.onRow(r, e);
-                    });
-                    tr.addEventListener("dblclick", () => clearTimeout(wait));
-                    tr.addEventListener("keydown", (e) => e.target === tr && e.key === "Enter" && o.onRow(r, e));
-                }
-                if (o.onRowMenu) {
-                    tr.addEventListener("contextmenu", (e) => { e.preventDefault(); o.onRowMenu(r); });
-                    tr.addEventListener("keydown", (e) => { if (e.target === tr && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); o.onRowMenu(r); } });
-                }
-                return tr;
+            // An attribute column of the wide and nested projects: the attribute's menu, as Data > Attributes opens it
+            const gds = o.columns && ["wide", "nested"].includes(o.columns.ds) ? o.columns.ds : null;
+            const fieldMenu = (c) => AB.openMenu(heads[c.key], [
+                { heading: c.label },
+                { label: "Color by", go: ["style-pickers", gds === "wide" ? "wide-color-by" : "nested-color-by"] },
+                { label: (o.columns.element === "edge" ? "Width by" : "Size by"), go: ["style-pickers", gds === "wide" ? "wide-size-by" : "binding-long"] },
+                { sep: true },
+                { label: "Read as...", onClick: () => AB.openField(gds, c.field) },
+                { label: "Show in Data", go: ["data-place", gds === "wide" ? "attributes-wide" : "attributes-nested"] },
+            ]);
+            const openMenu = (c) => (c.menu ? AB.go("table-dock", "column-menu") : gds && c.generic ? fieldMenu(c) : flash("The " + c.label + " column menu")());
+            const thead = h("tr", null, cols.map((c, i) => {
+                // One Tab stop per header: the caret is for the pointer; the keyboard opens the menu from the header (Alt+Down, Shift+F10)
+                const caret = AB.tip(h("span", Object.assign({ class: "td-caret", role: "button" }, AB.act({ onClick: () => openMenu(c) }), { tabindex: "-1" }), icon("chevron-down", "sm")), "Column menu", { key: "Alt+Down" });
+                const th = h("th", { id: "td-col-" + c.key.replace(/[^A-Za-z0-9_-]/g, "_"), class: c.n ? "k-n" : null, scope: "col", tabindex: "0", "data-open": o.openMenu === c.key ? "" : null, "data-frozen": i === 0 && c.id ? "" : null },
+                    h("span", { class: "td-th" }, c.type ? h("span", { class: "td-type" }, AB.typeGlyph(c.type)) : null, c.generic ? AB.truncMiddle(c.label, 28) : h("span", null, c.label), h("span", { class: "td-sort" }), caret));
+                AB.tip(th, [c.type ? typeTitle[c.type] || null : null, c.profile].filter(Boolean).join(", ") || c.label, { label: false });
+                const sort = () => { if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = c.n ? -1 : 1; } fill(); };
+                th.addEventListener("click", (e) => { if (!e.target.closest(".td-caret")) sort(); });
+                th.addEventListener("keydown", (e) => {
+                    if (e.target !== th) return;
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sort(); }
+                    else if ((e.altKey && e.key === "ArrowDown") || (e.shiftKey && e.key === "F10") || e.key === "ContextMenu") { e.preventDefault(); openMenu(c); }
+                });
+                th.addEventListener("contextmenu", (e) => { e.preventDefault(); openMenu(c); });
+                heads[c.key] = th;
+                return th;
             }));
-            cols.forEach((c) => {
-                const th = heads[c.key];
-                if (!th) return;
-                th.querySelector(".td-sort").replaceChildren(sortKey === c.key ? arrow(dir < 0 ? "down" : "up") : "");
-                th.setAttribute("aria-sort", sortKey === c.key ? (dir < 0 ? "descending" : "ascending") : "none");
-            });
+            fill();
+            wrap.replaceChildren(h("table", { class: "k-table" }, h("thead", null, thead), tbody), rows.length ? null : o.empty || null);
         };
-        const openMenu = (c) => (c.menu ? AB.go("table-dock", "column-menu") : flash("The " + c.label + " column menu")());
-        const thead = h("tr", null, cols.map((c) => {
-            // One Tab stop per header: the caret is for the pointer; the keyboard opens the menu from the header (Alt+Down, Shift+F10)
-            const caret = AB.tip(h("span", Object.assign({ class: "td-caret", role: "button" }, AB.act({ onClick: () => openMenu(c) }), { tabindex: "-1" }), icon("chevron-down", "sm")), "Column menu", { key: "Alt+Down" });
-            const th = h("th", { id: "td-col-" + c.key, class: c.n ? "k-n" : null, scope: "col", tabindex: "0", "data-open": o.openMenu === c.key ? "" : null },
-                h("span", { class: "td-th" }, c.type ? h("span", { class: "td-type" }, AB.typeGlyph(c.type)) : null, h("span", null, c.label), h("span", { class: "td-sort" }), caret));
-            AB.tip(th, [c.type ? typeTitle[c.type] : null, c.profile].filter(Boolean).join(", ") || c.label, { label: false });
-            const sort = () => { if (sortKey === c.key) dir = -dir; else { sortKey = c.key; dir = c.n ? -1 : 1; } fill(); };
-            th.addEventListener("click", (e) => { if (!e.target.closest(".td-caret")) sort(); });
-            th.addEventListener("keydown", (e) => {
-                if (e.target !== th) return;
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sort(); }
-                else if ((e.altKey && e.key === "ArrowDown") || (e.shiftKey && e.key === "F10") || e.key === "ContextMenu") { e.preventDefault(); openMenu(c); }
-            });
-            th.addEventListener("contextmenu", (e) => { e.preventDefault(); openMenu(c); });
-            heads[c.key] = th;
-            return th;
-        }));
-        fill();
-        return h("div", { class: "k-table-wrap", role: "region", "aria-label": o.label || "Table" }, h("table", { class: "k-table" }, h("thead", null, thead), tbody));
+        build();
+        if (cv) { cv.onChange = build; wrap.colsButton = cv.button; }
+        return wrap;
     }
+
+    // A cell edit graphty-element refused (an attribute of whole numbers given a fraction): the cell
+    // keeps its value, flashes, and the reason is the notice
+    function refused(td, c, r, who, typed) {
+        td.setAttribute("data-refused", "");
+        setTimeout(() => td.removeAttribute("data-refused"), 1600);
+        AB.notice("Not changed: " + c.label + " holds whole numbers, so " + who + " keeps " + r[c.key] + " (" + typed + " is not one)");
+    }
+
+    // ---------- Columns: which attribute columns a table view shows (spec section 6) ----------
+    // A view setting, never a data change. Kept per project and side for this page view. The fields are
+    // fieldsOf (the stand-in for graphty-element's session.data.attributes()); a hand-built column whose
+    // field is not an attribute (an edge's ends, a computed degree) always shows.
+    const shownCols = {}; // "<dataset>|<node|edge>" -> Set of field names shown
+    let colsAt = null; // the table whose Columns button was drawn last: { ds, element, state, active }
+    const sideFields = (ds, element) => {
+        const seen = new Set();
+        return AB.fieldsOf(ds).filter((g) => g.element === element).flatMap((g) => g.fields).filter((f) => !seen.has(f.name) && seen.add(f.name));
+    };
+    const keyNames = (ds, element) => sideFields(ds, element).filter((f) => f.usedBy === "Key").map((f) => f.name);
+    const pathGet = (r, path) => path.split(".").reduce((x, k) => (x == null ? x : x[k]), r);
+    function showValue(v, type) {
+        if (v == null || v === "") return "";
+        if (Array.isArray(v)) return "[" + v.length + "]";
+        if (typeof v === "object") return "{...}";
+        if (typeof v === "boolean") return v ? "yes" : "no";
+        if (type === "time") return String(v).slice(0, 10);
+        if (typeof v === "number") return Number.isInteger(v) && type !== "id" ? fmt(v) : String(v);
+        return String(v);
+    }
+    function columnsView(cols, where) {
+        const { ds, element } = where;
+        const fields = sideFields(ds, element), names = new Set(fields.map((f) => f.name));
+        const nameOf = (c) => c.field || c.key;
+        const handBuilt = new Set(cols.map(nameOf));
+        const k = ds + "|" + element;
+        const locked = cols.filter((c) => c.id && names.has(nameOf(c))).map(nameOf).concat(keyNames(ds, element));
+        if (!shownCols[k]) shownCols[k] = new Set(where.byDefault ? where.byDefault(fields).concat(locked) : cols.filter((c) => names.has(nameOf(c))).map(nameOf));
+        const n = (f) => f.fill != null && f.fill < 1 ? Math.round(f.fill * 100) + "% have a value" : null;
+        const generic = (f) => ({ key: f.name, field: f.name, generic: true, label: f.parent ? f.parent + "." + f.label : f.label, type: f.type, n: f.type === "num", id: locked.includes(f.name),
+            profile: n(f), val: (r) => pathGet(r, f.name), cell: (r) => showValue(pathGet(r, f.name), /(^|_)(port|id|code|year)$/.test(f.name) ? "id" : f.type) }); // a port or a code: no thousands separator
+        const cv = {
+            ds, element, locked,
+            shown: () => shownCols[k],
+            visible() {
+                const s = shownCols[k];
+                const out = cols.filter((c) => !names.has(nameOf(c)) || s.has(nameOf(c))).concat(fields.filter((f) => !handBuilt.has(f.name) && s.has(f.name)).map(generic));
+                // the key first, frozen
+                return out.filter((c) => locked.includes(nameOf(c))).concat(out.filter((c) => !locked.includes(nameOf(c))));
+            },
+            // every hand-built column (two may read one field) plus the fields none of them reads
+            total: cols.length + fields.filter((f) => !handBuilt.has(f.name)).length,
+            onChange: null,
+        };
+        cv.button = AB.button("", { kind: "ghost", onClick: () => { colsAt = Object.assign({}, colsAt, { ds, element }); AB.go("table-dock", "columns"); } });
+        cv.button.classList.add("td-cols");
+        cv.button.setAttribute("aria-haspopup", "dialog");
+        cv.label = () => { cv.button.textContent = "Columns: " + cv.visible().length + " of " + cv.total; };
+        cv.refresh = () => { cv.label(); if (cv.onChange) cv.onChange(); };
+        cv.label();
+        live[k] = cv;
+        return cv;
+    }
+    const live = {}; // the table on screen per "<dataset>|<side>", so the Columns popover redraws it in place
 
     // The scope line: the count; usage hints live in its tooltip
     function scope(text, hint, ...more) {
@@ -189,7 +301,8 @@
     const ROW_HINT = "Shift-click a row: add it to the selection";
 
     // ---------- the tab strip ----------
-    function tabStrip(state, tabsOpen, active, onPick, optionsState) {
+    // colsBtn: the table's Columns button ("Columns: 8 of 69"), at the end of the strip; none on a run's item tab
+    function tabStrip(state, tabsOpen, active, onPick, optionsState, colsBtn) {
         const list = h("span", { role: "tablist", class: "ab-tablist" });
         tabsOpen.forEach((t) => {
             // One Tab stop for the strip (arrows move); a closable tab closes with Delete. Its x is a
@@ -215,7 +328,7 @@
         const toggle = current()
             ? AB.iconButton(closed ? "chevron-up" : "chevron-down", closed ? "Show table (Shift+T)" : "Hide table (Shift+T)", { go: ["table-dock", closed ? "nodes" : "closed"] })
             : AB.dockToggle();
-        return h("div", { class: "k-dock-tabs td-tabs" }, list, h("span", { class: "k-grow" }),
+        return h("div", { class: "k-dock-tabs td-tabs" }, list, h("span", { class: "k-grow" }), colsBtn || null,
             AB.iconButton(AB.ICON.options, "Table options", { go: ["table-dock", optionsState || "table-options"] }),
             toggle);
     }
@@ -224,9 +337,10 @@
     const L = () => AB.fx.datasets.lesmis;
     const nodeRow = (label) => L().rows.find((r) => r.label === label);
     const groupColor = (g) => L().groupColors[g] || AB.fx.canvas.nodeGray;
-    const openNode = (r, e) => (e && (e.shiftKey || e.metaKey || e.ctrlKey) ? AB.go("inspector-several-elements", "two-nodes") : AB.go("inspector-node", "why-this-look"));
+    const openNode = (r, e) => (e && (e.shiftKey || e.metaKey || e.ctrlKey) ? AB.go("inspector-several-elements", "two-nodes") : AB.selectNode("lesmis", L().rows.findIndex((x) => x.label === r.label)));
 
-    function nodesTable(members, openMenu) {
+    function nodesTable(members, openMenu, o) {
+        o = o || {};
         const Lx = L();
         const src = members ? members.map(nodeRow) : Lx.rows;
         const rows = src.map((r) => ({ label: r.label, group: r.group, degree: r.degree, betweenness: r.betweenness, notes: NODE_NOTES[r.label] || 0 }));
@@ -236,18 +350,18 @@
             { key: "degree", label: "degree", type: "num", n: true, menu: true, profile: "1 to " + Lx.stats.maxDegree },
             { key: "betweenness", label: "betweenness", type: "num", n: true, profile: "0 to 0.57" },
         ];
-        return table(cols, rows, { sort: "degree", label: "Nodes", openMenu, onRow: openNode, who: (r) => r.label, rowId: (r) => r.label.replace(/[^A-Za-z0-9]/g, ""),
+        return table(cols, rows, { sort: "degree", label: "Nodes", openMenu, columns: { ds: "lesmis", element: "node" }, empty: o.empty, onRow: openNode, who: (r) => r.label, rowId: (r) => r.label.replace(/[^A-Za-z0-9]/g, ""),
             onRowMenu: () => AB.go("context-menus", "table-row") });
     }
 
-    function edgesTable() {
+    function edgesTable(o) {
         const rows = EDGES.map(([a, b, v]) => ({ source: a, target: b, value: v, notes: EDGE_NOTES[a + "|" + b] || 0 }));
         const cols = [
             { key: "source", label: "source", type: "text", id: true },
             { key: "target", label: "target", type: "text", id: true },
-            { key: "value", label: "value", type: "num", n: true, edit: true, profile: "chapters shared, 1 to 31" },
+            { key: "value", label: "value", type: "num", n: true, int: true, edit: true, profile: "chapters shared, 1 to 31" },
         ];
-        return table(cols, rows, { sort: "value", label: "Edges", who: (r) => r.source + " - " + r.target, onRow: () => AB.go("inspector-edge", "style"), onRowMenu: () => AB.go("context-menus", "edge") });
+        return table(cols, rows, { sort: "value", label: "Edges", columns: { ds: "lesmis", element: "edge" }, refuse: o && o.refuse, selected: o && o.refuse, who: (r) => r.source + " - " + r.target, onRow: () => AB.go("inspector-edge", "style"), onRowMenu: () => AB.go("context-menus", "edge") });
     }
 
     function communitiesTable() {
@@ -283,26 +397,26 @@
     function transferEdges(windowed) {
         const rows = T().firstRows.map((r) => ({ from: r.from_account, to: r.to_account, amount: Number(r.amount), timestamp: r.timestamp, member: windowed && inWindow(r.timestamp) }));
         const cols = [
-            { key: "from", label: "from_account", type: "text", id: true },
-            { key: "to", label: "to_account", type: "text", id: true },
+            { key: "from", field: "from_account", label: "from_account", type: "text", id: true },
+            { key: "to", field: "to_account", label: "to_account", type: "text", id: true },
             { key: "amount", label: "amount", type: "num", n: true, edit: true, cell: (r) => r.amount.toFixed(2) },
             { key: "timestamp", label: "timestamp", type: "time", profile: "Mar 1 to Mar 31", cell: (r) => shortTime(r.timestamp) },
         ];
-        return table(cols, rows, { label: "Edges", who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the transfer " + r.from + " - " + r.to + " (not wired in the skeleton)") });
+        return table(cols, rows, { label: "Edges", columns: { ds: "transactions", element: "edge" }, who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the transfer " + r.from + " - " + r.to + " (not wired in the skeleton)") });
     }
     function transferNodes() {
         const Tx = T();
         const rows = Tx.rows.map((r) => ({ id: r.id, kind: r.kind, country: r.country, riskScore: r.riskScore, flagged: r.flagged ? "yes" : "no", degree: r.degree }));
         const risk = Tx.attributes.find((a) => a.name === "riskScore");
         const cols = [
-            { key: "id", label: "id", type: "text", id: true, profile: fmt(Tx.nodes) + " values" },
+            { key: "id", field: "id (account)", label: "id", type: "text", id: true, profile: fmt(Tx.nodes) + " values" },
             { key: "kind", label: "kind", type: "cat", edit: true, profile: "3 values" },
             { key: "country", label: "country", type: "cat", edit: true },
             { key: "riskScore", label: "riskScore", type: "num", n: true, edit: true, profile: risk.range[0] + " to " + risk.range[1] },
             { key: "flagged", label: "flagged", type: "bool", edit: true },
             { key: "degree", label: "degree", type: "num", n: true, profile: "1 to " + fmt(Tx.stats.maxDegree) },
         ];
-        return table(cols, rows, { sort: "degree", label: "Nodes", who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+        return table(cols, rows, { sort: "degree", label: "Nodes", columns: { ds: "transactions", element: "node" }, who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
     }
 
     // Play, the track, the window readout, the window length, close
@@ -355,7 +469,14 @@
     const TRANSFERS = { "time-slider": true, "slider-options": true, transfers: false, "transfers-options": false };
 
     // ---------- the dock ----------
-    function dock(el, state) {
+    // The dock state a Columns popover opens over (an overlay state draws its dock as this one)
+    const BASE = { "column-menu": "nodes", "table-options": "nodes", "transfers-options": "transfers", "slider-options": "time-slider", "door-entries-options": "door-entries", "wide-columns": "wide" };
+    // A route that shows a misspelled find with no match (Find, Ctrl+F, searches the table when it has focus)
+    const NO_MATCH = "Jondrete";
+    // The edit graphty-element refuses: the edge Javert - Valjean, value 17, typed 17.5 (value holds whole numbers)
+    const REFUSE = Object.assign((r) => r.source === "Javert" && r.target === "Valjean", { col: "value", typed: "17.5" });
+
+    function dock(el, state, active0) {
         // Old links: the row menu is the node's context menu; Remove from data no longer asks
         if (state === "row-menu" || state === "remove-confirm") {
             setTimeout(() => AB.go.apply(null, state === "row-menu" ? ["context-menus", "table-row"] : ["table-dock", "nodes"]), 0);
@@ -365,13 +486,19 @@
             const main = document.getElementById("ab-main");
             if (main && main.dataset.dock !== "none") main.dataset.dock = state === "closed" ? "closed" : "open";
         }
+        // The Columns popover draws over the table it was opened from
+        if (state === "columns") { const c = colsAt || { state: "nodes" }; state = c.state; active0 = c.active; }
+        state = BASE[state] || state;
         const root = h("div", { class: "td" });
         // Find (Ctrl+F) searches the table when it has focus
         root.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); AB.go("commands-and-search", "find"); } });
         el.append(root);
+        // remember the table on screen, so Columns opens over it and Esc comes back to it
+        const at = (active, ds) => { colsAt = { state, active, ds: ds || (AB.route && AB.route.frame.dataset) || "lesmis" }; };
 
-        if (TRANSFERS[state] !== undefined) return transfersDock(root, TRANSFERS[state]);
-        if (/^door-entries/.test(state)) return doorDock(root, state);
+        if (TRANSFERS[state] !== undefined) return transfersDock(root, TRANSFERS[state], active0, at);
+        if (/^door-entries/.test(state)) return doorDock(root, state, active0, at);
+        if (state === "wide") return wideDock(root, active0, at);
 
         let members = state === "members-of-row" ? COMMUNITIES[2] : null;
         const pairTab = { id: "pairs", label: PAIR_RUN.label, full: PAIR_RUN.full, icon: PAIR_RUN.icon, close: () => AB.go("table-dock", "communities") };
@@ -380,52 +507,123 @@
             { id: "edges", label: "Edges", icon: "spline" },
             { id: "communities", label: RUN.label, full: RUN.full, icon: RUN.icon, close: () => AB.go("table-dock", "nodes") },
         ].concat(state === "pair-run" ? [pairTab] : []);
-        let active = { edges: "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
+        let active = active0 || { edges: "edges", "edit-refused": "edges", communities: "communities", "pair-run": "pairs" }[state] || "nodes";
 
         const draw = () => {
-            root.replaceChildren(tabStrip(state, tabsOpen, active, (t) => {
-                if (current()) { AB.go("table-dock", t.id === "pairs" ? "pair-run" : t.id); return; }
-                active = t.id; members = null; draw();
-            }));
-            if (state === "closed" && current()) return;
+            at(active, "lesmis");
+            const strip = (t) => tabStrip(state, tabsOpen, active, (x) => {
+                if (current()) { AB.go("table-dock", x.id === "pairs" ? "pair-run" : x.id); return; }
+                active = x.id; members = null; draw();
+            }, null, t && t.colsButton);
+            if (state === "closed" && current()) return root.replaceChildren(strip(null));
             const Lx = L();
+            let t;
             if (active === "nodes" && members) {
                 const m = members;
                 const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Show all nodes");
                 AB.nav(x, "table-dock", "nodes");
-                root.append(h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, m.size + " of " + Lx.nodes + " nodes")));
-                root.append(nodesTable(m.members));
+                t = nodesTable(m.members);
+                root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, AB.chit(m.color, true), "Community " + m.n, x), h("span", null, m.size + " of " + Lx.nodes + " nodes")), t);
+            } else if (active === "nodes" && state === "no-match") {
+                // Find over the table matched no row: the find chip, the headers kept, the one empty line
+                const x = AB.tip(h("span", { class: "td-tab-x", role: "button", tabindex: "0" }, icon("x", "sm")), "Clear find");
+                AB.nav(x, "table-dock", "nodes");
+                t = nodesTable([], null, { empty: AB.noMatch(NO_MATCH) });
+                root.replaceChildren(strip(t), h("div", { class: "k-scope td-scope" }, h("span", { class: "td-chip" }, icon("search", "sm"), "Find: " + NO_MATCH, x), h("span", null, "0 of " + Lx.nodes + " nodes")), t);
             } else if (active === "nodes") {
-                root.append(scope(plural(Lx.nodes, "node"), ROW_HINT));
-                root.append(nodesTable(null, state === "column-menu" ? "degree" : null));
+                t = nodesTable(null, state === "column-menu" ? "degree" : null);
+                root.replaceChildren(strip(t), scope(plural(Lx.nodes, "node"), ROW_HINT), t);
             } else if (active === "edges") {
-                root.append(scope(plural(Lx.edges, "edge"), ROW_HINT));
-                root.append(edgesTable());
+                t = edgesTable(state === "edit-refused" ? { refuse: REFUSE } : null);
+                root.replaceChildren(strip(t), scope(plural(Lx.edges, "edge"), ROW_HINT), t);
             } else if (active === "communities") {
-                root.append(scope(plural(COMMUNITIES.length, "community", "communities")));
-                root.append(communitiesTable());
+                root.replaceChildren(strip(null), scope(plural(COMMUNITIES.length, "community", "communities")), communitiesTable());
             } else if (active === "pairs") {
-                root.append(scope(plural(PAIRS.length, "pair"), "Selecting a pair selects its two nodes",
-                    AB.openQuestion("How many pairs a run keeps, and whether pairs can be shown as dashed edges")));
-                root.append(pairsTable());
+                root.replaceChildren(strip(null), scope(plural(PAIRS.length, "pair"), "Selecting a pair selects its two nodes",
+                    AB.openQuestion("How many pairs a run keeps, and whether pairs can be shown as dashed edges")), pairsTable());
             }
         };
         draw();
     }
 
+    // ---------- the wide, nested and plain JSON projects (kit/wide-nested.json) ----------
+    // The shell sends all three here (DATASET_FRAME); the project is AB.route.frame.dataset. Every
+    // column is an attribute: by default the key (frozen) and the attributes in use show; Columns adds
+    // the rest. Values: a list reads [n], a sub-object kept whole {...}, an empty value is blank.
+    function recordsOf(ds, element) {
+        const D = AB.fx.datasets[ds];
+        if (ds === "wide") return element === "node" ? D.nodeRows : D.edgeRows;
+        if (ds === "plainJson") return element === "node" ? D.document.nodes : D.document.links;
+        if (element === "edge") return nestedEdges(D);
+        return Object.keys(D.recordArrays).filter((a) => !/^links/.test(a)).flatMap((a) => pathGet(D.document, a.replace(/\[\]$/, "")) || []);
+    }
+    // The nested project's edges as the last Load made them (AB.nestedLoaded): every edge type in one
+    // table, its type in the first column, as the door entries' Nodes table lists its node types
+    function nestedEdges(D) {
+        const NL = AB.nestedLoaded(), R = D.document.data.researchers, out = [];
+        if (NL.researchers && NL.co === "edges") {
+            const seen = new Set();
+            R.forEach((r) => r.relationships.coauthor_ids.forEach((c) => {
+                const k = [r.id, c].sort().join("|");
+                if (NL.coPer === "item" || !seen.has(k)) { seen.add(k); out.push({ edgeType: "coauthor", source: r.id, target: c }); }
+            }));
+        }
+        if (NL.researchers && NL.aff === "rows") R.forEach((r) => r.attributes.affiliations.forEach((a) => out.push({ edgeType: "affiliation", source: r.id, target: a.institution_id, role: a.role, since: a.since, current: a.current })));
+        if (NL.researchers) (NL.idLinks || []).forEach((x) => { const ids = new Set((x.target === "institution" ? D.document.data.institutions : R).map((y) => y.id)); R.forEach((r) => { const v = pathGet(r, x.col); if (ids.has(v)) out.push({ edgeType: x.name, source: r.id, target: v }); }); });
+        if (NL.links) D.document.links.forEach((l) => out.push(Object.assign({ edgeType: "link" }, l)));
+        return out;
+    }
+    function wideTable(ds, element) {
+        const rows = recordsOf(ds, element);
+        const who = (r) => (element === "node" ? r.hostname || pathGet(r, "attributes.name.family") || r.name || r.id : r.source + " - " + r.target);
+        // A node row selects that node, as the canvas walk does (the inspector reads the walked row)
+        const walkAt = (r) => (ds === "wide" ? AB.fx.datasets.wide.nodeRows.indexOf(r) : AB.fx.datasets.nested.document.data.researchers.indexOf(r));
+        const open = ds === "plainJson" ? (r) => AB.flash("Selects " + who(r) + " (not wired in the skeleton)")
+            : element === "node" ? (r) => (walkAt(r) >= 0 ? AB.selectNode(ds, walkAt(r)) : AB.flash("Selects " + who(r) + " (an institution has no inspector state in the skeleton)"))
+                : ds === "wide" ? () => AB.go("inspector-edge", "wide-data") : (r) => AB.flash("Selects the edge " + who(r) + " (not wired in the skeleton)");
+        const typeCol = ds === "nested" && element === "edge" ? [{ key: "edgeType", label: "edge type", type: "cat", val: (r) => r.edgeType, cell: (r) => r.edgeType }] : [];
+        return table(typeCol, rows, { raw: true, label: element === "node" ? "Nodes" : "Edges", who, onRow: open,
+            columns: { ds, element, byDefault: (fields) => fields.filter((f) => f.usedBy).map((f) => f.name) } });
+    }
+    function wideDock(root, active0, at) {
+        const ds = (AB.route && AB.route.frame.dataset) || "wide";
+        const ok = ["wide", "nested", "plainJson"].includes(ds) ? ds : "wide";
+        // an edge in the inspector: the table shows the edges
+        const edgeOpen = AB.route && (AB.route.id === "inspector-edge" || /^inspector-edge\//.test(String(AB.route.frame.right || "")));
+        let active = active0 || (edgeOpen ? "edges" : "nodes");
+        const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        const D = AB.fx.datasets[ok];
+        const draw = () => {
+            at(active, ok);
+            const element = active === "nodes" ? "node" : "edge";
+            const t = wideTable(ok, element);
+            const n = recordsOf(ok, element).length;
+            const rs = recordsOf(ok, element), byType = {};
+            if (ok === "nested" && element === "edge") rs.forEach((r) => { byType[r.edgeType] = (byType[r.edgeType] || 0) + 1; });
+            const from = (ok === "wide" ? (element === "node" ? D.file : D.edgesFile) : D.file) + (Object.keys(byType).length > 1 ? ": " + Object.entries(byType).map(([k, v]) => fmt(v) + " " + k).join(", ") : "");
+            root.replaceChildren(tabStrip("wide", tabsOpen, active, (x) => { active = x.id; draw(); }, "table-options", t.colsButton),
+                scope(plural(n, element), ROW_HINT, h("span", { class: "k-secondary" }, "from " + from)), t);
+        };
+        draw();
+    }
+
     // withSlider false: the transfers table under the Data place, with the time slider not shown
-    function transfersDock(root, withSlider) {
+    function transfersDock(root, withSlider, active0, at) {
         const Tx = T();
         win.start = 9; win.len = 7;
-        let active = "edges";
+        let active = active0 || "edges";
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
-        let tableHost = null;
+        let tableHost = null, colsHost = null;
         const drawTable = () => {
             if (!tableHost) return;
-            tableHost.replaceChildren(active === "edges" ? transferEdges(withSlider) : transferNodes());
+            const t = active === "edges" ? transferEdges(withSlider) : transferNodes();
+            tableHost.replaceChildren(t);
+            colsHost.replaceChildren(t.colsButton);
         };
         const draw = () => {
-            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, withSlider ? "slider-options" : "transfers-options"));
+            at(active, "transactions");
+            colsHost = h("span", { style: "display:contents" });
+            root.replaceChildren(tabStrip("time-slider", tabsOpen, active, (t) => { active = t.id; draw(); }, withSlider ? "slider-options" : "transfers-options", colsHost));
             if (withSlider) root.append(timeSlider(() => AB.go("table-dock", "transfers"), drawTable));
             if (active === "edges") {
                 root.append(scope(plural(Tx.edges, "edge"), null, withSlider ? AB.openQuestion("Whether the table lists only the window's transfers") : null));
@@ -464,7 +662,7 @@
             { key: "site", label: "site", type: "cat", edit: true },
             { key: "floors", label: "floors", type: "num", n: true, edit: true },
         ].concat(asNodes ? [{ key: "time", label: "time", type: "time", cell: (r) => (r.time ? shortTime(r.time) : "") }] : []);
-        return table(cols, rows, { label: "Nodes", who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+        return table(cols, rows, { label: "Nodes", columns: { ds: "doorEntries", element: "node" }, who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
     }
     function doorEdges() {
         const D = DE(), ids = new Set(D.tables[0].sample.map((r) => r.id)), bldgs = new Set(D.tables[1].sample.map((r) => r.bldg)), pairs = new Map();
@@ -477,11 +675,11 @@
                 if (bldgs.has(r.building_id)) links.push({ entry: String(i + 1), to: r.building_id, via: "building_id" });
             });
             return table([{ key: "entry", label: "entry", type: "num", id: true }, { key: "to", label: "to", type: "cat", id: true }, { key: "via", label: "link column", type: "cat" }],
-                links, { label: "Edges", who: (r) => "entry " + r.entry + " - " + r.to, onRow: (r) => AB.flash("Selects the edge entry " + r.entry + " - " + r.to + " (not wired in the skeleton)") });
+                links, { label: "Edges", columns: { ds: "doorEntries", element: "edge" }, who: (r) => "entry " + r.entry + " - " + r.to, onRow: (r) => AB.flash("Selects the edge entry " + r.entry + " - " + r.to + " (not wired in the skeleton)") });
         }
         if (D.loaded.per === "row") {
             return table([{ key: "person_id", label: "person_id", type: "num", id: true }, { key: "building_id", label: "building_id", type: "cat", id: true }, { key: "time", label: "time", type: "time", cell: (r) => shortTime(r.time) }],
-                matched, { /* per Row the pair note reads missing (the Data page warns), so no Notes column */ label: "Edges", who: (r) => r.person_id + " - " + r.building_id, onRow: (r) => AB.flash("Selects the edge " + r.person_id + " - " + r.building_id + " (not wired in the skeleton)") });
+                matched, { columns: { ds: "doorEntries", element: "edge" }, /* per Row the pair note reads missing (the Data page warns), so no Notes column */ label: "Edges", who: (r) => r.person_id + " - " + r.building_id, onRow: (r) => AB.flash("Selects the edge " + r.person_id + " - " + r.building_id + " (not wired in the skeleton)") });
         }
         // One row per pair, from the same preview the Data page shows (data.preview under Pair), so the counts agree
         D.report.entries.pairSample.filter((r) => ids.has(r.person_id) && bldgs.has(r.building_id)).forEach((r) => {
@@ -492,19 +690,21 @@
             { key: "from", label: "person_id", type: "num", id: true },
             { key: "to", label: "building_id", type: "cat", id: true },
             { key: "count", label: "count", type: "num", n: true },
-            { key: "first", label: "time (earliest)", type: "time", cell: (r) => shortTime(r.first) },
-            { key: "last", label: "time (latest)", type: "time", cell: (r) => shortTime(r.last) },
+            { key: "first", field: "time", label: "time (earliest)", type: "time", cell: (r) => shortTime(r.first) },
+            { key: "last", field: "time", label: "time (latest)", type: "time", cell: (r) => shortTime(r.last) },
         ];
-        return table(cols, [...pairs.values()], { sort: "count", label: "Edges", who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the edge " + r.from + " - " + r.to + " (not wired in the skeleton)") });
+        return table(cols, [...pairs.values()], { sort: "count", label: "Edges", columns: { ds: "doorEntries", element: "edge" }, who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the edge " + r.from + " - " + r.to + " (not wired in the skeleton)") });
     }
-    function doorDock(root, state) {
+    function doorDock(root, state, active0, at) {
         const D = DE(), [people, buildings] = D.tables;
-        let active = state === "door-entries-nodes" ? "nodes" : "edges";
+        let active = active0 || (state === "door-entries-nodes" ? "nodes" : "edges");
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
         const draw = () => {
-            root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (t) => { active = t.id; draw(); }, "door-entries-options"));
-            if (active === "edges") root.append(scope(plural(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : D.loaded.per === "nodes" ? ", two per entry node (person_id and building_id)" : ", one per entry"))), doorEdges());
-            else root.append(scope(plural(D.loadedTypes().total, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + (D.loadedTypes().entry ? people.file + ", " + buildings.file + " and " + D.tables[2].file : people.file + " and " + buildings.file))), doorNodes());
+            at(active, "doorEntries");
+            const t = active === "edges" ? doorEdges() : doorNodes();
+            root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (x) => { active = x.id; draw(); }, "door-entries-options", t.colsButton));
+            if (active === "edges") root.append(scope(plural(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : D.loaded.per === "nodes" ? ", two per entry node (person_id and building_id)" : ", one per entry"))), t);
+            else root.append(scope(plural(D.loadedTypes().total, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + (D.loadedTypes().entry ? people.file + ", " + buildings.file + " and " + D.tables[2].file : people.file + " and " + buildings.file))), t);
         };
         draw();
     }
@@ -515,7 +715,6 @@
         el.append(AB.menu({
             anchor: "#ab-dock [aria-label='Table options']", place: "below-end",
             items: [
-                { label: "Show columns...", onClick: flash("Choosing the columns") },
                 time === "door" ? { label: "Time slider", onClick: flash("The time slider over the entries' times") }
                 : time ? { label: "Time slider", check: time === "on", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
                     : { label: "Time slider", disabled: "This data has no time attribute" },
@@ -524,7 +723,25 @@
             ],
         }));
     }
+    // Columns: the field list at panel size with a checkbox per attribute, the key locked. Each check
+    // shows or hides that column at once; the table behind redraws in place.
+    function columnsPopover(el, state) {
+        const c = colsAt || { ds: "lesmis", active: "nodes" };
+        const element = c.active === "edges" ? "edge" : "node";
+        const cv = live[c.ds + "|" + element];
+        if (!cv) return;
+        // Esc closes it once Find is empty (the shell's Esc stays put: the popover's closeTo is this section too)
+        const pop = AB.popover({
+            anchor: "#ab-dock .td-cols", place: "above", title: "Columns", width: 340,
+            body: AB.fieldList({ size: "panel", dataset: c.ds, element, results: false, notes: false, label: "Columns", checkboxes: [...cv.shown()], locked: cv.locked,
+                query: state === "wide-columns" ? "vuln" : "",
+                onToggle(name, on) { const sh = cv.shown(); if (on) sh.add(name); else sh.delete(name); cv.refresh(); } }),
+        });
+        pop.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); AB.close(); } });
+        el.append(pop);
+    }
     function overlay(el, state) {
+        if (state === "columns" || state === "wide-columns") return columnsPopover(el, state);
         if (state === "column-menu") {
             el.append(AB.menu({
                 anchor: "#td-col-degree", place: "above-start",
@@ -551,21 +768,30 @@
         else if (state === "door-entries-options") optionsMenu(el, "door");
     }
 
+    function frame(state) {
+        if (state === "columns") return Object.assign(frame((colsAt && colsAt.state) || "nodes"), colsAt && colsAt.state === "wide" ? { dataset: colsAt.ds } : {}, { overlay: "table-dock/columns" });
+        if (state === "wide") return { dataset: "wide", left: "graph-place/at-rest" };
+        if (state === "wide-columns") return { dataset: "wide", left: "graph-place/at-rest", overlay: "table-dock/wide-columns" };
+        if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
+        if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
+        if (state === "door-entries-options") return { dataset: "doorEntries", left: "graph-place/door-entries", overlay: "table-dock/" + state };
+        if (state === "door-entries" || state === "door-entries-nodes") return { dataset: "doorEntries", left: "graph-place/door-entries" };
+        if (state === "communities") return { left: "graph-place/louvain-open", right: "inspector-run-row/style" };
+        if (state === "members-of-row") return { left: "graph-place/louvain-open", right: "inspector-group-set-path-row/community-3" };
+        if (state === "column-menu" || state === "table-options") return { overlay: "table-dock/" + state };
+        return {};
+    }
+
     registerSection({
         id: "table-dock",
         title: "Table dock and time slider",
         region: "dock",
-        closeTo: "table-dock/nodes",
-        frame(state) {
-            if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
-            if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
-            if (state === "door-entries-options") return { dataset: "doorEntries", left: "graph-place/door-entries", overlay: "table-dock/" + state };
-            if (state === "door-entries" || state === "door-entries-nodes") return { dataset: "doorEntries", left: "graph-place/door-entries" };
-            if (state === "communities") return { left: "graph-place/louvain-open", right: "inspector-run-row/style" };
-            if (state === "members-of-row") return { left: "graph-place/louvain-open", right: "inspector-group-set-path-row/community-3" };
-            if (state === "column-menu" || state === "table-options") return { overlay: "table-dock/" + state };
-            return {};
+        // Esc from a menu or the Columns popover goes back to the table it opened over
+        get closeTo() {
+            const s = location.hash.split("/")[2] || "";
+            return "table-dock/" + (s === "columns" ? (colsAt && colsAt.state) || "nodes" : BASE[s] || "nodes");
         },
+        frame,
         states: [
             { id: "nodes", label: "Nodes tab" },
             { id: "edges", label: "Edges tab" },
@@ -582,6 +808,11 @@
             { id: "door-entries-nodes", label: "Door entries: Nodes (people and buildings)" },
             { id: "door-entries-options", label: "Table options, door entries" },
             { id: "closed", label: "Closed" },
+            { id: "no-match", label: "Find matched no row" },
+            { id: "edit-refused", label: "A cell edit graphty-element refused" },
+            { id: "wide", label: "IT estate: hosts, key frozen, key and in-use columns" },
+            { id: "wide-columns", label: "IT estate: Columns open, searched \"vuln\"" },
+            { id: "columns", label: "Columns open over the table on screen" },
         ],
         render(el, state, ctx) {
             if (ctx && ctx.region === "overlay") return overlay(el, state);

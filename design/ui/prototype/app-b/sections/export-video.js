@@ -40,8 +40,8 @@
     let redraw = () => {};
 
     function fresh(state) {
-        const tour = ["tour", "estimate-warning", "recording", "done"].includes(state);
-        const heavy = ["estimate-warning", "recording", "done"].includes(state);
+        const tour = ["tour", "estimate-warning", "recording", "done", "failed"].includes(state);
+        const heavy = ["estimate-warning", "recording", "done", "failed"].includes(state);
         return { view: tour ? TOUR : "Current camera", length: 12, holds: IN_TOUR.map(() => 4),
             size: heavy ? SIZES[3] : SIZES[2], fps: heavy ? 60 : 30,
             format: "Automatic", bitrate: "5 Mbps", transparent: false, easing: EASINGS[0] };
@@ -104,7 +104,15 @@
 
         // The one callout: the element's estimate before, the result after; nothing while recording.
         let call = null;
-        if (done) {
+        if (state === "failed") {
+            // graphty-element rejects captureAnimation with VIDEO_CAPTURE_FAILED and the recorder's message.
+            const planned = secs() * s.fps;
+            call = AB.problem({
+                what: `Recording stopped at frame ${Math.round(planned * 0.43)} of ${planned}: the browser's video recorder reported an encoder error. Nothing was saved.`,
+                todo: "Try again with the same settings, or choose a smaller Size first.",
+                action: { label: "Try again", go: ["export-video", "recording"] },
+            });
+        } else if (done) {
             const planned = secs() * s.fps;
             call = AB.exportCallout("warning", h("span", null, `Recorded ${secs()} s; 3 of ${planned} frames dropped, so playback stutters in places.`));
         } else if (!busy && drops()) {
@@ -170,6 +178,7 @@
                 AB.button("Cancel", { kind: "secondary", onClick: () => { AB.go("export-video", "estimate-warning"); setTimeout(() => AB.notice("Recording canceled; nothing was saved."), 50); } }),
             ];
         }
+        if (state === "failed") return [AB.button("Close", { kind: "ghost", onClick: () => AB.close() })];
         if (state === "done") {
             return [
                 AB.button("Close", { kind: "ghost", onClick: () => AB.close() }),
@@ -219,6 +228,7 @@
             { id: "estimate-warning", label: "Estimate warns" },
             { id: "recording", label: "Recording" },
             { id: "done", label: "Done" },
+            { id: "failed", label: "Failed: recording stopped" },
             { id: "tour-2d-disabled", label: "2D: Tour off" },
         ],
         render,

@@ -27,6 +27,15 @@
 @media (prefers-reduced-motion: reduce) { .as-caret::after { animation: none; } }
 .as-err { display: flex; gap: 6px; align-items: flex-start; color: var(--cm-text-danger); }
 .as-err > svg { flex: none; margin-top: 3px; }
+.as-tool.is-stopped > svg, .as-stopped > svg { color: var(--cm-icon-secondary); }
+.as-stopped { display: flex; align-items: center; gap: 6px; color: var(--cm-text-secondary); }
+.as-turn-a { display: flex; flex-direction: column; gap: 6px; }
+.as-table-wrap { overflow-x: auto; max-width: 100%; }
+.as-table { table-layout: fixed; font-size: 12px; }
+.as-table th, .as-table td { height: 22px; padding: 0 6px; }
+.as-table th, .as-table td { padding: 0 4px; }
+.as-table td:first-child { overflow: hidden; text-overflow: ellipsis; }
+.as-tool.is-stopped { white-space: normal; }
 .as-composer { flex: none; border-top: 1px solid var(--cm-border); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .as-composer textarea { font: inherit; font-size: 12px; resize: none; min-height: 56px; padding: 6px 8px; border-radius: 5px; border: 0; background: var(--cm-bg-secondary); color: var(--cm-text); }
 .as-composer textarea:disabled { opacity: 0.6; }
@@ -47,6 +56,17 @@
         for (const d of ["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"]) {
             const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); svg.append(p);
         }
+        return svg;
+    }
+
+    /* Stopped: a small filled square, the media stop glyph (the sprite's outline square means 2D). */
+    function stopIcon() {
+        const ns = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(ns, "svg");
+        svg.setAttribute("class", "k-i k-i-sm"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true");
+        const r = document.createElementNS(ns, "rect");
+        for (const [k, v] of [["x", 6], ["y", 6], ["width", 12], ["height", 12], ["rx", 2], ["fill", "currentColor"]]) r.setAttribute(k, v);
+        svg.append(r);
         return svg;
     }
 
@@ -71,15 +91,15 @@
     /* One tool line: a status icon and one sentence. status: "done", "running", "failed". */
     function tool(status, ...words) {
         const ic = { done: "circle-check", running: "loader-circle", failed: "circle-x" }[status];
-        return h("div", { class: "as-tool is-" + status }, icon(ic, "sm"), words);
+        return h("div", { class: "as-tool is-" + status }, ic ? icon(ic, "sm") : stopIcon(), words);
     }
 
     /* The switcher row: the open conversation; its menu lists the others and New conversation. */
-    function switcher() {
+    function switcher(list = CONVERSATIONS) {
         const btn = h("span", { class: "ab-switch-btn", role: "button", tabindex: "0", "aria-haspopup": "menu", "aria-expanded": "false" },
-            icon(AB.ICON.note), h("span", { class: "k-ellipsis" }, CONVERSATIONS[0]), icon("chevron-down", "sm"));
+            icon(AB.ICON.note), h("span", { class: "k-ellipsis" }, list[0]), icon("chevron-down", "sm"));
         const open = () => AB.openMenu(btn, [
-            ...CONVERSATIONS.map((t, i) => ({ label: t, check: i === 0, onClick: () => i && AB.flash("Open conversation: " + t) })),
+            ...list.map((t, i) => ({ label: t, check: i === 0, onClick: () => i && AB.flash("Open conversation: " + t) })),
             { sep: true },
             { label: "New conversation", onClick: () => AB.flash("New conversation") },
         ]);
@@ -105,7 +125,7 @@
         }, micIcon());
         AB.tip(mic, "Voice input");
         const action = busy
-            ? AB.button("Stop", { icon: "square", kind: "secondary", go: ["assistant-place", "conversation"] })
+            ? AB.button("Stop", { icon: "square", kind: "secondary", go: ["assistant-place", "stopped"] })
             : AB.button("Send", { icon: "arrow-right", key: "Enter", go: ["assistant-place", "streaming"] });
         return h("div", { class: "as-composer" }, ta, h("div", { class: "as-composer-foot" }, mic, h("span", { class: "k-grow" }), action));
     }
@@ -114,7 +134,7 @@
         return h("span", null, AB.link("inspector-node", "why-this-look", n.label, { class: "k-link" }), " (" + n.betweenness + ")");
     }
 
-    /* stage: "done", "streaming", "failed" */
+    /* stage: "done", "streaming", "failed", "stopped" */
     function conversation(stage) {
         const top = AB.fx.datasets.lesmis.topByBetweenness.slice(0, 3);
         const valjean = top[0];
@@ -123,6 +143,7 @@
             done: [read, tool("done", "Ran ", CHIPS.run()), tool("done", "Added ", CHIPS.layer())],
             streaming: [read, tool("done", "Ran ", CHIPS.run()), tool("running", "Adding ", CHIPS.layer())],
             failed: [read, tool("failed", "Betweenness did not run")],
+            stopped: [read, tool("done", "Ran ", CHIPS.run()), tool("stopped", "Stopped before adding " + LAYER)],
         }[stage];
         const answer = {
             done: [
@@ -132,6 +153,13 @@
             ],
             streaming: [
                 h("div", { class: "as-caret" }, "By betweenness, these characters lie on the most shortest paths between the others:"),
+                h("div", null, AB.openQuestion("When Stop lands mid-answer, do layers already added stay?")),
+            ],
+            /* What streamed before Stop stays as it was; nothing more is written. */
+            stopped: [
+                h("div", null, "By betweenness, these characters lie on the most shortest paths between the others:"),
+                h("ol", null, h("li", null, nodeLink(top[0]))),
+                h("div", { class: "as-stopped" }, stopIcon(), "Stopped"),
                 h("div", null, AB.openQuestion("When Stop lands mid-answer, do layers already added stay?")),
             ],
             failed: [
@@ -146,6 +174,60 @@
         );
     }
 
+    /* Many and Long text: a conversation of thirty turns (fifteen questions, fifteen answers),
+       every figure read from the Les Miserables fixture, ending in a long answer with a table.
+       The list opens scrolled to the newest turn, as a conversation does. */
+    const LONG_TITLE = "Which characters hold the story's groups together, and how do the groups reach each other?";
+    function longConversation() {
+        const ds = AB.fx.datasets.lesmis;
+        const rows = ds.rows, st = ds.stats, colors = ds.groupColors;
+        const groupSizes = ds.attributes.find((a) => a.name === "group").values;
+        const groups = Object.keys(groupSizes);
+        const biggest = groups.reduce((a, b) => (groupSizes[b] > groupSizes[a] ? b : a));
+        const inGroup = (g) => rows.filter((r) => String(r.group) === g);
+        const ones = rows.filter((r) => r.degree === 1);
+        const top = ds.topByBetweenness;
+        const n = (r) => AB.link("inspector-node", "why-this-look", r.label, { class: "k-link" });
+        const join = (list) => list.flatMap((r, i) => (i ? [", ", n(r)] : [n(r)]));
+        const g1 = inGroup("1"), gBig = inGroup(biggest), g8 = inGroup("8");
+        const turns = [
+            ["How big is this graph?", [ds.nodes + " characters and " + ds.edges + " links between them, all in " + st.components + " connected piece. No character is isolated."]],
+            ["Who has the most connections?", [n(top[0]), " has " + st.maxDegree + ", far ahead of ", n(ds.topByDegree[1]), " with " + ds.topByDegree[1].degree + "."]],
+            ["What is a typical number of connections?", ["On average a character has " + st.averageDegree + " connections. The graph's density is " + st.density + "."]],
+            ["How many groups are there?", [groups.length + " groups, from the group attribute in the file."]],
+            ["Which group is the largest?", ["Group " + biggest + ", with " + groupSizes[biggest] + " characters: ", ...join(gBig.slice(0, 5)), ", and " + (gBig.length - 5) + " more."]],
+            ["Who is in group 1?", [...join(g1), "."]],
+            ["Which characters appear with only one other?", [ones.length + " characters have a single connection, among them ", ...join(ones.slice(0, 4)), "."]],
+            ["Who comes second by betweenness?", [n(top[1]), ", at " + top[1].betweenness + ", far behind Valjean's " + top[0].betweenness + "."]],
+            ["How strongly do the groups hold together?", ["The groups' modularity is " + st.modularityOfGroups + ": most links stay inside a group."]],
+            ["Who is in group 8?", [g8.length + " characters: ", ...join(g8.slice(0, 6)), ", and " + (g8.length - 6) + " more."]],
+            ["Does the graph have self-links?", [st.selfLoops ? st.selfLoops + " self-links." : "None. No character is linked to itself."]],
+            ["Where does Fantine rank by betweenness?", ["Fifth: ", n(top[4]), " at " + top[4].betweenness + ". ", n(top[9]), ", also in group " + top[9].group + ", is tenth at " + top[9].betweenness + "."]],
+            ["What does betweenness measure here?", ["How often a character lies on the shortest path between two others. A high value means the story's groups reach each other through that character."]],
+            ["Size the characters by betweenness, please.", [tool("done", "Added ", CHIPS.layer()), "Done. Valjean is now the largest node."]],
+        ];
+        const table = h("div", { class: "as-table-wrap" }, h("table", { class: "k-table as-table" },
+            h("colgroup", null, h("col"), h("col", { style: "width: 50px" }), h("col", { style: "width: 50px" })),
+            h("thead", null, h("tr", null, h("th", null, "Character"), h("th", { class: "k-n" }, "Degree"), h("th", { class: "k-n" }, h("abbr", { "aria-label": "Betweenness" }, "Betw.")))),
+            h("tbody", null, top.map((r) => h("tr", null,
+                h("td", null, AB.chit(colors[r.group], true), n(r)),
+                h("td", { class: "k-n" }, String(r.degree)),
+                h("td", { class: "k-n" }, String(r.betweenness)))))));
+        const last = [LONG_TITLE, [
+            h("div", { class: "as-tools", "aria-label": "Tool calls" }, tool("done", "Read ", CHIPS.graph()), tool("done", "Ran ", CHIPS.run())),
+            h("div", null, "Ten characters carry most of the shortest paths between the others. Here they are by betweenness, each with its group's color and its number of connections:"),
+            table,
+            h("div", null, n(top[0]), " stands apart: his betweenness of " + top[0].betweenness + " is more than three times the next, and he touches " + top[0].degree + " of the " + ds.nodes + " characters."),
+            h("div", null, "After him come ", n(top[1]), " of group " + top[1].group + ", then ", n(top[2]), " and ", n(top[3]), " of group " + top[2].group + ". " + top.filter((r) => r.group === 8).length + " of the ten are in group 8, the most of any group."),
+            h("div", null, "Betweenness and connections do not always agree: ", n(top[1]), " has only " + top[1].degree + " connections but ranks second, while ", n(ds.topByDegree[3]), " has " + ds.topByDegree[3].degree + " and ranks " + (top.indexOf(top.find((r) => r.id === ds.topByDegree[3].id)) + 1) + "th."),
+        ]];
+        const out = [];
+        for (const [q, a] of [...turns, last]) {
+            out.push(h("div", { class: "as-q" }, q), h("div", { class: "as-a" }, h("div", { class: "as-turn-a" }, a)));
+        }
+        return h("div", { class: "as-conv", role: "log", "aria-label": "Conversation, " + out.length + " turns" }, out);
+    }
+
     registerSection({
         id: "assistant-place",
         title: "Assistant place",
@@ -156,6 +238,8 @@
             { id: "conversation", label: "One conversation open" },
             { id: "streaming", label: "Answer streaming" },
             { id: "failed-retry", label: "Answer failed, Retry" },
+            { id: "stopped", label: "Answer stopped part way" },
+            { id: "long-conversation", label: "Thirty turns, a long answer with a table" },
         ],
         render(el, state) {
             if (state === "no-provider") {
@@ -163,7 +247,13 @@
                     AB.empty("The Assistant needs an AI provider.", { verb: "Set one up in Settings", go: ["settings", "assistant"] }));
                 return;
             }
-            const stage = state === "streaming" ? "streaming" : state === "failed-retry" ? "failed" : "done";
+            if (state === "long-conversation") {
+                const body = h("div", { class: "as-body" }, longConversation());
+                el.append(AB.placeHead("Assistant"), switcher([LONG_TITLE, ...CONVERSATIONS]), body, composer("idle"));
+                requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+                return;
+            }
+            const stage = state === "streaming" ? "streaming" : state === "failed-retry" ? "failed" : state === "stopped" ? "stopped" : "done";
             el.append(
                 AB.placeHead("Assistant"),
                 switcher(),

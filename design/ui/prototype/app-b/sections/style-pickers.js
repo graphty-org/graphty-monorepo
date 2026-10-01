@@ -1,13 +1,15 @@
-/* Style pickers (version 4): what the Style tab (AB.styleTab) and "Why this look" (AB.whyThisLook)
+/* Style pickers (version 5): what the Style tab (AB.styleTab) and "Why this look" (AB.whyThisLook)
    open. Two surfaces only:
    - Dark menus choose one item: a section's "+" (the shared AB.plus menu, opened here on the real
-     button) and the From data list (AB.openMenu with its filter).
+     button) and every attribute picker, which is the field list at menu size (AB.openFieldList):
+     the Label "+" and the Label popover's Text, and the Binding popover's Source (Color by, Size by).
+     On Les Miserables it is four attribute rows and no Find; on the hosts it is 69 with Find.
    - Light popovers edit a value (AB.popover): Color, Glow, Shape, Pattern, Head or Tail (titled by the line), Label style,
      Binding, Palette, Custom palette, and a token's property. Every change applies live; there is
      no Apply or Cancel. Esc, the X or a click outside closes. Only Custom palette has a footer
      button, because it creates something.
-   The From data list is the shared AB.fromDataItems: its Notes group (Note count, Latest note) is
-   enabled, and Note count is a number, so it drives size and color as well as text. The Label
+   The field list's Notes group (Note count, Latest note) is enabled, and Note count is a number, so
+   it drives size and color as well as text. The Label
    popover holds Text and Position on top (the position grid is a line's one home), then a preview
    of every line of this row, then the style fields.
    Inside a popover an unset field shows its effective value in gray, its source in the tooltip.
@@ -324,72 +326,143 @@
     }
 
     // ---------- Binding: one popover for every bound value ----------
-    // The source list is the shared From data list (AB.fromDataItems): attributes, results, and the
-    // Notes group (Note count is a number, so it can drive size and color as well as text).
+    // Its Source is the field list at menu size (AB.openFieldList): attributes grouped by table, In use
+    // first, results, and the Notes group (Note count is a number, so it can drive size and color as
+    // well as text). Color takes kind "color", Size kind "number", so what a property cannot take is
+    // listed last, disabled with the reason. A binding with no source yet (bind on a line just added)
+    // shows Source alone, its list open; a source that reads nothing shows graphty-element's error.
     const L = () => AB.fx.datasets.lesmis;
-    function binding(el, kind) {
-        const B = {
-            color: { prop: "Color", source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], total: "77", unit: "nodes" },
-            diverging: { prop: "Color", source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", total: "3,000", unit: "accounts" },
-            // Everything's Size from Note count: 0 on an element with no note, 2 on Valjean (the notes fixture)
-            size: { prop: "Size", source: "Note count", type: "number", from: "fit", range: ["0", "2"], out: ["1", "3"], total: "77", unit: "nodes" },
-        }[kind];
+    const BINDINGS = {
+        color: { prop: "Color", source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], total: "77", unit: "nodes" },
+        diverging: { prop: "Color", source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", total: "3,000", unit: "accounts" },
+        // Everything's Size from Note count: 0 on an element with no note, 2 on Valjean (the notes fixture)
+        size: { prop: "Size", source: "Note count", type: "number", from: "fit", range: ["0", "2"], out: ["1", "3"], total: "77", unit: "nodes" },
+        // A measure row's binding whose stored name matches no attribute: graphty-element raises
+        // E_UNKNOWN_ATTRIBUTE with the path instead of painting nothing (element-requirements-5.md)
+        unknown: { prop: "Color", source: "pagerank", type: "number", pal: "ylorbr", from: "fit", range: null, total: "77", unit: "nodes",
+            error: { what: "No node has an attribute \"pagerank\", so this binding paints nothing.", todo: "Pick another source. Names are case-sensitive; the closest is PageRank.", fix: "PageRank" } },
+    };
+    // The values of a field on the project on screen, for "Fit to data" (the element computes these;
+    // read here from the fixture rows): the hosts' rows, or the researchers' records by stored path
+    function rowsOf(ds) {
+        const D = AB.fx.datasets[ds];
+        return ds === "wide" ? D.nodeRows : ds === "nested" ? D.document.data.researchers : null;
+    }
+    function rangeOf(name) {
+        const ds = AB.route && AB.route.frame.dataset, rows = rowsOf(ds);
+        if (!rows) return null;
+        const v = rows.map((r) => name.split(".").reduce((o, k) => (o == null ? o : o[k]), r)).filter((x) => typeof x === "number");
+        if (!v.length) return null;
+        const f = (x) => Number(x).toLocaleString("en-US");
+        return [f(Math.min(...v)), f(Math.max(...v))];
+    }
+    const UNITS = { wide: ["300", "hosts"], nested: ["170", "researchers"] };
+    function boundFrom(prop, name, type) {
+        const ds = AB.route && AB.route.frame.dataset, u = UNITS[ds] || ["77", "nodes"];
+        const num = type === "num";
+        return { prop, source: name, type: num ? "number" : "category", pal: num ? "ylorbr" : "okabe-ito", from: "fit", range: num ? rangeOf(name) : null, out: ["0.5", "3"], total: u[0], unit: u[1] };
+    }
+    // binding(el, preset or spec, { anchor, open }): open = true opens Source's field list at once
+    function binding(el, spec, o) {
+        o = o || {};
+        const B = typeof spec === "string" ? BINDINGS[spec] : spec;
         const isColor = B.prop === "Color";
-        const srcText = h("span", { class: "sp-ml" }, AB.typeGlyph("num"), B.source);
-        const src = AB.field(srcText, { caret: true, onClick: () => AB.openMenu(src, AB.fromDataItems("number", srcText.textContent, (n, t) => {
-            srcText.replaceChildren(AB.typeGlyph(t), n);
-            const head = src.closest(".k-popover").querySelector(".k-popover-head .k-grow");
-            if (head) head.textContent = B.prop + " from " + n;
-            AB.announce("Source: " + n);
-        })) });
-        src.setAttribute("aria-label", "Source");
-        src.setAttribute("aria-haspopup", "menu");
+        const MAXN = 28; // the Source field's width in characters: a longer path takes the middle ellipsis
+        const srcText = h("span", { class: "sp-ml", style: "min-width:0" });
+        const drawSrc = (name, type) => srcText.replaceChildren(...(name ? [AB.typeGlyph(type === "number" || type === "num" ? "num" : "cat"), AB.truncMiddle(name, MAXN)] : [h("span", { class: "sp-eff" }, "Pick a field")]));
+        drawSrc(B.source, B.type);
+        const titleOf = (name) => (name ? [B.prop + " from ", AB.truncMiddle(name, 30)] : [B.prop + " from data"]);
+        let pop1 = null;
+        // A pick on a binding with no source, or with an error, draws the whole popover for the field
+        // picked; otherwise Source changes in place and the rest stays
+        const repick = (name, type) => {
+            if (!B.source || B.error) {
+                const anchor = o.anchor;
+                pop1.remove();
+                binding(el, boundFrom(B.prop, name, type), { anchor });
+                el.querySelectorAll(":scope > .k-popover").forEach((p) => p.classList.add("sp-pop"));
+                requestAnimationFrame(() => { const f = el.querySelector(".k-popover [data-autofocus]"); if (f) f.focus(); });
+            } else {
+                drawSrc(name, type);
+                const head = pop1.querySelector(".k-popover-head .k-grow");
+                if (head) head.replaceChildren(...titleOf(name));
+            }
+            AB.announce(B.prop + " from " + name);
+        };
+        let current = B.source;
+        const src = AB.field(srcText, { caret: true, onClick: () => AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", onPick: (n, t) => { current = n; repick(n, t); } }) });
+        src.setAttribute("aria-label", "Source" + (B.source ? ": " + B.source : ", none picked"));
+        src.setAttribute("aria-haspopup", "listbox");
         src.setAttribute("data-autofocus", "");
-        let palRow = null;
-        if (isColor) {
-            let palId = B.pal, reversed = false;
-            const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
-            const palName = h("span", { class: "k-ellipsis" });
-            const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
-            drawPal();
-            const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, go: ["style-pickers", "palette"] });
-            palField.setAttribute("aria-label", "Palette");
-            const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
-            rev.setAttribute("aria-pressed", "false");
-            palRow = row("Palette", palField, rev);
+        let body;
+        if (!B.source) {
+            // Nothing bound yet: Source is the one field; the rest follows the pick
+            body = [row("Source", src)];
         } else {
-            // a size binding maps the values onto a size range instead of a palette
-            palRow = row("Sizes", h("span", { class: "sp-pair" }, input({ label: "Smallest size", num: true, value: B.out[0] }), "to", input({ label: "Largest size", num: true, value: B.out[1] })));
+            let palRow = null;
+            if (isColor) {
+                let palId = B.pal, reversed = false;
+                const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
+                const palName = h("span", { class: "k-ellipsis" });
+                const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
+                drawPal();
+                const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, go: ["style-pickers", "palette"] });
+                palField.setAttribute("aria-label", "Palette");
+                const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
+                rev.setAttribute("aria-pressed", "false");
+                palRow = row("Palette", palField, rev);
+            } else {
+                // a size binding maps the values onto a size range instead of a palette
+                palRow = row("Sizes", h("span", { class: "sp-pair" }, input({ label: "Smallest size", num: true, value: B.out[0] }), "to", input({ label: "Largest size", num: true, value: B.out[1] })));
+            }
+            const num = B.type === "number";
+            const R = B.range || ["", ""];
+            const typed = h("span", { class: "sp-pair" }, input({ label: "From", num: true, value: R[0] }), "to", input({ label: "To", num: true, value: R[1] }));
+            const typedRow = row("Range", typed);
+            const fitText = B.range ? B.range[0] + " to " + B.range[1] : "No values to fit";
+            const fitted = row("Range", h("span", { class: "sp-eff", "data-tip": B.range ? fitText + ", the lowest and highest value" : "The source reads no values" }, fitText));
+            typedRow.hidden = true;
+            let noValue = null;
+            if (isColor) {
+                noValue = AB.field(h("span", { class: "sp-eff" }, "Nothing"), { go: ["style-pickers", "color"] });
+                AB.tip(noValue, "Nothing, the default: rows beneath show through", { label: false });
+                noValue.setAttribute("aria-label", "No value: Nothing");
+            }
+            const err = B.error ? AB.problem({ what: B.error.what, todo: B.error.todo, action: { label: "Use " + B.error.fix, onClick: () => repick(B.error.fix, "num") } }) : null;
+            if (err) err.style.margin = "0 16px 8px";
+            body = [
+                row("Source", src),
+                err,
+                row("Scale", dropdown("Scale", num ? "linear" : "ordinal", Object.fromEntries(SCALES_FOR[B.type].map((k) => [k, SCALES[k]])), { unset: true, src: DEF + " for a " + (num ? "number" : "category") })),
+                palRow,
+                // a category maps each value to its own color: no range to fit
+                num ? row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; fitted.hidden = v === "typed"; fitted.querySelector(".sp-eff").textContent = v === "pct" ? "5th to 95th percentile" : fitText; }, "Values from")) : null,
+                num ? fitted : null, num ? typedRow : null,
+                num ? row("Clamp", check("Clamp values outside the range", true)) : null,
+                B.mid ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid })) : null,
+                // Note count is 0 on an element with no note, so a count binding never meets "no value"
+                noValue ? row("No value", noValue) : null,
+                h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, disabled: B.error ? "Nothing is painted to keep" : null, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their " + (isColor ? "colors" : "sizes"), { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
+            ];
         }
-        const typed = h("span", { class: "sp-pair" }, input({ label: "From", num: true, value: B.range[0] }), "to", input({ label: "To", num: true, value: B.range[1] }));
-        const typedRow = row("Range", typed);
-        const fitted = row("Range", h("span", { class: "sp-eff", "data-tip": B.range[0] + " to " + B.range[1] + ", the lowest and highest value" }, B.range[0] + " to " + B.range[1]));
-        typedRow.hidden = true;
-        let noValue = null;
-        if (isColor) {
-            noValue = AB.field(h("span", { class: "sp-eff" }, "Nothing"), { go: ["style-pickers", "color"] });
-            AB.tip(noValue, "Nothing, the default: rows beneath show through", { label: false });
-            noValue.setAttribute("aria-label", "No value: Nothing");
-        }
-        const body = [
-            row("Source", src),
-            row("Scale", dropdown("Scale", "linear", Object.fromEntries(SCALES_FOR[B.type].map((k) => [k, SCALES[k]])), { unset: true, src: DEF + " for a number" })),
-            palRow,
-            row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; fitted.hidden = v === "typed"; fitted.querySelector(".sp-eff").textContent = v === "pct" ? "5th to 95th percentile" : B.range[0] + " to " + B.range[1]; }, "Values from")),
-            fitted, typedRow,
-            row("Clamp", check("Clamp values outside the range", true)),
-            B.mid ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid })) : null,
-            // Note count is 0 on an element with no note, so a count binding never meets "no value"
-            noValue ? row("No value", noValue) : null,
-            h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their " + (isColor ? "colors" : "sizes"), { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
-        ];
-        if (!isColor) {
+        if (!isColor && B.source && !o.anchor) {
             // Everything's Size line, as the panel draws it once bound: the type glyph and the field
             const sv = document.querySelector(lineAt("node.size"));
-            if (sv) { sv.replaceChildren(AB.typeGlyph("num"), h("span", { class: "k-grow k-ellipsis" }, B.source)); sv.classList.add("ab-bound"); sv.closest(".ab-sline").setAttribute("data-bound", ""); }
+            if (sv && !sv.closest(".ab-sline").hasAttribute("data-bound")) { sv.replaceChildren(AB.typeGlyph("num"), h("span", { class: "k-grow k-ellipsis" }, B.source)); sv.classList.add("ab-bound"); sv.closest(".ab-sline").setAttribute("data-bound", ""); }
         }
-        const anchor = isColor ? find("#ab-right .ab-bound", "#ab-right .ab-sline") : find(lineAt("node.size"), headSel("Shape"));
-        el.append(pop(anchor, B.prop + " from " + B.source, body, { width: 340 }));
+        o.anchor = o.anchor || (isColor ? find("#ab-right .ab-bound", "#ab-right .ab-sline") : find(lineAt("node.size"), headSel("Shape")));
+        pop1 = pop(o.anchor, B.prop + " from " + (B.source || "data"), body, { width: 340 });
+        const head = pop1.querySelector(".k-popover-head .k-grow");
+        if (head) head.replaceChildren(...titleOf(B.source));
+        el.append(pop1);
+        // the list opens on arrival (a route showing the picker); o.query is the find's starting text
+        if (o.open) requestAnimationFrame(() => requestAnimationFrame(() => {
+            AB.openFieldList(src, { kind: isColor ? "color" : "number", element: "node", current, label: B.prop + " from", query: o.query, onPick: (n, t) => { current = n; repick(n, t); } });
+            // o.reveal scrolls a row into view by the start of its name (the disabled rows at a list's end)
+            if (o.reveal) requestAnimationFrame(() => { const r = [...document.querySelectorAll("#ab-overlay .ab-fl [data-fl-row]")].find((x) => (x.getAttribute("aria-label") || "").startsWith(o.reveal)); if (r) r.scrollIntoView({ block: "center" }); });
+            if (o.query) requestAnimationFrame(() => { const c = document.querySelector("#ab-overlay .ab-fl-count"); AB.announce(c && c.textContent ? c.textContent : "No match for \"" + o.query + "\""); });
+        }));
+        return pop1;
     }
 
     // ---------- Palette: one picker, pre-filtered by the binding's type ----------
@@ -553,21 +626,38 @@
     // Valjean's values: degree 36 (fixtures), 2 notes and his latest note (the notes fixture).
     const SAMPLE = { label: "Valjean", group: "2", degree: "36", betweenness: "0.57", PageRank: "0.0754", "Note count": "2",
         "Latest note": "Highest betweenness in the book, 0.57. Next is Myriel at 0.177." };
+    // the value the preview shows: Valjean's, or the first host's on the hosts project
+    const sampleOf = (field) => {
+        const ds = AB.route && AB.route.frame.dataset, rows = ds === "wide" || ds === "nested" ? rowsOf(ds) : null;
+        const v = rows ? field.split(".").reduce((o, k) => (o == null ? o : o[k]), rows[0]) : SAMPLE[field];
+        return v == null ? field : String(v);
+    };
     const posWord = (id) => (AB.CHANNELS.positions.find((p) => p[0] === id) || [id, id])[1];
     const posId = (word) => (AB.CHANNELS.positions.find((p) => p[1] === word) || [word])[0];
     const GRID = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
     // Press the Label "+" and pick a field, once per line, then optionally leave one more draft open
+    // While Show is offered the Label "+" is a two-item menu first; its Label line opens the field list.
+    function pressLabelPlus(then) {
+        const hd = headOf("Label"), plus = hd && hd.querySelector(".ab-plus");
+        if (!plus) return then(false);
+        plus.click();
+        requestAnimationFrame(() => {
+            const line = [...document.querySelectorAll("#ab-overlay .ab-menu .k-menu-item")].find((x) => x.textContent.trim() === "Label line");
+            if (line) line.click();
+            requestAnimationFrame(() => then(true));
+        });
+    }
+    // a field list row by its stored name (its accessible name starts with it)
+    const rowNamed = (name) => [...document.querySelectorAll("#ab-overlay .ab-fl [data-fl-row]")].find((x) => (x.getAttribute("aria-label") || "").split(",")[0] === name);
     function addLines(fields, thenDraft, done) {
         const step = (i) => {
-            const hd = headOf("Label"), plus = hd && hd.querySelector(".ab-plus");
-            if (!plus) return done && done();
             if (i >= fields.length) {
-                if (thenDraft) { plus.click(); leaveWithMenu(); }
+                if (thenDraft) pressLabelPlus(() => leaveWithMenu());
                 return done && done();
             }
-            plus.click();
-            requestAnimationFrame(() => {
-                const item = [...document.querySelectorAll("#ab-overlay .ab-menu .k-menu-item")].find((x) => x.textContent.trim().endsWith(fields[i]));
+            pressLabelPlus((ok) => {
+                if (!ok) return done && done();
+                const item = rowNamed(fields[i]);
                 if (item) item.click(); else AB.closeMenu();
                 requestAnimationFrame(() => step(i + 1));
             });
@@ -582,15 +672,15 @@
     function labelStyle(el, o) {
         o = o || {};
         // The lines of the row it was opened from, editing the line clicked; a direct link shows Group 2's two lines
-        const from = !o.right && labelOpener && labelOpener.lines.length ? labelOpener : null;
-        const lines = from ? from.lines.map((l) => Object.assign({}, l)) : [{ pos: "top", field: "label", type: "cat" }, { pos: "bottom", field: "degree", type: "num" }];
+        const from = !o.right && !o.lines && labelOpener && labelOpener.lines.length ? labelOpener : null;
+        const lines = o.lines ? o.lines.map((l) => Object.assign({}, l)) : from ? from.lines.map((l) => Object.assign({}, l)) : [{ pos: "top", field: "label", type: "cat" }, { pos: "bottom", field: "degree", type: "num" }];
         if (o.right) lines.push({ pos: "right", field: "Note count", type: "num" });
         const ed = from ? lines.find((l) => l.pos === from.pos) || lines[0] : lines[o.right ? 2 : 0];
         const set = { sizePx: 24, background: "#FFFFFF" }; // what this row's label style sets
         // the preview: Valjean's node with every line of this row in place
         const cells = {};
         const preview = h("div", { class: "sp-preview sp-lprev", role: "img" }, GRID.map((g) => (cells[g] = h("span", { class: "sp-lcell" + (g === "center" ? " sp-lnode" : ""), "data-pos": g }))));
-        const textOf = (l) => (l.type ? SAMPLE[l.field] || l.field : l.text || "Text");
+        const textOf = (l) => (l.type ? sampleOf(l.field) : l.text || "Text");
         const paint = () => {
             GRID.forEach((g) => cells[g].replaceChildren());
             lines.forEach((l) => {
@@ -633,17 +723,17 @@
         };
         drawGrid();
         // Text: where the words come from. A field or result is a chip (type glyph and name), never typed text.
-        const srcText = h("span", { class: "sp-ml" });
-        const drawSrc = () => { srcText.replaceChildren(ed.type ? AB.typeGlyph(ed.type) : null, ed.type ? ed.field : ed.text || ""); paint(); };
+        const srcText = h("span", { class: "sp-ml", style: "min-width:0" });
+        const drawSrc = () => { srcText.replaceChildren(...[ed.type ? AB.typeGlyph(ed.type) : null, ed.type ? AB.truncMiddle(ed.field, 28) : ed.text || ""].filter(Boolean)); paint(); };
         const srcField = AB.field(srcText, { caret: true, onClick: () => openSrc() });
         srcField.setAttribute("aria-label", "Text");
-        srcField.setAttribute("aria-haspopup", "menu");
+        srcField.setAttribute("aria-haspopup", "listbox");
         srcField.setAttribute("data-autofocus", "");
         // The one From data list (Typed text first), the same one the Label "+" opens
-        const openSrc = () => AB.openMenu(srcField, AB.fromDataItems("text", ed.type ? ed.field : null, (name, type) => {
+        const openSrc = () => AB.openFieldList(srcField, { kind: "text", typed: true, element: "node", current: ed.type ? ed.field : null, label: "Label text", onPick: (name, type) => {
             if (name === null) { Object.assign(ed, { type: null, field: null, text: "" }); drawSrc(); AB.flash("Type the label in the field (not wired in the skeleton)"); return; }
             Object.assign(ed, { field: name, type }); drawSrc(); AB.announce("Label, " + posWord(ed.pos) + ": " + name);
-        }));
+        } });
         // the style fields this row sets, "+" for the rest
         const fields = h("div");
         const all = GROUPS.flatMap(([, fs]) => fs);
@@ -705,6 +795,32 @@
         el.append(pop(anchor, title, body, { width: 300 }));
     }
 
+    // ---------- the pickers on wide and nested data ----------
+    // The hosts (69 attributes): the measure row painting Size by the longest name. The researchers
+    // (nested JSON): the 60-character set, whose Fill Color is a fixed color and whose Above label
+    // reads the seven-segment path.
+    const HOSTS = "inspector-measure-row/long-name", RESEARCHERS = "inspector-group-set-path-row/long-name";
+    const VULN = "vuln_count_critical_unremediated_over_30_days";
+    const LAST5 = "attributes.profile.metrics.citations.last_5_years";
+    // what render() does for a popover drawn after the panel has changed
+    function settle(el) {
+        el.hidden = false; // closing a menu on the way hid the empty overlay layer
+        el.querySelectorAll(":scope > .k-popover").forEach((x) => x.classList.add("sp-pop"));
+        const f = el.querySelector(".k-popover [data-autofocus]");
+        if (f) f.focus();
+    }
+    // Bind on a Color line: Binding with no source yet, its Source list open (Color by). On the hosts
+    // row Fill's real "+" adds the Color line first (Fill has one property, so "+" adds it at once).
+    function colorBy(el, o) {
+        o = o || {};
+        const open = () => { el.hidden = false; binding(el, { prop: "Color", source: null, type: "number" }, { anchor: find(lineAt("node.color"), headSel("Fill")), open: true, query: o.query, reveal: o.reveal }); settle(el); };
+        requestAnimationFrame(() => {
+            const b = o.add && headOf("Fill") && headOf("Fill").querySelector(".ab-plus");
+            if (b) b.click();
+            requestAnimationFrame(open);
+        });
+    }
+
     // ---------- states, frames and routes ----------
     const G2 = (s) => "inspector-group-set-path-row/" + s;
     const RIGHT = {
@@ -714,7 +830,11 @@
         pattern: G2("edges-side"), arrow: G2("arrows"),
         binding: "inspector-measure-row/style", "binding-diverging": "inspector-measure-row/risk-score", palette: "inspector-measure-row/style", "palette-custom": "inspector-measure-row/style",
         "token-color": "inspector-node/why-this-look",
+        "wide-no-match": HOSTS, "wide-size-by": HOSTS, "wide-color-by": HOSTS, "wide-search": HOSTS, "wide-bind": HOSTS, "wide-label": HOSTS,
+        "nested-color-by": RESEARCHERS, "binding-long": RESEARCHERS, "binding-unknown-path": "inspector-measure-row/style",
     };
+    // the project each state shows (the Les Miserables states name none)
+    const DATASET = { "wide-no-match": "wide", "wide-size-by": "wide", "wide-color-by": "wide", "wide-search": "wide", "wide-bind": "wide", "wide-label": "wide", "nested-color-by": "nested", "binding-long": "nested" };
     // Old ids keep working: they render the state that replaced them
     const ALIAS = { "plus-menu-search": "plus-menu", choice: "shape", "token-edit": "token-color" };
     const stateOf = (s) => ALIAS[s] || s;
@@ -740,6 +860,18 @@
         pattern: patternPicker,
         arrow: arrowPicker,
         "token-color": tokenPopover,
+        "wide-color-by": (el) => colorBy(el, { add: true }),
+        "wide-search": (el) => colorBy(el, { add: true, query: "cpu p95" }),
+        "wide-no-match": (el) => colorBy(el, { add: true, query: "xyz" }),
+        "nested-color-by": (el) => colorBy(el, { reveal: "tags" }),
+        // Size by on the hosts: the bound Size line's Binding, its Source list open on the number fields
+        "wide-size-by": (el) => binding(el, boundFrom("Size", VULN, "num"), { open: true, reveal: "Not a number" }),
+        // bind on a label line: the real "+" adds Above: hostname, then its Label popover opens its Text list
+        "wide-bind": (el) => labelAfterLines(el, ["hostname"], { lines: [{ pos: "top", field: "hostname", type: "text" }], openSource: true }),
+        // the Label "+" on the hosts row: Label line, then the field list (Typed text, the attributes, Notes)
+        "wide-label": () => requestAnimationFrame(() => pressLabelPlus(() => leaveWithMenu())),
+        "binding-unknown-path": (el) => binding(el, "unknown"),
+        "binding-long": (el) => binding(el, boundFrom("Size", LAST5, "num"), { anchor: find(headSel("Shape")) }),
     };
     // The Label popover keeps the inspector it was opened from (a label line knows it); else the state's fixture
     window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) setTimeout(() => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) labelOpener = null; }, 0); });
@@ -753,7 +885,10 @@
         rail: "graph",
         frame: (state) => {
             const right = rightOf(stateOf(state));
-            return { left: /risk-score/.test(right) ? "data-place/attributes" : "graph-place/at-rest", right };
+            const ds = DATASET[stateOf(state)];
+            // the hosts' and the researchers' pickers open on the row each project's tree holds
+            const own = ds === "wide" ? { left: "graph-place/wide-sized", canvas: "canvas-and-states/hosts-legend" } : ds === "nested" ? { left: "graph-place/nested-set", canvas: "canvas-and-states/nested-set" } : {};
+            return Object.assign({ left: /risk-score/.test(right) ? "data-place/attributes" : "graph-place/at-rest", right }, ds ? { dataset: ds } : {}, own);
         },
         // Esc and an outside click return to the inspector that opened the picker
         get closeTo() { return rightOf(stateNow()); },
@@ -777,6 +912,15 @@
             { id: "label-style", label: "Label (text, position and style)" },
             { id: "label-position", label: "Label: position grid, Above and Below used" },
             { id: "token-color", label: "Token: Color on Valjean" },
+            { id: "wide-color-by", label: "Color by on the hosts: Find, In use first, by table" },
+            { id: "wide-size-by", label: "Size by on the hosts: numbers, then Not a number" },
+            { id: "wide-search", label: "Color by on the hosts, \"cpu p95\" typed" },
+            { id: "wide-no-match", label: "Color by on the hosts, \"xyz\" typed: no match" },
+            { id: "wide-bind", label: "Label on the hosts: its Text list" },
+            { id: "wide-label", label: "Label \"+\" on the hosts: the field list" },
+            { id: "nested-color-by", label: "Color by on the researchers (nested JSON)" },
+            { id: "binding-unknown-path", label: "Binding: a source that reads nothing" },
+            { id: "binding-long", label: "Binding: Size from a seven-segment path" },
         ],
         render(el, state) {
             const s = stateOf(state);

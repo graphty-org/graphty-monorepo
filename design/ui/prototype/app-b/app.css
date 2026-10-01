@@ -254,8 +254,8 @@ html[data-design-notes-hidden] :is(.ab-design-note, [data-needs], .k-annot-tag, 
 
 /* Menus: one line per item; the second line only says why an item is disabled */
 .k-menu-item .ab-design-note { margin-inline-start: 8px; }
-.ab-menu-find { margin: 4px 8px 6px; width: calc(100% - 16px); box-sizing: border-box; height: 24px; padding: 0 8px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text-menu); background: rgba(255, 255, 255, 0.08); }
-.ab-menu-none .ab-empty { color: var(--k-menu-ink2, #aaa); padding: 4px 12px; }
+
+
 .ab-plus[aria-haspopup] { }
 
 /* Inspector header mirrors the tree row: kind icon, swatch, name, lock */
@@ -463,3 +463,47 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .k-badge.ab-role { height: auto; min-height: 16px; white-space: normal; }
 .ab-fctl { min-width: 0; }
 .k-row[aria-current="true"] { background: var(--cm-bg-selected); }
+
+/* ---------- the field list (lib.js fieldList): one list, menu size and panel size ---------- */
+.ab-fl { display: flex; flex-direction: column; min-width: 0; }
+.ab-fl-menu { width: 320px; max-height: 420px; padding: 4px 0 8px; }
+.ab-fl-list { overflow-y: auto; min-height: 0; flex: 1 1 auto; outline: none; }
+.ab-fl-list:focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); border-radius: 8px; }
+.ab-fl-find { display: flex; align-items: center; gap: 8px; padding: 4px 8px 6px; flex: none; }
+.ab-fl-count { flex: none; font-size: 11px; color: var(--cm-text-secondary); font-variant-numeric: tabular-nums; }
+.ab-fl-menu .ab-fl-count { color: var(--k-menu-ink2); }
+.ab-fl-menu .ab-find { background: rgba(255, 255, 255, 0.08); color: var(--k-menu-ink2); }
+.ab-fl-menu .ab-find input { color: #fff; }
+.ab-fl-menu .ab-find input::placeholder { color: var(--k-menu-ink3); }
+.ab-fl-table { font-weight: 550; }
+.ab-fl-panel .ab-fl-table { height: 28px; display: flex; align-items: center; padding: 0 16px; color: var(--cm-text-secondary); }
+.ab-fl-sub { font-size: 11px; }
+.ab-fl-panel .ab-fl-sub { height: 24px; display: flex; align-items: center; padding: 0 16px; color: var(--cm-text-tertiary); }
+.ab-fl-opt, .ab-fl-folder { min-width: 0; cursor: default; }
+.ab-fl-panel .ab-fl-opt, .ab-fl-panel .ab-fl-folder { min-height: 24px; padding-left: 8px; }
+.ab-fl-panel .ab-fl-opt[data-hover], .ab-fl-panel .ab-fl-folder[data-hover] { background: var(--cm-bg-hover); }
+.ab-fl-panel .ab-fl-opt .k-check-col, .ab-fl-panel .ab-fl-folder .k-check-col { width: 16px; flex: none; display: grid; place-items: center; }
+.ab-fl-panel .ab-fl-opt[aria-disabled="true"] { color: var(--cm-text-tertiary); }
+.ab-fl-list[aria-multiselectable] .ab-fl-opt[aria-selected="true"]:not([data-hover]) { background: transparent; }
+.ab-fl-in { padding-left: 32px !important; }
+.ab-fl-glyph { flex: none; width: 24px; display: grid; place-items: center; color: var(--cm-icon-secondary); }
+.ab-fl-menu .ab-fl-glyph { color: var(--k-menu-ink2); }
+.ab-fl-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
+.ab-fl-name .k-menu-desc { white-space: normal; }
+.ab-fl-trail { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--cm-text-secondary); }
+.ab-fl-menu .ab-fl-trail { color: var(--k-menu-ink2); }
+.ab-fl-box { display: inline-grid; place-items: center; width: 14px; height: 14px; border: 1px solid var(--cm-border-strong); border-radius: 3px; }
+.ab-fl-box[data-on] { background: var(--cm-bg-brand); border-color: var(--cm-bg-brand); color: #fff; }
+.ab-fl-opt[aria-disabled="true"] .ab-fl-box { opacity: 0.6; }
+.ab-fl-none { padding: 4px 16px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.ab-fl-none .ab-empty { padding: 0; }
+.ab-fl-menu .ab-fl-none, .ab-fl-menu .ab-fl-none .ab-empty { color: var(--k-menu-ink2); }
+.ab-mid b { font-weight: 700; }
+
+/* ---------- the problem block (lib.js problem): what happened, what to do, one action ---------- */
+.ab-problem { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--cm-bg-secondary, var(--cm-bg-hover)); }
+.ab-problem > .k-warn-glyph { margin-top: 1px; }
+.ab-problem-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; line-height: 16px; }
+.ab-problem-what { font-weight: 550; }
+.ab-problem-todo { color: var(--cm-text-secondary); }
+.ab-problem-act { padding-top: 4px; }

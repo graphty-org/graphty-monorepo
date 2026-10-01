@@ -318,22 +318,28 @@
     const noMatch = (q) => empty('No match for "' + q + '"');
 
     // ---------- one "+" (spec 2.5): only in a section or list header ----------
-    // plus({ label: "Add to Line", items: ["Width", { label, desc, needs }], onAdd(item), go })
-    // One item: "+" adds it. Two or more: a dark menu (a filter field past 15). None: nothing.
+    // plus({ label: "Add to Line", items: ["Width", { label, desc, needs }], onAdd(item), go, fields })
+    // One item: "+" adds it. Two or more: a dark menu; past 15 the field list at menu size (with
+    // `fields`, a fieldList options object, it lists those fields at any length). None: nothing.
     // `go` sends "+" to a route instead of the local menu (a picker section that draws its own).
     function plus(o) {
         o = o || {};
         const items = (o.items || []).map((x) => (typeof x === "string" ? { label: x } : x));
-        if (!items.length && !o.go) return null;
+        if (!items.length && !o.go && !o.fields) return null;
         const b = iconButton("plus", o.label || (items.length === 1 ? "Add " + items[0].label : "Add"), {
             onClick: () => {
                 if (items.length === 1 && !o.go) return o.onAdd && o.onAdd(items[0]);
                 if (o.go) return go(o.go[0], o.go[1]);
-                openMenu(b, items.map((it) => Object.assign({}, it, { onClick: () => o.onAdd && o.onAdd(it) })), { search: items.length > 15 });
+                // Past 15 items the menu is the field list at menu size: its fields when the items are
+                // fields (o.fields: fieldList options), else its find over these items
+                if (o.fields) return openFieldList(b, Object.assign({}, o.fields, { onPick: (name, type, f) => o.onAdd && o.onAdd(Object.assign({ label: name, type }, f)) }));
+                const list = items.map((it) => Object.assign({}, it, { onClick: () => o.onAdd && o.onAdd(it) }));
+                if (items.length > 15) openFieldList(b, { items: list });
+                else openMenu(b, list);
             },
         });
         b.classList.add("ab-plus");
-        if (items.length > 1 || o.go) b.setAttribute("aria-haspopup", "menu");
+        if (items.length > 1 || o.go || o.fields) b.setAttribute("aria-haspopup", items.length > 15 || o.fields ? "listbox" : "menu");
         return b;
     }
     // A new item opens into rename with its name selected: createThenRename(rowEl, { onSave })
@@ -374,10 +380,10 @@
     // section) calls addNote(); the editor reads AB.noteDraft, and the inspector stays as it was.
     const SUBJECT_ICON = { "inspector-node": "circle-dot", "inspector-edge": "spline", "inspector-run-row": ICON.run, "inspector-measure-row": "chart-column", "inspector-attribute-and-filter-step": ICON.filter, "inspector-several-elements": "circle-dot" };
     // The graph a note is about when nothing is selected: the graph of the project on screen
-    const GRAPH_STATE = { lesmis: "overview", doorEntries: "door-entries", transactions: "transfers" };
+    const GRAPH_STATE = { lesmis: "overview", doorEntries: "door-entries", transactions: "transfers", wide: "wide", nested: "wide", plainJson: "wide" };
     function noteSubject() {
         const r = AB.route, ds = (r && r.frame.dataset) || "lesmis", D = AB.fx.datasets[ds];
-        const gname = ds === "doorEntries" ? D.graphName : ds === "transactions" ? D.frame.graphRow : "Co-appearances";
+        const gname = ds === "lesmis" ? "Co-appearances" : ds === "transactions" ? D.frame.graphRow : D.graphName;
         const gs = GRAPH_STATE[ds] || "overview";
         const graph = { dataset: ds, targets: [{ label: gname, icon: "network", go: ["inspector-nothing-selected", gs] }], right: "inspector-nothing-selected/" + gs };
         const sub = noteSubjectOf(r, graph, gname);
@@ -548,6 +554,9 @@
     function inspector(o) {
         if (o.meta) console.warn("inspector(" + o.title + "): meta is gone; open the Style tab with paintsLine()");
         const wrap = h("div", { class: "ab-insp", "data-changed": o.changed ? "" : null });
+        // A node reached by the canvas walk (Shift+Arrow) is named in the header (the shell sets AB.walked)
+        const W = AB.walked;
+        if (W && (o.kindKey || o.kind) === "node" && AB.route && AB.route.frame.right === W.right) o = Object.assign({}, o, { title: W.name, swatch: null });
         const no = renameRefusal(o);
         // The name is text, not a button: rename is double-click or F2, as on every name (spec 3.6)
         const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", "aria-keyshortcuts": no ? null : "F2", "aria-description": no ? null : "Double-click or F2 renames" }, o.title);
@@ -900,7 +909,8 @@
         });
         return position(m, o.anchor, o.place);
     }
-    // A local dark menu that is not a route (the "+" menu): openMenu(anchor, items, { search })
+    // A local dark menu that is not a route (the "+" menu): openMenu(anchor, items). A list past 15
+    // items is not a menu: it is the field list at menu size (openFieldList), which has the find.
     let localMenu = null;
     function closeMenu(refocus) {
         if (!localMenu) return;
@@ -912,33 +922,39 @@
         document.removeEventListener("pointerdown", off, true);
         if (refocus && anchor.isConnected) anchor.focus();
     }
-    function openMenu(anchor, items, o) {
-        o = o || {};
+    function openMenu(anchor, items) {
+        if (items.length > 15) console.warn("openMenu: " + items.length + " items; past 15 use AB.openFieldList(anchor, { items })");
         // The control that opened the menu closes it again: a second click toggles
         if (localMenu && localMenu.anchor === anchor && localMenu.el.isConnected) { closeMenu(true); return null; }
         closeMenu();
         const layer = document.getElementById("ab-overlay");
         const wrapItems = (list) => list.map((it) => (it.sep || it.heading ? it : Object.assign({}, it, { onClick: () => { closeMenu(true); it.onClick && it.onClick(); } })));
         const m = menu({ anchor, place: "below-end", items: wrapItems(items), onClose: () => closeMenu(true), label: anchor.getAttribute("aria-label") });
-        if (o.search) {
-            const inp = h("input", { class: "ab-menu-find", type: "search", placeholder: "Find", "aria-label": "Find" });
-            inp.addEventListener("input", () => {
-                const q = inp.value.trim().toLowerCase();
-                m.querySelectorAll(".k-menu-item").forEach((x) => (x.hidden = q && !x.textContent.toLowerCase().includes(q)));
-                const none = m.querySelector(".ab-menu-none");
-                const any = [...m.querySelectorAll(".k-menu-item")].some((x) => !x.hidden);
-                if (!any && !none) m.append(h("div", { class: "ab-menu-none" }, noMatch(inp.value.trim())));
-                else if (any && none) none.remove();
-            });
-            inp.addEventListener("keydown", (e) => { if (e.key === "ArrowDown") { e.preventDefault(); const f = [...m.querySelectorAll(".k-menu-item")].find((x) => !x.hidden); if (f) f.focus(); } });
-            m.prepend(inp);
-        }
         const off = (e) => { if (!m.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) closeMenu(); };
         localMenu = { el: m, anchor, off };
         layer.hidden = false; // the shell hides the layer while no overlay section shows
         layer.append(m);
         document.addEventListener("pointerdown", off, true);
         requestAnimationFrame(() => requestAnimationFrame(() => { const f = m.querySelector("input, .k-menu-item"); if (f) f.focus(); }));
+        return m;
+    }
+    // The field list at menu size as a local popup (like openMenu): a second click on the anchor
+    // closes it, a pick, Esc or Tab closes it and focus goes back to the anchor.
+    // openFieldList(anchor, fieldList options; size is "menu")
+    function openFieldList(anchor, o) {
+        if (localMenu && localMenu.anchor === anchor && localMenu.el.isConnected) { closeMenu(true); return null; }
+        closeMenu();
+        const layer = document.getElementById("ab-overlay");
+        const wrapPick = (fn) => (...a) => { closeMenu(true); if (fn) fn(...a); };
+        const opts = Object.assign({}, o, { size: "menu", onPick: wrapPick(o.onPick), onClose: () => closeMenu(true), label: o.label || anchor.getAttribute("aria-label") });
+        if (o.items) opts.items = o.items.map((it) => (it.sep || it.heading ? it : Object.assign({}, it, { onClick: wrapPick(it.onClick) })));
+        const m = position(fieldList(opts), anchor, "below-end");
+        const off = (e) => { if (!m.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) closeMenu(); };
+        localMenu = { el: m, anchor, off };
+        layer.hidden = false;
+        layer.append(m);
+        document.addEventListener("pointerdown", off, true);
+        requestAnimationFrame(() => requestAnimationFrame(() => { const f = m.querySelector("input, .ab-fl-list"); if (f) f.focus(); }));
         return m;
     }
     window.addEventListener("hashchange", () => closeMenu());
@@ -1364,11 +1380,11 @@
         };
         // ---- label lines ----
         const freePos = () => POS.find((w) => !labels.some((l) => l.pos === w));
-        const openFields = (anchor, l) => openMenu(anchor, fromDataItems("text", l.draft ? undefined : l.field, (name, type) => {
+        const openFields = (anchor, l) => openFieldList(anchor, { kind: "text", typed: true, element: "node", current: l.draft ? undefined : l.field, onPick: (name, type) => {
             if (name === null) { Object.assign(l, { field: null, type: null, text: "Label text" }); delete l.draft; focusLabel = l.pos; drawBody(); announce("Label, " + l.pos + ": typed text"); return; }
             Object.assign(l, { field: name, type }); delete l.draft; delete l.text;
             focusLabel = l.pos; drawBody(); announce("Label, " + l.pos + ": " + name);
-        }));
+        } });
         let focusLabel = null;
         // "+" with an empty line already there returns to it (as the Notes "+" returns to its open draft)
         const addLabel = () => {
@@ -1637,27 +1653,391 @@
             h("span", { class: "k-grow" }), o.trail || null);
     }
 
-    // The From data list: the dark list a label line's "+" opens at once and its draft value opens
-    // (style-pickers' Text menu is the same list). Notes are graphty-element API (notes.count,
-    // notes.latest), so the Notes group is enabled. fromDataItems(kind: "text" | other, current, onPick(name, type))
-    function fromDataItems(kind, current, onPick) {
-        const lm = AB.fx.datasets.lesmis;
-        const TYPE = { text: ["cat", "Text"], category: ["cat", "Category"], integer: ["num", "Whole number"], number: ["num", "Number"] };
-        const it = (name, type, detail) => ({ label: h("span", { class: "ab-ml" }, typeGlyph(TYPE[type][0]), name), desc: TYPE[type][1] + (detail ? ", " + detail : ""), check: name === current, onClick: () => onPick(name, TYPE[type][0]) });
-        const attrs = [
-            kind === "text" ? it("label", "text", lm.nodes + " values, the Name attribute") : null,
-            it("group", "category", Object.keys(lm.attributes.find((a) => a.name === "group").values).length + " values"),
-            it("degree", "integer", "1 to " + lm.stats.maxDegree),
-            it("betweenness", "number", "0 to 0.57"),
-        ].filter(Boolean);
-        const notes = [it("Note count", "integer", "notes whose targets include this element"), kind === "text" ? it("Latest note", "text", "its text") : null].filter(Boolean);
-        // A label's list starts with Typed text (spec 16.6): onPick(null, null) means typed words, not a field
-        const typed = kind === "text" ? [{ label: "Typed text", check: current === null, onClick: () => onPick(null, null) }, { sep: true }] : [];
-        return typed.concat({ heading: "Node attributes" }, attrs, { heading: "Results" }, it("PageRank", "number", "0.0033 to 0.0754"), it("Louvain", "category", "6 groups"), { heading: "Notes" }, notes);
+    // ---------- truncation (spec 2.5): a middle ellipsis on attribute names and paths ----------
+    // Prose (node names, notes, source names, row names) takes the end ellipsis (CSS .k-ellipsis).
+    // An attribute name or path keeps its start and its end: cpu_util...p95_pct. truncMiddle(text, max)
+    // returns a span; when it shortens, the full text is its tooltip and its accessible name.
+    const midCut = (text, max) => {
+        const t = String(text);
+        if (t.length <= max) return null;
+        // A dotted path keeps its last two segments, or its last one, whole: they tell siblings apart
+        // ("...profile.contact", not "attribute....contact")
+        const segs = t.split(".");
+        for (const k of [2, 1]) {
+            const tail = segs.slice(-k).join(".");
+            if (segs.length > k && tail.length + 3 <= max && tail.length >= max / 2) return [0, t.length - tail.length];
+        }
+        const keep = max - 3;
+        let head = Math.ceil(keep / 2), from = t.length - (keep - head);
+        // never a "." beside the ellipsis (it reads as four dots)
+        if (t[head - 1] === ".") head--;
+        if (t[from] === ".") from++;
+        return [head, from]; // [end of the head, start of the tail]
+    };
+    function truncMiddle(text, max, ranges) {
+        const t = String(text), cut = midCut(t, max || 30);
+        // the kept parts, with the matched ranges in bold
+        const mark = (from, to) => {
+            const out = [];
+            let i = from;
+            (ranges || []).map(([a, b]) => [Math.max(a, from), Math.min(b, to)]).filter(([a, b]) => a < b).forEach(([a, b]) => { if (a > i) out.push(t.slice(i, a)); out.push(h("b", null, t.slice(a, b))); i = b; });
+            if (i < to) out.push(t.slice(i, to));
+            return out;
+        };
+        const el = h("span", { class: "ab-mid" }, cut ? [mark(0, cut[0]), "...", mark(cut[1], t.length)] : mark(0, t.length));
+        if (cut) tip(el, t);
+        return el;
+    }
+
+    // ---------- word-start matching (spec 2.5): "vu cr", "cpu p95" ----------
+    // Names split at _ . - [ ] spaces and case changes; each typed word must start a word of the name,
+    // in order. Returns the matched [start, end) ranges, or null.
+    function wordMatch(name, query) {
+        const q = String(query || "").trim().toLowerCase().split(/[\s_.\-[\]]+/).filter(Boolean); // a typed name splits like a stored one
+        if (!q.length) return [];
+        const s = String(name), words = [];
+        const re = /[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])|[^\s_.\-[\]A-Za-z0-9]+/g;
+        let m;
+        while ((m = re.exec(s))) words.push([m.index, m[0].toLowerCase()]);
+        const out = [];
+        let w = 0;
+        for (const part of q) {
+            while (w < words.length && !words[w][1].startsWith(part)) w++;
+            if (w === words.length) return null;
+            out.push([words[w][0], words[w][0] + part.length]);
+            w++;
+        }
+        return out;
+    }
+
+    // ---------- the fields of the project on screen ----------
+    // fieldsOf(dataset) -> [{ table, element: "node" | "edge", fields: [field] }], a stand-in for
+    // graphty-element's session.data.attributes() (types, fill, parents, usedBy). A field:
+    // { name (the stored name or path), label (the last segment), parent (its folder, or null), type:
+    // "cat" | "num" | "time" | "bool" | "id" | "text" | "list" | "whole", fill (0 to 1), usedBy, computed }.
+    // ponytail: usedBy is typed here per sample (USED_BY) until the element's usedBy reaches the app.
+    // It names only what the project on screen really uses: the roles set at load, plus the row a
+    // later state adds (STYLED, keyed by the tree's state) -- never a binding the tree does not hold.
+    const USED_BY = {
+        lesmis: { label: "Name, Label", group: "Color (group)", degree: "Size (Degree)" },
+        transactions: { "id (account)": "Key", kind: "Color (kind)", riskScore: "Filter step", "amount (edge)": "Weight" },
+        doorEntries: { id: "Key", name: "Name, Label", bldg: "Key", person_id: "Link to person", building_id: "Link to building", time: "Time", count: "Weight" },
+        wide: { id: "Key", hostname: "Name", source: "From", target: "To", bytes_total_24h: "Weight" },
+        nested: { id: "Key", source: "From", target: "To", weight: "Weight", institution_id: "To" },
+        plainJson: { id: "Key", name: "Name", source: "From", target: "To", weight: "Weight" },
+    };
+    const STYLED = {
+        "graph-place/wide-sized": { vuln_count_critical_unremediated_over_30_days: "Size" },
+        "graph-place/nested-set": { "attributes.profile.metrics.citations.last_5_years": "Label (set)" },
+    };
+    // The nested project as the last Load left it (data-page's nestedChoices); before any Load, the
+    // Data page's own proposal: coauthor_ids as Several edges (one edge per pair), the other arrays kept
+    // as one value, links' weight column as the weight
+    const NESTED_LOADED = { researchers: true, institutions: true, links: true, co: "edges", coPer: "pair", aff: "one", addr: "one", keep: [], direction: "undirected", linkTo: ["researcher", "institution"], weight: "weight", idLinks: [] };
+    const nestedLoaded = () => (AB.fx && AB.fx.datasets.nested && AB.fx.datasets.nested.loaded) || NESTED_LOADED;
+    const fieldCache = new Map();
+    const KIND_TYPE = { id: "id", text: "text", category: "cat", boolean: "bool", integer: "num", number: "num", datetime: "time", date: "time" };
+    const typeOfKind = (k) => KIND_TYPE[k] || (/currency|number|integer/.test(k) ? "num" : /date|time/.test(k) ? "time" : "text");
+    const RESULTS = { lesmis: [["PageRank", "num"], ["Louvain", "cat"]] };
+    function fieldsOf(ds) {
+        const D = AB.fx.datasets[ds];
+        if (!D) return [];
+        if (D._fields) return D._fields; // a list handed its own fields (the node inspector's "N more")
+        const left = (AB.route && AB.route.frame && AB.route.frame.left) || "";
+        const NL = ds === "nested" ? nestedLoaded() : null;
+        const ck = ds + "|" + (STYLED[left] ? left : "") + "|" + (NL ? JSON.stringify(NL) : "");
+        if (fieldCache.has(ck)) return fieldCache.get(ck);
+        const used = Object.assign({}, USED_BY[ds] || {}, STYLED[left] || {});
+        const f = (name, type, o) => Object.assign({ name, label: name, parent: null, type, fill: null, usedBy: used[name] || null, computed: false }, o || {});
+        let out = [];
+        if (ds === "wide") {
+            const col = (a, n) => f(a.name, typeOfKind(a.kind), { fill: a.filled / n });
+            out = [{ table: "hosts", element: "node", fields: D.nodeAttributes.map((a) => col(a, D.nodes)) }, { table: "connections", element: "edge", fields: D.edgeAttributes.map((a) => col(a, D.edges)) }];
+        } else if (ds === "nested") {
+            // One table per array of records the last Load used; a sub-object's fields sit in its folder
+            // (the parent path without the record's "attributes." holder); an array follows its Load
+            // outcome: One value (kept whole), Several values (a list), Several edges (not an
+            // attribute: the edges), Several rows (a table of its own); a sub-object kept as one value
+            // is one whole field.
+            const RES = "data.researchers[].";
+            const outcome = { "relationships.coauthor_ids": NL.co, "attributes.affiliations": NL.aff, "attributes.profile.contact.addresses": NL.addr };
+            const kept = (rel) => NL.keep.find((k) => rel === k || rel.startsWith(k + "."));
+            const on = { "data.researchers[]": NL.researchers, "data.institutions[]": NL.institutions, "links[]": NL.links };
+            out = Object.keys(D.recordArrays).filter((arr) => on[arr] !== false).map((arr) => {
+                const n = D.recordArrays[arr], pre = arr + ".";
+                const kinds = {};
+                D.paths.forEach((p) => { if (p.path.startsWith(pre)) kinds[p.path.slice(pre.length)] = p; });
+                const fields = [];
+                Object.keys(kinds).forEach((rel) => {
+                    if (rel.includes("[]")) return; // inside an array
+                    const pick = pre === RES ? outcome[rel] : null;
+                    if (pick === "edges" || pick === "rows") return; // edges, or a table of its own
+                    const k0 = pre === RES ? kept(rel) : null;
+                    if (k0 && k0 !== rel) return; // inside a sub-object kept as one value
+                    const p = kinds[rel], k = Object.keys(p.kinds).filter((x) => x !== "null");
+                    if (k[0] === "object" && !k0) return; // a folder, not a value
+                    const items = kinds[rel + "[]"];
+                    const type = k0 || pick === "one" ? "whole" : k[0] === "array" ? (items && items.kinds.object ? "whole" : "list") : k[0] === "number" ? "num" : k[0] === "boolean" ? "bool" : "text";
+                    const segs = rel.split(".");
+                    const parent = segs.length > 1 ? segs.slice(0, -1).join(".") : null; // the full sub-object path, as the element reports it
+                    fields.push(f(rel, type, { label: segs[segs.length - 1], parent, fill: (p.count - (p.kinds.null || 0)) / n }));
+                });
+                return { table: arr.replace(/^data\./, "").replace(/\[\]$/, ""), element: /^links/.test(arr) ? "edge" : "node", fields };
+            });
+            // Several rows: the child table's columns (the items' leaves), after its parent's table
+            const child = (rel, table, element) => {
+                const p0 = RES + rel + "[].", n = (D.paths.find((q) => q.path === RES + rel + "[]") || {}).count || 0;
+                const fields = D.paths.filter((q) => q.path.startsWith(p0) && !q.path.slice(p0.length).includes("[") && !q.kinds.object && !q.kinds.array).map((q) => {
+                    const r = q.path.slice(p0.length), segs = r.split("."), k = Object.keys(q.kinds).filter((x) => x !== "null")[0];
+                    return f(r, k === "number" ? "num" : k === "boolean" ? "bool" : "text", { label: segs[segs.length - 1], parent: segs.length > 1 ? segs.slice(0, -1).join(".") : null, fill: (q.count - (q.kinds.null || 0)) / n });
+                });
+                out.splice(1, 0, { table, element, fields });
+            };
+            if (NL.researchers && NL.addr === "rows") child("attributes.profile.contact.addresses", "addresses", "node");
+            if (NL.researchers && NL.aff === "rows") child("attributes.affiliations", "affiliations", "edge");
+        } else if (ds === "plainJson") {
+            const doc = D.document, keys = (rows) => [...new Set(rows.flatMap((r) => Object.keys(r)))];
+            const fill = (rows, k) => rows.filter((r) => r[k] != null).length / rows.length;
+            const ty = (rows, k) => (rows.every((r) => r[k] == null || typeof r[k] === "number") ? "num" : "text");
+            out = [{ table: "nodes", element: "node", fields: keys(doc.nodes).map((k) => f(k, ty(doc.nodes, k), { fill: fill(doc.nodes, k) })) },
+                { table: "links", element: "edge", fields: keys(doc.links).map((k) => f(k, ty(doc.links, k), { fill: fill(doc.links, k) })) }];
+        } else if (ds === "doorEntries") {
+            const [p, b] = D.tables;
+            out = [{ table: "people", element: "node", fields: p.columns.map((c) => f(c, c === "id" || c === "badge" ? "id" : "cat")) },
+                { table: "buildings", element: "node", fields: b.columns.map((c) => f(c, c === "floors" ? "num" : c === "bldg" ? "id" : "cat")) },
+                { table: "entries", element: "edge", fields: [f("time", "time"), f("count", "num", { computed: true })] }];
+        } else {
+            // lesmis, transactions and the other kit samples: attributes, edge ones marked "(edge)"
+            const attrs = (D.attributes || []).map((a) => {
+                const edge = /\((edge)\)/.test(a.name);
+                return [edge, f(a.name.replace(/ \(edge\)$/, ""), typeOfKind(a.kind), { usedBy: used[a.name] || used[a.name.replace(/ \(edge\)$/, "")] || null, computed: ds === "lesmis" && (a.name === "degree" || a.name === "betweenness") })];
+            });
+            out = [{ table: ds === "transactions" ? "accounts" : "nodes", element: "node", fields: attrs.filter(([e]) => !e).map(([, x]) => x) },
+                { table: ds === "transactions" ? "transfers" : "edges", element: "edge", fields: attrs.filter(([e]) => e).map(([, x]) => x) }];
+        }
+        out = out.filter((g) => g.fields.length);
+        fieldCache.set(ck, out);
+        return out;
+    }
+    // Why a typed picker cannot take a field (null: it can). Suitability stands in for the element's
+    // AttributeDescriptor.domainKind.
+    function unsuitable(kind, x) {
+        if (x.type === "whole" && kind && kind !== "any") return x.name + " is kept as one value; open it on the Data page to read its parts";
+        if (x.type === "list" && (kind === "number" || kind === "color")) return x.label + " holds several values; use Show as groups";
+        if (kind === "number" && x.type !== "num") return "Not a number";
+        return null;
+    }
+
+    // ---------- the field list (spec 2.5): one component, two sizes ----------
+    // fieldList({ size: "menu" | "panel", dataset, kind, element, current, checkboxes, locked, onPick,
+    //   onToggle, typed, results, notes, items, query, label, onClose, trail })
+    // - size "menu": a dark list for every attribute picker (bind, Label, Color by, Size by, Width by, a
+    //   filter step, a link's "by", Go to column, Weight, Insert attribute, a recipe's binding). Open it
+    //   from a control with openFieldList(anchor, o); a section drawing it in its own overlay places it
+    //   with position(fieldList(o), anchor, place). "panel": the same list inline (Data > Attributes,
+    //   "N more attributes", the table's Columns).
+    // - The fields are the project on screen's (dataset, default AB.route.frame.dataset), grouped by
+    //   table, open; `element` "node" or "edge" keeps one side. In each table "In use (n)" first, each
+    //   row tagged with what uses it, then computed, then by name; folders only from the data's nesting,
+    //   collapsed unless something inside is in use. Then Results and, at menu size, Notes.
+    // - kind: "number" (Size by, Width by, Weight), "color" (Color by), "text" (Label), or none. A typed
+    //   picker lists unsuitable fields last, disabled, the reason on a second line ("Not a number" ones
+    //   under one folder, "Not a number (45)").
+    // - Find past 15 rows, matching word starts; matches in bold; the count announced; focus stays in
+    //   Find over the listbox (arrows move, Enter picks, Esc clears then closes). No match: the empty
+    //   line `No match for "x"` with Clear.
+    // - checkboxes: the names shown (panel size, the table's Columns); `locked` names cannot be
+    //   unchecked (the key); onToggle(name, on). typed: Typed text first (onPick(null, null)).
+    // - items: [{ label, desc, disabled, onClick, check }] lists those instead of fields, with the same
+    //   find (the "+" menu and any list past 15 that is not fields).
+    // - onPick(name, type, field); trail(field) adds a node at a row's end (a role tag).
+    let flSeq = 0;
+    function fieldList(o) {
+        o = Object.assign({ size: "menu" }, o);
+        const menuSize = o.size === "menu";
+        const ds = o.dataset || (AB.route && AB.route.frame.dataset) || "lesmis";
+        const id = "ab-fl-" + ++flSeq;
+        const checks = o.checkboxes ? new Set(o.checkboxes) : null;
+        const open = {}; // folder key -> open
+        // ---- the rows: groups of { head, rows }, a row being a field, an item or a folder ----
+        const groups = [];
+        if (o.items) groups.push({ head: null, rows: o.items.filter((it) => !it.sep).map((it) => (it.heading ? { heading: it.heading } : { item: it, label: typeof it.label === "string" ? it.label : it.label.textContent, name: typeof it.label === "string" ? it.label : it.label.textContent })) });
+        else {
+            if (o.typed) groups.push({ head: null, rows: [{ typed: true, name: "Typed text", label: "Typed text" }] });
+            fieldsOf(ds).filter((g) => !o.element || g.element === o.element).forEach((g) => groups.push({ head: g.table, fields: g.fields }));
+            const res = o.results !== false && RESULTS[ds];
+            if (res) groups.push({ head: "Results", fields: res.map(([n, t]) => ({ name: n, label: n, type: t, parent: null, fill: null, usedBy: null, computed: true })) });
+            if (o.notes != null ? o.notes : menuSize) groups.push({ head: "Notes", fields: [{ name: "Note count", label: "Note count", type: "num", parent: null, fill: null, usedBy: null, computed: true }].concat(o.kind === "text" ? [{ name: "Latest note", label: "Latest note", type: "text", parent: null, fill: null, usedBy: null, computed: true }] : []) });
+        }
+        const total = groups.reduce((n, g) => n + (g.fields ? g.fields.length : g.rows.filter((r) => !r.heading).length), 0);
+        const findOn = total > 15;
+        let query = findOn ? o.query || "" : "";
+        let emptyAt = 0;
+
+        const box = h("div", { class: "ab-fl " + (menuSize ? "k-menu ab-menu ab-fl-menu" : "ab-fl-panel") });
+        const list = h("div", { id, class: "ab-fl-list", role: "listbox", "aria-label": o.label || (o.items ? "Choices" : "Attributes"), "aria-multiselectable": checks ? "true" : null });
+        let input = null;
+        const say = h("span", { class: "ab-fl-count" });
+        if (findOn) {
+            input = h("input", { type: "search", placeholder: o.items ? "Find" : "Find attribute", "aria-label": o.items ? "Find" : "Find attribute", role: "combobox", "aria-controls": id, "aria-expanded": "true", "aria-autocomplete": "list", value: query || null });
+            box.append(h("div", { class: "ab-fl-find" }, h("label", { class: "ab-find" }, icon("search", "sm"), input), say));
+            // a find that opens with text in it puts the caret after that text, so typing adds to it
+            input.addEventListener("focus", () => { const n = input.value.length; try { input.setSelectionRange(n, n); } catch (e) { /* type=search may refuse */ } });
+        } else list.tabIndex = 0; // no find: the listbox holds focus and the active row
+        box.append(list);
+
+        let active = null;
+        const opts = () => [...list.querySelectorAll("[data-fl-row]")];
+        const setActive = (el) => {
+            opts().forEach((x) => x.removeAttribute("data-hover"));
+            active = el;
+            if (el) { el.setAttribute("data-hover", ""); el.scrollIntoView({ block: "nearest" }); }
+            (input || list).setAttribute("aria-activedescendant", el ? el.id : "");
+        };
+        const choose = (el) => { if (el && el.getAttribute("aria-disabled") !== "true") el.click(); };
+
+        let seq = 0;
+        const glyph = (x) => (x.type === "list" ? icon("list", "sm") : x.type === "whole" ? h("span", { class: "ab-abc" }, "{ }") : typeGlyph(x.type === "num" || x.type === "time" || x.type === "bool" ? x.type : "cat"));
+        const fillText = (x) => (x.fill != null && x.fill < 1 ? (x.fill > 0 && x.fill < 0.01 ? "<1%" : Math.round(x.fill * 100) + "%") : null);
+        // a character budget for the middle ellipsis: the menu is 320 px, the panel the left panel's width
+        const maxFor = (trail) => (menuSize ? (trail || o.trail ? 30 : 36) : trail || o.trail ? 20 : 26) - (checks ? 2 : 0); // o.trail: a value at the row's end (the inspector)
+        // one row: glyph, name (middle ellipsis, matches bold), then what uses it or its fill
+        function fieldRow(x, ranges, full) {
+            const why = unsuitable(o.kind, x);
+            const shownName = full ? (x.parent ? x.parent + "." + x.label : x.label) : x.label;
+            const usedText = x.usedBy || null, fill = fillText(x);
+            const checked = checks ? checks.has(x.name) : x.name === o.current;
+            const locked = checks && o.locked && o.locked.includes(x.name);
+            const dis = !!why || locked;
+            const trailEl = o.trail ? o.trail(x) : null;
+            const el = h("div", { id: id + "-" + ++seq, class: (menuSize ? "k-menu-item " : "k-row ") + "ab-fl-opt", role: "option", "data-fl-row": "", "aria-selected": String(!!checked), "aria-disabled": dis ? "true" : null, "data-described": why && why !== "Not a number" ? "" : null },
+                h("span", { class: "k-check-col" }, checks ? h("span", { class: "ab-fl-box", "data-on": checked ? "" : null }, checked ? icon("check", "sm") : null) : checked ? icon("check", "sm") : null),
+                h("span", { class: "ab-fl-glyph" }, glyph(x)),
+                h("span", { class: "ab-fl-name" }, truncMiddle(shownName, maxFor(usedText || fill), ranges), why && why !== "Not a number" ? h("span", { class: "k-menu-desc", "aria-hidden": "true" }, x.type === "whole" ? "kept as one value" : x.type === "list" ? "several values" : why) : null),
+                usedText || fill ? h("span", { class: "ab-fl-trail" }, usedText || fill) : null,
+                trailEl);
+            // the trail (a value, a role tag) is part of what the row says, so a screen reader hears it too
+            const trailText = trailEl ? trailEl.textContent.trim() : "";
+            el.setAttribute("aria-label", x.name + (trailText ? ", " + trailText : "") + (usedText ? ", in use: " + usedText : "") + (fill ? ", " + fill + " filled" : "") + (locked ? ", always shown" : ""));
+            if (why) el.setAttribute("aria-description", why);
+            if (why && why !== "Not a number" && !locked) tip(el, why, { label: false }); // the full reason; the row says it in two words
+            if (locked) tip(el, "The key column always shows", { label: false });
+            el.addEventListener("click", () => {
+                if (dis) return;
+                if (checks) { const on = !checks.has(x.name); if (on) checks.add(x.name); else checks.delete(x.name); if (o.onToggle) o.onToggle(x.name, on); draw(); return; }
+                if (o.onPick) o.onPick(x.name, x.type, x);
+            });
+            el.addEventListener("pointerenter", () => setActive(el));
+            return el;
+        }
+        function itemRow(r, ranges) {
+            const it = r.item, dis = !!it.disabled, reason = typeof it.disabled === "string" ? it.disabled : null;
+            const el = h("div", { id: id + "-" + ++seq, class: (menuSize ? "k-menu-item " : "k-row ") + "ab-fl-opt", role: "option", "data-fl-row": "", "aria-selected": String(!!it.check), "aria-disabled": dis ? "true" : null, "data-described": reason ? "" : null },
+                h("span", { class: "k-check-col" }, it.check ? icon("check", "sm") : null),
+                h("span", { class: "ab-fl-name" }, truncMiddle(r.label, 40, ranges), reason ? h("span", { class: "k-menu-desc", "aria-hidden": "true" }, reason) : null));
+            el.setAttribute("aria-label", r.label);
+            if (reason) el.setAttribute("aria-description", reason);
+            if (it.desc && !reason) tip(el, it.desc, { label: false });
+            el.addEventListener("click", () => { if (!dis && it.onClick) it.onClick(); });
+            el.addEventListener("pointerenter", () => setActive(el));
+            return el;
+        }
+        const sub = (text, extra) => h("div", Object.assign({ class: menuSize ? "k-menu-label ab-fl-sub" : "ab-fl-sub", role: "presentation" }, extra || {}), text);
+        // a folder: a subhead that opens and closes in place (Enter or a click)
+        function folder(key, title, rows, startOpen) {
+            const isOpen = key in open ? open[key] : startOpen;
+            const head = h("div", { id: id + "-" + ++seq, class: (menuSize ? "k-menu-item " : "k-row ") + "ab-fl-folder", role: "option", "data-fl-row": "", "aria-selected": "false", "data-open": String(isOpen) }, // an option may not carry aria-expanded: the label says it
+                h("span", { class: "k-check-col" }, icon(isOpen ? "chevron-down" : "chevron-right", "sm")),
+                h("span", { class: "ab-fl-name" }, truncMiddle(title, maxFor(true))), h("span", { class: "ab-fl-trail" }, String(rows.length)));
+            head.setAttribute("aria-label", title + ", " + rows.length + (rows.length === 1 ? " attribute" : " attributes") + (isOpen ? "" : ", collapsed"));
+            head.addEventListener("click", () => { open[key] = !isOpen; draw(head.id); });
+            head.addEventListener("pointerenter", () => setActive(head));
+            return [head].concat(isOpen ? rows.map((x) => { const r = fieldRow(x); r.classList.add("ab-fl-in"); return r; }) : []);
+        }
+
+        function draw(keepActive) {
+            list.replaceChildren();
+            seq = 0;
+            let hits = 0;
+            groups.forEach((g, gi) => {
+                const out = [];
+                if (g.rows) {
+                    g.rows.forEach((r) => {
+                        if (r.heading) { if (!query) out.push(sub(r.heading)); return; }
+                        const m = query ? wordMatch(r.label, query) : [];
+                        if (!m) return;
+                        hits++;
+                        out.push(r.typed ? itemRow({ item: { label: "Typed text", check: o.current === null, onClick: () => o.onPick && o.onPick(null, null) }, label: "Typed text" }, m) : itemRow(r, m));
+                    });
+                } else if (query) {
+                    g.fields.forEach((x) => { const full = x.parent ? x.parent + "." + x.label : x.label, m = wordMatch(full, query); if (m) { hits++; out.push(fieldRow(x, m, true)); } });
+                } else {
+                    const ok = g.fields.filter((x) => !unsuitable(o.kind, x)), bad = g.fields.filter((x) => unsuitable(o.kind, x));
+                    const inUse = ok.filter((x) => x.usedBy);
+                    const rest = ok.filter((x) => !x.usedBy).sort((a, b) => (b.computed - a.computed) || a.name.localeCompare(b.name));
+                    if (inUse.length) out.push(sub("In use (" + inUse.length + ")"), ...inUse.map((x) => fieldRow(x, null, true)));
+                    if (inUse.length && rest.length) out.push(sub("Other attributes"));
+                    rest.filter((x) => !x.parent).forEach((x) => out.push(fieldRow(x)));
+                    const folders = [...new Set(rest.filter((x) => x.parent).map((x) => x.parent))].sort();
+                    folders.forEach((p) => out.push(...folder(gi + ":" + p, p, rest.filter((x) => x.parent === p), g.fields.some((x) => x.parent === p && x.usedBy))));
+                    const generic = bad.filter((x) => unsuitable(o.kind, x) === "Not a number");
+                    bad.filter((x) => !generic.includes(x)).forEach((x) => out.push(fieldRow(x, null, true)));
+                    if (generic.length) out.push(...folder(gi + ":nan", "Not a number (" + generic.length + ")", generic, false));
+                    hits += g.fields.length;
+                }
+                if (!out.length) return;
+                if (g.head) list.append(h("div", { class: (menuSize ? "k-menu-label " : "") + "ab-fl-table", role: "presentation" }, g.head));
+                list.append(...out);
+            });
+            // o.empty: fields this element has no value for, counted and not listed; Find still names them
+            const emptyHits = query && o.empty ? o.empty.filter((nm) => wordMatch(nm, query)) : [];
+            if (query && !hits && !emptyHits.length) {
+                const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, act({ onClick: () => { query = ""; input.value = ""; draw(); input.focus(); } })), "Clear");
+                list.append(h("div", { class: "ab-fl-none" }, noMatch(query), " ", clear));
+            }
+            if (emptyHits.length) list.append(h("div", { class: "ab-fl-none k-secondary" }, emptyHits.join(", ") + (emptyHits.length === 1 ? " is" : " are") + " empty " + (o.emptyWhere || "here")));
+            emptyAt = emptyHits.length;
+            say.textContent = query && hits ? (hits === 1 ? "1 match" : hits + " matches") : "";
+            const rows = opts();
+            setActive((keepActive && document.getElementById(keepActive)) || (query ? rows.find((x) => x.getAttribute("aria-disabled") !== "true") : null) || null);
+            return hits;
+        }
+        draw();
+        if (input) {
+            let t = 0;
+            input.addEventListener("input", () => { query = input.value.trim(); const n = draw(); clearTimeout(t); t = setTimeout(() => announce(query ? (n ? n + (n === 1 ? " match" : " matches") : emptyAt ? emptyAt + " empty " + (o.emptyWhere || "here") : 'No match for "' + query + '"') : total + " attributes"), 300); });
+        }
+        (input || list).addEventListener("keydown", (e) => {
+            const rows = opts(), i = rows.indexOf(active), k = e.key;
+            if (k === "ArrowDown") setActive(rows[Math.min(rows.length - 1, i + 1)] || rows[0]);
+            else if (k === "ArrowUp") setActive(rows[Math.max(0, i - 1)] || rows[0]);
+            else if (k === "Home" && !input) setActive(rows[0]);
+            else if (k === "End" && !input) setActive(rows[rows.length - 1]);
+            else if (k === "Enter" || (k === " " && !input)) choose(active);
+            else if ((k === "ArrowRight" || k === "ArrowLeft") && active && active.hasAttribute("data-open") && (active.getAttribute("data-open") === "true") === (k === "ArrowLeft")) active.click();
+            else if (k === "Escape" && input && input.value) { query = ""; input.value = ""; draw(); }
+            // Tab leaves a panel list like any field (never a trap); a menu-size list closes on it
+            else if ((k === "Escape" || (k === "Tab" && menuSize)) && (o.onClose || menuSize)) { if (o.onClose) o.onClose(); else AB.close(); }
+            else return;
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        return box;
+    }
+
+    // ---------- the problem block (spec 13): what happened, what to do, at most one action ----------
+    // problem({ what, todo, action: { label, go | onClick }, level: "error" | "partial" })
+    function problem(o) {
+        const err = o.level !== "partial";
+        return h("div", { class: "ab-problem", "data-level": err ? "error" : "partial", role: err ? "alert" : "status" },
+            h("span", { class: "k-warn-glyph" + (err ? " k-err-glyph" : ""), "aria-hidden": "true" }, err ? "x" : "!"),
+            h("div", { class: "ab-problem-text" }, h("div", { class: "ab-problem-what" }, o.what), o.todo ? h("div", { class: "ab-problem-todo" }, o.todo) : null,
+                o.action ? h("div", { class: "ab-problem-act" }, button(o.action.label, Object.assign({ kind: "secondary" }, o.action))) : null));
     }
 
     Object.assign(AB, {
-        graphHead, treebar, typeGlyph, roleTag, pageHead, fromDataItems, addNote, noteSubject,
+        graphHead, treebar, typeGlyph, roleTag, pageHead, addNote, noteSubject,
+        fieldList, openFieldList, fieldsOf, nestedLoaded, problem, truncMiddle, wordMatch,
         registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,
         tip, tipSweep, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
         empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine,

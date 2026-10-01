@@ -5,7 +5,9 @@
    No Notes: an attribute is not a note's subject. Transfers (amount, id) and door entries (floors,
    person_id).
    Filter step: one sentence row, "Apply this step", the count before and after, Notes (none, or the
-   step's one note).
+   step's one note). Its attribute picker is the field list at menu size (AB.openFieldList).
+   Wide and nested (kit/wide-nested.json): legacy_asset_tag partly filled, the 46-character attribute,
+   tags as Several values, a step on the hosts with its picker open, a step whose attribute is gone.
    A run's result attribute (PageRank) opens its measure row: the old "pagerank" state redirects.
    Plain ASCII. See ../README.md. */
 (function () {
@@ -25,7 +27,11 @@
         ".ia-dd>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}" +
         ".ia-tags{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}" +
         ".ia-tags>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}" +
-        ".ia-tagnote{flex-basis:100%;color:var(--cm-text-secondary)}";
+        ".ia-tagnote{flex-basis:100%;color:var(--cm-text-secondary)}" +
+        ".ia-gone{text-decoration:line-through;color:var(--cm-text-secondary)}" +
+        ".ia-problem{padding:4px 16px 8px}" +
+        ".ia-break{overflow-wrap:anywhere;white-space:normal}" +
+        ".ia-apply[aria-disabled=true]{color:var(--cm-text-secondary);cursor:default}";
     if (!document.getElementById("ia-css")) document.head.append(h("style", { id: "ia-css" }, CSS));
 
     const ID = "inspector-attribute-and-filter-step";
@@ -182,55 +188,268 @@
     }
 
     // ---------- the filter step ----------
-    function filterBody(noted) {
-        const t = T();
-        let on = true;
-        const attrs = ["amount", "timestamp", "kind", "country", "riskScore", "flagged"];
-        const pick = (items, field, text) => () => AB.openMenu(field, items.map((x) => ({ label: x, check: x === text.textContent, onClick: () => { text.textContent = x; } })));
-        const aText = h("span", null, "amount");
-        const a = AB.field(aText, { caret: true, icon: "hash" });
-        a.addEventListener("click", pick(attrs, a, aText));
-        const cText = h("span", null, "is at least");
+    // The conditions a step offers per attribute type; a list attribute (Several values) reads
+    // "contains": the step matches when any item does (spec 11.4).
+    const CONDS = {
+        num: ["is at least", "is below", "is between", "is empty"],
+        list: ["contains", "does not contain", "is empty"],
+        other: ["is", "is not", "is one of", "is empty", "is not empty"],
+    };
+    const condsOf = (type) => CONDS[type] || CONDS.other;
+    // An attribute name in a step takes the middle ellipsis (spec 2.5)
+    const attrName = (name) => AB.truncMiddle(name, 24);
+
+    // o: { attr, type, cond, value, before, after, unit: [label, state], cap, noted, gone, open }
+    // gone: the problem block for an attribute the data no longer has; open: the picker opens on arrival
+    function filterBody(o) {
+        let on = !o.gone;
+        const aText = h("span", { class: o.gone ? "ia-gone" : null }, attrName(o.attr));
+        const a = AB.field(aText, { caret: true });
+        a.setAttribute("aria-haspopup", "listbox");
+        let cur = o.attr, type = o.type;
+        const cText = h("span", null, o.cond);
         const c = AB.field(cText, { caret: true });
-        c.addEventListener("click", pick(["is at least", "is below", "is between", "is empty"], c, cText));
-        const v = h("input", { class: "k-field ia-num", value: "1,000", "aria-label": "Value", inputmode: "decimal" });
+        const v = h("input", { class: "k-field ia-num", value: o.value || "", "aria-label": "Value", inputmode: type === "num" ? "decimal" : null, hidden: o.value == null });
+        // The attribute picker is the field list at menu size, over the project on screen
+        const openPicker = () => AB.openFieldList(a, {
+            current: o.gone ? null : cur, label: "Attribute",
+            onPick(name, t) {
+                cur = name; type = t;
+                aText.className = "";
+                aText.replaceChildren(attrName(name));
+                if (!condsOf(t).includes(cText.textContent)) { cText.textContent = condsOf(t)[0]; v.hidden = false; v.value = ""; }
+                AB.announce("Attribute: " + name + ", " + cText.textContent);
+            },
+        });
+        a.addEventListener("click", openPicker);
+        c.addEventListener("click", () => AB.openMenu(c, condsOf(type).map((x) => ({
+            label: x, check: x === cText.textContent,
+            onClick: () => { cText.textContent = x; v.hidden = /empty$/.test(x); AB.announce("Condition: " + x); },
+        }))));
         AB.tip(a, "Attribute", { label: false });
         AB.tip(c, "Condition", { label: false });
+        if (o.open) requestAnimationFrame(openPicker);
 
-        const after = h("b", null, "812");
-        const check = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": "true", "aria-labelledby": "ia-apply-l", "aria-label": "Apply this step" });
+        const after = h("b", null, fmt(on ? o.after : o.before));
+        const check = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(on), "aria-labelledby": "ia-apply-l", "aria-label": "Apply this step" });
         const toggle = () => {
+            if (o.gone) return AB.flash("This step reads nothing until it has an attribute");
             on = !on;
             check.setAttribute("aria-checked", String(on));
-            after.textContent = on ? "812" : fmt(t.nodes);
+            after.textContent = fmt(on ? o.after : o.before);
             AB.announce(on ? "Step applied" : "Step skipped");
         };
-        const apply = h("label", { class: "ia-apply", on: { click: (e) => { e.preventDefault(); toggle(); } } }, check, h("span", { id: "ia-apply-l" }, "Apply this step"));
+        const apply = h("label", { class: "ia-apply", "aria-disabled": o.gone ? "true" : null, on: { click: (e) => { e.preventDefault(); toggle(); } } }, check, h("span", { id: "ia-apply-l" }, "Apply this step"));
         check.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } });
         return [
             AB.section({ title: "Condition", editable: true },
+                o.gone ? h("div", { class: "ia-problem" }, AB.problem(o.gone)) : null,
                 h("div", { class: "ia-sentence" }, a, c, v),
-                // Studio decision (spec, Data > Filters): an edge condition keeps the edges that pass and the nodes at their ends
-                h("div", { class: "ab-cap k-secondary" }, "amount is on edges: this step keeps the transfers that pass and the accounts at their ends."),
+                o.cap ? h("div", { class: "ab-cap k-secondary" }, o.cap) : null,
                 apply,
-                h("div", { class: "ia-flow" }, h("b", null, fmt(t.nodes)), icon("arrow-right", "sm"), after,
-                    AB.link("table-dock", "nodes", "nodes", { class: "ab-link k-secondary" }))),
-            noted ? AB.notesSection(1, ["notes-place", "all"], "filter-step") : AB.notesSection(0, null, "filter-step"),
+                h("div", { class: "ia-flow" }, h("b", null, fmt(o.before)), icon("arrow-right", "sm"), after,
+                    AB.link("table-dock", o.unit[1], o.unit[0], { class: "ab-link k-secondary" }), o.gone ? h("span", { class: "k-secondary" }, "(skipped)") : null)),
+            o.noted ? AB.notesSection(1, ["notes-place", "all"], "filter-step") : AB.notesSection(0, null, "filter-step"),
+        ];
+    }
+    const TRANSFER_STEP = (noted) => ({
+        attr: "amount", type: "num", cond: "is at least", value: "1,000", before: T().nodes, after: 812, unit: ["nodes", "nodes"], noted,
+        // Studio decision (spec, Data > Filters): an edge condition keeps the edges that pass and the nodes at their ends
+        cap: "amount is on edges: this step keeps the transfers that pass and the accounts at their ends.",
+    });
+
+    // ---------- the wide and nested projects (kit/wide-nested.json) ----------
+    const W = () => AB.fx.datasets.wide;
+    const N = () => AB.fx.datasets.nested;
+    const P = () => AB.fx.datasets.plainJson;
+    const LONG = "vuln_count_critical_unremediated_over_30_days";
+    const tally = (vals) => { const c = {}; vals.forEach((x) => { c[x] = (c[x] || 0) + 1; }); return Object.entries(c).sort((p, q) => q[1] - p[1]); };
+    const pct = (a, b) => Math.round((a / b) * 100) + "%";
+    // The full stored name, wrapping, so it never lives only in a tooltip
+    const fullName = (name) => AB.data("Name", h("span", { class: "k-id ia-break" }, name));
+
+    // Step 2 on the hosts (data-place/wide-filters): after "environment is prod", hosts with at least one
+    // critical vulnerability open past 30 days. Counts read from the sample's rows, as the Data place does.
+    function wideStep() {
+        const prod = W().nodeRows.filter((r) => r.environment === "prod");
+        return { attr: LONG, type: "num", cond: "is at least", value: "1", before: prod.length, after: prod.filter((r) => r[LONG] >= 1).length, unit: ["hosts", "wide"], open: true };
+    }
+
+    // After Replace (data-place/step-attribute-gone): the step was made on the old file's amount_usd;
+    // the replacing transfers file names that column amount, so the step reads nothing
+    function goneStep() {
+        return {
+            attr: "amount_usd", type: "num", cond: "is at least", value: "1,000", before: T().nodes, after: T().nodes, unit: ["nodes", "nodes"], noted: true,
+            gone: {
+                what: "amount_usd is not in " + T().file + " any more, so this step is skipped.",
+                todo: "Pick another attribute below (the new file names this column amount), or delete the step from its ... menu.",
+            },
+        };
+    }
+
+    // legacy_asset_tag: an id on 25 of 300 hosts
+    function sparseBody() {
+        const w = W(), name = "legacy_asset_tag";
+        const rows = w.nodeRows.filter((r) => r[name] != null);
+        const n = rows.length, without = w.nodes - n;
+        const byRole = tally(rows.map((r) => r.role));
+        const roleTotal = (role) => w.nodeAttributes.find((a) => a.name === "role").values[role];
+        return [
+            AB.section({ title: "Summary", editable: true },
+                dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
+                AB.data("On", fmt(w.nodes) + " nodes (hosts)", { go: ["table-dock", "wide"] }),
+                AB.data("Fill", pct(n, w.nodes) + ": " + n + " of " + fmt(w.nodes) + " hosts have a value"),
+                AB.data("No value", fmt(without) + " hosts", { go: ["table-dock", "wide"] })),
+            AB.dataTab({
+                Values: { summary: n + " distinct, one per host", body: [
+                    AB.data("Distinct", n + ", one per host that has a value"),
+                    AB.data("Most on", byRole.slice(0, 3).map(([r, k]) => r + " " + k + " of " + roleTotal(r)).join(", ")),
+                ] },
+                "Painted by": { summary: "No rows", body: none(name) },
+            }, { kind: "attribute" }),
         ];
     }
 
+    // The 46-character attribute: the name in full, its values, the Size row that paints from it
+    function longBody() {
+        const w = W(), v = w.nodeRows.map((r) => r[LONG]);
+        const max = Math.max(...v), bins = Array.from({ length: max + 1 }, (_, i) => v.filter((x) => x === i).length);
+        const some = v.filter((x) => x >= 1).length;
+        return [
+            AB.section({ title: "Summary", editable: true },
+                fullName(LONG),
+                dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
+                AB.data("On", fmt(w.nodes) + " nodes (hosts)", { go: ["table-dock", "wide"] }),
+                AB.data("Missing", "none: every host has a value")),
+            AB.dataTab({
+                Values: { summary: "0 to " + max + ", " + some + " hosts at 1 or more", body: histogram(bins, ["0", String(max)],
+                    fmt(w.nodes) + " hosts, 0 to " + max + "; " + some + " have at least 1.", LONG) },
+                "Painted by": { summary: "No rows", body: none(LONG) },
+            }, { kind: "attribute" }),
+        ];
+    }
+
+    // tags: an array of values in each researcher, loaded as Several values (a list attribute)
+    function listBody() {
+        const rs = N().document.data.researchers;
+        const items = rs.reduce((k, r) => k + r.tags.length, 0);
+        const emptyLists = rs.filter((r) => !r.tags.length).length, several = rs.filter((r) => r.tags.length > 1).length;
+        const tags = tally(rs.flatMap((r) => r.tags));
+        return [
+            AB.section({ title: "Summary", editable: true },
+                roles([["Several values", "a list attribute: a filter step matches when any item does. Choose another outcome on the Data page"]], "json-researchers"),
+                dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
+                AB.data("Path", h("span", { class: "k-id ia-break" }, "data.researchers[].tags")),
+                AB.data("On", fmt(rs.length) + " nodes (researchers)", { go: ["table-dock", "wide"] }),
+                AB.data("Items", fmt(items) + " in " + rs.length + " lists; " + several + " hold two or more"),
+                AB.data("Empty", emptyLists + " researchers have an empty list"),
+                h("div", { class: "ab-cap k-secondary" }, "A filter step on tags reads \"contains\": tags contains " + tags[0][0] + " keeps the " + tags[0][1] + " researchers that hold it.")),
+            AB.dataTab({
+                Values: { summary: tags.length + " distinct", body: tags.map(([t, k]) => AB.data(t, k + " researchers")) },
+                "Painted by": { summary: "No rows", body: none("tags") },
+            }, { kind: "attribute" }),
+        ];
+    }
+
+    // ---------- any other attribute of the wide and nested projects ----------
+    // AB.openField(ds, name) is how every attribute list (Data > Attributes, the node inspector's
+    // "N more attributes") opens one: the three attributes with a state of their own open it, any other
+    // opens wide-field or nested-field, which read the field picked here. A direct visit shows the
+    // project's first number field. Every figure is read from kit/wide-nested.json and AB.fieldsOf.
+    let picked = null;
+    const OWN = { wide: { legacy_asset_tag: "sparse", [LONG]: "long-name" }, nested: { tags: "list-attribute" } };
+    AB.openField = (ds, name) => {
+        const own = (OWN[ds] || {})[name];
+        if (own) return AB.go(ID, own);
+        picked = { ds, name };
+        AB.go(ID, ds === "nested" ? "nested-field" : ds === "plainJson" ? "plain-field" : "wide-field");
+    };
+    const at = (rec, rel) => rel.split(".").reduce((o, k) => (o == null ? o : o[k]), rec);
+    function fieldOf(ds) {
+        const groups = AB.fieldsOf(ds);
+        const name = picked && picked.ds === ds ? picked.name : null;
+        for (const g of groups) { const x = g.fields.find((f) => f.name === name); if (x) return [x, g]; }
+        const g = groups[0];
+        return [g.fields.find((f) => f.type === "num") || g.fields[0], g];
+    }
+    function rowsFor(ds, g) {
+        if (ds === "wide") return g.element === "edge" ? W().edgeRows : W().nodeRows;
+        if (ds === "plainJson") return g.element === "edge" ? P().document.links : P().document.nodes;
+        const doc = N().document;
+        return g.table === "researchers" ? doc.data.researchers : g.table === "institutions" ? doc.data.institutions : g.table === "links" ? doc.links : [];
+    }
+    const UNIT = { hosts: "hosts", connections: "connections", researchers: "researchers", institutions: "institutions", links: "links" };
+    function fieldBody(ds) {
+        const [x, g] = fieldOf(ds), rows = rowsFor(ds, g), unit = UNIT[g.table] || g.table;
+        const vals = rows.map((r) => (ds === "wide" ? r[x.name] : at(r, x.name))).filter((v) => v != null && v !== "" && !(Array.isArray(v) && !v.length));
+        const word = { num: "Number", time: "Time", bool: "Category (true or false)", list: "A list", whole: "One value (kept whole)" }[x.type] || "Category";
+        const values = [];
+        let summary;
+        if (x.type === "num") {
+            const s2 = vals.slice().sort((a, b) => a - b), med = s2[Math.floor(s2.length / 2)];
+            summary = s2.length ? s2[0] + " to " + s2[s2.length - 1] : "no values";
+            values.push(AB.data("Range", summary), AB.data("Median", s2.length ? String(med) : "none"));
+        } else if (x.type === "whole") {
+            summary = "kept as one value";
+            values.push(AB.data("Read", "Each value is kept whole; open it on the Data page to read its parts"));
+        } else {
+            const t = tally(vals.flatMap((v) => (Array.isArray(v) ? v : [v])).map(String));
+            summary = t.length + " distinct";
+            values.push(AB.data("Distinct", fmt(t.length)), ...t.slice(0, 3).map(([v, k]) => AB.data(AB.truncMiddle(v, 22), k + " " + unit)));
+        }
+        return { x, g, unit, body: [
+            AB.section({ title: "Summary", editable: true },
+                fullName(x.name),
+                x.type === "whole" || x.type === "list" ? AB.data("Read as", word) : dropdown("Read as", READ_AS(), word === "Number" || word === "Time" ? word : "Category", { needs: OVERRIDE }),
+                AB.data("On", fmt(rows.length) + " " + (g.element === "edge" ? "edges" : "nodes") + " (" + unit + ")", { go: ["table-dock", "wide"] }),
+                AB.data("Fill", pct(vals.length, rows.length || 1) + ": " + fmt(vals.length) + " of " + fmt(rows.length) + " " + unit + " have a value"),
+                AB.data("In use", x.usedBy || "Nothing uses it")),
+            AB.dataTab({
+                Values: { summary, body: values },
+                "Painted by": { summary: "No rows", body: none(x.name) },
+            }, { kind: "attribute" }),
+        ] };
+    }
+    const fieldView = (ds) => ({
+        icon: "hash", kind: "Attribute", menu: ["context-menus", "attribute"], dyn: () => {
+            const r = fieldBody(ds);
+            return { icon: r.x.type === "num" ? "hash" : r.x.type === "list" ? "list" : "type", title: AB.truncMiddle(r.x.name, 28), kind: (r.g.element === "edge" ? "Edge" : "Node") + " attribute",
+                prov: ds === "wide" ? ["from " + (r.g.element === "edge" ? W().edgesFile : W().file), "data-page", "wide-hosts"] : ds === "plainJson" ? ["from " + P().file, "data-page", "json-plain"] : ["from " + N().file, "data-page", "json-researchers"], body: () => r.body };
+        },
+    });
+
     const STEP = { icon: "funnel", title: "amount >= 1,000", kind: "Filter step", prov: ["step 1 in Filters", "data-place", "filters"], menu: ["context-menus", "filter-step"] };
+    const ATTR = (icon, title, kind, prov, body) => ({ icon, title, kind, prov, menu: ["context-menus", "attribute"], body });
     const VIEWS = {
         attribute: { icon: "hash", title: "amount", kind: "Edge attribute", prov: () => ["from " + T().file, "data-page", "edit-source"], menu: ["context-menus", "attribute"], body: amountBody },
         "attribute-name-role": { icon: "type", title: "id", kind: "Node attribute", prov: () => ["from " + T().accountsFile, "data-page", "edit-accounts"], menu: ["context-menus", "attribute"], body: idBody },
         "node-weight": { icon: "hash", title: "floors", kind: "Node attribute", prov: () => ["from buildings.csv", "data-page", "edit-buildings"], menu: ["context-menus", "attribute"], body: floorsBody },
         "edge-weight": { icon: "hash", title: "count", kind: "Edge attribute", prov: () => ["derived from entries.csv", "data-page", "edit-entries"], menu: ["context-menus", "attribute"], body: countBody },
         "link-key": { icon: "type", title: "person_id", kind: "Edge attribute", prov: () => ["from entries.csv", "data-page", "edit-entries"], menu: ["context-menus", "attribute"], body: personIdBody },
-        "filter-step": Object.assign({ body: () => filterBody(false) }, STEP),
-        "filter-step-noted": Object.assign({ body: () => filterBody(true) }, STEP),
+        "filter-step": Object.assign({ body: () => filterBody(TRANSFER_STEP(false)) }, STEP),
+        "filter-step-noted": Object.assign({ body: () => filterBody(TRANSFER_STEP(true)) }, STEP),
+        "step-attribute-gone": Object.assign({}, STEP, { title: "amount_usd >= 1,000", prov: ["step 1 in Filters", "data-place", "step-attribute-gone"], body: () => filterBody(goneStep()) }),
+        "wide-filter": Object.assign({}, STEP, { title: () => h("span", null, attrName(LONG), " >= 1"), prov: ["step 2 in Filters", "data-place", "wide-filters"], body: () => filterBody(wideStep()) }),
+        sparse: ATTR("type", "legacy_asset_tag", "Node attribute", ["from hosts-2026-03.csv", "data-page", "wide-hosts"], sparseBody),
+        "long-name": ATTR("hash", () => attrName(LONG), "Node attribute", ["from hosts-2026-03.csv", "data-page", "wide-hosts"], longBody),
+        "list-attribute": ATTR("list", "tags", "Node attribute", ["from network-export-2026-03.json", "data-page", "json-researchers"], listBody),
+        "wide-field": fieldView("wide"),
+        "nested-field": fieldView("nested"),
+        "plain-field": fieldView("plainJson"),
     };
-    const isStep = (state) => state === "filter-step" || state === "filter-step-noted";
+    const isStep = (state) => ["filter-step", "filter-step-noted", "step-attribute-gone", "wide-filter"].includes(state);
     const isDoor = (state) => state === "node-weight" || state === "link-key" || state === "edge-weight";
+    // The wide and nested routes: the project and its Data place
+    const DS_FRAME = {
+        "step-attribute-gone": { left: "data-place/step-attribute-gone", dataset: "transactions" },
+        "wide-filter": { left: "data-place/wide-filters", dataset: "wide" },
+        sparse: { left: "data-place/attributes-wide", dataset: "wide" },
+        "long-name": { left: "data-place/attributes-wide", dataset: "wide" },
+        "list-attribute": { left: "data-place/attributes-nested", dataset: "nested" },
+        "wide-field": { left: "data-place/attributes-wide", dataset: "wide" },
+        "nested-field": { left: "data-place/attributes-nested", dataset: "nested" },
+        "plain-field": { left: "data-place/plain-json", dataset: "plainJson" },
+    };
 
     registerSection({
         id: ID,
@@ -238,7 +457,7 @@
         region: "right",
         rail: "data",
         // The Data place draws only transfers, so a door-entries attribute shows no left panel rather than the wrong table
-        frame: (state) => isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" },
+        frame: (state) => DS_FRAME[state] || (isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" }),
         closeTo: "data-place",
         states: [
             { id: "attribute", label: "amount, Weight" },
@@ -248,13 +467,21 @@
             { id: "edge-weight", label: "count, edge Weight from Pair (door entries)" },
             { id: "filter-step", label: "Filter step, no notes" },
             { id: "filter-step-noted", label: "Filter step with a note" },
+            { id: "step-attribute-gone", label: "Filter step: its attribute gone after Replace" },
+            { id: "sparse", label: "legacy_asset_tag, partly filled (hosts)" },
+            { id: "list-attribute", label: "tags, Several values (nested JSON)" },
+            { id: "wide-filter", label: "Filter step: attribute picker on the hosts" },
+            { id: "long-name", label: "The 46-character attribute (hosts)" },
+            { id: "wide-field", label: "Any other host or connection attribute (the first number one when opened directly)" },
+            { id: "nested-field", label: "Any other researcher attribute (nested JSON)" },
+            { id: "plain-field", label: "Any attribute of the plain JSON graph (Coauthors)" },
         ],
         render(el, state) {
             // A run's result attribute has one inspector, its measure row's
             if (state === "pagerank") { location.replace(AB.href("inspector-measure-row", "data")); return; }
-            const v = VIEWS[state] || VIEWS.attribute;
+            const v0 = VIEWS[state] || VIEWS.attribute, v = v0.dyn ? Object.assign({}, v0, v0.dyn()) : v0;
             el.append(AB.inspector({
-                icon: v.icon, title: v.title, kind: v.kind, provenance: typeof v.prov === "function" ? v.prov() : v.prov, menu: v.menu, body: v.body(),
+                icon: v.icon, title: typeof v.title === "function" ? v.title() : v.title, kind: v.kind, provenance: typeof v.prov === "function" ? v.prov() : v.prov, menu: v.menu, body: v.body(),
                 renameDisabled: isStep(state) ? null : "a display name for an attribute, kept across its data",
             }));
         },

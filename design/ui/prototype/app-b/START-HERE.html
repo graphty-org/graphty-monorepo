@@ -24,7 +24,7 @@ a { color: var(--link); }
 <body>
 <main>
 <p class="nav"><a href="index.html#/map">Site map</a> | <a href="index.html#/graph-place">Open the app</a></p>
-<h1>Refined B, version 4: your decisions after version 3</h1>
+<h1>Refined B, version 5: your decisions since version 3</h1>
 <p>What the studio did with each of your decisions, and where to click. "Your decision" means you decided it; everything else is a studio decision, reversible with an edit. The user study runs on this skeleton without waiting for your review.</p>
 
 <h2>1. Notes are part of graphty-element's API (your decision)</h2>
@@ -47,15 +47,31 @@ a { color: var(--link); }
 <p>Weight is a role on the Data page, and what a higher weight means (Stronger, Farther or Capacity) is set once per graph in its footer. Every run uses it; a run may override it for itself, recorded in its Made with and never written back. Without a declared meaning, a count read as a distance makes the most-used link the farthest.</p>
 <p class="see">See <a href="index.html#/analyze-popover/node-weight">Analyze</a><a href="index.html#/analyze-popover/weight-override">A run's override</a><a href="index.html#/inspector-attribute-and-filter-step/node-weight">Node weight</a></p>
 
-<h2>What graphty-element must add</h2>
-<p>The notes API: <code>study/structure-comparison/element-notes-api.md</code>. Everything else (position-keyed labels, one multi-table load, weight per table with its meaning, a direction option on shortest path), each with a proposed API and the screens that wait on it: <code>study/structure-comparison/element-requirements-4.md</code>.</p>
+<h2>6. Wide data: one field list everywhere (your decision: before the study)</h2>
+<p>The sample is an IT estate: 300 hosts with 69 attributes and 1,105 connections with 26. Every place that shows or picks an attribute now uses the same field list, in a panel size (Data &gt; Attributes, the inspectors, the table's columns) and a menu size (bind, Label "+", Color, Size and Width by, filter steps, a link's "by" column, Go to column). Search appears past 15 items and matches word starts, so "cpu p95" finds cpu_util_p95_pct. Fields are grouped by table; "In use" comes first, each tagged with what uses it, as an order rather than a toggle a reader would forget is on. Long names are cut in the middle, because an end cut makes cpu_util_p50_pct and cpu_util_p95_pct look identical. The table freezes its key column and shows "Columns: 8 of 69", the one place a column can be hidden. Why: seven surfaces each behaved differently; now there is one way to find a field.</p>
+<p class="see">See <a href="index.html#/data-place/attributes-wide">Attributes, 69</a><a href="index.html#/data-place/attributes-wide-search">Search</a><a href="index.html#/style-pickers/wide-color-by">Color by</a><a href="index.html#/inspector-node/wide-more">A host's data</a><a href="index.html#/table-dock/wide-columns">Table columns</a></p>
+<p>On the Data page, roles stay under the column headers. A column with no role reads "Attribute" in quiet text, columns with a role pin left after the key, and Find a column jumps to a header.</p>
+<p class="see">See <a href="index.html#/data-page/wide-hosts">69 columns</a><a href="index.html#/data-page/wide-find-column">Find a column</a></p>
 
-<h2>Success criteria</h2>
-<p>Met: the notes API, notes without names, empty and several labels, weight at load, and the element requirements list. The two door-entries defects the last check found are fixed: Load from Row now reports Row's counts, and a cell-formatting bug that cut the first "T" from names is gone. Still to confirm when the study ends: a full click crawl of three long routes, and the six reviewers' verdicts.</p>
+<h2>7. Nested JSON (your decision: before the study)</h2>
+<p>Plain graph JSON (node-link, d3, JGF, Cytoscape, graphology, vis, NetworkX) loads in one step as a graph file. Any other document is a source of tables: its row opens into a tree of objects and arrays with item counts, and the likely tables arrive ticked. Sub-objects become dotted columns at any depth, grouped under a parent header whose menu offers Keep as one value. An array in a record is chosen in its column's role menu as One value, Several values, Several edges or Several rows, each showing its count ("Several edges (514 edges)"). "First item" was rejected: it drops data silently. Refusals show on the tree row they concern. Why: every choice reuses a control the page already has.</p>
+<p class="see">See <a href="index.html#/data-page/json-plain">Plain graph JSON</a><a href="index.html#/data-page/json-tree">The tree</a><a href="index.html#/data-page/json-researchers">Researchers</a><a href="index.html#/data-page/json-array-menu">An array's roles</a><a href="index.html#/data-page/json-affiliations">Child table</a><a href="index.html#/data-page/json-report">Match report</a><a href="index.html#/data-page/json-invalid">Invalid JSON</a></p>
 
-<h2>Open for you</h2>
-<p>Nothing is needed before the study. Some names become permanent public API when graphty-element ships them: the note fields, the author setting, the label positions and the word "type". The studio recommends confirming them on that pull request.</p>
-<p>Every decision with its reason: <code>study/structure-comparison/owner-questions-4.md</code>.</p>
+<h2>8. The state matrix (your decision: before the study)</h2>
+<p>67 surfaces, every section plus shared components such as the field list and the problem block, against ten states: Empty, Loading, Error, Partial, One, Typical, Many, Long text, Narrow (a real 1024 x 768 window) and Waiting on graphty-element. Every cell is a route you can open or "N/A" with its reason; none says "falls back to". It names 326 distinct routes, 106 of them added for it, and a table of ten regressions, each with its own route and check. Narrow routes end in @1024, for example <a href="index.html#/graph-place/at-rest@1024">the graph at 1024</a>.</p>
+<p>The matrix: <code>study/structure-comparison/state-matrix.md</code>.</p>
+
+<h2>What graph-io and graphty-element must add</h2>
+<p><code>study/structure-comparison/element-requirements-5.md</code> keeps version 4 whole and adds three sections. Wide data: graphty-element reports what uses each attribute, its parent in the nesting and its short name, and list attributes. Nested JSON: graph-io describes a document's tree, reads paths, flattens sub-objects, turns arrays into lists, edges or child tables, and gains new issue codes; graph-format gains a list type; graphty-element's JSON source reads every dialect (today it forces node-link), previews counts per choice, links to several types, and has one path reader that errors on a path that reads nothing. Searching and ordering the list stays in the app.</p>
+
+<h2>Success criteria from the last check</h2>
+<p>Met: every field was found in one to three words on every wide picker, Find a column jumps to the right header, role menus give reasons instead of a wall of controls, the inspectors collapse to "N more attributes". The four earlier defects are fixed and each has a route: <a href="index.html#/canvas-and-states/walked">Shift+Arrow walks nodes</a>, <a href="index.html#/notes-place/chip-removed-saved">a removed chip stays removed</a>, <a href="index.html#/inspector-node/door-ana">the selection bar after a click</a>, <a href="index.html#/data-page/link-by-badge">linking by badge</a>.</p>
+<p>Not met: "see which fields are in use". With two filter steps on, <a href="index.html#/data-place/wide-filters">the Attributes list</a> still says "In use (2)" with only id and hostname; environment and the critical-vulnerability count should be tagged Filter step.</p>
+
+<h2>Open</h2>
+<p>A blocker before nested-JSON tasks: researcher names. The inspector and the canvas walk call a node "Wei Diallo", the table calls it "Diallo", and the Data page never gives any column the Name role, so a participant sees names they never chose, two ways. The Data page should propose Name on the family-name column and every surface should read that one field; a name built from two fields would be a new graphty-element requirement.</p>
+<p>The full click crawl of all 503 routes has not finished, so dead controls are not yet ruled out.</p>
+<p>Nothing needs your decision before the study. New field and option names, the list type and the stored path syntax become permanent on release and should be confirmed on those pull requests. Reasons for every decision: <code>study/structure-comparison/owner-questions-5.md</code>.</p>
 </main>
 </body>
 </html>

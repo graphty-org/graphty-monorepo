@@ -6,6 +6,9 @@
     "use strict";
     const VIEW = "Whole cast";
     const CAPTION = "Every character of Les Miserables, colored by group, from the front.";
+    // inspector-saved-view/long-caption: a caption at the 300-character limit (the one Present
+    // wraps in present-mode/long-caption); the value column wraps it in full, never truncated.
+    const LONG_CAPTION = "Every character of Les Miserables, colored by the community the clustering found: the convicts of Toulon, the Thenardiers and their inn, the students of the ABC cafe and the household on the Rue Plumet. Seen from the front, Valjean sits where the groups meet and the minor characters ring the edge.";
     const HINT = "Shown under the view in Present and the findings report";
 
     if (!document.getElementById("sv-css")) {
@@ -20,18 +23,25 @@
     }
 
     function caption(state) {
+        const isLong = state === "long-caption";
         if (state !== "caption-editing") {
-            const face = h("span", Object.assign({ class: "sv-cap" }, AB.act({ go: ["inspector-saved-view", "caption-editing"] })), CAPTION);
+            // The long caption edits in place (no route of its own), so its editor keeps the long text
+            const face = h("span", Object.assign({ class: "sv-cap" }, isLong
+                ? AB.act({ onClick: () => { const ta = editor(LONG_CAPTION, (saved) => { if (saved) AB.announce("Caption saved"); ta.replaceWith(face); face.focus(); }); face.replaceWith(ta); } })
+                : AB.act({ go: ["inspector-saved-view", "caption-editing"] })), isLong ? LONG_CAPTION : CAPTION);
             return AB.tip(face, "Edit caption");
         }
-        const back = (saved) => { if (saved) AB.announce("Caption saved"); AB.go("inspector-saved-view", "view"); };
-        const ta = h("textarea", { class: "sv-cap", rows: "4", placeholder: HINT, "aria-label": "Caption" });
-        ta.value = CAPTION;
+        return editor(CAPTION, (saved) => { if (saved) AB.announce("Caption saved"); AB.go("inspector-saved-view", "view"); });
+    }
+
+    function editor(text, back) {
+        const ta = h("textarea", { class: "sv-cap", rows: "4", maxlength: "300", placeholder: HINT, "aria-label": "Caption" });
+        ta.value = text;
         ta.addEventListener("keydown", (e) => {
             if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); back(false); }
             else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); back(true); }
         });
-        ta.addEventListener("blur", () => { if (location.hash.includes("caption-editing")) back(true); });
+        ta.addEventListener("blur", () => { if (ta.isConnected) back(true); }); // after Esc/Enter the editor is gone, so blur does nothing
         requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
         // No tooltip here: the shared tooltip shows on keyboard focus and would take the first Esc
         return ta;
@@ -48,6 +58,7 @@
             { id: "view", label: "A saved view" },
             { id: "caption-editing", label: "Editing the caption" },
             { id: "view-2d", label: "A 2D view" },
+            { id: "long-caption", label: "A 300-character caption, wrapped" },
         ],
         render(el, state) {
             const is2d = state === "view-2d";

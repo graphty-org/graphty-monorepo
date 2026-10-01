@@ -90,21 +90,25 @@
         },
     ];
     // The weight chosen when each graph was loaded (owner: every run uses it unless the run picks
-    // another). edgeNums: the other numeric edge columns, the dropdown's tail.
+    // another). The Weight line lists the rest from the field list (AB.fieldsOf).
     const GRAPHS = {
-        lesmis: { weight: "value", meaning: "stronger", desc: "Co-appearances per pair", edgeNums: [["Edge betweenness", "A result: Edge betweenness, on edges"]], directed: false },
-        transactions: { weight: "amount", meaning: "stronger", desc: "Amount per transfer", edgeNums: [], directed: true },
-        doorEntries: { weight: "count", meaning: "stronger", desc: "Entries per person and building (One edge per: Pair)", edgeNums: [], directed: true, bipartite: true,
+        lesmis: { weight: "value", meaning: "stronger", desc: "Co-appearances per pair", directed: false },
+        transactions: { weight: "amount", meaning: "stronger", desc: "Amount per transfer", directed: true },
+        doorEntries: { weight: "count", meaning: "stronger", desc: "Entries per person and building (One edge per: Pair)", directed: true, bipartite: true,
             nodeWeight: "floors", nodeWeightOf: "building", nodeWeightRest: "person" },
+        wide: { weight: "bytes_total_24h", meaning: "stronger", desc: "Bytes per connection in 24 hours", directed: true },
+        nested: { weight: "weight", meaning: "stronger", desc: "Strength per link (links' weight column)", directed: false },
+        plainJson: { weight: "weight", meaning: "stronger", desc: "Strength per link", directed: false },
     };
     // The door entries' loaded weight follows the last Load: count under Pair, none under Row or as nodes
     const graphOf = (ds) => (ds === "doorEntries" && AB.fx.datasets.doorEntries.loaded.per !== "pair"
         ? Object.assign({}, GRAPHS.doorEntries, { weight: null, desc: AB.fx.datasets.doorEntries.loaded.per === "row" ? "One edge per: Row" : "Each entry as a node" })
-        : GRAPHS[ds]);
+        : ds === "nested" ? Object.assign({}, GRAPHS.nested, { weight: AB.nestedLoaded().weight, directed: AB.nestedLoaded().direction === "directed" })
+            : GRAPHS[ds] || GRAPHS.lesmis);
     // A precondition the graph on screen meets switches its entry on
     const disabledOf = (e) => (e.direction && graphOf(ui.ds).directed) || (e.id === "matching" && graphOf(ui.ds).bipartite) ? null : e.disabled;
     const AS = { stronger: "as strength", farther: "as distance", capacity: "as capacity" };
-    const DS_OF = { transfers: "transactions", "node-weight": "doorEntries" };
+    const DS_OF = { transfers: "transactions", "node-weight": "doorEntries", "wide-weight": "wide" };
     const ALL = GROUPS.flatMap((g) => g.entries);
     const byId = (id) => ALL.find((e) => e.id === id);
     const RECENT = ["louvain", "pagerank", "shortest-path"];
@@ -121,7 +125,8 @@
         // The project on screen: Analyze opened from the door entries or the transfers runs on them
         ui = { state, ds: DS_OF[state] || (AB.route && AB.route.frame.dataset) || "lesmis", level: "list", query: "", picked: null, sel: state === "scoped", scope: "sel" };
         if (state === "search") ui.query = "brokers";
-        if (state === "essentials" || state === "transfers") pick("pagerank", true);
+        if (state === "no-match") ui.query = "sentiment";
+        if (state === "essentials" || state === "transfers" || state === "wide-weight") pick("pagerank", true);
         if (state === "node-weight") { pick("pagerank", true); ui.nodeW = true; }
         // This run overrides both: Edge betweenness, read as distance, so busy bridges count as long hops
         if (state === "weight-override") { pick("closeness", true); ui.weight = "Edge betweenness"; ui.meaning = "farther"; }
@@ -185,7 +190,10 @@
             const hits = g.entries.filter((e) => matches(e, ui.query));
             if (hits.length) { any = true; group(g.title, hits); }
         });
-        if (!any) body.append(AB.noMatch(ui.query));
+        if (!any) {
+            const clear = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.query = ""; draw(); } })), "Clear");
+            body.append(h("div", { class: "ab-fl-none" }, AB.noMatch(ui.query), " ", clear));
+        }
         return body;
     }
 
@@ -197,7 +205,9 @@
 
     // A dropdown is a field that opens a dark menu of its choices
     function dropdown(value, choices, onPick, o) {
-        const f = AB.field(value || (o && o.placeholder), { caret: true, onClick: () => AB.openMenu(f, choices.map((c) => ({ label: c, check: c === value, onClick: () => onPick(c) })), { search: choices.length > 15 }) });
+        // past 15 choices the list is the field list's (its find over these items)
+        const items = () => choices.map((c) => ({ label: c, check: c === value, onClick: () => onPick(c) }));
+        const f = AB.field(value || (o && o.placeholder), { caret: true, onClick: () => (choices.length > 15 ? AB.openFieldList(f, { items: items() }) : AB.openMenu(f, items())) });
         f.setAttribute("aria-haspopup", "menu");
         if (!value) f.classList.add("k-secondary");
         return f;
@@ -206,45 +216,40 @@
         const X = AB.fx.datasets;
         if (ui.ds === "doorEntries") return [...new Set(X.doorEntries.tables[0].sample.map((r) => r.name))].concat(X.doorEntries.tables[1].sample.map((r) => r.bldg));
         if (ui.ds === "transactions") return X.transactions.rows.map((r) => r.id);
+        if (["wide", "nested", "plainJson"].includes(ui.ds)) return AB.walkList(ui.ds).map((w) => w.name);
         return X.lesmis.rows.map((r) => r.label);
     };
 
-    // Weight: the loaded weight first, then None and the numeric edge columns; the meaning defaults
-    // from the load. Anything else is this run's override, recorded in its Made with, never in the data.
+    // Weight: the field list at menu size over the project's edge attributes (number ones first, the
+    // loaded weight in use, "Not a number" disabled with the reason); the meaning defaults from the
+    // load. No weight is the link under it. Anything else is this run's override, recorded in its
+    // Made with, never in the data.
     function weightRows(e, body, row) {
         const G = graphOf(ui.ds);
-        if (!G.weight) {
-            // Loaded with no weight (the door entries per Row): None is the loaded choice
-            const f = AB.field(ui.weight || "None", { caret: true, onClick: () => AB.openMenu(f, [{ label: "None (loaded: no weight)", check: !ui.weight, desc: "Every edge counts as one; " + G.desc, onClick: () => { ui.weight = null; draw(); } }]) });
-            f.setAttribute("aria-haspopup", "menu");
-            f.setAttribute("aria-label", "Weight: None");
-            row("Weight", f);
-            body.append(h("div", { class: "ap-wnote" }, h("span", null, "Loaded weight: none (each edge counts 1). " + G.desc + ".")));
-        } else {
-            const loadedLabel = G.weight + " (loaded weight)";
-            const items = [{ label: loadedLabel, check: ui.weight === G.weight, desc: G.desc + ", " + G.meaning, onClick: () => { ui.weight = G.weight; draw(); } }, { sep: true }];
-            if (!e.needsWeight) items.push({ label: "None", check: !ui.weight, desc: "Every edge counts as one", onClick: () => { ui.weight = null; draw(); } });
-            G.edgeNums.forEach(([n, d]) => items.push({ label: n, check: ui.weight === n, desc: d, onClick: () => { ui.weight = n; draw(); } }));
-            const f = AB.field(ui.weight === G.weight ? loadedLabel : ui.weight || "None", { caret: true, onClick: () => AB.openMenu(f, items) });
-            f.setAttribute("aria-haspopup", "menu");
-            f.setAttribute("aria-label", "Weight: " + (ui.weight || "None"));
-            row("Weight", f);
-            if (ui.weight) {
-                row("Higher means", h("span", { class: "ap-stack" },
-                    AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], ui.meaning, (v) => { ui.meaning = v; draw(); }, { label: "Higher weight means" }),
-                    AB.needsElement("graphty-element's weight meaning is distance or strength only, and the loaded weight carries no meaning: Capacity and the meaning chosen at load need it")));
-            }
-            const loaded = "Loaded weight: " + G.weight + ", " + G.meaning; // the graph inspector's words: "value, stronger"
-            const over = ui.weight !== G.weight || (ui.weight && ui.meaning !== G.meaning);
-            const reads = e.weight === "distance" ? "farther" : "stronger";
-            const conv = ui.weight && ui.meaning !== "capacity" && ui.meaning !== reads
-                ? e.name + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
-            const reset = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.weight = G.weight; ui.meaning = G.meaning; draw(); } })), "Use the loaded weight");
-            body.append(h("div", { class: "ap-wnote" },
-                over ? h("span", { class: "k-badge" }, "This run's override") : null,
-                over ? h("span", null, "Recorded in this run's Made with. The data keeps it: " + G.weight + ", " + G.meaning + ". ", reset) : h("span", null, loaded),
-                conv ? h("span", null, conv) : null));
+        const label = ui.weight ? (ui.weight === G.weight ? ui.weight + " (loaded weight)" : ui.weight) : "None";
+        const f = AB.field(label, { caret: true, onClick: () => AB.openFieldList(f, { kind: "number", element: "edge", current: ui.weight, results: false, notes: false, label: "Weight", onPick: (name) => { ui.weight = name; draw(); } }) });
+        f.setAttribute("aria-haspopup", "listbox");
+        f.setAttribute("aria-label", "Weight: " + (ui.weight || "None"));
+        f.dataset.apWeight = "";
+        row("Weight", f);
+        if (ui.weight) {
+            row("Higher means", h("span", { class: "ap-stack" },
+                AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], ui.meaning, (v) => { ui.meaning = v; draw(); }, { label: "Higher weight means" }),
+                AB.needsElement("graphty-element's weight meaning is distance or strength only, and the loaded weight carries no meaning: Capacity and the meaning chosen at load need it")));
         }
+        const link = (text, fn) => h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { fn(); draw(); } })), text);
+        const useLoaded = link(G.weight ? "Use the loaded weight" : "Use no weight", () => { ui.weight = G.weight; ui.meaning = G.meaning; });
+        const noWeight = ui.weight && G.weight && ui.weight === G.weight && !e.needsWeight ? link("Use no weight", () => { ui.weight = null; }) : null;
+        // the graph inspector's words: "value, stronger"
+        const loaded = G.weight ? "Loaded weight: " + G.weight + ", " + G.meaning + ". " : "Loaded weight: none (each edge counts 1). " + G.desc + ".";
+        const over = ui.weight !== G.weight || (ui.weight && ui.meaning !== G.meaning);
+        const reads = e.weight === "distance" ? "farther" : "stronger";
+        const conv = ui.weight && ui.meaning !== "capacity" && ui.meaning !== reads
+            ? e.name + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
+        body.append(h("div", { class: "ap-wnote" },
+            over ? h("span", { class: "k-badge" }, "This run's override") : null,
+            over ? h("span", null, "Recorded in this run's Made with. The data keeps it: " + (G.weight ? G.weight + ", " + G.meaning : "no weight") + ". ", useLoaded) : h("span", null, loaded, noWeight),
+            conv ? h("span", null, conv) : null));
         if (e.nodeWeight && G.nodeWeight) {
             // The same words as the floors attribute inspector: one candidate entry reads node weight, and it waits on the element
             const lw = G.nodeWeight + " (" + G.nodeWeightOf + ", loaded)";
@@ -290,7 +295,8 @@
 
     function essentialsFoot(e) {
         const missing = e.node === "start" && !ui.start ? "Choose a start node" : e.node === "pair" && !(ui.from && ui.to) ? "Choose From and To" : null;
-        const n = ui.sel && ui.scope === "sel" ? SELECTED.length : ui.ds === "transactions" ? AB.fx.datasets.transactions.nodes : ui.ds === "doorEntries" ? AB.fx.datasets.doorEntries.loadedTypes().total : AB.fx.datasets.lesmis.nodes;
+        const n = ui.sel && ui.scope === "sel" ? SELECTED.length : ui.ds === "transactions" ? AB.fx.datasets.transactions.nodes : ui.ds === "doorEntries" ? AB.fx.datasets.doorEntries.loadedTypes().total
+            : ui.ds === "nested" ? AB.walkList("nested").length + AB.fx.datasets.nested.recordArrays["data.institutions[]"] : AB.fx.datasets[ui.ds] && AB.fx.datasets[ui.ds].nodes || AB.fx.datasets.lesmis.nodes;
         const cost = AB.tip(h("span", { class: "ap-cost", tabindex: "0" }, e.id === "all-pairs" && ui.sampled === "exact" ? "About a second" : "Under a second"), "Estimated on " + n + " nodes", { label: false });
         const main = hasRow(e) ? "Update " + hasRow(e) + " row" : "Run";
         const runBtn = AB.button(main, { key: "Enter", disabled: missing, onClick: () => run(e, false) });
@@ -332,6 +338,8 @@
                 if (f) { f.scrollIntoView({ block: "center" }); f.focus(); }
                 return;
             }
+            // The hosts: the Weight line's field list open over the 26 connection attributes
+            if (ui.state === "wide-weight" && e) { const w = pop.querySelector("[data-ap-weight]"); if (w) { ui.state = "essentials"; w.click(); } return; }
             const f = pop.querySelector(e ? ".ap-run" : ".ap-find input");
             if (f) f.focus();
         }, 20);
@@ -353,15 +361,18 @@
         closeTo: "graph-place/at-rest",
         // Running: the tree of the project the run was started on (the screen before this one), its new row on top
         frame: (state) => (state === "running" ? ({ doorEntries: { own: true, dataset: "doorEntries", left: "graph-place/door-entries-running" }, transactions: { own: true, dataset: "transactions", left: "graph-place/transfers-running", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities" } }[AB.route && AB.route.frame.dataset] || { left: "graph-place/running" })
-            : state === "scoped" ? { left: "graph-place/at-rest", right: "inspector-several-elements/style", toolbar: "selection-bar/five-nodes" }
+            : state === "scoped" ? { left: "graph-place/at-rest", right: "inspector-several-elements/style" }
             : state === "transfers" ? { dataset: "transactions", left: "graph-place/many-groups", canvas: "canvas-and-states/transfers" }
-            : state === "node-weight" ? { dataset: "doorEntries", left: "data-place/door-entries", right: false } : {}),
+            : state === "node-weight" ? { dataset: "doorEntries", left: "data-place/door-entries", right: false }
+            : state === "wide-weight" ? { dataset: "wide", left: "graph-place/at-rest" } : {}),
         states: [
             { id: "open", label: "Open: Recent and the catalog" },
             { id: "search", label: "Search: an alias match (brokers)" },
+            { id: "no-match", label: "Search: no match (sentiment)" },
             { id: "scoped", label: "Five nodes selected: On line first" },
             { id: "essentials", label: "PageRank essentials: loaded weight value" },
             { id: "transfers", label: "Transfers: loaded weight amount, Direction" },
+            { id: "wide-weight", label: "Hosts: the Weight line's field list over 26 connection attributes" },
             { id: "weight-override", label: "Weight override: Closeness on Edge betweenness" },
             { id: "node-weight", label: "Door entries: a node-weight line" },
             { id: "revise", label: "Louvain already has a row: Update or Run as copy" },

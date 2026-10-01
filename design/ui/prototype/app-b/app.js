@@ -12,9 +12,30 @@
     const DATASET_FRAME = {
         transactions: { canvas: "canvas-and-states/transfers", right: "inspector-nothing-selected/transfers", dock: "table-dock/transfers" },
         doorEntries: { canvas: "canvas-and-states/door-entries", right: "inspector-nothing-selected/door-entries", dock: "table-dock/door-entries" },
+        // The wide, nested and plain JSON projects share three routes, each drawn for AB.route.frame.dataset
+        wide: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
+        nested: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
+        plainJson: { canvas: "canvas-and-states/hosts", right: "inspector-nothing-selected/wide", dock: "table-dock/wide" },
     };
     // A just-loaded project has no saved views; the door entries have their own notes
-    const RAIL_STATE = { doorEntries: { graph: "door-entries", data: "door-entries", notes: "door-entries", views: "empty" }, transactions: { graph: "many-groups", views: "empty" } };
+    const RAIL_STATE = {
+        lesmis: { data: "graph-file" },
+        doorEntries: { graph: "door-entries", data: "door-entries", notes: "door-entries", views: "empty" },
+        transactions: { graph: "many-groups", views: "empty" },
+        wide: { graph: "wide", data: "attributes-wide", views: "empty", notes: "empty" },
+        nested: { graph: "nested", data: "attributes-nested", views: "empty", notes: "empty" },
+        plainJson: { graph: "plain-json", data: "plain-json", views: "empty", notes: "empty" },
+    };
+    // The selection bar is raised in one place: a frame whose inspector shows elements gets the bar
+    // for them unless the route names its own toolbar (section frames never set it themselves)
+    function selectionBarFor(right) {
+        const r = refOf(right);
+        if (!r) return null;
+        if (r.id === "inspector-node") return "selection-bar/one-node";
+        if (r.id === "inspector-edge") return "selection-bar/one-edge";
+        if (r.id === "inspector-several-elements") return r.state === "style" || r.state === "data" ? "selection-bar/five-nodes" : "selection-bar/two-nodes";
+        return null;
+    }
     const PLACES = { graph: ["Graph", "network", "graph-place"], data: ["Data", "database", "data-place"], views: ["Views", "bookmark", "views-place"], notes: ["Notes", "message-square", "notes-place"], assistant: ["Assistant", "bot", "assistant-place"] };
 
     // ---------- persistent viewer conveniences (never required) ----------
@@ -168,7 +189,7 @@
             const L = fxl(), f = L.frame, a = L.anchors.selected;
             const stage = h("div", { class: "k-stage" }, AB.drawing("lesmis-groups-rest", f.altSized));
             const hot = AB.tip(h("span", { class: "ab-hot" , style: `left:${a.x}%;top:${a.y}%` }), a.id, { second: "group 2, degree 36" });
-            AB.nav(hot, "inspector-node", "why-this-look");
+            AB.selectHot(hot, "lesmis", L.rows.findIndex((r) => r.label === a.id));
             hot.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); go("context-menus", "node"); });
             stage.append(hot);
             const legend = AB.legendCard([
@@ -190,7 +211,7 @@
                 h("div", { class: "k-scope" }, "Full graph: " + L.nodes + " nodes. Sorted by degree."),
                 h("div", { class: "k-table-wrap" }, h("table", { class: "k-table" },
                     h("thead", null, h("tr", null, h("th", null, "label"), h("th", null, "group ", h("span", { class: "k-profile" }, "10 values")), h("th", { class: "k-n" }, "degree ", h("span", { class: "k-profile" }, "1 to " + L.stats.maxDegree)), h("th", { class: "k-n" }, "betweenness ", h("span", { class: "k-profile" }, "0 to 0.57")))),
-                    h("tbody", null, rows.map((r) => AB.nav(h("tr", null, h("td", { class: "k-id" }, r.label), h("td", null, AB.chit(L.groupColors[r.group] || "#808080"), String(r.group)), h("td", { class: "k-n" }, r.degree), h("td", { class: "k-n" }, r.betweenness)), "inspector-node", "why-this-look"))),
+                    h("tbody", null, rows.map((r) => h("tr", act({ onClick: () => AB.selectNode("lesmis", L.rows.findIndex((x) => x.label === r.label)) }), h("td", { class: "k-id" }, r.label), h("td", null, AB.chit(L.groupColors[r.group] || "#808080"), String(r.group)), h("td", { class: "k-n" }, r.degree), h("td", { class: "k-n" }, r.betweenness)))),
                 )),
             );
         },
@@ -308,9 +329,9 @@
         AB.order.concat(Object.keys(AB.sections).filter((id) => !AB.order.includes(id))).forEach((id) => { const s = AB.sections[id]; if (s) (byRegion[s.region] = byRegion[s.region] || []).push(s); });
         const order = ["full", "left", "right", "canvas", "toolbar", "dock", "overlay", "workspace"];
         main.append(h("h1", { class: "ab-map-h1" }, "Refined B skeleton: every section"),
-            h("p", { class: "ab-map-lede" }, h("a", { href: "START-HERE.html" }, "Start here: version 4, the owner's decisions after version 3, with links into the skeleton")),
+            h("p", { class: "ab-map-lede" }, h("a", { href: "START-HERE.html" }, "Start here: version 5, the owner's decisions since version 3, with links into the skeleton")),
             h("p", { class: "k-secondary ab-map-lede" }, "Click a section to open it inside the app frame; each state below it opens that state." + (AB.order.some((id) => AB.sections[id] && typeof AB.sections[id].render !== "function") ? " Sections marked \"not built yet\" show the frame at rest with a placeholder." : "")),
-            h("p", { class: "k-secondary ab-map-lede" }, "Three data sets: the Graph place, Notes and most inspectors show Les Miserables; the Data place, the Path popover, version history and the many-groups states show the card and transfer data; the Data page shows door entries (people, buildings, entries) and the March transfers. The project name at the top left says which one is open, and the canvas, inspector and table follow it."));
+            h("p", { class: "k-secondary ab-map-lede" }, "The data sets: the Graph place, Notes and most inspectors show Les Miserables; the Data place, the Path popover, version history and the many-groups states show the card and transfer data; the Data page shows door entries (people, buildings, entries) and the March transfers. Wide data (300 hosts with 69 attributes, 1,105 connections with 26) and nested JSON (a research network API export, a package registry, a small co-author file) have their own states, listed in study/structure-comparison/state-matrix.md. The project name at the top left says which one is open, and the canvas, inspector and table follow it."));
         order.filter((r) => byRegion[r]).forEach((r) => {
             main.append(h("h2", { class: "ab-map-h2" }, REGION_LABEL[r] || r));
             const ul = h("ul", { class: "ab-map-list" });
@@ -358,10 +379,18 @@
         frame.dataset = extra.dataset || leftExtra.dataset || (carried ? was.frame.dataset : "lesmis");
         frame.chip = extra.chip || leftExtra.chip || (carried ? was.frame.chip : "Full graph");
         if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
+        if (carried !== "panels" && sec.region !== "toolbar" && !("toolbar" in extra)) frame.toolbar = selectionBarFor(frame.right) || frame.toolbar;
+        // frame.walk: n puts the canvas walk n steps along this project's nodes (a route drawn after Shift+Arrow)
+        if (typeof extra.walk === "number") walkTo(frame.dataset, extra.walk - 1);
+        else if (!walking) { walk.at = null; AB.walked = null; }
+        walking = false;
         // The rail lights the place the left panel shows; a section with no left panel names its own.
         // A workspace page (the Data page) names its own place: no left panel shows beside it.
         const railKey = (sec.region === "workspace" && sec.rail) || (sec.region !== "left" && leftSec && leftSec.rail) || sec.rail || "graph";
         let closeTo = carried === "panels" ? (was.frame.overlay ? was.closeTo : { id: was.id, state: was.state }) : extra.own && leftRef ? leftRef : sec.closeTo ? refOf(sec.closeTo) : frame.full && sec.region !== "full" ? refOf(frame.full) : leftRef && leftRef.id !== sec.id ? leftRef : { id: PLACES[railKey][2], state: null };
+        // In a loaded project (wide, nested, plain JSON) a place's at-rest names Les Miserables: close to the project's own state
+        const placeKey = closeTo && Object.keys(PLACES).find((k) => PLACES[k][2] === closeTo.id);
+        if (placeKey && ["wide", "nested", "plainJson"].includes(frame.dataset) && (!closeTo.state || closeTo.state === "at-rest") && RAIL_STATE[frame.dataset][placeKey]) closeTo = { id: closeTo.id, state: RAIL_STATE[frame.dataset][placeKey] };
         const hadOverlay = !!(route && route.frame.overlay);
         const hadFocus = describe(document.activeElement);
         const prevId = route && route.id;
@@ -421,9 +450,18 @@
         setActive();
         requestAnimationFrame(() => requestAnimationFrame(() => { if (route && route.frame === frame) setActive(); }));
         // move focus into an opened overlay, or back to the control that opened it
-        const first = $("ab-overlay").querySelector("[data-autofocus], [aria-modal='true'] .k-modal-body :is([tabindex='0'], input, select, textarea), [tabindex='0']:not([aria-label='Close']), input, .k-menu-item");
+        // (never a control that is not drawn: a design-note chip hidden in the participant view)
+        // (never a control that is not drawn, such as a design-note chip hidden in the participant view;
+        // a dialog with nothing else to focus focuses its Close)
+        const FIRST = "[data-autofocus], [aria-modal='true'] .k-modal-body :is([tabindex='0'], input, select, textarea), [tabindex='0']:not([aria-label='Close']), input, .k-menu-item";
+        const firstDrawn = () => [...$("ab-overlay").querySelectorAll(FIRST)].concat([...$("ab-overlay").querySelectorAll("[aria-modal='true'] [aria-label='Close']")]).find((x) => x.getClientRects().length && !x.closest("[hidden]"));
+        const first = $("ab-overlay").querySelector(FIRST);
         // Menus are placed (and made visible) a frame later, and a hidden element cannot take focus
-        if (first && frame.overlay) requestAnimationFrame(() => requestAnimationFrame(() => { if (first.isConnected && !$("ab-overlay").contains(document.activeElement)) first.focus(); }));
+        if (first && frame.overlay) requestAnimationFrame(() => requestAnimationFrame(() => {
+            if ($("ab-overlay").contains(document.activeElement)) return;
+            const f = firstDrawn();
+            if (f) f.focus();
+        }));
         if (hadOverlay && !frame.overlay) {
             // No remembered opener (a direct link): fall back to the control that opens this overlay
             const was = closedOverlay;
@@ -458,9 +496,87 @@
             if (head) head.focus({ preventScroll: true });
         }, 0);
         // An overlay that places itself a frame later: focus its first item then
-        if (frame.overlay && !first) setTimeout(() => { const f = $("ab-overlay").querySelector(".k-menu-item:not([aria-disabled='true']), [tabindex='0'], input"); if (f && !$("ab-overlay").contains(document.activeElement)) f.focus(); }, 50);
+        if (frame.overlay && !first) setTimeout(() => { const f = [...$("ab-overlay").querySelectorAll(".k-menu-item:not([aria-disabled='true']), [tabindex='0'], input")].find((x) => x.getClientRects().length && !x.closest("[hidden]")); if (f && !$("ab-overlay").contains(document.activeElement)) f.focus(); }, 50);
     }
     AB.render = render;
+
+    // ---------- Shift+Arrow: graphty-element's canvas walk from node to node (owner decision) ----------
+    // The walk goes over the node rows of the project on screen, in their file order. Each step
+    // selects the node: its node inspector (with the selection bar, raised by the frame) and an
+    // announcement "<name>, <n> neighbors". The inspector's header names the walked node
+    // (AB.walked, read by AB.inspector); its body is the project's node inspector state.
+    // ponytail: neighbor counts are counted from the fixture rows here; the element reports them.
+    const walk = { ds: null, at: null };
+    let walking = false; // set by a step, so the render it causes keeps the cursor
+    function walkNodes(ds) {
+        const X = AB.fx.datasets, D = X[ds];
+        if (!D) return [];
+        if (D._walk) return D._walk;
+        const count = (pairs) => { const n = {}; pairs.forEach(([a, b]) => { (n[a] = n[a] || new Set()).add(b); (n[b] = n[b] || new Set()).add(a); }); return (id) => (n[id] ? n[id].size : 0); };
+        let out = [];
+        if (ds === "lesmis") out = D.rows.map((r) => ({ name: r.label, neighbors: r.degree, at: "inspector-node/why-this-look" }));
+        else if (ds === "transactions") out = D.rows.map((r) => ({ name: r.id, neighbors: r.degree, at: "inspector-node/why-this-look" }));
+        else if (ds === "doorEntries") {
+            const [people, buildings, entries] = D.tables;
+            const n = count(entries.sample.map((e) => [String(+e.person_id), e.building_id]));
+            const seen = new Set();
+            people.sample.forEach((p) => { if (!seen.has(p.name)) { seen.add(p.name); out.push({ name: p.name, neighbors: n(String(+p.id)), at: "inspector-node/door-ana" }); } });
+            buildings.sample.forEach((b) => out.push({ name: b.bldg, neighbors: n(b.bldg), at: "inspector-node/door-b1" }));
+        } else if (ds === "wide") {
+            const n = count(D.edgeRows.map((e) => [e.source, e.target]));
+            out = D.nodeRows.map((r) => ({ name: r.hostname, neighbors: n(r.id), at: "inspector-node/wide-data" }));
+        } else if (ds === "nested") {
+            const R = D.document.data.researchers;
+            out = R.map((r) => ({ name: r.attributes.name.given + " " + r.attributes.name.family, neighbors: r.relationships.coauthor_ids.length, at: "inspector-node/nested-data" }));
+        } else if (ds === "plainJson") {
+            const n = count(D.document.links.map((l) => [l.source, l.target]));
+            out = D.document.nodes.map((r) => ({ name: r.name, neighbors: n(r.id), at: "inspector-node/plain-data" }));
+        }
+        Object.defineProperty(D, "_walk", { value: out, enumerable: false });
+        return out;
+    }
+    function walkTo(ds, i) {
+        const list = walkNodes(ds);
+        if (!list.length) { walk.at = null; AB.walked = null; return null; }
+        walk.ds = ds;
+        walk.at = (i + list.length) % list.length;
+        const node = list[walk.at];
+        AB.walked = { dataset: ds, index: walk.at, name: node.name, neighbors: node.neighbors, right: node.at };
+        return node;
+    }
+    // Select one node of a project as the walk does (a canvas hot spot, a table row): its node
+    // inspector, the selection bar, and the walk's cursor on it
+    AB.walkList = walkNodes;
+    AB.selectNode = (ds, i) => {
+        const node = walkTo(ds, i);
+        if (!node) return;
+        const [id, state] = node.at.split("/");
+        walking = true;
+        if (location.hash === href(id, state)) render();
+        else go(id, state);
+    };
+    // A canvas hot spot that selects its node: a button, Enter or Space too
+    AB.selectHot = (el, ds, i) => {
+        el.setAttribute("role", "button");
+        el.tabIndex = 0;
+        el.addEventListener("click", (e) => { e.stopPropagation(); AB.selectNode(ds, i); });
+        el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); AB.selectNode(ds, i); } });
+        return el;
+    };
+    function step(dir) {
+        const ds = route.frame.dataset;
+        const from = walk.ds === ds && walk.at != null ? walk.at : -1;
+        const node = walkTo(ds, dir > 0 ? from + 1 : from < 0 ? -1 : from - 1);
+        if (!node) { AB.flash("Nothing is drawn to walk through"); return; }
+        const [id, state] = node.at.split("/");
+        walking = true;
+        // the walk stays on the canvas: focus goes back to the drawing after the redraw
+        const back = () => { const s = document.querySelector("#ab-canvas .k-stage"); if (s) s.focus({ preventScroll: true }); AB.announce(node.name + ", " + node.neighbors + (node.neighbors === 1 ? " neighbor" : " neighbors")); };
+        if (location.hash === href(id, state)) render();
+        else go(id, state);
+        setTimeout(back, 100);
+    }
+    AB.walked = null;
 
     // ---------- keys and clicks the shell owns ----------
     document.addEventListener("keydown", (e) => {
@@ -498,12 +614,7 @@
             [() => free && !mod && !e.altKey && e.key === "0", stub("0 fits the graph to the view")],
             [() => free && !mod && !e.altKey && ["1", "3", "7"].includes(e.key), stub(e.key + " turns the camera to the " + { 1: "front", 3: "side", 7: "top" }[e.key])],
             // graphty-element's canvas key (owner decision): Shift+Arrow walks from node to node on the drawing
-            [() => !mod && e.shiftKey && /^Arrow/.test(e.key) && t && t.closest && t.closest(".k-stage"), () => {
-                const v = AB.fx.datasets.lesmis.rows.find((r) => r.label === "Valjean");
-                if (route.frame.dataset !== "lesmis" || route.frame.right === "inspector-node/why-this-look" || !v) { AB.flash("Shift+Arrow walks to the next node (the skeleton walks only to Valjean)"); return; }
-                go("inspector-node", "why-this-look");
-                setTimeout(() => AB.announce("Valjean, " + v.degree + " neighbors. Shift+Arrow walks to the next node"), 100);
-            }],
+            [() => !mod && e.shiftKey && /^Arrow/.test(e.key) && t && t.closest && t.closest(".k-stage"), () => step(e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1)],
             [() => mod && !e.shiftKey && e.key === ",", () => go("settings", "general")],
             [() => mod && !e.shiftKey && (e.key === "k" || e.key === "K"), () => go("commands-and-search", "quick-actions")],
             [() => mod && !e.shiftKey && (e.key === "b" || e.key === "B"), () => { shell.panels = shell.panels === "shown" ? "hidden" : "shown"; render(); AB.announce(shell.panels === "shown" ? "Panels shown" : "Panels hidden. Ctrl+B shows them"); }],
@@ -537,7 +648,12 @@
             if (!route || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
             const place = PLACES[route.rail] ? PLACES[route.rail][2] : "graph-place";
             // In another project, back to that project's place (the door entries' Graph place), not Les Miserables
-            const left = refOf(route.frame.left), st = route.frame.dataset !== "lesmis" && left && left.id === place ? left.state : null;
+            const ds = route.frame.dataset, left = refOf(route.frame.left);
+            // the left panel's own state, unless it is at-rest, which only means this project while the frame carries it
+            const st = ds === "lesmis" ? RAIL_STATE.lesmis[route.rail] || null : left && left.id === place && left.state !== "at-rest" ? left.state : (RAIL_STATE[ds] || {})[route.rail] || null;
+            // focus stays on the drawing (a click beside it too), so Shift+Arrow walks from here
+            const stage = $("ab-canvas").querySelector(".k-stage");
+            if (stage) stage.focus({ preventScroll: true });
             if (route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected" || route.id !== place) go(place, st);
         });
         $("ab-overlay").addEventListener("click", (e) => { if (e.target === $("ab-overlay") || e.target.classList.contains("ab-modal-wrap")) AB.close(); });
@@ -644,9 +760,11 @@
     // ---------- boot: fixtures, then every section file in the manifest, in order ----------
     async function boot() {
         try {
-            const [fx, manifest] = await Promise.all([fetch("kit/fixtures.json").then((r) => r.json()), fetch("sections/manifest.json").then((r) => r.json())]);
+            const [fx, manifest, more] = await Promise.all([fetch("kit/fixtures.json").then((r) => r.json()), fetch("sections/manifest.json").then((r) => r.json()), fetch("kit/wide-nested.json").then((r) => r.json())]);
             // The door-entries example lives in the shell (kit/ is read-only); every section reads this one copy
             fx.datasets.doorEntries = DOOR_ENTRIES;
+            // wide (300 hosts, 60+ attributes), nested (an API's nested JSON) and plainJson (node-link): generated by ../kit/gen-wide-nested.mjs
+            Object.assign(fx.datasets, more);
             AB.fx = fx;
             AB.order = manifest;
             await Promise.all(manifest.map((id) => new Promise((res) => {

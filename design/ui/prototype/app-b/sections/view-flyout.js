@@ -7,12 +7,20 @@
     "use strict";
     if (!document.getElementById("vf-style")) {
         document.head.append(h("style", { id: "vf-style" },
-            ".vf-tag{margin-inline-start:6px;padding:0 4px;border:1px solid #ffffff4d;border-radius:4px;font-size:10px;line-height:14px;color:#ffffffb2}"));
+            ".vf-tag{margin-inline-start:6px;padding:0 4px;border:1px solid #ffffff4d;border-radius:4px;font-size:10px;line-height:14px;color:#ffffffb2}"
+            + ".k-menu.vf-many{max-width:280px}.vf-views{max-height:192px;overflow-y:auto;overscroll-behavior:contain}"
+            + ".vf-views .k-menu-item>span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"));
     }
 
     // Which saved views hold a 3D camera. Studio decision: "From above" looks down on the 3D layout,
     // so in 2D it carries the "3D" tag and choosing it switches the mode; the fixtures carry no mode.
     const VIEW_IS_3D = { "From above": true };
+    // Many views: the Views place's twenty (views-place "many"), one renamed to the 60-character name.
+    // Past eight the Your views block scrolls inside the flyout; a long name takes the end ellipsis.
+    const LONG = "Valjean, Javert and the students at the Rue de la Chanvrerie";
+    const MANY = ["Whole cast", "Valjean's circle", "From above", "The bishop's household", "Fantine's friends", "Thenardier family", "Javert's pursuit",
+        "Cosette and Marius", "Friends of the ABC", LONG, "Gavroche", "Eponine", "Champmathieu trial", "Petit-Gervais", "Montreuil-sur-Mer",
+        "The convent", "Gorbeau house", "Patron-Minette", "Bridges to Valjean", "Closing shot"];
     const XR_REASON = "graphty-element's isVRSupported() and isARSupported() return only true or false; the reason a device cannot enter is needed";
 
     // Choosing an item: the camera moves (not modeled), the flyout closes.
@@ -26,7 +34,7 @@
         const is2d = state === "2d";
         const selected = state === "3d-selected";
         const headset = state === "headset";
-        const views = state === "no-saved-views" ? [] : AB.SAVED_VIEWS;
+        const views = state === "no-saved-views" ? [] : state === "many-views" ? MANY : AB.SAVED_VIEWS;
         const list = [
             AB.cmd("fit", { onClick: done("Camera fits the whole graph"), go: undefined }),
             AB.cmd("frame-selection", selected
@@ -55,7 +63,8 @@
             list.push({
                 label: name,
                 tag3d: switches,
-                desc: switches ? "A 3D view: choosing it switches to 3D" : null,
+                view: true,
+                desc: switches ? "A 3D view: choosing it switches to 3D" : name.length > 32 ? name : null,
                 onClick: done("Camera moves to " + name, switches ? ["toolbar", "at-rest"] : null),
             });
         });
@@ -83,22 +92,32 @@
             { id: "3d-selected", label: "3D, a node selected (Frame selection on)" },
             { id: "no-saved-views", label: "No saved views" },
             { id: "headset", label: "Headset present (VR and AR on)" },
+            { id: "many-views", label: "Twenty saved views, one long name: the list scrolls" },
         ],
         closeTo: "graph-place",
         frame: (state) => Object.assign(
             { mode: state === "2d" ? "2d" : "3d" },
-            state === "3d-selected" ? { toolbar: "selection-bar/one-node", right: "inspector-node/why-this-look" } : {},
+            state === "3d-selected" ? { right: "inspector-node/why-this-look" } : {},
         ),
         render(el, state) {
             const list = items(state);
             const m = AB.menu({ anchor: "[data-tool=View]", place: "above-toolbar", label: "View", items: list });
             // menu() draws one element per item that is not a separator or heading, in order
             const els = [...m.querySelectorAll(".k-menu-item")];
+            const viewRows = [];
             list.filter((it) => !it.sep && !it.heading).forEach((it, i) => {
                 const row = els[i];
                 if (!row) return;
                 if (it.tag3d) row.children[1].append(h("span", { class: "vf-tag" }, "3D"));
+                if (it.view) viewRows.push(row);
             });
+            // Past eight views the Your views rows scroll in a block of their own; the rest stays put
+            if (viewRows.length > 8) {
+                m.classList.add("vf-many");
+                const box = h("div", { class: "vf-views", role: "group", "aria-label": "Your views" });
+                viewRows[0].before(box);
+                box.append(...viewRows);
+            }
             el.append(m);
         },
     });

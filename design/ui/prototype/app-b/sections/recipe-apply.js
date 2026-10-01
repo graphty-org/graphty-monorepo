@@ -14,6 +14,14 @@
    fact: fee is in March's transfers and not in April's (transfers-2026-04.csv).
    Header: the recipe has no author (the normal case: Your name in Settings is usually empty), so it
    reads "Saved <when>"; the style file has one, so it reads "Saved by <name>, <when>".
+   The wide state (wide-mismatch) applies a recipe saved on February's hosts export to March's
+   (kit/wide-nested.json, 69 host and 26 connection attributes): six attributes, four matched by name
+   and type, two renamed since February, each chosen through the field list. Section-local facts:
+   the recipe file, its February names (vuln_crit_30d, owner) and its rows.
+   Every binding choice is the field list at menu size (AB.openFieldList) over the data on screen;
+   "Leave unbound" and "Use no weight" are the link beside it, as Analyze's "Use no weight".
+   April's attributes: AB.fx.datasets.transactionsApril carries file columns but no attribute list,
+   so this file gives it one (non-enumerable, March's types for April's columns) for fieldsOf.
    The section also draws the left panel, canvas and (after applying) the inspector, so the tree
    and the drawing are the transfers graph the dialog talks about. Plain ASCII. */
 (function () {
@@ -54,6 +62,18 @@
     const RECIPE = { kind: "recipe", name: "Mule ring triage", file: "mule-ring-triage.graphty", savedBy: "", savedAt: "Mar 28 2026, 10:14", appliedAt: "today 09:31" };
     const STYLE = { kind: "style file", name: "Risk review look", file: "risk-review-look.json", savedBy: "Dana Reyes", savedAt: "Mar 30 2026, 16:02" };
     const LEGACY = { file: "transfers-look-2025.json" };
+    const WIDE = { kind: "recipe", name: "Estate exposure review", file: "estate-exposure-review.graphty", savedBy: "", savedAt: "Feb 27 2026, 15:40" };
+    const W = () => AB.fx.datasets.wide;
+
+    // April's attribute list for the field list: April's columns with March's types
+    function aprilFields() {
+        const A = TA();
+        if (A.attributes) return;
+        const march = Object.fromEntries(T().attributes.map((a) => [a.name.replace(/ \(edge\)$/, ""), a.kind]));
+        const attrs = A.files.accounts.columns.map((c) => (c === "id" ? { name: "id (account)", kind: "text" } : { name: c, kind: march[c] }))
+            .concat(["amount", "timestamp"].map((c) => ({ name: c + " (edge)", kind: march[c] })));
+        Object.defineProperty(A, "attributes", { value: attrs, enumerable: false });
+    }
     // "Saved by Dana Reyes, <when>" only when the file names its author, else "Saved <when>"
     const savedLine = (f) => (f.savedBy ? "Saved by " + f.savedBy + ", " : "Saved ") + f.savedAt;
     const MEANINGS = [["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]];
@@ -74,6 +94,17 @@
             { id: "alertRule", kindIcon: abc(), name: "alertRule", role: "alertRule", reads: "alertRule", miss: april },
         ];
     }
+    // The wide recipe: six attributes; vuln_crit_30d and owner are February's names
+    function wideRows() {
+        return [
+            { id: "role", kindIcon: abc(), name: "role", role: "color", reads: "role" },
+            { id: "env", kindIcon: "funnel", name: "environment is production", role: "filter", reads: "environment" },
+            { id: "cpu", kindIcon: "hash", name: "cpu_util_p95_pct", role: "tooltip", reads: "cpu_util_p95_pct" },
+            { id: "btw", kindIcon: "chart-column", name: "Betweenness, weighted by bytes", role: "weight", reads: "bytes_total_24h" },
+            { id: "vuln", kindIcon: "hash", name: "vuln_crit_30d", role: "size", reads: "vuln_crit_30d", miss: true, kind: "number" },
+            { id: "owner", kindIcon: abc(), name: "owner", role: "label", reads: "owner", miss: true, kind: "text" },
+        ];
+    }
     function styleRows(april) {
         return [
             { id: "alertRule", kindIcon: abc(), name: "alertRule", role: "label", reads: "alertRule", miss: april },
@@ -87,10 +118,13 @@
     // ---------- the one Apply file dialog ----------
     function dialog(state) {
         const isStyle = state === "style-unbound";
-        const april = state !== "binding";
-        const file = isStyle ? STYLE : RECIPE;
-        const rows = isStyle ? styleRows(april) : recipeRows(april);
-        const graph = april ? "Transfers, April" : "Transfers, March";
+        const wide = state === "wide-mismatch";
+        const april = state !== "binding" && !wide;
+        const file = isStyle ? STYLE : wide ? WIDE : RECIPE;
+        const rows = isStyle ? styleRows(april) : wide ? wideRows() : recipeRows(april);
+        const graph = wide ? W().frame.project : april ? "Transfers, April" : "Transfers, March";
+        const dataset = wide ? "wide" : april ? "transactionsApril" : "transactions";
+        if (april) aprilFields();
         const st = { choice: {}, meaning: {} };
         const misses = rows.filter((r) => r.miss);
         const open = () => misses.filter((r) => !st.choice[r.id]);
@@ -100,6 +134,7 @@
         const applyBtn = AB.button("Apply", {
             onClick: () => {
                 if (open().length) return;
+                if (wide) { AB.go("graph-place", "at-rest"); return setTimeout(() => AB.notice(WIDE.name + " added " + rows.length + " rows on top of the tree", { label: "Undo", go: ["recipe-apply", "wide-mismatch"] }), 0); }
                 if (!isStyle) return AB.go("recipe-apply", "applied");
                 AB.go("graph-place", "at-rest");
                 setTimeout(() => AB.notice(STYLE.name + " added " + styleRows(true).length + " rows on top of the tree", { label: "Undo", go: ["recipe-apply", "style-unbound"] }), 0);
@@ -123,26 +158,22 @@
             if (!r.miss) return AB.tip(h("span", { class: "ra-bind" }, r.role + (r.weight ? ": " + r.reads : ""), h("span", { class: "ra-arrow" }, "->"), r.reads),
                 "Matched by name and type in " + graph + (r.weight ? "; read as Capacity, as the recipe saved it. This run's own weight: the loaded weight is unchanged" : ""), { label: false });
             const c = st.choice[r.id];
-            const items = r.weight
-                ? [
-                    { heading: "Weight for this run in " + graph },
-                    { label: LOADED.weight + " (loaded weight)", desc: "The weight chosen when the data was loaded, read as " + LOADED.meaning, check: c === LOADED.weight, onClick: () => pick(r, LOADED.weight) },
-                    { label: "None", desc: "Every transfer counts the same", check: c === "None", onClick: () => pick(r, "None") },
-                ]
-                : [
-                    { heading: "Category attributes in " + graph },
-                    ...TA().files.accounts.columns.filter((x) => ["kind", "country", "flagged"].includes(x)).map((x) => ({ label: x, check: c === x, onClick: () => pick(r, x) })),
-                    { sep: true },
-                    { label: "Leave unbound", desc: "The row is added hidden and marked unbound; bind it later from its Style tab", check: c === "unbound", onClick: () => pick(r, "unbound") },
-                ];
-            const f = AB.field(c === "unbound" ? "Leave unbound" : c || (r.weight ? "Choose" : "Choose an attribute"), { caret: true, onClick: (e) => AB.openMenu(e.currentTarget, items) });
+            const none = r.weight ? "None" : "unbound";
+            // The binding choice is the field list at menu size over the data on screen
+            const f = AB.field(c === "unbound" ? "Leave unbound" : c ? AB.truncMiddle(c, 24) : (r.weight ? "Choose" : "Choose an attribute"), { caret: true,
+                onClick: (e) => AB.openFieldList(e.currentTarget, { dataset, kind: r.weight ? "number" : r.kind, element: r.weight ? "edge" : "node", current: c, results: false, notes: false,
+                    label: (r.weight ? "Weight" : "Attribute") + " for " + r.reads, onPick: (name) => pick(r, name) }) });
+            f.dataset.raPick = r.id;
+            f.setAttribute("aria-haspopup", "listbox");
+            const leave = c === none ? null : h("span", Object.assign({ class: "ab-link" , role: "button" }, AB.act({ onClick: () => pick(r, none) })), r.weight ? "Use no weight" : "Leave unbound");
+            if (leave && !r.weight) AB.tip(leave, "The row is added hidden and marked unbound; bind it later from its Style tab", { label: false });
             f.setAttribute("aria-label", r.reads + ": " + (c || "choose an attribute"));
-            AB.tip(f, r.reads + " is not in " + (r.weight ? TA().files.transfers.file : TA().files.accounts.file), { label: false });
-            if (!r.weight) return h("span", { class: "ra-bind" }, r.reads, h("span", { class: "ra-arrow" }, "->"), f);
+            AB.tip(f, r.reads + " is not in " + (wide ? W().file : r.weight ? TA().files.transfers.file : TA().files.accounts.file), { label: false });
+            if (!r.weight) return h("span", { class: "ra-bind" }, r.reads, h("span", { class: "ra-arrow" }, "->"), f, leave);
             // The meaning control shows only while the column is unmatched; it starts at the recipe's Capacity
             const m = st.meaning[r.id] || "capacity";
             const meaning = c === "None" ? null : AB.seg(MEANINGS, m, (v) => { st.meaning[r.id] = v; drawList(); listWrap.querySelector(".ra-list .k-seg [aria-checked=true]").focus(); }, { label: "What a higher " + (c || r.reads) + " means" });
-            return h("span", { class: "ra-bind ra-weight" }, "weight: " + r.reads, h("span", { class: "ra-arrow" }, "->"), f, meaning);
+            return h("span", { class: "ra-bind ra-weight" }, "weight: " + r.reads, h("span", { class: "ra-arrow" }, "->"), f, meaning, leave);
         };
 
         const listWrap = h("div", { class: "ra-list" });
@@ -163,7 +194,7 @@
             });
             listWrap.replaceChildren(tr);
         };
-        const pick = (r, c) => { st.choice[r.id] = c; AB.closeMenu(); drawList(); drawFoot(); };
+        const pick = (r, c) => { st.choice[r.id] = c; AB.closeMenu(); drawList(); drawFoot(); const f = listWrap.querySelector(`[data-ra-pick="${r.id}"]`); if (f) f.focus(); };
         drawList();
         drawFoot();
 
@@ -172,7 +203,10 @@
             h("div", { class: "ra-sh" }, "Rows it adds", h("span", { class: "k-grow" }), summary),
             listWrap);
         const foot = h("div", { style: "display:contents" }, reason, AB.button("Cancel", { kind: "secondary", onClick: () => AB.close() }), applyBtn);
-        return finish(AB.modal({ title: "Apply " + file.kind + ": " + file.name, body, foot }));
+        const wrap = finish(AB.modal({ title: "Apply " + file.kind + ": " + file.name, body, foot }));
+        // The wide state opens on its first choice: the field list over the 69 host attributes
+        if (wide) requestAnimationFrame(() => requestAnimationFrame(() => { const f = listWrap.querySelector('[data-ra-pick="vuln"]'); if (f && f.isConnected) f.click(); }));
+        return wrap;
     }
 
     function finish(wrap) {
@@ -284,7 +318,7 @@
         region: "overlay",
         rail: "graph",
         closeTo: "graph-place/at-rest",
-        frame: (state) => ({
+        frame: (state) => (state === "wide-mismatch" ? { dataset: "wide", left: "graph-place/at-rest", dock: false } : {
             dataset: "transactions",
             left: "recipe-apply/" + state,
             canvas: "recipe-apply/" + state,
@@ -297,6 +331,7 @@
             { id: "applied", label: "Recipe applied: rows on top" },
             { id: "style-unbound", label: "Style file: a layer that cannot bind (April)" },
             { id: "older-style-file", label: "Older (1.x) style file" },
+            { id: "wide-mismatch", label: "Recipe on 69 attributes: two renamed, chosen from the field list" },
         ],
         render(el, state, ctx) {
             if (ctx.region === "left") return drawLeft(el, state);

@@ -16,11 +16,20 @@
 .ss-line { display: flex; gap: 6px; align-items: center; margin: 12px 8px 0; font-size: 11px; line-height: 16px; }
 .ss-recent { min-height: 44px !important; }
 .ss-two { display: flex; flex-direction: column; min-width: 0; line-height: 18px; }
+.ss-sub { display: flex; gap: 8px; min-width: 0; font-size: 11px; }
+.ss-size, .ss-notfound { flex: none; white-space: nowrap; }
+.ss-notfound { color: var(--cm-text-danger); font-weight: 550; }
+.ss-path { min-width: 0; }
+.ss-missing > .k-i:first-child { color: var(--cm-text-danger); }
+/* "..." shows on hover and focus; a missing file's row always shows it (its menu is the way on) */
+.ss-more-btn { flex: none; visibility: hidden; }
+.ss-recent:hover .ss-more-btn, .ss-recent:focus-within .ss-more-btn, .ss-missing .ss-more-btn { visibility: visible; }
 .ss-when { white-space: nowrap; font-size: 11px; }
 .ss-empty { margin: 0 8px; line-height: 20px; max-width: 32ch; }
 .ss-sample { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; padding: 8px; border-radius: 5px; cursor: pointer; }
 .ss-pic { border-radius: 4px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--cm-border); background: var(--cm-bg-secondary); }
 .ss-pic img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+.ss-pic-icon { aspect-ratio: 3 / 2; display: grid; place-items: center; color: var(--cm-text-secondary); }
 .ss-sample-text { min-width: 0; }
 .ss-sample-name { display: flex; gap: 8px; align-items: baseline; font-weight: 550; line-height: 20px; }
 .ss-sample-name .k-secondary { font-weight: 400; white-space: nowrap; font-size: 11px; }

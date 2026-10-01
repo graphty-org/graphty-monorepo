@@ -94,8 +94,23 @@
             made: [["Joined on", "account id"], ["Computed by", "The bank, not graphty"], ["Scale", "0 to 100"]],
             writes: "riskScore",
         },
+        // The hosts' longest attribute name, painting Size: the row graph-place/wide-sized adds (lib.js STYLED). Counts from kit/wide-nested.json
+        vuln: {
+            title: "vuln_count_critical_unremediated_over_30_days", long: true, over: "node", unit: "hosts", total: 300, run: false, icon: "hash",
+            fmt: (v) => String(v),
+            provenance: ["from hosts-2026-03.csv", "data-place", "attributes-wide"],
+            bound: { "node.size": { field: "vuln_count_critical_unremediated_over_30_days", range: "0.5 to 3" } },
+            caption: "300 of 300 have a value, 0 to 6, median 0",
+            bands: [273, 8, 3, 7, 5, 1, 3].map((count, i) => ({ from: i, to: i, count })),
+            binNames: { 5: ["batch-staging-sgp-01"], 6: ["app-dev-sgp-01", "queue-prod-iad-03", "monitor-prod-iad-03"] },
+            top: [["app-dev-sgp-01", 6], ["queue-prod-iad-03", 6], ["monitor-prod-iad-03", 6], ["batch-staging-sgp-01", 5], ["app-dev-fra-01", 4]],
+            made: [["Source", "hosts-2026-03.csv"], ["Type", "Whole number, 0 to 6"]],
+            writes: "vuln_count_critical_unremediated_over_30_days",
+        },
     };
-    const tableOf = (m) => (m.over === "edge" ? "edges" : m.unit === "accounts" ? "transfers" : "nodes");
+    const tableOf = (m) => (m.over === "edge" ? "edges" : m.unit === "accounts" ? "transfers" : m.unit === "hosts" ? "wide" : "nodes");
+    // An attribute name takes the middle ellipsis (spec 2.5); prose keeps the end ellipsis
+    const nameOf = (m, max) => (m.long ? A.truncMiddle(m.title, max) : m.title);
 
     // ---------- Style tab ----------
     function styleTab(m, st) {
@@ -132,7 +147,7 @@
             const dens = m.bands.map((b) => b.count / (b.to - b.from + 1));
             const top = Math.max(...dens);
             bars = h("div", { class: "imr-hist", role: "img", "aria-label": "Distribution of " + m.title }, m.bands.map((b, i) => h("i", { style: `flex:${b.to - b.from + 1} 1 0;height:${b.count ? Math.max(2, (dens[i] / top) * 100) : 0}%`, "data-zero": b.count ? null : "" })));
-            axis = h("div", { class: "imr-axis" }, h("span", null, "0"), h("span", null, "98"));
+            axis = h("div", { class: "imr-axis" }, h("span", null, String(m.bands[0].from)), h("span", null, String(m.bands[m.bands.length - 1].to)));
         } else {
             const H = m.hist, top = Math.max(...H.bins);
             bars = h("div", { class: "imr-hist", role: "img", "aria-label": "Distribution of " + m.title }, H.bins.map((c) => h("i", { style: `height:${c ? Math.max(3, (c / top) * 100) : 0}%`, "data-zero": c ? null : "" })));
@@ -185,7 +200,7 @@
         (m.made || []).forEach(([k, v]) => made.push(A.data(k, v)));
         if (st.scope) made.push(A.data("Scope", "77 nodes; the filter now leaves 60"));
         if (m.ran) made.push(A.data("Ran", m.ran));
-        made.push(A.data("Writes", m.writes, { go: ["data-place", "attributes"] }));
+        made.push(A.data("Writes", m.long ? A.truncMiddle(m.writes, 20) : m.writes, { go: m.long ? ["data-place", "attributes-wide"] : ["data-place", "attributes"] }));
         // Spec order: Values, Top 10, Made with, Notes (AB.dataTab would sort Top 10 after Made with)
         const sec = (title, summary, body) => A.section({ title, collapsible: true, key: "data.measure." + title.toLowerCase().replace(/\s+/g, "-"), summary }, body);
         return h("div", null,
@@ -207,6 +222,8 @@
         "risk-score-data": { m: "risk", tab: "Data" },
         "edge-measure": { m: "edge", tab: "Style" },
         "edge-measure-data": { m: "edge", tab: "Data" },
+        "long-name": { m: "vuln", tab: "Style" },
+        "long-name-data": { m: "vuln", tab: "Data" },
     };
 
     registerSection({
@@ -216,6 +233,7 @@
         rail: "graph",
         frame: (state) =>
             state === "risk-score" || state === "risk-score-data" ? { left: "data-place/attributes" }
+                : state === "long-name" || state === "long-name-data" ? { dataset: "wide", left: "graph-place/wide-sized", canvas: "canvas-and-states/hosts-legend" }
                 : state === "scope-mark" ? { left: "graph-place/scope-mark", chip: "Filtered: 60 of 77 nodes" }
                     : state === "degree" ? { left: "graph-place/show-hidden" }
                         : { left: "graph-place/at-rest" },
@@ -231,6 +249,8 @@
             { id: "risk-score-data", label: "riskScore, Data tab" },
             { id: "edge-measure", label: "Edge measure: color and width" },
             { id: "edge-measure-data", label: "Edge measure, Data tab" },
+            { id: "long-name", label: "Long attribute name (hosts)" },
+            { id: "long-name-data", label: "Long attribute name, Data tab" },
         ],
         render(el, state) {
             const st = STATES[state] || STATES.style;
@@ -241,7 +261,7 @@
             el.append(A.inspector({
                 icon: m.icon,
                 swatch: m.bound["node.color"] || m.bound["edge.color"] ? A.ramp(RAMP[0], RAMP[1]) : null,
-                title: m.title,
+                title: nameOf(m, 24),
                 kind: "Measure",
                 provenance: m.provenance,
                 menu: ["context-menus", "measure-row"],
@@ -252,6 +272,8 @@
                 tab: st.tab,
                 tabs: { Style: () => styleTab(m, st), Data: () => dataTab(m, st) },
             }));
+            // the shortened header name still says the whole name to a screen reader
+            if (m.long) el.querySelector(".ab-insp-head .k-name").setAttribute("aria-label", m.title);
         },
     });
 

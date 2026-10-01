@@ -16,12 +16,24 @@
 //                                                     from its name; routes.json is for graders and the preflight
 //   node app-b/study.mjs --fresh <png or task id> ... exit 1 unless each PNG (each task's routes.json and every PNG
 //                                                     it lists) exists and is newer than every file under app-b/
-//   node app-b/study.mjs --try <out.png> <route or task:<id>> [--click "<name>" | --hover "<name>" | --key <Key>] ...
+//   node app-b/study.mjs --try <out.png> <route or task:<id>> [--click "<name>" | --rclick "<name>" | --hover "<name>" | --key <Key>
+//                                                     | --expect "<text>" | --expect-not "<text>"] ...
 //                                                     a participant's click-through: opens the route, does each step
 //                                                     in order, saves what is on screen; prints only the PNG path.
 //                                                     <name> is what the control says or its tooltip name; --hover
 //                                                     shows the tooltip of an icon-only control. task:<id> starts at
-//                                                     that task's first route without naming it
+//                                                     that task's first route without naming it. --rclick right-clicks;
+//                                                     --expect exits 1 unless that text (or role=<role>, e.g. role=menu)
+//                                                     is visible at that step, --expect-not unless it is gone: a
+//                                                     click-through regression, which --check (direct loads) cannot see
+//   node app-b/study.mjs --matrix                     checks ../study/structure-comparison/state-matrix.md: every cell of
+//                                                     its surface tables (no blank cell, no N/A without a reason, no
+//                                                     BUILD left), the routes in backticks in the prose under the tables,
+//                                                     every section of --list named by a table row, and every route
+//                                                     passing --check, with focus inside any menu, popover or dialog
+//
+// A route may end in @1024 (in --check, --shoot, --try and --matrix): it opens in a 1024 x 768 window
+// instead of 1440 x 900. Every 25 routes get a fresh browser context, and each context is closed.
 //
 // Pages are served from a throwaway loopback server (as kit/shoot.mjs does), so dev.ato.ms need not be up.
 process.env.FC_FONTATIONS = "1"; // headless Chromium crashes on startup on this host without it
@@ -45,14 +57,18 @@ const proto = resolve(here, "..");
 const { chromium } = await import(resolve(proto, "../../../node_modules/playwright/index.mjs"));
 
 const args = process.argv.slice(2);
-const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try)$/.test(a));
+const mode = args.find((a) => /^--(list|check|prove|shoot|task|fresh|try|matrix)$/.test(a));
 if (!mode) {
-    console.error("usage: node app-b/study.mjs --list | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click name | --hover name | --key Key]...");
+    console.error("usage: node app-b/study.mjs --list | --matrix | --check <route>... | --prove | --shoot [--dark] <route>... | --task <id> <route>... | --fresh <png|task id>... | --try <out.png> <route> [--click name | --hover name | --key Key]...");
     process.exit(2);
 }
 const dark = args.includes("--dark");
-const routeOf = (r) => String(r).trim().replace(/^https?:\/\/[^#]*#/, "").replace(/^(\.?\/)?(app-b\/?)?(index\.html)?#?\/?/, "").replace(/\/+$/, "");
-const slug = (r) => routeOf(r).replace(/\//g, "--") || "graph-place";
+// "<route>@1024" opens in a 1024 x 768 window; routeOf drops the suffix for the registry lookup
+const NARROW = /@1024$/;
+const narrowOf = (r) => NARROW.test(String(r).trim());
+const routeOf = (r) => String(r).trim().replace(NARROW, "").replace(/^https?:\/\/[^#]*#/, "").replace(/^(\.?\/)?(app-b\/?)?(index\.html)?#?\/?/, "").replace(/\/+$/, "");
+const shown = (r) => routeOf(r) + (narrowOf(r) ? "@1024" : "");
+const slug = (r) => (routeOf(r).replace(/\//g, "--") || "graph-place") + (narrowOf(r) ? "--1024" : "");
 
 if (mode === "--fresh") {
     // The newest file of the skeleton: a render older than it may not show what the skeleton draws now.
@@ -92,16 +108,41 @@ const server = createServer(async (req, res) => {
 await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 const base = `http://127.0.0.1:${server.address().port}/app-b/index.html`;
 const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: dark ? "dark" : "light" });
-// The participant view: design notes hidden (the shell's own switch) and the review bar gone.
-await context.addInitScript((theme) => {
-    try { localStorage.setItem("ab.designNotes", "hidden"); localStorage.setItem("ab.theme", theme); } catch (e) { /* fine */ }
-    addEventListener("DOMContentLoaded", () => document.head.append(Object.assign(document.createElement("style"), { textContent: "#ab-review{display:none!important}:root{--ab-review-h:0px!important}" })));
-}, dark ? "dark" : "light");
+// One context per window size, created on first use and closed by rotate(): a run gives every 25
+// routes or fewer a fresh context, so no context lives long enough to grow.
+const contexts = new Map();
+async function contextFor(narrow) {
+    if (contexts.has(narrow)) return contexts.get(narrow);
+    const viewport = narrow ? { width: 1024, height: 768 } : { width: 1440, height: 900 };
+    const c = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: dark ? "dark" : "light" });
+    // The participant view: design notes hidden (the shell's own switch) and the review bar gone.
+    await c.addInitScript((theme) => {
+        try { localStorage.setItem("ab.designNotes", "hidden"); localStorage.setItem("ab.theme", theme); } catch (e) { /* fine */ }
+        addEventListener("DOMContentLoaded", () => document.head.append(Object.assign(document.createElement("style"), { textContent: "#ab-review{display:none!important}:root{--ab-review-h:0px!important}" })));
+    }, dark ? "dark" : "light");
+    contexts.set(narrow, c);
+    return c;
+}
+async function rotate() {
+    for (const c of contexts.values()) await c.close().catch(() => {});
+    contexts.clear();
+}
+// Runs fn over the routes, `at` at a time, in batches of 25 or fewer, each batch in fresh contexts;
+// returns the results in the order given
+async function batched(routes, fn, at = 1) {
+    const out = new Array(routes.length);
+    for (let b = 0; b < routes.length; b += 25) {
+        const chunk = routes.slice(b, b + 25);
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(at, chunk.length) }, async () => { while (next < chunk.length) { const i = next++; out[b + i] = await fn(chunk[i]); } }));
+        await rotate();
+    }
+    return out;
+}
 
 // Opens a route; returns what a checker needs. Never throws.
 async function open(route) {
-    const page = await context.newPage();
+    const page = await (await contextFor(narrowOf(route))).newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(`script error: ${e.message}`));
     page.on("console", (m) => m.type() === "error" && errors.push(`console error: ${m.text().slice(0, 160)}`));
@@ -119,7 +160,8 @@ async function open(route) {
     return { page, errors, r };
 }
 
-async function check(route) {
+// focus: true also fails a route that opens a menu, popover or dialog and leaves focus on the page body
+async function check(route, focus) {
     const { page, errors, r } = await open(route);
     const [id, ...rest] = r.split("/");
     const want = rest.join("/");
@@ -136,6 +178,7 @@ async function check(route) {
             stub: app ? [...app.querySelectorAll(".ab-stub-banner, .ab-stub-card, .ab-missing")].filter(vis).map((e) => e.textContent.trim().slice(0, 80)) : [],
             review: vis(document.getElementById("ab-review")),
             notes: [...document.querySelectorAll(".ab-design-note")].filter(vis).length,
+            lostFocus: !!(AB.route && AB.route.frame.overlay && document.getElementById("ab-overlay").dataset.active === "true" && (!document.activeElement || document.activeElement === document.body)),
         };
     }, [id, want]).catch((e) => ({ known: false, states: [], err: e.message }));
     await page.close();
@@ -150,8 +193,9 @@ async function check(route) {
     for (const s of info.stub ?? []) out.push(`shows a stub or a failed render: "${s}"`);
     if (info.review) out.push("the review bar shows (the participant view must hide it)");
     if (info.notes) out.push(`${info.notes} design note chip(s) show in the participant view`);
+    if (focus && info.lostFocus) out.push("a menu, popover or dialog is open and focus is on the page body");
     out.push(...errors);
-    return { route: r, dataset: info.dataset, problems: out };
+    return { route: shown(route), dataset: info.dataset, problems: out };
 }
 
 async function shoot(route, file) {
@@ -163,9 +207,86 @@ async function shoot(route, file) {
     return errors;
 }
 
+// ---------- --matrix: the state matrix (../study/structure-comparison/state-matrix.md) ----------
+// Parses the matrix: every cell of the tables headed "Surface" and of the regressions table, and the
+// routes in backticks in the prose between the first surface table and "Routes to build" (the
+// build list, which repeats routes already in the cells). Prints each problem; returns the exit code.
+const ROUTE = /^(BUILD )?([a-z0-9-]+\/[a-z0-9-]+(?:\/[a-z0-9-]+)*(?:@1024)?)$/;
+function parseMatrix(text) {
+    const lines = text.split("\n");
+    const problems = [];
+    const routes = new Map(); // route -> where it was named (first place)
+    const named = new Set(); // sections a surface table row names
+    let header = null, inBody = false, done = false;
+    const add = (r, where) => { if (!routes.has(r)) routes.set(r, where); };
+    // backticked routes in a piece of text: `x`, `BUILD x`, and BUILD `x` (a cell's prefix)
+    const scan = (t, where, isCell) => {
+        const found = [];
+        for (const m of t.matchAll(/(BUILD\s+)?`([^`]+)`/g)) {
+            const inner = m[2].trim();
+            const rm = inner.match(ROUTE);
+            if (!rm) continue;
+            if (m[1] || rm[1]) problems.push(`${where}: still marked BUILD: ${rm[2]}`);
+            else found.push(rm[2]);
+        }
+        if (isCell) found.forEach((r) => named.add(r.split("/")[0]));
+        found.forEach((r) => add(r, where));
+        return found;
+    };
+    lines.forEach((line, i) => {
+        const at = `state-matrix.md:${i + 1}`;
+        if (/^## Routes to build/.test(line)) done = true;
+        if (done) return;
+        if (!line.startsWith("|")) {
+            header = null;
+            if (inBody) scan(line, at, false);
+            return;
+        }
+        const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+        if (!header) { header = cells; return; }
+        if (cells.every((c) => /^-+$/.test(c))) return;
+        if (header[0] === "Surface") {
+            inBody = true;
+            const surface = cells[0];
+            if (cells.length !== header.length) problems.push(`${at}: ${surface}: ${cells.length - 1} state cells where the header has ${header.length - 1}`);
+            cells.slice(1).forEach((c, k) => {
+                const where = `${at} ${surface} / ${header[k + 1]}`;
+                if (!c) return problems.push(`${where}: blank cell`);
+                if (/^N\/A/.test(c)) { if (!/^N\/A:\s*\S/.test(c)) problems.push(`${where}: N/A with no reason`); return; }
+                const got = scan(c, where, true);
+                if (!got.length && !/BUILD/.test(c)) problems.push(`${where}: no route and no N/A: "${c.slice(0, 60)}"`);
+            });
+        } else if (header[0] === "Problem") {
+            cells.slice(1).forEach((c) => scan(c, at + " (regressions)", false));
+        }
+    });
+    return { problems, routes, named };
+}
+async function matrix() {
+    const file = join(proto, "study/structure-comparison/state-matrix.md");
+    const { problems, routes, named } = parseMatrix(await readFile(file, "utf8"));
+    // every section of --list must be named by a table row
+    const { page } = await open("map");
+    const sections = await page.evaluate(() => AB.order.concat(Object.keys(AB.sections).filter((id) => !AB.order.includes(id))));
+    await page.close();
+    await rotate();
+    for (const id of sections) if (!named.has(id)) problems.push(`section ${id} is in --list, and no row of the matrix names it`);
+    const list = [...routes.keys()];
+    const results = await batched(list, (r) => check(r, true), 6);
+    let bad = 0;
+    for (const c of results) {
+        if (!c.problems.length) continue;
+        bad++;
+        for (const p of c.problems) problems.push(`app-b/#/${c.route} (${routes.get(c.route)}): ${p}`);
+    }
+    for (const p of problems) console.log(p);
+    console.log(`${list.length} routes checked, ${bad} failed; ${problems.length} problem${problems.length === 1 ? "" : "s"} in all`);
+    return problems.length ? 1 : 0;
+}
+
 let code = 0;
 try {
-    const rest = args.filter((a) => !/^--(list|check|prove|shoot|task|fresh|try|dark)$/.test(a));
+    const rest = args.filter((a) => !/^--(list|check|prove|shoot|task|fresh|try|dark|matrix)$/.test(a));
     if (mode === "--list") {
         const { page } = await open("map");
         const rows = await page.evaluate(() => AB.order.concat(Object.keys(AB.sections).filter((id) => !AB.order.includes(id))).flatMap((id) => {
@@ -173,16 +294,18 @@ try {
             const f = (st) => (typeof s.frame === "function" ? s.frame(st) : s.frame) || {};
             return s.states.map((st) => `app-b/#/${id}/${st.id}\t${typeof s.render === "function" ? "built" : "STUB"}\t${s.region}\t${f(st.id).dataset || "lesmis (or its left panel's)"}\t${s.title}: ${st.label}`);
         }));
+        // Every dataset a frame can name (frame.dataset), whether or not a route uses it yet
+        const sets = await page.evaluate(() => Object.entries(AB.fx.datasets).map(([k, d]) => `dataset ${k}\t${[d.nodes && d.nodes + " nodes", d.edges && d.edges + " edges", d.records && d.records + " records", d.tables && d.tables.length + " tables"].filter(Boolean).join(", ")}\t${d.title}`));
         await page.close();
+        await rotate();
         console.log(rows.join("\n"));
         console.log(`${rows.length} routes`);
+        console.log(sets.join("\n"));
     } else if (mode === "--check") {
         if (!rest.length) { console.log("checked nothing: exit 1"); code = 1; }
         let bad = 0;
         // six routes at a time; results print in the order given
-        const results = new Array(rest.length);
-        let next = 0;
-        await Promise.all(Array.from({ length: Math.min(6, rest.length) }, async () => { while (next < rest.length) { const i = next++; results[i] = await check(rest[i]); } }));
+        const results = await batched(rest, (r) => check(r), 6);
         for (const c of results) {
             for (const p of c.problems) console.log(`app-b/#/${c.route}: ${p}`);
             if (c.problems.length) bad++;
@@ -210,27 +333,30 @@ try {
             if (!ok) code = 1;
         }
     } else if (mode === "--shoot") {
-        for (const r of rest) {
+        await batched(rest, async (r) => {
             const file = join(proto, "shots/app-b", `${slug(r)}${dark ? "--dark" : ""}.png`);
             const e = await shoot(r, file);
             console.log(file);
             for (const x of e) console.error(`  ${r}: ${x}`);
             if (e.length) code = 1;
-        }
+        });
     } else if (mode === "--task") {
         const [id, ...routes] = rest;
         if (!id || !routes.length) { console.error("--task needs an id and at least one route"); code = 2; }
         else {
             const dir = join(proto, "shots/tasks", id);
-            for (const [k, r] of routes.entries()) {
+            await batched([...routes.keys()], async (k) => {
+                const r = routes[k];
                 const file = join(dir, `${String(k + 1).padStart(2, "0")}.png`);
                 const e = await shoot(r, file);
                 console.log(file);
                 for (const x of e) console.error(`  ${r}: ${x}`);
                 if (e.length) code = 1;
-            }
+            });
             await writeFile(join(dir, "routes.json"), JSON.stringify(routes.map(routeOf), null, 1) + "\n");
         }
+    } else if (mode === "--matrix") {
+        code = await matrix();
     } else if (mode === "--try") {
         // --try <out.png> <route> then steps; a step that finds nothing is reported and the run goes on.
         const out = rest[0];
@@ -239,15 +365,25 @@ try {
         const { page } = await open(start);
         for (let i = args.indexOf(route) + 1; i < args.length; i++) {
             const a = args[i];
-            if (a === "--click" || a === "--hover") {
-                const verb = a.slice(2);
+            if (a === "--expect" || a === "--expect-not") {
+                // a click-through regression: exit 1 unless something visible has that text (role=<role> for a
+                // role: role=menu is an open menu), or for --expect-not unless nothing does
+                const what = args[++i];
+                const loc = what.startsWith("role=") ? page.getByRole(what.slice(5)) : page.getByText(what, { exact: false });
+                const seen = (await loc.filter({ visible: true }).count()) > 0;
+                if (seen !== (a === "--expect")) { console.log(`${a === "--expect" ? "expected on screen, not there" : "expected gone, still on screen"}: "${what}"`); code = 1; }
+                continue;
+            }
+            if (a === "--click" || a === "--hover" || a === "--rclick") {
+                const verb = a === "--rclick" ? "click" : a.slice(2);
+                const how = a === "--rclick" ? { button: "right", timeout: 3000 } : { timeout: 3000 };
                 const name = args[++i];
                 // the first visible control by that name: exact names before partial ones, controls before text
                 let hit = false;
                 for (const exact of [true, false]) {
                     for (const loc of [...["button", "link", "menuitem", "menuitemcheckbox", "tab", "treeitem", "switch", "option"].map((role) => page.getByRole(role, { name, exact })), page.getByLabel(name, { exact }), page.getByText(name, { exact })]) {
                         const el = loc.filter({ visible: true }).first();
-                        if (!hit && (await el.count())) hit = await el[verb]({ timeout: 3000 }).then(() => true).catch(() => false);
+                        if (!hit && (await el.count())) hit = await el[verb](how).then(() => true).catch(() => false);
                     }
                 }
                 if (!hit) console.log(`nothing on screen is called "${name}"`);
@@ -263,6 +399,7 @@ try {
         console.log(resolve(out));
     }
 } finally {
+    await rotate();
     await browser.close();
     server.close();
 }

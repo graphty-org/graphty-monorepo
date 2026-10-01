@@ -92,7 +92,7 @@
 
     // The graph's one list: the empty canvas's right-click and the nothing-selected inspector's "..."
     const graphItems = () => [
-        { heading: L().frame.graphRow },
+        { heading: (() => { const D = AB.fx.datasets[(AB.route && AB.route.frame.dataset) || "lesmis"] || L(); return (D.frame && D.frame.graphRow) || D.graphName || L().frame.graphRow; })() }, // the project on screen
         { label: "Select all visible", shortcut: "Ctrl+A", go: ["inspector-selection-and-everything", "selection"] },
         { label: "Invert selection", shortcut: "I", ...flash("Invert selection") },
         C("reselect-previous", { go: null, ...flash("Reselect previous") }),

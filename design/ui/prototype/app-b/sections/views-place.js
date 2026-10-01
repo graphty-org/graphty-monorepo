@@ -42,6 +42,14 @@
         { id: "circle", name: "Valjean's circle", art: "lesmis-groups-valjean", tour: true },
         { id: "top", name: "From above", art: "lesmis-plain", tour: false },
     ];
+    // Twenty views for the tour that fills the list (Les Miserables' own names); the list scrolls and Find shows past 15
+    const ARTS = ["lesmis-groups-rest", "lesmis-groups-valjean", "lesmis-plain", "lesmis-neighbors", "lesmis-walk", "lesmis-step1", "lesmis-step2", "lesmis-step3"];
+    const MANY = ["Whole cast", "Valjean's circle", "From above", "The bishop's household", "Fantine's friends", "Thenardier family", "Javert's pursuit",
+        "Cosette and Marius", "Friends of the ABC", "The barricade", "Gavroche", "Eponine", "Champmathieu trial", "Petit-Gervais", "Montreuil-sur-Mer",
+        "The convent", "Gorbeau house", "Patron-Minette", "Bridges to Valjean", "Closing shot"]
+        .map((name, i) => ({ id: "m" + i, name, art: ARTS[i % ARTS.length], tour: i % 4 !== 2 }));
+    // 60 characters: the name takes the end ellipsis, the full name in its tooltip
+    const LONG = "Valjean, Javert and the students at the Rue de la Chanvrerie";
     const NEW_VIEW = { id: "new", name: "View 4", art: "lesmis-neighbors", tour: true, isNew: true };
 
     function header(state, n) {
@@ -165,6 +173,20 @@
         open(typed);
     }
 
+    // Find by word starts (the shared matcher); no match shows the one empty line
+    function findViews(list, q) {
+        let shown = 0;
+        list.querySelectorAll(".vp-row").forEach((li) => {
+            const hit = !q.trim() || AB.wordMatch(li.querySelector(".vp-name").textContent, q);
+            li.hidden = !hit;
+            if (hit) shown++;
+        });
+        const old = list.parentNode.querySelector(".vp-nomatch");
+        if (old) old.remove();
+        if (!shown) list.after(Object.assign(AB.noMatch(q), { className: "ab-empty vp-nomatch" }));
+        if (q.trim()) AB.announce(shown + (shown === 1 ? " match" : " matches"));
+    }
+
     registerSection({
         id: "views-place",
         title: "Views place: saved views, Present, tours",
@@ -179,10 +201,13 @@
             { id: "saving", label: "Save view: the new row, in rename" },
             { id: "save-name-taken", label: "Save view: a standard view's name" },
             { id: "row-menu", label: "A view's menu" },
+            { id: "applied-missing", label: "Applied: a row it named is gone" },
+            { id: "many", label: "Twenty views: the list scrolls, Find" },
+            { id: "long-name", label: "A 60-character view name" },
         ],
         frame(state) {
             if (state === "in-tour-2d") return { mode: "2d" };
-            if (state === "one-selected" || state === "row-menu") return { right: "inspector-saved-view/view" };
+            if (state === "one-selected" || state === "row-menu" || state === "applied-missing") return { right: "inspector-saved-view/view" };
             return {};
         },
         render(el, state) {
@@ -193,12 +218,15 @@
                 return;
             }
             const naming = state === "saving" || state === "save-name-taken";
-            const views = VIEWS.map((v) => Object.assign({}, v)).concat(naming ? [Object.assign({}, NEW_VIEW)] : []);
+            const base = state === "many" ? MANY : state === "long-name" ? VIEWS.map((v) => v.id === "circle" ? Object.assign({}, v, { name: LONG }) : v) : VIEWS;
+            const views = base.map((v) => Object.assign({}, v)).concat(naming ? [Object.assign({}, NEW_VIEW)] : []);
+            // Past 15 views a find line leads the list (the field list's rule)
+            if (views.length > 15) el.append(AB.treebar({ placeholder: "Find views", onInput: (input) => findViews(list, input.value) }));
             el.append(h("div", { class: "vp-cols k-secondary" }, AB.needsElement(ORDER_NEEDS), h("span", null, "In tour")));
             const list = h("ul", { class: "vp-list", role: "listbox", "aria-label": "Saved views, in tour order" });
             const drag = state === "reorder-drag";
             views.forEach((v, i) => {
-                const selected = (state === "one-selected" || state === "row-menu") ? v.id === "circle" : !!v.isNew;
+                const selected = state === "applied-missing" ? v.id === "whole" : (state === "one-selected" || state === "row-menu") ? v.id === "circle" : !!v.isNew;
                 // mid-drag: "From above" is lifted over the drop line under "Whole cast"; its old slot shows faint
                 if (drag && i === 1) list.append(h("li", { class: "vp-drop", "aria-hidden": "true" }), row(Object.assign({}, views[2]), { lifted: true }, list));
                 list.append(row(v, { selected, ghost: drag && v.id === "top" }, list));
@@ -209,6 +237,8 @@
             el.append(list);
             const at = (id) => list.querySelector('[data-id="' + id + '"]');
             if (naming) requestAnimationFrame(() => nameNew(at("new"), state === "save-name-taken" ? "Top" : null));
+            // The view applies its camera; a row it named was deleted, so the notice names it and the view shows without it
+            if (state === "applied-missing") requestAnimationFrame(() => AB.notice("Applied Whole cast without Group 1: that row was deleted", { label: "Update view", onClick: () => AB.announce("Whole cast updated") }));
             if (state === "row-menu") requestAnimationFrame(() => rowMenu(at("circle"), views[1], list));
         },
     });

@@ -10,7 +10,7 @@
     "use strict";
     const CSS = [
         ".pp-full.k-field { cursor: pointer; width: 100%; box-sizing: border-box; }",
-        ".pp-pick[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--cm-border-brand, var(--cm-primary)); }",
+        ".pp-pick[data-armed] { box-shadow: inset 0 0 0 1px var(--cm-border-brand, var(--cm-primary)); }",
         ".pp-pick .pp-empty { color: var(--cm-text-tertiary); }",
         ".pp-pick input { all: unset; flex: 1; min-width: 0; font: inherit; color: var(--cm-text); }",
         ".pp-pick input::placeholder { color: var(--cm-text-tertiary); }",
@@ -46,6 +46,15 @@
             };
         }
         const two = state !== "from-analyze";
+        if (state === "no-path") {
+            // "Filter out group 8" alone leaves 64 nodes in 4 parts; Child1 reached Valjean only through Gavroche (group 8)
+            const st = L.filterSteps.steps[2], left = L.filterSteps.statsByState["3"];
+            return {
+                directed: false, unit: "nodes", count: left.nodes, from: "Valjean", to: "Child1", noPathTo: "Child1", filter: st, fromIcon: "user", toIcon: "user",
+                loaded: { weight: "value", meaning: "stronger", desc: "Co-appearances per pair" }, weights: ["value"], direction: "either",
+                names: L.rows.filter((r) => r.group !== 8).map((r) => r.label), pickFrom: "Valjean", pickTo: "Javert",
+            };
+        }
         return {
             directed: !!L.directed, unit: "nodes", count: L.nodes,
             from: two ? "Valjean" : null, to: two && state !== "picking-to" ? "Javert" : null, fromIcon: "user", toIcon: "user",
@@ -79,7 +88,9 @@
         function pickField(which) {
             const val = s[which], on = active === which;
             const label = which === "from" ? "From" : "To";
-            const f = h("span", { class: "k-field pp-pick pp-full", role: "button", tabindex: "0", "aria-pressed": String(on), "aria-label": label + ": " + (val || "not chosen") });
+            // Armed, the field is the text box itself (a click anywhere on it types there); otherwise a button that arms it
+            const f = on ? h("span", { class: "k-field pp-pick pp-full", "data-armed": "" })
+                : h("span", { class: "k-field pp-pick pp-full", role: "button", tabindex: "0", "aria-pressed": "false", "aria-label": label + ": " + (val || "not chosen") });
             f.append(icon(s[which + "Icon"], "sm"));
             if (on) {
                 const inp = h("input", { type: "text", placeholder: "Type a name", "aria-label": label, "data-autofocus": "", value: val || "" });
@@ -96,7 +107,7 @@
                 f.append(h("span", { class: "k-grow k-ellipsis" + (val ? "" : " pp-empty") }, val || "Click to pick"));
             }
             AB.tip(f, on ? "Click a node on the canvas, or type a name" : "Pick " + label + " on the canvas", { label: false });
-            const arm = (e) => { if (e.target.tagName === "INPUT") return; active = on ? null : which; draw(); };
+            const arm = (e) => { if (e.target.tagName === "INPUT") return; if (on) { f.querySelector("input").focus(); return; } active = which; draw(); };
             f.addEventListener("click", arm);
             f.addEventListener("keydown", (e) => { if (e.target === f && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); arm(e); } });
             return f;
@@ -111,15 +122,35 @@
         const overridden = () => s.weight !== s.loaded.weight || (s.weight && s.meaning !== s.loaded.meaning);
         function weightField() {
             const L = s.loaded;
-            // The same words as Analyze's Weight field: the loaded weight says so
-            const f = AB.field(s.weight ? s.weight + (s.weight === L.weight ? " (loaded weight)" : "") : "None", { caret: true, onClick: () => AB.openMenu(f, !L.weight ? [{ label: "None (loaded: no weight)", check: true, desc: L.desc + "; every edge counts as one step", onClick: () => draw() }] : [
-                { label: L.weight + " (loaded weight)", check: s.weight === L.weight, desc: L.desc + "; chosen when the data was loaded", onClick: () => { s.weight = L.weight; s.meaning = L.meaning; draw(); } },
-                { label: "None", check: !s.weight, desc: "Every edge counts as one step", onClick: () => { s.weight = null; draw(); } },
-                ...s.weights.filter((w) => w !== L.weight).map((w) => ({ label: w, check: s.weight === w, onClick: () => { s.weight = w; draw(); } })),
-            ]) });
+            // The same words as Analyze's Weight field: the loaded weight says so. The dropdown is the field
+            // list at menu size (edge attributes, numbers suitable), so a project with dozens of edge
+            // attributes gets Find and groups; None leads it, above the list.
+            const f = AB.field(s.weight ? s.weight + (s.weight === L.weight ? " (loaded weight)" : "") : "None", { caret: true, onClick: () => {
+                const m = AB.openFieldList(f, { kind: "number", element: "edge", current: s.weight, label: "Weight", results: false, notes: false,
+                    onPick: (name) => { s.weight = name; if (name === L.weight) s.meaning = L.meaning; draw(); } });
+                if (!m) return;
+                // ponytail: None sits above the listbox, so arrows do not reach it; a lead-item option in fieldList would fold it in
+                const none = h("div", { class: "k-menu-item ab-fl-opt", role: "button", tabindex: "0", "aria-pressed": String(!s.weight) },
+                    h("span", { class: "k-check-col" }, !s.weight ? icon("check", "sm") : null),
+                    h("span", { class: "ab-fl-name" }, L.weight ? "None" : "None (loaded: no weight)"));
+                AB.tip(none, "Every edge counts as one step", { label: false });
+                const pickNone = () => { AB.closeMenu(true); s.weight = null; draw(); };
+                none.addEventListener("click", pickNone);
+                none.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickNone(); } });
+                m.insertBefore(none, m.querySelector(".ab-fl-list"));
+            } });
             f.classList.add("pp-full");
             f.setAttribute("aria-label", "Weight: " + (s.weight || "None"));
             return f;
+        }
+        // No path: the two ends lie in different parts of what the graph draws (a filter split it)
+        function noPath() {
+            if (state !== "no-path" || s.to !== s.noPathTo) return null;
+            return AB.problem({
+                what: "No path from " + s.from + " to " + s.to + ": the filter step \"" + s.filter + "\" hides every node between them.",
+                todo: "Turn that step off in Filters, or pick another To.",
+                action: { label: "Pick another To", onClick: () => { active = "to"; draw(); } },
+            });
         }
 
         function draw() {
@@ -138,8 +169,10 @@
                     s.weight && s.meaning === "stronger" ? h("span", { class: "pp-loaded" }, "Shortest path reads a weight as distance: it uses 1/" + s.weight + ".") : null,
                     s.weight && (s.weight !== s.loaded.weight || s.meaning !== "farther") ? AB.needsElement("graphty-element's shortest path reads the loaded weight column as a distance only; another column, or Stronger or Capacity, needs a weight option with a meaning") : null), { popover: true }),
             ];
+            const np = noPath();
+            if (np) body.push(np);
             const foot = AB.button("Find path", {
-                icon: "route", disabled: ready ? null : "Choose From and To first",
+                icon: "route", disabled: np ? "No path between these two in what the graph draws" : ready ? null : "Choose From and To first",
                 // The ends and the weight go with the new row, so the tree and the inspector name this path
                 onClick: () => { AB.lastPath = { ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, loaded: s.loaded.weight }; AB.go("path-popover", "found"); },
             });
@@ -179,11 +212,13 @@
             { id: "weight-overridden", label: "Weight overridden to None for this path" },
             { id: "from-analyze", label: "From Analyze > Find paths, nothing selected" },
             { id: "found", label: "Path found: the new row selected" },
+            { id: "no-path", label: "No path: a filter step splits the graph" },
         ],
         closeTo: "graph-place/at-rest",
         frame(state) {
             if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
             if (state === "from-analyze") return { left: "graph-place/at-rest", dock: false };
+            if (state === "no-path") return { left: "graph-place/at-rest", dock: false, chip: "Filtered: " + AB.fx.datasets.lesmis.filterSteps.statsByState["3"].nodes + " of " + AB.fx.datasets.lesmis.nodes + " nodes" };
             if (state === "found") {
                 // The project the path ran on (the screen before this one): its tree with the new row, and the row's inspector
                 const ds = AB.route && AB.route.frame.dataset;
@@ -191,7 +226,7 @@
                 if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/path", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
                 return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/path-lesmis", dock: false };
             }
-            return { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", toolbar: "selection-bar/two-nodes", dock: false };
+            return { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", dock: false };
         },
         render,
     });

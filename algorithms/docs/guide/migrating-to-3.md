@@ -225,9 +225,10 @@ graphs named:
   sink throws a `RangeError`, and a NaN weight throws. A node that is only the target of an edge is a node: flow reaches
   such a sink (2.x `edmondsKarp` on a Map-of-Maps returned no flow when the source or the sink was not a key). Cut sides
   list nodes in node order and cut edges by their source-side node, where 2.x followed the order its search met them.
-- **Matching and isomorphism.** The matchings visit left nodes in node order and join a left node to a right one
-  whichever way the arc points, so the greedy matching can differ in size and the maximum matching can pair other
-  nodes; an isomorphism `edgeMatch` is offered every pair of corresponding edges, self-loops included, and directed
+- **Matching and isomorphism.** The matchings join a left node to a right one whichever way the arc points. The greedy
+  matching visits left nodes in node order, so it can differ in size. The maximum matching keeps the 2.x tie order --
+  left nodes in the order a breadth-first walk reaches them, neighbours in the order their edges were added -- so it
+  picks the same pairs as 2.x on a graph whose edges were added in the same order; an isomorphism `edgeMatch` is offered every pair of corresponding edges, self-loops included, and directed
   graphs are checked on in-arcs too. An isomorphism's mapping and a matching's pairs come as arrays indexed by node, so
   code that walks them meets the pairs in node order; 2.x returned a Map filled in the order its search found them.
   The 2.x `findAllMappings` option is gone; with it set, 2.x `isGraphIsomorphic` answered false for every pair.

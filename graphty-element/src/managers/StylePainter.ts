@@ -261,8 +261,9 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
  * @param bag - The style being built.
  * @param channel - The channel the pass painted.
  * @param value - What it painted.
+ * @param plainText - Whether words it painted are drawn as plain text, never as label markup.
  */
-function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unknown): void {
+function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unknown, plainText: boolean): void {
     const descriptor = CHANNEL_DESCRIPTORS[channel];
 
     if (!descriptor.renderable) {
@@ -299,6 +300,11 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
         // which is not a field of an arrow style at all: the caption would be resolved, kept and
         // never drawn, and nothing would have said so.
         setAtPath(bag, `${blockOf(descriptor.stylePath)}.enabled`, true);
+
+        // Words a note supplied are the note's characters, never markup (design/notes 6.3).
+        if (plainText) {
+            setAtPath(bag, `${blockOf(descriptor.stylePath)}.plainText`, true);
+        }
     }
 }
 
@@ -327,9 +333,10 @@ function inWriteOrder(resolved: ResolvedStyle): [string, unknown][] {
  * Build one node's paint from the channels the pass resolved for it.
  * @param resolved - Everything the stack painted this node.
  * @param meshKey - The key the interner gave this node's geometry.
+ * @param plainText - Whether a text channel's words are drawn as plain text.
  * @returns The paint.
  */
-function nodePaintOf(resolved: ResolvedStyle, meshKey: number): NodePaint {
+function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): NodePaint {
     const bag: Record<string, unknown> = {};
     let color: Rgba | null = null;
     let opacity: number | undefined;
@@ -348,7 +355,7 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number): NodePaint {
             continue;
         }
 
-        writeChannel(bag, channel, value);
+        writeChannel(bag, channel, value, plainText(channel));
     }
 
     // The material is built neutral so that what shows is the instance's own colour. Opacity goes
@@ -372,13 +379,14 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number): NodePaint {
  * Build one edge's paint from the channels the pass resolved for it.
  * @param resolved - Everything the stack painted this edge.
  * @param meshKey - The key the interner gave this edge's geometry.
+ * @param plainText - Whether a text channel's words are drawn as plain text.
  * @returns The paint.
  */
-function edgePaintOf(resolved: ResolvedStyle, meshKey: number): EdgePaint {
+function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): EdgePaint {
     const bag: Record<string, unknown> = {};
 
     for (const [name, value] of inWriteOrder(resolved)) {
-        writeChannel(bag, name as Channel, value);
+        writeChannel(bag, name as Channel, value, plainText(name as Channel));
     }
 
     // See EdgePaint: the edge renderer has no per-instance state, so the two channels the interner
@@ -679,7 +687,9 @@ export class StylePainter {
             return null;
         }
 
-        return nodePaintOf(paint.styleOf("node", index), paint.meshKeyOf("node", index));
+        return nodePaintOf(paint.styleOf("node", index), paint.meshKeyOf("node", index), (channel) =>
+            paint.plainText("node", index, channel),
+        );
     }
 
     /**
@@ -694,7 +704,9 @@ export class StylePainter {
             return null;
         }
 
-        return edgePaintOf(paint.styleOf("edge", index), paint.meshKeyOf("edge", index));
+        return edgePaintOf(paint.styleOf("edge", index), paint.meshKeyOf("edge", index), (channel) =>
+            paint.plainText("edge", index, channel),
+        );
     }
 
     /**

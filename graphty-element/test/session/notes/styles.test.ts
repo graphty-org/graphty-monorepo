@@ -8,6 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../../src/catalog/types";
+import { StylePainter } from "../../../src/managers/StylePainter";
 import type { ElementSession } from "../../../src/session/types";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { notesHarness, refusalOf } from "./harness";
@@ -196,6 +197,44 @@ describe("graphty.notes.* in styles", () => {
         assert.isAbove(seen.count, 0);
         assert.deepEqual(seen.nodes, ["a", "b"], "the reader's matches and the newly noted node, never c or 11");
         assert.deepEqual(red(h), ["a", "b"]);
+    });
+});
+
+describe("note text in labels is plain text", () => {
+    it("note-7: a label bound to graphty.notes.latest is drawn as plain text; a data or fixed label is not", async () => {
+        const h = makeSession({ directed: true });
+        h.add([{ id: "a" }, { id: "b", name: "<bold>y</bold>" }]);
+        const { session } = h;
+        const text = "<color='red'>x</color>";
+        session.notes.add({ text, targets: [{ node: "a" }, { node: "b" }] });
+        await session.styles.add({
+            name: "Note",
+            target: "node",
+            selector: { match: "has", path: "graphty.notes.latest" },
+            encode: { "node.label": { by: "graphty.notes.latest" } },
+        });
+        await session.styles.add({
+            name: "Name",
+            target: "node",
+            selector: { match: "has", path: "data.name" },
+            encode: { "node.label": { by: "data.name" } },
+            set: { "node.tooltip": "<bold>fixed</bold>" },
+        });
+        await session.styles.settled();
+
+        const { paint } = sessionOf(h);
+        const row = (id: NodeId): number => session.snapshot().ids.indexOf(id);
+        assert.strictEqual(labelOf(h, "a"), text, "stored and painted byte for byte");
+        assert.isTrue(paint.plainText("node", row("a"), "node.label"));
+        assert.isFalse(paint.plainText("node", row("b"), "node.label"), "the data label above keeps markup");
+        assert.isFalse(paint.plainText("node", row("b"), "node.tooltip"), "a fixed value keeps markup");
+
+        const painter = new StylePainter();
+        painter.bind(paint);
+        const plainOf = (id: NodeId): unknown =>
+            (painter.nodePaint(row(id))?.style.label as { plainText?: boolean } | undefined)?.plainText;
+        assert.isTrue(plainOf("a"), "the label block tells the label to read no markup");
+        assert.isUndefined(plainOf("b"));
     });
 });
 

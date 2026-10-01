@@ -1672,6 +1672,7 @@ function repaintAgainstCurrentData(
                 return engine.repaintAll(stack, context);
             },
             styleOf: (target, index) => engine.styleOf(target, index),
+            plainText: (target, index, channel) => engine.plainText(target, index, channel),
             meshKeyOf: (target, index) => engine.meshKeyOf(target, index),
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),

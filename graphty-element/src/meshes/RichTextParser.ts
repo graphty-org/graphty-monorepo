@@ -17,18 +17,13 @@ export class RichTextParser {
     /**
      * Parses rich text into an array of line segments
      * @param text - The text to parse (supports markup tags)
+     * @param plainText - Draw every character as written, reading no markup.
      * @returns Array of text segments grouped by line
      */
-    parse(text: string): TextSegment[][] {
-        const lines = text.split("\n");
-        const parsedContent: TextSegment[][] = [];
-
-        for (const line of lines) {
-            const segments = this.parseLine(line);
-            parsedContent.push(segments);
-        }
-
-        return parsedContent;
+    parse(text: string, plainText = false): TextSegment[][] {
+        const whole = (line: string): TextSegment[] =>
+            line === "" ? [] : [{ text: line, style: Object.assign({}, this.defaultStyle) }];
+        return text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
     }
 
     private parseLine(line: string): TextSegment[] {

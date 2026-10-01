@@ -44,6 +44,8 @@
 .dpg-grid .k-table { width: auto; min-width: 100%; }
 .dpg-grid .k-table th { vertical-align: top; padding-top: 4px; padding-bottom: 4px; height: auto; }
 .dpg-grid .k-table td { height: 26px; }
+/* The sample rows are read-only: no hover, so they do not look clickable */
+.dpg-grid .k-table tr:hover td:not(.dpg-derived) { background: none; }
 .dpg-grid td.dpg-derived, .dpg-grid th.dpg-derived { background: var(--cm-bg-secondary); color: var(--cm-text-secondary); }
 .dpg-cn { display: flex; align-items: center; gap: 6px; }
 .dpg-glyph { display: inline-flex; align-items: center; cursor: pointer; border-radius: 3px; padding: 0 2px; }
@@ -52,7 +54,7 @@
 .dpg-role:focus-visible { outline: 2px solid var(--cm-border-selected-strong); outline-offset: 1px; }
 .dpg-role[data-set] .k-badge { color: var(--cm-text-brand); outline-color: var(--cm-border-selected); }
 .dpg-role[aria-disabled="true"] { cursor: default; }
-.dpg-comb { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-weight: 450; color: var(--cm-text-secondary); font-size: 11px; }
+.dpg-comb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-weight: 450; color: var(--cm-text-secondary); font-size: 11px; }
 .dpg-comb .k-field { height: 20px; min-width: 0; font-size: 11px; }
 .dpg-miss { box-shadow: inset 0 0 0 1px var(--cm-bg-warning), inset 3px 0 0 var(--cm-bg-warning); }
 .dpg-miss .k-warn-glyph { margin-inline-start: 6px; vertical-align: middle; }
@@ -198,9 +200,13 @@
         "edit-buildings": () => editDoor("buildings"),
         "weight-moved": () => { const m = transfers(); const t = m.tables[1]; t.per = "pair"; t.combine.amount = "Sum"; t.combine.timestamp = "Earliest and latest"; t.roles.amount = undefined; delete t.roles.amount; t.roles.count = role("weight"); m.moved = ["amount", "count"]; return m; },
         replace: () => { const ta = TA().files.transfers; return transfers({ door: { title: "Replace: " + T().file, verb: "Apply", done: ["data-place", "after-replace"] }, focusLoad: true, replaced: { id: "transfers", file: ta.file, rows: ta.rows, was: T().file } }); },
-        "edit-source": () => transfers({ door: { title: "Edit: transfers", verb: "Apply", done: ["data-place", "at-rest"], edit: true } }),
+        // Edit on the loaded transfers, either table selected; Apply returns to the Data place as it was
+        "edit-source": () => transfers({ door: { title: "Edit: transfers", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } }),
+        "edit-accounts": () => transfers({ sel: "accounts", door: { title: "Edit: accounts", verb: "Apply", done: ["data-place", T().fresh ? "empty-filters" : "at-rest"], edit: true } }),
         "edit-source-lost": () => { const a = TA().files.accounts; const m = transfers({ sel: "accounts", door: { title: "Replace: " + T().accountsFile, verb: "Apply", done: ["data-place", "after-replace"] }, replaced: { id: "accounts", file: a.file, rows: a.rows, was: T().accountsFile }, lost: true }); m.tables[0].cols = a.columns.slice(); return m; },
         "graph-file": () => base({ tables: lesmisFile(), sel: "lm-nodes", direction: "file", focusLoad: true }),
+        // Edit on the loaded Les Miserables file
+        "edit-graph-file": () => base({ tables: lesmisFile(), sel: "lm-nodes", direction: "file", door: { title: "Edit: miserables.gexf", verb: "Apply", done: ["data-place", "graph-file"], edit: true } }),
         "edge-list": () => edgeOnly(),
         url: () => urlState(),
         "detect-several": () => base({ tables: [mk({ id: "paste", name: "Pasted text", kind: "text", pasted: PASTED_XML, format: null, candidates: ["GraphML", "GEXF"], rows: null, auto: {} })], sel: "paste", direction: "file" }),
@@ -226,10 +232,15 @@
         "refused-fetch": () => urlState(true),
         "refused-too-large": () => base({ tables: [mk({ id: "big", name: "patent-citations-sample", file: C().file, kind: "edge", cols: C().columns.slice(), rows: C().edges, sample: [], refusal: { terminal: true, text: n(C().nodes) + " nodes and " + n(C().edges) + " edges: a graph draws up to " + n(C().drawingLimit) + " nodes." } })], sel: "big" }),
     };
+    // Edit opens on the load as it was: One edge per Row or Pair, or each entry as a node, and the Add choices
     function editDoor(sel) {
         const m = door({ sel, door: { title: "Edit: " + sel, verb: "Apply", done: ["data-place", "door-entries"], edit: true } });
-        const e = m.tables[2];
-        e.per = "pair"; e.loadedPer = "pair"; e.combine.time = "Earliest and latest"; e.roles.count = role("weight");
+        const e = m.tables[2], was = DE().loaded, k = was.add;
+        if (was.per === "nodes") { toNodes(e, "entry"); e.per = "row"; }
+        else if (was.per === "pair") { e.per = "pair"; e.combine.time = "Earliest and latest"; e.roles.count = role("weight"); }
+        else e.per = "row";
+        e.loadedPer = was.per;
+        if (k) m.add = { people: k === "people" || k === "both", bldg: k === "bldg" || k === "both" };
         return m;
     }
     function urlState(failed) {
@@ -273,6 +284,15 @@
         return out;
     }
 
+    // A door-entries link that matches on a column other than the target's Key (person by badge).
+    // person_id holds ids (1001), badges look like B-20417: the fixture join matches none of them.
+    function offKey(m, t) {
+        if (t.id !== "entries") return null;
+        const c = linkCols(t).find((x) => { const r = t.roles[x], ty = types(m).find((y) => y.name === r.target); return r.by && ty && r.by !== ty.unique[0]; });
+        const r = c && t.roles[c];
+        return c ? { col: c, target: r.target, by: r.by, table: types(m).find((y) => y.name === r.target).table.name } : null;
+    }
+
     // What blocks a table; null when its check is green
     function problem(m, t) {
         if (t.group) { const kids = m.tables.filter((x) => x.parent === t.id); return kids.map((k) => problem(m, k)).find(Boolean) || null; }
@@ -283,6 +303,8 @@
         const known = types(m).map((x) => x.name);
         const lost = linkCols(t).find((c) => t.roles[c].target && t.roles[c].target !== "node" && !t.roles[c].fresh && !known.includes(t.roles[c].target));
         if (lost) return { level: "warn", text: c2(lost, t) };
+        const ok = offKey(m, t);
+        if (ok) return { level: "err", text: "no " + ok.col + " value is a " + ok.by + " in " + ok.table + "; choose " + ok.target + " by its Key under " + ok.col };
         if (t.kind === "node" && !colWith(t, "key") && !linkCols(t).length) return { level: "warn", text: "choose the Key column" };
         return null;
     }
@@ -321,7 +343,8 @@
                 const by = (c, r) => t.name + "." + c + " = " + (r.by && ty(r.target) ? ty(r.target).table.name + "." + r.by : keyOf(r.target));
                 let tip = by(f, a) + "; " + by(to, b) + "; one edge per " + t.per + wtip;
                 if (t.id === "entries" && (a.by || "id") === "id" && (b.by || "bldg") === "bldg") tip = DE().model[t.per].tip.replace(/; weight: count$/, "") + wtip;
-                const made = t.per === "pair" && t.id === "entries" ? n(now.pairEdges) + " edges from " + n(now.bothEnds) + " of " + rows + " rows" : rows;
+                // The entries count the edges they make, in the same unit under Row and Pair
+                const made = t.id !== "entries" ? (t.per === "pair" ? rows + " edges from " + rows + " rows" /* no two transfers share both ends */ : rows) : offKey(m, t) ? "0 edges from " + rows + " rows" : t.per === "pair" ? n(now.pairEdges) + " edges from " + n(now.bothEnds) + " of " + rows + " rows" : n(now.bothEnds) + " edges from " + rows + " rows";
                 lines.push({ text: tc(a.target, true) + " --" + t.name + " (" + made + ")--> " + tc(b.target, true), tip });
             } else if (lk.length) {
                 const own = t.type || t.name;
@@ -355,6 +378,9 @@
         const pr = problem(m, t);
         const out = [];
         if (pr) out.push(L1("warn", t.name + ": " + pr.text + "."));
+        const ok = offKey(m, t);
+        if (ok) return [L1("err", "0 of " + n(rowsOf(m, t)) + " " + ok.col + " values are " + ok.by + "s in " + ok.table + "; " + n(rowsOf(m, t)) + " rows have no " + ok.target + "."),
+            L1(null, ok.col + " holds ids such as 1001; " + ok.table + "." + ok.by + " holds values such as B-20417. Choose " + ok.target + " by its Key under " + ok.col + ".")];
         if (t.id === "entries") {
             const e = R.entries;
             const now = entriesNow(m);
@@ -362,13 +388,18 @@
             // one row per unmatched value in this file; the report gives both counts, so values and rows are never mixed
             const unm = (key, num, col, word, other) => L1("warn", count(num + " " + col + " values (" + num + " rows)", key), " are not in " + other + ".", seg(key, col, [["add", "Add as " + word], ["leave", asNode ? "Leave out the link" : "Leave out"]], m.add && m.add[key] ? "add" : "leave"),
                 m.add && m.add[key] ? h("span", { class: "k-secondary" }, num + " " + word + " are added, each with only an id") : null);
-            out.push(L1(null, count(n(e.rows) + " rows", "all"), "; ", count(n(now.bothEnds), "both"), " have both ends."));
+            const lc = linkCols(t);
+            // With one link column there are no "both ends": say how many rows that one link matches
+            if (lc.length === 1) out.push(L1(null, count(n(e.rows) + " rows", "all"), "; " + n(e.rows - (lc[0] === "person_id" ? (m.add && m.add.people ? 0 : e.missingPeople) : (m.add && m.add.bldg ? 0 : e.missingBuildings))) + " link to a " + (lc[0] === "person_id" ? "person" : "building") + "."));
+            else out.push(L1(null, count(n(e.rows) + " rows", "all"), "; ", count(n(now.bothEnds), "both"), " have both ends."));
             if (t.roles.person_id) out.push(unm("people", e.missingPeople, "person_id", "people", "people"));
             if (t.roles.building_id) out.push(unm("bldg", e.missingBuildings, "building_id", "buildings", "buildings"));
+            // The one fixture note about a left-out building (B12): only an edit has notes; a new graph has none yet
+            if (m.door.edit && DE().hasNotes() && t.roles.building_id && !(m.add && m.add.bldg)) out.push(L1(null, "1 note is about a node no longer in the graph (B12): it reads 'Not in the current data'."));
             const left = e.rows - now.bothEnds;
             if (left) out.push(L1(null, count((m.filter === "missing" ? "Hide the " : "Show the ") + left + " rows", "missing"), "."));
             if (!asNode && t.per === "row" && !colWith(t, "edgeId")) out.push(L1("warn", "No Edge id column: notes on entries may move if the row order changes."));
-            if (m.door.edit && t.loadedPer && t.kind === "edge" && t.per !== t.loadedPer) out.push(L1("warn", "Switching to " + (t.per === "pair" ? "Pair" : "Row") + " changes which edge each note is about: 3 notes on entries will read 'Not in the current data'."));
+            if (m.door.edit && DE().hasNotes() && t.loadedPer && t.kind === "edge" && t.per !== t.loadedPer) out.push(L1("warn", t.per === "pair" ? "Switching to Pair brings back the edge 1 note on entries is about (Ana Ruiz -> B1)." : "Switching to Row changes which edge each note is about: 1 note on entries will read 'Not in the current data'."));
             if (asNode && !colWith(t, "key")) out.push(L1("warn", "No Key column: each entry is keyed by its row number. Notes on entries may move if the row order changes."));
             out.push(L1("warn", "person_id is Number here and Category in people: matched as text. ", count(e.leadingZeroKeys + " keys", "zeros"), " differ only by leading zeros (not merged)."));
             if (asNode) out.push(L1("res", n(e.rows) + " entries became " + n(e.rows) + " entry nodes" + (linkCols(t).length === 2 ? "; " + n(now.bothEnds) + " have both edges." : ".")));
@@ -533,7 +564,8 @@
             return AB.tip(x, name, { label: false });
         };
         const auto = (why) => (why ? AB.tip(h("span", { class: "dpg-auto", role: "note", tabindex: "0" }, "auto"), why === true ? "Worked out from the file's name and first line" : why) : null);
-        const glyph = (level) => h("span", { class: "k-warn-glyph" + (level === "err" ? " k-err-glyph" : "") }, "!");
+        // The glyph is drawn, not read: a screen reader hears the line's words, not "!"
+        const glyph = (level) => h("span", { class: "k-warn-glyph" + (level === "err" ? " k-err-glyph" : ""), "aria-hidden": "true" }, "!");
 
         // ----- tables list -----
         function tablesList() {
@@ -783,6 +815,8 @@
             const it = (r, extra) => Object.assign({ label: ROLE_WORD[r], check: cur === r, desc: ROLE_TIP[r], onClick: set(r) }, extra || {});
             const items = [];
             if (t.kind === "node") items.push(it("key", { desc: "Names each node; suggested from a column with \"id\" in its name and unique values" }), link("links"));
+            // The count One edge per Pair derives cannot name an end: the pair's ends are its From and To
+            else if (pairEdge(t) && c === "count") items.push(Object.assign(link("from"), { sub: false, onClick: null, disabled: "count is derived from the pair; the pair's ends are " + colWith(t, "from") + " and " + colWith(t, "to") }), Object.assign(link("to"), { sub: false, onClick: null, disabled: "count is derived from the pair; the pair's ends are " + colWith(t, "from") + " and " + colWith(t, "to") }));
             else items.push(link("from"), link("to"));
             items.push({ sep: true }, it("type"), it("name"), it("time", needTime ? { disabled: needTime } : timeNum), it("weight", needNum ? { disabled: needNum } : { desc: "One weight per table; choosing it here moves it from another column" }));
             if (t.kind === "edge") items.push(it("edgeId"));
@@ -821,7 +855,7 @@
                     tag, locked ? icon("lock", "sm") : icon("chevron-down", "sm"), rr.auto ? auto("Suggested from the column's name and values") : null);
                 if (!locked) btn.addEventListener("click", () => openRoleMenu(btn, t, c));
                 roleBtns.push(btn);
-                const gl = h("span", Object.assign({ class: "dpg-glyph", role: "link", "aria-label": c + ": " + TYPE_WORD[ty] + ". Opens the attribute" }, AB.act({ go: ["inspector-attribute-and-filter-step", c === "floors" ? "node-weight" : c === "person_id" ? "link-key" : c === "id" ? "attribute-name-role" : "attribute"] })), AB.typeGlyph(ty));
+                const gl = h("span", Object.assign({ class: "dpg-glyph", role: "link", "aria-label": c + ": " + TYPE_WORD[ty] + ". Opens the attribute" }, AB.act({ go: ["inspector-attribute-and-filter-step", c === "floors" ? "node-weight" : c === "person_id" ? "link-key" : c === "count" ? "edge-weight" : c === "id" ? "attribute-name-role" : "attribute"] })), AB.typeGlyph(ty));
                 AB.tip(gl, TYPE_WORD[ty] + ": change how it reads in the attribute's Read as", { label: false });
                 gl.tabIndex = -1; // not a Tab stop: the keyboard reaches the attribute from Data > Attributes
                 const comb = t.per === "pair" && t.kind === "edge" && !["from", "to", "edgeId"].includes(r) && c !== "count"
@@ -926,9 +960,11 @@
             else {
                 const verb = m.door.verb || "Load";
                 const to = m.door.into && m.into === "new" ? m.door.doneNew : m.door.done;
-                // The loaded door-entries graph follows One edge per (Row or Pair) as Load leaves it
-                const entries = m.tables.find((t) => t.id === "entries" && t.kind === "edge");
-                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (entries && to[1] === "door-entries-loading") { DE().loaded.per = entries.per; DE().loaded.add = addedKey(m); } AB.go(to[0], to[1]); } });
+                // The loaded door-entries graph follows what Load (or Edit's Apply) leaves: One edge per
+                // Row or Pair, or each entry as a node, and the Add choices
+                const entries = m.tables.find((t) => t.id === "entries");
+                const records = entries && (to[1] === "door-entries-loading" || (m.door.edit && to[1] === "door-entries"));
+                primary = reason ? AB.button(verb, { disabled: reason[1] }) : AB.button(verb, { key: "Enter", onClick: () => { if (records) { DE().loaded.per = entries.kind === "node" ? "nodes" : entries.per; DE().loaded.add = addedKey(m); if (m.door === NEW_DOOR) DE().loaded.fresh = true; } AB.go(to[0], to[1]); } });
             }
             primary.dataset.k = "primary";
             const cancel = AB.button("Cancel", { kind: "secondary", key: "Esc", onClick: () => AB.onPageCancel && AB.onPageCancel() });
@@ -960,13 +996,13 @@
         build();
     }
 
-    const TRANSFERS = ["transfers", "kind-as-type", "weight-moved", "edit-source", "edit-source-lost", "replace", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
+    const TRANSFERS = ["transfers", "kind-as-type", "weight-moved", "edit-source", "edit-accounts", "edit-source-lost", "replace", "url", "refused-fetch", "load-into", "one-at-a-time", "edge-list", "refused-parse", "refused-endpoints"];
     registerSection({
         id: "data-page",
         title: "Data page",
         region: "workspace",
         rail: "data",
-        frame: (state) => ({ dataset: TRANSFERS.includes(state) ? "transactions" : state === "graph-file" || (state || "").startsWith("detect") ? "lesmis" : "doorEntries" }),
+        frame: (state) => ({ dataset: TRANSFERS.includes(state) ? "transactions" : state === "graph-file" || state === "edit-graph-file" || (state || "").startsWith("detect") ? "lesmis" : "doorEntries" }),
         states: [
             { id: "entries", label: "Door entries: three tables, entries selected" },
             { id: "people", label: "Door entries: people" },
@@ -987,8 +1023,10 @@
             { id: "kind-as-type", label: "kind as Subtype: three subtypes of account" },
             { id: "replace", label: "Replace with file" },
             { id: "edit-source", label: "Edit source" },
+            { id: "edit-accounts", label: "Edit: accounts" },
             { id: "edit-source-lost", label: "Replace: attributes lost" },
             { id: "graph-file", label: "A graph file (Les Miserables)" },
+            { id: "edit-graph-file", label: "Edit: miserables.gexf" },
             { id: "edge-list", label: "One edge list, clean" },
             { id: "url", label: "From a URL" },
             { id: "detect-several", label: "Paste: several formats match" },

@@ -224,7 +224,7 @@
                 inline, advBtn ? row("", advBtn) : null),
             notes.length ? callout("warning", h("b", null, `${S.format} cannot hold everything`), h("ul", null, notes.map((t) => h("li", null, t)))) : null,
             h("div", { class: "ex-h" }, "Preview"),
-            h("pre", { class: "ex-pre" }, dataPreview()),
+            h("pre", { class: "ex-pre", tabindex: "0", "aria-label": "Preview of the exported data" }, dataPreview()),
             );
     }
     const dataFile = () => `${PROJECT}${S.scope === "Watchlist" ? "_watchlist" : ""}${S.format === "CSV" ? "_" + S.table.toLowerCase() : ""}.${FMT[S.format].ext}`;

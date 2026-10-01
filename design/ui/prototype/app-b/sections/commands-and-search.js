@@ -50,9 +50,9 @@
     };
     const L = (g, ic, name, home, extra) => Object.assign({ g, icon: ic, name, home }, extra || {});
     const I = AB.ICON;
-    const SETTINGS = [["you", "You"], ["privacy", "Privacy"], ["appearance", "Appearance"], ["accessibility", "Accessibility"],
-        ["canvas-input", "Canvas input"], ["performance", "Performance"], ["assistant", "Assistant"], ["headset", "Headset"], ["projects", "Projects"]];
-    const ALIASES = { appearance: ["theme", "dark mode"], performance: ["gpu", "webgpu"], accessibility: ["reduced motion", "single-key"] };
+    const SETTINGS = [["general", "General"], ["privacy", "Privacy"], ["accessibility", "Accessibility and input"], ["performance", "Performance"],
+        ["assistant", "Assistant"], ["headset", "Headset"], ["diagnostics", "Diagnostics"]];
+    const ALIASES = { general: ["name", "author", "your name", "theme", "dark mode", "number format", "projects"], performance: ["gpu", "webgpu"], accessibility: ["reduced motion", "single-key", "keyboard", "canvas input"] };
     const COMMANDS = [
         // Go to: places, and the parts of a place people ask for by name
         L("Go to", "network", "Graph", "Rail > Graph", { go: ["graph-place", "at-rest"], aka: ["tree", "layers", "rows", "results", "styles"] }),
@@ -220,8 +220,8 @@
     // graphty-element's own canvas keys first (OrbitInputController and TwoDInputController), marked not
     // changeable; then the app's keys by home. App keys never use W, A, S, D, Q, E, the arrows, = or -.
     const ELEMENT = [
-        { title: "3D", keys: [["Arrows", "Orbit"], ["W, S", "Zoom in, zoom out"], ["A, D", "Spin"]] },
-        { title: "2D", keys: [["W, A, S, D", "Pan"], ["Arrows", "Pan"], ["Q, E", "Rotate"], ["+, -", "Zoom in, zoom out"]] },
+        { title: "3D", keys: [["Arrows", "Orbit"], ["Shift+Arrows", "Walk nodes"], ["W, S", "Zoom in, zoom out"], ["A, D", "Spin"]] },
+        { title: "2D", keys: [["W, A, S, D", "Pan"], ["Arrows", "Pan"], ["Shift+Arrows", "Walk nodes"], ["Q, E", "Rotate"], ["+, -", "Zoom in, zoom out"]] },
     ];
     const GROUPS = [
         { title: "Everywhere", keys: [
@@ -297,7 +297,7 @@
         while (head.nextElementSibling) head.nextElementSibling.remove();
         const mk = (s) => { const i = s.indexOf("Jav"); return [s.slice(0, i), h("mark", null, "Jav"), s.slice(i + 3)]; };
         FIND_NOTES.forEach((n) => {
-            const sub = [n.by, n.at, n.about] /* this project has two named authors, so a set name would show */.filter(Boolean).join(", ");
+            const sub = [n.by, n.at, n.about].filter(Boolean).join(", ");
             head.parentNode.append(h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ go: n.go })), icon(AB.ICON.note),
                 h("span", { class: "gp-hit-text" }, mk(n.text.length > 60 ? n.text.slice(0, 57) + "..." : n.text), h("span", { class: "gp-hit-sub" }, sub))));
         });

@@ -462,3 +462,4 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 .k-data .k-value { white-space: normal; min-width: 0; max-width: 70%; overflow-wrap: anywhere; }
 .k-badge.ab-role { height: auto; min-height: 16px; white-space: normal; }
 .ab-fctl { min-width: 0; }
+.k-row[aria-current="true"] { background: var(--cm-bg-selected); }

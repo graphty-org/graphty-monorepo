@@ -19,6 +19,9 @@
 .dp .ab-le:empty { display: none; }
 .dp-flat .ab-disc:empty { display: none; }
 .dp .ab-tree { padding-bottom: 4px; }
+/* The quiet line is part of its row: one hover, one click target */
+.ab-trow:hover + .dp-quiet, .dp-quiet:hover, .ab-trow:has(+ .dp-quiet:hover) { background: var(--cm-bg-hover); }
+.ab-trow[aria-selected="true"] + .dp-quiet { background: var(--cm-bg-selected); }
 .dp-quiet { cursor: default; list-style: none; padding: 0 0 4px calc(var(--lvl, 0) * 16px + 28px); margin-top: -4px; font-size: 11px; line-height: 16px; color: var(--cm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dp .ab-trow[data-off] .ab-tname { color: var(--cm-text-tertiary); }
 .dp .ab-trow[data-dragging] { opacity: 0.5; }
@@ -58,7 +61,7 @@
     // Decorate tree rows: a quiet line under a row (not a tree item; read through aria-description)
     function quiet(li, text) {
         li.setAttribute("aria-description", text);
-        li.after(h("li", { class: "dp-quiet", role: "none", "aria-hidden": "true", style: li.getAttribute("style") }, text));
+        li.after(h("li", { class: "dp-quiet", role: "none", "aria-hidden": "true", style: li.getAttribute("style"), on: { click: () => li.click(), dblclick: () => li.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })) } }, text));
     }
     const rowEl = (ul, id) => ul.querySelector(`[data-row="${CSS.escape(id)}"]`);
     // The shared warning mark in a row's trailing slot, its reason in the tooltip
@@ -87,7 +90,7 @@
             return [
                 { id: "people", kind: "node", name: tbl("people").file, quiet: `person . ${n(D().loadedTypes().person)} nodes` + (D().loadedTypes().added.person ? ` (${n(r.people.rows)} + ${D().loadedTypes().added.person} added)` : ""), go: ["data-page", "edit-people"], edit: ["data-page", "edit-people"] },
                 { id: "buildings", kind: "node", name: tbl("buildings").file, quiet: `building . ${n(r.buildings.rows)} nodes`, go: ["data-page", "edit-buildings"], edit: ["data-page", "edit-buildings"] },
-                { id: "entries", kind: "edge", name: tbl("entries").file, quiet: `entries . ${n(e.rows)} rows, ${n(D().loadedEdges())} edges`, go: ["data-page", "edit-entries"], edit: ["data-page", "edit-entries"],
+                { id: "entries", kind: D().loaded.per === "nodes" ? "node" : "edge", name: tbl("entries").file, quiet: D().loaded.per === "nodes" ? `entry . ${n(e.rows)} nodes, ${n(D().loadedEdges())} link edges` : `entries . ${n(e.rows)} rows, ${n(D().loadedEdges())} edges`, go: ["data-page", "edit-entries"], edit: ["data-page", "edit-entries"],
                     // The first line of the element's match report for this table: its tooltip, not a warning.
                     // Leave out resolved both unmatched lines, so the status matches the Data page's green check.
                     info: `${n(e.rows)} rows; ${n(e.bothEnds)} have both ends. ${e.missingPeople} person_id values are not in people and ${e.missingBuildings} building_id values are not in buildings: left out (${e.missingRows} rows).` },
@@ -95,16 +98,16 @@
         }
         if (cfg.ds === "lesmis") {
             const l = L();
-            return [{ id: "gexf", kind: "file", name: GEXF, quiet: `${n(l.nodes)} nodes, ${n(l.edges)} edges`, go: ["data-page", "graph-file"], open: true,
+            return [{ id: "gexf", kind: "file", name: GEXF, quiet: `${n(l.nodes)} nodes, ${n(l.edges)} edges`, go: ["data-page", "edit-graph-file"], edit: ["data-page", "edit-graph-file"], open: true,
                 children: [
-                    { id: "gexf-nodes", kind: "node", name: "nodes", quiet: `node . ${n(l.nodes)} nodes`, go: ["data-page", "graph-file"], noMenu: true },
-                    { id: "gexf-edges", kind: "edge", name: "edges", quiet: `edges . ${n(l.edges)} rows, ${n(l.edges)} edges`, go: ["data-page", "graph-file"], noMenu: true },
+                    { id: "gexf-nodes", kind: "node", name: "nodes", quiet: `node . ${n(l.nodes)} nodes`, go: ["data-page", "edit-graph-file"], noMenu: true },
+                    { id: "gexf-edges", kind: "edge", name: "edges", quiet: `edges . ${n(l.edges)} rows, ${n(l.edges)} edges`, go: ["data-page", "edit-graph-file"], noMenu: true },
                 ] }];
         }
         const t = T();
         const rows = [
-            { id: "accounts", kind: "node", name: t.accountsFile, quiet: `account . ${n(t.nodes)} nodes`, go: ["data-page", "transfers"] },
-            { id: "transfers", kind: "edge", name: t.file, quiet: `transfers . ${n(t.edges)} rows, ${n(t.edges)} edges${cfg.afterReplace ? ", replaced Sep 30" : ""}`, go: ["data-page", cfg.afterReplace ? "replace" : "transfers"] },
+            { id: "accounts", kind: "node", name: t.accountsFile, quiet: `account . ${n(t.nodes)} nodes`, go: ["data-page", "edit-accounts"], edit: ["data-page", "edit-accounts"] },
+            { id: "transfers", kind: "edge", name: t.file, quiet: `transfers . ${n(t.edges)} rows, ${n(t.edges)} edges${cfg.afterReplace ? ", replaced Sep 30" : ""}`, go: ["data-page", cfg.afterReplace ? "replace" : "edit-source"], edit: ["data-page", "edit-source"] },
         ];
         if (cfg.url) {
             const flagged = t.attributes.find((a) => a.name === "flagged").values.true;
@@ -130,7 +133,7 @@
         const src = sourceRows(cfg);
         const treeRow = (s) => ({
             id: s.id, kindIcon: AB.tip(icon(KIND[s.kind]), KIND_WORD[s.kind], { label: false }), name: s.name, selected: cfg.select === s.id, go: s.go, open: s.open, waitDouble: true,
-            renameDisabled: s.noMenu ? "a table inside a graph file is named by the file" : null,
+            renameDisabled: s.noMenu ? "A table inside a graph file is named by the file" : null,
             children: s.children && s.children.map(treeRow),
         });
         const ul = AB.tree(src.map(treeRow), { label: "Sources, one row per table" });
@@ -283,8 +286,10 @@
             return [
                 { head: "person", rows: [TYPE_ATTR, ["badge", "cat"], ["dept", "cat"], ["id", "cat", "Key"], ["name", "cat", "Name"]] },
                 { head: "building", rows: [TYPE_ATTR, ["bldg", "cat", "Key"], ["floors", "num", "Weight"], ["site", "cat", "Name"]] },
-                // as the last Load left One edge per: Pair adds count (the weight) and combines time
-                D().loaded.per === "row" ? { head: "entries", edge: true, rows: [TYPE_ATTR, ["time", "time", "Time"]] }
+                // as the last Load left One edge per: Pair adds count (the weight) and combines time;
+                // each entry as a node makes entry a node type with its time
+                D().loaded.per === "nodes" ? { head: "entry", rows: [TYPE_ATTR, ["time", "time", "Time"]] }
+                    : D().loaded.per === "row" ? { head: "entries", edge: true, rows: [TYPE_ATTR, ["time", "time", "Time"]] }
                     : { head: "entries", edge: true, rows: [TYPE_ATTR, ["count", "num", "Weight", { why: "One edge per Pair: how many entries each pair made" }], ["time (earliest)", "time", "Time", { roleWhy: "from Pair: each pair's earliest time; time (latest) is an attribute" }], ["time (latest)", "time"]] },
             ];
         }
@@ -301,14 +306,16 @@
                 : `Computed on ${n(t.nodes)} nodes; the filters now leave 812. Rerun is in its menu`) : null }];
         return [
             // One node type keeps the plain Nodes and Edges subheads. Computed first, then by name
-            { head: "Nodes", rows: [cfg.derived ? null : pagerank, ["alertRule", "cat"], ["alertTime", "time"], ["country", "cat"], ["flagged", "cat"], ["id", "cat", "Key"], ["kind", "cat"], ["riskScore", "num"]].filter(Boolean) },
+            { head: "Nodes", rows: [cfg.derived || cfg.fresh ? null : pagerank, ["alertRule", "cat"], ["alertTime", "time"], ["country", "cat"], ["flagged", "cat"], ["id", "cat", "Key"], ["kind", "cat"], ["riskScore", "num"]].filter(Boolean) },
             { head: "Edges", edge: true, rows: [["amount", "num", "Weight"], ["timestamp", "time", "Time"]] },
         ];
     }
 
+    // The door entries' attributes that have an inspector: the two weights chosen at load
+    const DOOR_ATTR = { floors: "node-weight", count: "edge-weight" };
     function attributes(cfg) {
         const groups = attributeGroups(cfg);
-        const editOn = cfg.ds === "door" ? ["data-page", "entries"] : cfg.ds === "lesmis" ? ["data-page", "graph-file"] : ["data-page", "transfers"];
+        const editOn = cfg.ds === "door" ? ["data-page", "edit-entries"] : cfg.ds === "lesmis" ? ["data-page", "edit-graph-file"] : ["data-page", "edit-source"];
         const menuFor = (a, edge, li) => {
             if (a.builtin) return AB.openMenu(li, [{ heading: a.name }, { label: "Color by", onClick: () => AB.flash("Color by type") }, { label: "Show as groups", onClick: () => AB.flash("Show as groups by type") }, { sep: true }, goItem("Show in table", ["table-dock", cfg.ds === "door" ? "door-entries-nodes" : "nodes"])]);
             AB.openMenu(li, [
@@ -334,15 +341,15 @@
                 id: g.head + "/" + a.name, name: a.name, selected: cfg.select === a.name, builtin: a.builtin,
                 kindIcon: a.computed ? AB.tip(icon(AB.ICON.run), "Computed by PageRank. Read as: Number", { label: false }) : glyph(a.type),
                 // The door entries' attribute inspector is drawn for floors (node weight); the rest flash below
-                go: cfg.ds === "door" ? (a.name === "floors" ? ["inspector-attribute-and-filter-step", "node-weight"] : null)
+                go: cfg.ds === "door" ? (DOOR_ATTR[a.name] ? ["inspector-attribute-and-filter-step", DOOR_ATTR[a.name]] : null)
                     : (a.computed ? ["inspector-measure-row", "data"] : ["inspector-attribute-and-filter-step", a.role === "Name" ? "attribute-name-role" : "attribute"]),
-                renameDisabled: a.builtin ? "type is built in: the table each row came from" : "an attribute is named by its column in the file",
+                renameDisabled: a.builtin ? "The built-in type is named by the table each row came from" : "an attribute is named by its column in the file",
                 count: a.role ? AB.roleTag(a.role, { go: editOn, second: a.roleWhy || ROLE_WHY[a.role] }) : null,
             })), { label: g.head + " attributes" });
             rows.forEach((a) => {
                 const li = rowEl(ul, g.head + "/" + a.name);
                 if (a.why) li.setAttribute("aria-description", a.why);
-                if (cfg.ds === "door" && a.name !== "floors") li.addEventListener("click", (e) => { if (e.detail < 2) AB.flash("Opens " + a.name + "'s inspector (not wired in the skeleton)"); });
+                if (cfg.ds === "door" && !DOOR_ATTR[a.name]) li.addEventListener("click", (e) => { if (e.detail < 2) AB.flash("Opens " + a.name + "'s inspector (not wired in the skeleton)"); });
                 if (a.mark) {
                     li.setAttribute("aria-description", a.mark);
                     li.querySelector(".ab-le").append(AB.tip(h("span", { class: "dp-mark", role: "img", "aria-label": "out of date" }, icon("triangle-alert", "sm")), a.mark, { label: false }));
@@ -416,7 +423,7 @@
         derived: { steps: "none", derived: true },
         "after-replace": { steps: "none", select: "transfers", afterReplace: true },
         "new-step": { steps: "new", selectStep: "s3" },
-        "empty-filters": { steps: "none" },
+        "empty-filters": { steps: "none", fresh: true }, // where the transfers Load lands: no result attributes yet
     };
     const RIGHT = {
         filters: "inspector-attribute-and-filter-step/filter-step",

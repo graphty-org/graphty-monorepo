@@ -10,6 +10,7 @@
 
     if (!document.getElementById("sv-css")) {
         document.head.append(h("style", { id: "sv-css" },
+            ".sv-thumb,.sv-thumb img{cursor:default}" /* a picture with a tooltip, not a control */ +
             ".sv-thumb{display:block;margin:8px 16px;aspect-ratio:16/10;border-radius:5px;overflow:hidden;background:var(--k-canvas);box-shadow:inset 0 0 0 1px var(--cm-border)}" +
             ".sv-thumb img{width:100%;height:100%;object-fit:cover;display:block}" +
             ".sv-cap{flex:1;min-width:0;padding:3px 6px;margin:0 -6px;border-radius:4px;line-height:18px;color:var(--cm-text);cursor:text;white-space:normal}" +
@@ -60,7 +61,7 @@
                 kind: "Saved view",
                 kindKey: "saved-view",
                 menu: ["context-menus", "saved-view"],
-                renameDisabled: "graphty-element cannot rename a camera preset yet",
+                renameDisabled: "a name a saved camera preset can store",
                 body: () => [
                     thumb,
                     AB.fieldRow("Mode", is2d ? "2D" : "3D"),

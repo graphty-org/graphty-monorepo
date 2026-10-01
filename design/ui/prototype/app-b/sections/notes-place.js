@@ -74,7 +74,7 @@
         const [v, next] = L().topByBetweenness;
         const c3 = state === "earlier-group" ? Object.assign({}, T.community3, { earlierGroup: true }) : T.community3;
         const nap = state === "missing-target" ? Object.assign({}, T.napoleon, { gone: true }) : T.napoleon;
-        return saved.concat([
+        return savedIn("lesmis").concat([
             { id: "n1", by: state === "two-authors" || state === "one-author" ? "Ada Okafor" : null, at: "2 h ago", full: "Wednesday, September 30, 2026, 09:12", about: [c3],
                 text: "Myriel's household and the people he meets in Digne." },
             { id: "n2", by: state === "two-authors" ? "Lin Chen" : null, at: "Yesterday", full: "Tuesday, September 29, 2026, 17:40", about: [c3, nap], cites: [T.louvain],
@@ -93,19 +93,24 @@
     }
     // The door-entries project: two node types, so each node chip names its type ("Ana Ruiz . person");
     // an edge chip names its table; B12 was left out by the match report, so its note reads missing
+    // The pair edge exists only when the entries were loaded per Pair; otherwise its chip reads missing
     function doorNotes() {
-        const dock = ["table-dock", "door-entries-nodes"];
-        const ana = { label: "Ana Ruiz . person", icon: "circle-dot", go: dock };
-        const b1 = { label: "B1 . building", icon: "circle-dot", go: dock };
-        return [
+        const ana = { label: "Ana Ruiz . person", icon: "circle-dot", go: ["inspector-node", "door-ana"] };
+        const b1 = { label: "B1 . building", icon: "circle-dot", go: ["inspector-node", "door-b1"] };
+        const pair = AB.fx.datasets.doorEntries.loaded.per === "pair";
+        if (!AB.fx.datasets.doorEntries.hasNotes()) return savedIn("doorEntries"); // just made from the files
+        return savedIn("doorEntries").concat([
             { id: "d1", at: "1 h ago", full: "Thursday, October 1, 2026, 08:40", about: [ana, b1], text: "Ana Ruiz badges into B1 most mornings before 08:00." },
-            { id: "d2", at: "1 h ago", full: "Thursday, October 1, 2026, 08:31", about: [{ label: "Ana Ruiz -> B1 . entries", icon: "spline", go: ["table-dock", "door-entries"] }], text: "The busiest pair: 22 entries, March 2 to March 27." },
+            { id: "d2", at: "1 h ago", full: "Thursday, October 1, 2026, 08:31", about: [Object.assign({ label: "Ana Ruiz -> B1 . entries", icon: "spline" }, pair ? { go: ["inspector-edge", "door-pair"] } : { gone: true })], text: "The busiest pair: 22 entries, March 2 to March 27." },
             { id: "d3", at: "Yesterday", full: "Wednesday, September 30, 2026, 16:05", about: [{ label: "B12 . building", icon: "circle-dot", gone: true }], text: "B12 is not in buildings.csv. Ask Facilities whether it is new." },
-
-        ];
+        ]);
     }
     // Notes saved in this page view (newest first), the note the list marks, and what it selected
     const saved = AB.sessionNotes; // the one in-session store: every Notes count reads it too
+    // Each saved note belongs to the project it was written in (its ds)
+    const savedIn = (ds) => saved.filter((n) => (n.ds || "lesmis") === ds);
+    // The project on screen, and the notes it holds: the transfers have none in the fixture
+    const projectOf = () => (AB.route && AB.route.frame.dataset) || "lesmis";
     let selNote = "n4", selRight = "inspector-node/data", focusNote = null;
     const show = (noteId, right) => {
         selNote = noteId; selRight = right; focusNote = noteId;
@@ -116,9 +121,12 @@
     const showNames = (all) => new Set(all.map((n) => n.by).filter(Boolean)).size >= 2;
 
     // Where a click on the whole note lands: every target selected.
+    // A target the data no longer has selects nothing; a note with none left selects nothing at all.
     function selectAll(n) {
-        if (n.about.length === 1) return n.about[0].go;
-        if (n.about.every((t) => t.icon === "circle-dot")) return ["inspector-several-elements", "two-nodes"];
+        const live = n.about.filter((t) => !t.gone);
+        if (!live.length) return null;
+        if (live.length === 1) return live[0].go;
+        if (live.every((t) => t.icon === "circle-dot")) return ["inspector-several-elements", projectOf() === "doorEntries" ? "door-two" : "two-nodes"];
         return ["inspector-several-elements", "data"];
     }
     const look = (t) => (t.swatch ? AB.chit(t.swatch, true) : icon(t.icon, "sm"));
@@ -162,12 +170,12 @@
         const drawChips = () => {
             chips.replaceChildren(...(targets.length
                 ? targets.map((t, i) => chip(t, { onRemove: () => { targets.splice(i, 1); drawChips(); ta.focus(); if (!targets.length) AB.announce("Now about the whole graph"); } }))
-                : [chip(T.graph, { onRemove: null })]));
+                : [chip(o.graph || T.graph, { onRemove: null })]));
         };
         const ta = h("textarea", { "aria-label": "Note text", placeholder: "Write a note" });
         ta.value = o.text || o.draftText || "";
         const empty = () => !ta.value.trim();
-        const save = () => { if (empty()) return; AB.announce("Note saved"); o.done(true, { text: ta.value.trim(), about: targets.length ? targets : [T.graph] }); };
+        const save = () => { if (empty()) return; AB.announce("Note saved"); o.done(true, { text: ta.value.trim(), about: targets.length ? targets : [o.graph || T.graph] }); };
         // Esc cancels. A new note with no text is dropped silently; one with text is discarded with Undo
         // (the writing state's done shows the notice), so typed words are never lost to one key
         const cancel = () => { const typed = !o.text && !empty(); if (!o.text && !typed) AB.announce("Empty note discarded"); o.done(false, typed ? { text: ta.value, about: targets } : null); };
@@ -197,15 +205,22 @@
     function noteItem(n, names) {
         const by = names && n.by ? n.by : null;
         // The spoken name carries what the note is about and cites, since the label replaces the row's content
-        const label = [n.text, "about " + n.about.map((t) => t.label).join(", "), n.cites ? "cites " + n.cites.map((t) => t.label).join(", ") : null, by, n.full + (n.edited ? ", edited" : "")];
-        const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": label.filter(Boolean).join("; "), "aria-keyshortcuts": "ArrowRight Delete Shift+F10" });
-        const open = () => show(n.id, selectAll(n).join("/"));
+        const label = () => [n.text, "about " + n.about.map((t) => t.label).join(", "), n.cites ? "cites " + n.cites.map((t) => t.label).join(", ") : null, by, n.full + (n.edited ? ", edited" : "")].filter(Boolean).join("; ");
+        const li = h("li", { class: "np-note", tabindex: "-1", "data-note": n.id, "aria-label": label(), "aria-keyshortcuts": "ArrowRight Delete Shift+F10" });
+        const open = () => { const to = selectAll(n); if (to) show(n.id, to.join("/")); else AB.notice(n.about.map((t) => t.label).join(", ") + ": not in the current data, so nothing is selected"); };
         const edit = () => {
             clearTimeout(pending);
             // The editor stays a list item, so the list keeps its structure
             const wrap = h("li", { class: "np-edit-li" });
             const ed = editor({ targets: n.about, text: n.text, done: (ok, v) => {
-                if (ok && v.text !== n.text) { n.text = v.text; text.textContent = v.text; if (!n.edited) { n.edited = true; meta.append(", edited"); } }
+                // A change to the text or to what the note is about (a subject removed) is saved, and marks it edited
+                const moved = ok && (v.about.length !== n.about.length || v.about.some((t, i) => t !== n.about[i]));
+                if (ok && (v.text !== n.text || moved)) {
+                    n.text = v.text; text.textContent = v.text;
+                    if (moved) { n.about = v.about.slice(); about.replaceChildren(...n.about.map((t) => chip(t, { note: n.id }))); }
+                    if (!n.edited) { n.edited = true; meta.append(", edited"); }
+                    li.setAttribute("aria-label", label());
+                }
                 wrap.replaceWith(li); li.focus();
             } });
             wrap.append(ed);
@@ -259,6 +274,7 @@
         li.addEventListener("contextmenu", (e) => { e.preventDefault(); options(more); });
         const text = h("div", { class: "np-text" }, n.text);
         text.addEventListener("dblclick", (e) => { e.stopPropagation(); edit(); });
+        const about = h("div", { class: "np-chips", "aria-label": "About" }, n.about.map((t) => chip(t, { note: n.id })));
         const meta = h("span", null, AB.tip(h("span", { class: "k-num" }, n.at), n.full, { label: false }), n.edited ? ", edited" : null);
         // A second click on "..." closes the menu it opened
         const more = AB.iconButton(AB.ICON.options, "Note options", { onClick: () => (document.querySelector(".k-menu") ? AB.closeMenu() : options(more)) });
@@ -266,7 +282,7 @@
         more.tabIndex = -1; // keyboard: Shift+F10 on the note, as on a tree row
         AB.append(li, [
             text,
-            h("div", { class: "np-chips", "aria-label": "About" }, n.about.map((t) => chip(t, { note: n.id }))),
+            about,
             n.cites ? h("div", { class: "np-cites", "aria-label": "Cites" }, "Cites", n.cites.map((t) => chip(t, { cite: true, note: n.id }))) : null,
             h("div", { class: "np-meta k-secondary" },
                 by ? h("span", { class: "k-ellipsis" }, by + ",") : null,
@@ -341,14 +357,23 @@
             { id: "door-entries", label: "Door entries: chips name each node's type" },
         ],
         frame(state) {
-            if (state === "door-entries") return { dataset: "doorEntries", right: "inspector-nothing-selected/door-entries" };
+            // After Save the inspector the note was written from stays (AB.addNote's contract)
+            const keep = AB.noteKeep;
+            if (state === "door-entries") return { dataset: "doorEntries", right: (keep && keep.right) || "inspector-nothing-selected/door-entries" };
             if (state === "about-selection") return { right: "inspector-node/data" };
-            if (state === "writing") return { right: (AB.noteDraft && AB.noteDraft.right) || "inspector-node/data" };
-            if (state === "selected") return { right: selRight };
+            if (state === "writing") {
+                const d = AB.noteDraft;
+                return Object.assign({ right: (d && d.right) || "inspector-node/data" }, d && d.dataset && d.dataset !== "lesmis" ? { dataset: d.dataset } : {});
+            }
+            if (state === "all" && keep) return Object.assign({ right: keep.right }, keep.dataset !== "lesmis" ? { dataset: keep.dataset } : {});
+            // A selected note keeps the project it belongs to on screen
+            if (state === "selected") return Object.assign({ right: selRight }, projectOf() !== "lesmis" ? { dataset: projectOf() } : {});
             if (state === "edge-note") return { right: "inspector-edge/data" };
             return {};
         },
         render(el, state) {
+            AB.noteKeep = null; // used once, by the frame of the screen Save lands on
+            const ds = projectOf();
             // While a note is being written, "+" returns to it rather than starting a second draft
             const add = AB.plus({ label: "Add note (N)", items: ["Note"], onAdd: () => { const d = state === "writing" && el.querySelector("textarea, [contenteditable]"); if (d) { d.focus(); AB.announce("Writing a note"); } else AB.addNote(); } });
             el.append(AB.placeHead("Notes", [add]));
@@ -356,7 +381,8 @@
                 el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() }));
                 return;
             }
-            const all = state === "door-entries" ? doorNotes() : notes(state);
+            const all = ds === "doorEntries" ? doorNotes() : ds === "transactions" ? savedIn("transactions") : notes(state);
+            if (!all.length && state !== "writing") { el.append(AB.empty("No notes.", { verb: "Add note", key: "N", onClick: () => AB.addNote() })); return; }
             const names = showNames(all);
             const f = FILTERS[state] || null;
             const shown = f ? all.filter((n) => n.about.includes(T[f])) : all;
@@ -369,9 +395,16 @@
             if (state === "writing") {
                 // The subject comes from the door that opened the editor (AB.addNote); a direct link writes about Valjean
                 const draft = AB.noteDraft;
-                scroll.append(editor({ targets: draft ? draft.targets : [T.valjean], draftText: draft && draft.text, done: (ok, v) => {
+                scroll.append(editor({ targets: draft ? draft.targets : [T.valjean], graph: draft && draft.graph, draftText: draft && draft.text, done: (ok, v) => {
                     AB.noteDraft = null;
-                    if (ok) { saved.unshift({ id: "s" + (saved.length + 1), at: "Just now", full: "Thursday, October 1, 2026, just now", about: v.about, text: v.text }); focusNote = saved[0].id; AB.go("notes-place", "all"); return; }
+                    if (ok) {
+                        saved.unshift({ id: "s" + (saved.length + 1), ds, at: "Just now", full: "Thursday, October 1, 2026, just now", about: v.about, text: v.text });
+                        focusNote = saved[0].id;
+                        // The list of the project it was written in, beside the inspector it was written from
+                        AB.noteKeep = { right: (draft && draft.right) || "inspector-node/data", dataset: ds };
+                        AB.go("notes-place", ds === "doorEntries" ? "door-entries" : "all");
+                        return;
+                    }
                     // Cancelled: back to where the editor was opened, focus on the control that opened it
                     const from = AB.noteFrom;
                     AB.noteFrom = null;

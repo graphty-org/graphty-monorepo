@@ -98,15 +98,43 @@
         }, { kind: "several" });
     }
 
+    // ---------- the door entries: Ana Ruiz and B1, the two targets of one door-entries note ----------
+    function doorTwo(el) {
+        const D = AB.fx.datasets.doorEntries, pair = D.loaded.per === "pair";
+        const all = "2 of 2";
+        const style = () => [AB.whyThisLook([
+            { name: "Selection", swatch: AB.icon("scan", "sm"), wins: ["color", "size"], coverage: all, go: ["inspector-selection-and-everything", "selection"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), wins: ["shape"], coverage: all, go: ["inspector-selection-and-everything", "everything"], values: { shape: "Faceted sphere" } },
+        ], { kind: "several", element: "2 nodes", coverage: true })];
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: "2 nodes (a person and a building), " + (pair ? "1 edge" : "edges per entry") + " between them",
+                body: [
+                    AB.data("Size", "2 nodes, " + (pair ? "1 edge (count 22)" : "22 entry edges")),
+                    AB.data("type", "person 1, building 1"),
+                    AB.row({ icon: "user", label: "Ana Ruiz", trail: "person", go: ["inspector-node", "door-ana"] }),
+                    AB.row({ icon: "building-2", label: "B1", trail: "building", go: ["inspector-node", "door-b1"] }),
+                ],
+            },
+            Notes: { count: 1, target: ["notes-place", "door-entries"] },
+        }, { kind: "several" });
+        const insp = AB.inspector({ icon: "circle-dot", title: "2 nodes", kind: "Elements", kindKey: "several",
+            renameDisabled: "A selection has no name. Create set (Ctrl+G) keeps it as a row you can name.",
+            menu: ["context-menus", "several"], tab: "Data", tabs: { Style: style, Data: data } });
+        insp.classList.add("ise");
+        el.append(insp);
+    }
+
     registerSection({
         id: "inspector-several-elements",
         title: "Inspector: several elements",
         region: "right",
         rail: "graph",
         closeTo: "graph-place",
-        states: [{ id: "style", label: "Style tab (why this look)" }, { id: "data", label: "Data tab" }, { id: "two-nodes", label: "Two nodes selected" }],
-        frame: (state) => (state === "two-nodes" ? { left: "graph-place/at-rest", toolbar: "selection-bar/two-nodes" } : { left: "graph-place/at-rest" }),
+        states: [{ id: "style", label: "Style tab (why this look)" }, { id: "data", label: "Data tab" }, { id: "two-nodes", label: "Two nodes selected" }, { id: "door-two", label: "Door entries: Ana Ruiz and B1" }],
+        frame: (state) => (state === "two-nodes" ? { left: "graph-place/at-rest", toolbar: "selection-bar/two-nodes" } : state === "door-two" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : { left: "graph-place/at-rest" }),
         render(el, state) {
+            if (state === "door-two") return doorTwo(el);
             const L = AB.fx.datasets.lesmis;
             const S = pick(L, state === "two-nodes");
             const insp = AB.inspector({

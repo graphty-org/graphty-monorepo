@@ -12,6 +12,8 @@
     }
 
     let name = null; // the project's name for this visit; starts from the fixtures
+    const names = {}; // per project on screen: renaming the door entries leaves Les Miserables as it was
+    const ds = () => (AB.route && AB.route.frame.dataset) || "lesmis";
 
     const nameEl = () => document.querySelector("#ab-project .k-ellipsis");
 
@@ -19,7 +21,7 @@
         const t = nameEl();
         if (!t) return;
         AB.renameInPlace(t, {
-            onSave: (n) => { name = n; },
+            onSave: (n) => { name = names[ds()] = n; },
             focusAfter: { focus: () => { if (location.hash === AB.href("project-menu", "rename")) AB.go("project-menu", "closed"); } },
         });
     }
@@ -39,7 +41,7 @@
             { id: "rename", label: "Rename: the name is a field (double-click or F2)" },
         ],
         render(el, state) {
-            if (name === null) name = AB.fx.datasets.lesmis.frame.project;
+            name = names[ds()] || (names[ds()] = AB.fx.datasets[ds()].frame.project);
             const t = nameEl();
             if (t) t.textContent = name;
             const p = document.getElementById("ab-project");

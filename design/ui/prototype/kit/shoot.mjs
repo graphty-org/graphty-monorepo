@@ -32,6 +32,15 @@ import { readFile, mkdir, readdir, rename, stat, writeFile } from "node:fs/promi
 import { existsSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// Every run holds one of the shared browser slots (kit/with-browser.sh), so the design round as a
+// whole never runs more than four browsers at once.
+if (!process.env.BROWSER_SLOT) {
+    const { spawnSync } = await import("node:child_process");
+    const gate = new URL("./with-browser.sh", import.meta.url).pathname;
+    const r = spawnSync(gate, [process.execPath, ...process.argv.slice(1)], { stdio: "inherit" });
+    process.exit(r.status ?? 1);
+}
+
 
 const here = dirname(fileURLToPath(import.meta.url));
 const proto = resolve(here, "..");

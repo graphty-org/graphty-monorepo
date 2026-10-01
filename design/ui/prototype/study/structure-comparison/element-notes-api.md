@@ -16,12 +16,15 @@ labeled **Studio**, with its reason. None of it is built yet; graphty-element ha
 
 ```ts
 import "@graphty/graphty-element";               // registers <graphty-element>
+// Every type on this page comes from the session entry point (no Babylon.js, runs in Node)
+import type { Note, NoteId, NoteTarget, NoteTargetRead, NoteCite } from "@graphty/graphty-element/session";
 
 const el = document.querySelector("graphty-element")!;
 const notes = el.session.notes;
 
 // A run whose result the note will cite (optional; any finished run works).
-// runs.start() returns the Run at once; awaiting it waits for its result.
+// runs.start() takes the algorithm's catalog key ("betweenness" is betweenness centrality; the
+// catalog entry point lists every key), returns the Run at once, and awaiting it waits for its result.
 const betweenness = el.session.runs.start("betweenness");
 await betweenness;
 
@@ -44,7 +47,7 @@ for (const note of notes.list({ about: valjean })) {
 const stop = el.session.on("note:changed", (change) => redraw(change.id));
 
 // Show how many notes each noted node has, as its label.
-el.session.styles.add({
+await el.session.styles.add({                    // add() returns a Run<Layer>; await it for the layer
     name: "Note counts",
     target: "node",
     selector: { match: "expression", where: "notes.count > `0`" },
@@ -150,7 +153,9 @@ graph could not be checked, counted or repainted by the session that holds it.
 ## 3. Targets
 
 A target uses the same names the rest of the session API already uses for the same objects.
-Nothing new is invented.
+Nothing new is invented. `NodeId`, `SetId`, `ResultId`, `ResultItem`, `LayerId`, `Query`,
+`FilterStepId` and `EdgeMember` are the element's existing types, and like the note types they
+are imported from `@graphty/graphty-element/session`.
 
 ```ts
 type NoteTarget =
@@ -209,7 +214,11 @@ element stores each target in a **stable form**, as kept sets store edges (`Edge
   the row order changes."
 - **A set, result, layer or filter step** is stored by its id, which the element already keeps
   stable across a reload (filter steps once they have ids, section 9). A `{ where }` target is
-  stored as its query, a data value that needs no id.
+  stored as its query, a data value that needs no id. **Studio:** `list({ about: { where } })`
+  matches a stored `{ where }` target by structural equality of the two queries after the
+  element normalizes them (the same attribute, operator and value; `group == 2` and `2 == group`
+  are one query), and a `{ where }` target's `name` (3.2) is the query as the element writes it,
+  `group == 2`.
 - **An item of a result** (`{ item }`) is stored as the `ResultItem` it was given. A pinned item
   (`run` set) holds that run as it was, which is `ResultItem`'s existing meaning. An unpinned item
   follows the result's current run, and this page adds one documented reading rule for it: the
@@ -225,12 +234,19 @@ leaves a target missing, the note stays and the target reads as missing:
 
 ```ts
 type NoteTargetRead = NoteTarget & {
-    readonly name: string;      // the target's display name, as the element shows it ("Valjean")
+    readonly name: string;      // the target's display name ("Valjean"): see below
     readonly missing?: true;    // present only when the target no longer exists
     readonly filtered?: true;   // present only when the target exists but the filter leaves it out
     readonly replaced?: true;   // an item only: after a rerun no item matched by overlap, or it split
 };
 ```
+
+**Where `name` comes from.** A node's `name` is the value of its Name attribute (the column given
+the Name role when the data was loaded, or the file's label field); when the node has no Name
+value, it is the node's key as text. An edge's `name` is its two ends' names joined by " -> "
+(directed) or " -- " (undirected). A result item's, a set's, a filter step's and the graph's
+`name` is the name its own row shows. `name` never includes the node type: a consumer that shows
+several node types (the skeleton's chips read "Ana Ruiz . person") appends `node.type` itself.
 
 **A node target always reads back in the stored form.** Whatever form was passed to `add`, a
 read returns `{ node: NodeMember }` (`{ type, key }`), never a bare id, as `EdgeRef` getters
@@ -261,7 +277,13 @@ All methods live on `session.notes`. The `<graphty-element>` element exposes the
 | `update(id: NoteId, patch: { text?: string; targets?: readonly NoteTarget[]; cites?: readonly NoteCiteInput[] }): void` | Changes the note. One undoable step. Sets `edited`. A field left out of `patch` is unchanged; `cites: []` clears it. |
 | `remove(id: NoteId): void` | Removes the note. One undoable step. Undo brings it back under the same id. A removed id is never issued to a new note. |
 
-Each write is refused, with nothing changed, by a typed error:
+Each write is refused, with nothing changed, by a typed error. The write throws; the error carries
+a `code`, as the element's existing `E_BAD_LAYER` and `E_UNKNOWN_*` errors do:
+
+```ts
+try { notes.add({ text: "", targets: [valjean] }); }
+catch (e) { if (e.code === "E_NOTE_EMPTY") showHint("Type a note first"); else throw e; }
+```
 
 | Code | When |
 |---|---|
@@ -269,7 +291,7 @@ Each write is refused, with nothing changed, by a typed error:
 | `E_NOTE_NO_TARGET` | `targets` is empty |
 | `E_NOTE_UNKNOWN_TARGET` | a new target names something that does not exist when the note is added or its targets are changed (the error names which); a target the note already has may stay in `targets` even while it reads missing |
 | `E_NOTE_AMBIGUOUS_TARGET` | a bare node id matches nodes of two or more types; pass `{ type, key }` |
-| `E_NOTE_UNKNOWN_RUN` | a new entry in `cites` names a result that does not exist, or one with no finished run yet (queued, running, failed or cancelled; a cite pins a finished run), or a filter step that does not exist |
+| `E_NOTE_UNKNOWN_CITE` | a new entry in `cites` names a result that does not exist, or one with no finished run yet (queued, running, failed or cancelled; a cite pins a finished run), or a filter step that does not exist |
 | `E_UNKNOWN_NOTE` | `update` or `remove` names a note that does not exist |
 
 ### 4.2 Reading
@@ -277,7 +299,7 @@ Each write is refused, with nothing changed, by a typed error:
 | Method | Returns |
 |---|---|
 | `get(id: NoteId): Note \| undefined` | one note |
-| `list(options?: { about?: NoteTarget; cites?: ResultId; missing?: boolean }): readonly Note[]` | notes, newest first. Refused with `E_NOTE_AMBIGUOUS_TARGET` when `about` is a bare node id two types hold. `about` matches notes whose targets include that target **itself**, never notes about something it contains: a note about Community 3 is not listed under each of its members, and a note about Valjean that cites a Betweenness result is not listed under the result. `cites` matches notes citing that result, whichever run they pinned. `missing: true` lists only notes with a missing target. |
+| `list(options?: { about?: NoteTarget; cites?: ResultId; citesStep?: FilterStepId; missing?: boolean }): readonly Note[]` | notes, newest first. Refused with `E_NOTE_AMBIGUOUS_TARGET` when `about` is a bare node id two types hold. `about` matches notes whose targets include that target **itself**, never notes about something it contains: a note about Community 3 is not listed under each of its members, and a note about Valjean that cites a Betweenness result is not listed under the result. `cites` matches notes citing that result, whichever run they pinned; `citesStep` matches notes citing that filter step. `missing: true` lists only notes with a missing target. |
 | `authors(): readonly string[]` | the distinct author names in the session's notes, in first-written order |
 
 **Reading rule for consumers (owner):** show a note's author only when `authors()` holds two or
@@ -322,8 +344,12 @@ el.session.author = null;              // no name: notes and recipes from now on
   is set (`../../owner-feedback.md`, 2026-09-28); it is entered in Settings, stored, optional and
   usually empty (2026-10-01). So `author` is **part of the project**: the element saves it in
   the existing `config` part, beside the graph's other settings, because notes and recipes both
-  read it and neither owns it (**Studio**). A reload restores it. Changing it is one undoable
-  step, like any other project change. An app that shows several graphs writes the same name to
+  read it and neither owns it (**Studio**). A reload restores it. **Studio:** changing it is not a step in
+  the project's undo history: it says who is writing, not what the graph is, so Ctrl+Z after
+  typing a name and then writing a note undoes the note, never the name. This is an exception to
+  `ProjectSlice`'s documented rule (`session/types.ts`: "a change to any of them is undoable"), and
+  this proposal amends that documentation to say so: the `config` part's `author` field is saved
+  with the project but changing it is not an undoable step. An app that shows several graphs writes the same name to
   each graph's session; writing element config is consuming the element.
 - **Studio:** the element stamps it, rather than taking an `author` argument on every `add`.
   Reason: a consumer sets it once; with an argument, every call site must remember to pass it,
@@ -392,9 +418,17 @@ A style layer can read three values about each node and each edge:
   ids removed, so a removed note's id is never issued again.
 
 ```ts
+// A note as stored: targets in their stored form (no name, missing, filtered or replaced) and
+// cites without replaced. What import takes and export returns.
+type StoredNote = Omit<Note, "targets" | "cites"> & {
+    readonly targets: readonly NoteTarget[];
+    readonly cites?: readonly (
+        | { readonly result: ResultId; readonly run: string }
+        | { readonly step: FilterStepId; readonly at: string })[];
+};
 interface SavedNotes {
     readonly version: 1;
-    readonly records: readonly Note[];       // stored targets, without name or missing
+    readonly records: readonly StoredNote[];
     readonly issued: number;                 // the next id number
     readonly removed: readonly NoteId[];
 }

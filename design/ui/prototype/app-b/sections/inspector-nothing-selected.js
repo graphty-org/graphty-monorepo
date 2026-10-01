@@ -200,10 +200,10 @@
             const chip = AB.route && AB.route.frame.chip;
             const kept = chip && / of /.test(chip) ? chip.split(" of ")[0] : null;
             return {
-                title: f.graphRow, provenance: ["from " + f.file, "data-page", "transfers"], notes: 0,
+                title: f.graphRow, provenance: ["from 2 tables", "data-page", "edit-source"] /* accounts and transfers */, notes: 0,
                 stateBar: kept ? { text: "Readings are for all " + n(D.nodes) + " nodes", why: "Computed before the filters, which leave " + kept + ". Compute the overview again from the graph's menu." } : null,
                 overview: { summary: (kept ? kept + " of " : "") + n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
-                    AB.data("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("amount", "transfers"),
+                    AB.data("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("amount", "edit-source"),
                     AB.data("Density", String(s.density)), AB.data(f.componentsName, f.components),
                     ifNot0("Isolated nodes", s.isolated), ifNot0("Self-loops", s.selfLoops), ifNot0("Repeated edges", s.parallelEdges),
                     AB.data("Reciprocity", String(s.reciprocity)), AB.data("Average total degree", String(s.averageDegree)), AB.data("Highest total degree", n(s.maxDegree)),
@@ -213,27 +213,31 @@
         if (state === "door-entries") {
             // The door entries as loaded (One edge per: Pair, the unmatched rows left out): every count
             // from the shell's fixture; no reading is computed yet, so none is shown
-            const D = AB.fx.datasets.doorEntries, R = D.report, [people, buildings] = D.tables, pair = D.loaded.per === "pair";
-            const lt = D.loadedTypes(), nodes = lt.person + lt.building, plus = (k) => n(lt[k]) + (lt.added[k] ? " (" + n(D.tables[k === "person" ? 0 : 1].rows) + " + " + lt.added[k] + " added)" : "");
+            const D = AB.fx.datasets.doorEntries, R = D.report, per = D.loaded.per, pair = per === "pair";
+            const lt = D.loadedTypes(), nodes = lt.total, plus = (k) => n(lt[k]) + (lt.added[k] ? " (" + n(D.tables[k === "person" ? 0 : 1].rows) + " + " + lt.added[k] + " added)" : "");
+            // The Data page's Edit on the loaded entries: it opens on the load as it was (Pair, Row or as nodes)
+            const loadedOn = "edit-entries";
+            const edges = AB.data("Edges", n(D.loadedEdges()));
+            if (per === "nodes") AB.tip(edges.lastChild, "Two link edges per entry, to its person and its building; an entry whose person or building is not in the tables has one", { label: false });
             return {
-                title: D.graphName, provenance: ["from " + D.tables.length + " tables", "data-page", "entries-pair"], notes: 0,
+                title: D.graphName, provenance: ["from " + D.tables.length + " tables", "data-page", loadedOn], notes: 0,
                 overview: { summary: n(nodes) + " nodes, " + n(D.loadedEdges()) + " edges, directed", body: [
-                    AB.data("Nodes", n(nodes)), AB.data("person", plus("person")), AB.data("building", plus("building")), AB.data("Edges", n(D.loadedEdges())),
-                    direction("Directed", "Chosen at load: a CSV does not say"), pair ? weight("count", "entries-pair") : AB.data("Weight", AB.link("data-page", "entries", "None (each edge counts 1)", { class: "ab-link" })), nodeWeight("floors", "building"),
+                    AB.data("Nodes", n(nodes)), AB.data("person", plus("person")), AB.data("building", plus("building")), lt.entry ? AB.data("entry", n(lt.entry)) : null, edges,
+                    direction("Directed", "Chosen at load: a CSV does not say"), pair ? weight("count", "edit-entries") : AB.data("Weight", AB.link("data-page", loadedOn, "None (each edge counts 1)", { class: "ab-link" })), nodeWeight("floors", "building"),
                     AB.data("Isolated nodes", n(R.people.noEntries)),
                     h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }))] },
             };
         }
         const D = L(), f = D.frame, s = D.stats;
-        if (state === "reading") return { title: f.graphRow, provenance: ["from " + f.file, "data-page", "graph-file"], notes: 1, overview: { summary: "Reading...", body: h("div", { class: "ins-reading", role: "status" }, "Reading...") } };
+        if (state === "reading") return { title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: 1, overview: { summary: "Reading...", body: h("div", { class: "ins-reading", role: "status" }, "Reading...") } };
         const filtered = state === "filtered";
         const computed = state === "computed" || filtered;
         const g = filtered ? FILTERED : { nodes: D.nodes, edges: D.edges, density: s.density, averageDegree: s.averageDegree, maxDegree: s.maxDegree, bars: f.degreeBars };
         return {
-            title: f.graphRow, provenance: ["from " + f.file, "data-page", "graph-file"], notes: 1,
+            title: f.graphRow, provenance: ["from miserables.gexf", "data-page", "edit-graph-file"], notes: 1,
             stateBar: filtered ? { text: "Readings are for all " + D.nodes + " nodes", why: "Computed before the filter: " + D.filterSteps.steps[0] + " leaves " + FILTERED.nodes + " nodes. Compute the overview again from the graph's menu." } : null,
             overview: { summary: n(g.nodes) + " nodes, " + n(g.edges) + " edges, undirected", body: [
-                AB.data("Nodes", n(g.nodes)), AB.data("Edges", n(g.edges)), direction("Undirected", "Read from " + f.file), weight("value", "graph-file"),
+                AB.data("Nodes", n(g.nodes)), AB.data("Edges", n(g.edges)), direction("Undirected", "Read from miserables.gexf"), weight("value", "edit-graph-file"),
                 AB.data("Density", String(g.density)), AB.data(f.componentsName, filtered ? "1" : f.components),
                 ifNot0("Isolated nodes", s.isolated), ifNot0("Self-loops", s.selfLoops),
                 AB.data("Average degree", String(g.averageDegree)), AB.data("Highest degree", String(g.maxDegree)),
@@ -244,7 +248,7 @@
 
     // The node weight chosen at load, read-only here, beside the edge weight wherever that shows
     function nodeWeight(column, type) {
-        const r = AB.data("Node weight", AB.link("data-page", "buildings", column + " (" + type + ")", { class: "ab-link" }));
+        const r = AB.data("Node weight", AB.link("data-page", "edit-buildings", column + " (" + type + ")", { class: "ab-link" }));
         AB.tip(r.lastChild, "Set when the data was loaded: each " + type + " weighs its " + column + "; a type with no weight column weighs 1. Change it on the Data page.", { label: false });
         return r;
     }

@@ -112,14 +112,14 @@
         const gpuOff = AB.route && AB.route.state === "performance-gpu-unavailable";
         const L = LM();
         return [
-            { id: "general", title: "General", icon: "settings", lede: "Everything here, your name included, is kept in this browser, not in the project.", items: [
-                // Owner: the name is entered here and stored. Studio: stored per person in this browser, never in the
-                // project, so it is not stamped on the next person's notes (graphty-element noteAuthor)
-                { label: "Your name", stack: true, words: "author name byline you project", ctl: input("Your name", "name", { placeholder: "Not set" }),
-                    help: S.name
-                        ? h("div", null, help("Optional. Shown on notes only when a project has notes from more than one person."),
-                            help("Notes and recipes you write from now on carry this name; earlier ones keep what they had. ", goLink("Open notes", "notes-place")))
-                        : help("Optional. Shown on notes only when a project has notes from more than one person.") },
+            { id: "general", title: "General", icon: "settings", lede: "Your name is saved with this project. Theme and number format are kept in this browser.", items: [
+                // Owner: the project's author setting ("enters it in settings and we store it"). It is saved
+                // with the project and writes graphty-element's session.author, stamped on each note and
+                // recipe written afterwards; the field says so, and previews the note meta line.
+                { label: "Your name", stack: true, words: "author name byline you project", ctl: input("Your name, saved with this project", "name", { placeholder: "Not set" }),
+                    help: h("div", null, help(h("b", null, "Saved with this project."), " Optional. Shown on notes only when a project has notes from more than one person."),
+                        help("On a note: ", h("span", { class: "k-secondary" }, S.name ? S.name + ", 2 h ago" : "2 h ago (no name set)")),
+                        S.name ? help("Notes and recipes you write from now on carry this name; earlier ones keep what they had. Anyone who opens this project and writes a note writes under it until they change it. ", goLink("See your notes", "notes-place")) : null) },
                 { label: "Theme", words: "dark light mode color scheme appearance", ctl: seg("Theme", [["system", "System"], ["light", "Light"], ["dark", "Dark"]], "theme", { onChange: applyTheme }),
                     help: help("The app's panels and menus. ", AB.needsElement("graphty-element takes no color scheme yet, so the canvas keeps its own background"), " The canvas background is a graph setting, in the graph's Canvas section.") },
                 { label: "Number format", words: "locale decimal thousands separator", ctl: seg("Number format", [["system", "System"], ["period", "1,234.5"], ["comma", "1.234,5"], ["space", "1 234,5"]], "numfmt"),

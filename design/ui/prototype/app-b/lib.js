@@ -295,11 +295,13 @@
         return h("div", { class: "ab-frow" + (o.popover ? " ab-frow-pop" : "") }, h("span", { class: "ab-flabel" }, label), h("span", { class: "ab-fctl" }, control));
     }
     function data(name, value, o) {
-        return h("div", Object.assign({ class: "k-data" }, act(o)), h("span", { class: "k-name" }, name), h("span", { class: "k-value" }, value));
+        return h("div", Object.assign({ class: "k-data", role: o && o.go ? "link" : o && o.onClick ? "button" : null }, act(o)), h("span", { class: "k-name" }, name), h("span", { class: "k-value" }, value));
     }
     // row({ icon, label, trail, selected, go, onClick }) -> a k-row
     function row(o) {
-        return h("div", Object.assign({ class: "k-row", "aria-selected": o.selected ? "true" : null }, act(o)), o.icon ? icon(o.icon) : null, o.swatch || null, h("span", { class: "k-grow k-ellipsis" }, o.label), o.trail != null ? h("span", { class: "k-secondary k-num" }, o.trail) : null);
+        // A row that opens something is a link (or a button); a selected link row says so with aria-current
+        const role = o.role || (o.go ? "link" : o.onClick ? "button" : null);
+        return h("div", Object.assign({ class: "k-row", role, "aria-selected": o.selected && (!role || o.role) ? "true" : null, "aria-current": o.selected && role && !o.role ? "true" : null }, act(o)), o.icon ? icon(o.icon) : null, o.swatch || null, h("span", { class: "k-grow k-ellipsis" }, o.label), o.trail != null ? h("span", { class: "k-secondary k-num" }, o.trail) : null);
     }
     function field(value, o) {
         o = o || {};
@@ -355,8 +357,10 @@
             const n = c ? c + (c === 1 ? " note" : " notes") : null;
             // The count names what it opens: one link, the notes about this thing (no second "Open in" link)
             return section({ title: "Notes", collapsible: true, key: "notes." + (kind || "any"), summary: n || "No notes" },
-                n ? h("div", { class: "k-data" }, link(n && c > count ? "notes-place" : t[0], n && c > count ? "all" : t[1], n, { class: "ab-link" }))
-                    : empty("No notes.", { verb: "Add note", key: "N", onClick: () => addNote() }));
+                // Add note stays offered beside a count, so the thing shown can always get another note
+                n ? h("div", { class: "k-data" }, link(n && c > count ? "notes-place" : t[0], n && c > count ? "all" : t[1], n, { class: "ab-link" }),
+                    h("span", { class: "k-secondary" }, " . "), h("span", Object.assign({ class: "ab-link", role: "button" }, act({ onClick: () => addNote() })), "Add note"), h("span", { class: "k-secondary" }, " (N)"))
+                    : empty(kind === "graph" ? "No notes about the graph itself." : "No notes.", { verb: "Add note", key: "N", onClick: () => addNote() }));
         };
         const sec = build(count);
         // The subject is known once the inspector's head is drawn
@@ -369,9 +373,19 @@
     // graph. Every door (N, the selection bar, "+" in Notes, any menu's Add note, an empty Notes
     // section) calls addNote(); the editor reads AB.noteDraft, and the inspector stays as it was.
     const SUBJECT_ICON = { "inspector-node": "circle-dot", "inspector-edge": "spline", "inspector-run-row": ICON.run, "inspector-measure-row": "chart-column", "inspector-attribute-and-filter-step": ICON.filter, "inspector-several-elements": "circle-dot" };
+    // The graph a note is about when nothing is selected: the graph of the project on screen
+    const GRAPH_STATE = { lesmis: "overview", doorEntries: "door-entries", transactions: "transfers" };
     function noteSubject() {
-        const r = AB.route;
-        const graph = { targets: [{ label: "Co-appearances", icon: "network", go: ["inspector-nothing-selected", "overview"] }], right: "inspector-nothing-selected/overview" };
+        const r = AB.route, ds = (r && r.frame.dataset) || "lesmis", D = AB.fx.datasets[ds];
+        const gname = ds === "doorEntries" ? D.graphName : ds === "transactions" ? D.frame.graphRow : "Co-appearances";
+        const gs = GRAPH_STATE[ds] || "overview";
+        const graph = { dataset: ds, targets: [{ label: gname, icon: "network", go: ["inspector-nothing-selected", gs] }], right: "inspector-nothing-selected/" + gs };
+        const sub = noteSubjectOf(r, graph, gname);
+        sub.dataset = ds;
+        sub.graph = graph.targets[0];
+        return sub;
+    }
+    function noteSubjectOf(r, graph, gname) {
         if (!r) return graph;
         const ref = r.sec.region === "right" ? r.id + "/" + r.state : r.frame.right;
         if (!ref || typeof ref !== "string") return graph;
@@ -380,7 +394,7 @@
         if (id === "inspector-several-elements" && state === "two-nodes") return { right: ref, targets: [{ label: "Valjean", icon: "circle-dot", go: ["inspector-node", "data"] }, { label: "Javert", icon: "circle-dot", go: ["inspector-node", "data"] }] };
         const name = document.querySelector("#ab-right .ab-insp-head .k-name");
         const sw = document.querySelector("#ab-right .ab-insp-head .ab-sw-slot [style]");
-        const label = name ? name.textContent.trim() : "Co-appearances";
+        const label = name ? name.textContent.trim() : gname;
         return { right: ref, targets: [{ label, icon: SUBJECT_ICON[id] || "circle-dot", swatch: sw ? sw.style.background || sw.style.backgroundColor : null, go: [id, state] }] };
     }
     function addNote(subject) {
@@ -452,6 +466,8 @@
         });
         g.addEventListener("keydown", (e) => {
             const i = btns.indexOf(document.activeElement);
+            // Space checks the focused radio (the ARIA radio pattern); the arrows move and check
+            if (i >= 0 && e.key === " ") { e.preventDefault(); e.stopPropagation(); if (btns[i].getAttribute("aria-checked") !== "true") btns[i].click(); return; }
             const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
             if (i < 0 || !d) return;
             e.preventDefault();
@@ -501,10 +517,12 @@
         input.select();
         announce("Renaming " + old);
     }
-    // Why a name cannot change here: a built-in row, or a rename graphty-element cannot store yet
+    // Why a name cannot change here: a built-in row, or a rename graphty-element cannot store yet.
+    // A reason written as a full sentence (a capital first letter) is a design choice and reads as
+    // is; a lowercase fragment is an element gap and gets the "needs graphty-element" lead.
     function renameRefusal(r) {
         if (r.builtin) return "Built-in rows keep their names";
-        if (r.renameDisabled) return "Rename needs graphty-element: " + r.renameDisabled;
+        if (r.renameDisabled) return /^[A-Z]/.test(r.renameDisabled) ? r.renameDisabled : "Rename needs graphty-element: " + r.renameDisabled;
         return null;
     }
 
@@ -543,7 +561,9 @@
             o.icon ? h("span", { class: "ab-kind" }, typeof o.icon === "string" ? icon(o.icon) : o.icon) : null,
             o.swatch ? h("span", { class: "ab-sw-slot" }, typeof o.swatch === "string" ? chit(o.swatch) : o.swatch) : null,
             name, o.locked ? tip(h("span", { class: "ab-lock", role: "img" }, icon("lock", "sm")), "Locked") : null, changed));
-        const prov = o.provenance ? link(o.provenance[1], o.provenance[2], o.provenance[0], { class: "ab-link ab-prov k-ellipsis" }) : null;
+        // Provenance that names the place already on screen is text, not a link that goes nowhere
+        const here = o.provenance && AB.route && [AB.route.frame.left, AB.route.id + "/" + AB.route.state].includes(o.provenance[1] + "/" + o.provenance[2]);
+        const prov = !o.provenance ? null : here ? h("span", { class: "ab-prov k-ellipsis k-secondary", tabindex: "0" }, o.provenance[0]) : link(o.provenance[1], o.provenance[2], o.provenance[0], { class: "ab-link ab-prov k-ellipsis" });
         if (prov) tip(prov, o.kind ? o.kind + " " + o.provenance[0] : o.provenance[0], { label: false }); // a long source name is never lost to the ellipsis
         wrap.append(h("div", { class: "ab-insp-sub" }, o.kind ? h("span", { class: "k-secondary" }, o.kind) : null, prov, h("span", { class: "k-grow" }),
             o.menu ? iconButton("ellipsis", "More actions", { key: "Shift+F10", go: o.menu }) : null));
@@ -894,6 +914,8 @@
     }
     function openMenu(anchor, items, o) {
         o = o || {};
+        // The control that opened the menu closes it again: a second click toggles
+        if (localMenu && localMenu.anchor === anchor && localMenu.el.isConnected) { closeMenu(true); return null; }
         closeMenu();
         const layer = document.getElementById("ab-overlay");
         const wrapItems = (list) => list.map((it) => (it.sep || it.heading ? it : Object.assign({}, it, { onClick: () => { closeMenu(true); it.onClick && it.onClick(); } })));
@@ -1131,7 +1153,7 @@
             ch("node.flat", "Flat shading", "boolean", "Effects", { def: true }),
             ch("node.label", "Text", "text", "Label", { style: "node.labelStyle", def: "" }),
             ch("node.labelStyle", "Label style", "labelStyle", "Label", { fold: "node.label" }),
-            ch("node.labelShow", "Show", "boolean", "Label", { def: false, onlyWithout: "node.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
+            ch("node.labelShow", "Show labels", "boolean", "Label", { def: false, onlyWithout: "node.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
             ch("node.tooltip", "Text", "text", "Tooltip", { style: "node.tooltipStyle", def: "", caveat: "Drawn on hover only." }),
             ch("node.tooltipStyle", "Tooltip style", "labelStyle", "Tooltip", { fold: "node.tooltip" }),
             ch("node.marker", "Marker", "nothing", null, { drawn: false, caveat: "graphty-element draws no marker yet." }),
@@ -1158,7 +1180,7 @@
             ch("edge.arrowTailTextStyle", "Tail caption style", "labelStyle", "Arrows", { fold: "edge.arrowTail" }),
             ch("edge.label", "Text", "text", "Label", { style: "edge.labelStyle", def: "" }),
             ch("edge.labelStyle", "Label style", "labelStyle", "Label", { fold: "edge.label" }),
-            ch("edge.labelShow", "Show", "boolean", "Label", { def: false, onlyWithout: "edge.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
+            ch("edge.labelShow", "Show labels", "boolean", "Label", { def: false, onlyWithout: "edge.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
         ],
     };
     // Label positions, in the order a new label line takes them: graphty-element's TextLocation ids
@@ -1406,8 +1428,10 @@
                 if (kind === "node" && sn === "Label") {
                     // The Label "+" is the one "+" that opens a menu after adding; Show only while no line exists
                     if (o.noBind && !labels.length && !shown.length) return;
-                    const items = o.noBind ? [] : [freePos() ? { label: "Label", lab: true } : null].concat(unset.filter((c) => c.id === "node.labelShow").map((c) => ({ label: c.name, ch: c }))).filter(Boolean);
+                    const items = o.noBind ? [] : [freePos() ? { label: "Label line", lab: true } : null].concat(unset.filter((c) => c.id === "node.labelShow").map((c) => ({ label: c.name, ch: c }))).filter(Boolean);
                     const actions = plus({ label: "Add to Label", items, onAdd: (it) => (it.lab ? addLabel() : add(it.ch)) });
+                    // A label line opens its field list as it is added, so the "+" always opens a menu
+                    if (actions) actions.setAttribute("aria-haspopup", "menu");
                     body.append(section({ title: sn, editable: true, actions }, labels.map(labelLine), shown.filter((c) => c.id !== "node.label").map(line)));
                     return;
                 }

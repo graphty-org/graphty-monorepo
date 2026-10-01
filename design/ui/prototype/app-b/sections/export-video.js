@@ -10,6 +10,7 @@
     "use strict";
     const CSS = `
 .xv-set[inert] { opacity: .55; }
+.xv-set[inert] [role=button], .xv-set[inert] .k-field { cursor: default; }
 .xv-num { width: 56px; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; font: inherit; color: var(--cm-text); background: var(--cm-bg-secondary); }
 .xv-num:focus { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .xv-stops { display: grid; grid-template-columns: minmax(0, max-content) auto; gap: 4px 16px; align-items: center; }
@@ -86,7 +87,7 @@
                 h("span", { class: "xv-hold" }, "Hold", num(s.holds[i], "Hold at " + v + ", seconds", (x) => { s.holds[i] = x; }, "hold" + i), "s"),
             ])) : null;
 
-        const set = h("div", { class: "ex-set xv-set", inert: busy || done ? "" : null },
+        const set = h("div", { class: "ex-set xv-set", inert: busy || done ? "" : null, "aria-disabled": busy || done ? "true" : null, "aria-description": busy ? "Unavailable while recording" : done ? "The video is made; Record again to change it" : null },
             AB.fieldRow("View", h("span", { class: "ex-ctl" }, viewField,
                 in2d ? AB.needsElement("graphty-element records 2D video, but its tour stop (CameraWaypoint) takes only a 3D position and target. It should take a camera state or a saved view name.") : null), { popover: true }),
             stops ? AB.fieldRow("Stops", h("span", { class: "ex-ctl", style: "flex-direction:column;align-items:flex-start" }, stops,

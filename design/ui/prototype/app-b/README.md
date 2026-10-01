@@ -61,10 +61,22 @@ shows: `"<section-id>/<state>"`, or `false` to close that region (`left`, `right
 `top: false` / `rail: false` to drop the top bar or rail. Regions you do not name show their
 default section. `mode` is the graph's view mode, `"3d"` by default (graphty-element's default);
 set `mode: "2d"` for a 2D state. Read it as `AB.route.frame.mode`: the toolbar's View icon and the
-View flyout follow it. `dataset` names the fixture the header's project name comes from
+View flyout follow it. `own: true` (an overlay only) makes the overlay draw the panels its frame names instead of keeping
+the panels behind it, and closes to its left panel: the result of a run or a path, drawn for the
+project the reader was on (`AB.route.frame.dataset` while the frame is computed is the screen
+before). `dataset` names the fixture the header's project name comes from
 (`"lesmis"` by default, `"transactions"`, `"doorEntries"`). Examples: the node inspector wants
 `{ left: "graph-place/at-rest" }`; the Data page wants `{ dataset: "doorEntries" }` and sets
 `rail: "data"` so the rail lights Data; an attribute inspector wants `{ left: "data-place/attributes" }`.
+
+**The project on screen stays on screen.** From a frame whose `dataset` is not `"lesmis"` (the
+door entries, the transfers), the shell carries that project into the next screen when the next
+screen names no other one: an overlay (menu, popover, dialog) opens over the panels that were
+showing, and Esc goes back to them; a rail place, and an inspector beside the same left place (the
+tree's Selection, Notes and Everything rows), keep the project and its left panel. A section that
+can show either project reads `AB.route.frame.dataset` (Analyze, the Path popover, Notes, the
+project menu, the Everything row). Opening any overlay over the same panels never redraws them, so
+what the reader changed there (a label line just added) is still behind the popover.
 
 **ctx**: `{ state, region, section, fx, renderSection(ref, el), close() }`.
 `ctx.renderSection("toolbar/at-rest", el)` draws another section inside yours (the selection bar
@@ -131,7 +143,7 @@ uses the helper; a section-local copy of any of them is a defect.
 | `inspector({ icon, swatch, title, kind, kindKey, locked, provenance, menu, stateBar, changed, builtin, renameDisabled, onRename, tabs, tab, body })` | the one inspector frame (below) |
 | `dataTab({ Summary, Members, Values, "Made with", Notes: { count, target } }, { kind })`, `dataVocab` | a Data tab in the one order (below) |
 | `paintsLine("Paints 10 nodes", [id, state])`, `paintOrderLine(text)` | the two lines that open every painting row's Style tab |
-| `addNote(subject?)`, `noteSubject()` | Add note, the one gesture: every door (N, "+", the selection bar, any menu's Add note, an empty Notes section) calls `addNote()`, which writes about the subject the inspector shows (the graph when nothing is selected) and keeps that inspector. Pass `{ targets: [{ label, icon or swatch, go }], right }` only when the subject is not the inspector's (a filter step's row menu). The editor reads `AB.noteDraft` |
+| `addNote(subject?)`, `noteSubject()` | Add note, the one gesture: every door (N, "+", the selection bar, any menu's Add note, an empty Notes section) calls `addNote()`, which writes about the subject the inspector shows (the graph of the project on screen when nothing is selected) and keeps that inspector, also after Save. Pass `{ targets: [{ label, icon or swatch, go }], right }` only when the subject is not the inspector's (a filter step's row menu). The editor reads `AB.noteDraft` |
 | `notesSection(count, [id, state]?, kind)` | the Notes section every inspector ends with: "2 notes" as one link to those notes, or "No notes. Add note (N)". Folders, attributes, sources and saved views have none (it returns `null` for those kinds). Notes saved in this page view live in `AB.sessionNotes` (the Notes place writes them), and the count adds those about the inspector's subject, so a saved note shows the same number everywhere |
 | `tree(rows, { label, onEye, go })`, `treeFooter(text or candidates, link)` | the paint tree (below) and the one line under it |
 | `styleTab(o)` | the one Style tab (below) |
@@ -176,13 +188,16 @@ inspector and table for every region it does not name (the shell's `DATASET_FRAM
 `"transactions"`): `canvas-and-states/door-entries` (the joined graph drawn unstyled, generated
 from the fixture's counts), `inspector-nothing-selected/door-entries` (421 nodes, 1,306 edges,
 weight count) and `table-dock/door-entries` (Edges; `door-entries-nodes` for Nodes).
-`graph-place/door-entries` is its paint tree, and the rail's Graph and Data stay in this project.
-By default it is the worked example's end state: One edge per Pair, unmatched rows left out. Load
-on the Data page records the entries' One edge per in `doorEntries.loaded.per`, and every view of
-the loaded graph reads its edge count from `doorEntries.loadedEdges()` (Row: 4,180 edges, no
-weight). Load goes through `canvas-and-states/door-entries-loading` to `graph-place/door-entries`;
-the transfers go through `canvas-and-states/transfers-loading` to `data-place/empty-filters`.
-Each entry as a node is not drawn as a loaded graph.
+`graph-place/door-entries` is its paint tree, and the rail's Graph, Data, Notes
+(`notes-place/door-entries`) and Views (`views-place/empty`) stay in this project. By default it is
+the worked example's end state: One edge per Pair, unmatched rows left out. Load on the Data page,
+and Apply on Edit: entries, record the result in `doorEntries.loaded.per` (`"pair"`, `"row"`, or
+`"nodes"` for each entry as a node) and the Add choices in `loaded.add`; Edit: entries opens on
+what was loaded. Every view of the loaded graph reads `doorEntries.loadedEdges()`,
+`loadedTypes()` (person, building, entry, total) and `loadedWeight()` (Row: 4,180 edges, no
+weight; Pair: 1,306 edges, weight count; as nodes: 4,633 nodes and 8,392 link edges, no weight). Load goes through `canvas-and-states/door-entries-loading` to `graph-place/door-entries`;
+the transfers go through `canvas-and-states/transfers-loading` to `graph-place/transfers-loaded`.
+Each entry as a node draws an entry dot between its person and its building.
 
 The Les Miserables and transfers fixtures are unchanged.
 

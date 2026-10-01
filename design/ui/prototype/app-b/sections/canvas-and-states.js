@@ -178,9 +178,9 @@
         });
     }
     function drawn(el, state) {
-        const f = L().frame;
-        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": f.altSized });
+        // The group's name says what the drawing and its legend show (PageRank color, degree size)
         const alt = "Les Miserables colored by PageRank, sized by degree";
+        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt });
         const edited = AB.route && AB.route.frame.right === "inspector-node/edited";
         const labelTwo = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-two";
         const labelBy = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-by";
@@ -196,7 +196,8 @@
     function transfers(el, state) {
         const T = AB.fx.datasets.transactions;
         if (state !== "transfers-communities") {
-            AB.append(el, [h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), AB.legendCard([])]);
+            const pth = pathShown("transactions");
+            AB.append(el, [h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": T.frame.altSized }, ...AB.drawing("transactions-density", T.frame.altSized)), AB.legendCard(pth ? [pth.legend] : [])]);
             if (state === "selection-full") {
                 AB.notice("Selection is full: the first 5,000 of " + n(T.edges) + " matching transfers are selected.", { label: "Narrow the query", go: ["select-where", "where-error"] });
                 AB.announce("Selection is full: 5,000 of " + n(T.edges) + " matching transfers selected.");
@@ -207,7 +208,7 @@
         const run = ["inspector-run-row", "many-groups"];
         AB.append(el, [
             h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": "Transfers, March: accounts colored by Louvain community" }, ...AB.drawing("transactions-march-communities", "Transfers, March: accounts colored by Louvain community")),
-            AB.legendCard([{ title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: n(r.count), go: run })), more: lg.other.communities + " more communities" }])]);
+            AB.legendCard([...(pathShown("transactions") ? [pathShown("transactions").legend] : []), { title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: n(r.count), go: run })), more: lg.other.communities + " more communities" }])]);
     }
 
     // ---------- the door entries (AB.fx.datasets.doorEntries) ----------
@@ -217,7 +218,9 @@
     // is generated here, seeded so it never changes: each person sits outside a "home" building and
     // links to it and two or three others; the 14 people with no entries sit on the outer ring.
     // Colors are the kit's unstyled Les Miserables drawing's (lesmis-plain): nothing paints.
-    function doorSvg(theme) {
+    // Each entry as a node (asNodes): an entry dot sits between its person and its building, so a
+    // pair's entries overlap at the middle of the pair's line.
+    function doorSvg(theme, asNodes) {
         const D = AB.fx.datasets.doorEntries, R = D.report;
         const bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5";
         let seed = 7;
@@ -225,7 +228,7 @@
         const nB = D.tables[1].rows, nP = D.tables[0].rows, nIso = R.people.noEntries, nE = R.entries.pairEdges; // a Row load draws the same picture: repeated entries overlap their pair's edge
         const B = Array.from({ length: nB }, (_, i) => { const a = (i / nB) * 2 * Math.PI; return [600 + 150 * Math.cos(a), 400 + 150 * Math.sin(a)]; });
         const linked = nP - nIso, extra = nE - 3 * linked; // every linked person has 3 buildings, `extra` of them a 4th
-        const lines = [], dots = [];
+        const lines = [], dots = [], mids = [];
         for (let p = 0; p < nP; p++) {
             if (p >= linked) { const a = rnd() * 2 * Math.PI; dots.push([600 + 370 * Math.cos(a), 400 + 340 * Math.sin(a)]); continue; }
             const home = p % nB, a = (home / nB) * 2 * Math.PI + (rnd() - 0.5) * 0.62, r = 215 + rnd() * 120;
@@ -233,27 +236,53 @@
             dots.push(xy);
             const to = new Set([home]);
             while (to.size < (p < extra ? 4 : 3)) to.add(Math.floor(rnd() * nB));
-            to.forEach((b) => lines.push(`<line x1="${xy[0].toFixed(1)}" y1="${xy[1].toFixed(1)}" x2="${B[b][0].toFixed(1)}" y2="${B[b][1].toFixed(1)}"/>`));
+            to.forEach((b) => {
+                lines.push(`<line x1="${xy[0].toFixed(1)}" y1="${xy[1].toFixed(1)}" x2="${B[b][0].toFixed(1)}" y2="${B[b][1].toFixed(1)}"/>`);
+                if (asNodes) mids.push([(xy[0] + B[b][0]) / 2, (xy[1] + B[b][1]) / 2]);
+            });
         }
         const dot = ([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#808080"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.75" fill="none" stroke="${bg}" stroke-width="1.5"/>`;
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/>` +
-            `<g stroke="#808080" stroke-width="0.6" stroke-opacity="0.22">${lines.join("")}</g>${dots.concat(B).map(dot).join("")}</svg>`;
+            `<g stroke="#808080" stroke-width="0.6" stroke-opacity="0.22">${lines.join("")}</g>` +
+            `<g fill="#808080" fill-opacity="0.7">${mids.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8"/>`).join("")}</g>${dots.concat(B).map(dot).join("")}</svg>`;
     }
     const doorUrl = {};
     function door(el) {
         const D = AB.fx.datasets.doorEntries;
-        const alt = D.graphName + ": " + n(D.loadedTypes().person + D.loadedTypes().building) + " nodes (people and buildings) and " + n(D.loadedEdges()) + " edges, unstyled";
-        const imgs = ["light", "dark"].map((t) => h("img", { class: "k-" + t + "-only", alt, src: doorUrl[t] || (doorUrl[t] = URL.createObjectURL(new Blob([doorSvg(t)], { type: "image/svg+xml" }))) }));
-        AB.append(el, [h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs), AB.legendCard([])]);
+        const alt = D.graphName + ": " + n(D.loadedTypes().total) + " nodes (" + (D.loadedTypes().entry ? "people, buildings and entries" : "people and buildings") + ") and " + n(D.loadedEdges()) + " edges, unstyled";
+        const asNodes = D.loaded.per === "nodes";
+        const imgs = ["light", "dark"].map((t) => { const k = t + (asNodes ? "-nodes" : ""); return h("img", { class: "k-" + t + "-only", alt, src: doorUrl[k] || (doorUrl[k] = URL.createObjectURL(new Blob([doorSvg(t, asNodes)], { type: "image/svg+xml" }))) }); });
+        const pth = pathShown("doorEntries");
+        const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt + (pth ? "; the path " + pth.name + " painted orange through B1" : "") }, ...imgs);
+        if (pth) {
+            // The path just found, over the drawing: its people sit outside B1 (B1 is the first building, at 750, 400)
+            const two = /^B\d+$/.test(pth.to) || /^B\d+$/.test(pth.from);
+            const pts = two ? [[885, 352], [750, 400]] : [[885, 352], [750, 400], [893, 458]];
+            const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+            svg.setAttribute("viewBox", "0 0 1200 800");
+            svg.setAttribute("aria-hidden", "true");
+            svg.innerHTML = `<polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="#D55E00" stroke-width="3"/>` + pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7" fill="#D55E00"/>`).join("");
+            stage.append(svg);
+        }
+        AB.append(el, [stage, AB.legendCard(pth ? [pth.legend] : [])]);
+    }
+    // The path a Find path just added on the door entries or the transfers, while the tree shows it
+    function pathShown(ds) {
+        const left = (AB.route && AB.route.frame.left) || "";
+        if (!(ds === "doorEntries" ? /door-entries-path$/ : /path-found$/).test(left)) return null;
+        const lp = AB.lastPath && AB.lastPath.ds === ds ? AB.lastPath : null, P = AB.fx.datasets.transactions.setsAndPaths.path;
+        const from = lp ? lp.from : ds === "doorEntries" ? "Ana Ruiz" : P.from.id, to = lp ? lp.to : ds === "doorEntries" ? "Priya Nair" : P.to.id;
+        const go = ["inspector-group-set-path-row", ds === "doorEntries" ? "path-door-entries" : "path"];
+        return { from, to, name: from + " to " + to, legend: { title: "Color: Shortest paths", go, rows: [{ swatch: "#D55E00", label: from + " to " + to, go }] } };
     }
     // Loading what the Data page set up, per data set (the Les Miserables file, the door-entries tables, the transfers)
     function loadingCard(ds) {
         if (ds === "doorEntries") {
             const D = AB.fx.datasets.doorEntries;
-            return { title: "Reading " + D.tables.length + " tables", text: D.tables.map((t) => t.file).join(", ") + ": " + n(D.loadedTypes().person + D.loadedTypes().building) + " nodes, " + n(D.loadedEdges()) + " edges..." };
+            return { title: "Reading " + D.tables.length + " tables", text: D.tables.map((t) => t.file).join(", ") + ": " + n(D.loadedTypes().total) + " nodes, " + n(D.loadedEdges()) + " edges..." };
         }
         if (ds === "transactions") { const T = AB.fx.datasets.transactions; return { title: "Reading " + T.frame.file, text: n(T.nodes) + " nodes, " + n(T.edges) + " edges..." }; }
-        return { title: "Reading " + L().frame.file, text: L().nodes + " nodes, " + L().edges + " edges..." };
+        return { title: "Reading miserables.gexf", text: L().nodes + " nodes, " + L().edges + " edges..." };
     }
 
     // Everything hidden: only the two kept sets paint; the legend lists only what paints
@@ -345,8 +374,10 @@
             else if (state === "loading") loading(el, "lesmis");
             else if (state === "door-entries-loading" || state === "transfers-loading") {
                 // Load from the Data page ends on the loaded graph: the card shows, then the drawing
-                // (the transfers land with no filter steps: a fresh load has none)
-                const to = state === "door-entries-loading" ? ["graph-place", "door-entries"] : ["data-place", "empty-filters"], here = location.hash;
+                // Both land on the Graph place with an empty tree; the transfers stay just loaded (no filter
+                // steps, no runs) until a screen that starts with results opens
+                if (state === "transfers-loading") AB.fx.datasets.transactions.fresh = true;
+                const to = state === "door-entries-loading" ? ["graph-place", "door-entries"] : ["graph-place", "transfers-loaded"], here = location.hash;
                 loading(el, state === "door-entries-loading" ? "doorEntries" : "transactions");
                 setTimeout(() => { if (location.hash === here) AB.go(to[0], to[1]); }, 1500);
             }

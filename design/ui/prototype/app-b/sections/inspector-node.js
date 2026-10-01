@@ -75,20 +75,52 @@
         }, { kind: "node" });
     }
 
+    // ---------- the door entries: a person or a building (the targets of the door-entries notes) ----------
+    // Unstyled as loaded, so only Selection and Everything paint; the Data tab reads the fixture row
+    const DOOR = { "door-ana": { type: "person", t: 0, key: "id", id: "1001" }, "door-b1": { type: "building", t: 1, key: "bldg", id: "B1" } };
+    function doorNode(el, state) {
+        const D = AB.fx.datasets.doorEntries, d = DOOR[state], tbl = D.tables[d.t];
+        const r = tbl.sample.find((x) => x[d.key] === d.id);
+        const title = d.type === "person" ? r.name : r.bldg;
+        const style = () => AB.whyThisLook([
+            { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"], wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"], wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
+        ], { kind: "node", element: title });
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: d.type + ", " + tbl.columns.filter((c) => c !== d.key).map((c) => c + " " + (r[c] || "none")).join(", "),
+                body: [AB.data("type", d.type)].concat(tbl.columns.map((c) => AB.data(c, c === d.key ? h("span", { class: "k-mono" }, r[c]) : r[c] || "none"))),
+            },
+            Notes: { count: AB.fx.datasets.doorEntries.hasNotes() ? 1 : 0, target: ["notes-place", "door-entries"] },
+        }, { kind: "node" });
+        el.append(AB.inspector({
+            icon: d.type === "person" ? "user" : "building-2", title, kind: "Node, " + d.type, kindKey: "node",
+            menu: ["context-menus", "node"],
+            onRename: (name) => AB.flash("Renamed to " + name + " (sets this node's label; not wired in the skeleton)"),
+            tab: "Data",
+            tabs: { Style: style, Data: data },
+        }));
+    }
+
     registerSection({
         id: "inspector-node",
         title: "Inspector: one node",
         region: "right",
         rail: "graph",
-        frame: { left: "graph-place/at-rest" },
+        // One node selected: the selection bar (its verbs: Neighborhood, Path between, Create set, Hide, Add note)
+        // sits above the toolbar on every door that lands here, as selection-bar/one-node draws it
+        frame: (state) => (DOOR[state] ? { dataset: "doorEntries", left: "graph-place/door-entries" } : { left: "graph-place/at-rest", toolbar: "selection-bar/one-node" }),
         closeTo: "graph-place",
         states: [
             { id: "why-this-look", label: "Style tab (why this look)" },
             { id: "why-closed", label: "Why this look closed" },
             { id: "data", label: "Data tab" },
             { id: "edited", label: "A property edited (Overrides)" },
+            { id: "door-ana", label: "Door entries: a person (Ana Ruiz)" },
+            { id: "door-b1", label: "Door entries: a building (B1)" },
         ],
         render(el, state) {
+            if (DOOR[state]) return doorNode(el, state);
             // The review states pin the remembered open or closed choice so each one is reachable
             if (state === "why-closed") AB.mem.set("sec.why.node", "0");
             else if (state !== "data") AB.mem.set("sec.why.node", "1");

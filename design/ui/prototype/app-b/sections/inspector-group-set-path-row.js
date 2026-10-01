@@ -60,6 +60,7 @@
         { id: "kept-2", label: "Kept set: Group 2, in a folder" },
         { id: "path-lesmis", label: "Path: Valjean to Javert" },
         { id: "path", label: "Path from Path between" },
+        { id: "path-door-entries", label: "Path: door entries, from Find path" },
         { id: "path-style", label: "Path: Style" },
         { id: "path-edge-set", label: "Edge set: spanning tree" },
     ];
@@ -231,6 +232,46 @@
         };
     }
 
+    // The door entries: the path Find path just drew between the ends picked in the Path popover.
+    // ponytail: the route is searched in the fixture's sample rows; a pair the sample does not join
+    // goes through B1 (two people) or straight to the building, a stand-in until the element returns it
+    function doorRoute(from, to) {
+        const D = AB.fx.datasets.doorEntries, name = {}, adj = {};
+        D.tables[0].sample.forEach((r) => { name[r.id] = r.name; });
+        const add = (a, b) => { (adj[a] = adj[a] || []).push(b); (adj[b] = adj[b] || []).push(a); };
+        D.tables[2].sample.forEach((r) => { if (name[r.person_id]) add(name[r.person_id], r.building_id); });
+        const prev = { [from]: null }, queue = [from];
+        while (queue.length) {
+            const x = queue.shift();
+            if (x === to) { const out = []; for (let y = to; y !== null; y = prev[y]) out.unshift(y); return out; }
+            (adj[x] || []).forEach((y) => { if (!(y in prev)) { prev[y] = x; queue.push(y); } });
+        }
+        const isB = (x) => /^B\d+$/.test(x);
+        return isB(from) || isB(to) ? [from, to] : [from, "B1", to];
+    }
+    function doorPathModel() {
+        const D = AB.fx.datasets.doorEntries, lp = AB.lastPath;
+        const p = lp && lp.ds === "doorEntries" ? lp : { from: "Ana Ruiz", to: "Priya Nair", weight: D.loadedWeight(), loaded: D.loadedWeight() };
+        const route = doorRoute(p.from, p.to), edges = route.length - 1;
+        const isB = (x) => /^B\d+$/.test(x);
+        const size = route.length + " nodes, " + edges + (edges === 1 ? " edge" : " edges");
+        const sel = () => AB.flash("Selects the path's people and buildings (not wired in the skeleton)");
+        const w = p.weight ? p.weight + ", stronger: Dijkstra used 1/" + p.weight : "None: fewest edges";
+        const over = (p.weight || null) !== (p.loaded || null);
+        return {
+            title: p.from + " to " + p.to, icon: "route", color: "#D55E00", kind: "Path",
+            provenance: ["from Shortest paths", SELF, "path-door-entries"],
+            set: { "node.color": "#D55E00", "edge.color": "#D55E00" },
+            paints: h("div", { class: "ab-paints" }, act("Paints " + size, sel)),
+            order: "Wins Color on " + route.length + " of " + route.length + ": nothing above it paints these nodes",
+            summary: [["Size", act(size, sel)], ["From", p.from], ["To", p.to], ["Via", route.slice(1, -1).join(", ") || "one entry edge"]],
+            membersSummary: "In path order",
+            members: route.map((x, k) => AB.row({ label: x, icon: isB(x) ? "building-2" : "user", trail: k === 0 ? "start" : k === edges ? "end" : "hop " + k, onClick: () => AB.flash("Selects " + x + " (not wired in the skeleton)") })),
+            made: over ? [["Weight", (p.weight || "None") + " (this run's override)"]] : [],
+            all: [["Weight", w], ["Direction", "Either way"], ["Scope", "Full graph, " + D.loadedTypes().total.toLocaleString("en-US") + " nodes"], ["Data version", D.tables.length + " tables, current"]],
+        };
+    }
+
     // The row Label by makes from an attribute's menu (spec, "Painting an imported attribute"): named after the attribute, its type
     // glyph as the icon, one Above line already bound to it, painting every element with a value
     function labelByModel() {
@@ -289,6 +330,7 @@
         if (state === "path-lesmis-2") return lesmisPath2Model();
         if (state === "path" || state === "path-style") return pathModel();
         if (state === "path-edge-set") return edgeSetModel();
+        if (state === "path-door-entries") return doorPathModel();
         if (LABELS[state]) return groupModel("2");
         if (state === "label-by") return labelByModel();
         // style, data, notes and the Style variants show Community 3, the row the tree selects beside them
@@ -347,7 +389,7 @@
     }
 
     // ---------- the section ----------
-    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path"];
+    const DATA_STATES = ["data", "notes", "rule-set", "path-lesmis", "path", "path-door-entries"];
     const baseOf = (state) => {
         const s = String(state || "style").replace(/\/all-options$/, "");
         return RENAMED[s] || s;
@@ -358,11 +400,13 @@
         title: "Inspector: a group, set or path row",
         region: "right",
         rail: "graph",
-        frame: (state) => (/^path(-style)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", dock: false } : { left: "graph-place/at-rest" }),
+        frame: (state) => (/^path(-style)?$/.test(baseOf(state)) ? { dataset: "transactions", left: "graph-place/path-found", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false }
+            : baseOf(state) === "path-door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries-path", dock: false } : { left: "graph-place/at-rest" }),
         // All options closes back to the row it opened from; everything else to the tree
         get closeTo() {
             const parts = location.hash.replace(/^#\/?/, "").split("/");
-            return parts[0] === SELF && parts[parts.length - 1] === "all-options" ? SELF + "/" + parts.slice(1, -1).join("/") : "graph-place/at-rest";
+            return parts[0] === SELF && parts[parts.length - 1] === "all-options" ? SELF + "/" + parts.slice(1, -1).join("/")
+                : parts[1] === "path-door-entries" ? "graph-place/door-entries-path" : /^path(-style)?$/.test(parts[1] || "") ? "graph-place/path-found" : "graph-place/at-rest";
         },
         states: STATES,
         render(el, state) {

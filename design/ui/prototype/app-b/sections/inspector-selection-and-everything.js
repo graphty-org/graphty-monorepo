@@ -14,6 +14,13 @@
     }
 
     const L = () => A.fx.datasets.lesmis;
+    // Everything covers the graph on screen: Les Miserables, or the door entries or transfers project it opened from
+    const C = () => {
+        const ds = A.route && A.route.frame.dataset, X = A.fx.datasets, f = (v) => Number(v).toLocaleString("en-US");
+        if (ds === "doorEntries") return { nodes: f(X.doorEntries.loadedTypes().total), edges: f(X.doorEntries.loadedEdges()), dockN: "door-entries-nodes", dockE: "door-entries" };
+        if (ds === "transactions") return { nodes: f(X.transactions.nodes), edges: f(X.transactions.edges), dockN: "transfers", dockE: "transfers" };
+        return { nodes: L().nodes, edges: L().edges, dockN: "nodes", dockE: "edges" };
+    };
     const MENU = ["context-menus", "row"];
 
     // ---------- Selection: graphty-element's selection style (GraphStyle.ts: #FFD700, 1.45, 0.4) ----------
@@ -41,35 +48,53 @@
         return A.styleTab({
             kinds: ["node", "edge"], kind: state === "everything-edges" ? "edge" : "node",
             base: BASE, set: edited ? { "node.size": 1.5 } : {}, changed: edited ? ["node.size"] : [],
-            paints: "Paints " + L().nodes + " nodes, " + L().edges + " edges",
+            paints: "Paints " + C().nodes + " nodes, " + C().edges + " edges",
             order: edited ? "Your change is in the Everything layer, under every other row" : "Default look, under every other row",
         });
     }
     function everythingData() {
         return A.dataTab({
-            Summary: [A.data("Covers", "every node and edge"), A.data("Nodes", L().nodes, { go: ["table-dock", "nodes"] }), A.data("Edges", L().edges, { go: ["table-dock", "edges"] }), A.data("Position", "under every other row")],
+            Summary: [A.data("Covers", "every node and edge"), A.data("Nodes", C().nodes, { go: ["table-dock", C().dockN] }), A.data("Edges", C().edges, { go: ["table-dock", C().dockE] }), A.data("Position", "under every other row")],
         }, { kind: "everything" });
     }
 
-    // ---------- Notes: paints the nodes notes are about (notes-place: Valjean and Javert in the graph) ----------
-    // The notes in the Notes place are about 3 nodes and 1 edge (Valjean, Javert, Napoleon; Javert -- Valjean): 4 notes in all
-    const NOTED = ["Valjean", "Javert", "Napoleon"];
+    // ---------- Notes: paints the nodes and edges notes are about, in the project on screen ----------
+    // Les Miserables: the Notes place's notes are about 3 nodes and 1 edge (Valjean, Javert, Napoleon;
+    // Javert -- Valjean), 4 notes in all. The door entries: Ana Ruiz and B1, and the pair edge Ana Ruiz
+    // -> B1 while the entries are loaded per Pair (B12's note is about a building the load left out).
+    // The transfers hold no notes. Count from the fixtures; the spec's "4 nodes" is a slip.
+    function noted() {
+        const ds = A.route && A.route.frame.dataset;
+        if (ds === "doorEntries" && !A.fx.datasets.doorEntries.hasNotes()) return { nodes: [], edges: [], notes: 0, list: ["notes-place", "door-entries"] };
+        if (ds === "doorEntries") {
+            const pair = A.fx.datasets.doorEntries.loaded.per === "pair";
+            return { nodes: [["Ana Ruiz", ["inspector-node", "door-ana"]], ["B1", ["inspector-node", "door-b1"]]], edges: pair ? [["Ana Ruiz -> B1", ["inspector-edge", "door-pair"]]] : [], notes: pair ? 2 : 1, list: ["notes-place", "door-entries"],
+                caption: "B12's note is about a building the load left out; it is painted only once B12 is in the graph." };
+        }
+        if (ds === "transactions") return { nodes: [], edges: [], notes: 0, list: ["notes-place", "all"] };
+        return { nodes: ["Valjean", "Javert", "Napoleon"].map((n) => [n, ["inspector-node", "data"]]), edges: [["Javert -- Valjean", ["inspector-edge", "data"]]], notes: 4, list: ["notes-place", "all"],
+            caption: "Napoleon's note is about a node a filter step removes; he is painted only while he is in the graph." };
+    }
+    const plural = (k, w) => k + " " + w + (k === 1 ? "" : "s");
+    const notedText = (N) => plural(N.nodes.length, "node") + (N.edges.length ? ", " + plural(N.edges.length, "edge") : "");
     // No layer until a look is added (graphty-element refuses a layer that writes nothing, and a layer paints
     // nodes or edges, not both): the first look on a side adds that side's layer, the Everything pattern.
     // Its selector reads graphty-element's note count (notes.count > `0`), so a label bound to Note count
-    // draws only on the noted elements. Count from the fixture (3 nodes, 1 edge); the spec's "4 nodes" is a slip.
+    // draws only on the noted elements.
     function notesStyle(state) {
-        const empty = state === "notes-row";
-        const paints = A.paintsLine("Paints " + NOTED.length + " nodes, 1 edge (noted)" + (empty ? ". Nothing set -- + to add a look" : ""), ["notes-place", "all"]);
+        const N = noted(), empty = state === "notes-row";
+        const paints = A.paintsLine(empty ? "Notes are about " + notedText(N) + ". Nothing set, so nothing paints: + to add a look" : "Paints " + notedText(N) + " (noted)", N.list);
         const look = state === "notes-row-outlined" ? { set: { "node.outline": "#D55E00" } }
             : state === "notes-row-label" ? { labels: [{ pos: "Below", field: "Note count", type: "num" }] } : {};
         return A.styleTab(Object.assign({ kinds: ["node", "edge"], kind: "node", paints, order: empty ? null : "In the Notes node layer; no edge layer yet" }, look));
     }
     function notesData() {
+        const N = noted();
+        if (!N.notes) return A.dataTab({ Summary: [A.empty("No notes.", { verb: "Add note", key: "N", onClick: () => A.addNote() }), A.data("Paints", "0 nodes")] }, { kind: "notes-row" });
         return A.dataTab({
-            Summary: [A.data("Noted elements", NOTED.length + " nodes, 1 edge"), A.data("Notes about them", "4", { go: ["notes-place", "all"] })],
-            Members: [NOTED.map((n) => A.row({ label: n, go: ["inspector-node", "data"] })), A.row({ icon: "spline", label: "Javert -- Valjean", go: ["inspector-edge", "data"] }),
-                h("div", { class: "ab-cap k-secondary" }, "Napoleon's note is about a node a filter step removes; he is painted only while he is in the graph.")],
+            Summary: [A.data("Noted elements", notedText(N)), A.data("Notes about them", String(N.notes), { go: N.list })],
+            Members: [N.nodes.map(([n, go]) => A.row({ label: n, go })), N.edges.map(([n, go]) => A.row({ icon: "spline", label: n, go })),
+                h("div", { class: "ab-cap k-secondary" }, N.caption)],
         }, { kind: "notes-row" });
     }
 

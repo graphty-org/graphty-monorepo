@@ -97,7 +97,7 @@
     // ---------- Data tab ----------
     function sizes(W) {
         const max = W.rows[0].count, min = W.rows[W.rows.length - 1].count;
-        const bars = W.rows.map((r) => AB.tip(h("span", { tabindex: "-1", style: `height:${Math.max(4, Math.round((r.count / max) * 100))}%;background:${r.color}` }), r.name + ": " + fmt(r.count) + " " + W.unit, { label: false }));
+        const bars = W.rows.map((r) => AB.tip(h("span", { tabindex: "-1", role: "img", "aria-label": r.name + ": " + fmt(r.count) + " " + W.unit, style: `height:${Math.max(4, Math.round((r.count / max) * 100))}%;background:${r.color}` }), r.name + ": " + fmt(r.count) + " " + W.unit, { label: false }));
         const cap = W.other
             ? fmt(max) + " to " + fmt(min) + " " + W.unit + " in the largest " + W.rows.length + "; " + W.other.communities + " more hold " + fmt(W.other.count)
             : fmt(max) + " to " + fmt(min) + " " + W.unit + " each, largest first";
@@ -178,11 +178,13 @@
             W.version ? AB.fieldRow("Data", AB.link("data-place", "versions", W.version)) : null,
         ];
         const override = state === "weight-override";
-        const NOT_IN_FX = "the communities and modularity of an unweighted Louvain run on Les Miserables";
-        const n = override ? AB.openQuestion(NOT_IN_FX) : hier ? AB.openQuestion("how many communities the first level holds") : partial ? "Not final" : AB.link("graph-place", W.lm ? "louvain-open" : "many-groups", String(W.communities));
+        // Stand-in values where the fixtures hold none, each followed by its open question (the user-test build hides the chip)
+        const NOT_IN_FX = "the communities and modularity of an unweighted Louvain run on Les Miserables are stand-ins";
+        const val = (v, q) => h("span", null, v + " ", AB.openQuestion(q));
+        const n = override ? val("5", NOT_IN_FX) : hier ? val(String(W.communities) + ", until rerun at this level", "how many communities the first level holds") : partial ? "Not final" : AB.link("graph-place", W.lm ? "louvain-open" : "many-groups", String(W.communities));
         return AB.dataTab({
-            Summary: { summary: partial ? "Not final" : override ? "Unweighted run" : W.communities + " communities, modularity " + W.modularity, body: [
-                AB.data("Modularity", override ? AB.openQuestion(NOT_IN_FX) : partial ? h("span", null, "Not final ", AB.openQuestion("which readings the element reports for a run stopped early")) : String(W.modularity)),
+            Summary: { summary: partial ? "Not final" : override ? "Unweighted run: 5 communities, modularity 0.55" : W.communities + " communities, modularity " + W.modularity, body: [
+                AB.data("Modularity", override ? val("0.55", NOT_IN_FX) : partial ? h("span", null, "Not final ", AB.openQuestion("which readings the element reports for a run stopped early")) : String(W.modularity)),
                 AB.data("Communities", n),
             ] },
             Sizes: partial || hier || override ? null : sizes(W),

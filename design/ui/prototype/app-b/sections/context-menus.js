@@ -347,7 +347,7 @@
                 { label: "Create set where this is...", go: ["select-where", "where"] },
                 { sep: true },
                 { label: "Read as...", go: ["inspector-attribute-and-filter-step", "attribute"] },
-                { label: "Edit on the Data page", desc: "Its roles, type and links, under its column header", go: ["data-page", "transfers"] },
+                { label: "Edit on the Data page", desc: "Its roles, type and links, under its column header", go: ["data-page", "edit-source"] },
                 { sep: true },
                 showInTable("transfers"),
             ],

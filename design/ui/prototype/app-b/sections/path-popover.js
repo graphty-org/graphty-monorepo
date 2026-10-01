@@ -25,8 +25,18 @@
 
     // The fixture ends and settings for each graph. Les Miserables is undirected, so Direction hides.
     function setup(state) {
-        const L = AB.fx.datasets.lesmis, T = AB.fx.datasets.transactions;
-        if (state === "transfers-directed") {
+        const L = AB.fx.datasets.lesmis, T = AB.fx.datasets.transactions, ds = AB.route && AB.route.frame.dataset;
+        if (ds === "doorEntries") {
+            // The door entries as loaded: nothing selected, so From waits for a pick; the weight is count under Pair, none otherwise
+            const D = AB.fx.datasets.doorEntries, w = D.loadedWeight();
+            const names = [...new Set(D.tables[0].sample.map((r) => r.name))].concat(D.tables[1].sample.map((r) => r.bldg));
+            return {
+                directed: true, unit: "nodes", count: D.loadedTypes().total, from: null, to: null, fromIcon: "user", toIcon: "user",
+                loaded: w ? { weight: w, meaning: "stronger", desc: "Entries per person and building" } : { weight: null, meaning: "stronger", desc: "No weight was chosen when the data was loaded" },
+                weights: w ? [w] : [], direction: "either", names, pickFrom: names[0], pickTo: names.includes("Priya Nair") ? "Priya Nair" : names[1],
+            };
+        }
+        if (state === "transfers-directed" || ds === "transactions") {
             const P = T.setsAndPaths.path;
             return {
                 directed: true, unit: "accounts", count: T.nodes,
@@ -47,8 +57,11 @@
     function render(el, state) {
         if (!document.getElementById("pp-css")) document.head.append(h("style", { id: "pp-css" }, CSS));
         if (state === "found") {
-            // The selected path row and its inspector confirm the result; the notice offers only Undo.
-            el.append(AB.notice("Path added", { label: "Undo", go: ["path-popover", "from-selection"] }));
+            // The selected path row and its inspector confirm the result; the notice offers only Undo,
+            // which goes back to the project's tree as it was before the path
+            const ds = AB.route && AB.route.frame.dataset;
+            const undo = ds === "doorEntries" ? ["graph-place", "door-entries"] : ds === "transactions" ? ["graph-place", AB.fx.datasets.transactions.fresh ? "transfers-loaded" : "many-groups"] : ["path-popover", "from-selection"];
+            el.append(AB.notice("Path added", { label: "Undo", go: undo }));
             return;
         }
         const s = setup(state);
@@ -56,7 +69,7 @@
         // pick overrides this path run only and is recorded in its Made with, never in the data.
         s.weight = s.loaded.weight; s.meaning = s.loaded.meaning;
         if (state === "weight-overridden") { s.weight = null; }
-        let active = state === "picking-to" ? "to" : state === "from-analyze" ? "from" : null;
+        let active = state === "picking-to" ? "to" : state === "from-analyze" || !s.from ? "from" : null;
         const host = h("div");
         el.append(host);
 
@@ -94,11 +107,12 @@
             AB.announce(which === "from" ? "From: " + name : "To: " + name);
             draw();
         }
-        const loadedLine = () => s.loaded.weight + ", " + s.loaded.meaning; // the graph inspector's words: "value, stronger"
+        const loadedLine = () => (s.loaded.weight ? s.loaded.weight + ", " + s.loaded.meaning : "none (each edge counts 1)"); // the graph inspector's words: "value, stronger"
         const overridden = () => s.weight !== s.loaded.weight || (s.weight && s.meaning !== s.loaded.meaning);
         function weightField() {
             const L = s.loaded;
-            const f = AB.field(s.weight || "None", { caret: true, onClick: () => AB.openMenu(f, [
+            // The same words as Analyze's Weight field: the loaded weight says so
+            const f = AB.field(s.weight ? s.weight + (s.weight === L.weight ? " (loaded weight)" : "") : "None", { caret: true, onClick: () => AB.openMenu(f, !L.weight ? [{ label: "None (loaded: no weight)", check: true, desc: L.desc + "; every edge counts as one step", onClick: () => draw() }] : [
                 { label: L.weight + " (loaded weight)", check: s.weight === L.weight, desc: L.desc + "; chosen when the data was loaded", onClick: () => { s.weight = L.weight; s.meaning = L.meaning; draw(); } },
                 { label: "None", check: !s.weight, desc: "Every edge counts as one step", onClick: () => { s.weight = null; draw(); } },
                 ...s.weights.filter((w) => w !== L.weight).map((w) => ({ label: w, check: s.weight === w, onClick: () => { s.weight = w; draw(); } })),
@@ -120,11 +134,14 @@
                     weightField(),
                     s.weight ? AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], s.meaning, (v) => { s.meaning = v; draw(); }, { label: "What a higher " + s.weight + " means" }) : null,
                     h("span", { class: "pp-loaded" }, overridden() ? "This path only. Loaded weight: " + loadedLine() : "Loaded weight: " + loadedLine()),
+                    // The same words as Analyze: a path reads a weight as distance, so a Stronger weight is inverted
+                    s.weight && s.meaning === "stronger" ? h("span", { class: "pp-loaded" }, "Shortest path reads a weight as distance: it uses 1/" + s.weight + ".") : null,
                     s.weight && (s.weight !== s.loaded.weight || s.meaning !== "farther") ? AB.needsElement("graphty-element's shortest path reads the loaded weight column as a distance only; another column, or Stronger or Capacity, needs a weight option with a meaning") : null), { popover: true }),
             ];
             const foot = AB.button("Find path", {
                 icon: "route", disabled: ready ? null : "Choose From and To first",
-                onClick: () => AB.go("path-popover", "found"),
+                // The ends and the weight go with the new row, so the tree and the inspector name this path
+                onClick: () => { AB.lastPath = { ds: AB.route && AB.route.frame.dataset, from: s.from, to: s.to, weight: s.weight, loaded: s.loaded.weight }; AB.go("path-popover", "found"); },
             });
             const pop = AB.popover({ anchor: anchor(), title: "Path between", body, foot, width: 360 });
             pop.querySelector(".k-popover-body").append(AB.openQuestion("Can From or To be a set, so the path starts at the nearest member? graphty-element takes one source node"));
@@ -165,9 +182,15 @@
         ],
         closeTo: "graph-place/at-rest",
         frame(state) {
-            if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", dock: false };
+            if (state === "transfers-directed") return { dataset: "transactions", left: "graph-place/many-groups", right: "inspector-run-row/many-groups", canvas: "canvas-and-states/transfers-communities", dock: false };
             if (state === "from-analyze") return { left: "graph-place/at-rest", dock: false };
-            if (state === "found") return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/path-lesmis", dock: false };
+            if (state === "found") {
+                // The project the path ran on (the screen before this one): its tree with the new row, and the row's inspector
+                const ds = AB.route && AB.route.frame.dataset;
+                if (ds === "doorEntries") return { own: true, dataset: ds, left: "graph-place/door-entries-path", right: "inspector-group-set-path-row/path-door-entries", dock: false };
+                if (ds === "transactions") return { own: true, dataset: ds, left: "graph-place/path-found", right: "inspector-group-set-path-row/path", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities", dock: false };
+                return { left: "graph-place/at-rest", right: "inspector-group-set-path-row/path-lesmis", dock: false };
+            }
             return { left: "graph-place/at-rest", right: "inspector-several-elements/two-nodes", toolbar: "selection-bar/two-nodes", dock: false };
         },
         render,

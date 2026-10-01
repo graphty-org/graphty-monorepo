@@ -197,7 +197,8 @@
             const x = t.close ? h("span", { class: "td-tab-x", "aria-hidden": "true", "data-tip": "Close tab", "data-key": "Del", on: { click: (e) => { e.stopPropagation(); t.close(); } } }, icon("x", "sm")) : null;
             const el = h("span", { class: "k-tab td-tab", role: "tab", tabindex: t.id === active ? "0" : "-1", "aria-selected": String(t.id === active), "aria-keyshortcuts": t.close ? "Delete" : null }, t.icon ? icon(t.icon, "sm") : null, t.label, x);
             if (t.full) AB.tip(el, t.full, { label: false });
-            const pick = () => onPick(t);
+            // A tab of a collapsed dock opens it, the way the chevron does, on that tab
+            const pick = () => { if (document.querySelector("#ab-main[data-dock='closed']")) AB.openDock(); onPick(t); };
             el.addEventListener("click", pick);
             el.addEventListener("keydown", (e) => {
                 if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
@@ -446,11 +447,15 @@
     const DE = () => AB.fx.datasets.doorEntries;
     // The door-entries notes (notes-place's door-entries state): one about Ana Ruiz (1001) and B1, one
     // about the edge 1001 -> B1; B12's note reads missing, so it counts nowhere
-    const DOOR_NOTES = { "1001": 1, B1: 1, "1001|B1": 1 };
+    const NOTES_FIXTURE = { "1001": 1, B1: 1, "1001|B1": 1 };
+    const doorNotes = (k) => (DE().hasNotes() && NOTES_FIXTURE[k]) || 0; // none in a graph just made from the files
     function doorNodes() {
         const [people, buildings] = DE().tables, seen = new Set();
-        const rows = people.sample.filter((r) => !seen.has(r.id) && seen.add(r.id)).map((r) => ({ id: r.id, type: "person", name: r.name, dept: r.dept, site: "", floors: "", notes: DOOR_NOTES[r.id] || 0 }))
-            .concat(buildings.sample.map((r) => ({ id: r.bldg, type: "building", name: "", dept: "", site: r.site, floors: r.floors, notes: DOOR_NOTES[r.bldg] || 0 })));
+        const rows = people.sample.filter((r) => !seen.has(r.id) && seen.add(r.id)).map((r) => ({ id: r.id, type: "person", name: r.name, dept: r.dept, site: "", floors: "", notes: doorNotes(r.id) }))
+            .concat(buildings.sample.map((r) => ({ id: r.bldg, type: "building", name: "", dept: "", site: r.site, floors: r.floors, notes: doorNotes(r.bldg) })));
+        // Each entry as a node: keyed by its row number (entries.csv has no Key column), with its time
+        const asNodes = DE().loaded.per === "nodes";
+        if (asNodes) DE().tables[2].sample.forEach((r, i) => rows.push({ id: String(i + 1), type: "entry", name: "", dept: "", site: "", floors: "", time: r.time, notes: 0 }));
         const cols = [
             { key: "id", label: "id", type: "text", id: true },
             { key: "type", label: "type", type: "cat" },
@@ -458,12 +463,22 @@
             { key: "dept", label: "dept", type: "cat", edit: true },
             { key: "site", label: "site", type: "cat", edit: true },
             { key: "floors", label: "floors", type: "num", n: true, edit: true },
-        ];
+        ].concat(asNodes ? [{ key: "time", label: "time", type: "time", cell: (r) => (r.time ? shortTime(r.time) : "") }] : []);
         return table(cols, rows, { label: "Nodes", who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
     }
     function doorEdges() {
         const D = DE(), ids = new Set(D.tables[0].sample.map((r) => r.id)), bldgs = new Set(D.tables[1].sample.map((r) => r.bldg)), pairs = new Map();
         const matched = D.tables[2].sample.filter((r) => ids.has(r.person_id) && bldgs.has(r.building_id));
+        if (D.loaded.per === "nodes") {
+            // Each entry as a node: two link edges per entry, one to its person and one to its building
+            const links = [];
+            D.tables[2].sample.forEach((r, i) => {
+                if (ids.has(r.person_id)) links.push({ entry: String(i + 1), to: r.person_id, via: "person_id" });
+                if (bldgs.has(r.building_id)) links.push({ entry: String(i + 1), to: r.building_id, via: "building_id" });
+            });
+            return table([{ key: "entry", label: "entry", type: "num", id: true }, { key: "to", label: "to", type: "cat", id: true }, { key: "via", label: "link column", type: "cat" }],
+                links, { label: "Edges", who: (r) => "entry " + r.entry + " - " + r.to, onRow: (r) => AB.flash("Selects the edge entry " + r.entry + " - " + r.to + " (not wired in the skeleton)") });
+        }
         if (D.loaded.per === "row") {
             return table([{ key: "person_id", label: "person_id", type: "num", id: true }, { key: "building_id", label: "building_id", type: "cat", id: true }, { key: "time", label: "time", type: "time", cell: (r) => shortTime(r.time) }],
                 matched, { /* per Row the pair note reads missing (the Data page warns), so no Notes column */ label: "Edges", who: (r) => r.person_id + " - " + r.building_id, onRow: (r) => AB.flash("Selects the edge " + r.person_id + " - " + r.building_id + " (not wired in the skeleton)") });
@@ -471,7 +486,7 @@
         // One row per pair, from the same preview the Data page shows (data.preview under Pair), so the counts agree
         D.report.entries.pairSample.filter((r) => ids.has(r.person_id) && bldgs.has(r.building_id)).forEach((r) => {
             const k = r.person_id + "|" + r.building_id;
-            pairs.set(k, { from: r.person_id, to: r.building_id, count: r.count, first: r.time, last: r["time (latest)"], notes: DOOR_NOTES[k] || 0 });
+            pairs.set(k, { from: r.person_id, to: r.building_id, count: r.count, first: r.time, last: r["time (latest)"], notes: doorNotes(k) });
         });
         const cols = [
             { key: "from", label: "person_id", type: "num", id: true },
@@ -488,8 +503,8 @@
         const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
         const draw = () => {
             root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (t) => { active = t.id; draw(); }, "door-entries-options"));
-            if (active === "edges") root.append(scope(plural(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : ", one per entry"))), doorEdges());
-            else root.append(scope(plural(D.loadedTypes().person + D.loadedTypes().building, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + people.file + " and " + buildings.file)), doorNodes());
+            if (active === "edges") root.append(scope(plural(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : D.loaded.per === "nodes" ? ", two per entry node (person_id and building_id)" : ", one per entry"))), doorEdges());
+            else root.append(scope(plural(D.loadedTypes().total, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + (D.loadedTypes().entry ? people.file + ", " + buildings.file + " and " + D.tables[2].file : people.file + " and " + buildings.file))), doorNodes());
         };
         draw();
     }

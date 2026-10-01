@@ -22,6 +22,7 @@
 .xi-fields .ab-frow { padding: 0; }
 .xi-fields .k-field { width: 100%; box-sizing: border-box; }
 .xi-busy { opacity: .5; pointer-events: none; }
+.xi-busy [role=button], .xi-busy .k-field { cursor: default; }
 .xi-call { display: flex; gap: 8px; align-items: flex-start; padding: 6px 10px; border-radius: 6px; background: var(--cm-bg-secondary); line-height: 18px; }
 .xi-call > svg, .xi-call > .k-icon { flex: none; margin-top: 3px; }
 .xi-call b { font-weight: 550; }
@@ -191,7 +192,7 @@
         if (state === "failed") return call("error", "circle-x", h("b", null, "No image was made. "), `The layout did not settle within ${SETTLE_S} seconds. Capture the graph as it is now, or try again.`);
         if (!chk.ok) return call("error", "circle-x", h("b", null, "This size cannot be captured. "), chk.reason, " Choose a smaller size.");
         const mem = chk.near ? `At ${mp(chk.px)} megapixels, capturing needs about ${n(chk.mem)} MB of memory and may fail on computers with less.` : null;
-        if (state === "waiting-to-settle") return call("info", "info", h("span", { class: "xi-line" }, `Waiting for the layout to settle (up to ${SETTLE_S} seconds) before capturing.`, h("span", { class: "k-progress xi-bar", "aria-label": "Waiting" }, h("i"))));
+        if (state === "waiting-to-settle") return call("info", "info", h("span", { class: "xi-line" }, `Waiting for the layout to settle (up to ${SETTLE_S} seconds) before capturing.`, h("span", { class: "k-progress xi-bar", role: "progressbar", "aria-label": "Waiting for the layout to settle" }, h("i"))));
         if (s.fell) return call("warning", "triangle-alert", `${s.fell.preset} asks for ${s.fell.from}x, more than this browser can capture from a ${n(c.w)} x ${n(c.h)} canvas, so the size is ${s.fell.to}x. `, mem);
         if (mem) return call("warning", "triangle-alert", "Large image. ", mem);
         if (state === "clipboard-refused") return call("info", "info", CLIP_INSECURE, " Export still saves the file.");
@@ -233,7 +234,7 @@
         advField.setAttribute("aria-haspopup", "dialog");
         advField.setAttribute("aria-label", "Advanced: " + advSum);
 
-        const fields = h("div", { class: "xi-fields" + (busy ? " xi-busy" : ""), "aria-disabled": busy ? "true" : null, inert: busy ? "" : null },
+        const fields = h("div", { class: "xi-fields" + (busy ? " xi-busy" : ""), "aria-disabled": busy ? "true" : null, "aria-description": busy ? "Unavailable while waiting for the layout to settle" : null, inert: busy ? "" : null },
             AB.fieldRow("Preset", preset, { popover: true }),
             AB.fieldRow("Size", size, { popover: true }),
             AB.fieldRow("Format", format, { popover: true }),

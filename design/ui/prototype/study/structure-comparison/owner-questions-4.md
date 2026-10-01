@@ -103,8 +103,9 @@ text. Optional: the author, an edited time, and the runs the note cites.
 **The author name.**
 
 - **It is the project's author setting in the element** (`author`, one property for notes and
-  recipes): set once, stamped on each note added afterwards, saved with the project and one
-  undoable step to change. The owner's words decide where it is kept: "the project's author
+  recipes): set once, stamped on each note added afterwards, saved with the project, and not
+  a step in the undo history (`element-notes-api.md` section 5: Ctrl+Z after typing a name and
+  then writing a note undoes the note, never the name). The owner's words decide where it is kept: "the project's author
   setting" (2026-09-28) and "enters it in settings and we store it" (2026-10-01). An earlier draft
   of this page made it a per-person viewer setting; that contradicted those words and is withdrawn.
   Studio reason for stamping rather than an argument on every add: every consumer would have to
@@ -124,7 +125,10 @@ text. Optional: the author, an edited time, and the runs the note cites.
 
 - **"+" adds an empty line and opens the field list at once.** Esc leaves the line empty; it reads
   "Pick a field" and draws nothing. Reason: an empty label has no use until a field is picked, so
-  opening the list saves a click; pressing "+" asks for exactly that list.
+  opening the list saves a click; pressing "+" asks for exactly that list. One exception: on a row
+  with no label line yet, "+" first opens a two-item menu, Label line and Show labels (the switch
+  that hides labels on the row's members, offered only while the row has no line). Label line then
+  adds the empty line with its field list open. Once a line exists, "+" adds the next line at once.
 - **An empty line is a draft, not a write.** It writes nothing until a field is picked. Reason:
   writing empty text would hide a label painted by a row beneath, which the reader never asked
   for.
@@ -157,7 +161,8 @@ text. Optional: the author, an edited time, and the runs the note cites.
 - **It takes the workspace**, with the rail and header in place, like Version history. Tables on
   the left; a read-only model strip on top ("person (412) --entries (4,212)--> building (9)");
   the sample grid with a role under each column header; the match report at the bottom, always
-  visible; Direction, what the weight means, and Load in the footer.
+  visible; Direction and Load in the footer. What an edge weight means sits beside that edge
+  table's Weight role, under its column header (section 5).
 - **Two kinds of table**: each row is a node, or each row is an edge. Reason: "columns by key" is
   just a node table whose type already exists, so a third kind would be a second way to do one
   job. Add columns by key... stops being a command of its own.
@@ -171,8 +176,9 @@ text. Optional: the author, an edited time, and the runs the note cites.
 - **The word is "type", not "kind"**: each node table has a type (by default its name). Reason:
   the conceptual model already calls it node type, and the transfers data has a real `kind`
   column that a built-in "kind" would collide with. A column that sorts a table's nodes into
-  kinds takes the **Category** role, not a second "Type": the table's Type is the node's identity,
-  and one word must not mean both (`structure-b-refined.md` 11.3).
+  kinds takes the **Subtype** role, not a second "Type": the table's Type is the node's identity,
+  and one word must not mean both (`structure-b-refined.md` 11.3). ("Category" was dropped too: it
+  is already the name of an attribute type, Read as Category.)
 - **Repeated links: "One edge per: Row | Pair."** Row loses nothing and is the default. Pair
   makes one edge per pair of ends (both directions count as one pair in an undirected graph),
   adds a count column, and lets each column combine: numbers by sum, mean, min or max; times as
@@ -207,10 +213,11 @@ text. Optional: the author, an edited time, and the runs the note cites.
 - **Weight is a role under a column header on the Data page**: an edge table's weight (a column,
   or count under Pair, or none, which reads 1) and a node table's weight. Each edge table names its
   own.
-- **What the weight means is set once per graph**, in the page footer beside Direction: "Higher
-  weight means: Stronger | Farther | Capacity". Reason: graphty-element stores one weight column,
-  so a meaning per table could disagree with itself. The match report warns when two tables'
-  weights look like different meanings.
+- **What the weight means is set per edge table**, beside its Weight role under the column header:
+  "Higher means: Stronger | Farther | Capacity". Reason: the meaning belongs to the weight, and an
+  entries table counted as strength and a distances table can share a graph. graphty-element
+  stores one weight column today, so a weight and its meaning per edge type is part of what it
+  must add (`element-requirements-4.md` section 4).
 - **Every run uses the loaded weight by default.** Analyze's Weight line reads "Loaded weight:
   count, stronger", in the Data page's own words. A run may override the column or the meaning; the override is that run's
   own setting, recorded in its Made with, and never writes back. An algorithm that reads the
@@ -223,7 +230,7 @@ text. Optional: the author, an edited time, and the runs the note cites.
   inspector says "No measure reads node weight yet", and Analyze shows a node-weight line only for
   entries the element marks as reading it.
 - **What graphty-element must add**: a weight per edge table and per node type; the meaning stored
-  with the data; a weight option on the built-in algorithms (plugins already have one) that
+  with the data, per edge table; a weight option on the built-in algorithms (plugins already have one) that
   defaults to the loaded weight and records what was used.
 - **Version 3's "the weight is not a role" is removed.**
 
@@ -240,7 +247,7 @@ Worded so the tasks never reuse the words the screens use:
 - "Find the shortest chain of shared buildings between Ann and Bo." (Do testers notice how the
   loaded weight was read?)
 - "Show each character's name over it and how many notes they have under it." (Two "+" presses,
-  no placement step, no name prompt?)
+  the first through the Label line item, no placement step, no name prompt?)
 - "Write down why you flagged this account." (Does anyone look for a name field? Is a note with
   no name read as complete?)
 

@@ -26,7 +26,7 @@
     function dataTab(E, state) {
         const node = (n) => link("inspector-node", n.label === "Valjean" ? "why-this-look" : "data", n.label);
         const weight = AB.roleTag("Weight, set when loaded", { second: "every run uses it unless the run picks another. Change it on the Data page",
-            go: ["data-page", "graph-file"] });
+            go: ["data-page", "edit-graph-file"] });
         const dir = E.directed ? "Directed" : "Undirected";
         const parts = AB.dataTab({
             Summary: {
@@ -51,19 +51,48 @@
         return parts;
     }
 
+    // ---------- the door entries: the pair edge Ana Ruiz -> B1 (a door-entries note's target) ----------
+    function doorPair(el) {
+        const D = AB.fx.datasets.doorEntries, p = D.report.entries.pairSample[0], pair = D.loaded.per === "pair";
+        const style = () => AB.whyThisLook([
+            { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: EVERY, wins: ["width", "pattern"], values: { width: "1", pattern: "Solid" } },
+        ], { kind: "edge", element: "this edge" });
+        const weight = AB.roleTag("Weight, set when loaded", { second: "every run uses it unless the run picks another. Change it on the Data page", go: ["data-page", "edit-entries"] });
+        const data = () => AB.dataTab({
+            Summary: {
+                summary: "directed, count " + p.count,
+                body: [
+                    AB.data("Direction", "Directed", { go: ["inspector-nothing-selected", "door-entries"] }),
+                    AB.data("Ends", h("span", null, link("inspector-node", "door-ana", "Ana Ruiz"), " -> ", link("inspector-node", "door-b1", "B1"))),
+                    pair ? AB.data(h("span", { style: "display:inline-flex;align-items:center;gap:6px" }, "count", weight), h("span", { class: "k-num" }, String(p.count))) : null,
+                    AB.data("time (earliest)", p.time.slice(0, 10)),
+                    AB.data("time (latest)", p["time (latest)"].slice(0, 10)),
+                ],
+            },
+            Notes: { count: AB.fx.datasets.doorEntries.hasNotes() ? 1 : 0, target: ["notes-place", "door-entries"] },
+        }, { kind: "edge" });
+        el.append(AB.inspector({
+            icon: "spline", title: "Ana Ruiz -> B1", kind: "Edge, entries", kindKey: "edge", menu: ["context-menus", "edge"],
+            renameDisabled: "An edge has no name field to store one in; the title is its two ends",
+            tabs: { Style: style, Data: data }, tab: "Data",
+        }));
+    }
+
     registerSection({
         id: "inspector-edge",
         title: "Inspector: one edge",
         region: "right",
         rail: "graph",
-        frame: { left: "graph-place/at-rest", dock: "table-dock/edges" },
+        frame: (state) => (state === "door-pair" ? { dataset: "doorEntries", left: "graph-place/door-entries", dock: "table-dock/door-entries" } : { left: "graph-place/at-rest", dock: "table-dock/edges" }),
         closeTo: "graph-place",
         states: [
             { id: "style", label: "Style tab (why this look)" },
             { id: "data", label: "Data tab" },
             { id: "no-notes", label: "Data tab, no notes" },
+            { id: "door-pair", label: "Door entries: the pair Ana Ruiz -> B1" },
         ],
         render(el, state) {
+            if (state === "door-pair") return doorPair(el);
             const E = edge();
             el.append(AB.inspector({
                 icon: "spline",

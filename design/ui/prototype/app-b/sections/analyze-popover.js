@@ -94,9 +94,15 @@
     const GRAPHS = {
         lesmis: { weight: "value", meaning: "stronger", desc: "Co-appearances per pair", edgeNums: [["Edge betweenness", "A result: Edge betweenness, on edges"]], directed: false },
         transactions: { weight: "amount", meaning: "stronger", desc: "Amount per transfer", edgeNums: [], directed: true },
-        doorEntries: { weight: "count", meaning: "stronger", desc: "Entries per person and building (One edge per: Pair)", edgeNums: [], directed: false,
+        doorEntries: { weight: "count", meaning: "stronger", desc: "Entries per person and building (One edge per: Pair)", edgeNums: [], directed: true, bipartite: true,
             nodeWeight: "floors", nodeWeightOf: "building", nodeWeightRest: "person" },
     };
+    // The door entries' loaded weight follows the last Load: count under Pair, none under Row or as nodes
+    const graphOf = (ds) => (ds === "doorEntries" && AB.fx.datasets.doorEntries.loaded.per !== "pair"
+        ? Object.assign({}, GRAPHS.doorEntries, { weight: null, desc: AB.fx.datasets.doorEntries.loaded.per === "row" ? "One edge per: Row" : "Each entry as a node" })
+        : GRAPHS[ds]);
+    // A precondition the graph on screen meets switches its entry on
+    const disabledOf = (e) => (e.direction && graphOf(ui.ds).directed) || (e.id === "matching" && graphOf(ui.ds).bipartite) ? null : e.disabled;
     const AS = { stronger: "as strength", farther: "as distance", capacity: "as capacity" };
     const DS_OF = { transfers: "transactions", "node-weight": "doorEntries" };
     const ALL = GROUPS.flatMap((g) => g.entries);
@@ -112,7 +118,8 @@
     let host = null;
 
     function reset(state) {
-        ui = { state, ds: DS_OF[state] || "lesmis", level: "list", query: "", picked: null, sel: state === "scoped", scope: "sel" };
+        // The project on screen: Analyze opened from the door entries or the transfers runs on them
+        ui = { state, ds: DS_OF[state] || (AB.route && AB.route.frame.dataset) || "lesmis", level: "list", query: "", picked: null, sel: state === "scoped", scope: "sel" };
         if (state === "search") ui.query = "brokers";
         if (state === "essentials" || state === "transfers") pick("pagerank", true);
         if (state === "node-weight") { pick("pagerank", true); ui.nodeW = true; }
@@ -139,8 +146,8 @@
     function pick(id, quiet) {
         const e = byId(id);
         if (e.opens) return AB.go(e.opens[0], e.opens[1]);
-        const G = GRAPHS[ui.ds];
-        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: false, dir: "follow", key: null, sampled: "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
+        const G = graphOf(ui.ds);
+        Object.assign(ui, { level: "pick", picked: id, weight: e.weight ? G.weight : null, meaning: G.meaning, nodeW: !!G.nodeWeight, dir: "follow", key: null, sampled: "exact", start: ui.sel && ui.scope === "sel" ? SELECTED[0] : null, from: null, to: null });
         if (!quiet) draw();
     }
     function back() {
@@ -151,10 +158,10 @@
     }
 
     function entryRow(e) {
-        const dis = !!e.disabled;
+        const dis = disabledOf(e);
         const el = h("div", Object.assign({ class: "ap-entry", role: "button", "aria-disabled": dis ? "true" : null, tabindex: "0", "data-entry": e.id }, dis ? {} : AB.act({ onClick: () => pick(e.id) })),
             typeIcon(e),
-            h("span", { class: "ap-txt" }, h("span", { class: "ap-name k-ellipsis" }, e.name), h("span", { class: "ap-sub k-ellipsis" }, dis ? e.disabled : e.answers)),
+            h("span", { class: "ap-txt" }, h("span", { class: "ap-name k-ellipsis" }, e.name), h("span", { class: "ap-sub k-ellipsis" }, dis || e.answers)),
             marks(e));
         return AB.tip(el, e.family, { label: false });
     }
@@ -195,52 +202,69 @@
         if (!value) f.classList.add("k-secondary");
         return f;
     }
-    const NODES = () => AB.fx.datasets.lesmis.rows.map((r) => r.label);
+    const NODES = () => {
+        const X = AB.fx.datasets;
+        if (ui.ds === "doorEntries") return [...new Set(X.doorEntries.tables[0].sample.map((r) => r.name))].concat(X.doorEntries.tables[1].sample.map((r) => r.bldg));
+        if (ui.ds === "transactions") return X.transactions.rows.map((r) => r.id);
+        return X.lesmis.rows.map((r) => r.label);
+    };
 
     // Weight: the loaded weight first, then None and the numeric edge columns; the meaning defaults
     // from the load. Anything else is this run's override, recorded in its Made with, never in the data.
     function weightRows(e, body, row) {
-        const G = GRAPHS[ui.ds];
-        const loadedLabel = G.weight + " (loaded weight)";
-        const items = [{ label: loadedLabel, check: ui.weight === G.weight, desc: G.desc + ", " + G.meaning, onClick: () => { ui.weight = G.weight; draw(); } }, { sep: true }];
-        if (!e.needsWeight) items.push({ label: "None", check: !ui.weight, desc: "Every edge counts as one", onClick: () => { ui.weight = null; draw(); } });
-        G.edgeNums.forEach(([n, d]) => items.push({ label: n, check: ui.weight === n, desc: d, onClick: () => { ui.weight = n; draw(); } }));
-        const f = AB.field(ui.weight === G.weight ? loadedLabel : ui.weight || "None", { caret: true, onClick: () => AB.openMenu(f, items) });
-        f.setAttribute("aria-haspopup", "menu");
-        f.setAttribute("aria-label", "Weight: " + (ui.weight || "None"));
-        row("Weight", f);
-        if (ui.weight) {
-            row("Higher means", h("span", { class: "ap-stack" },
-                AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], ui.meaning, (v) => { ui.meaning = v; draw(); }, { label: "Higher weight means" }),
-                AB.needsElement("graphty-element's weight meaning is distance or strength only, and the loaded weight carries no meaning: Capacity and the meaning chosen at load need it")));
+        const G = graphOf(ui.ds);
+        if (!G.weight) {
+            // Loaded with no weight (the door entries per Row): None is the loaded choice
+            const f = AB.field(ui.weight || "None", { caret: true, onClick: () => AB.openMenu(f, [{ label: "None (loaded: no weight)", check: !ui.weight, desc: "Every edge counts as one; " + G.desc, onClick: () => { ui.weight = null; draw(); } }]) });
+            f.setAttribute("aria-haspopup", "menu");
+            f.setAttribute("aria-label", "Weight: None");
+            row("Weight", f);
+            body.append(h("div", { class: "ap-wnote" }, h("span", null, "Loaded weight: none (each edge counts 1). " + G.desc + ".")));
+        } else {
+            const loadedLabel = G.weight + " (loaded weight)";
+            const items = [{ label: loadedLabel, check: ui.weight === G.weight, desc: G.desc + ", " + G.meaning, onClick: () => { ui.weight = G.weight; draw(); } }, { sep: true }];
+            if (!e.needsWeight) items.push({ label: "None", check: !ui.weight, desc: "Every edge counts as one", onClick: () => { ui.weight = null; draw(); } });
+            G.edgeNums.forEach(([n, d]) => items.push({ label: n, check: ui.weight === n, desc: d, onClick: () => { ui.weight = n; draw(); } }));
+            const f = AB.field(ui.weight === G.weight ? loadedLabel : ui.weight || "None", { caret: true, onClick: () => AB.openMenu(f, items) });
+            f.setAttribute("aria-haspopup", "menu");
+            f.setAttribute("aria-label", "Weight: " + (ui.weight || "None"));
+            row("Weight", f);
+            if (ui.weight) {
+                row("Higher means", h("span", { class: "ap-stack" },
+                    AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], ui.meaning, (v) => { ui.meaning = v; draw(); }, { label: "Higher weight means" }),
+                    AB.needsElement("graphty-element's weight meaning is distance or strength only, and the loaded weight carries no meaning: Capacity and the meaning chosen at load need it")));
+            }
+            const loaded = "Loaded weight: " + G.weight + ", " + G.meaning; // the graph inspector's words: "value, stronger"
+            const over = ui.weight !== G.weight || (ui.weight && ui.meaning !== G.meaning);
+            const reads = e.weight === "distance" ? "farther" : "stronger";
+            const conv = ui.weight && ui.meaning !== "capacity" && ui.meaning !== reads
+                ? e.name + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
+            const reset = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.weight = G.weight; ui.meaning = G.meaning; draw(); } })), "Use the loaded weight");
+            body.append(h("div", { class: "ap-wnote" },
+                over ? h("span", { class: "k-badge" }, "This run's override") : null,
+                over ? h("span", null, "Recorded in this run's Made with. The data keeps it: " + G.weight + ", " + G.meaning + ". ", reset) : h("span", null, loaded),
+                conv ? h("span", null, conv) : null));
         }
-        const loaded = "Loaded weight: " + G.weight + ", " + G.meaning; // the graph inspector's words: "value, stronger"
-        const over = ui.weight !== G.weight || (ui.weight && ui.meaning !== G.meaning);
-        const reads = e.weight === "distance" ? "farther" : "stronger";
-        const conv = ui.weight && ui.meaning !== "capacity" && ui.meaning !== reads
-            ? e.name + " reads a weight " + AS[reads] + ": it uses 1/" + ui.weight + "." : null;
-        const reset = h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.weight = G.weight; ui.meaning = G.meaning; draw(); } })), "Use the loaded weight");
-        body.append(h("div", { class: "ap-wnote" },
-            over ? h("span", { class: "k-badge" }, "This run's override") : null,
-            over ? h("span", null, "Recorded in this run's Made with. The data keeps it: " + G.weight + ", " + G.meaning + ". ", reset) : h("span", null, loaded),
-            conv ? h("span", null, conv) : null));
         if (e.nodeWeight && G.nodeWeight) {
             // The same words as the floors attribute inspector: one candidate entry reads node weight, and it waits on the element
             const lw = G.nodeWeight + " (" + G.nodeWeightOf + ", loaded)";
             const nw = ui.nodeW ? lw : "None";
             row("Node weight", h("span", { class: "ap-stack" },
                 dropdown(nw, [lw, "None"], (c) => { ui.nodeW = c !== "None"; draw(); }),
-                ui.nodeW ? h("span", { class: "k-secondary" }, "Restart weights: each " + G.nodeWeightOf + " weighs its " + G.nodeWeight + "; each " + G.nodeWeightRest + " weighs 1 (no weight column).") : null,
+                ui.nodeW ? h("span", { class: "k-secondary" }, "Restart weights: each " + G.nodeWeightOf + " weighs its " + G.nodeWeight + "; each " + G.nodeWeightRest + " weighs 1 (no weight column).")
+                    : h("span", { class: "ap-stack k-secondary" }, h("span", { class: "k-badge" }, "This run's override"), h("span", null, "Recorded in this run's Made with. The data keeps it: " + G.nodeWeight + " (" + G.nodeWeightOf + "). "),
+                        h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => { ui.nodeW = true; draw(); } })), "Use the loaded node weight")),
                 AB.needsElement("PageRank's restart weights read node weight once its catalog entry carries nodeWeighted; no graphty-element entry reads node weight yet")));
         }
     }
 
     function essentialsBody(e) {
-        if (ui.state === "node-weight") e = Object.assign({}, e, { nodeWeight: true });
+        // PageRank on the door entries offers the node weight loaded with them (floors)
+        if (ui.state === "node-weight" || (ui.ds === "doorEntries" && e.id === "pagerank")) e = Object.assign({}, e, { nodeWeight: true });
         const body = h("div", null, scopeLine(), h("div", { class: "ap-answers" }, e.answers));
         const row = (label, ctl) => body.append(AB.fieldRow(label, ctl, { popover: true }));
         if (e.weight) weightRows(e, body, row);
-        if (GRAPHS[ui.ds].directed) row("Direction", AB.seg([["follow", "Follow"], ["ignore", "Ignore"]], ui.dir, (v) => { ui.dir = v; draw(); }, { label: "Direction" }));
+        if (graphOf(ui.ds).directed) row("Direction", AB.seg([["follow", "Follow"], ["ignore", "Ignore"]], ui.dir, (v) => { ui.dir = v; draw(); }, { label: "Direction" }));
         if (e.node === "start") row("Start", dropdown(ui.start, NODES(), (c) => { ui.start = c; draw(); }, { placeholder: "Choose a node" }));
         if (e.node === "pair") {
             row("From", dropdown(ui.from, NODES(), (c) => { ui.from = c; draw(); }, { placeholder: "Choose a node" }));
@@ -266,7 +290,7 @@
 
     function essentialsFoot(e) {
         const missing = e.node === "start" && !ui.start ? "Choose a start node" : e.node === "pair" && !(ui.from && ui.to) ? "Choose From and To" : null;
-        const n = ui.sel && ui.scope === "sel" ? SELECTED.length : ui.ds === "transactions" ? AB.fx.datasets.transactions.nodes : ui.ds === "doorEntries" ? AB.fx.datasets.doorEntries.tables.filter((t) => t.name !== "entries").reduce((a, t) => a + t.rows, 0) : AB.fx.datasets.lesmis.nodes;
+        const n = ui.sel && ui.scope === "sel" ? SELECTED.length : ui.ds === "transactions" ? AB.fx.datasets.transactions.nodes : ui.ds === "doorEntries" ? AB.fx.datasets.doorEntries.loadedTypes().total : AB.fx.datasets.lesmis.nodes;
         const cost = AB.tip(h("span", { class: "ap-cost", tabindex: "0" }, e.id === "all-pairs" && ui.sampled === "exact" ? "About a second" : "Under a second"), "Estimated on " + n + " nodes", { label: false });
         const main = hasRow(e) ? "Update " + hasRow(e) + " row" : "Run";
         const runBtn = AB.button(main, { key: "Enter", disabled: missing, onClick: () => run(e, false) });
@@ -327,7 +351,8 @@
         region: "overlay",
         rail: "graph",
         closeTo: "graph-place/at-rest",
-        frame: (state) => (state === "running" ? { left: "graph-place/running" }
+        // Running: the tree of the project the run was started on (the screen before this one), its new row on top
+        frame: (state) => (state === "running" ? ({ doorEntries: { own: true, dataset: "doorEntries", left: "graph-place/door-entries-running" }, transactions: { own: true, dataset: "transactions", left: "graph-place/transfers-running", canvas: AB.fx.datasets.transactions.fresh ? "canvas-and-states/transfers" : "canvas-and-states/transfers-communities" } }[AB.route && AB.route.frame.dataset] || { left: "graph-place/running" })
             : state === "scoped" ? { left: "graph-place/at-rest", right: "inspector-several-elements/style", toolbar: "selection-bar/five-nodes" }
             : state === "transfers" ? { dataset: "transactions", left: "graph-place/many-groups", canvas: "canvas-and-states/transfers" }
             : state === "node-weight" ? { dataset: "doorEntries", left: "data-place/door-entries", right: false } : {}),

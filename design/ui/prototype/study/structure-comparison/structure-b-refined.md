@@ -274,8 +274,8 @@ Rerun live on that row's Data tab. The rail has no Algorithms place.**
   count, stronger; routes km, farther"), and so does the graph inspector's Weight line.
   A node-weight line appears only on entries the catalog marks as reading node weight; the
   skeleton draws one candidate, PageRank's restart weights, with "each person weighs 1" for the
-  type with no weight column, and the floors inspector names the same reader ("Read by:
-  PageRank's restart weights"), both marked as needing graphty-element. Then the
+  type with no weight column, and the floors inspector names the same candidate ("No measure
+  reads node weight yet. PageRank's restart weights would"), both marked as needing graphty-element. Then the
   **one key option** (resolution, damping, From
   and To). **Direction** appears only on a directed graph. Cost is one line beside Run ("Under a
   second"); **Exact | Sampled** appears only on entries marked costly, never swapped silently.
@@ -1707,7 +1707,10 @@ area; flagged for the owner):
 - Notes cite results and filter steps, as `conceptual-model.md` section 6 says
   (`element-notes-api.md`, `cites`): a cite names one result pinned to the run it was read from,
   or one filter step stamped with its rule's last change. A filter step can also be a note's
-  target. No change to the conceptual model.
+  target. No change to the conceptual model. In version 4 a cite is made through the API only:
+  no screen adds one (the note editor edits text and subjects), and the fixture notes show how
+  cites read. How a reader makes one (for example, Add note from a run row citing that run, with
+  an x on the chip to drop it) is open for the next version.
 - **Notes belong to one graph** (studio): graphty-element's session holds one graph, and a note's
   targets are that graph's elements, so each graph keeps its own notes (`element-notes-api.md`
   2.4). The Notes place lists the notes of the graph the switcher shows. `conceptual-model.md`
@@ -2286,7 +2289,7 @@ Each capability has exactly one disposition:
 | Status counts (`session.status`) | Home | the filter chip; the Graphs switcher |
 | Node label path, time paths, positions after load (`nodeLabelPath`, time paths) | Home | the Data page's Name, Time and Position roles |
 | Edge weight path (`edgeWeightPath`) | Home | the Data page's Weight role; per table and with a meaning is a gap |
-| Node weight path (`nodeWeightPath`, read by nothing) | Gap | the Weight role on a node table; "Read by: PageRank's restart weights" (needs graphty-element) on the attribute and in Analyze |
+| Node weight path (`nodeWeightPath`, read by nothing) | Gap | the Weight role on a node table; "No measure reads node weight yet. PageRank's restart weights would" (needs graphty-element) on the attribute, and the node-weight line in Analyze |
 | Re-deriving values when a known field changes after load | Gap (to confirm) | Name and Time changes on the Data page |
 | Snapshot and fingerprint | Home | the source's "Changed since last read" |
 | Versions and diffs | Gap | Version history beyond a fingerprint list |

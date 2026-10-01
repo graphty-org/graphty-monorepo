@@ -40,7 +40,8 @@
     function patchCanvas(state) {
         const cv = document.getElementById("ab-canvas");
         const d = DRAWING[state];
-        if (!cv || !d) return;
+        // the node inspector's edited state draws its own canvas (Valjean in his Overrides color)
+        if (!cv || !d || (AB.route && AB.route.frame.right === "inspector-node/edited")) return;
         const imgs = cv.querySelectorAll(".k-stage img");
         if (imgs.length && AB.lesmisDrawing) AB.lesmisDrawing(d[0], d[1], null, state === "two-nodes" ? ringJavert : state === "hidden" ? hideValjean : null).forEach((img, i) => { if (imgs[i]) imgs[i].replaceWith(img); });
         // "1 node not drawn" is said once, in the tree footer (graph-place), not again on the legend card

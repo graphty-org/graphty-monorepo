@@ -169,3 +169,11 @@ Owner decisions stated here:
 - A note's author name comes only from Settings, is optional, and will usually be empty; the design must work well without it.
 - Note metadata is specified: time and the note's target (node, edge, group, path, ...) are required; everything else is optional.
 - The next user study round runs on this skeleton without waiting for the owner's review.
+
+## 2026-10-01 -- the owner on scale, nested data and states (verbatim)
+
+"has our design studio created a state matrix? what happens when our data has dozens of attributes per node or per edge? will surfaces like the data loading sidebar become overwhelmed? what about when our data is json, not a flat table, and we have to work with json paths that might include multiple layers of subobjects or arrays?"
+"add the state matrix, wide data, and json before the study"
+
+Owner decisions stated here:
+- Before the next user study: a state matrix for the skeleton, a design that holds up with dozens of attributes per node and per edge, and a design for loading nested JSON (paths through several layers of sub-objects and arrays).

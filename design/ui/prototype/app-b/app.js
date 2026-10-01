@@ -13,7 +13,8 @@
         transactions: { canvas: "canvas-and-states/transfers", right: "inspector-nothing-selected/transfers", dock: "table-dock/transfers" },
         doorEntries: { canvas: "canvas-and-states/door-entries", right: "inspector-nothing-selected/door-entries", dock: "table-dock/door-entries" },
     };
-    const RAIL_STATE = { doorEntries: { graph: "door-entries", data: "door-entries" }, transactions: { graph: "many-groups" } };
+    // A just-loaded project has no saved views; the door entries have their own notes
+    const RAIL_STATE = { doorEntries: { graph: "door-entries", data: "door-entries", notes: "door-entries", views: "empty" }, transactions: { graph: "many-groups", views: "empty" } };
     const PLACES = { graph: ["Graph", "network", "graph-place"], data: ["Data", "database", "data-place"], views: ["Views", "bookmark", "views-place"], notes: ["Notes", "message-square", "notes-place"], assistant: ["Assistant", "bot", "assistant-place"] };
 
     // ---------- persistent viewer conveniences (never required) ----------
@@ -64,6 +65,7 @@
         return { id, state: rest.join("/") || null };
     }
     let route = null;
+    let railCarry = false; // a rail place opened from a project that is not Les Miserables keeps that project
     let prevLeft = null;
     let prevRight = null;
     // Focus goes back to the control that opened an overlay when the overlay closes
@@ -72,16 +74,18 @@
     // The control that opens an overlay section: any element whose target is that section
     function refocusOpener(id) {
         if (!id || (document.activeElement && document.activeElement !== document.body)) return;
-        const el = document.querySelector(`[data-nav^="#/${id}"]`) || (id === "view-flyout" && document.querySelector("[data-tool='View']")) || (id === "project-menu" && document.getElementById("ab-project")) || (id === "main-menu" && document.getElementById("ab-rail-menu"));
-        if (el) el.focus();
+        const el = (id !== "settings" && document.querySelector(`[data-nav^="#/${id}"]`)) || (id === "view-flyout" && document.querySelector("[data-tool='View']")) || (id === "project-menu" && document.getElementById("ab-project")) || (id === "main-menu" && document.getElementById("ab-rail-menu"))
+            // nothing on screen opens it (a direct link): the place's heading, never the page body
+            || document.querySelector("#ab-left:not([hidden]) .ab-place-title") || document.querySelector("#ab-right .ab-insp-head .k-name");
+        if (el) el.focus({ preventScroll: true });
     }
-    const describe = (el) => el && el !== document.body ? { el, id: el.id || null, nav: el.dataset && el.dataset.nav || null, label: el.getAttribute("aria-label"), row: el.closest && el.closest("[data-row]") && el.closest("[data-row]").dataset.row } : null;
+    const describe = (el) => el && el !== document.body ? { el, stage: !!(el.closest && el.closest("#ab-canvas .k-stage")), id: el.id || null, nav: el.dataset && el.dataset.nav || null, label: el.getAttribute("aria-label"), row: el.closest && el.closest("[data-row]") && el.closest("[data-row]").dataset.row } : null;
     AB.describeFocus = () => describe(document.activeElement);
     AB.refocus = (d) => refocus(d);
     function refocus(d) {
         if (!d) return false;
         const q = (sel) => { try { return document.querySelector(sel); } catch (e) { return null; } };
-        const el = (d.el && d.el.isConnected && d.el) || (d.id && document.getElementById(d.id)) || (d.row && q(`#ab-left [data-row="${d.row}"]`)) || (d.nav && q(`[data-nav="${d.nav}"]`)) || (d.label && q(`[aria-label="${d.label}"]`));
+        const el = (d.el && d.el.isConnected && d.el) || (d.stage && q("#ab-canvas .k-stage")) || (d.id && document.getElementById(d.id)) || (d.row && q(`#ab-left [data-row="${d.row}"]`)) || (d.nav && q(`[data-nav="${d.nav}"]`)) || (d.label && q(`[aria-label="${d.label}"]`));
         if (el) el.focus();
         return !!el;
     }
@@ -97,6 +101,12 @@
         shell.dock = shell.dock === "open" ? "closed" : "open";
         store.set("dock", shell.dock);
         render();
+    };
+    // Open the dock in place (a tab of the collapsed dock): no redraw, so the section keeps the tab it picks
+    AB.openDock = function () {
+        shell.dock = "open";
+        store.set("dock", shell.dock);
+        if ($("ab-main").dataset.dock === "closed") $("ab-main").dataset.dock = "open";
     };
     AB.renderSection = function (ref, el) {
         const r = typeof ref === "string" ? refOf(ref) : ref;
@@ -234,8 +244,16 @@
     function railButton(key) {
         const [label, ic, target] = PLACES[key];
         // The rail stays in the project on screen: the door entries' Graph and Data places, the transfers' Graph place
-        const st = (RAIL_STATE[route.frame.dataset] || {})[key];
-        return h("div", Object.assign({ class: "k-rail-btn", role: "button", "aria-pressed": String(route.rail === key), "data-place": key }, act({ go: st ? [target, st] : [target] })), h("span", { class: "k-rail-pill" }, icon(ic)), label);
+        // A just-loaded transfers project has no runs and no filter steps yet
+        const fresh = route.frame.dataset === "transactions" && AB.fx.datasets.transactions.fresh;
+        const st = ((fresh ? { graph: "transfers-loaded", data: "empty-filters", views: "empty" } : RAIL_STATE[route.frame.dataset]) || {})[key];
+        const a = act({ go: st ? [target, st] : [target] });
+        // A place with no state of its own for this project (Assistant) opens over the project on screen
+        if (route.frame.dataset !== "lesmis") {
+            const click = a.on.click, kd = a.on.keydown, carry = () => { railCarry = location.hash !== href(target, st); };
+            a.on = { click: (e) => { carry(); click(e); }, keydown: (e) => { if (e.key === "Enter" || e.key === " ") carry(); kd(e); } };
+        }
+        return h("div", Object.assign({ class: "k-rail-btn", role: "button", "aria-pressed": String(route.rail === key), "data-place": key }, a), h("span", { class: "k-rail-pill" }, icon(ic)), label);
     }
     function renderRail(el) {
         el.append(railButton("graph"), railButton("data"), railButton("views"), railButton("notes"), railButton("assistant"));
@@ -314,20 +332,36 @@
         const state = p.state || sec.states[0].id;
         const frameOf = (s, st) => (typeof s.frame === "function" ? s.frame(st) : s.frame) || {};
         const extra = frameOf(sec, state);
+        // The project on screen stays on screen. A menu, popover or dialog that names no data set (or
+        // the same one) opens over the panels that were showing, and Esc goes back to them; a rail
+        // place, or an inspector beside the same place, keeps the project and its left panel. Most
+        // of those states are drawn for Les Miserables, so without this every door out of the door
+        // entries or the transfers would switch the project under the reader.
+        const was = route && route.frame.dataset !== "lesmis" && !["workspace", "full"].includes(route.sec.region) ? route : null;
+        let carried = null;
+        if (was && (!extra.dataset || extra.dataset === was.frame.dataset)) {
+            // an overlay whose frame names its own panels (a result just added) draws them instead
+            if (sec.region === "overlay" && !extra.own) carried = "panels";
+            // an inspector that names no left panel, or the same place (the tree's built-in rows name graph-place)
+            else if (railCarry || (sec.region === "right" && (!extra.left || (refOf(extra.left).id === (refOf(was.frame.left) || {}).id)))) carried = "dataset";
+        }
+        railCarry = false;
         const frame = Object.assign({}, DEFAULT_FRAME, extra);
+        if (carried === "panels") ["left", "right", "canvas", "dock", "toolbar", "mode"].forEach((r) => { frame[r] = was.frame[r]; });
+        if (carried === "dataset" && sec.region === "right") frame.left = was.frame.left;
         frame[sec.region] = sec.id + "/" + state;
         const leftRef = refOf(frame.left);
         const leftSec = leftRef && AB.sections[leftRef.id];
         // The dataset and the filter chip follow the section, or else the left panel beside it:
         // a transfers place (Data, the Path tool) brings the transfers canvas, inspector and table.
         const leftExtra = leftSec && leftSec !== sec ? frameOf(leftSec, leftRef.state || leftSec.states[0].id) : {};
-        frame.dataset = extra.dataset || leftExtra.dataset || "lesmis";
-        frame.chip = extra.chip || leftExtra.chip || "Full graph";
-        if (frame.dataset !== "lesmis") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
+        frame.dataset = extra.dataset || leftExtra.dataset || (carried ? was.frame.dataset : "lesmis");
+        frame.chip = extra.chip || leftExtra.chip || (carried ? was.frame.chip : "Full graph");
+        if (frame.dataset !== "lesmis" && carried !== "panels") Object.entries(DATASET_FRAME[frame.dataset] || {}).forEach(([r, v]) => { if (!(r in extra) && sec.region !== r) frame[r] = v; });
         // The rail lights the place the left panel shows; a section with no left panel names its own.
         // A workspace page (the Data page) names its own place: no left panel shows beside it.
         const railKey = (sec.region === "workspace" && sec.rail) || (sec.region !== "left" && leftSec && leftSec.rail) || sec.rail || "graph";
-        let closeTo = sec.closeTo ? refOf(sec.closeTo) : frame.full && sec.region !== "full" ? refOf(frame.full) : leftRef && leftRef.id !== sec.id ? leftRef : { id: PLACES[railKey][2], state: null };
+        let closeTo = carried === "panels" ? (was.frame.overlay ? was.closeTo : { id: was.id, state: was.state }) : extra.own && leftRef ? leftRef : sec.closeTo ? refOf(sec.closeTo) : frame.full && sec.region !== "full" ? refOf(frame.full) : leftRef && leftRef.id !== sec.id ? leftRef : { id: PLACES[railKey][2], state: null };
         const hadOverlay = !!(route && route.frame.overlay);
         const hadFocus = describe(document.activeElement);
         const prevId = route && route.id;
@@ -353,8 +387,10 @@
         app.dataset.right = frame.right && shell.panels === "shown" ? "open" : "closed";
         $("ab-main").dataset.dock = !frame.dock ? "none" : shell.dock;
 
-        const keepLeft = AB.keepLeft && prevLeft && leftRef && prevLeft.id === leftRef.id;
-        const keepRight = AB.keepRight && prevRight && prevRight === frame.right;
+        // Opening a menu or popover over the same panels keeps them as they were (no redraw), so what
+        // the reader changed there (a label line just added) is still behind the popover and after it
+        const keepLeft = prevLeft && leftRef && prevLeft.id === leftRef.id && (AB.keepLeft || (!!frame.overlay && prevLeft.state === leftRef.state));
+        const keepRight = prevRight && prevRight === frame.right && (AB.keepRight || !!frame.overlay);
         AB.keepLeft = AB.keepRight = false;
         prevLeft = leftRef;
         prevRight = frame.right;
@@ -440,7 +476,34 @@
         // App keys never use W, A, S, D, Q, E, the arrows, = or -: graphty-element's canvas keys.
         // F2 (rename) belongs to the tree, the inspector header and the project name. Ctrl+G (create
         // set) belongs to the selection bar. T is not a key: the time slider opens from the table's options.
+        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        // A key the menus and the shortcuts sheet advertise: the same action as its button or menu item,
+        // else a notice that says what it would do. Never the browser's own (Ctrl+S, Ctrl+O, Ctrl+E).
+        const press = (sel, fallback) => () => { const b = document.querySelector(sel); if (b && b.getAttribute("aria-disabled") !== "true") b.click(); else AB.flash(fallback); };
+        const stub = (text) => () => AB.flash(text + " (not wired in the skeleton)");
+        const undoNotice = () => [...document.querySelectorAll("#ab-notice .k-toast-action")].find((b) => b.textContent.trim() === "Undo");
         const keys = [
+            [() => mod && !e.shiftKey && !e.altKey && k === "z", () => { const u = undoNotice(); if (u) u.click(); else press("#ab-top [aria-label='Undo']", "Nothing to undo")(); }],
+            [() => mod && e.shiftKey && !e.altKey && k === "z", press("#ab-top [aria-label='Redo']", "Nothing to redo")],
+            [() => mod && !e.shiftKey && !e.altKey && k === "o", () => go("data-page", "edge-list")],
+            [() => mod && !e.shiftKey && !e.altKey && k === "s", stub("Save")],
+            [() => mod && e.shiftKey && !e.altKey && k === "s", stub("Save as")],
+            [() => mod && !e.shiftKey && !e.altKey && k === "e", () => go("export-dialog")],
+            [() => free && mod && !e.shiftKey && !e.altKey && k === "a", () => go("inspector-selection-and-everything", "selection")],
+            [() => free && mod && !e.shiftKey && !e.altKey && k === "g", press("#ab-toolbar [data-tool='Create set']", "Ctrl+G creates a set from the selection: select something first")],
+            [() => free && mod && e.shiftKey && !e.altKey && k === "h", press("#ab-toolbar [data-tool='Hide on canvas'], #ab-toolbar [data-tool='Show on canvas']", "Ctrl+Shift+H hides the selection on canvas: select something first")],
+            [() => free && !mod && !e.altKey && e.key === "/", () => go("graph-place", "find")],
+            [() => free && !mod && !e.shiftKey && !e.altKey && k === "i", stub("I inverts the selection")],
+            [() => free && !mod && !e.shiftKey && !e.altKey && k === "f", stub("F frames the selection")],
+            [() => free && !mod && !e.altKey && e.key === "0", stub("0 fits the graph to the view")],
+            [() => free && !mod && !e.altKey && ["1", "3", "7"].includes(e.key), stub(e.key + " turns the camera to the " + { 1: "front", 3: "side", 7: "top" }[e.key])],
+            // graphty-element's canvas key (owner decision): Shift+Arrow walks from node to node on the drawing
+            [() => !mod && e.shiftKey && /^Arrow/.test(e.key) && t && t.closest && t.closest(".k-stage"), () => {
+                const v = AB.fx.datasets.lesmis.rows.find((r) => r.label === "Valjean");
+                if (route.frame.dataset !== "lesmis" || route.frame.right === "inspector-node/why-this-look" || !v) { AB.flash("Shift+Arrow walks to the next node (the skeleton walks only to Valjean)"); return; }
+                go("inspector-node", "why-this-look");
+                setTimeout(() => AB.announce("Valjean, " + v.degree + " neighbors. Shift+Arrow walks to the next node"), 100);
+            }],
             [() => mod && !e.shiftKey && e.key === ",", () => go("settings", "general")],
             [() => mod && !e.shiftKey && (e.key === "k" || e.key === "K"), () => go("commands-and-search", "quick-actions")],
             [() => mod && !e.shiftKey && (e.key === "b" || e.key === "B"), () => { shell.panels = shell.panels === "shown" ? "hidden" : "shown"; render(); AB.announce(shell.panels === "shown" ? "Panels shown" : "Panels hidden. Ctrl+B shows them"); }],
@@ -473,7 +536,9 @@
             const t = e.target;
             if (!route || t.closest("[data-picking]") || !(t.classList.contains("k-stage") || t.classList.contains("k-canvas") || (t.tagName === "IMG" && t.closest(".k-stage")))) return;
             const place = PLACES[route.rail] ? PLACES[route.rail][2] : "graph-place";
-            if (route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected" || route.id !== place) go(place);
+            // In another project, back to that project's place (the door entries' Graph place), not Les Miserables
+            const left = refOf(route.frame.left), st = route.frame.dataset !== "lesmis" && left && left.id === place ? left.state : null;
+            if (route.frame.right && refOf(route.frame.right).id !== "inspector-nothing-selected" || route.id !== place) go(place, st);
         });
         $("ab-overlay").addEventListener("click", (e) => { if (e.target === $("ab-overlay") || e.target.classList.contains("ab-modal-wrap")) AB.close(); });
         matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
@@ -545,19 +610,33 @@
             people: { rows: 412, repeatedKeys: 1, noEntries: 14 },
             buildings: { rows: 9, siteNames: 3 },
         },
-        // What the last Load chose for the entries ("pair", the worked example, unless a Load set
-        // "row"): the loaded graph's canvas, inspector, table and Data place read its edge count
-        loaded: { per: "pair", add: null },
-        loadedEdges() { const e = this.report.entries, a = (this.loaded.add && e.added[this.loaded.add]) || e; return this.loaded.per === "row" ? a.bothEnds : a.pairEdges; },
-        // The node counts per type after the last Load's Add choices: { person, building, added: { person, building } }
+        // What the last Load (or Edit's Apply) chose for the entries: "pair" (the worked example),
+        // "row", or "nodes" (each entry a node). The loaded graph's canvas, inspector, table and Data
+        // place read its counts from here. fresh: the graph was just made from the files through the
+        // new-graph door, so it holds no notes yet; the fixture notes belong to the edited project.
+        loaded: { per: "pair", add: null, fresh: false },
+        // The fixture notes (Ana Ruiz and B1, the pair edge, B12) exist only in the project that was edited
+        hasNotes() { return !this.loaded.fresh; },
+        // Edges: one per pair or per matched row; as nodes, one link edge per matched column, so
+        // an entry whose person_id (25 rows) or building_id (7 rows) is unmatched has one edge
+        loadedEdges() {
+            const e = this.report.entries, k = this.loaded.add, a = (k && e.added[k]) || e;
+            if (this.loaded.per === "nodes") return 2 * e.rows - (k === "people" || k === "both" ? 0 : e.missingPeople) - (k === "bldg" || k === "both" ? 0 : e.missingBuildings);
+            return this.loaded.per === "row" ? a.bothEnds : a.pairEdges;
+        },
+        // The weight the last Load chose: count under Pair, none under Row or as nodes
+        loadedWeight() { return this.loaded.per === "pair" ? "count" : null; },
+        // The node counts per type after the last Load: { person, building, entry, total, added: { person, building } }
         loadedTypes() {
             const e = this.report.entries, k = this.loaded.add;
             const added = { person: k === "people" || k === "both" ? e.missingPeople : 0, building: k === "bldg" || k === "both" ? e.missingBuildings : 0 };
-            return { person: this.tables[0].rows + added.person, building: this.tables[1].rows + added.building, added };
+            const t = { person: this.tables[0].rows + added.person, building: this.tables[1].rows + added.building, entry: this.loaded.per === "nodes" ? e.rows : 0, added };
+            t.total = t.person + t.building + t.entry;
+            return t;
         },
         model: {
-            row: { strip: "person (412) --entries (4,212)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per row: 4,180 edges" },
-            pair: { strip: "person (412) --entries (4,212)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per pair: 1,306 edges; weight: count" },
+            row: { strip: "person (412) --entries (4,180 edges from 4,212 rows)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per row: 4,180 edges" },
+            pair: { strip: "person (412) --entries (1,306 edges from 4,180 of 4,212 rows)--> building (9)", tip: "entries.person_id = people.id; entries.building_id = buildings.bldg; one edge per pair: 1,306 edges; weight: count" },
             entryAsNode: { strip: "person (412) <--person_id-- entry (4,212) --building_id--> building (9)", tip: "entry.person_id = people.id; entry.building_id = buildings.bldg; each entry is a node with two edges and its time" },
         },
     };

@@ -100,12 +100,12 @@
     // ---------- Style tab ----------
     function styleTab(m, st) {
         const tab = A.styleTab({ kinds: [m.over], kind: m.over, set: {}, bound: m.bound });
-        // A bound value opens the one Binding popover. The shared Style tab still routes it to the
-        // From data list (style-pickers/bind), so redirect it here, in the capture phase.
-        // Open question for the shell: lib.js styleTab should send a bound value to style-pickers/binding.
+        // A bound value opens the one Binding popover, in this row's form (diverging or not). A label
+        // line is not a binding: it keeps its own Label popover, so only channel lines are redirected.
         const target = ["style-pickers", st.diverging ? "binding-diverging" : "binding"];
+        const BOUND = ".ab-sline:not([data-label]) .ab-bound";
         const open = (e) => {
-            const b = e.target.closest && e.target.closest(".ab-bound");
+            const b = e.target.closest && e.target.closest(BOUND);
             if (!b || (e.type === "keydown" && e.key !== "Enter" && e.key !== " ")) return;
             e.stopPropagation();
             e.preventDefault();
@@ -113,7 +113,7 @@
         };
         tab.addEventListener("click", open, true);
         tab.addEventListener("keydown", open, true);
-        const mark = () => tab.querySelectorAll(".ab-bound").forEach((b) => { b.dataset.nav = A.href(target[0], target[1]); b.setAttribute("aria-haspopup", "dialog"); });
+        const mark = () => tab.querySelectorAll(BOUND).forEach((b) => { b.dataset.nav = A.href(target[0], target[1]); b.setAttribute("aria-haspopup", "dialog"); });
         new MutationObserver(mark).observe(tab, { childList: true, subtree: true });
         mark();
         return h("div", null,

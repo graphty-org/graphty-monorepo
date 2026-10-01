@@ -1,9 +1,11 @@
 import {
     Autocomplete,
+    ColorInput,
     FileInput,
     InputClearButton,
     JsonInput,
     MultiSelect,
+    NativeSelect,
     NumberInput,
     PasswordInput,
     PillsInput,
@@ -24,11 +26,13 @@ import {
     compactInputStylesNoHeight,
     compactLabelStyles,
     compactMultiSelectScale,
+    compactMultiValueScale,
     compactMultiValueStyles,
     compactNumberInputControlsScale,
     compactNumberInputScale,
 } from "../styles/inputs";
 import { compactVarsForSize } from "../styles/size-scale";
+import { PasswordToggleIcon } from "./PasswordToggleIcon";
 
 /**
  * Theme extensions for input components with compact sizing by default.
@@ -119,6 +123,11 @@ export const inputComponentExtensions = {
         defaultProps: {
             size: "sm",
             variant: "filled",
+            // Mantine hides the reveal toggle from assistive technology unless
+            // this is truthy; the icon supplies the toggle's name. A field that
+            // passes its own props (an aria-label, say) replaces this object.
+            visibilityToggleButtonProps: {},
+            visibilityToggleIcon: PasswordToggleIcon,
         },
         vars: (_theme, props) => ({
             root: {},
@@ -180,7 +189,7 @@ export const inputComponentExtensions = {
         },
         vars: (_theme, props) => ({
             root: {},
-            wrapper: compactVarsForSize(compactInputNoHeightScale, props?.size),
+            wrapper: compactVarsForSize(compactMultiValueScale, props?.size),
         }),
         styles: {
             label: compactLabelStyles,
@@ -200,7 +209,7 @@ export const inputComponentExtensions = {
         },
         vars: (_theme, props) => ({
             root: {},
-            wrapper: compactVarsForSize(compactInputNoHeightScale, props?.size),
+            wrapper: compactVarsForSize(compactMultiValueScale, props?.size),
         }),
         styles: {
             label: compactLabelStyles,
@@ -230,6 +239,33 @@ export const inputComponentExtensions = {
             wrapper: compactVarsForSize(compactInputNoHeightScale, props?.size),
         }),
         styles: compactInputStylesNoHeight,
+    }),
+
+    NativeSelect: NativeSelect.extend({
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
+        },
+        vars: (_theme, props) => ({
+            root: {},
+            wrapper: compactVarsForSize(compactInputScale, props?.size),
+        }),
+        styles: compactInputStyles,
+    }),
+
+    ColorInput: ColorInput.extend({
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
+        },
+        vars: (_theme, props) => ({
+            root: {},
+            wrapper: compactVarsForSize(compactInputScale, props?.size),
+            eyeDropperIcon: {},
+            eyeDropperButton: {},
+            colorPreview: {},
+        }),
+        styles: compactInputStyles,
     }),
 
     // InputClearButton is a CloseButton: Mantine renders it as one and sizes it

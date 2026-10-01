@@ -1,9 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { newestMasterCapture } from "../trusted/lib/github.mjs";
+import { downloadCaptures, newestMasterCapture } from "../trusted/lib/github.mjs";
 import { createApp } from "../trusted/lib/serve.mjs";
 import {
     copyFixture,
@@ -603,7 +603,7 @@ describe("serve: review extras", () => {
         ]);
     });
 
-    it("shows a story with no baseline yet but never accepts it, one by one or all at once", async () => {
+    it("accepts a story with no baseline yet, one by one or all at once", async () => {
         const fixture = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8"));
         const items = fixture.items.map((i) =>
             i.file === "badge--default.light.png" ? { ...i, status: "unseeded" } : i,
@@ -619,14 +619,13 @@ describe("serve: review extras", () => {
             file: "badge--default.light.png",
             decision: "accept",
         });
-        expect(one.status).toBe(409);
+        expect(one.status).toBe(200);
         const all = await s.api("POST", "/api/accept-all", { id: "123", project: "compact-mantine" });
         expect(all.body).toEqual({ accepted: 3 });
         const { body } = await s.api("GET", "/api/pr/123/compact-mantine");
-        expect(body.decisions["badge--default.light.png"]).toBeUndefined();
-        expect(body.items.find((i) => i.file === "badge--default.light.png").status).toBe("unseeded");
+        expect(body.decisions["badge--default.light.png"]).toMatchObject({ decision: "accept" });
         const target = (await s.api("GET", "/api/target/123")).body.projects[0];
-        expect(target).toMatchObject({ counts: { unseeded: 1 }, reviewable: 5, undecided: 2 });
+        expect(target).toMatchObject({ counts: { unseeded: 1 }, reviewable: 6, undecided: 2 });
     });
 
     it("flags an item whose earlier accept on this branch was replaced by master's baseline", async () => {
@@ -704,5 +703,60 @@ describe("newestMasterCapture", () => {
             results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, complete: false } },
         });
         expect(await newestMasterCapture(gh, "compact-mantine", join(r.dir, "reference"), FIXTURE_CONFIG)).toBeNull();
+    });
+});
+
+describe("downloadCaptures", () => {
+    const setup = () => {
+        const r = makeRepo();
+        const inner = fakeGh({ artifacts: { 1000: ["visual-compact-mantine-1"] } });
+        const calls = [];
+        return { r, inner, calls, tmp: join(r.dir, "downloads"), run: { id: 1000 } };
+    };
+
+    it("downloads a run once when two refreshes ask for it at the same time", async () => {
+        const { inner, calls, tmp, run } = setup();
+        const gh = async (args, input) => {
+            if (args[0] === "run") {
+                calls.push(args);
+                // Extraction takes a while: the second caller arrives while the first is mid-way.
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+            return inner(args, input);
+        };
+        const [a, b] = await Promise.all([
+            downloadCaptures(gh, run, ["compact-mantine"], tmp),
+            downloadCaptures(gh, run, ["compact-mantine"], tmp),
+        ]);
+        expect(calls).toHaveLength(1);
+        expect(a).toEqual(b);
+        expect(existsSync(join(a["compact-mantine"].dir, "results.json"))).toBe(true);
+        expect(readdirSync(join(tmp, "1000-1"))).toEqual(["compact-mantine"]);
+    });
+
+    it("leaves no directory behind when a download is interrupted, and retries next time", async () => {
+        const { inner, tmp, run } = setup();
+        const failing = async (args, input) => {
+            if (args[0] === "run") {
+                // Half-extracted, then gh dies: results.json (written last) never arrives.
+                writeFileSync(join(args[6], "button--primary.png"), "partial");
+                throw new Error("error extracting zip archive");
+            }
+            return inner(args, input);
+        };
+        await expect(downloadCaptures(failing, run, ["compact-mantine"], tmp)).rejects.toThrow("zip");
+        expect(readdirSync(join(tmp, "1000-1"))).toEqual([]);
+
+        const out = await downloadCaptures(inner, run, ["compact-mantine"], tmp);
+        expect(existsSync(join(out["compact-mantine"].dir, "results.json"))).toBe(true);
+    });
+
+    it("replaces a leftover directory that has no results.json", async () => {
+        const { inner, tmp, run } = setup();
+        const dir = join(tmp, "1000-1", "compact-mantine");
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "button--primary.png"), "partial");
+        await downloadCaptures(inner, run, ["compact-mantine"], tmp);
+        expect(existsSync(join(dir, "results.json"))).toBe(true);
     });
 });

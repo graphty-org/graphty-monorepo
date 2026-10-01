@@ -53,10 +53,11 @@ for this milestone", gives the reason for each.
   `visual-review/capture/` and `ci.yml` itself: a pull request could change how it is captured or
   judged, and only code review would notice. That ends in milestone 3.
 - **The merge gate blocks.** On pull requests the "All Checks Pass" job runs
-  `visual-review/trusted/gate.mjs`. For every project that has baseline PNGs on the base branch it
-  reads the newest attempt's `results.json` of this CI run, and fails when that capture holds any
-  item other than `unchanged`, `excluded` or `unseeded` (no baseline yet, and the pull request
-  does not change it; section 11a), or is missing or unfinished. Both the list of
+  `visual-review/trusted/gate.mjs`. For every project that has baseline PNGs on the base branch,
+  or is in the base branch's or the pull request's config, it reads the newest attempt's
+  `results.json` of this CI run, and fails when that capture holds any item other than `unchanged`
+  or `excluded` (so every story without an approved baseline blocks; section 11a), or is missing
+  or unfinished. Both the list of
   projects and "seeded" are read from the base branch (the directories under `visual-baselines/`
   holding a PNG), so neither deleting a project's baselines nor editing
   `visual-review/projects.json` in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
@@ -109,7 +110,8 @@ for this milestone", gives the reason for each.
   its own hook beside husky's.
 - **Seeding is per story** (section 11a). On pull requests the `visual` job downloads master's
   newest complete capture (`visual-review reference`, with `actions: read`), and a story with no
-  baseline whose capture matches master's is `unseeded` instead of `new`. Master's rejects become
+  baseline whose capture matches master's is `unseeded` instead of `new`; both block until the
+  owner accepts the story or seeds it. Master's rejects become
   one issue with the machine-readable block, since master has no pull request to comment on.
 - **`trusted/` has one dependency**, `pngjs`, for decoding PNGs in the comparison. The
   dependency-free rule matters once `trusted/` verifies approvals (milestone 3).
@@ -889,14 +891,16 @@ newest complete capture of the same story (downloaded by `visual-review referenc
 
 | Pull request's capture of a story with no baseline | Status                        | Blocks the pull request                  |
 | -------------------------------------------------- | ----------------------------- | ---------------------------------------- |
-| Looks as in master's capture                       | `unseeded`, "no baseline yet" | No                                       |
+| Looks as in master's capture                       | `unseeded`, "no baseline yet" | Yes, until the owner accepts or seeds it |
 | Differs from it, or the story is not on master     | `new`                         | Yes, until the owner accepts or excludes |
 | Differs between its own two captures               | `unstable`                    | Yes, until excluded or fixed             |
 
-`unseeded` items are shown in the review page under their own filter, need no decision, are
-skipped by Accept all and offer no Accept button: seeding an untouched story happens on master's
-capture, where it was captured twice and shown as `new`. `unseeded` is never "reviewed"; it only
-does not block, and the story's first baseline still needs the owner's accept.
+`unseeded` items need a decision like `new` ones: the review page offers Accept, Reject and
+Exclude for them, counts them as needing a decision and includes them in Accept all, and accepting
+one makes the capture its first baseline. They also have their own filter in the grid. Nothing
+merges with an image the owner never approved, so a story with no baseline blocks every pull
+request until it is accepted there or seeded from master. Seeds come only from a commit whose
+images a person already reviewed (for graphty: one on which every Chromatic job passed).
 
 **A round.** The owner opens master in the page (`serve --master-run <run id>`), accepts the
 stories that look right, rejects the ones that do not with a reason, and leaves the rest. Finish
@@ -911,10 +915,11 @@ only. The owner reviews it on that pull request; accepting it writes its first b
 pull request's accept commit, and it merges with the fix. Rejecting it again posts a reason and
 the loop repeats.
 
-**The gate.** It passes `unchanged`, `excluded` and `unseeded` items and blocks everything else,
-for every project with at least one baseline on the base branch. A project with none is ignored
-entirely, as before. So one unseeded story never blocks a pull request that does not touch it,
-and a story a pull request adds or changes always needs the owner.
+**The gate.** It passes `unchanged` and `excluded` items and blocks everything else, for every
+project with at least one baseline on the base branch and every project in the base branch's or
+the pull request's config. No setting turns it off for a project. So every story needs the
+owner's approved baseline before a pull request merges, whether or not the pull request touches
+it.
 
 **Where the reference comes from, and its limit.** The `visual` job, on pull requests only,
 lists ci.yml's recent push runs on master with `gh` (`actions: read`) and downloads the newest
@@ -1164,7 +1169,7 @@ a month at opt-in volume, fed by the same capture directory.
 | An accept commits raw PNGs instead of LFS pointers                     | `serve` refuses to start without git-lfs and its filter; Finish refuses a commit whose PNG is not a pointer                                                               |
 | A push sends pointers without their images                             | `.husky/pre-push` runs `tools/lfs-pre-push.sh`; Finish runs `git lfs push` itself; a missing image fails the next capture's `git lfs pull`, which blocks the pull request |
 | The LFS bandwidth allowance runs out and downloads are blocked         | The Actions cache keeps CI near 1 to 5 GiB of 250 GiB a month; worst case about 100 GiB; the planned weekly check warns at 100 GiB                                        |
-| An unseeded story looks the same as master only because both are wrong | "No baseline yet" never passes as reviewed: it only does not block; its first baseline still needs the owner's accept                                                     |
+| An unseeded story looks the same as master only because both are wrong | "No baseline yet" blocks until the owner accepts or seeds it, so it never passes unreviewed                                                                               |
 | The package is ours to maintain                                        | Upkeep cadence in section 15, instead of a vendor with no spending cap                                                                                                    |
 
 ## 18. Alternatives rejected

@@ -24,8 +24,8 @@ There are two pull requests:
 - **Build dependencies first.** Before running graphty-element tests in a fresh worktree:
   `pnpm exec nx run-many -t build -p graph-format graph-io graph-samples algorithms layout webgpu-graph-algorithms`
   (or `pnpm exec nx build graphty-element`, which builds them in order).
-- **Each step ends with** `npm run lint` and `npm run test:run -- --project=default` in
-  `graphty-element/`, wrapped in `timeout 900`. Browser tests run one at a time, headless, through
+- **Each step ends with** `npm run lint` and `npm run test:default` in
+  `graphty-element/` (the package has no `test:run` script), wrapped in `timeout 900`. Browser tests run one at a time, headless, through
   `design/ui/prototype/kit/with-browser.sh` (on the `ux-storyboards-mocks-and-study` worktree).
 - **Commits:** one or more conventional commits per step, scope `graphty-element` (or `docs` for
   `design/`), GPG-signed as configured, no attribution trailers.
@@ -41,7 +41,8 @@ There are two pull requests:
 | 5 | Built (2026-10-01), with the changes listed under "As built". |
 | 6 | Built (2026-10-01), with the changes listed under "As built". |
 | 7 | Built (2026-10-01), with the changes listed under "As built". |
-| 8, 9 | Not started. |
+| 8 | Built (2026-10-01), with the changes listed under "As built". |
+| 9 | Not started. |
 
 ---
 
@@ -508,6 +509,37 @@ documented example cannot rot. The docs build (`npm run docs:build`) passes with
 
 **Done when:** an author who has read only the published guide writes the quick start and it
 compiles against the published types (CLAUDE.md, "Easy things easy, hard things possible").
+
+**As built:**
+
+- The guide's quick start is 14 lines of code and three comments, not section 2's 30: it adds
+  two nodes with `session.data.addNodes` instead of importing a URL, labels noted nodes with
+  `graphty.notes.latest`, and saves and reopens the notes alone. Loading from a file, styles saved
+  beside notes, the refusal, the author, cites and `mergeDocument`'s report each have their own
+  section further down. The page also covers plain text and `mediaType`, the record, status,
+  `select({ note })`, `usedBy`, events, undo, styles, export and the limits.
+- `test/session/notes/guide-example.test.ts` runs the quick start, the refusal and author
+  example, and the status, select, undo and event behavior the page describes, on
+  `createGraphSession()`. It reads the painted label through `ElementSession.paint`, as
+  `styles.test.ts` does.
+- `test/documentation/guide-calls-a-real-method.test.ts` now also checks every
+  `session.notes.<name>` a guide calls against `NotesApi`, as it does `session.sets` and
+  `session.scope`.
+- `styling.md` gained "Values the element provides" (the `graphty.` root, the three paths,
+  literal note labels, `data.graphty.<name>`, `shadowedPaths`); `events.md` a
+  `graphty-note-change` section; `undo.md` a Notes row and a link; `sets.md` notes among
+  `usedBy`'s users; the sidebar a Notes entry after Sets.
+- The API reference: `docs/api/javascript.md` gained a Notes table linking the generated
+  `NotesApi` page, and every field of the published note types now has a doc comment, so TypeDoc
+  reports no undocumented declaration in `src/session/notes/types.ts` (30 fewer warnings overall).
+  `npm run docs:build` passes with no dead links.
+- Exports: every note type section 10 names was already exported from the package root and
+  `./session` (step 1). `test/session/entry-point.test.ts` now pins all 16, adding
+  `NoteListOptions`, `NoteMergeOptions`, `NotesDocument` and `NotesReport`. Nothing was added to
+  `./schema` or `./catalog`: section 3.1 names the root and `./session` only, and `./session`
+  already runs in Node.
+- No `feat` commit: the feature commits of steps 1 to 7 are what the changelog lists; this step's
+  commits are `docs` and `test`.
 
 ---
 

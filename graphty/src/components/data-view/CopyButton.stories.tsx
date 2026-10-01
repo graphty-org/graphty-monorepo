@@ -10,7 +10,7 @@ const meta: Meta<typeof CopyButton> = {
     },
     decorators: [
         (Story) => (
-            <div style={{ padding: "2rem", backgroundColor: "var(--mantine-color-dark-7)" }}>
+            <div style={{ padding: "2rem", backgroundColor: "var(--mantine-color-body)" }}>
                 <Story />
             </div>
         ),

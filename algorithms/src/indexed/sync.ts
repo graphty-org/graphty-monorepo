@@ -1,6 +1,6 @@
 import type { F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
-import { SeededRandom } from "../utils/math-utilities.js";
+import { mulberry32 } from "../utils/math-utilities.js";
 
 /** Options of the index-based SynC clustering, matching the legacy `syncClustering`. @public */
 export interface SyncClusteringOptions {
@@ -94,7 +94,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
     if (!Number.isInteger(numClusters) || numClusters <= 0 || numClusters > n) {
         throw new Error(`Invalid number of clusters: ${String(numClusters)}. Must be between 1 and ${String(n)}`);
     }
-    const random = SeededRandom.createGenerator(seed);
+    const random = mulberry32(seed);
     const dim = Math.min(64, n);
     const { rowPtr, colIdx } = s;
 

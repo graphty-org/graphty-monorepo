@@ -107,7 +107,10 @@ const preview: Preview = {
         controls: {
             expanded: true,
             matchers: {
-                color: /(background|color)$/i,
+                // Only names that end in "color": the element's own `background` property is a
+                // background config object (a color or a skybox), not a color string, and a story
+                // that wants a color picker for it says so in its argTypes (GraphStyles does).
+                color: /color$/i,
                 date: /Date$/i,
             },
         },

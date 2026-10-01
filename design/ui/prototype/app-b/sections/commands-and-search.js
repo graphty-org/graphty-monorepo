@@ -75,8 +75,10 @@
         L("Analyze", "chart-column", "Betweenness", "Toolbar > Analyze", { go: ["analyze-popover", "open"], aka: ["brokers", "bridges", "centrality"] }),
         C("find-paths", "Analyze", "route", { aka: ["path", "route", "shortest", "connected"] }),
         // Data
-        C("add-data", "Data", "file-plus", { aka: ["join", "import", "source", "paste data"] }),
-        L("Data", "file-plus", "Replace with file...", "Data > Sources > Replace with file", { go: ["load-step", "preview"], aka: ["replace", "refresh", "update data"] }),
+        // the Data page's three doors come from AB.COMMANDS, so they open the same Data page states as every other door
+        C("add-data", "Data", "file-plus", { aka: ["join", "import", "source", "paste data", "table", "link tables"] }),
+        C("edit-source", "Data", "pencil", { aka: ["field", "fields", "columns", "roles", "key", "weight", "remap", "source"] }),
+        C("replace-file", "Data", "file-plus", { aka: ["replace", "refresh", "update data", "new version"] }),
         L("Data", "plus", "New attribute...", "Data > Attributes +", { run: () => AB.flash("New attribute..."), aka: ["calculated field", "field", "expression", "formula", "computed column"] }),
         C("label-by", "Data", "tag", { aka: ["label", "caption", "field"] }),
         L("Data", "clock", "Time slider", "Table > Options > Time slider", { go: ["table-dock", "time-slider"], aka: ["time", "timeline", "date"] }),
@@ -110,7 +112,8 @@
         C("reselect-previous", "Selection", "undo-2", { aka: ["previous selection"] }),
         L("Selection", "search", "Select where...", "Main menu > Select where", { go: ["select-where", "where"], aka: ["query", "select by", "by ids"] }),
         // Project
-        L("Project", "folder-open", "Open...", "Main menu > Open", { key: "Ctrl+O", go: ["load-step", "preview"] }),
+        // Open... is not in AB.COMMANDS; it goes where the main menu's Open... goes (the picked file lands on the Data page)
+        L("Project", "folder-open", "Open...", "Main menu > Open", { key: "Ctrl+O", go: ["data-page", "edge-list"], aka: ["load", "file", "csv"] }),
         L("Project", "file", "Save", "Project menu > Save", { key: "Ctrl+S", run: () => AB.flash("Save") }),
         C("export", "Project", "download", { aka: ["save as", "svg", "download", "graphml", "csv", "png", "image", "video", "report"] }),
         L("Project", "sparkles", "Apply recipe or style file...", "Project menu > Apply recipe or style file", { go: ["recipe-apply", "binding"], aka: ["recipe", "template", "style file"] }),
@@ -276,6 +279,30 @@
         el.append(AB.modal({ title: "Keyboard shortcuts", body, foot, wide: true }));
     }
 
+    // ---------- Find's note results ----------
+    // Find ("Jav") lists the notes whose text matches, after the rows. A note reads its time and its subject,
+    // which every note carries; its author only when the project holds two or more named authors (a stand-in
+    // for graphty-element's notes.authors()). Neither matching note has an author, which is the usual case:
+    // a name exists only if the writer typed one in Settings. The Graph place draws the Rows part; this
+    // replaces its Notes part with the notes from the Notes place's fixture that match.
+    const FIND_NOTES = [
+        { by: null, at: "Yesterday", about: "about Louvain", go: ["inspector-run-row", "data"],
+            text: "Valjean and Javert land in the same community, with Marius and Cosette." },
+        { by: null, at: "Sep 28", about: "about Valjean and Javert", go: ["inspector-several-elements", "two-nodes"],
+            text: "Javert follows Valjean through the whole book. Check whether PageRank ranks them side by side." },
+    ];
+    function findNotes() {
+        const head = [...document.querySelectorAll(".gp-find-head")].find((x) => x.textContent === "Notes");
+        if (!head) return;
+        while (head.nextElementSibling) head.nextElementSibling.remove();
+        const mk = (s) => { const i = s.indexOf("Jav"); return [s.slice(0, i), h("mark", null, "Jav"), s.slice(i + 3)]; };
+        FIND_NOTES.forEach((n) => {
+            const sub = [n.by, n.at, n.about] /* this project has two named authors, so a set name would show */.filter(Boolean).join(", ");
+            head.parentNode.append(h("div", Object.assign({ class: "gp-hit", role: "option" }, AB.act({ go: n.go })), icon(AB.ICON.note),
+                h("span", { class: "gp-hit-text" }, mk(n.text.length > 60 ? n.text.slice(0, 57) + "..." : n.text), h("span", { class: "gp-hit-sub" }, sub))));
+        });
+    }
+
     // ---------- keys this section owns ----------
     document.addEventListener("keydown", (e) => {
         const t = e.target;
@@ -303,7 +330,7 @@
         ],
         render(el, state) {
             if (state === "shortcuts") shortcuts(el);
-            else if (state === "find") return; // the Graph place draws Find's field and results
+            else if (state === "find") setTimeout(findNotes, 0); // the Graph place draws Find's field and rows
             else quick(el, { "quick-actions-results": "field", "quick-actions-views": "view", "quick-actions-layout": "layout", "quick-actions-settings": "settings" }[state] || "");
         },
     });

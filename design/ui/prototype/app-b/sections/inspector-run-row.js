@@ -7,7 +7,9 @@
    the bound value opens the one Binding popover (palette, order, overflow). Data tab: Summary,
    Sizes (one size chart for any number of communities), Made with (settings that differ from the
    default, Level and Stop after; the rest in the All options popover; any edit raises the state
-   bar), Notes. The state bar is one line, at most two buttons. Verbs live in "...". The tab is the
+   bar), Notes. Made with names where the weight came from: "loaded weight (value)" when the run used
+   the weight chosen on the Data page, or "None, this run's override" (state weight-override); Higher
+   weight (Stronger | Farther | Capacity) defaults from the loaded meaning. The state bar is one line, at most two buttons. Verbs live in "...". The tab is the
    one last chosen for a run, except in the states that exist to show one tab. Plain ASCII. */
 (function () {
     "use strict";
@@ -18,6 +20,10 @@
 .rr-sizes > span { flex: 1 1 0; min-width: 2px; min-height: 2px; border-radius: 2px 2px 0 0; }
 .rr-line { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 .rr-line .k-progress { width: 40px; flex: none; }
+.rr-wrap { height: auto; min-height: 24px; max-width: 100%; box-sizing: border-box; }
+.rr-col { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+:is(.rr-col, .rr-all) .ab-design-note { white-space: normal; margin-inline-start: 0; flex: 0 1 auto; min-width: 0; }
+.rr-wrap .k-ellipsis { white-space: normal; overflow: visible; }
 .rr-all { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 16px 8px 112px; }
 `;
     if (!document.getElementById("rr-style")) document.head.append(h("style", { id: "rr-style" }, CSS));
@@ -28,10 +34,11 @@
     const MENU = ["context-menus", "run-row"];
     const SELF = "inspector-run-row";
     // graphty-element's Louvain options today: resolution, max iterations, tolerance, optimized
-    const ELEMENT_OPTS = "graphty-element's Louvain has resolution, max iterations, tolerance and optimized; Level, Stop after, Seed, weight meaning and scope need it";
+    const ELEMENT_OPTS = "graphty-element's Louvain has resolution, max iterations, tolerance and optimized; Level, Stop after, Seed and scope need it";
+    const WEIGHT_NEEDS = "a run's caveats.weight records the attribute and meaning but not whether it came from the loaded weight, and the weight meaning has no Capacity yet";
     const EDIT = [SELF, "settings-changed"];
     // The states that exist to show one tab; every other state opens on the tab last chosen
-    const TAB = { style: "Style", data: "Data", "all-options": "Data", "hierarchy-level": "Data" };
+    const TAB = { style: "Style", data: "Data", "all-options": "Data", "hierarchy-level": "Data", "weight-override": "Data" };
 
     // Les Miserables: Louvain weighted by value, resolution 1.0
     const LESMIS_RUN = [[1, 25, "#E69F00"], [2, 17, "#56B4E9"], [3, 10, "#009E73"], [4, 10, "#0072B2"], [5, 9, "#D55E00"], [6, 6, "#CC79A7"]];
@@ -101,17 +108,42 @@
     }
 
     // Every option of the run, and whether it differs from the element's default (or is always shown)
+    // A dropdown field's menu: AB.openMenu, each pick navigates
+    const pick = (anchor, items) => AB.openMenu(anchor, items.map((it) => it.heading || it.sep || it.needs ? it : Object.assign({}, it, { go: undefined, onClick: () => AB.go(it.go[0], it.go[1]) })));
+
     function options(W, state) {
+        const override = state === "weight-override";
+        // The weight dropdown: the loaded weight first, then None and the other numeric edge attributes
+        // (Les Miserables and the transfers each have one: the loaded one). Picking another value edits the run.
+        const loaded = "loaded weight (" + W.weight + ")";
+        const weightMenu = (e) => pick(e.currentTarget, [
+            { label: loaded, check: !override, desc: "Chosen when the data was loaded; every run uses it unless the run picks another", go: override ? EDIT : [SELF, state] },
+            { label: "None", check: override, desc: "Every edge counts the same", go: override ? [SELF, state] : EDIT },
+        ]);
+        const weightValue = override ? "None, this run's override" : loaded;
+        const weightField = AB.field(weightValue, { caret: true, onClick: weightMenu });
+        weightField.classList.add("rr-wrap");
+        weightField.setAttribute("aria-label", "Weight: " + weightValue);
+        // Higher weight: Stronger | Farther | Capacity, defaulted from the meaning chosen when the data was loaded
+        const meaningMenu = (e) => pick(e.currentTarget, [
+            { label: "Stronger", check: true, desc: "As loaded: a heavier edge holds its ends closer", go: [SELF, state] },
+            { label: "Farther", desc: "A heavier edge is a longer distance", go: EDIT },
+            { label: "Capacity", desc: "A heavier edge carries more", go: EDIT },
+        ]);
+        const meaningField = AB.field("Stronger, as loaded", { caret: true, onClick: meaningMenu });
+        meaningField.classList.add("rr-wrap");
+        meaningField.setAttribute("aria-label", "What a higher weight means: Stronger, as loaded");
+        const meaning = override ? null : h("span", { class: "rr-col" }, meaningField, AB.needsElement(WEIGHT_NEEDS));
         const changed = state === "settings-changed";
         const hier = state === "hierarchy-level";
         const partial = state === "partial";
-        const levelMenu = (e) => AB.menu({ anchor: e.currentTarget, place: "below-start", items: [
+        const levelMenu = (e) => pick(e.currentTarget, [
             { heading: "Paint the communities of" },
             { label: "Final level, most merged", check: !hier, go: [SELF, "data"] },
             { label: "First level, least merged", check: hier, go: [SELF, "hierarchy-level"] },
             { sep: true },
             { label: "Levels in between", needs: "how many levels graphty-element reports for a Louvain run" },
-        ] });
+        ]);
         const opt = (value, o) => AB.field(value, Object.assign({ go: EDIT }, o || {}));
         const check = (label, on) => {
             const b = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(on), "aria-label": label });
@@ -120,12 +152,12 @@
         };
         return [
             // shown: differs from the default, or always shown (Level, Stop after)
-            [true, "Weight", opt(W.weight, { icon: "hash", caret: true })],
+            [true, "Weight", weightField],
+            [!override, "Higher weight", meaning],
             [changed, "Resolution", opt(changed ? "1.2, was 1.0" : "1.0")],
             [true, "Level", AB.field(hier ? "First, was Final" : "Final, most merged", { caret: true, onClick: levelMenu })],
             [true, "Stop after", opt(partial ? "10 seconds" : "No limit", { caret: true })],
             [false, "Seed", opt(W.lm ? "7" : "11")],
-            [false, "Higher weight", AB.seg([["s", "Stronger"], ["f", "Farther"]], "s", () => AB.go(EDIT[0], EDIT[1]), { label: "What a higher weight means" })],
             [false, "Scope", opt("Full graph", { caret: true })],
             [false, "Direction", W.lm ? h("span", { class: "k-secondary" }, "None in this graph") : AB.seg([["follow", "Follow"], ["ignore", "Ignore"]], "ignore", () => AB.go(EDIT[0], EDIT[1]), { label: "Direction" })],
             [false, "Max iterations", opt("100")],
@@ -145,14 +177,16 @@
             h("div", { class: "rr-all" }, AB.tip(AB.link(SELF, "all-options", "All options...", { "data-rr": "all-options" }), rest + " more, at their defaults", { label: false }), " ", AB.needsElement(ELEMENT_OPTS)),
             W.version ? AB.fieldRow("Data", AB.link("data-place", "versions", W.version)) : null,
         ];
-        const n = hier ? AB.openQuestion("how many communities the first level holds") : partial ? "Not final" : AB.link("graph-place", W.lm ? "louvain-open" : "many-groups", String(W.communities));
+        const override = state === "weight-override";
+        const NOT_IN_FX = "the communities and modularity of an unweighted Louvain run on Les Miserables";
+        const n = override ? AB.openQuestion(NOT_IN_FX) : hier ? AB.openQuestion("how many communities the first level holds") : partial ? "Not final" : AB.link("graph-place", W.lm ? "louvain-open" : "many-groups", String(W.communities));
         return AB.dataTab({
-            Summary: { summary: partial ? "Not final" : W.communities + " communities, modularity " + W.modularity, body: [
-                AB.data("Modularity", partial ? h("span", null, "Not final ", AB.openQuestion("which readings the element reports for a run stopped early")) : String(W.modularity)),
+            Summary: { summary: partial ? "Not final" : override ? "Unweighted run" : W.communities + " communities, modularity " + W.modularity, body: [
+                AB.data("Modularity", override ? AB.openQuestion(NOT_IN_FX) : partial ? h("span", null, "Not final ", AB.openQuestion("which readings the element reports for a run stopped early")) : String(W.modularity)),
                 AB.data("Communities", n),
             ] },
-            Sizes: partial || hier ? null : sizes(W),
-            "Made with": { summary: "Weight " + W.weight + (state === "settings-changed" ? ", resolution 1.2" : "") + ", " + (hier ? "first" : "final") + " level", body: madeWith },
+            Sizes: partial || hier || override ? null : sizes(W),
+            "Made with": { summary: "Weight: " + (override ? "None, this run's override" : "loaded weight (" + W.weight + ")") + (state === "settings-changed" ? ", resolution 1.2" : "") + ", " + (hier ? "first" : "final") + " level", body: madeWith },
             Notes: { count: W.lm ? 1 : 0, target: ["notes-place", "about-selection"] },
         }, { kind: "run" });
     }
@@ -222,7 +256,7 @@
                 { label: "Lay out by these groups" },
                 { label: "Compare with another run...", needs: "graphty-element cannot compare two runs' results" },
                 { sep: true },
-                { label: "Add note", shortcut: "N", go: ["notes-place", "writing"] },
+                { label: "Add note", shortcut: "N", onClick: () => AB.addNote() },
                 { label: "Lock" },
                 { label: "Hide from list (keeps painting)", go: ["graph-place", "show-hidden"] },
                 { sep: true },
@@ -247,6 +281,7 @@
             { id: "data", label: "Data tab" },
             { id: "all-options", label: "Data: All options popover" },
             { id: "settings-changed", label: "Settings changed since the run" },
+            { id: "weight-override", label: "Made with: this run's weight override" },
             { id: "running", label: "Running (transfers, April rerun)" },
             { id: "queued", label: "Queued" },
             { id: "cannot-cancel", label: "Running, cannot be stopped" },

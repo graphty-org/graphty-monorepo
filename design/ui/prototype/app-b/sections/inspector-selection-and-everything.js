@@ -54,10 +54,16 @@
     // ---------- Notes: paints the nodes notes are about (notes-place: Valjean and Javert in the graph) ----------
     // The notes in the Notes place are about 3 nodes and 1 edge (Valjean, Javert, Napoleon; Javert -- Valjean): 4 notes in all
     const NOTED = ["Valjean", "Javert", "Napoleon"];
-    function notesStyle(outlined) {
-        const paints = A.paintsLine("Paints " + NOTED.length + " nodes, 1 edge", ["notes-place", "all"]);
-        const chip = h("div", { class: "ab-cap ab-review-only k-secondary" }, "This row's layer:", A.needsElement("graphty-element has no reserved notes layer yet; until it does, the app paints this row with a temporary layer over the noted ids."));
-        return A.styleTab({ kinds: ["node", "edge"], kind: "node", set: outlined ? { "node.outline": "#D55E00" } : {}, paints, extra: chip });
+    // No layer until a look is added (graphty-element refuses a layer that writes nothing, and a layer paints
+    // nodes or edges, not both): the first look on a side adds that side's layer, the Everything pattern.
+    // Its selector reads graphty-element's note count (notes.count > `0`), so a label bound to Note count
+    // draws only on the noted elements. Count from the fixture (3 nodes, 1 edge); the spec's "4 nodes" is a slip.
+    function notesStyle(state) {
+        const empty = state === "notes-row";
+        const paints = A.paintsLine("Paints " + NOTED.length + " nodes, 1 edge (noted)" + (empty ? ". Nothing set -- + to add a look" : ""), ["notes-place", "all"]);
+        const look = state === "notes-row-outlined" ? { set: { "node.outline": "#D55E00" } }
+            : state === "notes-row-label" ? { labels: [{ pos: "Below", field: "Note count", type: "num" }] } : {};
+        return A.styleTab(Object.assign({ kinds: ["node", "edge"], kind: "node", paints, order: empty ? null : "In the Notes node layer; no edge layer yet" }, look));
     }
     function notesData() {
         return A.dataTab({
@@ -100,6 +106,7 @@
             { id: "everything-edges", label: "Everything row, Edges" },
             { id: "notes-row", label: "Notes row, nothing set" },
             { id: "notes-row-outlined", label: "Notes row, outline added" },
+            { id: "notes-row-label", label: "Notes row, Label Below: Note count" },
             { id: "notes-data", label: "Notes row, Data" },
             { id: "overrides", label: "Overrides row" },
         ],
@@ -112,7 +119,7 @@
             } else if (state.startsWith("notes")) {
                 el.append(A.inspector(Object.assign(base, {
                     icon: "message-square", title: "Notes", kindKey: "notes-row", tab: state === "notes-data" ? "Data" : "Style",
-                    tabs: { Style: () => notesStyle(state === "notes-row-outlined"), Data: notesData },
+                    tabs: { Style: () => notesStyle(state), Data: notesData },
                 })));
             } else if (state === "overrides") {
                 el.append(A.inspector(Object.assign(base, { icon: "pencil", title: "Overrides", body: overridesBody() })));

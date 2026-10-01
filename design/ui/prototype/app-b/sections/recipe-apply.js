@@ -8,6 +8,12 @@
    with each setting a checkbox.
    Data facts are kit/fixtures.json: March accounts carry alertRule; April's accounts file has only
    id, kind, country, riskScore and flagged; 7 of the Watchlist's 9 accounts are in April.
+   A run's weight (spec 12.2): a run that used the loaded weight reads "Weight: loaded weight" and
+   binds nothing; the recipe's Max flow run overrode its weight to fee, read as Capacity, so fee is
+   listed with the bindings and its meaning control shows only while fee is unmatched. Section-local
+   fact: fee is in March's transfers and not in April's (transfers-2026-04.csv).
+   Header: the recipe has no author (the normal case: Your name in Settings is usually empty), so it
+   reads "Saved <when>"; the style file has one, so it reads "Saved by <name>, <when>".
    The section also draws the left panel, canvas and (after applying) the inspector, so the tree
    and the drawing are the transfers graph the dialog talks about. Plain ASCII. */
 (function () {
@@ -16,7 +22,7 @@
     const { h, icon } = window;
 
     const css = `
-.ra-modal { width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 96px); }
+.ra-modal { width: 720px; max-width: calc(100vw - 32px); max-height: calc(100vh - 96px); }
 .ra-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 16px; border-bottom: 1px solid var(--cm-border); }
 .ra-head .k-i { color: var(--cm-text-secondary); }
 .ra-sh { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 16px; margin-top: 4px; font-weight: 550; }
@@ -27,6 +33,7 @@
 .ra-bind { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ra-bind .ra-arrow { color: var(--cm-text-tertiary); }
 .ra-list .k-field { width: 180px; height: 24px; box-sizing: border-box; text-align: start; color: var(--cm-text); }
+.ra-list .ra-weight .k-field { width: 110px; }
 .ra-list .ab-trow[data-miss] .ab-tname { font-weight: 550; }
 .ra-foot { justify-content: flex-start !important; flex-wrap: wrap; }
 .ra-reason { color: var(--cm-text-secondary); display: inline-flex; gap: 6px; align-items: center; min-width: 0; }
@@ -44,9 +51,13 @@
     const n = (x) => Number(x).toLocaleString("en-US");
     const abc = () => h("span", { class: "ab-abc" }, "Abc");
 
-    const RECIPE = { kind: "recipe", name: "Mule ring triage", file: "mule-ring-triage.graphty", savedBy: "Dana Reyes", savedAt: "Mar 28 2026, 10:14", appliedAt: "today 09:31" };
+    const RECIPE = { kind: "recipe", name: "Mule ring triage", file: "mule-ring-triage.graphty", savedBy: "", savedAt: "Mar 28 2026, 10:14", appliedAt: "today 09:31" };
     const STYLE = { kind: "style file", name: "Risk review look", file: "risk-review-look.json", savedBy: "Dana Reyes", savedAt: "Mar 30 2026, 16:02" };
     const LEGACY = { file: "transfers-look-2025.json" };
+    // "Saved by Dana Reyes, <when>" only when the file names its author, else "Saved <when>"
+    const savedLine = (f) => (f.savedBy ? "Saved by " + f.savedBy + ", " : "Saved ") + f.savedAt;
+    const MEANINGS = [["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]];
+    const LOADED = { weight: "amount", meaning: "Stronger" };
 
     // The rows each file adds, top first. `reads` is the attribute it binds to (matched by name and
     // type); `miss` marks the one the April accounts file lacks.
@@ -55,7 +66,9 @@
         return [
             { id: "watchlist", kindIcon: "circle-check", name: "Watchlist", fixed: april ? w.inCurrentData + " of " + w.members + " in this data" : w.members + " accounts",
               fixedTip: april ? w.notInCurrentData.join(" and ") + " are not in this data; they stay in the set as missing members" : "A set the recipe carries, by account id" },
-            { id: "ppr", kindIcon: "chart-column", name: "Personalized PageRank from Watchlist", role: "weight", reads: "amount" },
+            { id: "ppr", kindIcon: "chart-column", name: "Personalized PageRank from Watchlist", fixed: "Weight: loaded weight",
+              fixedTip: "Uses this data's loaded weight, " + LOADED.weight + " as " + LOADED.meaning + "; nothing to bind" },
+            { id: "maxflow", kindIcon: "route", name: "Max flow, Watchlist to merchants", role: "weight", reads: "fee", weight: true, miss: april },
             { id: "cycles", kindIcon: "route", name: "Cycles up to 4 transfers", role: "time", reads: "timestamp", notes: 1 },
             { id: "riskScore", kindIcon: "hash", name: "riskScore", role: "riskScore", reads: "riskScore" },
             { id: "alertRule", kindIcon: abc(), name: "alertRule", role: "alertRule", reads: "alertRule", miss: april },
@@ -78,7 +91,7 @@
         const file = isStyle ? STYLE : RECIPE;
         const rows = isStyle ? styleRows(april) : recipeRows(april);
         const graph = april ? "Transfers, April" : "Transfers, March";
-        const st = { choice: {} };
+        const st = { choice: {}, meaning: {} };
         const misses = rows.filter((r) => r.miss);
         const open = () => misses.filter((r) => !st.choice[r.id]);
         const matched = rows.filter((r) => r.reads && !r.miss).length;
@@ -89,7 +102,7 @@
                 if (open().length) return;
                 if (!isStyle) return AB.go("recipe-apply", "applied");
                 AB.go("graph-place", "at-rest");
-                setTimeout(() => AB.notice(STYLE.name + " added 5 rows on top of the tree", { label: "Undo", go: ["recipe-apply", "style-unbound"] }), 0);
+                setTimeout(() => AB.notice(STYLE.name + " added " + styleRows(true).length + " rows on top of the tree", { label: "Undo", go: ["recipe-apply", "style-unbound"] }), 0);
             },
         });
         const reason = h("span", { class: "ra-reason k-grow" });
@@ -107,21 +120,29 @@
         // The binding in the row's count slot: "weight -> amount", or a picker for a missing one
         const bindingFor = (r) => {
             if (r.fixed) return AB.tip(h("span", { class: "ra-bind" }, r.fixed), r.fixedTip, { label: false });
-            if (!r.miss) return AB.tip(h("span", { class: "ra-bind" }, r.role, h("span", { class: "ra-arrow" }, "->"), r.reads), "Matched by name and type in " + graph, { label: false });
+            if (!r.miss) return AB.tip(h("span", { class: "ra-bind" }, r.role + (r.weight ? ": " + r.reads : ""), h("span", { class: "ra-arrow" }, "->"), r.reads),
+                "Matched by name and type in " + graph + (r.weight ? "; read as Capacity, as the recipe saved it. This run's own weight: the loaded weight is unchanged" : ""), { label: false });
             const c = st.choice[r.id];
-            const cols = TA().files.accounts.columns.filter((x) => ["kind", "country", "flagged"].includes(x));
-            const f = AB.field(c === "unbound" ? "Leave unbound" : c || "Choose an attribute", {
-                caret: true,
-                onClick: (e) => AB.openMenu(e.currentTarget, [
+            const items = r.weight
+                ? [
+                    { heading: "Weight for this run in " + graph },
+                    { label: LOADED.weight + " (loaded weight)", desc: "The weight chosen when the data was loaded, read as " + LOADED.meaning, check: c === LOADED.weight, onClick: () => pick(r, LOADED.weight) },
+                    { label: "None", desc: "Every transfer counts the same", check: c === "None", onClick: () => pick(r, "None") },
+                ]
+                : [
                     { heading: "Category attributes in " + graph },
-                    ...cols.map((x) => ({ label: x, check: c === x, onClick: () => pick(r, x) })),
+                    ...TA().files.accounts.columns.filter((x) => ["kind", "country", "flagged"].includes(x)).map((x) => ({ label: x, check: c === x, onClick: () => pick(r, x) })),
                     { sep: true },
                     { label: "Leave unbound", desc: "The row is added hidden and marked unbound; bind it later from its Style tab", check: c === "unbound", onClick: () => pick(r, "unbound") },
-                ]),
-            });
+                ];
+            const f = AB.field(c === "unbound" ? "Leave unbound" : c || (r.weight ? "Choose" : "Choose an attribute"), { caret: true, onClick: (e) => AB.openMenu(e.currentTarget, items) });
             f.setAttribute("aria-label", r.reads + ": " + (c || "choose an attribute"));
-            AB.tip(f, r.reads + " is not in " + TA().files.accounts.file, { label: false });
-            return h("span", { class: "ra-bind" }, r.reads, h("span", { class: "ra-arrow" }, "->"), f);
+            AB.tip(f, r.reads + " is not in " + (r.weight ? TA().files.transfers.file : TA().files.accounts.file), { label: false });
+            if (!r.weight) return h("span", { class: "ra-bind" }, r.reads, h("span", { class: "ra-arrow" }, "->"), f);
+            // The meaning control shows only while the column is unmatched; it starts at the recipe's Capacity
+            const m = st.meaning[r.id] || "capacity";
+            const meaning = c === "None" ? null : AB.seg(MEANINGS, m, (v) => { st.meaning[r.id] = v; drawList(); listWrap.querySelector(".ra-list .k-seg [aria-checked=true]").focus(); }, { label: "What a higher " + (c || r.reads) + " means" });
+            return h("span", { class: "ra-bind ra-weight" }, "weight: " + r.reads, h("span", { class: "ra-arrow" }, "->"), f, meaning);
         };
 
         const listWrap = h("div", { class: "ra-list" });
@@ -133,6 +154,8 @@
             };
             tr.addEventListener("dblclick", block, true);
             tr.addEventListener("keydown", block, true);
+            // A click selects a row in place, so its tooltip and keyboard place follow it
+            tr.addEventListener("click", (e) => { const li = e.target.closest(".ab-trow"); if (!li) return; tr.querySelectorAll(".ab-trow").forEach((x) => { x.setAttribute("aria-selected", String(x === li)); x.tabIndex = x === li ? 0 : -1; }); li.focus(); });
             rows.forEach((r) => {
                 const li = tr.querySelector(`[data-row="${r.id}"]`);
                 li.toggleAttribute("data-miss", !!(r.miss && !st.choice[r.id]));
@@ -145,7 +168,7 @@
         drawFoot();
 
         const body = h("div", null,
-            h("div", { class: "ra-head" }, icon(isStyle ? "palette" : "book-open", "sm"), h("b", null, file.file), h("span", { class: "k-secondary" }, "Saved by " + file.savedBy + ", " + file.savedAt)),
+            h("div", { class: "ra-head" }, icon(isStyle ? "palette" : "book-open", "sm"), h("b", null, file.file), h("span", { class: "k-secondary" }, savedLine(file))),
             h("div", { class: "ra-sh" }, "Rows it adds", h("span", { class: "k-grow" }), summary),
             listWrap);
         const foot = h("div", { style: "display:contents" }, reason, AB.button("Cancel", { kind: "secondary", onClick: () => AB.close() }), applyBtn);
@@ -201,6 +224,7 @@
             rows.push(
                 { name: "Watchlist", kindIcon: "circle-check", count: w.inCurrentData + " of " + w.members, eye: true, selected: true, go: ["recipe-apply", "applied"], menu: ["context-menus", "row"] },
                 { name: "Personalized PageRank from Watchlist", kindIcon: "chart-column", swatch: AB.ramp(), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] },
+                { name: "Max flow, Watchlist to merchants", kindIcon: "route", count: "Not run", eye: true, go: ["inspector-run-row", "data"], menu: ["context-menus", "run-row"] },
                 { name: "Cycles up to 4 transfers", kindIcon: "route", count: "Not run", notes: 1, eye: true, go: ["inspector-run-row", "data"], menu: ["context-menus", "run-row"] },
                 { name: "riskScore", kindIcon: "hash", swatch: AB.ramp(), eye: true, go: ["inspector-measure-row", "risk-score"], menu: ["context-menus", "measure-row"] },
                 { name: "alertRule", kindIcon: abc(), count: "Unbound", eye: false, dim: true, go: ["inspector-group-set-path-row", "style"], menu: ["context-menus", "row"] },
@@ -246,7 +270,7 @@
                         w.memberIds.filter((id) => !w.notInCurrentData.includes(id)).map((id) => AB.row({ label: h("span", { class: "k-id" }, id), onClick: () => AB.flash("Selects " + id) }))),
                     AB.section({ title: "Made with", collapsible: true, key: "data.set.made-with", summary: "Recipe " + RECIPE.name },
                         AB.data("Created from", "Recipe " + RECIPE.name + ", applied " + RECIPE.appliedAt, { go: ["full-canvas-modes", "version-history"] }),
-                        AB.data("Recipe file", RECIPE.file + ", saved by " + RECIPE.savedBy + ", " + RECIPE.savedAt),
+                        AB.data("Recipe file", RECIPE.file + ", " + savedLine(RECIPE).replace("Saved", "saved")),
                         AB.data("Members", "Fixed: they do not follow the data")),
                     AB.notesSection(0, ["notes-place", "about-selection"], "set"),
                 ],
@@ -279,7 +303,7 @@
             if (ctx.region === "canvas") return drawCanvas(el, state);
             if (ctx.region === "right") return drawRight(el);
             if (state === "older-style-file") return el.append(legacyDialog());
-            if (state === "applied") return el.append(AB.notice(RECIPE.name + " added 5 rows on top of the tree", { label: "Undo", go: ["recipe-apply", "mismatch"] }));
+            if (state === "applied") return el.append(AB.notice(RECIPE.name + " added " + recipeRows(true).length + " rows on top of the tree", { label: "Undo", go: ["recipe-apply", "mismatch"] }));
             el.append(dialog(state));
         },
     });

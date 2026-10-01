@@ -87,7 +87,8 @@
             h("span", { class: "vp-thumb" }, AB.drawing(v.art, "")),
             h("span", { class: "vp-text" }, name),
             box);
-        li.addEventListener("click", () => AB.go("inspector-saved-view", v.tour ? "view" : "tour-off"));
+        // Selecting a row marks it at once; the inspector shows the view's fixture state
+        li.addEventListener("click", () => { list.querySelectorAll(".vp-row").forEach((x) => { x.setAttribute("aria-selected", String(x === li)); x.tabIndex = x === li ? 0 : -1; }); AB.go("inspector-saved-view", v.tour ? "view" : "tour-off"); });
         li.addEventListener("contextmenu", (e) => { e.preventDefault(); rowMenu(li, v, list); });
         li.addEventListener("dblclick", () => AB.flash("Rename needs graphty-element: " + RENAME_REASON));
         li.addEventListener("keydown", (e) => {

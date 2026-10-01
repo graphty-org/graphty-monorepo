@@ -93,7 +93,7 @@ body[data-page="map"] .ab-app { display: none; }
 .ab-switch-notes { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 4px; border-radius: 5px; color: var(--cm-text-secondary); }
 .ab-switch-notes:hover { background: var(--cm-bg-hover); }
 .ab-find { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; height: 24px; padding: 0 6px; border-radius: 5px; background: var(--cm-bg-secondary, var(--cm-bg-hover)); color: var(--cm-icon-secondary); }
-.ab-find:focus-within { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
+.ab-find:focus-within { outline: 2px solid var(--cm-border-selected); outline-offset: -2px; }
 .ab-find input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; font: inherit; color: var(--cm-text); outline: none; padding: 0; }
 .ab-find input::placeholder { color: var(--cm-text-tertiary); }
 .k-icon-btn[data-open] { background: var(--cm-bg-pressed, var(--cm-bg-hover)); }
@@ -445,3 +445,20 @@ html[data-input="pointer"] :focus-visible { outline: none; }
 /* Disabled = grayed, still focusable, reason in the tooltip: icon buttons too */
 .k-icon-btn[aria-disabled="true"] { color: var(--cm-icon-disabled, var(--cm-text-disabled)); cursor: default; }
 .k-icon-btn[aria-disabled="true"]:hover { background: transparent; }
+/* The one workspace-page header (AB.pageHead): the Data page and version history */
+.ab-page-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px 0 8px; border-bottom: 1px solid var(--cm-border); flex: none; min-width: 0; background: var(--cm-bg); }
+.ab-page-title { margin: 0; font: inherit; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ab-page-title:focus { outline: none; }
+.ab-page-hint { color: var(--cm-text-secondary); white-space: nowrap; }
+@media (max-width: 1200px) { .ab-page-hint { display: none; } }
+/* A menu item with a type glyph (the From data list) */
+.ab-ml { display: inline-flex; align-items: center; gap: 8px; }
+/* The one role tag (AB.roleTag) */
+.ab-role { font-size: 11px; color: var(--cm-text-secondary); white-space: nowrap; }
+.ab-role[role="link"] { cursor: pointer; }
+.ab-role[role="link"]:hover { color: var(--cm-text); }
+
+/* Long values and role tags wrap inside the panel instead of running past its edge */
+.k-data .k-value { white-space: normal; min-width: 0; max-width: 70%; overflow-wrap: anywhere; }
+.k-badge.ab-role { height: auto; min-height: 16px; white-space: normal; }
+.ab-fctl { min-width: 0; }

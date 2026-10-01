@@ -121,6 +121,12 @@
     // drawn by one document-level delegate from data-tip / data-key / data-tip2, so a section may
     // write those attributes directly. Never use the native title attribute.
     const KEYLIKE = /^(Ctrl|Shift|Alt|Mod|Cmd|Esc|Del|Delete|Enter|Space|Tab|F\d{1,2}|[A-Z0-9?/,.\]\[])(\+\S+)*$/;
+    // The display key ("Mod+Enter", "Ctrl+Z", "Esc") as a valid aria-keyshortcuts value
+    const ARIA_KEY = { Ctrl: "Control", Cmd: "Meta", Esc: "Escape", Del: "Delete" };
+    function ariaKeys(key) {
+        const one = (k) => k.split("+").map((p) => ARIA_KEY[p] || p).join("+");
+        return String(key).split(/\s+/).flatMap((k) => (/(^|\+)Mod(\+|$)/.test(k) ? [k.replace(/Mod/, "Control"), k.replace(/Mod/, "Meta")] : [k])).map(one).join(" ");
+    }
     function tip(el, name, o) {
         o = o || {};
         let key = o.key;
@@ -129,7 +135,7 @@
         if (m && KEYLIKE.test(m[2])) { name = m[1]; key = m[2]; }
         if (!name) return el;
         el.dataset.tip = name;
-        if (key) { el.dataset.key = key; el.setAttribute("aria-keyshortcuts", key); }
+        if (key) { el.dataset.key = key; el.setAttribute("aria-keyshortcuts", ariaKeys(key)); }
         // The second line (a disabled reason, a gesture) also reaches screen readers: the bubble is aria-hidden
         if (o.second) { el.dataset.tip2 = o.second; el.setAttribute("aria-description", o.second); }
         if (o.label !== false && !el.hasAttribute("aria-label")) {
@@ -217,7 +223,7 @@
     function tipSweep(root) {
         (root || document).querySelectorAll("[data-tip]").forEach((el) => {
             if (!el.hasAttribute("aria-label") && !el.textContent.trim()) el.setAttribute("aria-label", el.dataset.tip);
-            if (el.dataset.key && !el.hasAttribute("aria-keyshortcuts")) el.setAttribute("aria-keyshortcuts", el.dataset.key);
+            if (el.dataset.key && !el.hasAttribute("aria-keyshortcuts")) el.setAttribute("aria-keyshortcuts", ariaKeys(el.dataset.key));
         });
     }
 
@@ -338,14 +344,51 @@
     // The Notes section every inspector ends with (read-only, so collapsible): "2 notes -- Open in
     // Notes", or "No notes. Add note (N)". Folders, attributes, sources and saved views have none.
     const NO_NOTES = ["folder", "attribute", "source", "saved-view", "view"];
+    // Notes saved in this page view, newest first (the Notes place writes them): every count reads
+    // the fixture's count plus these, so a saved note shows the same number in every place
+    AB.sessionNotes = [];
+    const sessionCount = (targets) => AB.sessionNotes.filter((n) => n.about.some((t) => targets.some((x) => x.label === t.label && (x.go || [])[0] === (t.go || [])[0]))).length;
     function notesSection(count, target, kind) {
         if (NO_NOTES.includes(kind)) { console.warn("notesSection: a " + kind + " cannot be a note's subject"); return null; }
         const t = target || ["notes-place", "about-selection"];
-        const n = count ? count + (count === 1 ? " note" : " notes") : null;
-        // The count names what it opens: one link, the notes about this thing (no second "Open in" link)
-        return section({ title: "Notes", collapsible: true, key: "notes." + (kind || "any"), summary: n || "No notes" },
-            n ? h("div", { class: "k-data" }, link(t[0], t[1], n, { class: "ab-link" }))
-                : empty("No notes.", { verb: "Add note", key: "N", go: ["notes-place", "writing"] }));
+        const build = (c) => {
+            const n = c ? c + (c === 1 ? " note" : " notes") : null;
+            // The count names what it opens: one link, the notes about this thing (no second "Open in" link)
+            return section({ title: "Notes", collapsible: true, key: "notes." + (kind || "any"), summary: n || "No notes" },
+                n ? h("div", { class: "k-data" }, link(n && c > count ? "notes-place" : t[0], n && c > count ? "all" : t[1], n, { class: "ab-link" }))
+                    : empty("No notes.", { verb: "Add note", key: "N", onClick: () => addNote() }));
+        };
+        const sec = build(count);
+        // The subject is known once the inspector's head is drawn
+        if (AB.sessionNotes.length) requestAnimationFrame(() => { if (!sec.isConnected) return; const extra = sessionCount(noteSubject().targets); if (extra) sec.replaceWith(build((count || 0) + extra)); });
+        return sec;
+    }
+
+    // Add note, the one gesture (spec 2.1): it writes about the subject the inspector shows; with
+    // nothing selected, or a kind that cannot have notes (a folder, an attribute, a saved view), the
+    // graph. Every door (N, the selection bar, "+" in Notes, any menu's Add note, an empty Notes
+    // section) calls addNote(); the editor reads AB.noteDraft, and the inspector stays as it was.
+    const SUBJECT_ICON = { "inspector-node": "circle-dot", "inspector-edge": "spline", "inspector-run-row": ICON.run, "inspector-measure-row": "chart-column", "inspector-attribute-and-filter-step": ICON.filter, "inspector-several-elements": "circle-dot" };
+    function noteSubject() {
+        const r = AB.route;
+        const graph = { targets: [{ label: "Co-appearances", icon: "network", go: ["inspector-nothing-selected", "overview"] }], right: "inspector-nothing-selected/overview" };
+        if (!r) return graph;
+        const ref = r.sec.region === "right" ? r.id + "/" + r.state : r.frame.right;
+        if (!ref || typeof ref !== "string") return graph;
+        const [id, state = ""] = ref.split("/");
+        if (id === "inspector-nothing-selected" || id === "inspector-folder" || id === "inspector-saved-view" || (id === "inspector-attribute-and-filter-step" && !/filter-step/.test(state))) return graph;
+        if (id === "inspector-several-elements" && state === "two-nodes") return { right: ref, targets: [{ label: "Valjean", icon: "circle-dot", go: ["inspector-node", "data"] }, { label: "Javert", icon: "circle-dot", go: ["inspector-node", "data"] }] };
+        const name = document.querySelector("#ab-right .ab-insp-head .k-name");
+        const sw = document.querySelector("#ab-right .ab-insp-head .ab-sw-slot [style]");
+        const label = name ? name.textContent.trim() : "Co-appearances";
+        return { right: ref, targets: [{ label, icon: SUBJECT_ICON[id] || "circle-dot", swatch: sw ? sw.style.background || sw.style.backgroundColor : null, go: [id, state] }] };
+    }
+    function addNote(subject) {
+        AB.noteDraft = subject || noteSubject();
+        // Where the editor was opened from: Esc goes back there, focus on the control that opened it
+        if (location.hash !== href("notes-place", "writing")) AB.noteFrom = { hash: location.hash, focus: AB.describeFocus() };
+        if (location.hash === href("notes-place", "writing")) AB.render();
+        else go("notes-place", "writing");
     }
     // The Paints line and the paint-order line that open every painting row's Style tab (spec 5.1).
     // paintsLine("Paints 10 nodes", ["table-dock", "nodes"]) : the count is a link that selects.
@@ -488,7 +531,8 @@
         if (o.meta) console.warn("inspector(" + o.title + "): meta is gone; open the Style tab with paintsLine()");
         const wrap = h("div", { class: "ab-insp", "data-changed": o.changed ? "" : null });
         const no = renameRefusal(o);
-        const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", role: no ? null : "button", "aria-label": no ? null : "Rename " + o.title, "aria-keyshortcuts": no ? null : "F2" }, o.title);
+        // The name is text, not a button: rename is double-click or F2, as on every name (spec 3.6)
+        const name = h("span", { class: "k-name k-strong k-ellipsis", tabindex: "0", "aria-keyshortcuts": no ? null : "F2", "aria-description": no ? null : "Double-click or F2 renames" }, o.title);
         if (no) tip(name, no, { label: false });
         const startRename = () => (no ? announce(no) : renameInPlace(name, { onSave: o.onRename, focusAfter: name }));
         name.addEventListener("dblclick", (e) => { e.stopPropagation(); startRename(); });
@@ -651,9 +695,13 @@
             if (target) {
                 li.dataset.nav = href(target[0], target[1]);
                 li.addEventListener("click", (e) => {
-                    if (e.detail > 1) return;
+                    if (e.detail > 1) { clearTimeout(li._wait); return; }
                     all.forEach((x) => { x.li.setAttribute("aria-selected", String(x.li === li)); x.li.tabIndex = x.li === li ? 0 : -1; });
-                    if (location.hash !== li.dataset.nav) { AB.keepLeft = true; go(target[0], target[1]); }
+                    const open = () => { if (location.hash !== li.dataset.nav) { AB.keepLeft = true; go(target[0], target[1]); } };
+                    // A row whose target replaces the left panel (waitDouble) waits out the double-click
+                    // interval, so a double-click on its name still renames; Enter (detail 0) opens at once
+                    if (r.waitDouble && e.detail === 1) li._wait = setTimeout(open, 350);
+                    else open();
                 });
             }
             if (r.menu) li.addEventListener("contextmenu", (e) => { e.preventDefault(); go(r.menu[0], r.menu[1]); });
@@ -791,7 +839,7 @@
             const dis = !!(it.disabled || it.needs);
             const reason = it.needs ? null : typeof it.disabled === "string" ? it.disabled : it.disabled && it.desc ? it.desc : null;
             const target = it.go || it.onClick ? it : { onClick: () => AB.flash(label + " (not wired in the skeleton)") };
-            const el = h("div", Object.assign({ class: "k-menu-item", role: it.check != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.check != null ? String(!!it.check) : null, "aria-disabled": dis ? "true" : null, "data-described": reason ? "" : null, "data-needs": it.needs ? "" : null, "aria-haspopup": it.sub ? "menu" : null, "aria-keyshortcuts": it.shortcut || null }, dis ? {} : act(target)),
+            const el = h("div", Object.assign({ class: "k-menu-item", role: it.check != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.check != null ? String(!!it.check) : null, "aria-disabled": dis ? "true" : null, "data-described": reason ? "" : null, "data-needs": it.needs ? "" : null, "aria-haspopup": it.sub ? "menu" : null, "aria-keyshortcuts": it.shortcut ? ariaKeys(it.shortcut) : null }, dis ? {} : act(target)),
                 h("span", { class: "k-check-col" }, it.check ? icon("check", "sm") : null),
                 reason ? h("span", null, label, h("span", { class: "k-menu-desc", "aria-hidden": "true" }, reason)) : h("span", null, label),
                 it.needs ? needsElement(it.needs) : null,
@@ -1113,6 +1161,12 @@
             ch("edge.labelShow", "Show", "boolean", "Label", { def: false, onlyWithout: "edge.label", caveat: "Unchecked, it hides labels on this row's members whatever the rows beneath say (the label style's enabled: false)." }),
         ],
     };
+    // Label positions, in the order a new label line takes them: graphty-element's TextLocation ids
+    // (config/common.ts) and the plain word the Style tab shows. STAND-IN: the element has ONE
+    // node.label channel with one location; labels keyed by position (node.label.top,
+    // node.label.bottom, ... one text and style per position) and a plain name per location are
+    // missing in graphty-element (element-requirements-4.md, "Labels").
+    CHANNELS.positions = [["top", "Above"], ["bottom", "Below"], ["right", "Right"], ["left", "Left"], ["top-left", "Top left"], ["top-right", "Top right"], ["bottom-left", "Bottom left"], ["bottom-right", "Bottom right"], ["center", "Center"]];
     const SECTIONS = { node: ["Fill", "Shape", "Effects", "Label", "Tooltip", "More"], edge: ["Line", "Arrows", "Label", "More"] };
     const chanOf = (id) => CHANNELS.node.concat(CHANNELS.edge).find((c) => c.id === id);
     const secOf = (c) => (c.section && SECTIONS[c.id.split(".")[0]].includes(c.section) ? c.section : "More");
@@ -1180,7 +1234,12 @@
     //   bound: {channelId: "field" | { field, palette, ramp: [from, to], range }}, mixed: {channelId: [a, b]},
     //   error: {channelId: message}, selected: channelId, noBind: true (Selection: no bind, "-" or "+"),
     //   paints: "Paints 10 nodes" | [text, go], order: "Covered by PageRank for Color on 10 of 10",
-    //   extra: node, blocks: {channelId: () => node} })
+    //   extra: node, blocks: {channelId: () => node},
+    //   labels: [{ pos: "Above", field: "label", type: "cat" } | { pos: "Right", draft: true }] })
+    // Node labels are label lines keyed by position (spec 16.6): the name column is the position, the
+    // value the field. "+" adds a draft at the first free position and opens the From data list on it;
+    // a draft reads "Pick a field" and writes nothing. Without `labels`, a bound node.label is one Above
+    // line. Edge labels keep their one middle line.
     // No counts. Sections are always open. A section with nothing set is its header and "+". A line is the
     // name and the value; bind and "-" show on hover, on focus within and on the selected line. `base` is
     // graphty-element's defaults (Everything): drawn as lines with no "-" until changed.
@@ -1198,9 +1257,15 @@
         let selected = o.selected || null;
         let kind = o.kind || (kinds.length === 1 ? kinds[0] : kinds.includes(lastStyleKind) ? lastStyleKind : kinds[0]);
         const wrap = h("div", { class: "ab-style" });
-        const has = (id) => id in set || id in bound || id in base || id in mixed;
+        const POS = CHANNELS.positions.map((p) => p[1]);
+        const legacyLabel = bound["node.label"] ? [Object.assign({ pos: "Above" }, typeof bound["node.label"] === "string" ? { field: bound["node.label"] } : bound["node.label"])]
+            : set["node.label"] || base["node.label"] ? [{ pos: "Above", text: String(set["node.label"] || base["node.label"]) }] : [];
+        const labels = (o.labels || legacyLabel).map((l) => Object.assign({}, l));
+        delete bound["node.label"];
+        delete set["node.label"];
+        const has = (id) => (id === "node.label" ? labels.length > 0 : id in set || id in bound || id in base || id in mixed);
         const valueOf = (id) => (id in set ? set[id] : base[id]);
-        const sets = (k) => CHANNELS[k].some((c) => c.id in set || c.id in base || c.id in bound || changed.has(c.id) || c.id in mixed);
+        const sets = (k) => (k === "node" && labels.some((l) => !l.draft)) || CHANNELS[k].some((c) => c.id in set || c.id in base || c.id in bound || changed.has(c.id) || c.id in mixed);
         let focusId = null;
         const add = (c) => {
             set[c.id] = c.id in base ? base[c.id] : c.def != null ? c.def : "";
@@ -1275,6 +1340,45 @@
             if (errors[c.id]) out.push(h("div", { class: "ab-serr k-danger", role: "alert" }, errors[c.id]));
             return out;
         };
+        // ---- label lines ----
+        const freePos = () => POS.find((w) => !labels.some((l) => l.pos === w));
+        const openFields = (anchor, l) => openMenu(anchor, fromDataItems("text", l.draft ? undefined : l.field, (name, type) => {
+            if (name === null) { Object.assign(l, { field: null, type: null, text: "Label text" }); delete l.draft; focusLabel = l.pos; drawBody(); announce("Label, " + l.pos + ": typed text"); return; }
+            Object.assign(l, { field: name, type }); delete l.draft; delete l.text;
+            focusLabel = l.pos; drawBody(); announce("Label, " + l.pos + ": " + name);
+        }));
+        let focusLabel = null;
+        // "+" with an empty line already there returns to it (as the Notes "+" returns to its open draft)
+        const addLabel = () => {
+            const open = labels.find((x) => x.draft);
+            if (open) { const v = body.querySelector(`.ab-sline[data-label="${open.pos}"] .ab-sv`); if (v) { v.focus(); openFields(v, open); } return; }
+            const l = { pos: freePos(), draft: true };
+            labels.push(l);
+            drawBody();
+            const v = body.querySelector(`.ab-sline[data-label="${l.pos}"] .ab-sv`);
+            if (v) openFields(v, l);
+        };
+        const removeLabel = (l) => {
+            const at = labels.indexOf(l);
+            labels.splice(at, 1);
+            drawBody();
+            if (!l.draft) notice("Removed the " + l.pos + " label", { label: "Undo", onClick: () => { labels.splice(at, 0, l); drawBody(); } });
+        };
+        const labelLine = (l, i) => {
+            const say = "Label, " + l.pos + ": " + (l.draft ? "no field, draws nothing" : l.field || l.text);
+            const val = l.draft
+                ? h("span", Object.assign({ class: "k-field ab-sv", role: "button", "aria-haspopup": "menu", "aria-label": say }, act({ onClick: (e) => openFields(e.currentTarget, l) })), h("span", { class: "k-grow k-ellipsis k-secondary" }, "Pick a field"))
+                : h("span", Object.assign({ class: "k-field ab-sv" + (l.field ? " ab-bound" : ""), role: "button", "aria-haspopup": "dialog", "aria-label": say }, act({ go: ["style-pickers", "label-style"] })), l.field ? typeGlyph(l.type || "cat") : null, h("span", { class: "k-grow k-ellipsis" }, l.field || l.text));
+            const sel = (o.selected === "node.label" && i === 0) || selected === "label:" + l.pos;
+            const li = h("div", { class: "ab-sline", "data-ch": "node.label", "data-label": l.pos, "data-bound": l.field ? "" : null, "data-selected": sel ? "" : null },
+                // the position is the line's name, not a control: it moves only in the Label popover's position grid
+                h("span", { class: "ab-sname" }, l.pos), val,
+                // No bind icon on a label line: its value opens the Label popover, whose Text is the field list (one way)
+                o.noBind ? null : h("span", { class: "ab-sact" },
+                    iconButton("minus", "Remove the " + l.pos + " label", { onClick: () => removeLabel(l) })));
+            li.addEventListener("focusin", () => { wrap.querySelectorAll(".ab-sline[data-selected]").forEach((x) => x.removeAttribute("data-selected")); selected = "label:" + l.pos; li.setAttribute("data-selected", ""); });
+            return li;
+        };
         // bind opens a popover (the Label popover for a label, else Binding); it is never a pressed toggle
         const bindButton = (c) => {
             const b = iconButton("database", "Use a field or result for " + c.name, { go: ["style-pickers", c.style ? "label-style" : "binding"] });
@@ -1299,13 +1403,26 @@
                 const shown = inSec.filter((c) => has(c.id));
                 const unset = o.noBind ? [] : inSec.filter((c) => !has(c.id) && !(c.onlyWithout && has(c.onlyWithout)));
                 if (sn === "More" && !shown.length) return; // More holds only what no section places
+                if (kind === "node" && sn === "Label") {
+                    // The Label "+" is the one "+" that opens a menu after adding; Show only while no line exists
+                    if (o.noBind && !labels.length && !shown.length) return;
+                    const items = o.noBind ? [] : [freePos() ? { label: "Label", lab: true } : null].concat(unset.filter((c) => c.id === "node.labelShow").map((c) => ({ label: c.name, ch: c }))).filter(Boolean);
+                    const actions = plus({ label: "Add to Label", items, onAdd: (it) => (it.lab ? addLabel() : add(it.ch)) });
+                    body.append(section({ title: sn, editable: true, actions }, labels.map(labelLine), shown.filter((c) => c.id !== "node.label").map(line)));
+                    return;
+                }
                 if (o.noBind && !shown.length) return;
                 const actions = plus({ label: "Add to " + sn, items: unset.map((c) => ({ label: c.name, ch: c })), onAdd: (it) => add(it.ch) });
                 body.append(section({ title: sn, editable: true, actions }, shown.map(line)));
             });
-            // One design note for the whole tab, outside every control (hidden in the user-test build)
-            // It names what it qualifies, so it never reads as a note on the last section above it
-            if (!o.noBind) body.append(h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary" }, "Sections and their order:", needsElement("The sections and their order are the app's list until graphty-element's style descriptors carry a section and an order.")));
+            // One design note for the whole tab, outside every control (hidden in the user-test build),
+            // above the first section header it qualifies, so it never reads as a note on the last section
+            if (!o.noBind) body.prepend(h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary" }, "Sections and their order:", needsElement("The sections and their order are the app's list until graphty-element's style descriptors carry a section and an order.")));
+            if (focusLabel) {
+                const v = body.querySelector(`.ab-sline[data-label="${focusLabel}"] .ab-sv`);
+                focusLabel = null;
+                if (v) requestAnimationFrame(() => v.focus());
+            }
             if (focusId) {
                 const l = body.querySelector(`.ab-sline[data-ch="${focusId}"]`);
                 focusId = null;
@@ -1400,7 +1517,7 @@
         "hide-on-canvas": { label: "Hide on canvas", shortcut: "Ctrl+Shift+H", home: "Selection bar > Hide on canvas", go: ["selection-bar", "hidden"] },
         "show-hidden": { label: "Show hidden elements", home: "Main menu > Show hidden elements", go: ["canvas-and-states", "drawn"] },
         "reselect-previous": { label: "Reselect previous", home: "Canvas menu > Reselect previous", go: ["context-menus", "canvas"] },
-        "add-note": { label: "Add note", shortcut: "N", home: "Selection bar > Add note", go: ["notes-place", "writing"] },
+        "add-note": { label: "Add note", shortcut: "N", home: "Selection bar > Add note", onClick: () => addNote() },
         "label-by": { label: "Label by", home: "Attribute menu > Label by", go: ["context-menus", "attribute"] },
         "run-as-copy": { label: "Run as copy", home: "Run row menu > Run as copy", go: ["context-menus", "run-row"] },
         "clear-graph-data": { label: "Clear graph data", home: "Canvas menu > Clear graph data", onClick: () => notice("Cleared graph data", { label: "Undo", onClick: () => announce("Graph data restored") }) },
@@ -1409,7 +1526,9 @@
         "record-tour": { label: "Record tour...", home: "Views > Record tour", more: true, go: ["export-video", "tour"] },
         "toggle-table": { toggle: ["Hide table", "Show table"], on: () => !document.querySelector(".ab-main[data-dock='closed']"), shortcut: "Shift+T", home: "Table dock > Collapse", onClick: () => AB.toggleDock() },
         export: { label: "Export...", shortcut: "Ctrl+E", home: "Project menu > Export", more: true, go: ["export-dialog"] },
-        "add-data": { label: "Add data...", home: "Data > Sources +", more: true, go: ["load-step"] },
+        "add-data": { label: "Add data...", home: "Data > Sources +", more: true, go: ["data-page", "entries"] },
+        "edit-source": { label: "Edit source...", home: "Source row menu > Edit source", more: true, go: ["data-page", "edit-source"] },
+        "replace-file": { label: "Replace with file...", home: "Source row menu > Replace with file", more: true, go: ["data-page", "replace"] },
         "version-history": { label: "Version history", home: "Project menu > Version history", go: ["full-canvas-modes", "version-history"] },
         settings: { label: "Settings...", shortcut: "Ctrl+,", home: "Main menu > Settings", more: true, go: ["settings", "general"] },
         shortcuts: { label: "Keyboard shortcuts", shortcut: "?", home: "Main menu > Keyboard shortcuts", go: ["commands-and-search", "shortcuts"] },
@@ -1470,8 +1589,51 @@
         return h("span", { class: "ab-abc" }, type === "num" ? "#" : "Abc");
     }
 
+    // The one role tag (Data page grid, Data place attributes, attribute inspector): a k-badge naming a
+    // column's role, its tooltip saying what the role does.
+    // roleTag("Weight", { second: "set when loaded -- every run uses it unless the run picks another", go })
+    function roleTag(word, o) {
+        o = o || {};
+        const el = h("span", Object.assign({ class: "k-badge ab-role" }, o.go ? Object.assign({ role: "link" }, act({ go: o.go })) : {}), word);
+        return tip(el, o.second ? word + ", " + o.second : word + " role", { label: !!o.go });
+    }
+
+    // The one workspace-page header (the Data page, version history): a back arrow that cancels, the
+    // title saying the act ("Add to Entries", "Version history"), and the Esc hint. Cancel and Esc go
+    // back to the screen that opened the page (the shell remembers it), or to `onCancel` when given.
+    // pageHead(title, { onCancel, backTip, trail })
+    function pageHead(title, o) {
+        o = o || {};
+        const cancel = o.onCancel || (() => (AB.pageOpener ? location.assign(AB.pageOpener) : AB.close()));
+        AB.onPageCancel = cancel; // the shell's Esc calls it while no overlay is open
+        return h("div", { class: "ab-page-head" },
+            iconButton("arrow-left", o.backTip || "Cancel", { key: "Esc", onClick: cancel }),
+            h("h2", { class: "ab-page-title", tabindex: "-1" }, title),
+            h("span", { class: "ab-page-hint" }, h("span", { class: "k-kbd" }, "Esc"), " to leave"),
+            h("span", { class: "k-grow" }), o.trail || null);
+    }
+
+    // The From data list: the dark list a label line's "+" opens at once and its draft value opens
+    // (style-pickers' Text menu is the same list). Notes are graphty-element API (notes.count,
+    // notes.latest), so the Notes group is enabled. fromDataItems(kind: "text" | other, current, onPick(name, type))
+    function fromDataItems(kind, current, onPick) {
+        const lm = AB.fx.datasets.lesmis;
+        const TYPE = { text: ["cat", "Text"], category: ["cat", "Category"], integer: ["num", "Whole number"], number: ["num", "Number"] };
+        const it = (name, type, detail) => ({ label: h("span", { class: "ab-ml" }, typeGlyph(TYPE[type][0]), name), desc: TYPE[type][1] + (detail ? ", " + detail : ""), check: name === current, onClick: () => onPick(name, TYPE[type][0]) });
+        const attrs = [
+            kind === "text" ? it("label", "text", lm.nodes + " values, the Name attribute") : null,
+            it("group", "category", Object.keys(lm.attributes.find((a) => a.name === "group").values).length + " values"),
+            it("degree", "integer", "1 to " + lm.stats.maxDegree),
+            it("betweenness", "number", "0 to 0.57"),
+        ].filter(Boolean);
+        const notes = [it("Note count", "integer", "notes whose targets include this element"), kind === "text" ? it("Latest note", "text", "its text") : null].filter(Boolean);
+        // A label's list starts with Typed text (spec 16.6): onPick(null, null) means typed words, not a field
+        const typed = kind === "text" ? [{ label: "Typed text", check: current === null, onClick: () => onPick(null, null) }, { sep: true }] : [];
+        return typed.concat({ heading: "Node attributes" }, attrs, { heading: "Results" }, it("PageRank", "number", "0.0033 to 0.0754"), it("Louvain", "category", "6 groups"), { heading: "Notes" }, notes);
+    }
+
     Object.assign(AB, {
-        graphHead, treebar, typeGlyph,
+        graphHead, treebar, typeGlyph, roleTag, pageHead, fromDataItems, addNote, noteSubject,
         registerSection, h, append, icon, ICON, href, go, link, nav, act, mem,
         tip, tipSweep, showTip, button, iconButton, chit, ramp, section, fieldRow, data, row, field, tabs, seg,
         empty, noMatch, plus, createThenRename, notesSection, paintsLine, paintOrderLine,

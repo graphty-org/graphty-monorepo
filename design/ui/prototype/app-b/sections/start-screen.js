@@ -1,7 +1,8 @@
 /* Start screen and the usage-data opt-in. Shown when no project is open. Plain ASCII.
    Layout: a header line (name, privacy line, Settings gear), three columns (two ways in and a
    drop hint, recent projects, samples), and on first launch a non-blocking usage-data card at the
-   foot. URL and Paste are source choices inside the one load dialog, so they have no row here.
+   foot. New from data... and a drop open the Data page; URL and Paste are its "+" choices, so
+   they have no row here.
    Design note (not on the screen): connectors (databases, APIs) wait until graphty-element can
    load from them.
    Styles: start-screen.css, loaded below (section-local, not shared). */
@@ -93,10 +94,11 @@
             const hasRecents = state === "returning" || state === "drop-target";
             const privacy = state === "answered" ? "Usage data on, content masked" : "Local only";
 
-            // A project file opens the project; a data file opens the load dialog, as a drop does.
+            // A project file opens the project. New from data... opens the Data page (File, URL and
+            // Paste are its "+" choices); a dropped data file opens the same page with that one table.
             const doors = column("Start",
                 door({ icon: "folder-open", label: "Open project or file...", key: "Ctrl+O", go: ["graph-place", "at-rest"] }),
-                door({ icon: "file-plus", label: "New from data...", go: ["load-step", "preview"] }),
+                door({ icon: "file-plus", label: "New from data...", go: ["data-page", "entries"] }),
                 h("p", Object.assign({ class: "k-secondary ss-line ss-drop-hint" }, AB.act({ go: ["start-screen", "drop-target"] })), icon("upload", "sm"), "or drop a file anywhere in this window"),
                 h("p", { class: "k-secondary ss-line" }, icon("lock", "sm"), "Files are read on this computer and never uploaded."),
             );
@@ -131,11 +133,11 @@
                     ? h("div", { class: "ss-toast" }, AB.notice(state === "answered" ? "Thank you. Usage data is on, with content masked." : "Usage data stays off.", { label: "Settings", go: ["settings", "privacy"] }))
                     : null,
                 state === "drop-target"
-                    ? h("div", Object.assign({ class: "ss-drop", role: "button", "aria-label": "Drop to open" }, AB.act({ go: ["load-step", "preview"] })),
+                    ? h("div", Object.assign({ class: "ss-drop", role: "button", "aria-label": "Drop to open" }, AB.act({ go: ["data-page", "edge-list"] })),
                         h("div", { class: "ss-drop-box" },
                             icon("upload", "lg"),
                             h("p", { class: "ss-drop-h" }, "Drop to open"),
-                            h("p", { class: "k-secondary" }, "CSV, GraphML, GEXF, GML, DOT, Pajek, JSON. The file is read here and never uploaded."),
+                            h("p", { class: "k-secondary" }, "CSV, GraphML, GEXF, GML, DOT, Pajek, JSON, Neo4j. The file is read here and never uploaded."),
                         ))
                     : null,
             );

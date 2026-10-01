@@ -137,6 +137,9 @@
                         if (e.target.closest("[role=button],[role=link],a,input")) return;
                         clearTimeout(wait);
                         if (e.detail > 1) return;
+                        // the row is marked at once; opening it waits out a double-click on an editable cell
+                        tr.parentNode.querySelectorAll("tr[aria-selected='true']").forEach((x) => x.removeAttribute("aria-selected"));
+                        tr.setAttribute("aria-selected", "true");
                         if (e.target.closest("td[data-edit]")) wait = setTimeout(() => o.onRow(r, e), 300); else o.onRow(r, e);
                     });
                     tr.addEventListener("dblclick", () => clearTimeout(wait));
@@ -332,8 +335,9 @@
         lenField.addEventListener("click", pickLen);
         lenField.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " " || (e.altKey && e.key === "ArrowDown")) { e.preventDefault(); pickLen(); } });
         let playing = false;
-        const play = AB.iconButton("play", "Play", {});
-        play.addEventListener("click", () => {
+        // onClick through iconButton, so Play is a Tab stop like every other icon button
+        const play = AB.iconButton("play", "Play", { onClick: () => togglePlay() });
+        const togglePlay = (() => {
             playing = !playing;
             play.replaceChildren(icon(playing ? "pause" : "play"));
             AB.tip(play, playing ? "Pause" : "Play");
@@ -366,6 +370,7 @@
         el.append(root);
 
         if (TRANSFERS[state] !== undefined) return transfersDock(root, TRANSFERS[state]);
+        if (/^door-entries/.test(state)) return doorDock(root, state);
 
         let members = state === "members-of-row" ? COMMUNITIES[2] : null;
         const pairTab = { id: "pairs", label: PAIR_RUN.label, full: PAIR_RUN.full, icon: PAIR_RUN.icon, close: () => AB.go("table-dock", "communities") };
@@ -433,6 +438,62 @@
         draw();
     }
 
+    // ---------- the door entries (AB.fx.datasets.doorEntries), as loaded ----------
+    // One edge per Pair, the unmatched rows left out. The fixture holds 8 sample rows per table, so
+    // the tables list those: Nodes the people (a repeated key shows once) and the buildings; Edges
+    // the preview's matched pairs, with count, earliest and latest as the Data page shows them.
+    // The scope line gives the whole graph's counts.
+    const DE = () => AB.fx.datasets.doorEntries;
+    // The door-entries notes (notes-place's door-entries state): one about Ana Ruiz (1001) and B1, one
+    // about the edge 1001 -> B1; B12's note reads missing, so it counts nowhere
+    const DOOR_NOTES = { "1001": 1, B1: 1, "1001|B1": 1 };
+    function doorNodes() {
+        const [people, buildings] = DE().tables, seen = new Set();
+        const rows = people.sample.filter((r) => !seen.has(r.id) && seen.add(r.id)).map((r) => ({ id: r.id, type: "person", name: r.name, dept: r.dept, site: "", floors: "", notes: DOOR_NOTES[r.id] || 0 }))
+            .concat(buildings.sample.map((r) => ({ id: r.bldg, type: "building", name: "", dept: "", site: r.site, floors: r.floors, notes: DOOR_NOTES[r.bldg] || 0 })));
+        const cols = [
+            { key: "id", label: "id", type: "text", id: true },
+            { key: "type", label: "type", type: "cat" },
+            { key: "name", label: "name", type: "text", edit: true },
+            { key: "dept", label: "dept", type: "cat", edit: true },
+            { key: "site", label: "site", type: "cat", edit: true },
+            { key: "floors", label: "floors", type: "num", n: true, edit: true },
+        ];
+        return table(cols, rows, { label: "Nodes", who: (r) => r.id, onRow: (r) => AB.flash("Selects " + r.id + " (not wired in the skeleton)") });
+    }
+    function doorEdges() {
+        const D = DE(), ids = new Set(D.tables[0].sample.map((r) => r.id)), bldgs = new Set(D.tables[1].sample.map((r) => r.bldg)), pairs = new Map();
+        const matched = D.tables[2].sample.filter((r) => ids.has(r.person_id) && bldgs.has(r.building_id));
+        if (D.loaded.per === "row") {
+            return table([{ key: "person_id", label: "person_id", type: "num", id: true }, { key: "building_id", label: "building_id", type: "cat", id: true }, { key: "time", label: "time", type: "time", cell: (r) => shortTime(r.time) }],
+                matched, { /* per Row the pair note reads missing (the Data page warns), so no Notes column */ label: "Edges", who: (r) => r.person_id + " - " + r.building_id, onRow: (r) => AB.flash("Selects the edge " + r.person_id + " - " + r.building_id + " (not wired in the skeleton)") });
+        }
+        // One row per pair, from the same preview the Data page shows (data.preview under Pair), so the counts agree
+        D.report.entries.pairSample.filter((r) => ids.has(r.person_id) && bldgs.has(r.building_id)).forEach((r) => {
+            const k = r.person_id + "|" + r.building_id;
+            pairs.set(k, { from: r.person_id, to: r.building_id, count: r.count, first: r.time, last: r["time (latest)"], notes: DOOR_NOTES[k] || 0 });
+        });
+        const cols = [
+            { key: "from", label: "person_id", type: "num", id: true },
+            { key: "to", label: "building_id", type: "cat", id: true },
+            { key: "count", label: "count", type: "num", n: true },
+            { key: "first", label: "time (earliest)", type: "time", cell: (r) => shortTime(r.first) },
+            { key: "last", label: "time (latest)", type: "time", cell: (r) => shortTime(r.last) },
+        ];
+        return table(cols, [...pairs.values()], { sort: "count", label: "Edges", who: (r) => r.from + " - " + r.to, onRow: (r) => AB.flash("Selects the edge " + r.from + " - " + r.to + " (not wired in the skeleton)") });
+    }
+    function doorDock(root, state) {
+        const D = DE(), [people, buildings] = D.tables;
+        let active = state === "door-entries-nodes" ? "nodes" : "edges";
+        const tabsOpen = [{ id: "nodes", label: "Nodes", icon: "circle-dot" }, { id: "edges", label: "Edges", icon: "spline" }];
+        const draw = () => {
+            root.replaceChildren(tabStrip("door-entries", tabsOpen, active, (t) => { active = t.id; draw(); }, "door-entries-options"));
+            if (active === "edges") root.append(scope(plural(D.loadedEdges(), "edge"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + D.tables[2].file + (D.loaded.per === "pair" ? ", one per person and building" : ", one per entry"))), doorEdges());
+            else root.append(scope(plural(D.loadedTypes().person + D.loadedTypes().building, "node"), ROW_HINT, h("span", { class: "k-secondary" }, "from " + people.file + " and " + buildings.file)), doorNodes());
+        };
+        draw();
+    }
+
     // ---------- menus drawn in the overlay region ----------
     function optionsMenu(el, time) {
         // time: null (no time attribute), "off" or "on"
@@ -440,7 +501,8 @@
             anchor: "#ab-dock [aria-label='Table options']", place: "below-end",
             items: [
                 { label: "Show columns...", onClick: flash("Choosing the columns") },
-                time ? { label: "Time slider", check: time === "on", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
+                time === "door" ? { label: "Time slider", onClick: flash("The time slider over the entries' times") }
+                : time ? { label: "Time slider", check: time === "on", go: ["table-dock", time === "on" ? "transfers" : "time-slider"] }
                     : { label: "Time slider", disabled: "This data has no time attribute" },
                 { sep: true },
                 { label: "Export table as CSV...", go: ["export-dialog", "table"] },
@@ -471,6 +533,7 @@
         } else if (state === "table-options") optionsMenu(el, null);
         else if (state === "transfers-options") optionsMenu(el, "off");
         else if (state === "slider-options") optionsMenu(el, "on");
+        else if (state === "door-entries-options") optionsMenu(el, "door");
     }
 
     registerSection({
@@ -481,6 +544,8 @@
         frame(state) {
             if (state === "transfers-options" || state === "slider-options") return { left: "data-place/at-rest", overlay: "table-dock/" + state };
             if (TRANSFERS[state] !== undefined) return { left: "data-place/at-rest" };
+            if (state === "door-entries-options") return { dataset: "doorEntries", left: "graph-place/door-entries", overlay: "table-dock/" + state };
+            if (state === "door-entries" || state === "door-entries-nodes") return { dataset: "doorEntries", left: "graph-place/door-entries" };
             if (state === "communities") return { left: "graph-place/louvain-open", right: "inspector-run-row/style" };
             if (state === "members-of-row") return { left: "graph-place/louvain-open", right: "inspector-group-set-path-row/community-3" };
             if (state === "column-menu" || state === "table-options") return { overlay: "table-dock/" + state };
@@ -498,6 +563,9 @@
             { id: "transfers", label: "Transfers table (Data place)" },
             { id: "transfers-options", label: "Table options with a time attribute" },
             { id: "slider-options", label: "Table options, time slider on" },
+            { id: "door-entries", label: "Door entries: Edges (one per pair)" },
+            { id: "door-entries-nodes", label: "Door entries: Nodes (people and buildings)" },
+            { id: "door-entries-options", label: "Table options, door entries" },
             { id: "closed", label: "Closed" },
         ],
         render(el, state, ctx) {

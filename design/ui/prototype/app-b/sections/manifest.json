@@ -1,9 +1,9 @@
 [
  "start-screen",
- "load-step",
  "graph-place",
  "graphs-switcher",
  "data-place",
+ "data-page",
  "views-place",
  "notes-place",
  "assistant-place",
@@ -18,7 +18,6 @@
  "inspector-selection-and-everything",
  "inspector-several-rows",
  "inspector-attribute-and-filter-step",
- "inspector-source",
  "inspector-saved-view",
  "style-pickers",
  "style-tab-same-panel",

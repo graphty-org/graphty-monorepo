@@ -114,7 +114,7 @@
         const rowMenu = ["context-menus", "row"];
         const rows = [
             { id: "selection", name: "Selection", kindIcon: "scan", pinned: true, builtin: true, eye: true, go: ["inspector-selection-and-everything", "selection"], menu: rowMenu },
-            { id: "notes", name: "Notes", kindIcon: AB.ICON.note, builtin: true, count: "2", eye: true, go: ["inspector-selection-and-everything", "notes"], menu: ["context-menus", "notes-row"] },
+            { id: "notes", name: "Notes", kindIcon: AB.ICON.note, builtin: true, count: "2", eye: true, go: ["inspector-selection-and-everything", "notes-row"], menu: ["context-menus", "notes-row"] },
         ];
         if (resultId) {
             const op = ops(m)[resultId];

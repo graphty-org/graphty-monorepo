@@ -34,7 +34,7 @@
 .st-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 24px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--cm-border); }
 .st-row:last-child { border-bottom: 0; }
 .st-row-l { min-width: 0; }
-.st-label { font-weight: 550; }
+.st-label { display: block; font-weight: 550; }
 .st-help { color: var(--cm-text-secondary); font-size: 11px; line-height: 16px; margin-top: 2px; max-width: 58ch; }
 .st-help a, .st-link { color: var(--cm-text-brand); cursor: pointer; }
 .st-ctl { justify-self: end; margin-top: 1px; display: flex; align-items: center; gap: 8px; }
@@ -112,9 +112,14 @@
         const gpuOff = AB.route && AB.route.state === "performance-gpu-unavailable";
         const L = LM();
         return [
-            { id: "general", title: "General", icon: "settings", lede: "Kept in this browser. Nothing here is stored in a project.", items: [
-                { label: "Your name", stack: true, words: "author name byline you", ctl: input("Your name", "name", { placeholder: "Not set" }),
-                    help: help("Stamped on each note and recipe you write. It shows only when a project holds work by more than one person. Blank means your notes carry no name. ", AB.openQuestion("Per person here, or one author setting per project? Read here as per person, so one project can hold several authors.")) },
+            { id: "general", title: "General", icon: "settings", lede: "Everything here, your name included, is kept in this browser, not in the project.", items: [
+                // Owner: the name is entered here and stored. Studio: stored per person in this browser, never in the
+                // project, so it is not stamped on the next person's notes (graphty-element noteAuthor)
+                { label: "Your name", stack: true, words: "author name byline you project", ctl: input("Your name", "name", { placeholder: "Not set" }),
+                    help: S.name
+                        ? h("div", null, help("Optional. Shown on notes only when a project has notes from more than one person."),
+                            help("Notes and recipes you write from now on carry this name; earlier ones keep what they had. ", goLink("Open notes", "notes-place")))
+                        : help("Optional. Shown on notes only when a project has notes from more than one person.") },
                 { label: "Theme", words: "dark light mode color scheme appearance", ctl: seg("Theme", [["system", "System"], ["light", "Light"], ["dark", "Dark"]], "theme", { onChange: applyTheme }),
                     help: help("The app's panels and menus. ", AB.needsElement("graphty-element takes no color scheme yet, so the canvas keeps its own background"), " The canvas background is a graph setting, in the graph's Canvas section.") },
                 { label: "Number format", words: "locale decimal thousands separator", ctl: seg("Number format", [["system", "System"], ["period", "1,234.5"], ["comma", "1.234,5"], ["space", "1 234,5"]], "numfmt"),
@@ -210,10 +215,15 @@
 
     // ---------- drawing ----------
     let root = null;
+    let rowN = 0;
     function itemRow(it) {
+        // A text field is named by its visible label and described by its help text
+        const field = it.ctl && it.ctl.tagName === "INPUT" ? it.ctl : null;
+        const id = "st-f" + ++rowN;
+        if (field) { field.id = id; field.removeAttribute("aria-label"); if (it.help) { it.help.id = id + "-help"; field.setAttribute("aria-describedby", id + "-help"); } }
         return h("div", { class: "st-row" + (query ? " st-hit" : "") },
             // A text field sits under its label, where the eye reads next; switches and choices sit right
-            h("div", { class: "st-row-l" }, h("div", { class: "st-label" }, mark(it.label)), it.stack && it.ctl ? h("div", { style: "margin:6px 0 2px" }, it.ctl) : null, it.help || null),
+            h("div", { class: "st-row-l" }, field ? h("label", { class: "st-label", for: id }, mark(it.label)) : h("div", { class: "st-label" }, mark(it.label)), it.stack && it.ctl ? h("div", { style: "margin:6px 0 2px" }, it.ctl) : null, it.help || null),
             it.ctl && !it.stack ? h("div", { class: "st-ctl" }, it.ctl) : null,
             it.extra || null);
     }
@@ -263,7 +273,7 @@
             main.append(h("h2", { id: "st-h" }, "Settings matching \"" + query.trim() + "\""));
             if (!total) main.append(h("div", { class: "st-empty" }, "No setting matches. Try a shorter word, or pick a section on the left."));
             hits.filter((x) => x.items.length).forEach((x) => {
-                main.append(h("h3", null, h("a", { class: "st-link", on: { click: () => { query = ""; root.querySelector("#st-q").value = ""; current = x.s.id; paint(); } } }, x.s.title)));
+                main.append(h("h3", null, h("a", { class: "st-link", href: "#", on: { click: (e) => { e.preventDefault(); query = ""; root.querySelector("#st-q").value = ""; current = x.s.id; paint(); } } }, x.s.title)));
                 main.append(h("div", { class: "st-group" }, x.items.map(itemRow)));
             });
             return;
@@ -284,6 +294,7 @@
         closeTo: "graph-place",
         states: [
             { id: "general", label: "General" },
+            { id: "general-name-set", label: "General, your name set" },
             { id: "privacy", label: "Privacy" },
             { id: "privacy-on", label: "Privacy, usage data on" },
             { id: "accessibility", label: "Accessibility and input" },
@@ -299,7 +310,9 @@
             state = state || "general";
             if (OLD[state]) { location.replace(AB.href("settings", OLD[state])); return; }
             const confirming = state === "forget-keys-confirm";
-            current = confirming ? "assistant" : state.replace(/-(on|gpu-unavailable)$/, "");
+            current = confirming ? "assistant" : state.replace(/-(on|gpu-unavailable|name-set)$/, "");
+            if (state === "general") S.name = "";
+            if (state === "general-name-set") S.name = "Maya Chen";
             if (state === "privacy") S.usage = false;
             if (state === "privacy-on") S.usage = true;
             if (confirming && !anyKey()) S.key_anthropic = "sk-ant-...4f2a";

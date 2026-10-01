@@ -16,6 +16,7 @@
         ".pp-pick input::placeholder { color: var(--cm-text-tertiary); }",
         ".pp-col { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; width: 100%; }",
         ".pp-col .k-seg > * { white-space: nowrap; }",
+        ".pp-loaded { color: var(--cm-text-tertiary); font-size: 11px; line-height: 16px; }",
         ".pp-catch { position: absolute; cursor: crosshair; }",
         ".pp-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px;",
         "  padding: 4px 10px; border-radius: 6px; background: var(--cm-bg-elevated, var(--cm-bg)); color: var(--cm-text);",
@@ -30,7 +31,7 @@
             return {
                 directed: true, unit: "accounts", count: T.nodes,
                 from: P.from.id, to: P.to.id, fromIcon: "building-2", toIcon: "user",
-                weights: ["amount"], weight: "amount", meaning: "farther", direction: "follow",
+                loaded: { weight: "amount", meaning: "stronger", desc: "Amount per transfer" }, weights: ["amount"], direction: "follow",
                 names: T.rows.map((r) => r.id), pickFrom: P.from.id, pickTo: P.to.id,
             };
         }
@@ -38,7 +39,7 @@
         return {
             directed: !!L.directed, unit: "nodes", count: L.nodes,
             from: two ? "Valjean" : null, to: two && state !== "picking-to" ? "Javert" : null, fromIcon: "user", toIcon: "user",
-            weights: ["value"], weight: null, meaning: "farther", direction: "either",
+            loaded: { weight: "value", meaning: "stronger", desc: "Co-appearances per pair" }, weights: ["value"], direction: "either",
             names: L.rows.map((r) => r.label), pickFrom: "Valjean", pickTo: "Javert",
         };
     }
@@ -51,6 +52,10 @@
             return;
         }
         const s = setup(state);
+        // The Weight starts as the weight chosen when the data was loaded, with its meaning; any other
+        // pick overrides this path run only and is recorded in its Made with, never in the data.
+        s.weight = s.loaded.weight; s.meaning = s.loaded.meaning;
+        if (state === "weight-overridden") { s.weight = null; }
         let active = state === "picking-to" ? "to" : state === "from-analyze" ? "from" : null;
         const host = h("div");
         el.append(host);
@@ -89,10 +94,14 @@
             AB.announce(which === "from" ? "From: " + name : "To: " + name);
             draw();
         }
+        const loadedLine = () => s.loaded.weight + ", " + s.loaded.meaning; // the graph inspector's words: "value, stronger"
+        const overridden = () => s.weight !== s.loaded.weight || (s.weight && s.meaning !== s.loaded.meaning);
         function weightField() {
+            const L = s.loaded;
             const f = AB.field(s.weight || "None", { caret: true, onClick: () => AB.openMenu(f, [
+                { label: L.weight + " (loaded weight)", check: s.weight === L.weight, desc: L.desc + "; chosen when the data was loaded", onClick: () => { s.weight = L.weight; s.meaning = L.meaning; draw(); } },
                 { label: "None", check: !s.weight, desc: "Every edge counts as one step", onClick: () => { s.weight = null; draw(); } },
-                ...s.weights.map((w) => ({ label: w, check: s.weight === w, onClick: () => { s.weight = w; draw(); } })),
+                ...s.weights.filter((w) => w !== L.weight).map((w) => ({ label: w, check: s.weight === w, onClick: () => { s.weight = w; draw(); } })),
             ]) });
             f.classList.add("pp-full");
             f.setAttribute("aria-label", "Weight: " + (s.weight || "None"));
@@ -109,8 +118,9 @@
                     AB.needsElement("graphty-element's shortest path reads every graph as undirected; Follow edges needs a direction option")), { popover: true }) : null,
                 AB.fieldRow("Weight", h("span", { class: "pp-col" },
                     weightField(),
-                    s.weight ? AB.seg([["stronger", "Higher = stronger"], ["farther", "Higher = farther"]], s.meaning, (v) => { s.meaning = v; draw(); }, { label: "What a higher " + s.weight + " means" }) : null,
-                    s.weight ? AB.needsElement("graphty-element's shortest path takes no weight option and no meaning for it") : null), { popover: true }),
+                    s.weight ? AB.seg([["stronger", "Stronger"], ["farther", "Farther"], ["capacity", "Capacity"]], s.meaning, (v) => { s.meaning = v; draw(); }, { label: "What a higher " + s.weight + " means" }) : null,
+                    h("span", { class: "pp-loaded" }, overridden() ? "This path only. Loaded weight: " + loadedLine() : "Loaded weight: " + loadedLine()),
+                    s.weight && (s.weight !== s.loaded.weight || s.meaning !== "farther") ? AB.needsElement("graphty-element's shortest path reads the loaded weight column as a distance only; another column, or Stronger or Capacity, needs a weight option with a meaning") : null), { popover: true }),
             ];
             const foot = AB.button("Find path", {
                 icon: "route", disabled: ready ? null : "Choose From and To first",
@@ -149,6 +159,7 @@
             { id: "from-selection", label: "From and To filled from the selection" },
             { id: "picking-to", label: "Picking To on the canvas" },
             { id: "transfers-directed", label: "Directed graph: Direction shows" },
+            { id: "weight-overridden", label: "Weight overridden to None for this path" },
             { id: "from-analyze", label: "From Analyze > Find paths, nothing selected" },
             { id: "found", label: "Path found: the new row selected" },
         ],

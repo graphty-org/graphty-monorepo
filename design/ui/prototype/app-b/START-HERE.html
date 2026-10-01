@@ -24,60 +24,38 @@ a { color: var(--link); }
 <body>
 <main>
 <p class="nav"><a href="index.html#/map">Site map</a> | <a href="index.html#/graph-place">Open the app</a></p>
-<h1>Refined B, version 3: answers to your third review</h1>
-<p>Each answer says what changed and where to click. "Your decision" means you decided it; everything else is a studio decision, reversible with an edit. Items needing graphty-element are drawn disabled; "Hide design notes" hides their marks, as the user-test build will.</p>
-<h2>The ten questions</h2>
-<h3>1. What do the numbers in "Line 5" and "Arrow head 4" mean?</h3>
-<p>They counted the properties the row sets in that section, and nothing on screen said so. Every property count is gone; a Nodes | Edges side that sets something gets a small dot. A bare number now only ever counts members or results.</p>
-<p class="see">See <a href="index.html#/inspector-group-set-path-row/edges-side">Edges side of a group</a><a href="index.html#/inspector-selection-and-everything/everything-edges">Everything, Edges</a></p>
-<h3>2. Empty values: "+" or popovers?</h3>
-<p>Both, each with one job, and no accordions in anything editable. A row lists only what it sets, because graphty-element has no "unset" value to draw. "+" in a section header adds a property; clicking a value opens one Figma-style popover holding everything about it (opacity in Color, size and caption in each arrow end).</p>
-<p class="see">See <a href="index.html#/style-pickers/plus-menu">+ menu</a><a href="index.html#/style-pickers/color">Color popover</a><a href="index.html#/inspector-group-set-path-row/arrows">Arrows</a><a href="index.html#/style-pickers/binding">Binding popover</a><a href="index.html#/style-pickers/label-style">Label style</a></p>
-<h3>3. Everything looks different from "For the report"</h3>
-<p>It was a separate code path, now deleted: Everything uses the same Style tab as every row, starting from graphty-element's real defaults, and is editable today (only its eye waits on the element). "For the report" is a folder, which paints nothing itself; its inspector says so and lists its rows.</p>
-<p class="see">See <a href="index.html#/style-tab-same-panel/nodes">Side by side</a><a href="index.html#/inspector-selection-and-everything/everything-edited">Everything, one line changed</a><a href="index.html#/inspector-folder/folder">The folder</a></p>
-<h3>4. Why are the legend and camera controls on the canvas?</h3>
-<p>No good reason, so they left. The toolbar now holds every command that acts on the whole canvas: Analyze | Layout, View, Legend | Quick actions. View folds the camera, saved views, 2D/3D, VR and AR into one flyout; Legend is a toggle.</p>
-<p class="see">See <a href="index.html#/toolbar/at-rest">Toolbar</a><a href="index.html#/view-flyout/3d">View flyout</a><a href="index.html#/toolbar/legend-off">Legend off</a><a href="index.html#/toolbar/layout-paused">Layout paused</a></p>
-<h3>5. No text on the toolbar; tooltips after a delay (your decision)</h3>
-<p>Done, with one tooltip for every icon-only control: name and key after 500 ms, at once on keyboard focus or when moving to a neighbor, Esc dismisses. The selection bar follows the same rule.</p>
-<p class="see">See <a href="index.html#/toolbar/tooltip-hover">Tooltip on hover</a><a href="index.html#/toolbar/tooltip-focus">On keyboard focus</a><a href="index.html#/selection-bar/two-nodes">Selection bar</a></p>
-<h3>6. Is the Data sidebar doing too much?</h3>
-<p>Yes. It keeps Sources, Filters and Attributes, one line per row, "+" in each header. Versions moved to Version history and "Sent and saved" to Export's Recent exports. How a file is read changes in the load dialog; how a column is interpreted changes in its inspector.</p>
-<p class="see">See <a href="index.html#/data-place/at-rest">Data place</a><a href="index.html#/inspector-source/file">A source</a><a href="index.html#/inspector-attribute-and-filter-step/attribute">An attribute</a><a href="index.html#/export-dialog/recent-exports">Recent exports</a></p>
-<h3>7. How much of Tableau to copy</h3>
-<p>A graph file already is a Tableau relationship (edge ends point at node ids), so there is little to model. Copied: File, URL and Paste as sources, roles chosen under sample columns, typed fields, filters as sentences, a lost-fields warning on refresh. Later: one "add columns by key" join, which needs graphty-element. Skipped: drawn relationships, unions, dimensions and measures, blending, extracts.</p>
-<p class="see">See <a href="index.html#/load-step/preview">Load dialog</a><a href="index.html#/load-step/edit-source-lost-fields">Replace, lost fields</a><a href="index.html#/data-place/filters">Filters</a></p>
-<h3>8. Labels from a field, a note, or the number of notes</h3>
-<p>A field works today with the ordinary bind gesture: Label "+" adds Text already bound to the Name attribute, and the bind list offers every attribute and run result; attributes also get Label by. Note text and note count are designed but disabled, because graphty-element has no notes a binding can read.</p>
-<p class="see">See <a href="index.html#/inspector-group-set-path-row/label-bound">Label bound to Name</a><a href="index.html#/style-pickers/bind">Label from data: fields, results, notes</a><a href="index.html#/context-menus/attribute">Label by</a></p>
-<h3>9. Notes on edges</h3>
-<p>Yes. A note can be about a node, an edge, any row, a filter step or the graph, with one gesture (Add note, N). Edges cannot be picked on the canvas yet, so they are noted from the table or a path; one sample note is about Javert -- Valjean.</p>
-<p class="see">See <a href="index.html#/notes-place/edge-note">A note about an edge</a><a href="index.html#/inspector-edge/data">The edge's inspector</a></p>
-<h3>10. "Why this look" collapsible (your decision)</h3>
-<p>Done with the shared collapsible section, remembered, with a one-line summary when closed. It lists only rows that win a property, and each token opens the Style tab's own popover, writing to Overrides.</p>
-<p class="see">See <a href="index.html#/inspector-node/why-this-look">Open</a><a href="index.html#/inspector-node/why-closed">Closed</a><a href="index.html#/inspector-node/edited">After an edit</a></p>
-<h2>The primary focus: ten simplifications that matter most</h2>
-<p>Most findings were a second way to do an existing job, so the work is mostly deletion: about 60 controls, states and screens removed.</p>
-<ol>
-<li>One tooltip for every icon-only control; the toolbar and selection bar carry no text. <span class="see"><a href="index.html#/toolbar/tooltip-hover">Tooltip</a><a href="index.html#/selection-bar/two-nodes">Selection bar</a></span></li>
-<li>The canvas carries no controls: View, Layout and Legend moved into the toolbar. <span class="see"><a href="index.html#/toolbar/at-rest">Toolbar</a><a href="index.html#/view-flyout/3d">View</a></span></li>
-<li>Three surfaces, one job each: dark menus choose, light popovers edit and apply live (no Done or Cancel), modals take over. <span class="see"><a href="index.html#/style-pickers/color">Popover</a><a href="index.html#/context-menus/row">Menu</a></span></li>
-<li>A style row lists only what it sets; "+" in the section header adds; no counts, no accordions. <span class="see"><a href="index.html#/inspector-group-set-path-row/style">Style tab</a><a href="index.html#/style-pickers/plus-menu">+ menu</a></span></li>
-<li>Everything, folders and rows share one Style tab and one inspector layout. <span class="see"><a href="index.html#/style-tab-same-panel/nodes">Side by side</a><a href="index.html#/inspector-folder/folder">Folder</a></span></li>
-<li>Create first, then name in place; rename is double-click or F2 everywhere; delete acts at once with Undo. <span class="see"><a href="index.html#/graph-place/rename">Rename</a><a href="index.html#/data-place/undo-notice">Undo notice</a></span></li>
-<li>Paths come from one Path popover; the six-state pick mode is gone. <span class="see"><a href="index.html#/path-popover/from-selection">Path popover</a></span></li>
-<li>The Data place is three one-line lists; one load dialog serves every door, with roles chosen under the sample columns. <span class="see"><a href="index.html#/data-place/at-rest">Data place</a><a href="index.html#/load-step/preview">Load dialog</a></span></li>
-<li>Analyze shows only the essentials: Weight, one key option, Scope only with a selection. <span class="see"><a href="index.html#/analyze-popover/essentials">Analyze</a></span></li>
-<li>Export is five outputs in one dialog; Settings is six sections; one empty state and one state card everywhere. <span class="see"><a href="index.html#/export-dialog/image">Export</a><a href="index.html#/settings/general">Settings</a><a href="index.html#/graph-place/empty">Empty</a><a href="index.html#/canvas-and-states/loading">State card</a></span></li>
-</ol>
-<p class="see">Every change, by screen, with its reason: <a href="../study/structure-comparison/streamline-3.md">streamline-3.md</a></p>
+<h1>Refined B, version 4: your decisions after version 3</h1>
+<p>What the studio did with each of your decisions, and where to click. "Your decision" means you decided it; everything else is a studio decision, reversible with an edit. The user study runs on this skeleton without waiting for your review.</p>
+
+<h2>1. Notes are part of graphty-element's API (your decision)</h2>
+<p>The element stores notes, issues their ids, stamps time and author, saves them with the project, undoes them and announces changes; the app only draws them. The API copies the kept-sets API, so a developer who knows sets has nothing new to learn. Styles can read a node's note count and latest note, so the Notes row is an ordinary style layer. A note whose target disappears is kept, never silently deleted. Every note control is enabled except noting an edge picked on the canvas, which waits on edge picking; an edge is noted from the table.</p>
+<p class="see">See <a href="index.html#/notes-place/all">Notes place</a><a href="index.html#/notes-place/edge-note">Note on an edge</a><a href="index.html#/notes-place/missing-target">Target missing</a><a href="index.html#/style-pickers/label-new-line">Notes as label fields</a></p>
+
+<h2>2. Note metadata, and no name as the normal case (your decision)</h2>
+<p>Required: the time and one or more targets (node, edge, group, path, run, filter step or the graph). The studio also requires text, because a note with no text only marks something, and marking is a kept set's job. Optional: author, edited time, and the runs a note rests on. Tags, status, replies and colors were left out. The name is entered only in Settings &gt; General &gt; Your name, kept per person and never saved in the project, so it cannot be stamped on the next person's notes. With no name, a note shows its time alone: no "Anonymous", no empty slot. Names appear only when a project has notes from two or more people. Nothing asks for a name on the way to a note.</p>
+<p class="see">See <a href="index.html#/notes-place/one-author">No names</a><a href="index.html#/notes-place/two-authors">Two people</a><a href="index.html#/notes-place/writing">Writing a note</a><a href="index.html#/settings/general">Your name</a></p>
+
+<h2>3. Label "+" starts empty; several labels per node (your decision)</h2>
+<p>"+" adds a line and opens the field list at once; Esc leaves it reading "Pick a field", drawing nothing. Each line owns a position (Above, Below, Right...), and a new line takes the first free one, so names above and note count below is two presses. Keying by position is what lets a higher row override Above while a lower row's Below still shows.</p>
+<p class="see">See <a href="index.html#/inspector-group-set-path-row/label-empty">Empty line</a><a href="index.html#/inspector-group-set-path-row/label-two">Two labels</a><a href="index.html#/style-pickers/label-style">Position grid</a></p>
+
+<h2>4. Several data sources joined on any key column (your decision: a primary task)</h2>
+<p>One Data page replaces the load dialog for every load; a clean single file still loads with one Enter. Each table is "a node" or "an edge" table; roles (Key, From/To, Name, Time, Weight...) are set under column headers; "One edge per: Row | Pair" merges repeats with a count and earliest and latest times. The match report always shows what did not match and offers Add or Leave out. Your door-entries example works end to end, including each entry as its own node. The March transfers are the second domain.</p>
+<p class="see">See <a href="index.html#/data-page/entries">Three tables</a><a href="index.html#/data-page/entries-pair">One edge per pair</a><a href="index.html#/data-page/unmatched-rows">Match report</a><a href="index.html#/data-page/entries-as-nodes">Entries as nodes</a><a href="index.html#/graph-place/door-entries">The joined graph</a><a href="index.html#/data-page/transfers">Transfers</a></p>
+
+<h2>5. Weight is chosen when the data is loaded (your decision)</h2>
+<p>Weight is a role on the Data page, and what a higher weight means (Stronger, Farther or Capacity) is set once per graph in its footer. Every run uses it; a run may override it for itself, recorded in its Made with and never written back. Without a declared meaning, a count read as a distance makes the most-used link the farthest.</p>
+<p class="see">See <a href="index.html#/analyze-popover/node-weight">Analyze</a><a href="index.html#/analyze-popover/weight-override">A run's override</a><a href="index.html#/inspector-attribute-and-filter-step/node-weight">Node weight</a></p>
+
+<h2>What graphty-element must add</h2>
+<p>The notes API: <code>study/structure-comparison/element-notes-api.md</code>. Everything else (position-keyed labels, one multi-table load, weight per table with its meaning, a direction option on shortest path), each with a proposed API and the screens that wait on it: <code>study/structure-comparison/element-requirements-4.md</code>.</p>
+
+<h2>Success criteria</h2>
+<p>Met: the notes API, notes without names, empty and several labels, weight at load, and the element requirements list. The two door-entries defects the last check found are fixed: Load from Row now reports Row's counts, and a cell-formatting bug that cut the first "T" from names is gone. Still to confirm when the study ends: a full click crawl of three long routes, and the six reviewers' verdicts.</p>
+
 <h2>Open for you</h2>
-<p>Nothing new needs your decision. Two hard-to-undo items carry over:</p>
-<ul>
-<li>Whether notes join graphty-element's public API (labels from notes and edge notes wait on it). The studio recommends yes.</li>
-<li>Whether "your name" is kept per person or per project (Settings &gt; General).</li>
-</ul>
+<p>Nothing is needed before the study. Some names become permanent public API when graphty-element ships them: the note fields, the author setting, the label positions and the word "type". The studio recommends confirming them on that pull request.</p>
+<p>Every decision with its reason: <code>study/structure-comparison/owner-questions-4.md</code>.</p>
 </main>
 </body>
 </html>

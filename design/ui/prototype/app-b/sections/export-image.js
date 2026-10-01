@@ -233,7 +233,7 @@
         advField.setAttribute("aria-haspopup", "dialog");
         advField.setAttribute("aria-label", "Advanced: " + advSum);
 
-        const fields = h("div", { class: "xi-fields" + (busy ? " xi-busy" : ""), "aria-disabled": busy ? "true" : null },
+        const fields = h("div", { class: "xi-fields" + (busy ? " xi-busy" : ""), "aria-disabled": busy ? "true" : null, inert: busy ? "" : null },
             AB.fieldRow("Preset", preset, { popover: true }),
             AB.fieldRow("Size", size, { popover: true }),
             AB.fieldRow("Format", format, { popover: true }),

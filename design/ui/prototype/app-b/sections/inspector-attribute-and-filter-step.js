@@ -1,8 +1,11 @@
 /* Inspector: an attribute or a filter step, opened from the Data place (transfers, March 2026).
    One body each, no tab strip.
-   Attribute: Summary (Read as and Role as two dropdown rows), Values (the measure row's histogram
-   form), Painted by. No Notes: an attribute is not a note's subject.
-   Filter step: one sentence row, "Apply this step", the count before and after, Notes.
+   Attribute: Summary (Read as, the one editable dropdown; its roles as read-only tags, each opening
+   the Data page where roles are chosen), Values (the measure row's histogram form), Painted by.
+   No Notes: an attribute is not a note's subject. Transfers (amount, id) and door entries (floors,
+   person_id).
+   Filter step: one sentence row, "Apply this step", the count before and after, Notes (none, or the
+   step's one note).
    A run's result attribute (PageRank) opens its measure row: the old "pagerank" state redirects.
    Plain ASCII. See ../README.md. */
 (function () {
@@ -19,7 +22,10 @@
         ".ia-hist{display:flex;align-items:flex-end;gap:1px;height:72px;margin:4px 16px 0}" +
         ".ia-hist>i{flex:1 1 0;background:var(--cm-border-translucent-strong);border-radius:1px 1px 0 0;min-height:1px}" +
         ".ia-axis{display:flex;justify-content:space-between;padding:2px 16px 0;color:var(--cm-text-secondary);font-size:11px;font-variant-numeric:tabular-nums}" +
-        ".ia-dd>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}";
+        ".ia-dd>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}" +
+        ".ia-tags{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}" +
+        ".ia-tags>.ab-design-note{margin:0;max-width:100%;white-space:normal;height:auto}" +
+        ".ia-tagnote{flex-basis:100%;color:var(--cm-text-secondary)}";
     if (!document.getElementById("ia-css")) document.head.append(h("style", { id: "ia-css" }, CSS));
 
     const ID = "inspector-attribute-and-filter-step";
@@ -60,6 +66,17 @@
         ];
     }
     const none = (name) => AB.empty("No row paints from " + name + ".");
+    const D = () => AB.fx.datasets.doorEntries;
+
+    // The roles row: read-only tags (AB.roleTag), each opening the Data page, where roles are chosen.
+    // tags: [[word, second]]; extra: nodes after the tags (a visible note line, a needs mark).
+    // ponytail: the Data page has no per-column route yet, so a tag opens the table's page, not the column.
+    function roles(tags, page, extra) {
+        return AB.fieldRow(tags.length > 1 ? "Roles" : "Role", h("span", { class: "ia-tags" },
+            tags.map(([w, second]) => AB.roleTag(w, { second, go: ["data-page", page] })), extra || null));
+    }
+    // The inspector's Weight tag reads "Weight, set when loaded" (spec 2.4); its link opens the Data page
+    const WEIGHT = "every run uses it unless the run picks another. Change it on the Data page";
 
     // ---------- amount: an edge attribute from the file, Role None ----------
     function amountBody() {
@@ -68,18 +85,13 @@
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
-                dropdown("Role", [
-                    { label: "None" },
-                    { label: "Name", disabled: "Name labels nodes; amount is on edges" },
-                    { label: "Time", disabled: "amount is read as Number, not Time" },
-                ], "None"),
+                roles([["Weight, set when loaded", WEIGHT]], "transfers"),
                 AB.data("On", fmt(t.edges) + " edges (transfers)", { go: ["table-dock", "edges"] }),
-                AB.data("Missing", AB.openQuestion("how many transfers have no amount"))),
+                AB.data("Missing", "none: every transfer has an amount (a blank would weigh 1)", { go: ["data-page", "transfers"] })),
             AB.dataTab({
                 Values: { summary: "Total " + fmt(total) + " USD", body: [
-                    histogram([100, 86, 64, 45, 31, 22, 15, 10, 7, 5, 3, 2, 2, 1, 1, 1], ["0", "largest"],
+                    histogram([100, 86, 64, 45, 31, 22, 15, 10, 7, 5, 3, 2, 2, 1, 1, 1], ["0.50", "98,400"],
                         fmt(t.edges) + " transfers, " + fmt(total) + " USD in all, " + (total / t.edges).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " on average.", "amount"),
-                    h("div", { class: "ab-pad" }, AB.openQuestion("the real bins and range from the file")),
                 ] },
                 "Painted by": { summary: "No rows", body: none("amount") },
             }, { kind: "attribute" }),
@@ -92,11 +104,8 @@
         return [
             AB.section({ title: "Summary", editable: true },
                 dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
-                dropdown("Role", [
-                    { label: "None" },
-                    { label: "Name", desc: "The node's name: search, tooltips and the Label line read it" },
-                    { label: "Time", disabled: "id is read as Category, not Time" },
-                ], "Name"),
+                roles([["Key", "each row's id: links from other tables match against it"],
+                    ["Name", "the node's name: search, tooltips and the Label line read it"]], "transfers"),
                 AB.data("On", fmt(t.nodes) + " nodes (accounts)", { go: ["table-dock", "nodes"] }),
                 AB.data("Missing", "none: it is the key")),
             AB.dataTab({
@@ -106,8 +115,51 @@
         ];
     }
 
+    // ---------- floors: buildings' node weight (door entries) ----------
+    function floorsBody() {
+        const b = D().tables.find((x) => x.name === "buildings");
+        const v = b.sample.filter((r) => r.floors !== "").map((r) => Number(r.floors));
+        return [
+            AB.section({ title: "Summary", editable: true },
+                dropdown("Read as", READ_AS(), "Number", { needs: OVERRIDE }),
+                // One design note per Summary (on Read as); the weight's gap is said in words under its tag
+                // The same words as Analyze's node-weight line: one candidate reads it, waiting on the element
+                roles([["Weight, set when loaded", WEIGHT + ". A type with no weight column (person) weighs 1"]], "buildings",
+                    [h("span", { class: "ia-tagnote" }, "Read by: PageRank's restart weights"), AB.needsElement("PageRank's restart weights read node weight once its catalog entry carries nodeWeighted; no graphty-element entry reads node weight yet")]),
+                AB.data("On", fmt(b.rows) + " nodes (buildings)", { go: ["data-page", "buildings"] }),
+                AB.data("Missing", "1 building has no floors value: its weight reads 1")),
+            AB.dataTab({
+                Values: { summary: Math.min(...v) + " to " + Math.max(...v) + " floors", body: [
+                    AB.data("Range", Math.min(...v) + " to " + Math.max(...v) + " floors"),
+                    AB.data("Read", (b.rows - 1) + " of " + b.rows + " buildings (1 reads 1)"),
+                ] },
+                "Painted by": { summary: "No rows", body: none("floors") },
+            }, { kind: "attribute" }),
+        ];
+    }
+
+    // ---------- person_id: entries' link to people (door entries) ----------
+    function personIdBody() {
+        const r = D().report.entries;
+        return [
+            AB.section({ title: "Summary", editable: true },
+                dropdown("Read as", READ_AS(), "Category", { needs: OVERRIDE }),
+                roles([["From -> person", "each entry starts at the person whose id matches person_id"]], "entries"),
+                AB.data("On", fmt(D().loadedEdges()) + " edges (entries)", { go: ["data-page", "entries"] }),
+                AB.data("Matched", fmt(r.bothEnds) + " of " + fmt(r.rows) + " rows", { go: ["data-page", "entries"] }),
+                AB.data("Unmatched", fmt(r.missingPeople) + " ids not in people", { go: ["data-page", "entries"] })),
+            AB.dataTab({
+                Values: { summary: fmt(r.leadingZeroKeys) + " keys differ by leading zeros", body: [
+                    AB.data("Zeros", fmt(r.leadingZeroKeys) + " keys, as 7 and 0007", { go: ["data-page", "entries"] }),
+                    AB.data("Distinct", fmt(r.distinctPersonIds) + " values: " + fmt(r.distinctPersonIds - r.missingPeople) + " people, " + fmt(r.missingPeople) + " not in people"),
+                ] },
+                "Painted by": { summary: "No rows", body: none("person_id") },
+            }, { kind: "attribute" }),
+        ];
+    }
+
     // ---------- the filter step ----------
-    function filterBody() {
+    function filterBody(noted) {
         const t = T();
         let on = true;
         const attrs = ["amount", "timestamp", "kind", "country", "riskScore", "flagged"];
@@ -123,7 +175,7 @@
         AB.tip(c, "Condition", { label: false });
 
         const after = h("b", null, "812");
-        const check = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": "true", "aria-labelledby": "ia-apply-l" });
+        const check = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": "true", "aria-labelledby": "ia-apply-l", "aria-label": "Apply this step" });
         const toggle = () => {
             on = !on;
             check.setAttribute("aria-checked", String(on));
@@ -135,40 +187,50 @@
         return [
             AB.section({ title: "Condition", editable: true },
                 h("div", { class: "ia-sentence" }, a, c, v),
-                h("div", { class: "ab-pad" }, AB.openQuestion("amount is on edges: which nodes does an edge condition keep")),
+                // Studio decision (spec, Data > Filters): an edge condition keeps the edges that pass and the nodes at their ends
+                h("div", { class: "ab-cap k-secondary" }, "amount is on edges: this step keeps the transfers that pass and the accounts at their ends."),
                 apply,
                 h("div", { class: "ia-flow" }, h("b", null, fmt(t.nodes)), icon("arrow-right", "sm"), after,
                     AB.link("table-dock", "nodes", "nodes", { class: "ab-link k-secondary" }))),
-            AB.notesSection(0, null, "filter-step"),
+            noted ? AB.notesSection(1, ["notes-place", "all"], "filter-step") : AB.notesSection(0, null, "filter-step"),
         ];
     }
 
+    const STEP = { icon: "funnel", title: "amount >= 1,000", kind: "Filter step", prov: ["step 1 in Filters", "data-place", "filters"], menu: ["context-menus", "filter-step"] };
     const VIEWS = {
-        attribute: { icon: "hash", title: "amount", kind: "Edge attribute", prov: ["from " + "transfers-2026-03.csv", "inspector-source", "file"], menu: ["context-menus", "attribute"], body: amountBody },
-        "attribute-name-role": { icon: "type", title: "id", kind: "Node attribute", prov: ["from transfers-2026-03.csv", "inspector-source", "file"], menu: ["context-menus", "attribute"], body: idBody },
-        "filter-step": { icon: "funnel", title: "amount >= 1,000", kind: "Filter step", prov: ["step 1 in Filters", "data-place", "filters"], menu: ["context-menus", "filter-step"], body: filterBody },
+        attribute: { icon: "hash", title: "amount", kind: "Edge attribute", prov: () => ["from " + T().file, "data-page", "transfers"], menu: ["context-menus", "attribute"], body: amountBody },
+        "attribute-name-role": { icon: "type", title: "id", kind: "Node attribute", prov: () => ["from " + T().file, "data-page", "transfers"], menu: ["context-menus", "attribute"], body: idBody },
+        "node-weight": { icon: "hash", title: "floors", kind: "Node attribute", prov: () => ["buildings", "data-page", "entries"], menu: ["context-menus", "attribute"], body: floorsBody },
+        "link-key": { icon: "type", title: "person_id", kind: "Edge attribute", prov: () => ["from entries.csv", "data-page", "entries"], menu: ["context-menus", "attribute"], body: personIdBody },
+        "filter-step": Object.assign({ body: () => filterBody(false) }, STEP),
+        "filter-step-noted": Object.assign({ body: () => filterBody(true) }, STEP),
     };
+    const isStep = (state) => state === "filter-step" || state === "filter-step-noted";
+    const isDoor = (state) => state === "node-weight" || state === "link-key";
 
     registerSection({
         id: ID,
         title: "Inspector: an attribute or a filter step",
         region: "right",
         rail: "data",
-        frame: (state) => ({ left: state === "filter-step" ? "data-place/filters" : "data-place/attributes" }),
+        // The Data place draws only transfers, so a door-entries attribute shows no left panel rather than the wrong table
+        frame: (state) => isDoor(state) ? { left: "data-place/door-entries", dataset: "doorEntries", dock: state === "node-weight" ? "table-dock/door-entries-nodes" : "table-dock/door-entries" } : { left: isStep(state) ? "data-place/filters" : "data-place/attributes" },
         closeTo: "data-place",
         states: [
-            { id: "attribute", label: "amount, Role None" },
-            { id: "attribute-name-role", label: "id, Role Name" },
-            { id: "filter-step", label: "Filter step" },
-            { id: "pagerank", label: "PageRank: opens its measure row" },
+            { id: "attribute", label: "amount, Weight" },
+            { id: "attribute-name-role", label: "id, Key and Name" },
+            { id: "node-weight", label: "floors, node Weight (door entries)" },
+            { id: "link-key", label: "person_id, From -> person (door entries)" },
+            { id: "filter-step", label: "Filter step, no notes" },
+            { id: "filter-step-noted", label: "Filter step with a note" },
         ],
         render(el, state) {
             // A run's result attribute has one inspector, its measure row's
             if (state === "pagerank") { location.replace(AB.href("inspector-measure-row", "data")); return; }
             const v = VIEWS[state] || VIEWS.attribute;
             el.append(AB.inspector({
-                icon: v.icon, title: v.title, kind: v.kind, provenance: v.prov, menu: v.menu, body: v.body(),
-                renameDisabled: state === "filter-step" ? null : "graphty-element cannot rename an attribute across its data",
+                icon: v.icon, title: v.title, kind: v.kind, provenance: typeof v.prov === "function" ? v.prov() : v.prov, menu: v.menu, body: v.body(),
+                renameDisabled: isStep(state) ? null : "graphty-element cannot rename an attribute across its data",
             }));
         },
     });

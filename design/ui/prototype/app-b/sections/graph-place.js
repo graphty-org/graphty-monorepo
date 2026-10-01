@@ -21,7 +21,7 @@
 .gp-tree .ab-trow[data-drop-bad] { outline: 1px solid var(--cm-border-danger, var(--cm-text-danger)); outline-offset: -1px; }
 .gp-ghost { list-style: none; display: flex; align-items: center; gap: 6px; height: 28px; margin: 0 8px 0 40px; padding: 0 8px; border-radius: 5px; outline: 1px dashed var(--cm-border-strong); background: var(--cm-bg); box-shadow: var(--cm-elevation-200, 0 2px 8px #0003); opacity: .9; }
 body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
-.gp-runfind { list-style: none; display: flex; gap: 4px; align-items: center; padding: 2px 0 4px 40px; }
+.gp-runfind { list-style: none; cursor: default; display: flex; gap: 4px; align-items: center; padding: 2px 0 4px 40px; }
 .gp-runfind .ab-find { height: 22px; }
 .gp-find-head { padding: 8px 16px 2px; font-size: 11px; line-height: 16px; font-weight: 550; color: var(--cm-text-secondary); }
 .gp-hit { display: flex; align-items: center; gap: 6px; min-height: 28px; margin: 0 8px; padding: 2px 8px; border-radius: 5px; cursor: pointer; }
@@ -58,7 +58,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             "inspector-run-row": st === "readings-only" ? null : "louvain",
             "inspector-folder": "folder",
             "inspector-selection-and-everything": { selection: "selection", "notes-row": "notes", "notes-row-outlined": "notes", "notes-data": "notes", overrides: "overrides" }[st] || "everything",
-            "inspector-group-set-path-row": { watchlist: "watchlist", "path-lesmis": "p1", path: "p2", "path-lesmis-2": "p2", "kept-2": "g2", "kept-8": "g8", notes: "c3" }[st] || (st.startsWith("community-") ? "c" + st.slice(10) : null),
+            "inspector-group-set-path-row": { watchlist: "watchlist", "path-lesmis": "p1", path: "p2", "path-lesmis-2": "p2", "kept-2": "g2", "kept-8": "g8", notes: "c3", "label-by": "label-degree" }[st] || (st.startsWith("community-") ? "c" + st.slice(10) : null),
         }[id] || null;
         const sel = { "inspector-node": "1", "inspector-edge": "1", "inspector-several-elements": st === "two-nodes" ? "2" : "5" }[id] || null;
         return { row, sel, edited: id === "inspector-node" && st === "edited" };
@@ -87,9 +87,11 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         let selRow = state in SEL ? SEL[state] : state === "empty" || state === "list-menu" ? null : "pagerank";
         if (ins) selRow = ins.row;
         const openLouvain = ["louvain-open", "rename-run-group"].includes(state) || /^c\d$/.test(selRow || "");
-        const rows = [selectionRow(state === "solo" ? 5 : ins && ins.sel), notesRow(state !== "notes-eye-off", state === "empty" ? null : undefined)];
-        if (state === "empty") return rows.concat(everythingRow(true));
+        const rows = [selectionRow(state === "solo" ? 5 : ins && ins.sel), notesRow(state !== "notes-eye-off", state === "empty" ? null : state === "door-entries" ? 3 : undefined)];
+        if (state === "empty" || state === "door-entries") return rows.concat(everythingRow(true));
         if (ins && ins.edited) rows.push(builtin({ id: "overrides", name: "Overrides", kindIcon: "pencil", count: 1, go: ["inspector-selection-and-everything", "overrides"], menu: ["context-menus", "row"] }));
+        // Label by degree (an attribute's menu) adds its row on top, under the built-in rows
+        if (ins && ins.row === "label-degree") rows.push({ id: "label-degree", name: "degree", kindIcon: "hash", eye: true, go: ["inspector-group-set-path-row", "label-by"], menu: ["context-menus", "measure-row"] });
         // A new run lands on top, under the built-in rows
         const bt = { id: "betweenness-new", name: "Betweenness", kindIcon: "chart-column", swatch: AB.ramp("#fde7c8", "#E69F00"), eye: true, go: ["inspector-measure-row", "style"], menu: ["context-menus", "measure-row"] };
         if (state === "running" || state === "queued") rows.push(Object.assign(bt, { swatch: null, progress: 0.42, renameDisabled: RUN_LABEL, statusText: "Running: 42% of nodes", go: ["analyze-popover", "running"] }));
@@ -104,7 +106,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             id: "louvain", name: "Louvain", kindIcon: AB.ICON.run, swatch: stack(LOUVAIN[0].color, LOUVAIN[1].color),
             count: 77, notes: 1, notesInside: 2, eye: true, open: openLouvain, renameDisabled: RUN_LABEL,
             go: ["inspector-run-row", "style"], menu: ["context-menus", "run-row"],
-            children: LOUVAIN.map((c) => ({ id: "c" + c.n, name: "Community " + c.n, kindIcon: "circle-dot", swatch: AB.chit(c.color, true), count: c.size, notes: c.notes, eye: true, renameDisabled: GROUP_LABEL, go: ["inspector-group-set-path-row", "community-" + c.n], menu: ["context-menus", "row"] })),
+            children: LOUVAIN.map((c) => ({ id: "c" + c.n, name: "Community " + c.n, kindIcon: AB.chit(c.color, true), /* a group is a filled circle in its color (spec 3.2) */ count: c.size, notes: c.notes, eye: true, renameDisabled: GROUP_LABEL, go: ["inspector-group-set-path-row", "community-" + c.n], menu: ["context-menus", "row"] })),
         }, filtered, louvainStatus));
         rows.push({
             id: "paths", name: "Shortest paths", kindIcon: "route", swatch: AB.chit("#D55E00"), eye: true, open: true, renameDisabled: RUN_LABEL,
@@ -150,7 +152,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
             selectionRow(null), notesRow(true, null),
             {
                 id: "louvain", name: "Louvain", kindIcon: AB.ICON.run, selected: true, swatch: stack(named[0].color, named[1].color), eye: true, open: true, renameDisabled: RUN_LABEL, go, menu: ["context-menus", "run-row"],
-                children: named.map((c) => ({ id: "m" + c.n, name: "Community " + c.n, kindIcon: "circle-dot", swatch: AB.chit(c.color, true), count: c.size, eye: true, renameDisabled: GROUP_LABEL, go, menu: ["context-menus", "row"] }))
+                children: named.map((c) => ({ id: "m" + c.n, name: "Community " + c.n, kindIcon: AB.chit(c.color, true), /* a group is a filled circle in its color (spec 3.2) */ count: c.size, eye: true, renameDisabled: GROUP_LABEL, go, menu: ["context-menus", "row"] }))
                     .concat({ id: "more", name: rest + " more communities", kindIcon: "circle-dot", swatch: AB.chit("#BDBDBD", true), eye: true, renameDisabled: GROUP_LABEL, go: ["table-dock", "transfers"], menu: ["context-menus", "row"] }),
             },
             everythingRow(true),
@@ -167,7 +169,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
     // ---------- the footer line: one line, the most specific message first ----------
     function footer(state) {
         const L = (id, st, label) => AB.link(id, st, label);
-        if (state === "empty") return AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
+        if (state === "empty" || state === "door-entries") return AB.treeFooter([[AB.h("span", null, L("analyze-popover", "open", "Analyze"), " (Shift+A) to add results here")]]);
         return AB.treeFooter([
             state === "everything-hidden" && ["Everything is hidden. Unpainted nodes still take part in the layout. To leave them out, filter.", L("data-place", "filters", "Filter...")],
             hiddenOnCanvas() && [AB.h("span", null, hiddenOnCanvas() + " hidden on canvas. ", h("span", Object.assign({ class: "ab-link", role: "button" }, AB.act({ onClick: () => AB.flash("Selects the hidden elements (not wired in the skeleton)") })), "Select"), ", ", L("canvas-and-states", "drawn", "Show")), AB.needsElement("a draw-only hide that also hides incident edges")],
@@ -202,7 +204,9 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         if (state === "rows-with-notes") state = "find"; // version 2 id: Find covers it
         const L = AB.fx.datasets.lesmis;
         const many = state === "many-groups";
-        const head = AB.graphHead("Graph", many ? AB.fx.datasets.transactions.graphName : L.frame.graphRow, { notes: state === "empty" || many ? 0 : 1 });
+        // the graph being loaded names the head too (the door-entries loading screen draws the empty place)
+        const doorGraph = state === "door-entries" || (state === "empty" && AB.route && AB.route.frame.dataset === "doorEntries");
+        const head = AB.graphHead("Graph", many ? AB.fx.datasets.transactions.graphName : doorGraph ? AB.fx.datasets.doorEntries.graphName : L.frame.graphRow, { notes: state === "empty" || many || doorGraph ? 0 : 1 });
         const bar = AB.treebar({
             value: state === "find" ? "Jav" : null,
             onKey: (e, input) => {
@@ -259,6 +263,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         rail: "graph",
         frame(state) {
             if (state === "empty") return { right: "inspector-nothing-selected", canvas: "canvas-and-states/empty", dock: false };
+            if (state === "door-entries") return { dataset: "doorEntries" }; // the shell brings its canvas, inspector and table
             if (state === "louvain-open") return { right: "inspector-run-row/style" };
             if (state === "many-groups") return { dataset: "transactions", canvas: "canvas-and-states/transfers-communities", right: "inspector-run-row/many-groups" };
             if (state === "scope-mark") return { right: "inspector-measure-row/scope-mark", chip: "Filtered: 60 of 77 nodes" };
@@ -277,6 +282,7 @@ body.gp-nodrop, body.gp-nodrop * { cursor: no-drop !important; }
         states: [
             { id: "at-rest", label: "Populated, PageRank selected" },
             { id: "empty", label: "Empty graph" },
+            { id: "door-entries", label: "Door entries, just loaded" },
             { id: "louvain-open", label: "Louvain expanded" },
             { id: "many-groups", label: "Many groups (transfers)" },
             { id: "running", label: "Run in progress" },

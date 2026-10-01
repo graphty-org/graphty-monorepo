@@ -78,7 +78,7 @@
                 ? AB.toolbarButton(AB.ICON.shown, "Show on canvas", { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "one-node"] })
                 : AB.toolbarButton(AB.ICON.hidden, C("hide-on-canvas").label, { key: C("hide-on-canvas").shortcut, open: false, go: ["selection-bar", "hidden"] }),
             "sep",
-            AB.toolbarButton(AB.ICON.addNote, C("add-note").label, { key: C("add-note").shortcut, go: C("add-note").go }),
+            AB.toolbarButton(AB.ICON.addNote, C("add-note").label, { key: C("add-note").shortcut, onClick: () => AB.addNote() }),
         ], "Selection: " + s.names);
     }
 

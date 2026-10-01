@@ -4,8 +4,12 @@
    the Data tab is their home. A token opens its property's popover (style-pickers/token-edit,
    "Valjean only -- writes to Overrides"); the edit lands in Overrides, which the tree then shows
    (the "edited" state), and Overrides' line clears with "-" on hover.
+   Label positions stack like every property: each position is its own token on the line of the
+   row that writes it ("Label above from Group 2", "Label below from Notes"). Labels keyed by position wait on graphty-element.
    Data tab: Summary (attributes, then results with rank; Degree selects the neighbors),
-   Memberships, Notes. Plain ASCII. See ../README.md. */
+   Memberships, Notes. Notes: Valjean's 2 fixture notes (notes-place n4, n5) carry no author, as
+   most notes will not; the count is the one link to them, so no name appears here. Plain ASCII.
+   See ../README.md. */
 (function () {
     "use strict";
 
@@ -17,11 +21,17 @@
         const lines = [
             edited ? { name: "Overrides", swatch: EDIT_COLOR, go: ["inspector-selection-and-everything", "overrides"], overrides: true,
                 wins: ["color"], values: { color: EDIT_COLOR + ", set on Valjean by hand" } } : null,
+            { name: "Notes", swatch: AB.icon(AB.ICON.note, "sm"), go: ["inspector-selection-and-everything", "notes-row"],
+                wins: ["label below"], values: { "label below": "2, from Note count" } },
             { name: "PageRank", swatch: AB.ramp("#ef7818", "#662506"), go: ["inspector-measure-row", "style"],
                 wins: edited ? [] : ["color"], values: { color: PR_COLOR + ", 0.0754, highest" } },
             // Degree is hidden from the list but still paints
             { name: "Degree", swatch: AB.ramp("#cfcfcf", "#4d4d4d"), go: ["inspector-measure-row", "degree"], hiddenRow: true,
                 wins: ["size"], values: { size: "36, largest" } },
+            // Two rows each write one label position, and both show: each position is its own token on its
+            // row's line (labels keyed by position: a gap). Below is the Notes row's Note count, 2 for Valjean.
+            { name: "Group 2", swatch: AB.chit(AB.fx.datasets.lesmis.groupColors["2"], true), go: ["inspector-group-set-path-row", "label-two"],
+                wins: ["label above"], values: { "label above": "Valjean, from label" } },
             // Selection is read from the element's selection style, not from explain()
             { name: "Selection", swatch: AB.icon("scan", "sm"), go: ["inspector-selection-and-everything", "selection"],
                 wins: ["color", "size"], values: { color: "#FFD700 at 40%", size: "1.45 times" } },
@@ -29,7 +39,8 @@
             { name: "Everything", swatch: AB.icon("base-layer", "sm"), go: ["inspector-selection-and-everything", "everything"],
                 wins: ["shape"], values: { shape: "Faceted sphere, the default look" } },
         ].filter(Boolean);
-        return AB.whyThisLook(lines, { kind: "node", element: "Valjean" });
+        return AB.whyThisLook(lines, { kind: "node", element: "Valjean",
+            notes: ["Labels keyed by position (one token per position) need graphty-element's per-position label channels and explain() reporting them."] });
     }
 
     function dataTab() {

@@ -107,7 +107,7 @@
         const list = h("ul", { class: "fcm-log", "aria-label": "Log, newest first" });
         const emptyLine = h("div", { class: "fcm-logempty", hidden: true });
         const entry = (k, ic, text, sub, target, extra) => h("li", Object.assign({ class: "fcm-entry", "data-kind": k }, AB.act(target)), icon(ic, "sm"), h("span", null, text), sub ? h("span", { class: "fcm-entry-sub" }, sub) : null, extra || null);
-        const version = (name, current, chosen, target, subs, note) => h("li", Object.assign({ class: "fcm-ver", role: "button", "aria-current": String(chosen), "aria-label": name + (current ? ", current" : "") }, chosen ? {} : AB.act(target)),
+        const version = (name, current, chosen, target, subs, note) => h("li", Object.assign({ class: "fcm-ver", "aria-current": chosen ? "true" : null, "aria-label": name + (current ? ", current" : "") + (chosen ? ", open" : "") }, chosen ? { tabindex: "0" } : Object.assign({ role: "button" }, AB.act({ go: target }))),
             icon("history", "sm"), h("span", { class: "fcm-ver-name k-ellipsis" }, name), current ? h("span", { class: "k-badge k-secondary" }, "current") : note || h("span"),
             subs.map((s) => h("span", { class: "fcm-ver-sub k-num" }, s)));
 

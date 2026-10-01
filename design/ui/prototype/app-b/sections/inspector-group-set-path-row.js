@@ -45,7 +45,10 @@
         { id: "fill-set", label: "Style: Fill set" },
         { id: "edges-side", label: "Style: the Edges side" },
         { id: "arrows", label: "Style: Arrows" },
-        { id: "label-bound", label: "Style: Label bound to Name" },
+        { id: "label-empty", label: "Label: a new line, no field yet" },
+        { id: "label-two", label: "Label: name above, degree below" },
+        { id: "label-all-used", label: "Label: every position used" },
+        { id: "label-by", label: "Label by degree, from its menu" },
         { id: "invalid-value", label: "Style: an invalid value" },
         { id: "notes", label: "Notes, from a row's note count" },
         { id: "group", label: "Group (Group 2)" },
@@ -61,7 +64,7 @@
         { id: "path-edge-set", label: "Edge set: spanning tree" },
     ];
     // Old ids that render a listed state
-    const RENAMED = { "two-properties": "fill-set", inherited: "style", picker: "style", "picker-libraries": "style" };
+    const RENAMED = { "label-bound": "label-two", "two-properties": "fill-set", inherited: "style", picker: "style", "picker-libraries": "style" };
     const L0 = () => AB.fx.datasets.lesmis;
 
     // ---------- small builders ----------
@@ -223,10 +226,37 @@
             summary: [["Size", size], ["From", P.from.id + ", " + P.from.kind + ", riskScore " + P.from.riskScore], ["To", P.to.id + ", " + P.to.kind + ", riskScore " + P.to.riskScore + (P.to.flagged ? ", flagged" : "")], ["Total amount", fmtAmount(r.dollars)]],
             membersSummary: "In path order, with each transfer",
             members,
-            made: [["Weight", "amount, higher = farther"]],
-            all: [["Weight", "amount, higher = farther"], ["Direction", "Follow it"], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
+            made: [["Weight", "amount, farther"]],
+            all: [["Weight", "amount, farther"], ["Direction", "Follow it"], ["Scope", "Full graph, " + accounts + " accounts"], ["Data version", T.file + ", current"]],
         };
     }
+
+    // The row Label by makes from an attribute's menu (spec, "Painting an imported attribute"): named after the attribute, its type
+    // glyph as the icon, one Above line already bound to it, painting every element with a value
+    function labelByModel() {
+        const L = L0();
+        return {
+            title: "degree", icon: AB.typeGlyph("num"), kind: "Measure",
+            provenance: ["from the attribute degree", "inspector-attribute-and-filter-step", "attribute"],
+            set: {}, labels: [{ pos: "Above", field: "degree", type: "num" }],
+            paints: ["Paints " + L.nodes + " nodes", SELECT],
+            order: "Wins Label Above on " + L.nodes + " of " + L.nodes + ": nothing above it labels these nodes",
+            summary: [["Size", L.nodes + " nodes, every node with a degree", SELECT]],
+            membersSummary: "Not ranked",
+            members: [AB.empty("Every node has a degree.", { verb: "Show in table", go: ["table-dock", "nodes"] })],
+            made: [],
+            all: [["Attribute", "degree"], scope(L), version(L)],
+        };
+    }
+
+    // Label lines on Group 2 (spec 16.6), one list per state; every position used hides the "+"
+    const LABELS = {
+        "label-empty": [{ pos: "Above", draft: true }],
+        "label-two": [{ pos: "Above", field: "label", type: "cat" }, { pos: "Below", field: "degree", type: "num" }],
+        "label-all-used": [["Above", "label", "cat"], ["Below", "Note count", "num"], ["Right", "group", "cat"], ["Left", "degree", "num"], ["Top left", "betweenness", "num"],
+            ["Top right", "PageRank", "num"], ["Bottom left", "Louvain", "cat"], ["Bottom right", "Latest note", "cat"]].map(([pos, field, type]) => ({ pos, field, type }))
+            .concat({ pos: "Center", text: "Group 2" }),
+    };
 
     // An edge set: its members are edges, so the Style tab opens on Edges
     function edgeSetModel() {
@@ -259,7 +289,8 @@
         if (state === "path-lesmis-2") return lesmisPath2Model();
         if (state === "path" || state === "path-style") return pathModel();
         if (state === "path-edge-set") return edgeSetModel();
-        if (state === "label-bound") return keptModel("2"); // Group 2 in For the report is a set
+        if (LABELS[state]) return groupModel("2");
+        if (state === "label-by") return labelByModel();
         // style, data, notes and the Style variants show Community 3, the row the tree selects beside them
         return communityModel("3");
     }
@@ -270,11 +301,8 @@
         if (state === "fill-set") o.set["node.opacity"] = 0.8;
         if (state === "edges-side") { o.set["edge.color"] = m.set["node.color"]; o.kind = "edge"; }
         if (state === "arrows") { Object.assign(o.set, { "edge.arrowHead": "normal", "edge.arrowTail": "dot" }); o.kind = "edge"; o.selected = "edge.arrowHead"; }
-        if (state === "label-bound") {
-            o.bound = { "node.label": { field: "label", type: "cat" } }; // the Name attribute: a field chip, not typed text
-            o.selected = "node.label";
-            o.order = ["Covered by ", pr(), " for Color on 14 of 14"];
-        }
+        const labels = LABELS[state] || m.labels;
+        if (labels) { o.labels = labels; o.selected = "node.label"; }
         if (state === "invalid-value") { o.set["node.size"] = -2; o.error = { "node.size": "Size must be 0 or more (got -2). The row keeps painting its last valid size." }; }
         // The Paints line counts a side only when the row sets something on it
         if (Array.isArray(o.paints) && typeof o.paints[0] === "string") {
@@ -342,7 +370,7 @@
             const options = /\/all-options$/.test(state);
             const m = modelFor(base);
             el.append(AB.inspector({
-                icon: m.icon, swatch: AB.chit(m.color, m.icon === "circle-dot" || m.icon === "circle-check"),
+                icon: m.icon, swatch: m.color ? AB.chit(m.color, m.icon === "circle-dot" || m.icon === "circle-check") : null,
                 title: m.title, kind: m.kind, kindKey: "igs", locked: m.locked,
                 provenance: m.provenance,
                 menu: ["context-menus", "row"],

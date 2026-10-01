@@ -1,8 +1,8 @@
 /* Inspector: one edge. Javert -- Valjean in Les Miserables (value 17, chapters shared), the one
    edge of the "Valjean to Javert" path row. Style tab: Why this look (collapsible; the rows that
    win a property, top first). Data tab: Summary (Direction, then the attributes, the weight
-   attribute marked by an icon; Results only once a run has written to this edge), Memberships,
-   Notes (1 note: the fixture note about this edge). Every verb is in the "..." menu, the edge's
+   attribute marked by the role tag; Results only once a run has written to this edge), Memberships,
+   Notes (1 note: the fixture note about this edge; its meta line is the time alone, no author). Every verb is in the "..." menu, the edge's
    context menu. Plain ASCII. See ../README.md. */
 (function () {
     "use strict";
@@ -25,16 +25,16 @@
 
     function dataTab(E, state) {
         const node = (n) => link("inspector-node", n.label === "Valjean" ? "why-this-look" : "data", n.label);
-        const weight = AB.tip(h("span", { class: "k-secondary", style: "display:inline-flex;margin-left:6px" }, icon("gauge", "sm")),
-            "The weight attribute: weighted runs read it", { label: false });
+        const weight = AB.roleTag("Weight, set when loaded", { second: "every run uses it unless the run picks another. Change it on the Data page",
+            go: ["data-page", "graph-file"] });
         const dir = E.directed ? "Directed" : "Undirected";
-        return AB.dataTab({
+        const parts = AB.dataTab({
             Summary: {
                 summary: dir.toLowerCase() + ", value " + E.value,
                 body: [
                     AB.data("Direction", dir, { go: ["inspector-nothing-selected", "overview"] }),
                     AB.data("Ends", h("span", null, node(E.a), ", ", node(E.b))),
-                    AB.data(h("span", { style: "display:inline-flex;align-items:center" }, "value", weight),
+                    AB.data(h("span", { style: "display:inline-flex;align-items:center;gap:6px" }, "value", weight),
                         h("span", { class: "k-num" }, String(E.value))),
                     // Results: none has been written to this edge yet, so the row is left out
                     h("div", { class: "ab-cap" }, AB.openQuestion("Which end is listed first in an undirected graph: the file's order?")),
@@ -43,6 +43,12 @@
             Memberships: { summary: "Valjean to Javert", body: [AB.row({ icon: "route", swatch: AB.chit("#D55E00"), label: "Valjean to Javert", go: PATH })] },
             Notes: { count: state === "no-notes" ? 0 : 1, target: ["notes-place", "about-selection"] },
         }, { kind: "edge" });
+        // The meta line: the note's time (graphty-element stamps it), the full date in its tooltip.
+        // No author: a name shows only when the project holds notes from two or more named people.
+        const notes = parts[parts.length - 1].querySelector(".k-data");
+        if (notes) notes.append(
+            AB.tip(h("span", { class: "k-secondary", tabindex: "0" }, "Sep 28"), "Monday, September 28, 2026, 12:30", { label: false }));
+        return parts;
     }
 
     registerSection({

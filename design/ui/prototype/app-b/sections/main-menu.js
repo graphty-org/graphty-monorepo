@@ -20,7 +20,7 @@
         const hidden = AB.COMMANDS["show-hidden"];
         return [
             { label: "New project", go: ["graph-place", "empty"] },
-            { label: "Open...", shortcut: "Ctrl+O", go: ["load-step", "preview"] },
+            { label: "Open...", shortcut: "Ctrl+O", go: ["data-page", "edge-list"] }, // the picked file lands on the Data page
             { label: "Open recent", sub: true, go: ["main-menu", "open-recent"] },
             { sep: true },
             { label: "Select where...", go: ["select-where", "where"] },

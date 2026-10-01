@@ -1,6 +1,6 @@
 # Refined B skeleton: how to build a section
 
-A clickable, layout-only skeleton of refined structure B, version 3
+A clickable, layout-only skeleton of refined structure B, version 4
 (`../study/structure-comparison/structure-b-refined.md`). One page, hash routing, and one file per
 section. Open it at http://dev.ato.ms:9825/app-b/ (it fetches its fixtures and section files, so
 it needs HTTP, not `file://`). `#/map` lists every section and state.
@@ -53,7 +53,7 @@ registerSection({
 | `toolbar` | the floating toolbar dock at the canvas foot (a column: a bar above, then the toolbar) | `toolbar` |
 | `dock` | the table dock | `table-dock` |
 | `overlay` | a transparent layer over the whole frame, for menus, popovers and dialogs | none |
-| `workspace` | replaces left panel, canvas and inspector; top bar and rail stay (version history, comparison) | none |
+| `workspace` | replaces left panel, canvas and inspector; top bar and rail stay (the Data page, version history, comparison). Its header is `pageHead()` | none |
 | `full` | replaces everything under the review bar (the start screen) | none |
 
 **frame**: an object, or a function of the state returning one, naming what each other region
@@ -61,9 +61,10 @@ shows: `"<section-id>/<state>"`, or `false` to close that region (`left`, `right
 `top: false` / `rail: false` to drop the top bar or rail. Regions you do not name show their
 default section. `mode` is the graph's view mode, `"3d"` by default (graphty-element's default);
 set `mode: "2d"` for a 2D state. Read it as `AB.route.frame.mode`: the toolbar's View icon and the
-View flyout follow it. Examples: the node inspector wants `{ left: "graph-place/at-rest" }`; the
-load step wants `{ full: "start-screen/returning" }`; an attribute inspector wants
-`{ left: "data-place/attributes" }`.
+View flyout follow it. `dataset` names the fixture the header's project name comes from
+(`"lesmis"` by default, `"transactions"`, `"doorEntries"`). Examples: the node inspector wants
+`{ left: "graph-place/at-rest" }`; the Data page wants `{ dataset: "doorEntries" }` and sets
+`rail: "data"` so the rail lights Data; an attribute inspector wants `{ left: "data-place/attributes" }`.
 
 **ctx**: `{ state, region, section, fx, renderSection(ref, el), close() }`.
 `ctx.renderSection("toolbar/at-rest", el)` draws another section inside yours (the selection bar
@@ -130,14 +131,18 @@ uses the helper; a section-local copy of any of them is a defect.
 | `inspector({ icon, swatch, title, kind, kindKey, locked, provenance, menu, stateBar, changed, builtin, renameDisabled, onRename, tabs, tab, body })` | the one inspector frame (below) |
 | `dataTab({ Summary, Members, Values, "Made with", Notes: { count, target } }, { kind })`, `dataVocab` | a Data tab in the one order (below) |
 | `paintsLine("Paints 10 nodes", [id, state])`, `paintOrderLine(text)` | the two lines that open every painting row's Style tab |
-| `notesSection(count, [id, state]?, kind)` | the Notes section every inspector ends with: "2 notes" as one link to those notes, or "No notes. Add note (N)". Folders, attributes, sources and saved views have none (it returns `null` for those kinds) |
+| `addNote(subject?)`, `noteSubject()` | Add note, the one gesture: every door (N, "+", the selection bar, any menu's Add note, an empty Notes section) calls `addNote()`, which writes about the subject the inspector shows (the graph when nothing is selected) and keeps that inspector. Pass `{ targets: [{ label, icon or swatch, go }], right }` only when the subject is not the inspector's (a filter step's row menu). The editor reads `AB.noteDraft` |
+| `notesSection(count, [id, state]?, kind)` | the Notes section every inspector ends with: "2 notes" as one link to those notes, or "No notes. Add note (N)". Folders, attributes, sources and saved views have none (it returns `null` for those kinds). Notes saved in this page view live in `AB.sessionNotes` (the Notes place writes them), and the count adds those about the inspector's subject, so a saved note shows the same number everywhere |
 | `tree(rows, { label, onEye, go })`, `treeFooter(text or candidates, link)` | the paint tree (below) and the one line under it |
 | `styleTab(o)` | the one Style tab (below) |
 | `whyThisLook(lines, opts)` | the node, edge and several-elements Style body (below) |
 | `announce(text)` | a polite screen reader announcement |
 | `renameInPlace(nameEl, { onSave, onTab, focusAfter })` | rename in place: Enter or click away saves, Esc cancels, Tab renames the next |
 | `mem.get(k)`, `mem.set(k, v)` | this browser's storage, wrapped so a private window just forgets |
-| `modal({ title, body, foot, wide })` | a dialog on a dimmed backdrop: load, export, apply a file, settings, shortcuts |
+| `modal({ title, body, foot, wide })` | a dialog on a dimmed backdrop: export, apply a file, settings, shortcuts. Loading data is not a modal: it is the Data page, a workspace page |
+| `pageHead(title, { onCancel, backTip, trail })` | the one workspace-page header (the Data page, version history): a back arrow that cancels (tooltip `backTip`, default "Cancel", key Esc), the title saying the act ("Add to Entries", "Edit: entries"), the Esc hint. Cancel and Esc return to the screen that opened the page (the shell remembers it as `AB.pageOpener`; a direct link falls back to `closeTo`), or call `onCancel` when given |
+| `roleTag(word, { go, second })` | the one role tag: a `k-badge` with the role word, its tooltip `word, second` ("Weight, set when loaded -- every run uses it unless the run picks another"). With `go` it is a link. The Data page grid, the Data place's attributes and the attribute inspector all use it; a local copy is a defect |
+| `fromDataItems(kind, current, onPick(name, type))` | the From data list as menu items for `openMenu`: for `"text"`, Typed text first (`onPick(null, null)`); then Node attributes, Results, Notes (Note count; Latest note when `kind` is `"text"`). The Notes group is enabled: notes are graphty-element API (`notes.count`, `notes.latest`). The Label "+" and a draft label line open it; style-pickers' Text menu is the same list |
 | `position(el, anchor, place)` | places an overlay element; `place` is `auto` (popovers), `below-start`, `below-end`, `above`, `above-start`, `right-start`, `center`, `above-toolbar` or `left-of-inspector` |
 | `dockToggle()` | the table collapse button: put it at the end of your dock's tab strip |
 | `drawing(name, alt)` | both theme images of `kit/canvas/<name>-{light,dark}.svg` |
@@ -146,7 +151,40 @@ uses the helper; a section-local copy of any of them is a defect.
 | `treebar({ placeholder, value, onKey, onInput, menuGo, menuOpen })` | the find line under a list: the shared find field and the list options ellipsis (`#ab-list-btn`) |
 | `typeGlyph(type)` | the one glyph per attribute type: "Abc" category, "#" number, a calendar for time (Data place, table headers) |
 | `renderSection(ref, el)`, `close()` | as on `ctx` |
-| `fx` | `kit/fixtures.json`, loaded before any render (`AB.fx.datasets.lesmis`, `.transactions`, `.scenarios`) |
+| `fx` | `kit/fixtures.json`, loaded before any render (`AB.fx.datasets.lesmis`, `.transactions`, `.scenarios`), plus `AB.fx.datasets.doorEntries`, which the shell adds (below) |
+
+### The door-entries fixture (`AB.fx.datasets.doorEntries`)
+
+The owner's worked example for the Data page, kept in `app.js` because `kit/` is read-only. The
+Data page, the Data place, the attribute inspector and the context menus read this one copy;
+never type its counts in a section.
+
+- `tables`: `{ file, name, rows, columns, sample }` for `people.csv` (id, name, dept, badge; 412
+  rows), `buildings.csv` (bldg, site, floors; 9 rows) and `entries.csv` (person_id, building_id,
+  time; 4,212 rows), 8 sample rows each. The samples include a leading-zero key ("0007" in people,
+  7 in entries), a repeated key (1188), a person_id not in people (1530) and a building_id not in
+  buildings (B12).
+- `report` (stands in for graphty-element's match report object; the app counts nothing):
+  `entries` -- 4,212 rows, 4,180 with both ends, 25 person_id and 7 building_id values not
+  matched (32 rows), 1,306 person-building edges under Pair, 3 keys that differ only by leading
+  zeros; `people` -- 1 repeated key, 14 people with no entries; `buildings` -- 9 rows.
+- `model`: the model strip and its tooltip for `row`, `pair` and `entryAsNode`.
+- `frame.project`: "Door entries, March 2026", for the header.
+
+**The loaded graph.** A frame with `dataset: "doorEntries"` gets the door-entries canvas, graph
+inspector and table for every region it does not name (the shell's `DATASET_FRAME`, as for
+`"transactions"`): `canvas-and-states/door-entries` (the joined graph drawn unstyled, generated
+from the fixture's counts), `inspector-nothing-selected/door-entries` (421 nodes, 1,306 edges,
+weight count) and `table-dock/door-entries` (Edges; `door-entries-nodes` for Nodes).
+`graph-place/door-entries` is its paint tree, and the rail's Graph and Data stay in this project.
+By default it is the worked example's end state: One edge per Pair, unmatched rows left out. Load
+on the Data page records the entries' One edge per in `doorEntries.loaded.per`, and every view of
+the loaded graph reads its edge count from `doorEntries.loadedEdges()` (Row: 4,180 edges, no
+weight). Load goes through `canvas-and-states/door-entries-loading` to `graph-place/door-entries`;
+the transfers go through `canvas-and-states/transfers-loading` to `data-place/empty-filters`.
+Each entry as a node is not drawn as a loaded graph.
+
+The Les Miserables and transfers fixtures are unchanged.
 
 Gone in version 3: `cameraFace`, `layoutChip`, `legendClose` (the canvas has no controls),
 `inspector({ meta })` (the Paints line takes its place), `styleTab({ inherited, openSection,
@@ -159,6 +197,24 @@ from version 2), `[data-place=graph]`, `[data-place=views]` and the other rail b
 `[data-tool=Analyze]`, `[data-tool=Layout]`, `[data-tool=View]`, `[data-tool=Legend]` and
 `[data-tool="Quick actions"]` on the toolbar. Old routes keep working: `#/camera-menu/...` goes to
 `#/view-flyout/3d`, and any `#/path-tool...` route to `#/path-popover/from-selection`.
+
+**The Data page replaces `load-step` and `inspector-source`** (both are gone from the manifest and their files are deleted).
+Their routes redirect:
+
+| old route | goes to |
+|---|---|
+| `load-step` (no state) | `data-page/entries` |
+| `load-step/preview` | `data-page/edge-list` |
+| `load-step/checks` | `data-page/entries` |
+| `load-step/paired` | `data-page/transfers` |
+| `load-step/edit-source-lost-fields` | `data-page/edit-source-lost` |
+| `load-step/remap` | `data-page/edit-source` |
+| any other `load-step/<state>` (detect-several, detect-none, unsupported-format, url, load-into, edit-source, replace, every refused-*) | `data-page/<state>` |
+| `inspector-source/file`, `/paired` (and no state) | `data-page/transfers` |
+| `inspector-source/url`, `/url-changed`, `/failed` | `data-page/url` |
+| `inspector-source/paste` | `data-page/detect-several` |
+| `inspector-source/replaced` | `data-page/replace` |
+| `inspector-source/derived` | `data-place/derived` |
 
 **The header**, left to right: main menu, project name (click: its menu; double-click or F2:
 rename in place), Undo, Redo, the privacy chip (always Settings > Privacy), the filter chip.
@@ -214,6 +270,20 @@ element's channel id (`"node.color"`, `"edge.arrowHead"`).
   Tooltip; Edges Line, Arrows (lines Head and Tail), Label; More only when it holds something. A
   section with nothing set is its header and "+". "+" lists the section's unset properties and
   disappears when none are left; the new line is pre-filled from `base` and focused.
+- **Node labels are label lines keyed by position** (`labels: [{ pos: "Above", field: "label",
+  type: "cat" }, { pos: "Right", draft: true }]`). The name column is the position word (not a
+  control: position moves only in the Label popover's position grid); the value is the type glyph
+  and the field. Two exceptions to the rule above, and the only two: **the Label "+" is the one "+"
+  that opens a menu after adding** (it adds a line at the first free position -- Above, Below,
+  Right, Left, the four corners, Center -- and opens the From data list on it at once, focus on its
+  first item), and **a label line is the one new line not pre-filled**: until a field is picked it
+  reads "Pick a field" in gray, its accessible name is "Label, Right: no field, draws nothing", and
+  it writes nothing. Esc leaves the draft. "+" disappears once every position is used. **Show** is
+  offered only while the row has no label line, so with no lines "+" holds two items, Label and
+  Show. Bind or a click on a label line's value opens `style-pickers/label-style`. Without
+  `labels`, a bound `node.label` draws as one Above line. The position words come from
+  `CHANNELS.positions` (graphty-element's TextLocation ids and their plain words; a stand-in, its
+  comment names the missing per-position label channels). Edge labels keep their one middle line.
 - **A line** is the name (88 px) and the value. Numbers and text are typed in place (drag a
   number's name to scrub it). Colors show a swatch, the hex and the opacity percent (opacity has
   no line of its own). Choices open their picker and show plain names (`AB.plain`). Booleans are checkboxes.
@@ -262,13 +332,17 @@ status, statusText, progress }`.
   expand; Enter opens; Space toggles the eye (Alt-click solos); F2 renames (Tab renames the next);
   Delete deletes with the Undo notice (built-in and pinned rows refuse); Shift+F10 opens `menu`;
   Ctrl+] and Ctrl+[ move a row among its siblings. One click selects in place and keeps the left
-  panel, so a real double-click on the name renames. Each row carries `data-row`, so focus finds
-  it again after a redraw.
+  panel, so a real double-click on the name renames. A row whose `go` replaces the left panel (a
+  Sources row opens the Data page) sets `waitDouble: true`: its single click waits out the
+  double-click interval (350 ms) before it opens, the Notes place's rule, so a double-click still
+  renames; Enter opens at once. Each row carries `data-row`, so focus finds it again after a redraw.
 - `treeFooter([[text, link], ...])`: one line under the tree; the first (most specific) wins.
 
 ## Commands
 
-`AB.COMMANDS` holds every command that has two or more doors: `{ label, shortcut, home: "Place >
+`AB.COMMANDS` holds every command that has two or more doors (Data page doors: `add-data` opens
+`data-page/entries`, `edit-source` and `replace-file` the source row's two; context menus, Quick
+actions and the Data place all take them from here): `{ label, shortcut, home: "Place >
 Control", disabledReason, go or onClick, more, toggle, on }`. Every door takes its label and key
 from `cmd(id)`. A two-state command has `toggle: [label when on, label when off]` and `on()`: Pause
 layout / Resume layout, Switch to 2D / Switch to 3D, Hide legend / Show legend, Hide table / Show
@@ -285,13 +359,21 @@ warns otherwise.
 - **No accordions in editable bodies.** Collapsible sections are for read-only content.
 - **Three surfaces**: a **dark menu** chooses a command or one item (no title, closes on the
   pick); a **light popover** edits a value (title and X, applies live, `popover()`); a **modal**
-  takes over the screen (load, export, apply a file, settings, shortcuts) or confirms what cannot
-  be undone (`confirm()`).
+  takes over the screen (export, apply a file, settings, shortcuts) or confirms what cannot be
+  undone (`confirm()`). Loading data is none of these: it is the Data page, a **workspace page**
+  (`pageHead()`), like version history.
 - **One empty state** (`empty()`), **one notice** (`notice()`, `deleted()`), **one tooltip**
   (`tip()`), **one design-note chip** (`needsElement()`, `openQuestion()`).
 - **Items that need graphty-element** are drawn disabled with the chip (`needs` on a menu item,
   `data-needs` on any other control). "Hide design notes" in the review bar hides them all: the
   owner reviews with notes showing; user tests run with them hidden.
+- **Notes are graphty-element API** (the owner's decision): adding, listing, counting and binding
+  to notes are enabled everywhere and carry no "needs graphty-element" chip. The one exception is
+  noting an edge picked on the canvas, which keeps the chip.
+- **Note authors are optional.** The app knows a name only if the reader typed one in Settings,
+  so most notes have none: the fixtures show five of seven notes with no author. A note shows its
+  author only when the project holds two or more named authors; otherwise a note reads its time
+  and its subject (node, edge, group or path), which every note carries.
 - Real content only: numbers and names from `kit/fixtures.json` (Les Miserables for the graph,
   transfers for Data and Path). Never lorem ipsum, never an invented count.
 - Chrome colors only from `var(--cm-*)` and the kit's `--k-*` roles; data colors from the fixtures.

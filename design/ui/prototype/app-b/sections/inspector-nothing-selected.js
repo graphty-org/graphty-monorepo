@@ -2,7 +2,11 @@
    Style tab: Canvas (graphty-element configuration, not a layer) and Layout (Method and Seed lines;
    Method's value opens one popover with the method list, its engine, its options and pacing). A
    layout change acts at once and the notice offers Undo (`session.layout.set` is one undoable step).
-   Data tab, in the shared vocabulary: Summary and Notes. Readings not computed are one line whose
+   Data tab, in the shared vocabulary: Summary and Notes. Summary names the weight chosen at load and
+   its meaning as one read-only line linking to the Data page, where it is changed (version 4: the
+   weight is a field set when the data is loaded). The header's provenance opens that graph's file
+   on the Data page. Notes are graphty-element API: the count is the fixture's (one note about the
+   Les Miserables graph, none about the transfers). Readings not computed are one line whose
    link opens the graph's "..." (context-menus/graph) at Compute the overview. A run's readings live
    on its row only. The filtered state bar is the only filtered mark.
    Numbers: kit/fixtures.json (datasets.lesmis, .transactions). The four overview readings (average
@@ -196,32 +200,59 @@
             const chip = AB.route && AB.route.frame.chip;
             const kept = chip && / of /.test(chip) ? chip.split(" of ")[0] : null;
             return {
-                title: f.graphRow, provenance: ["from " + f.file, "inspector-source", "file"], notes: 0,
+                title: f.graphRow, provenance: ["from " + f.file, "data-page", "transfers"], notes: 0,
                 stateBar: kept ? { text: "Readings are for all " + n(D.nodes) + " nodes", why: "Computed before the filters, which leave " + kept + ". Compute the overview again from the graph's menu." } : null,
                 overview: { summary: (kept ? kept + " of " : "") + n(D.nodes) + " nodes, " + n(D.edges) + " edges, directed", body: [
-                    AB.data("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"),
+                    AB.data("Nodes", kept ? kept + " of " + n(D.nodes) : n(D.nodes)), AB.data("Edges", n(D.edges)), direction("Directed", "Chosen at load: a CSV does not say"), weight("amount", "transfers"),
                     AB.data("Density", String(s.density)), AB.data(f.componentsName, f.components),
                     ifNot0("Isolated nodes", s.isolated), ifNot0("Self-loops", s.selfLoops), ifNot0("Repeated edges", s.parallelEdges),
                     AB.data("Reciprocity", String(s.reciprocity)), AB.data("Average total degree", String(s.averageDegree)), AB.data("Highest total degree", n(s.maxDegree)),
                     notComputed(), bars(f.degreeBars, f.degreeLabel)] },
             };
         }
+        if (state === "door-entries") {
+            // The door entries as loaded (One edge per: Pair, the unmatched rows left out): every count
+            // from the shell's fixture; no reading is computed yet, so none is shown
+            const D = AB.fx.datasets.doorEntries, R = D.report, [people, buildings] = D.tables, pair = D.loaded.per === "pair";
+            const lt = D.loadedTypes(), nodes = lt.person + lt.building, plus = (k) => n(lt[k]) + (lt.added[k] ? " (" + n(D.tables[k === "person" ? 0 : 1].rows) + " + " + lt.added[k] + " added)" : "");
+            return {
+                title: D.graphName, provenance: ["from " + D.tables.length + " tables", "data-page", "entries-pair"], notes: 0,
+                overview: { summary: n(nodes) + " nodes, " + n(D.loadedEdges()) + " edges, directed", body: [
+                    AB.data("Nodes", n(nodes)), AB.data("person", plus("person")), AB.data("building", plus("building")), AB.data("Edges", n(D.loadedEdges())),
+                    direction("Directed", "Chosen at load: a CSV does not say"), pair ? weight("count", "entries-pair") : AB.data("Weight", AB.link("data-page", "entries", "None (each edge counts 1)", { class: "ab-link" })), nodeWeight("floors", "building"),
+                    AB.data("Isolated nodes", n(R.people.noEntries)),
+                    h("div", { class: "k-data" }, AB.link("context-menus", "graph", "Readings not computed", { class: "ab-link" }))] },
+            };
+        }
         const D = L(), f = D.frame, s = D.stats;
-        if (state === "reading") return { title: f.graphRow, provenance: ["from " + f.file, "inspector-source", "file"], notes: 0, overview: { summary: "Reading...", body: h("div", { class: "ins-reading", role: "status" }, "Reading...") } };
+        if (state === "reading") return { title: f.graphRow, provenance: ["from " + f.file, "data-page", "graph-file"], notes: 1, overview: { summary: "Reading...", body: h("div", { class: "ins-reading", role: "status" }, "Reading...") } };
         const filtered = state === "filtered";
         const computed = state === "computed" || filtered;
         const g = filtered ? FILTERED : { nodes: D.nodes, edges: D.edges, density: s.density, averageDegree: s.averageDegree, maxDegree: s.maxDegree, bars: f.degreeBars };
         return {
-            title: f.graphRow, provenance: ["from " + f.file, "inspector-source", "file"], notes: 1,
+            title: f.graphRow, provenance: ["from " + f.file, "data-page", "graph-file"], notes: 1,
             stateBar: filtered ? { text: "Readings are for all " + D.nodes + " nodes", why: "Computed before the filter: " + D.filterSteps.steps[0] + " leaves " + FILTERED.nodes + " nodes. Compute the overview again from the graph's menu." } : null,
             overview: { summary: n(g.nodes) + " nodes, " + n(g.edges) + " edges, undirected", body: [
-                AB.data("Nodes", n(g.nodes)), AB.data("Edges", n(g.edges)), direction("Undirected", "Read from " + f.file),
+                AB.data("Nodes", n(g.nodes)), AB.data("Edges", n(g.edges)), direction("Undirected", "Read from " + f.file), weight("value", "graph-file"),
                 AB.data("Density", String(g.density)), AB.data(f.componentsName, filtered ? "1" : f.components),
                 ifNot0("Isolated nodes", s.isolated), ifNot0("Self-loops", s.selfLoops),
                 AB.data("Average degree", String(g.averageDegree)), AB.data("Highest degree", String(g.maxDegree)),
                 computed ? READINGS.map(([k, v]) => AB.data(k, v)) : notComputed(),
                 bars(g.bars, filtered ? "Degree 1 to 31, in bars of 2" : f.degreeLabel)] },
         };
+    }
+
+    // The node weight chosen at load, read-only here, beside the edge weight wherever that shows
+    function nodeWeight(column, type) {
+        const r = AB.data("Node weight", AB.link("data-page", "buildings", column + " (" + type + ")", { class: "ab-link" }));
+        AB.tip(r.lastChild, "Set when the data was loaded: each " + type + " weighs its " + column + "; a type with no weight column weighs 1. Change it on the Data page.", { label: false });
+        return r;
+    }
+    // The weight chosen at load, read-only here: the Data page is its one home (higher weight means Stronger on both fixtures)
+    function weight(column, dataState) {
+        const r = AB.data("Weight", AB.link("data-page", dataState, column + ", stronger", { class: "ab-link" }));
+        AB.tip(r.lastChild, "Set when the data was loaded: a higher " + column + " means a stronger tie. Every run uses it unless it picks another. Change it on the Data page.", { label: false });
+        return r;
     }
 
     const TRANSFERS_FRAME = { dataset: "transactions", left: "graph-place/many-groups" };
@@ -232,7 +263,7 @@
         region: "right",
         rail: "graph",
         frame: (state) => {
-            const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : state === "filtered" ? { chip: "Filtered: 60 of 77 nodes" }
+            const fr = isTransfers(state) ? Object.assign({}, TRANSFERS_FRAME) : state === "door-entries" ? { dataset: "doorEntries", left: "graph-place/door-entries" } : state === "filtered" ? { chip: "Filtered: 60 of 77 nodes" }
                 : state === "reading" ? { left: "graph-place/empty", canvas: "canvas-and-states/loading" } : {};
             if (POP[state]) fr.overlay = SELF + "/" + state;
             return fr;
@@ -247,6 +278,7 @@
             { id: "transfers", label: "Transfers (directed, 3,000 nodes)" },
             { id: "transfers-methods", label: "Layout popover, transfers (three methods carry the cost mark)" },
             { id: "reading", label: "While loading: Reading..." },
+            { id: "door-entries", label: "Door entries (three tables joined)" },
         ],
         render(el, state, ctx) {
             if (ctx.region === "overlay") {

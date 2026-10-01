@@ -15,7 +15,9 @@
 
    Shared from this file: AB.histogram(m, brush) is the one histogram component, for the attribute
    inspector to reuse (spec: "the attribute histogram is the measure row's histogram"). This file
-   also registers the small overlay section "measure-row-options", the "All options..." popover. */
+   also registers the small overlay section "measure-row-options", the "All options..." popover.
+   Weight in All options reads its source: "loaded weight" when the data defined one, else
+   "None: no weight loaded" (Les Miserables loads no weight). */
 (function () {
     "use strict";
     const A = window.AB;
@@ -51,7 +53,7 @@
             hist: { from: 0, width: 0.005, bins: [9, 24, 19, 16, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 1] },
             top: [["Valjean", 0.0754], ["Myriel", 0.0428], ["Gavroche", 0.0358], ["Marius", 0.0309], ["Javert", 0.0303]],
             binNames: { 4: ["Enjolras", "Cosette"], 5: ["Fantine", "Thenardier"], 6: ["Marius", "Javert"], 7: ["Gavroche"], 8: ["Myriel"], 15: ["Valjean"] },
-            options: [["Damping", "0.85"], ["Iterations", "Up to 100"], ["Weight", "None"]],
+            options: [["Damping", "0.85"], ["Iterations", "Up to 100"], ["Weight", "None: no weight loaded"]],
             ran: "Sep 28, on the CPU",
             writes: "pagerank",
         },
@@ -64,7 +66,7 @@
             hist: { from: 0, width: 0.01, bins: [170, 40, 33, 3, 4, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
             top: [["Myriel - Valjean", 0.1832], ["Valjean - Gavroche", 0.083], ["Valjean - Fantine", 0.0762], ["Mme.Burgon - Gavroche", 0.0513], ["Valjean - Mlle.Gillenormand", 0.045]],
             binNames: { 5: ["Mme.Burgon - Gavroche"], 7: ["Valjean - Fantine"], 8: ["Valjean - Gavroche"], 18: ["Myriel - Valjean"] },
-            options: [["Weight", "None"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
+            options: [["Weight", "None: no weight loaded"], ["Normalized", "Yes, 0 to 1"], ["Sample", "Every node (exact)"]],
             ran: "Sep 28, on the CPU",
             writes: "edge betweenness (on edges)",
         },
@@ -271,7 +273,7 @@
                 return A.fieldRow(k, inp, { popover: true });
             }));
             const anchor = document.querySelector("#ab-right [data-imr-options]") || document.querySelector("#ab-right .ab-insp-head");
-            el.append(A.popover({ anchor, title: m.title + " options", body, width: 280 }));
+            el.append(A.popover({ anchor, title: m.title + " options", body, width: 320 }));
         },
     });
 })();

@@ -1,4 +1,4 @@
-/* Style pickers (version 3): what the Style tab (AB.styleTab) and "Why this look" (AB.whyThisLook)
+/* Style pickers (version 4): what the Style tab (AB.styleTab) and "Why this look" (AB.whyThisLook)
    open. Two surfaces only:
    - Dark menus choose one item: a section's "+" (the shared AB.plus menu, opened here on the real
      button) and the From data list (AB.openMenu with its filter).
@@ -6,6 +6,10 @@
      Binding, Palette, Custom palette, and a token's property. Every change applies live; there is
      no Apply or Cancel. Esc, the X or a click outside closes. Only Custom palette has a footer
      button, because it creates something.
+   The From data list is the shared AB.fromDataItems: its Notes group (Note count, Latest note) is
+   enabled, and Note count is a number, so it drives size and color as well as text. The Label
+   popover holds Text and Position on top (the position grid is a line's one home), then a preview
+   of every line of this row, then the style fields.
    Inside a popover an unset field shows its effective value in gray, its source in the tooltip.
 
    Lists come from graphty-element (stand-ins here; the real app reads them from the element): the
@@ -40,6 +44,7 @@
             ".sp-filter{display:flex;align-items:center;gap:6px;margin:0 16px 8px;color:var(--cm-icon-secondary)}" +
             ".sp-color{display:flex;align-items:center;gap:6px;min-width:0;flex:1}" +
             ".sp-color .ab-sin{width:0}" +
+            ".sp-pair{display:flex;gap:6px;align-items:center;flex:1;min-width:0}.sp-pair .ab-sin{flex:1;width:0;min-width:0}" +
             ".sp-pct{flex:0 0 52px!important;width:52px!important}" +
             ".sp-stops{display:flex;flex-wrap:wrap;gap:4px;padding:2px 16px 8px}" +
             ".sp-stops .k-chit{width:20px;height:20px;cursor:default}" +
@@ -53,8 +58,18 @@
             ".sp-loc>span::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--cm-icon-secondary)}" +
             ".sp-loc>span[aria-checked=true]{background:var(--cm-bg-brand)}" +
             ".sp-loc>span[aria-checked=true]::after{background:#fff}" +
+            ".sp-loc>span[aria-disabled=true]{background:repeating-linear-gradient(135deg,var(--cm-bg-secondary) 0 3px,var(--cm-border) 3px 4px)}" +
+            ".sp-loc>span[aria-disabled=true]::after{background:var(--cm-text-secondary)}" +
+            ".sp-loc>span:focus-visible{outline:2px solid var(--cm-border-selected);outline-offset:1px}" +
+            ".sp-lprev{display:grid!important;grid-template-columns:1fr minmax(44px,max-content) 1fr;grid-template-rows:auto 44px auto;gap:2px;height:auto!important;padding:6px 4px;place-items:center}" +
+            ".sp-lcell{min-width:0;max-width:100%;display:flex;justify-content:center}" +
+            ".sp-lcell b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+            ".sp-lcell[data-pos$=left]{justify-self:end}.sp-lcell[data-pos$=right]{justify-self:start}" +
+            ".sp-lnode{width:28px;height:28px;border-radius:50%;background:#E69F00;align-items:center}" +
+            ".sp-lnode b{position:relative}" +
+            ".sp-faded{opacity:.6;color:var(--cm-text)}" +
             ".sp-preview{display:flex;align-items:center;justify-content:center;height:56px;margin:0 16px 8px;border-radius:5px;background:var(--cm-bg-secondary)}" +
-            ".sp-preview b{padding:2px 8px;border-radius:4px;font-family:Verdana,sans-serif;font-weight:400;font-size:13px}" +
+            ".sp-preview b{padding:1px 6px;border-radius:4px;font-family:Verdana,sans-serif;font-weight:400;font-size:13px}" +
             ".sp-ml{display:inline-flex;align-items:center;gap:8px}" +
             ".sp-detach{padding:4px 16px 0}" +
             ".sp-pop .ab-frow .k-field{flex:1;min-width:0}" +
@@ -179,10 +194,23 @@
     // ---------- what opened us: the Style tab line or the "Why this look" token last clicked ----------
     // (a direct link has neither, and each state then shows its fixture default)
     let opener = { line: null, token: null };
+    // A label line also carries every label line of its row and the inspector it sits in, so the Label
+    // popover edits the line clicked and the inspector stays on the row it was opened from
+    let labelOpener = null;
+    const NUM_FIELDS = ["degree", "Note count", "betweenness", "PageRank"];
     document.addEventListener("click", (e) => {
         const t = e.target.closest && e.target.closest("#ab-right .ab-token, #ab-right .ab-sline");
         if (!t) return;
         opener = t.classList.contains("ab-token") ? { token: { prop: t.textContent.trim(), tip: t.dataset.tip || "" } } : { line: t.dataset.ch };
+        if (t.dataset.label && t.dataset.ch === "node.label") {
+            const lines = [...document.querySelectorAll('#ab-right .ab-sline[data-ch="node.label"][data-label]')].map((x) => {
+                const v = x.querySelector(".ab-sv .k-grow");
+                const field = v ? v.textContent.trim() : "";
+                return { pos: posId(x.dataset.label), field, type: x.hasAttribute("data-bound") ? (NUM_FIELDS.includes(field) ? "num" : "cat") : null, text: x.hasAttribute("data-bound") ? null : field };
+            });
+            const r = AB.route;
+            labelOpener = { pos: posId(t.dataset.label), lines, right: r && typeof r.frame.right === "string" ? r.frame.right : r && r.sec.region === "right" ? r.id + "/" + r.state : null };
+        }
     }, true);
     const takeOpener = () => { const o = opener; opener = { line: null, token: null }; return o; };
 
@@ -295,68 +323,73 @@
         mo.observe(layer, { childList: true });
     }
 
-    // ---------- From data: the dark list the bind icon opens ----------
-    const L = () => AB.fx.datasets.lesmis;
-    function fromDataItems(kind, current, onPick) {
-        const lm = L();
-        // The one type glyph set (Data place, table headers): Abc for text and categories, # for numbers
-        const TYPE = { text: ["cat", "Text"], category: ["cat", "Category"], integer: ["num", "Whole number"], number: ["num", "Number"] };
-        const it = (name, type, detail, extra) => Object.assign({ label: h("span", { class: "sp-ml" }, AB.typeGlyph(TYPE[type][0]), name), desc: TYPE[type][1] + (detail ? ", " + detail : ""), check: name === current, onClick: () => onPick(name, type) }, extra || {});
-        const attrs = [
-            it("label", "text", lm.nodes + " values, the Name attribute"),
-            it("group", "category", Object.keys(lm.attributes.find((a) => a.name === "group").values).length + " values"),
-            it("degree", "integer", "1 to " + lm.stats.maxDegree),
-            it("betweenness", "number", "0 to 0.57"),
-        ].filter((x) => kind === "text" || x.desc.indexOf("Text") !== 0);
-        const results = [it("PageRank", "number", "0.0033 to 0.0754"), it("Louvain", "category", "6 groups")];
-        const notes = [it("Note count", "integer", null, { disabled: true, desc: null }), kind === "text" ? it("Latest note", "text", null, { disabled: true, desc: null }) : null].filter(Boolean);
-        return [{ heading: "Node attributes" }].concat(attrs, { heading: "Results" }, results, { heading: "Notes" }, notes);
-    }
-    // One needs mark for the Notes group, on its heading; its items and heading hide with design notes
-    function markNotes(m) {
-        const hd = [...m.querySelectorAll(".k-menu-label")].find((x) => x.textContent === "Notes");
-        if (!hd) return;
-        hd.append(AB.needsElement("A notes store in graphty-element with a notes.* path a binding can read (count, latest), and a repaint when a note is added."));
-        let n = hd.nextElementSibling;
-        hd.setAttribute("data-needs", "");
-        while (n && n.classList.contains("k-menu-item")) { n.setAttribute("data-needs", ""); n = n.nextElementSibling; }
-    }
     // ---------- Binding: one popover for every bound value ----------
-    function binding(el, diverging) {
-        const B = diverging
-            ? { source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", total: "3,000", unit: "accounts" }
-            : { source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], total: "77", unit: "nodes" };
-        let palId = B.pal, reversed = false;
-        const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
-        const palName = h("span", { class: "k-ellipsis" });
-        const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
-        drawPal();
-        const srcText = h("span", null, B.source);
-        const src = AB.field(srcText, { caret: true, onClick: () => { const m = AB.openMenu(src, fromDataItems("color", srcText.textContent, (n) => { srcText.textContent = n; AB.announce("Source: " + n); })); markNotes(m); } });
+    // The source list is the shared From data list (AB.fromDataItems): attributes, results, and the
+    // Notes group (Note count is a number, so it can drive size and color as well as text).
+    const L = () => AB.fx.datasets.lesmis;
+    function binding(el, kind) {
+        const B = {
+            color: { prop: "Color", source: "PageRank", type: "number", pal: "ylorbr", from: "fit", range: ["0.0033", "0.0754"], total: "77", unit: "nodes" },
+            diverging: { prop: "Color", source: "riskScore", type: "number", pal: "blue-orange", from: "fit", range: ["0", "98"], mid: "50", total: "3,000", unit: "accounts" },
+            // Everything's Size from Note count: 0 on an element with no note, 2 on Valjean (the notes fixture)
+            size: { prop: "Size", source: "Note count", type: "number", from: "fit", range: ["0", "2"], out: ["1", "3"], total: "77", unit: "nodes" },
+        }[kind];
+        const isColor = B.prop === "Color";
+        const srcText = h("span", { class: "sp-ml" }, AB.typeGlyph("num"), B.source);
+        const src = AB.field(srcText, { caret: true, onClick: () => AB.openMenu(src, AB.fromDataItems("number", srcText.textContent, (n, t) => {
+            srcText.replaceChildren(AB.typeGlyph(t), n);
+            const head = src.closest(".k-popover").querySelector(".k-popover-head .k-grow");
+            if (head) head.textContent = B.prop + " from " + n;
+            AB.announce("Source: " + n);
+        })) });
         src.setAttribute("aria-label", "Source");
-        const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, go: ["style-pickers", "palette"] });
-        palField.setAttribute("aria-label", "Palette");
-        const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
-        rev.setAttribute("aria-pressed", "false");
-        const typed = h("span", { style: "display:flex;gap:6px;align-items:center;flex:1" }, input({ label: "From", num: true, value: B.range[0] }), "to", input({ label: "To", num: true, value: B.range[1] }));
+        src.setAttribute("aria-haspopup", "menu");
+        src.setAttribute("data-autofocus", "");
+        let palRow = null;
+        if (isColor) {
+            let palId = B.pal, reversed = false;
+            const strip = h("span", { class: "sp-strip", style: "width:40px", "aria-hidden": "true" });
+            const palName = h("span", { class: "k-ellipsis" });
+            const drawPal = () => { const p = pal(palId), c = reversed ? p.colors.slice().reverse() : p.colors; strip.replaceChildren(...c.map((x) => h("span", { style: "background:" + x }))); palName.textContent = p.name + (reversed ? ", reversed" : ""); };
+            drawPal();
+            const palField = AB.field(h("span", { class: "sp-ml", style: "min-width:0" }, strip, palName), { caret: true, go: ["style-pickers", "palette"] });
+            palField.setAttribute("aria-label", "Palette");
+            const rev = AB.iconButton("arrow-left-right", "Reverse the palette", { onClick: () => { reversed = !reversed; rev.setAttribute("aria-pressed", String(reversed)); drawPal(); AB.announce(reversed ? "Palette reversed" : "Palette in order"); } });
+            rev.setAttribute("aria-pressed", "false");
+            palRow = row("Palette", palField, rev);
+        } else {
+            // a size binding maps the values onto a size range instead of a palette
+            palRow = row("Sizes", h("span", { class: "sp-pair" }, input({ label: "Smallest size", num: true, value: B.out[0] }), "to", input({ label: "Largest size", num: true, value: B.out[1] })));
+        }
+        const typed = h("span", { class: "sp-pair" }, input({ label: "From", num: true, value: B.range[0] }), "to", input({ label: "To", num: true, value: B.range[1] }));
         const typedRow = row("Range", typed);
         const fitted = row("Range", h("span", { class: "sp-eff", "data-tip": B.range[0] + " to " + B.range[1] + ", the lowest and highest value" }, B.range[0] + " to " + B.range[1]));
         typedRow.hidden = true;
+        let noValue = null;
+        if (isColor) {
+            noValue = AB.field(h("span", { class: "sp-eff" }, "Nothing"), { go: ["style-pickers", "color"] });
+            AB.tip(noValue, "Nothing, the default: rows beneath show through", { label: false });
+            noValue.setAttribute("aria-label", "No value: Nothing");
+        }
         const body = [
             row("Source", src),
             row("Scale", dropdown("Scale", "linear", Object.fromEntries(SCALES_FOR[B.type].map((k) => [k, SCALES[k]])), { unset: true, src: DEF + " for a number" })),
-            row("Palette", palField, rev),
+            palRow,
             row("Values from", segLive([["fit", "Fit to data"], ["pct", "Percentiles"], ["typed", "Typed"]], B.from, (v) => { typedRow.hidden = v !== "typed"; fitted.hidden = v === "typed"; fitted.querySelector(".sp-eff").textContent = v === "pct" ? "5th to 95th percentile" : B.range[0] + " to " + B.range[1]; }, "Values from")),
             fitted, typedRow,
             row("Clamp", check("Clamp values outside the range", true)),
-            diverging ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid })) : null,
-            row("No value", AB.field(h("span", { class: "sp-eff" }, "Nothing"), { go: ["style-pickers", "color"] })),
-            h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, tip: "Keep the current colors as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their colors", { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
+            B.mid ? row("Midpoint", input({ label: "Midpoint", num: true, value: B.mid })) : null,
+            // Note count is 0 on an element with no note, so a count binding never meets "no value"
+            noValue ? row("No value", noValue) : null,
+            h("div", { class: "sp-detach" }, AB.button("Detach", { kind: "secondary", icon: "unlink", block: true, tip: "Keep the current " + (isColor ? "colors" : "sizes") + " as fixed values", onClick: () => { AB.close(); AB.notice("Detached: " + B.total + " " + B.unit + " keep their " + (isColor ? "colors" : "sizes"), { label: "Undo", onClick: () => AB.announce("Binding restored") }); } })),
         ];
-        const noValue = body[body.length - 2].querySelector(".k-field");
-        AB.tip(noValue, "Nothing, the default: rows beneath show through", { label: false });
-        noValue.setAttribute("aria-label", "No value: Nothing");
-        el.append(pop(find("#ab-right .ab-bound", "#ab-right .ab-sline"), "Color from " + B.source, body, { width: 340 }));
+        if (!isColor) {
+            // Everything's Size line, as the panel draws it once bound: the type glyph and the field
+            const sv = document.querySelector(lineAt("node.size"));
+            if (sv) { sv.replaceChildren(AB.typeGlyph("num"), h("span", { class: "k-grow k-ellipsis" }, B.source)); sv.classList.add("ab-bound"); sv.closest(".ab-sline").setAttribute("data-bound", ""); }
+        }
+        const anchor = isColor ? find("#ab-right .ab-bound", "#ab-right .ab-sline") : find(lineAt("node.size"), headSel("Shape"));
+        el.append(pop(anchor, B.prop + " from " + B.source, body, { width: 340 }));
     }
 
     // ---------- Palette: one picker, pre-filtered by the binding's type ----------
@@ -420,7 +453,9 @@
         const v = colorValue({ name: o.name || "Color", hex: o.hex, pct: o.pct, onChange: o.onChange, focus: true });
         const custom = () => [
             h("div", { class: "sp-sv", style: "background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,transparent),hsl(" + (o.hue || 36) + ",100%,50%)", role: "img", "aria-label": "Saturation and brightness" }, h("i", { style: "left:100%;top:10%" })),
-            h("div", { class: "sp-hue", role: "slider", tabindex: "0", "aria-label": "Hue", "aria-valuenow": String(o.hue || 36), "aria-valuemin": "0", "aria-valuemax": "360" }, h("i", { style: "left:" + ((o.hue || 36) / 3.6) + "%" })),
+            h("div", { class: "sp-hue", role: "slider", tabindex: "0", "aria-label": "Hue", "aria-valuenow": String(o.hue || 36), "aria-valuemin": "0", "aria-valuemax": "360",
+                on: { click: (e) => { const r = e.currentTarget.getBoundingClientRect(), hue = Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 360); e.currentTarget.setAttribute("aria-valuenow", String(hue)); e.currentTarget.firstChild.style.left = hue / 3.6 + "%"; AB.announce("Hue " + hue); } } },
+                h("i", { style: "left:" + ((o.hue || 36) / 3.6) + "%" })),
             row("Hex", v.el),
             h("div", { class: "sp-head" }, "In this graph"),
             swatches([...new Set(Object.values(fx))], v.set),
@@ -495,7 +530,7 @@
     // [key, kind, plain name, effective value]. Kinds and plain names are the app's (the element
     // publishes names only); effective values from RichTextLabel's defaults where it has one.
     const GROUPS = [
-        ["Placement", [["location", "loc", "Location", "automatic"], ["attachOffset", "number", "Offset", "0"], ["depthFade", "bool", "Depth fade", false], ["depthFadeNear", "number", "Fade starts"], ["depthFadeFar", "number", "Fade ends"]]],
+        ["Placement", [["attachOffset", "number", "Offset", "0"], ["depthFade", "bool", "Depth fade", false], ["depthFadeNear", "number", "Fade starts"], ["depthFadeFar", "number", "Fade ends"]]],
         ["Text", [["font", "text", "Font", "Verdana"], ["sizePx", "number", "Size", "48"], ["weight", ["300", "normal", "500", "bold"], "Weight", "normal"], ["color", "color", "Color", "#000000"], ["lineHeight", "number", "Line height", "1.2"], ["textAlign", ["left", "center", "right"], "Alignment", "center"]]],
         ["Outline and shadow", [["outline", "color", "Outline"], ["outlineWidth", "number", "Outline width"], ["shadow", "bool", "Shadow", false], ["shadowColor", "color", "Shadow color"], ["shadowBlur", "number", "Shadow blur"], ["shadowOffsetX", "number", "Shadow x"], ["shadowOffsetY", "number", "Shadow y"]]],
         ["Panel", [["background", "color", "Background"], ["padding", "number", "Padding"], ["cornerRadius", "number", "Corner radius"], ["borderWidth", "number", "Border width"], ["borderColor", "color", "Border color"], ["gradient", "bool", "Gradient", false], ["gradientType", ["linear", "radial"], "Gradient type", "linear"], ["gradientDirection", ["vertical", "horizontal", "diagonal"], "Direction"], ["marginTop", "number", "Margin top"], ["marginBottom", "number", "Margin bottom"], ["marginLeft", "number", "Margin left"], ["marginRight", "number", "Margin right"]]],
@@ -503,28 +538,115 @@
         ["Effects", [["animation", ["none", "pulse", "bounce", "shake", "glow", "fill"], "Animation", "none"], ["animationSpeed", "number", "Speed"]]],
         ["Badge", [["badge", ["notification", "label", "label-success", "label-warning", "label-danger", "count", "icon", "progress", "dot"], "Badge"], ["icon", "text", "Icon"], ["iconPosition", ["left", "right"], "Icon side", "left"], ["progress", "number", "Progress, 0 to 1"]]],
     ];
-    const LOCS = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
     function lsControl(f, value, onChange) {
         const [key, kind, name, eff] = f;
         const effText = eff == null ? "Not set" : String(eff);
         if (kind === "bool") return check(name, value == null ? eff : value, onChange);
         if (kind === "number" || kind === "text") return input({ label: name, num: kind === "number", value, eff: effText, onInput: onChange });
         if (kind === "color") return AB.colorField({ name, hex: value, eff: eff || null, pct: value ? 100 : null });
-        if (kind === "loc") {
-            const g = h("span", { class: "sp-loc", role: "radiogroup", "aria-label": name });
-            LOCS.forEach((l) => { const c = AB.tip(h("span", { role: "radio", tabindex: l === value ? "0" : "-1", "aria-checked": String(l === value) }), nice(l)); c.addEventListener("click", () => { g.querySelectorAll("[role=radio]").forEach((x) => x.setAttribute("aria-checked", String(x === c))); onChange(l); }); g.append(c); });
-            return h("span", { style: "display:flex;gap:8px;align-items:center;padding:2px 0" }, g, value ? null : h("span", { class: "sp-eff", "data-tip": "Automatic, " + DEF }, "automatic"));
-        }
         return dropdown(name, value || eff || "", Object.fromEntries(kind.map((k) => [k, key === "weight" ? AB.plain("weight", k) : AB.plain("", k)])), { unset: value == null, onChange });
     }
-    // The one Label popover: what the label says (typed text, a field, a result or a note) on top, its style below.
-    // The Style tab's Label value, its bind icon and an arrow end's Caption all open it.
-    function labelStyle(el, openSource) {
-        const set = { location: "top", sizePx: 24, background: "#FFFFFF" }; // what this row's label style sets
-        const prevText = h("b", { style: "background:#FFFFFF;color:#000000;box-shadow:0 0 0 1px #00000026" }, "Valjean");
+
+    // ---------- this row's label lines (Group 2's label-two inspector: Above label, Below Note count) ----------
+    // label-position adds Right: degree through the panel's real "+" and From data list, so the
+    // panel and the popover show the same lines.
+    // Valjean's values: degree 36 (fixtures), 2 notes and his latest note (the notes fixture).
+    const SAMPLE = { label: "Valjean", group: "2", degree: "36", betweenness: "0.57", PageRank: "0.0754", "Note count": "2",
+        "Latest note": "Highest betweenness in the book, 0.57. Next is Myriel at 0.177." };
+    const posWord = (id) => (AB.CHANNELS.positions.find((p) => p[0] === id) || [id, id])[1];
+    const posId = (word) => (AB.CHANNELS.positions.find((p) => p[1] === word) || [word])[0];
+    const GRID = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
+    // Press the Label "+" and pick a field, once per line, then optionally leave one more draft open
+    function addLines(fields, thenDraft, done) {
+        const step = (i) => {
+            const hd = headOf("Label"), plus = hd && hd.querySelector(".ab-plus");
+            if (!plus) return done && done();
+            if (i >= fields.length) {
+                if (thenDraft) { plus.click(); leaveWithMenu(); }
+                return done && done();
+            }
+            plus.click();
+            requestAnimationFrame(() => {
+                const item = [...document.querySelectorAll("#ab-overlay .ab-menu .k-menu-item")].find((x) => x.textContent.trim().endsWith(fields[i]));
+                if (item) item.click(); else AB.closeMenu();
+                requestAnimationFrame(() => step(i + 1));
+            });
+        };
+        requestAnimationFrame(() => step(0));
+    }
+
+    // ---------- the one Label popover ----------
+    // Text and Position on top; the preview draws every line of this row (the edited one at full
+    // strength, the others faded); then the style fields with their "+".
+    // The Style tab's label line, its bind icon and an arrow end's Caption all open it.
+    function labelStyle(el, o) {
+        o = o || {};
+        // The lines of the row it was opened from, editing the line clicked; a direct link shows Group 2's two lines
+        const from = !o.right && labelOpener && labelOpener.lines.length ? labelOpener : null;
+        const lines = from ? from.lines.map((l) => Object.assign({}, l)) : [{ pos: "top", field: "label", type: "cat" }, { pos: "bottom", field: "degree", type: "num" }];
+        if (o.right) lines.push({ pos: "right", field: "Note count", type: "num" });
+        const ed = from ? lines.find((l) => l.pos === from.pos) || lines[0] : lines[o.right ? 2 : 0];
+        const set = { sizePx: 24, background: "#FFFFFF" }; // what this row's label style sets
+        // the preview: Valjean's node with every line of this row in place
+        const cells = {};
+        const preview = h("div", { class: "sp-preview sp-lprev", role: "img" }, GRID.map((g) => (cells[g] = h("span", { class: "sp-lcell" + (g === "center" ? " sp-lnode" : ""), "data-pos": g }))));
+        const textOf = (l) => (l.type ? SAMPLE[l.field] || l.field : l.text || "Text");
+        const paint = () => {
+            GRID.forEach((g) => cells[g].replaceChildren());
+            lines.forEach((l) => {
+                const b = h("b", { class: l === ed ? null : "sp-faded" }, textOf(l));
+                if (l === ed) Object.assign(b.style, { background: set.background || "transparent", fontSize: Math.min(15, Math.max(9, (set.sizePx || 13) / 2)) + "px", fontWeight: set.weight === "bold" ? "700" : "", color: set.color || "#000000" });
+                cells[l.pos].append(b);
+            });
+            preview.setAttribute("aria-label", "Preview: " + lines.map((l) => posWord(l.pos) + " " + textOf(l) + (l === ed ? " (editing)" : "")).join(", "));
+        };
+        // Position: the one home of a line's position. Used positions are aria-disabled, still focusable.
+        const grid = h("span", { class: "sp-loc", role: "radiogroup", "aria-label": "Position" });
+        const posName = h("span", { class: "k-secondary" });
+        const drawGrid = () => {
+            grid.replaceChildren();
+            GRID.forEach((g) => {
+                const by = lines.find((l) => l !== ed && l.pos === g);
+                const c = h("span", { role: "radio", tabindex: g === ed.pos ? "0" : "-1", "aria-checked": String(g === ed.pos), "aria-disabled": by ? "true" : null, "data-pos": g });
+                AB.tip(c, posWord(g), by ? { second: "Used by this row's " + posWord(by.pos) + " label" } : undefined);
+                const pick = () => {
+                    if (by || g === ed.pos) return;
+                    const was = posWord(ed.pos);
+                    // the panel's line keeps its place in the list and takes the new position word
+                    const li = document.querySelector(`#ab-right .ab-sline[data-label="${was}"]`);
+                    if (li) { li.dataset.label = posWord(g); const n = li.querySelector(".ab-sname"); if (n) n.textContent = posWord(g); }
+                    ed.pos = g;
+                    drawGrid(); paint();
+                    grid.querySelector("[aria-checked=true]").focus();
+                    AB.announce("Label moved from " + was + " to " + posWord(g));
+                };
+                c.addEventListener("click", pick);
+                c.addEventListener("keydown", (e) => {
+                    const all = [...grid.children], i = all.indexOf(c);
+                    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, ArrowDown: i + 3, ArrowUp: i - 3, Home: 0, End: 8 }[e.key];
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+                    else if (to != null && all[to]) { e.preventDefault(); all.forEach((x) => (x.tabIndex = -1)); all[to].tabIndex = 0; all[to].focus(); }
+                });
+                grid.append(c);
+            });
+            posName.textContent = posWord(ed.pos);
+        };
+        drawGrid();
+        // Text: where the words come from. A field or result is a chip (type glyph and name), never typed text.
+        const srcText = h("span", { class: "sp-ml" });
+        const drawSrc = () => { srcText.replaceChildren(ed.type ? AB.typeGlyph(ed.type) : null, ed.type ? ed.field : ed.text || ""); paint(); };
+        const srcField = AB.field(srcText, { caret: true, onClick: () => openSrc() });
+        srcField.setAttribute("aria-label", "Text");
+        srcField.setAttribute("aria-haspopup", "menu");
+        srcField.setAttribute("data-autofocus", "");
+        // The one From data list (Typed text first), the same one the Label "+" opens
+        const openSrc = () => AB.openMenu(srcField, AB.fromDataItems("text", ed.type ? ed.field : null, (name, type) => {
+            if (name === null) { Object.assign(ed, { type: null, field: null, text: "" }); drawSrc(); AB.flash("Type the label in the field (not wired in the skeleton)"); return; }
+            Object.assign(ed, { field: name, type }); drawSrc(); AB.announce("Label, " + posWord(ed.pos) + ": " + name);
+        }));
+        // the style fields this row sets, "+" for the rest
         const fields = h("div");
         const all = GROUPS.flatMap(([, fs]) => fs);
-        const paint = () => { prevText.style.background = set.background || "transparent"; prevText.style.fontSize = Math.min(20, Math.max(10, (set.sizePx || 13) / 1.6)) + "px"; prevText.style.fontWeight = set.weight === "bold" ? "700" : ""; prevText.style.color = set.color || "#000000"; };
         let sectionEl;
         const draw = (focusKey) => {
             const items = [];
@@ -543,26 +665,27 @@
             if (old) old.replaceWith(plus); else head.append(plus);
             if (focusKey) requestAnimationFrame(() => { const f = fields.querySelector(`[data-key="${focusKey}"] :is(input, [tabindex='0'], .k-check)`); if (f) f.focus(); });
         };
-        // The design note sits under the fields, as on the Style tab; the header keeps only "+"
         sectionEl = AB.section({ title: "Style", editable: true }, fields, h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary" }, "Field list:", AB.needsElement("graphty-element publishes only the label-style field names; full descriptors (kind, choices, range, default, plain name) are filed. A maximum width and a same-size-at-any-distance option are not label fields yet.")));
         draw();
-        paint();
-        // Text: where the words come from. A field or result is a chip (type glyph and name), never typed text.
-        let src = { name: "label", type: "cat" };
-        const srcText = h("span", { class: "sp-ml" });
-        const drawSrc = () => { srcText.replaceChildren(src.type ? AB.typeGlyph(src.type) : null, src.name); prevText.textContent = src.type ? "Valjean" : src.name || "Text"; };
-        const srcField = AB.field(srcText, { caret: true, onClick: () => openSrc() });
-        srcField.setAttribute("aria-label", "Text");
-        srcField.setAttribute("aria-haspopup", "menu");
-        srcField.setAttribute("data-autofocus", "");
-        const openSrc = () => {
-            const items = [{ label: "Typed text", check: !src.type, onClick: () => { src = { name: "", type: null }; drawSrc(); AB.flash("Type the label in the field (not wired in the skeleton)"); } }, { sep: true }]
-                .concat(fromDataItems("text", src.name, (name, type) => { src = { name, type: /integer|number/.test(type) ? "num" : "cat" }; drawSrc(); AB.announce("Label shows " + name); }));
-            markNotes(AB.openMenu(srcField, items));
-        };
         drawSrc();
-        el.append(pop(find(lineAt("node.label"), headSel("Label")), "Label", [row("Text", srcField), h("div", { class: "sp-preview", role: "img", "aria-label": "Preview" }, prevText), sectionEl], { width: 320 }));
-        if (openSource) requestAnimationFrame(() => requestAnimationFrame(openSrc));
+        const p = pop(find(`#ab-right .ab-sline[data-label="${posWord(ed.pos)}"] .ab-sv`, lineAt("node.label"), headSel("Label")), "Label, " + posWord(ed.pos), [
+            row("Text", srcField),
+            row("Position", h("span", { style: "display:flex;gap:8px;align-items:center;padding:2px 0" }, grid, posName)),
+            h("div", { class: "ab-cap ab-style-note ab-review-only k-secondary", style: "padding:0 16px 8px" }, "Several lines:", AB.needsElement("Labels keyed by position: graphty-element draws one label per node today, so a second line needs per-position label channels.")),
+            preview, sectionEl], { width: 320 });
+        el.append(p);
+        if (o.openSource) requestAnimationFrame(() => requestAnimationFrame(openSrc));
+        return p;
+    }
+    // A state that first adds lines to the panel, then opens the popover on the edited line
+    function labelAfterLines(el, fields, o) {
+        addLines(fields, false, () => requestAnimationFrame(() => {
+            el.hidden = false; // closing the From data list hid the empty overlay layer
+            labelStyle(el, o);
+            el.querySelectorAll(":scope > .k-popover").forEach((x) => x.classList.add("sp-pop"));
+            const f = el.querySelector(".k-popover [data-autofocus]");
+            if (f) f.focus();
+        }));
     }
 
     // ---------- a "Why this look" token: its property's own popover, written to Overrides ----------
@@ -586,7 +709,8 @@
     const G2 = (s) => "inspector-group-set-path-row/" + s;
     const RIGHT = {
         "plus-menu": G2("style"), "plus-one-left": G2("style"), "label-show": G2("style"), glow: G2("style"), shape: G2("style"),
-        bind: G2("label-bound"), "label-style": G2("label-bound"), color: G2("fill-set"), "color-libraries": G2("fill-set"),
+        bind: G2("label-two"), "label-style": G2("label-two"), "label-new-line": G2("label-two"), "label-position": G2("label-two"),
+        "bind-number": "inspector-selection-and-everything/everything", color: G2("fill-set"), "color-libraries": G2("fill-set"),
         pattern: G2("edges-side"), arrow: G2("arrows"),
         binding: "inspector-measure-row/style", "binding-diverging": "inspector-measure-row/risk-score", palette: "inspector-measure-row/style", "palette-custom": "inspector-measure-row/style",
         "token-color": "inspector-node/why-this-look",
@@ -598,9 +722,15 @@
         "plus-menu": () => pressPlus("Effects"),
         "plus-one-left": () => pressPlus("Tooltip", true),
         "label-show": () => pressPlus("Label"),
-        bind: (el) => labelStyle(el, true),
-        binding: (el) => binding(el, false),
-        "binding-diverging": (el) => binding(el, true),
+        bind: (el) => labelStyle(el, { openSource: true }),
+        binding: (el) => binding(el, "color"),
+        "binding-diverging": (el) => binding(el, "diverging"),
+        "bind-number": (el) => binding(el, "size"),
+        // on Group 2's two lines (Above: label, Below: Note count) "+" adds a Right draft and opens the From data list on it
+        "label-new-line": () => addLines([], true),
+        "label-style": (el) => labelStyle(el),
+        // "+" then Note count gives a Right line; its popover shows Above and Below used
+        "label-position": (el) => labelAfterLines(el, ["Note count"], { right: true }),
         palette: palettePicker,
         "palette-custom": customPalette,
         color: (el) => colorPicker(el, "Custom"),
@@ -609,9 +739,11 @@
         shape: (el) => shapePicker(el),
         pattern: patternPicker,
         arrow: arrowPicker,
-        "label-style": labelStyle,
         "token-color": tokenPopover,
     };
+    // The Label popover keeps the inspector it was opened from (a label line knows it); else the state's fixture
+    window.addEventListener("hashchange", () => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) setTimeout(() => { if (!/^#\/style-pickers\/(label-style|bind)$/.test(location.hash)) labelOpener = null; }, 0); });
+    const rightOf = (s) => ((s === "label-style" || s === "bind") && labelOpener && labelOpener.right ? labelOpener.right : RIGHT[s] || RIGHT["plus-menu"]);
     const stateNow = () => stateOf(decodeURIComponent((location.hash.split("/")[2] || "plus-menu")));
 
     registerSection({
@@ -620,18 +752,20 @@
         region: "overlay",
         rail: "graph",
         frame: (state) => {
-            const right = RIGHT[stateOf(state)] || RIGHT["plus-menu"];
+            const right = rightOf(stateOf(state));
             return { left: /risk-score/.test(right) ? "data-place/attributes" : "graph-place/at-rest", right };
         },
         // Esc and an outside click return to the inspector that opened the picker
-        get closeTo() { return RIGHT[stateNow()] || RIGHT["plus-menu"]; },
+        get closeTo() { return rightOf(stateNow()); },
         states: [
             { id: "plus-menu", label: "\"+\" menu (Effects)" },
             { id: "plus-one-left", label: "\"+\" with one left (Tooltip)" },
             { id: "label-show", label: "Label's \"+\" with Show" },
+            { id: "label-new-line", label: "Label: a new Right line, From data open" },
             { id: "bind", label: "Label: its Text menu (fields, results, notes)" },
             { id: "binding", label: "Binding" },
             { id: "binding-diverging", label: "Binding, diverging" },
+            { id: "bind-number", label: "Binding: Size from Note count" },
             { id: "palette", label: "Palette" },
             { id: "palette-custom", label: "Custom palette" },
             { id: "color", label: "Color" },
@@ -640,7 +774,8 @@
             { id: "shape", label: "Shape" },
             { id: "pattern", label: "Pattern" },
             { id: "arrow", label: "Arrows: Head" },
-            { id: "label-style", label: "Label (text and style)" },
+            { id: "label-style", label: "Label (text, position and style)" },
+            { id: "label-position", label: "Label: position grid, Above and Below used" },
             { id: "token-color", label: "Token: Color on Valjean" },
         ],
         render(el, state) {

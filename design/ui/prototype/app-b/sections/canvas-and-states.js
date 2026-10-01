@@ -1,4 +1,5 @@
-/* Canvas and its states, version 3. The canvas holds only the drawing, the legend card (top left,
+/* Canvas and its states, version 4. Every data door on the canvas (the empty card, the too-large
+   refusal's Choose another file... and Details) opens a Data page state. Version 3: The canvas holds only the drawing, the legend card (top left,
    AB.legendCard: shown or hidden only by the toolbar's Legend button and L) and the state cards. No
    buttons, chips or "?". One state card pattern: icon and title, one sentence, at most one primary
    and one secondary button; while a card shows, every toolbar button but Quick actions is disabled
@@ -115,7 +116,9 @@
         node.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); AB.go("context-menus", "node"); });
         // midpoint of Fantine (626.4, 181) to Valjean (698.7, 394.3) in the 1200 x 800 drawing.
         // graphty-element cannot pick edges (Edge.ts: isPickable = false): the edge opens from the table.
-        const EDGE_PICK = "Picking an edge on the canvas needs graphty-element. Open edges from the table.";
+        // Notes are element API and enabled everywhere; noting an edge picked HERE is the one note
+        // control that keeps the needs mark, because picking is a separate capability.
+        const EDGE_PICK = "Picking an edge on the canvas, and so noting it from here, needs graphty-element. Open the edge from the table to note it.";
         // A design annotation, not a control: it explains a gap and hides with the design notes
         const edge = AB.tip(h("span", { class: "cs-edge", role: "note", "data-needs": "", "aria-label": "Fantine - Valjean: " + EDGE_PICK, style: "left:55.21%;top:35.96%" }), "Fantine - Valjean", { second: EDGE_PICK, label: false });
         return [node, edge];
@@ -141,12 +144,47 @@
         ]);
     }
 
+    // Group 2's two label lines (the label-two state: name above, degree below, the owner's example),
+    // drawn on its three largest nodes so the picture matches the Label section. The 14 group-2 circles
+    // carry group 2's color before PageRank repaints them; the names follow degree order (Valjean 36,
+    // Bamatabois 8, Champmathieu 7).
+    function groupTwoLabels(doc) {
+        const g2 = nodePairs(doc).filter((p) => p.fill === L().groupColors["2"].toUpperCase()).sort((a, b) => +b.c.getAttribute("r") - +a.c.getAttribute("r")).slice(0, 3);
+        const texts = doc.querySelector("g[font-family]");
+        if (!texts) return;
+        texts.querySelectorAll("text").forEach((t) => { if (t.textContent.trim() === "Valjean") t.remove(); });
+        const add = (x, y, s) => { const t = doc.createElementNS("http://www.w3.org/2000/svg", "text"); t.setAttribute("x", x); t.setAttribute("y", y); t.setAttribute("text-anchor", "middle"); t.textContent = s; texts.append(t); };
+        [["Valjean", "36"], ["Bamatabois", "8"], ["Champmathieu", "7"]].forEach(([name, count], i) => {
+            const p = g2[i];
+            if (!p) return;
+            const r = +p.c.getAttribute("r");
+            add(p.x, p.y - r - 5, name);
+            add(p.x, p.y + r + 14, count);
+        });
+    }
+    // Label by degree: the new degree row writes Label Above on every node, so each circle carries its
+    // degree (the drawing's circles are in the fixture's row order) and no name
+    function degreeLabels(doc) {
+        const texts = doc.querySelector("g[font-family]");
+        if (!texts) return;
+        texts.replaceChildren();
+        const rows = L().rows;
+        nodePairs(doc).forEach((p, i) => {
+            if (!rows[i]) return;
+            const t = doc.createElementNS("http://www.w3.org/2000/svg", "text");
+            t.setAttribute("x", p.x); t.setAttribute("y", p.y - +p.c.getAttribute("r") - 4); t.setAttribute("text-anchor", "middle");
+            t.textContent = String(rows[i].degree);
+            texts.append(t);
+        });
+    }
     function drawn(el, state) {
         const f = L().frame;
         const stage = h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": f.altSized });
         const alt = "Les Miserables colored by PageRank, sized by degree";
         const edited = AB.route && AB.route.frame.right === "inspector-node/edited";
-        stage.append(...AB.lesmisDrawing("lesmis-groups-rest", alt, state === "hidden-on-canvas" ? hideGroup0 : null, edited ? valjeanOverride : null));
+        const labelTwo = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-two";
+        const labelBy = AB.route && AB.route.id === "inspector-group-set-path-row" && AB.route.state === "label-by";
+        stage.append(...AB.lesmisDrawing("lesmis-groups-rest", alt + (labelTwo ? "; Group 2 labeled with names above and degree below" : labelBy ? "; every node labeled with its degree above it" : ""), state === "hidden-on-canvas" ? hideGroup0 : labelTwo ? groupTwoLabels : labelBy ? degreeLabels : null, edited ? valjeanOverride : null));
         stage.append(...hotspots());
         AB.append(el, [stage, pagerankLegend()]);
         if (state === "less-detail") AB.notice("More than 10,000 nodes: drawn with less detail.", { label: "Limits", go: ["settings", "performance"] });
@@ -172,6 +210,52 @@
             AB.legendCard([{ title: "Color: Louvain", go: run, rows: lg.rows.map((r) => ({ swatch: r.color, label: r.name, count: n(r.count), go: run })), more: lg.other.communities + " more communities" }])]);
     }
 
+    // ---------- the door entries (AB.fx.datasets.doorEntries) ----------
+    // One drawing for the loaded door-entries graph, unstyled (no row paints yet, so the legend card
+    // says so): 412 people and 9 buildings, and 1,306 person-building edges (One edge per: Pair, the
+    // 32 unmatched rows left out). The kit has no drawing of this data and is read-only, so the layout
+    // is generated here, seeded so it never changes: each person sits outside a "home" building and
+    // links to it and two or three others; the 14 people with no entries sit on the outer ring.
+    // Colors are the kit's unstyled Les Miserables drawing's (lesmis-plain): nothing paints.
+    function doorSvg(theme) {
+        const D = AB.fx.datasets.doorEntries, R = D.report;
+        const bg = theme === "dark" ? "#1E1E1E" : "#F5F5F5";
+        let seed = 7;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        const nB = D.tables[1].rows, nP = D.tables[0].rows, nIso = R.people.noEntries, nE = R.entries.pairEdges; // a Row load draws the same picture: repeated entries overlap their pair's edge
+        const B = Array.from({ length: nB }, (_, i) => { const a = (i / nB) * 2 * Math.PI; return [600 + 150 * Math.cos(a), 400 + 150 * Math.sin(a)]; });
+        const linked = nP - nIso, extra = nE - 3 * linked; // every linked person has 3 buildings, `extra` of them a 4th
+        const lines = [], dots = [];
+        for (let p = 0; p < nP; p++) {
+            if (p >= linked) { const a = rnd() * 2 * Math.PI; dots.push([600 + 370 * Math.cos(a), 400 + 340 * Math.sin(a)]); continue; }
+            const home = p % nB, a = (home / nB) * 2 * Math.PI + (rnd() - 0.5) * 0.62, r = 215 + rnd() * 120;
+            const xy = [600 + r * Math.cos(a), 400 + r * Math.sin(a) * 0.95];
+            dots.push(xy);
+            const to = new Set([home]);
+            while (to.size < (p < extra ? 4 : 3)) to.add(Math.floor(rnd() * nB));
+            to.forEach((b) => lines.push(`<line x1="${xy[0].toFixed(1)}" y1="${xy[1].toFixed(1)}" x2="${B[b][0].toFixed(1)}" y2="${B[b][1].toFixed(1)}"/>`));
+        }
+        const dot = ([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#808080"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.75" fill="none" stroke="${bg}" stroke-width="1.5"/>`;
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="${bg}"/>` +
+            `<g stroke="#808080" stroke-width="0.6" stroke-opacity="0.22">${lines.join("")}</g>${dots.concat(B).map(dot).join("")}</svg>`;
+    }
+    const doorUrl = {};
+    function door(el) {
+        const D = AB.fx.datasets.doorEntries;
+        const alt = D.graphName + ": " + n(D.loadedTypes().person + D.loadedTypes().building) + " nodes (people and buildings) and " + n(D.loadedEdges()) + " edges, unstyled";
+        const imgs = ["light", "dark"].map((t) => h("img", { class: "k-" + t + "-only", alt, src: doorUrl[t] || (doorUrl[t] = URL.createObjectURL(new Blob([doorSvg(t)], { type: "image/svg+xml" }))) }));
+        AB.append(el, [h("div", { class: "k-stage", role: "group", tabindex: "0", "aria-label": alt }, ...imgs), AB.legendCard([])]);
+    }
+    // Loading what the Data page set up, per data set (the Les Miserables file, the door-entries tables, the transfers)
+    function loadingCard(ds) {
+        if (ds === "doorEntries") {
+            const D = AB.fx.datasets.doorEntries;
+            return { title: "Reading " + D.tables.length + " tables", text: D.tables.map((t) => t.file).join(", ") + ": " + n(D.loadedTypes().person + D.loadedTypes().building) + " nodes, " + n(D.loadedEdges()) + " edges..." };
+        }
+        if (ds === "transactions") { const T = AB.fx.datasets.transactions; return { title: "Reading " + T.frame.file, text: n(T.nodes) + " nodes, " + n(T.edges) + " edges..." }; }
+        return { title: "Reading " + L().frame.file, text: L().nodes + " nodes, " + L().edges + " edges..." };
+    }
+
     // Everything hidden: only the two kept sets paint; the legend lists only what paints
     function everything(el) {
         const g = (lab) => L().frame.legend.rows.find((r) => r.label === lab);
@@ -181,18 +265,18 @@
         AB.append(el, [stage, AB.legendCard([part("2"), part("8")])]);
     }
 
-    function loading(el) {
+    function loading(el, ds) {
+        const c = loadingCard(ds);
         el.append(card({
-            icon: "loader-circle", title: "Reading " + L().frame.file,
-            text: L().nodes + " nodes, " + L().edges + " edges...",
+            icon: "loader-circle", title: c.title,
+            text: c.text,
             extra: h("div", { class: "k-progress", role: "progressbar", "aria-label": "Reading", "aria-valuenow": "60" }, h("i", { style: "width:60%" })),
             secondary: AB.button("Cancel", { kind: "secondary", go: ["start-screen", "returning"] }),
         }));
     }
 
     function empty(el) {
-        const add = AB.cmd("add-data");
-        el.append(card({ icon: "database", title: "No nodes to draw", text: "This graph is empty.", primary: AB.button(add.label, { go: add.go }) }));
+        el.append(card({ icon: "database", title: "No nodes to draw", text: "This graph is empty.", primary: AB.button(AB.cmd("add-data").label, { go: ["data-page", "entries"] }) }));
     }
 
     function refused(el) {
@@ -200,8 +284,8 @@
         el.append(card({
             role: "alert", icon: "triangle-alert", title: "Too large to draw",
             text: c.file + " has " + n(c.nodes) + " nodes; a graph draws up to " + n(c.drawingLimit) + " nodes and 100,000 edges, so nothing was loaded.",
-            primary: AB.button("Choose another file...", { go: ["load-step", "preview"] }),
-            secondary: AB.button("Details", { kind: "ghost", go: ["load-step", "refused-too-large"] }),
+            primary: AB.button("Choose another file...", { go: ["data-page", "entries"] }),
+            secondary: AB.button("Details", { kind: "ghost", go: ["data-page", "refused-too-large"] }),
         }));
     }
 
@@ -226,6 +310,9 @@
             if (state === "everything-hidden") return { left: "graph-place/everything-hidden", right: "inspector-selection-and-everything/everything" };
             if (state === "empty" || state === "refused-too-large") return { left: "graph-place/empty", right: false, dock: false };
             if (state === "loading") return { left: "graph-place/empty", right: "inspector-nothing-selected/reading", dock: false };
+            if (state === "door-entries-loading") return { dataset: "doorEntries", left: "graph-place/empty", right: false, dock: false };
+            if (state === "transfers-loading") return { dataset: "transactions", left: "graph-place/empty", right: false, dock: false };
+            if (state === "door-entries") return { dataset: "doorEntries", left: "graph-place/door-entries" };
             if (state === "gpu-lost") return { left: "graph-place/failed", right: "inspector-nothing-selected/overview" };
             if (state === "headset-ended") return { left: "graph-place/at-rest", toolbar: "toolbar/session-ended" };
             if (state === "waiting-to-settle") return { left: "graph-place/at-rest", toolbar: "toolbar/export-waiting" };
@@ -248,11 +335,22 @@
             { id: "headset-ended", label: "Notice: headset session ended" },
             { id: "transfers", label: "Transfers data (Data place)" },
             { id: "transfers-communities", label: "Transfers, colored by community" },
+            { id: "door-entries", label: "Door entries, as loaded (unstyled)" },
+            { id: "door-entries-loading", label: "Loading the door-entries tables" },
+            { id: "transfers-loading", label: "Loading the transfers" },
         ],
         render(el, state) {
             state = OLD[state] || state;
             if (state === "everything-hidden") everything(el);
-            else if (state === "loading") loading(el);
+            else if (state === "loading") loading(el, "lesmis");
+            else if (state === "door-entries-loading" || state === "transfers-loading") {
+                // Load from the Data page ends on the loaded graph: the card shows, then the drawing
+                // (the transfers land with no filter steps: a fresh load has none)
+                const to = state === "door-entries-loading" ? ["graph-place", "door-entries"] : ["data-place", "empty-filters"], here = location.hash;
+                loading(el, state === "door-entries-loading" ? "doorEntries" : "transactions");
+                setTimeout(() => { if (location.hash === here) AB.go(to[0], to[1]); }, 1500);
+            }
+            else if (state === "door-entries") door(el);
             else if (state === "empty") empty(el);
             else if (state === "refused-too-large") refused(el);
             else if (state === "gpu-lost") gpuLost(el);

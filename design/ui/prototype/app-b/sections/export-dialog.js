@@ -120,7 +120,7 @@
     function check(label, on, flip) {
         const id = "ex-chk-" + ++chkSeq;
         const text = h("span", { id }, label);
-        const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!on), "aria-labelledby": id });
+        const box = h("span", { class: "k-check", role: "checkbox", tabindex: "0", "aria-checked": String(!!on), "aria-labelledby": id, "aria-label": typeof label === "string" ? label : null });
         const wrap = h("label", { class: "ex-chk" }, box, text);
         wrap.addEventListener("click", (e) => { e.preventDefault(); flip(); });
         box.addEventListener("keydown", (e) => { if (e.key === " ") { e.preventDefault(); flip(); } });

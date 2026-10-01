@@ -114,9 +114,11 @@
         { heading: url ? "The alert feed address" : AB.fx.datasets.transactions.file },
         C("rename", flash("Rename")),
         { sep: true },
-        { label: "Replace with file...", desc: "Opens the file picker; the graph is untouched if it fails", go: ["load-step", "replace"] },
-        { label: "Edit source...", go: ["load-step", "remap"] },
-        url ? { label: "Refresh", desc: "Reads the address again; the graph is untouched if it fails", go: ["data-place", "after-replace"] } : null,
+        C("replace-file", { desc: "Opens the file picker, then the Data page with every role carried over; the graph is untouched if it fails" }),
+        C("edit-source", { desc: "The Data page at this table" }),
+        url ? { label: "Refresh", desc: "Reads the address again on the Data page; the graph is untouched if it fails", go: ["data-page", "url"] } : null,
+        { sep: true },
+        { label: "Remove", desc: "Removes this table and what it added", needs: "graphty-element does not record which table each node and edge came from, so it cannot remove one table's records" },
     ].filter(Boolean);
 
     const onStage = () => ["#ab-canvas .k-stage", L().anchors.selected.x, L().anchors.selected.y, true];
@@ -337,7 +339,7 @@
                 { heading: "amount" },
                 { label: "Color by", ...flash("Color by amount") },
                 { label: "Width by", ...flash("Width by amount") },
-                C("label-by", { go: null, ...flash("Label by amount") }),
+                C("label-by", { go: ["inspector-group-set-path-row", "label-by"] }),
                 { label: "Show as groups", ...flash("Show as groups") },
                 { label: "Place by", needs: "graphty-element places nodes only by position attributes; amount as an axis needs a layout that reads any attribute" },
                 { sep: true },
@@ -345,6 +347,7 @@
                 { label: "Create set where this is...", go: ["select-where", "where"] },
                 { sep: true },
                 { label: "Read as...", go: ["inspector-attribute-and-filter-step", "attribute"] },
+                { label: "Edit on the Data page", desc: "Its roles, type and links, under its column header", go: ["data-page", "transfers"] },
                 { sep: true },
                 showInTable("transfers"),
             ],
@@ -379,26 +382,26 @@
         },
         source: {
             label: "A data source (a file)",
-            frame: { left: "data-place/at-rest", right: "inspector-source/file" },
+            frame: { left: "data-place/at-rest", dataset: "transactions", right: "inspector-nothing-selected/transfers" },
             at: () => [byText("#ab-left .dp-row", new RegExp(AB.fx.datasets.transactions.file.replace(/\./g, "\\."))) || "#ab-left", 55, 50, false],
             items: () => sourceItems(false),
         },
         "source-url": {
             label: "A data source (from a URL)",
-            frame: { left: "data-place/url-source", right: "inspector-source/url" },
+            frame: { left: "data-place/url-source", dataset: "transactions", right: "inspector-nothing-selected/transfers" },
             at: () => [byText("#ab-left .dp-row", /alert feed|https?:/i) || "#ab-left", 55, 50, false],
             items: () => sourceItems(true),
         },
         note: {
             label: "A note",
             frame: { left: "notes-place/all" },
-            at: () => ["#ab-left .np-note", 60, 40, false],
+            at: () => ["#ab-left .np-note[data-note=n5]", 60, 40, false],
             items: () => {
-                const n = document.querySelector("#ab-left .np-note .np-text");
+                const n = document.querySelector("#ab-left .np-note[data-note=n5] .np-text");
                 const words = n ? n.textContent.trim().split(/\s+/) : ["Note"];
                 return [
                     { heading: words.slice(0, 6).join(" ") + (words.length > 6 ? "..." : "") },
-                    { label: "Edit", go: ["notes-place", "writing"] },
+                    { label: "Edit", go: ["notes-place", "editing"] },
                     { label: "Copy link to note", ...done("Copied a link to the note") },
                     { sep: true },
                     del("Delete", "the note"),

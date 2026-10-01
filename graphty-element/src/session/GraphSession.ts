@@ -56,7 +56,8 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
 import { createNotesApi } from "./notes/NotesApi";
-import type { NotesApi } from "./notes/types";
+import { noteMembers } from "./notes/select";
+import type { NoteId, NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
@@ -1921,6 +1922,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 ? []
                 : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
+            // And notes naming it, labeled with the note's first line (design/notes 5.7).
+            ...notes
+                .list()
+                .flatMap((note) =>
+                    note.targets.flatMap((target) =>
+                        "set" in target
+                            ? [
+                                  {
+                                      user: { kind: "note" as const, id: note.id, label: firstLineOf(note.text) },
+                                      scope: { set: target.set },
+                                  },
+                              ]
+                            : [],
+                    ),
+                ),
         ],
         materialise: createMaterialiser({
             snapshot,
@@ -2108,7 +2124,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const graph = snapshot();
             const space = edgeSpaceOf(graph);
             const held = heldItems(
-                [...keptSets.list().map((set) => set.definition), ...layerScopesOf(stack), visibility.filter],
+                [
+                    ...keptSets.list().map((set) => set.definition),
+                    ...layerScopesOf(stack),
+                    visibility.filter,
+                    // A note's item target selects what its run held (design/notes 5.6).
+                    ...notes
+                        .list()
+                        .flatMap((note) =>
+                            note.targets.flatMap((target) =>
+                                "item" in target ? [{ kind: "item", item: target.item }] : [],
+                            ),
+                        ),
+                ],
                 runId,
             );
 
@@ -2238,6 +2266,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results,
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
+        note: (id: NoteId, target: number | undefined) => {
+            const status = notes.status(id);
+            return noteMembers(notes.get(id)?.targets ?? [], status, snapshot(), target);
+        },
         records,
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
@@ -2494,6 +2526,16 @@ function readsAnyField(entry: CompiledLayer, changed: { readonly node: string[];
  */
 function layerScopesOf(stack: SessionStylesApi | null): Scope[] {
     return (stack?.list() ?? []).flatMap((layer) => (layer.selector.match === "member" ? [layer.selector.of] : []));
+}
+
+/**
+ * A note's first line with any characters, cut to 80 code points: how `sets.usedBy` labels it.
+ * @param text - The note's text.
+ * @returns The label.
+ */
+function firstLineOf(text: string): string {
+    const line = text.split(/\r\n|\r|\n/).find((candidate) => candidate.trim() !== "") ?? "";
+    return Array.from(line.trim()).slice(0, 80).join("");
 }
 
 /** What names a set from outside the session, for `usedBy`. */

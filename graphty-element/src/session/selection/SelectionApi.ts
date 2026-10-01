@@ -110,6 +110,11 @@ export interface SelectionDelta {
      * are the same empty selection.
      */
     readonly unresolvedPaths: readonly Path[];
+    /**
+     * For a `{ note }` target: how many of the note's targets are not in the graph and so were not
+     * selected. Absent for every other target.
+     */
+    readonly skipped?: number;
     /** Who asked. */
     readonly cause: SelectionCause;
 }
@@ -324,6 +329,8 @@ export interface SelectionSources {
      * @returns The elements found.
      */
     readonly find?: (text: string, mode: SelectionTextMode) => Iterable<SelectionSearchHit>;
+    /** What a note's targets select. Absent refuses a `note` target. */
+    readonly note?: TargetContext["note"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
     readonly records?: SessionRecordSource;
     /**
@@ -697,7 +704,7 @@ class Selection implements SelectionOwner {
 
         this.#truncated = this.#enforceCap(cap);
 
-        return this.#delta(before, members.unmatched, members.unresolvedPaths, cause);
+        return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
@@ -828,7 +835,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find } = this.#sources;
+        const { scope, results, match, find, note } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -840,6 +847,7 @@ class Selection implements SelectionOwner {
             ...(results === undefined ? {} : { results }),
             ...(match === undefined ? {} : { match }),
             ...(find === undefined ? {} : { find }),
+            ...(note === undefined ? {} : { note }),
         };
     }
 
@@ -919,6 +927,7 @@ class Selection implements SelectionOwner {
      * @param unmatched - The pasted ids that named nothing.
      * @param unresolvedPaths - The paths nothing in this session answers.
      * @param cause - Who asked.
+     * @param skipped - A note target's targets not in the graph; undefined for any other target.
      * @returns The delta.
      */
     #delta(
@@ -926,6 +935,7 @@ class Selection implements SelectionOwner {
         unmatched: readonly string[],
         unresolvedPaths: readonly Path[],
         cause: SelectionCause,
+        skipped?: number,
     ): SelectionDelta {
         const added: NodeId[] = [];
         const removed: NodeId[] = [];
@@ -961,6 +971,7 @@ class Selection implements SelectionOwner {
             truncated: this.#truncated,
             ...(unmatched.length === 0 ? {} : { unmatched: Object.freeze([...unmatched]) }),
             unresolvedPaths: Object.freeze([...unresolvedPaths]),
+            ...(skipped === undefined ? {} : { skipped }),
             cause,
         });
 

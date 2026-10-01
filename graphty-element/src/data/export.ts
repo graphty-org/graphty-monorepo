@@ -11,8 +11,9 @@
  * exporter's `check()` lists everything else as a loss note, so nothing is dropped silently.
  *
  * WHAT IT NEVER CARRIES. The element's own bookkeeping: its internal edge ids and every
- * `graphty.`-prefixed column. A value an algorithm did not measure is left unset, which each
- * format writes as its own "absent".
+ * `graphty.`-prefixed column. A loaded column under that reserved root is reported as
+ * `W_GRAPHTY_COLUMN_DROPPED`. A value an algorithm did not measure is left unset, which each format
+ * writes as its own "absent".
  *
  * NOTES are left out unless asked for (design/notes/notes-design.md section 7.8). With
  * `{ notes: true }` each node and edge a note names gets two columns, `graphty.notes.count` and
@@ -156,16 +157,24 @@ function neutraliseFormula<T>(value: T): T | string {
  * @param record - The record.
  * @param skip - The structural keys.
  * @param cell - What each key and text value goes through: the formula guard, or nothing.
+ * @param dropped - Counts, per `graphty.` column left out, the values it held.
  * @returns The attributes.
  */
 function attributesOf(
     record: Readonly<Record<string, unknown>>,
     skip: ReadonlySet<string>,
     cell: <T>(value: T) => T | string,
+    dropped: Map<string, number>,
 ): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
-        if (!skip.has(key) && !key.startsWith(INTERNAL_PREFIX) && value !== undefined && value !== null) {
+        if (skip.has(key) || value === undefined || value === null) {
+            continue;
+        }
+
+        if (key.startsWith(INTERNAL_PREFIX)) {
+            dropped.set(key, (dropped.get(key) ?? 0) + 1);
+        } else {
             out[cell(key)] = cell(value);
         }
     }
@@ -307,8 +316,10 @@ export function buildExportSnapshot(
     const edges = session.data.edges();
     const nodeSkip = new Set([...NODE_STRUCTURE, ...(view.nodeStyle === undefined ? [] : NODE_STYLE_KEYS)]);
     const edgeSkip = new Set([...EDGE_STRUCTURE, ...(view.edgeStyle === undefined ? [] : EDGE_STYLE_KEYS)]);
+    // A loaded column under the reserved `graphty.` root is left out, never silently.
+    const dropped = new Map<string, number>();
     for (const record of nodes) {
-        builder.addNodeRecord(cell(record.id), attributesOf(record, nodeSkip, cell));
+        builder.addNodeRecord(cell(record.id), attributesOf(record, nodeSkip, cell, dropped));
     }
 
     // The weight is the one the element stores and runs on -- read through edgeWeightPath, then
@@ -319,7 +330,7 @@ export function buildExportSnapshot(
     const { weights, edgeToArc } = current;
     let unweighable = 0;
     edges.forEach((record, row) => {
-        const attributes = attributesOf(record, edgeSkip, cell);
+        const attributes = attributesOf(record, edgeSkip, cell, dropped);
         const stored = weights === null ? undefined : weights[edgeToArc[row]];
         const weighted =
             stored !== undefined &&
@@ -395,6 +406,17 @@ export function buildExportSnapshot(
             if (style?.width !== undefined) {
                 builder.setEdgeValue(thickness, row, style.width);
             }
+        });
+    }
+
+    for (const [column, count] of dropped) {
+        notes.push({
+            code: "W_GRAPHTY_COLUMN_DROPPED",
+            message:
+                `The column ${JSON.stringify(column)} was left out: names under graphty. are reserved for ` +
+                `values graphty-element provides`,
+            column,
+            count,
         });
     }
 

@@ -142,6 +142,23 @@ describe("notes in exports", () => {
         h.session.dispose();
     });
 
+    it("reports a loaded column under the reserved graphty. root as left out, never silently", async () => {
+        const h = makeSession({ directed: true });
+        h.add([{ id: "a", "graphty.x": "keepme" }, { id: "b" }]);
+        for (const format of ["gexf", "graphml", "csv", "json"] as const) {
+            const result = exportSession(h.session, format);
+            assert.notInclude(await result.text(), "keepme", format);
+            const loss = result.lossNotes.filter((note) => note.code === "W_GRAPHTY_COLUMN_DROPPED");
+            assert.deepEqual(
+                loss.map((note) => [note.column, note.count]),
+                [["graphty.x", 1]],
+                format,
+            );
+        }
+
+        h.session.dispose();
+    });
+
     it("lists notes among every writer's options, off by default", () => {
         for (const format of ["gexf", "graphml", "csv", "json", "dot", "gml", "pajek"]) {
             const option = formatDescriptor(format)?.writerOptions?.find((entry) => entry.name === "notes");

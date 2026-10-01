@@ -241,7 +241,10 @@ describe("accelerated(acc)", () => {
         const log: unknown[][] = [];
         const fake: AlgorithmAccelerator = {
             kind: "fake",
-            minimumSpanningTree: (...a) => (log.push(a), Promise.resolve({ edges: Uint32Array.of(0), totalWeight: 42 })),
+            minimumSpanningTree: (...a) => (
+                log.push(a),
+                Promise.resolve({ edges: Uint32Array.of(0), totalWeight: 42 })
+            ),
         };
         const weights = new Float64Array(s.arcCount).fill(2);
         const mst = await accelerated(fake).minimumSpanningTree(s, { weights });

@@ -1,3 +1,13 @@
+## 3.1.0 (2026-10-01)
+
+### 🚀 Features
+
+- **algorithms:** triangle counting, and two dispatcher members for it and label propagation ([38236ae3](https://github.com/graphty-org/graphty-monorepo/commit/38236ae3))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 # 3.0.0 (2026-09-30)
 
 ### 🚀 Features

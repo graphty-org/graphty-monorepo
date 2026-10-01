@@ -98,22 +98,22 @@ the measuring script that drives the page at 1440 x 900, 1180 x 820 (iPad landsc
 Measured on a fake server with 3 pull requests and a master run, 5 projects of 170 items each,
 2400 x 1800 images, and GitHub delays standing in for an iPad on Wi-Fi.
 
-| Flow                                    | Today                                                          | Redesigned                                                       |
-| --------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Open the page                           | 0 clicks; 3.3 s of plain "Loading..."                          | 0 clicks; the cached list at once, or placeholder cards and steps |
-| Captures still downloading              | 4 manual reloads, 14 s; no Review button meanwhile             | 0 clicks; each row fills in as its download lands                |
-| Targets to a project grid               | 1 click, plus 1 scroll per pull request above it on the iPad   | 1 click; or 2 taps on the header's target and project pickers    |
-| Grid to the first undecided image       | 1 click, after scrolling past the error list (480 px)          | 1 click: "Review 152 undecided", at the top                      |
-| Accept                                  | 1 tap at the bottom edge, in a spot other items fill with Exclude or Undo | 1 tap, top bar, same spot on every item                |
-| Accept with a note                      | 2 (type, Accept)                                               | 2 (type, Accept); keys: type, Escape, A                          |
-| Reject                                  | 3 (Reject, type, Enter)                                        | 3 (Reject, type, Enter), or 2 (type, Reject)                     |
-| Exclude                                 | 4 (Exclude, type, Enter, confirm)                              | 4, unchanged: an exclusion stops a story being captured          |
-| Go back and undo                        | 2 (K, U)                                                       | 2 (K, U)                                                         |
-| Last item to the next project           | 3 (Escape, "Visual review", Review) and a 1.3 s refresh        | 1 ("Next project: layout, 42 undecided" opens its first undecided item) |
-| Switch project from a story             | 3 and a refresh                                                | 2 (project picker, choose)                                       |
-| Finish                                  | 2 (Finish, confirm)                                            | 2 (Finish, sign) and Face ID                                     |
-| After Finish, the next target           | 3, plus scrolling; the page drops back to the top of the list  | 1 ("Next: #202 (340 undecided)")                                 |
-| Browser Back from a story to its grid   | 0 clicks; 2.0 s while every pull request is fetched again      | 0 clicks; instant                                                |
+| Flow                                  | Today                                                                     | Redesigned                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Open the page                         | 0 clicks; 3.3 s of plain "Loading..."                                     | 0 clicks; the cached list at once, or placeholder cards and steps       |
+| Captures still downloading            | 4 manual reloads, 14 s; no Review button meanwhile                        | 0 clicks; each row fills in as its download lands                       |
+| Targets to a project grid             | 1 click, plus 1 scroll per pull request above it on the iPad              | 1 click; or 2 taps on the header's target and project pickers           |
+| Grid to the first undecided image     | 1 click, after scrolling past the error list (480 px)                     | 1 click: "Review 152 undecided", at the top                             |
+| Accept                                | 1 tap at the bottom edge, in a spot other items fill with Exclude or Undo | 1 tap, top bar, same spot on every item                                 |
+| Accept with a note                    | 2 (type, Accept)                                                          | 2 (type, Accept); keys: type, Escape, A                                 |
+| Reject                                | 3 (Reject, type, Enter)                                                   | 3 (Reject, type, Enter), or 2 (type, Reject)                            |
+| Exclude                               | 4 (Exclude, type, Enter, confirm)                                         | 4, unchanged: an exclusion stops a story being captured                 |
+| Go back and undo                      | 2 (K, U)                                                                  | 2 (K, U)                                                                |
+| Last item to the next project         | 3 (Escape, "Visual review", Review) and a 1.3 s refresh                   | 1 ("Next project: layout, 42 undecided" opens its first undecided item) |
+| Switch project from a story           | 3 and a refresh                                                           | 2 (project picker, choose)                                              |
+| Finish                                | 2 (Finish, confirm)                                                       | 2 (Finish, sign) and Face ID                                            |
+| After Finish, the next target         | 3, plus scrolling; the page drops back to the top of the list             | 1 ("Next: #202 (340 undecided)")                                        |
+| Browser Back from a story to its grid | 0 clicks; 2.0 s while every pull request is fetched again                 | 0 clicks; instant                                                       |
 
 ### Targets
 
@@ -272,25 +272,25 @@ the commit status: then it stays available, so Finish can post the status again.
 2. **The Finish sheet** opens: a modal dialog (`aria-labelledby` its first line, `aria-describedby`
    its summary; focus on the dialog box itself, so a held Enter does not press its button). It
    states exactly what will happen (section 5 has the strings):
-   - what will be committed, and where: "Commit 214 accepts and 1 exclusion to feature.";
-   - what will be posted: "Post 3 rejects and 2 accept notes as a comment on #201.", or on the
-     master seed "Open one issue for 3 rejects.";
-   - the status it will set: "Then set the commit status 'Visual review' to failure (3 rejected).";
-   - "Accepted without opening: 40." when Accept all took items unopened;
-   - "Still undecided, left for a later round: layout 12, graphty 3.";
-   - "Not loaded, so not reviewed: algorithms.";
-   - every note to be published, reject reasons and accept notes, each with its item, in a list
-     that scrolls inside the sheet; the summary above it and the buttons below it never scroll, so
-     Cancel and the final button are on screen however long the list is;
-   - the signing key line, and the command to sign as yourself when someone else started the
-     server;
-   - "Your passkey confirms this Finish (Face ID or a security key)." once a passkey is known, or,
-     before one is registered and when the Finish commits anything, "Not yet protected: no passkey
-     is registered, so this Finish is not approved by you and the CI gate does not check who
-     accepted. Register a passkey on the targets screen and merge its pull request to turn that
-     on."
-   The buttons are **Cancel** and one button whose label names the effect: "Sign and finish #201"
-   once a passkey is known; otherwise "Finish #201", or "Post 3 rejects to #201" for rejects alone.
+    - what will be committed, and where: "Commit 214 accepts and 1 exclusion to feature.";
+    - what will be posted: "Post 3 rejects and 2 accept notes as a comment on #201.", or on the
+      master seed "Open one issue for 3 rejects.";
+    - the status it will set: "Then set the commit status 'Visual review' to failure (3 rejected).";
+    - "Accepted without opening: 40." when Accept all took items unopened;
+    - "Still undecided, left for a later round: layout 12, graphty 3.";
+    - "Not loaded, so not reviewed: algorithms.";
+    - every note to be published, reject reasons and accept notes, each with its item, in a list
+      that scrolls inside the sheet; the summary above it and the buttons below it never scroll, so
+      Cancel and the final button are on screen however long the list is;
+    - the signing key line, and the command to sign as yourself when someone else started the
+      server;
+    - "Your passkey confirms this Finish (Face ID or a security key)." once a passkey is known, or,
+      before one is registered and when the Finish commits anything, "Not yet protected: no passkey
+      is registered, so this Finish is not approved by you and the CI gate does not check who
+      accepted. Register a passkey on the targets screen and merge its pull request to turn that
+      on."
+      The buttons are **Cancel** and one button whose label names the effect: "Sign and finish #201"
+      once a passkey is known; otherwise "Finish #201", or "Post 3 rejects to #201" for rejects alone.
 3. **The passkey.** The final button's click handler calls `navigator.credentials.get` at once,
    with the record hash from step 1 as the challenge and `userVerification: "required"`. Nothing is
    awaited between the tap and that call: iPad Safari refuses WebAuthn outside the user's tap. A
@@ -301,14 +301,14 @@ the commit status: then it stays available, so Finish can post the status again.
    when the digest no longer matches (the sheet then reloads its summary and challenge), checks
    the assertion with the gate's own code, and commits exactly the record that was approved. Once
    a passkey is known it approves rejects too, so their reasons are the owner's.
-   - **No passkey registered.** Finish runs as it did before passkeys: accepts are committed with
-     an unapproved record, and the gate does not check approvals until a passkey is on the default
-     branch. The sheet and the targets screen say plainly that accepts are not yet protected. A
-     Finish with only rejects never waits for a passkey.
-   - **A passkey for another host.** When the passkeys known are all for another host name, the
-     final button is unavailable and the sheet says "Finish cannot be approved now: no passkey is
-     registered for <host>: serve this page from the host your passkey is for (<host>), or
-     register one here".
+    - **No passkey registered.** Finish runs as it did before passkeys: accepts are committed with
+      an unapproved record, and the gate does not check approvals until a passkey is on the default
+      branch. The sheet and the targets screen say plainly that accepts are not yet protected. A
+      Finish with only rejects never waits for a passkey.
+    - **A passkey for another host.** When the passkeys known are all for another host name, the
+      final button is unavailable and the sheet says "Finish cannot be approved now: no passkey is
+      registered for <host>: serve this page from the host your passkey is for (<host>), or
+      register one here".
 4. **Finish runs** on the server. The sheet turns into a progress panel: an ordered list of the
    steps, each marked "done", "in progress" or "waiting" in text as well as by its mark, the current
    one with a progress bar for its count and the elapsed time: "Confirming with your passkey",
@@ -431,16 +431,16 @@ Accept's spinner sits in its left padding, so its label and key chip are never c
   "Accepted" or "Rejected" state keeps full contrast and `aria-pressed="true"`.
 - What a button does when it does not apply (the status row says the reason on a press):
 
-| Item                                   | Accept                                  | Reject                 | Exclude  | Undo                       |
-| -------------------------------------- | --------------------------------------- | ---------------------- | -------- | -------------------------- |
-| changed, moved, new, no baseline yet   | available once images show              | available              | available | unavailable: "Nothing to undo" |
-| removed                                | available; deletes the baseline         | available              | available | unavailable              |
-| unstable, failed                       | unavailable: "Can only be excluded"     | unavailable, same reason | available | unavailable            |
-| a project not seeded from master       | unavailable: "Accept on a pull request" | available              | unavailable, same reason | unavailable |
-| decided                                | pressed "Accept" if accepted, else unavailable | pressed if rejected, else unavailable | unavailable | available  |
-| a reject an earlier Finish posted      | unavailable                             | pressed                | unavailable | unavailable: "Posted by an earlier Finish" |
-| local preview                          | unavailable: "Local preview: look only" | unavailable            | unavailable | unavailable              |
-| end-of-pass card                       | unavailable                             | unavailable            | unavailable | unavailable              |
+| Item                                 | Accept                                         | Reject                                | Exclude                  | Undo                                       |
+| ------------------------------------ | ---------------------------------------------- | ------------------------------------- | ------------------------ | ------------------------------------------ |
+| changed, moved, new, no baseline yet | available once images show                     | available                             | available                | unavailable: "Nothing to undo"             |
+| removed                              | available; deletes the baseline                | available                             | available                | unavailable                                |
+| unstable, failed                     | unavailable: "Can only be excluded"            | unavailable, same reason              | available                | unavailable                                |
+| a project not seeded from master     | unavailable: "Accept on a pull request"        | available                             | unavailable, same reason | unavailable                                |
+| decided                              | pressed "Accept" if accepted, else unavailable | pressed if rejected, else unavailable | unavailable              | available                                  |
+| a reject an earlier Finish posted    | unavailable                                    | pressed                               | unavailable              | unavailable: "Posted by an earlier Finish" |
+| local preview                        | unavailable: "Local preview: look only"        | unavailable                           | unavailable              | unavailable                                |
+| end-of-pass card                     | unavailable                                    | unavailable                           | unavailable              | unavailable                                |
 
 - The note box ("Note", a real `<label>`) holds the draft for the item on screen. On a decided item
   it shows that decision's note, read-only.
@@ -501,43 +501,43 @@ iPad widths, the same height on every project:
 
 ### What moved where
 
-| Today                                                         | Redesigned                                                  |
-| ------------------------------------------------------------- | ----------------------------------------------------------- |
-| Accept, Reject, Exclude, reason box at the bottom of the story | Decision bar above the images                              |
-| "Back to the grid" button, story breadcrumb button, Escape    | `Grid` in the decision bar, and Escape                      |
-| "Finish #201" on grid and story toolbars, and on the card     | Header (grid and story), card (targets)                     |
-| Status messages in the header                                 | The status row, with its own fixed height                   |
-| "Filter by story id" and "Go to" boxes                        | One "Find story" box                                        |
-| 9 to 11 filter buttons                                        | Two buttons and a "More filters" menu                       |
-| Blink and Spotlight flash always shown, grayed out            | Shown only in Highlight and Spotlight                       |
-| "Box"                                                         | "Outline"                                                   |
-| Changed-pixel and scale line above the images                 | Item line (summary) and Details popover (the rest)          |
-| Error log under the panes                                     | In the empty right pane of a failed item                    |
-| "Undo all decisions" beside Accept all and Finish             | More menu, with a dialog                                    |
-| Shift+A on the story screen                                   | Grid only                                                   |
-| Finish result and signer card above every target card        | Result card on top, compact, dismissible; signer as one line (full card only when another user's key signs) |
+| Today                                                          | Redesigned                                                                                                  |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Accept, Reject, Exclude, reason box at the bottom of the story | Decision bar above the images                                                                               |
+| "Back to the grid" button, story breadcrumb button, Escape     | `Grid` in the decision bar, and Escape                                                                      |
+| "Finish #201" on grid and story toolbars, and on the card      | Header (grid and story), card (targets)                                                                     |
+| Status messages in the header                                  | The status row, with its own fixed height                                                                   |
+| "Filter by story id" and "Go to" boxes                         | One "Find story" box                                                                                        |
+| 9 to 11 filter buttons                                         | Two buttons and a "More filters" menu                                                                       |
+| Blink and Spotlight flash always shown, grayed out             | Shown only in Highlight and Spotlight                                                                       |
+| "Box"                                                          | "Outline"                                                                                                   |
+| Changed-pixel and scale line above the images                  | Item line (summary) and Details popover (the rest)                                                          |
+| Error log under the panes                                      | In the empty right pane of a failed item                                                                    |
+| "Undo all decisions" beside Accept all and Finish              | More menu, with a dialog                                                                                    |
+| Shift+A on the story screen                                    | Grid only                                                                                                   |
+| Finish result and signer card above every target card          | Result card on top, compact, dismissible; signer as one line (full card only when another user's key signs) |
 
 ## 4. Loading and progress
 
 Counts that change many times a second are shown in a `<progress>` element and a plain (not live)
 label; only the start, each step change and the end are announced.
 
-| Wait                                       | Today                                                        | Redesigned                                                                                               | Needs the server            |
-| ------------------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | --------------------------- |
-| First page load (2.6 to 3.3 s, 21 gh calls) | "Loading..."                                                | A placeholder card and the server's step with the elapsed time: "Listing pull requests", "Finding CI runs: 3 of 5", "Fetching branches" | A progress field for the refresh |
-| Every return to targets, Back, Forward, deep link, after Finish (1.7 to 2.3 s, 16 gh calls each) | A header line; the old screen stays live | No wait: the cached list. `route()` no longer awaits the target list for grid and story screens; `GET /api/pr` already carries its target. The targets screen refreshes in the background when the list is over a minute old | Serve the cached list; refresh only on request |
-| A deep link to an unknown target on a cold server | "Loading..." | The server must refresh for that one; the page shows the refresh's progress | The progress field |
-| Captures downloading (14 s here; tens of seconds per large artifact on GitHub) | "reload in a moment"; no Review button; "captured none", "0 / 0" | "Downloading (2 of 5 projects)" on the card; a disabled "Downloading..." per row; the page checks every 3 s and fills rows in | `downloading: true` per project; rebuild the target when its download lands |
-| GitHub retrying (2, 5, then 15 s)           | Nothing; only the server log says so                        | The step's elapsed time keeps counting, so a slow step shows as slow; a failed target gets Retry          | No                          |
-| Opening a project (0.1 to 0.2 s)            | "Loading..."                                                | The grid bar and placeholder tiles drawn at once                                                          | No                          |
-| Grid thumbnails (full-size images; one fast scroll fetched 570) | Checkerboard and alt text; a failed tile only changes its alt | Server-made thumbnails (section 2); a placeholder per tile; a fetch starts only when a tile is near the screen; at most 6 at once; "Failed -- tap to retry" | `GET /thumb/...`, cached on disk |
-| A story's images (0.25 to 1 s per item)      | Empty stage; Accept grayed with no reason                   | Both panes drawn at once with "Loading baseline..." and "Loading new image..."; Side by side shows each image as it lands; Accept shows a spinner; the next two items prefetched; a failure shows its error with Retry inside the pane | No                          |
-| Saving a decision (30 to 85 ms; seconds on poor Wi-Fi) | Nothing; presses are ignored                     | "Saving the last decision..." after 300 ms; a press meanwhile says "Still saving the last decision." | No |
-| Bulk Undo (10 to 15 s for 570 items over Wi-Fi) | Nothing until the end                                    | A progress bar, "Undoing 120 of 570..." and Stop                                                          | No                          |
-| Accept all (0.24 s)                          | Fine                                                        | The result uses the server's count                                                                        | No                          |
-| Finish prepare before the sheet (under 1 s)  | "Checking #201 before Finish..."                            | A spinner on the Finish button                                                                            | `POST /api/finish-prepare`  |
-| The passkey                                  | -                                                           | Safari's own Face ID sheet; then "Confirming with your passkey" as the first step                         | Assertion check in `/api/finish` |
-| Finish running (seconds to minutes)          | One header line; then a 2.3 s refresh with a blank line     | The step list, a progress bar for the current count, the elapsed time; the result at once                | No (the steps exist)        |
+| Wait                                                                                             | Today                                                            | Redesigned                                                                                                                                                                                                                             | Needs the server                                                            |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| First page load (2.6 to 3.3 s, 21 gh calls)                                                      | "Loading..."                                                     | A placeholder card and the server's step with the elapsed time: "Listing pull requests", "Finding CI runs: 3 of 5", "Fetching branches"                                                                                                | A progress field for the refresh                                            |
+| Every return to targets, Back, Forward, deep link, after Finish (1.7 to 2.3 s, 16 gh calls each) | A header line; the old screen stays live                         | No wait: the cached list. `route()` no longer awaits the target list for grid and story screens; `GET /api/pr` already carries its target. The targets screen refreshes in the background when the list is over a minute old           | Serve the cached list; refresh only on request                              |
+| A deep link to an unknown target on a cold server                                                | "Loading..."                                                     | The server must refresh for that one; the page shows the refresh's progress                                                                                                                                                            | The progress field                                                          |
+| Captures downloading (14 s here; tens of seconds per large artifact on GitHub)                   | "reload in a moment"; no Review button; "captured none", "0 / 0" | "Downloading (2 of 5 projects)" on the card; a disabled "Downloading..." per row; the page checks every 3 s and fills rows in                                                                                                          | `downloading: true` per project; rebuild the target when its download lands |
+| GitHub retrying (2, 5, then 15 s)                                                                | Nothing; only the server log says so                             | The step's elapsed time keeps counting, so a slow step shows as slow; a failed target gets Retry                                                                                                                                       | No                                                                          |
+| Opening a project (0.1 to 0.2 s)                                                                 | "Loading..."                                                     | The grid bar and placeholder tiles drawn at once                                                                                                                                                                                       | No                                                                          |
+| Grid thumbnails (full-size images; one fast scroll fetched 570)                                  | Checkerboard and alt text; a failed tile only changes its alt    | Server-made thumbnails (section 2); a placeholder per tile; a fetch starts only when a tile is near the screen; at most 6 at once; "Failed -- tap to retry"                                                                            | `GET /thumb/...`, cached on disk                                            |
+| A story's images (0.25 to 1 s per item)                                                          | Empty stage; Accept grayed with no reason                        | Both panes drawn at once with "Loading baseline..." and "Loading new image..."; Side by side shows each image as it lands; Accept shows a spinner; the next two items prefetched; a failure shows its error with Retry inside the pane | No                                                                          |
+| Saving a decision (30 to 85 ms; seconds on poor Wi-Fi)                                           | Nothing; presses are ignored                                     | "Saving the last decision..." after 300 ms; a press meanwhile says "Still saving the last decision."                                                                                                                                   | No                                                                          |
+| Bulk Undo (10 to 15 s for 570 items over Wi-Fi)                                                  | Nothing until the end                                            | A progress bar, "Undoing 120 of 570..." and Stop                                                                                                                                                                                       | No                                                                          |
+| Accept all (0.24 s)                                                                              | Fine                                                             | The result uses the server's count                                                                                                                                                                                                     | No                                                                          |
+| Finish prepare before the sheet (under 1 s)                                                      | "Checking #201 before Finish..."                                 | A spinner on the Finish button                                                                                                                                                                                                         | `POST /api/finish-prepare`                                                  |
+| The passkey                                                                                      | -                                                                | Safari's own Face ID sheet; then "Confirming with your passkey" as the first step                                                                                                                                                      | Assertion check in `/api/finish`                                            |
+| Finish running (seconds to minutes)                                                              | One header line; then a 2.3 s refresh with a blank line          | The step list, a progress bar for the current count, the elapsed time; the result at once                                                                                                                                              | No (the steps exist)                                                        |
 
 ## 5. Copy deck
 
@@ -547,132 +547,132 @@ No string lives only in a tooltip.
 
 ### Targets
 
-| Where                         | Old                                                                     | New                                                                        |
-| ----------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| First load                    | "Loading..." / "Loading pull requests and captures..."                  | "Loading pull requests:" and the server's step, with "12 s"               |
-| Cached list                   | -                                                                       | "Updated 40 s ago" and "Refresh"; while refreshing, "Checking pull requests: 5 of 18, 12 s" |
-| Empty list (345)              | "No open pull request has a CI run, and no master run was given."      | "No open pull requests. To seed baselines, start the server with --master-run <run id>." |
-| Card heading, seed            | "master (seed)"                                                         | "<branch> seed"                                                            |
-| Card meta (408)               | "CI run 1000, attempt 1; captured d38dbde479 on feature run"            | "Captured d38dbde479 on feature, CI run 1000 (attempt 1)" (the run is the link) |
-| Card meta, no run             | "CI run none, attempt -; captured none"                                 | The target's problem, e.g. "Waiting for CI"                                |
-| Card warnings                 | (never shown)                                                           | Each warning the server sends, e.g. "Could not refresh: <message>. Retry", "The saved decisions were unreadable; the file was moved to <path>" |
-| Unfinished decisions          | -                                                                       | "12 decisions not yet finished"                                            |
-| Table headers (428)           | "Project", "Found", "Reviewed"                                          | "Project", "Results", "Decided"                                           |
-| Decided cell                  | "2 / 6"                                                                 | "2 of 6"                                                                   |
-| Problem and log (444)         | "no capture job log"                                                    | "No capture -- Job log"                                                    |
-| Downloading                   | "downloading the captures: reload in a moment"; "captured none"         | Button "Downloading..." (disabled); card line "Downloading (2 of 5 projects)" |
-| Not seeded (437)              | "not seeded from master"                                                | "Reject only here: accept on a pull request"                               |
-| Retry hint                    | "reload the page to retry"                                              | A "Retry" button                                                           |
-| Unchanged projects            | (each its own row)                                                      | "3 projects unchanged: algorithms, layout, graphty"                        |
-| Finish button (477)           | "Finish #201 (2 decisions)", "Finish seed (N decisions)"                | "Finish #201 (2)", "Finish <branch> seed (2)"                             |
-| Finish button at 0            | "Finish #201 (0 decisions)" or enabled with only posted rejects         | Unavailable, with "Nothing new to finish" beside it                        |
-| Passkey line, none            | -                                                                       | "No passkey registered: accepts are not yet protected. ..." and "Register passkey" |
-| Passkey line, waiting         | -                                                                       | "Passkey waiting for #650 to merge: Finish asks for it already, ..."       |
-| Passkey created               | -                                                                       | "Passkey registered (iPad passkey, 2026-10-01), credential id <id>. Opened <pull request>: check it names this id, then merge it ..." |
-| Passkey not created           | -                                                                       | "Passkey not created: nothing was changed."                                |
+| Where                 | Old                                                               | New                                                                                                                                            |
+| --------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| First load            | "Loading..." / "Loading pull requests and captures..."            | "Loading pull requests:" and the server's step, with "12 s"                                                                                    |
+| Cached list           | -                                                                 | "Updated 40 s ago" and "Refresh"; while refreshing, "Checking pull requests: 5 of 18, 12 s"                                                    |
+| Empty list (345)      | "No open pull request has a CI run, and no master run was given." | "No open pull requests. To seed baselines, start the server with --master-run <run id>."                                                       |
+| Card heading, seed    | "master (seed)"                                                   | "<branch> seed"                                                                                                                                |
+| Card meta (408)       | "CI run 1000, attempt 1; captured d38dbde479 on feature run"      | "Captured d38dbde479 on feature, CI run 1000 (attempt 1)" (the run is the link)                                                                |
+| Card meta, no run     | "CI run none, attempt -; captured none"                           | The target's problem, e.g. "Waiting for CI"                                                                                                    |
+| Card warnings         | (never shown)                                                     | Each warning the server sends, e.g. "Could not refresh: <message>. Retry", "The saved decisions were unreadable; the file was moved to <path>" |
+| Unfinished decisions  | -                                                                 | "12 decisions not yet finished"                                                                                                                |
+| Table headers (428)   | "Project", "Found", "Reviewed"                                    | "Project", "Results", "Decided"                                                                                                                |
+| Decided cell          | "2 / 6"                                                           | "2 of 6"                                                                                                                                       |
+| Problem and log (444) | "no capture job log"                                              | "No capture -- Job log"                                                                                                                        |
+| Downloading           | "downloading the captures: reload in a moment"; "captured none"   | Button "Downloading..." (disabled); card line "Downloading (2 of 5 projects)"                                                                  |
+| Not seeded (437)      | "not seeded from master"                                          | "Reject only here: accept on a pull request"                                                                                                   |
+| Retry hint            | "reload the page to retry"                                        | A "Retry" button                                                                                                                               |
+| Unchanged projects    | (each its own row)                                                | "3 projects unchanged: algorithms, layout, graphty"                                                                                            |
+| Finish button (477)   | "Finish #201 (2 decisions)", "Finish seed (N decisions)"          | "Finish #201 (2)", "Finish <branch> seed (2)"                                                                                                  |
+| Finish button at 0    | "Finish #201 (0 decisions)" or enabled with only posted rejects   | Unavailable, with "Nothing new to finish" beside it                                                                                            |
+| Passkey line, none    | -                                                                 | "No passkey registered: accepts are not yet protected. ..." and "Register passkey"                                                             |
+| Passkey line, waiting | -                                                                 | "Passkey waiting for #650 to merge: Finish asks for it already, ..."                                                                           |
+| Passkey created       | -                                                                 | "Passkey registered (iPad passkey, 2026-10-01), credential id <id>. Opened <pull request>: check it names this id, then merge it ..."          |
+| Passkey not created   | -                                                                 | "Passkey not created: nothing was changed."                                                                                                    |
 
 ### Grid
 
-| Where                       | Old                                                                                   | New                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Progress (275)              | "2 / 6 reviewed"                                                                      | "2 of 6 decided"                                                     |
-| Start                       | -                                                                                     | "Review 4 undecided"                                                 |
-| Filters (809)               | "changed (2)", "failed (1)", "no baseline yet (1)", "Accepted (0)"                    | "Changed (2)", "Failed captures (1)", "No baseline yet (1)", "Accepted (0)" |
-| Shown line (843)            | "Showing 6: 1 error (listed first, never accepted) and 5 images to compare."          | Removed: the filter counts and the failed-captures line say it       |
-| Errors heading (855)        | "Errors: 1 story failed to capture"                                                   | "1 failed capture: only Exclude applies -- Show"                     |
-| Errors note                 | "An error is never accepted. Fix the story, re-run the visual job ..."                | Unchanged                                                            |
-| Find (776, 790)             | "Filter by story id"; "Go to: number or story id"                                     | Label "Find story", placeholder "Id or number; Enter opens"          |
-| Go to, out of range (886)   | "There is no item 170: the list has 166."                                             | "No item 170: items are numbered 1 to 170 in All." (numbers are fixed now) |
-| Component accept (754)      | "Accept 4 undecided"                                                                  | "Accept 4"; dialog "Accept the 4 undecided items of <component> without opening them?" / "Accept 4" |
-| Component undo              | "Undo 3 decisions"; armed "Confirm: undo 3 decisions"                                 | "Undo 3"; dialog "Undo the 3 decisions of <component>?" / "Undo 3"   |
-| Accept all (826)            | "Accept all"                                                                          | "Accept all undecided (4)"                                           |
-| Accept all dialog (1557)    | "Accept 4 undecided items of <p> without opening them?"                               | Same, plus "2 more (failed, unstable) can only be excluded and stay undecided." when so; button "Accept 4" |
-| Accept all result (1573)    | "Accepted 4 items in <p>." (the page's own count)                                    | "Accepted 4 items in <p>." (the server's count)                      |
-| Undo all                    | "Undo all decisions"; "Press Confirm to undo the decisions of <p>, or Escape to cancel." | More > "Undo all decisions..."; dialog "Undo all 12 decisions of <p>?" / "Undo 12" |
-| Bulk undo progress          | -                                                                                     | "Undoing 120 of 570..." and "Stop"; at the end "Undid 570 decisions." |
-| Tile decision (585)         | "Accepted", "Accepted (not opened)", "Rejected: <reason>", "Posted by Finish: stays"  | Same, except "Posted by an earlier Finish: it stays."                |
-| Empty (866)                 | "Nothing here."                                                                       | Under Needs a decision: "Everything is decided. Finish #201 when ready."; otherwise "No stories match this filter." |
-| Thumbnail                   | (alt text only)                                                                       | "Failed -- tap to retry"                                             |
+| Where                     | Old                                                                                      | New                                                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Progress (275)            | "2 / 6 reviewed"                                                                         | "2 of 6 decided"                                                                                                    |
+| Start                     | -                                                                                        | "Review 4 undecided"                                                                                                |
+| Filters (809)             | "changed (2)", "failed (1)", "no baseline yet (1)", "Accepted (0)"                       | "Changed (2)", "Failed captures (1)", "No baseline yet (1)", "Accepted (0)"                                         |
+| Shown line (843)          | "Showing 6: 1 error (listed first, never accepted) and 5 images to compare."             | Removed: the filter counts and the failed-captures line say it                                                      |
+| Errors heading (855)      | "Errors: 1 story failed to capture"                                                      | "1 failed capture: only Exclude applies -- Show"                                                                    |
+| Errors note               | "An error is never accepted. Fix the story, re-run the visual job ..."                   | Unchanged                                                                                                           |
+| Find (776, 790)           | "Filter by story id"; "Go to: number or story id"                                        | Label "Find story", placeholder "Id or number; Enter opens"                                                         |
+| Go to, out of range (886) | "There is no item 170: the list has 166."                                                | "No item 170: items are numbered 1 to 170 in All." (numbers are fixed now)                                          |
+| Component accept (754)    | "Accept 4 undecided"                                                                     | "Accept 4"; dialog "Accept the 4 undecided items of <component> without opening them?" / "Accept 4"                 |
+| Component undo            | "Undo 3 decisions"; armed "Confirm: undo 3 decisions"                                    | "Undo 3"; dialog "Undo the 3 decisions of <component>?" / "Undo 3"                                                  |
+| Accept all (826)          | "Accept all"                                                                             | "Accept all undecided (4)"                                                                                          |
+| Accept all dialog (1557)  | "Accept 4 undecided items of <p> without opening them?"                                  | Same, plus "2 more (failed, unstable) can only be excluded and stay undecided." when so; button "Accept 4"          |
+| Accept all result (1573)  | "Accepted 4 items in <p>." (the page's own count)                                        | "Accepted 4 items in <p>." (the server's count)                                                                     |
+| Undo all                  | "Undo all decisions"; "Press Confirm to undo the decisions of <p>, or Escape to cancel." | More > "Undo all decisions..."; dialog "Undo all 12 decisions of <p>?" / "Undo 12"                                  |
+| Bulk undo progress        | -                                                                                        | "Undoing 120 of 570..." and "Stop"; at the end "Undid 570 decisions."                                               |
+| Tile decision (585)       | "Accepted", "Accepted (not opened)", "Rejected: <reason>", "Posted by Finish: stays"     | Same, except "Posted by an earlier Finish: it stays."                                                               |
+| Empty (866)               | "Nothing here."                                                                          | Under Needs a decision: "Everything is decided. Finish #201 when ready."; otherwise "No stories match this filter." |
+| Thumbnail                 | (alt text only)                                                                          | "Failed -- tap to retry"                                                                                            |
 
 ### Story
 
-| Where                          | Old                                                                                   | New                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Position (1059)                | "12 of 230"                                                                           | "12 of 230 -- 18 left in this pass"                                    |
-| Accept, loading                | (disabled, tooltip "A")                                                               | "Accept" with a spinner; on press "Loading images: Accept waits for them." |
-| Accept, removed                | "Accept"                                                                              | "Accept"; item line "Removed from the Storybook: Accept deletes its baseline." |
-| Accept unavailable, unstable/failed | (button absent)                                                                  | Item line and on press: "Unstable: two captures of the same commit differed, so it cannot be accepted or rejected. Fix the story, or exclude it." / "Failed: the story did not render. Fix it, re-run the visual job, or exclude it." |
-| Accept unavailable, not seeded | (button absent)                                                                       | "Accept on a pull request: <project> is not seeded from <branch>."     |
-| Exclude                        | tooltip "E: stop capturing every mode of this story"                                  | Item line on a waiting Exclude: "Exclude stops capturing every mode of this story." |
-| Note box (1193)                | "Reason (needed to reject or exclude); Enter rejects"                                 | Label "Note"; placeholder "Needed to Reject or Exclude" (short enough to show whole at every width) |
-| Reject waiting                 | "A reject needs a reason: type it, then press Enter."                                 | Placeholder "Reason to reject, then Enter"; status "Type the reason, then press Enter to reject." |
-| Decided row (1008)             | "Decided: accept. To change it, undo it first."                                       | Removed: the pressed button and the item line badge say it             |
-| Decision badge (1074)          | "accept: new spacing is intended"                                                     | "Accepted: new spacing is intended"                                     |
-| After deciding (1653)          | "<item>: reject" / "<item>: undone, undecided again"                                  | "Rejected #56. Now #57, 13 of 230: <story>, <status>." / "Undid #56: undecided again." |
-| Already decided (1603)         | "<item> is already accepted. Press U (Undo) first to change it."                      | "Already accepted. Undo it to change it."                               |
-| Note on a bulk accept          | (409 from the server)                                                                 | "Accepted without opening. Undo it to add a note."                      |
-| Accept too early (1607)        | "<item>: wait for both images before accepting."                                      | "Loading images: Accept waits for them."                               |
-| Fast press                     | (nothing)                                                                             | "Ignored: this image appeared less than a quarter second ago."         |
-| Saving                         | (nothing; presses ignored)                                                            | "Saving the last decision..." / "Still saving the last decision."       |
-| Save failed                    | "<message>"                                                                           | "Not saved: <message>. #56 is still undecided." (stays until the next action) |
-| Undo on a posted reject        | (button absent)                                                                       | "Posted by an earlier Finish: it stays."                               |
-| Single image (916)             | "New story, no baseline: there is only the new image." (for every no-baseline item)  | new: "New story: no baseline yet." / no baseline yet: "No baseline yet, and this pull request does not change it." / removed: unchanged / failed: unchanged |
-| No-baseline note (1181)        | "No baseline yet, and this pull request does not change it: it looks as on master. Accepting it makes this image its first baseline." | Same, with "<branch>" for "master" |
-| Change line (1089)             | "880 changed image pixels in [160, 80, 40, 40] at threshold 0.063; captured at 1 image pixels per CSS pixel" | "880 pixels changed, in a 40 x 40 area at (160, 80). Threshold 0.063." The scale moves to Details: "Captured at 2 image pixels per CSS pixel" |
-| No change at threshold (1425)  | "no changed box at this threshold"                                                    | "No changed area at this threshold"                                    |
-| Box (1108)                     | "Box", tooltip "B: outline the changed box"                                           | "Outline"                                                               |
-| Next box (1150)                | "Next changed box", "box 1 of 3"                                                      | "Next change", "1 of 3"                                                 |
-| Pane labels (1356, 1203)       | "New", "capture of <file>" in errors and alt text                                     | "Baseline", "New", and "new image of <file>" everywhere                 |
-| Pane loading                   | (empty)                                                                               | "Loading baseline...", "Loading new image..."                           |
-| Load error (1436)              | "<message>"                                                                           | "<message>" and "Retry"                                                 |
-| End of pass                    | (wraps to item 1 silently)                                                            | "End of <project>: 164 of 170 decided, 6 undecided." / "Next project: layout (42 undecided)" / "Review the 6 undecided" / "Back to the grid" / "Finish #201 (12)" / "layout: downloading (42 items)" |
-| Last project done              | -                                                                                     | "Every project of #201 is decided." / "Finish #201 (240)" / "Next: #202 (340 undecided)" |
-| Escape from a note             | (went back to the grid, losing the typed text)                                        | Leaves the note box (the draft stays with its item); a second Escape goes to the grid |
-| Exclude dialog (1624)          | "Exclude <id>? Every mode of this story stops being captured, ..."                    | Unchanged; button "Exclude"                                             |
+| Where                               | Old                                                                                                                                   | New                                                                                                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Position (1059)                     | "12 of 230"                                                                                                                           | "12 of 230 -- 18 left in this pass"                                                                                                                                                                                                   |
+| Accept, loading                     | (disabled, tooltip "A")                                                                                                               | "Accept" with a spinner; on press "Loading images: Accept waits for them."                                                                                                                                                            |
+| Accept, removed                     | "Accept"                                                                                                                              | "Accept"; item line "Removed from the Storybook: Accept deletes its baseline."                                                                                                                                                        |
+| Accept unavailable, unstable/failed | (button absent)                                                                                                                       | Item line and on press: "Unstable: two captures of the same commit differed, so it cannot be accepted or rejected. Fix the story, or exclude it." / "Failed: the story did not render. Fix it, re-run the visual job, or exclude it." |
+| Accept unavailable, not seeded      | (button absent)                                                                                                                       | "Accept on a pull request: <project> is not seeded from <branch>."                                                                                                                                                                    |
+| Exclude                             | tooltip "E: stop capturing every mode of this story"                                                                                  | Item line on a waiting Exclude: "Exclude stops capturing every mode of this story."                                                                                                                                                   |
+| Note box (1193)                     | "Reason (needed to reject or exclude); Enter rejects"                                                                                 | Label "Note"; placeholder "Needed to Reject or Exclude" (short enough to show whole at every width)                                                                                                                                   |
+| Reject waiting                      | "A reject needs a reason: type it, then press Enter."                                                                                 | Placeholder "Reason to reject, then Enter"; status "Type the reason, then press Enter to reject."                                                                                                                                     |
+| Decided row (1008)                  | "Decided: accept. To change it, undo it first."                                                                                       | Removed: the pressed button and the item line badge say it                                                                                                                                                                            |
+| Decision badge (1074)               | "accept: new spacing is intended"                                                                                                     | "Accepted: new spacing is intended"                                                                                                                                                                                                   |
+| After deciding (1653)               | "<item>: reject" / "<item>: undone, undecided again"                                                                                  | "Rejected #56. Now #57, 13 of 230: <story>, <status>." / "Undid #56: undecided again."                                                                                                                                                |
+| Already decided (1603)              | "<item> is already accepted. Press U (Undo) first to change it."                                                                      | "Already accepted. Undo it to change it."                                                                                                                                                                                             |
+| Note on a bulk accept               | (409 from the server)                                                                                                                 | "Accepted without opening. Undo it to add a note."                                                                                                                                                                                    |
+| Accept too early (1607)             | "<item>: wait for both images before accepting."                                                                                      | "Loading images: Accept waits for them."                                                                                                                                                                                              |
+| Fast press                          | (nothing)                                                                                                                             | "Ignored: this image appeared less than a quarter second ago."                                                                                                                                                                        |
+| Saving                              | (nothing; presses ignored)                                                                                                            | "Saving the last decision..." / "Still saving the last decision."                                                                                                                                                                     |
+| Save failed                         | "<message>"                                                                                                                           | "Not saved: <message>. #56 is still undecided." (stays until the next action)                                                                                                                                                         |
+| Undo on a posted reject             | (button absent)                                                                                                                       | "Posted by an earlier Finish: it stays."                                                                                                                                                                                              |
+| Single image (916)                  | "New story, no baseline: there is only the new image." (for every no-baseline item)                                                   | new: "New story: no baseline yet." / no baseline yet: "No baseline yet, and this pull request does not change it." / removed: unchanged / failed: unchanged                                                                           |
+| No-baseline note (1181)             | "No baseline yet, and this pull request does not change it: it looks as on master. Accepting it makes this image its first baseline." | Same, with "<branch>" for "master"                                                                                                                                                                                                    |
+| Change line (1089)                  | "880 changed image pixels in [160, 80, 40, 40] at threshold 0.063; captured at 1 image pixels per CSS pixel"                          | "880 pixels changed, in a 40 x 40 area at (160, 80). Threshold 0.063." The scale moves to Details: "Captured at 2 image pixels per CSS pixel"                                                                                         |
+| No change at threshold (1425)       | "no changed box at this threshold"                                                                                                    | "No changed area at this threshold"                                                                                                                                                                                                   |
+| Box (1108)                          | "Box", tooltip "B: outline the changed box"                                                                                           | "Outline"                                                                                                                                                                                                                             |
+| Next box (1150)                     | "Next changed box", "box 1 of 3"                                                                                                      | "Next change", "1 of 3"                                                                                                                                                                                                               |
+| Pane labels (1356, 1203)            | "New", "capture of <file>" in errors and alt text                                                                                     | "Baseline", "New", and "new image of <file>" everywhere                                                                                                                                                                               |
+| Pane loading                        | (empty)                                                                                                                               | "Loading baseline...", "Loading new image..."                                                                                                                                                                                         |
+| Load error (1436)                   | "<message>"                                                                                                                           | "<message>" and "Retry"                                                                                                                                                                                                               |
+| End of pass                         | (wraps to item 1 silently)                                                                                                            | "End of <project>: 164 of 170 decided, 6 undecided." / "Next project: layout (42 undecided)" / "Review the 6 undecided" / "Back to the grid" / "Finish #201 (12)" / "layout: downloading (42 items)"                                  |
+| Last project done                   | -                                                                                                                                     | "Every project of #201 is decided." / "Finish #201 (240)" / "Next: #202 (340 undecided)"                                                                                                                                              |
+| Escape from a note                  | (went back to the grid, losing the typed text)                                                                                        | Leaves the note box (the draft stays with its item); a second Escape goes to the grid                                                                                                                                                 |
+| Exclude dialog (1624)               | "Exclude <id>? Every mode of this story stops being captured, ..."                                                                    | Unchanged; button "Exclude"                                                                                                                                                                                                           |
 
 ### Finish
 
-| Where                        | Old                                                                                       | New                                                                                       |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Name                         | "Finish seed", "Finish master", "the master seed", "Finishing the master seed"            | "Finish <branch> seed" everywhere; "Finishing <branch> seed"                              |
-| Grid/story button            | "Finish #201"                                                                             | "Finish #201 (12)"                                                                        |
-| Checking (1701)              | "Checking #201 before Finish..."                                                          | (spinner on the button); "Saving the last decision..." when one is in flight              |
-| Waiting on the dialog (1727) | "Finish #201? Answer in the box."                                                         | Removed (the sheet is modal)                                                              |
-| Sheet, first line (1709)     | "Finish #201: commit and push to feature, across every project?"                          | "Finish #201, every project:"                                                             |
-| Sheet, commit                | -                                                                                         | "Commit 214 accepts and 1 exclusion to feature." (zero counts left out); seed: "Push visual/seed-<date> with 214 accepts and open its pull request." |
-| Sheet, posts                 | -                                                                                         | "Post 3 rejects and 2 accept notes as a comment on #201."; seed: "Open one issue for 3 rejects." |
-| Sheet, nothing to commit     | -                                                                                         | "Nothing is committed: only rejects."                                                     |
-| Sheet, status (1726)         | "One commit status is posted when Finish completes."                                      | "Then set the commit status 'Visual review' to failure (3 rejected)." / "pending (15 undecided)" / "success" (the server's prediction) |
-| Sheet, unopened (1712)       | "40 accepted without being opened."                                                       | "Accepted without opening: 40."                                                           |
-| Sheet, undecided (1717)      | "Warning: still undecided, left for a later round: layout: 12 undecided"                  | "Still undecided, left for a later round: layout 12, graphty 3."                          |
-| Sheet, not loaded            | (missing)                                                                                 | "Not loaded, so not reviewed: algorithms."                                                |
-| Sheet, notes                 | (missing)                                                                                 | "Notes to publish:" then one line per note: "Rejected graphty-element/x.light.png: <reason>", "Accepted ...: <note>" |
-| Sheet, signer                | unchanged signer line and start command                                                   | Unchanged                                                                                 |
-| Sheet, passkey               | -                                                                                         | "Your passkey confirms this Finish (Face ID or a security key)."                         |
-| Sheet, no passkey            | -                                                                                         | "Not yet protected: no passkey is registered, so this Finish is not approved by you and the CI gate does not check who accepted. ..." |
-| Sheet button                 | "Finish #201"                                                                             | "Sign and finish #201" once a passkey is known; otherwise "Finish #201", or "Post 3 rejects to #201" for rejects alone |
-| Cancelled                    | "Finish cancelled: nothing was changed."                                                  | Unchanged                                                                                 |
-| Passkey cancelled            | -                                                                                         | "Passkey cancelled: nothing was changed."                                                 |
-| Decisions changed            | -                                                                                         | "Decisions changed since this sheet opened: check the summary again."                    |
-| Running (1752)               | "Finishing #201: committing..."                                                           | The step list (section 2), e.g. "Uploading images to LFS: 120 of 214", with "1 min 12 s"; each step "done", "in progress" or "waiting" |
-| Lost contact (1769)          | "Lost contact with the server (...); Finish goes on there. Retrying..."                   | Unchanged                                                                                 |
-| Done (1844)                  | "Finish of #201 done. Committed 3f2a9c1e04 to feature."                                   | "Finished #201. Committed 3f2a9c1e04 to feature." (the commit is a link)                  |
-| No commit (1830)             | "No commit (nothing accepted)."                                                           | "No commit: nothing was accepted or excluded."                                            |
-| Rejects posted (1832)        | "2 rejects posted."                                                                       | "Posted 2 rejects and 1 accept note as a comment." / "Posted 1 reject as a comment." / seed: "Filed 2 rejects as issue #640." (a link) |
-| Status (1840)                | "Status: Reviewed: 9 accepted, 2 rejected, ..."                                           | "Commit status: failure -- 9 accepted, 2 rejected, 0 excluded, 5 undecided."            |
-| Seed pull request (1838)     | "Pull request: <url>"                                                                     | "Opened pull request #641." (a link)                                                      |
-| Warnings                     | (never shown)                                                                             | Each: e.g. "Pushed and posted, but the decisions could not be cleared: <message>"         |
-| Failed (1824, 1743)          | "Finish of #201 failed; your decisions are kept. Fix the cause and press Finish again."   | "Finish of #201 failed. Decisions not yet published are kept; anything pushed is listed below." |
-| Interrupted (1791, 1812)     | page: "the server restarted ... kept no record"; server: "the server stopped while ..."   | The server's text only                                                                    |
-| Next                         | -                                                                                         | "Next: #202 (340 undecided)" / "Back to #201"                                             |
+| Where                        | Old                                                                                     | New                                                                                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Name                         | "Finish seed", "Finish master", "the master seed", "Finishing the master seed"          | "Finish <branch> seed" everywhere; "Finishing <branch> seed"                                                                                         |
+| Grid/story button            | "Finish #201"                                                                           | "Finish #201 (12)"                                                                                                                                   |
+| Checking (1701)              | "Checking #201 before Finish..."                                                        | (spinner on the button); "Saving the last decision..." when one is in flight                                                                         |
+| Waiting on the dialog (1727) | "Finish #201? Answer in the box."                                                       | Removed (the sheet is modal)                                                                                                                         |
+| Sheet, first line (1709)     | "Finish #201: commit and push to feature, across every project?"                        | "Finish #201, every project:"                                                                                                                        |
+| Sheet, commit                | -                                                                                       | "Commit 214 accepts and 1 exclusion to feature." (zero counts left out); seed: "Push visual/seed-<date> with 214 accepts and open its pull request." |
+| Sheet, posts                 | -                                                                                       | "Post 3 rejects and 2 accept notes as a comment on #201."; seed: "Open one issue for 3 rejects."                                                     |
+| Sheet, nothing to commit     | -                                                                                       | "Nothing is committed: only rejects."                                                                                                                |
+| Sheet, status (1726)         | "One commit status is posted when Finish completes."                                    | "Then set the commit status 'Visual review' to failure (3 rejected)." / "pending (15 undecided)" / "success" (the server's prediction)               |
+| Sheet, unopened (1712)       | "40 accepted without being opened."                                                     | "Accepted without opening: 40."                                                                                                                      |
+| Sheet, undecided (1717)      | "Warning: still undecided, left for a later round: layout: 12 undecided"                | "Still undecided, left for a later round: layout 12, graphty 3."                                                                                     |
+| Sheet, not loaded            | (missing)                                                                               | "Not loaded, so not reviewed: algorithms."                                                                                                           |
+| Sheet, notes                 | (missing)                                                                               | "Notes to publish:" then one line per note: "Rejected graphty-element/x.light.png: <reason>", "Accepted ...: <note>"                                 |
+| Sheet, signer                | unchanged signer line and start command                                                 | Unchanged                                                                                                                                            |
+| Sheet, passkey               | -                                                                                       | "Your passkey confirms this Finish (Face ID or a security key)."                                                                                     |
+| Sheet, no passkey            | -                                                                                       | "Not yet protected: no passkey is registered, so this Finish is not approved by you and the CI gate does not check who accepted. ..."                |
+| Sheet button                 | "Finish #201"                                                                           | "Sign and finish #201" once a passkey is known; otherwise "Finish #201", or "Post 3 rejects to #201" for rejects alone                               |
+| Cancelled                    | "Finish cancelled: nothing was changed."                                                | Unchanged                                                                                                                                            |
+| Passkey cancelled            | -                                                                                       | "Passkey cancelled: nothing was changed."                                                                                                            |
+| Decisions changed            | -                                                                                       | "Decisions changed since this sheet opened: check the summary again."                                                                                |
+| Running (1752)               | "Finishing #201: committing..."                                                         | The step list (section 2), e.g. "Uploading images to LFS: 120 of 214", with "1 min 12 s"; each step "done", "in progress" or "waiting"               |
+| Lost contact (1769)          | "Lost contact with the server (...); Finish goes on there. Retrying..."                 | Unchanged                                                                                                                                            |
+| Done (1844)                  | "Finish of #201 done. Committed 3f2a9c1e04 to feature."                                 | "Finished #201. Committed 3f2a9c1e04 to feature." (the commit is a link)                                                                             |
+| No commit (1830)             | "No commit (nothing accepted)."                                                         | "No commit: nothing was accepted or excluded."                                                                                                       |
+| Rejects posted (1832)        | "2 rejects posted."                                                                     | "Posted 2 rejects and 1 accept note as a comment." / "Posted 1 reject as a comment." / seed: "Filed 2 rejects as issue #640." (a link)               |
+| Status (1840)                | "Status: Reviewed: 9 accepted, 2 rejected, ..."                                         | "Commit status: failure -- 9 accepted, 2 rejected, 0 excluded, 5 undecided."                                                                         |
+| Seed pull request (1838)     | "Pull request: <url>"                                                                   | "Opened pull request #641." (a link)                                                                                                                 |
+| Warnings                     | (never shown)                                                                           | Each: e.g. "Pushed and posted, but the decisions could not be cleared: <message>"                                                                    |
+| Failed (1824, 1743)          | "Finish of #201 failed; your decisions are kept. Fix the cause and press Finish again." | "Finish of #201 failed. Decisions not yet published are kept; anything pushed is listed below."                                                      |
+| Interrupted (1791, 1812)     | page: "the server restarted ... kept no record"; server: "the server stopped while ..." | The server's text only                                                                                                                               |
+| Next                         | -                                                                                       | "Next: #202 (340 undecided)" / "Back to #201"                                                                                                        |
 
 ### Header and general
 
-| Where          | Old                                           | New                                                          |
-| -------------- | --------------------------------------------- | ------------------------------------------------------------ |
-| Keys           | (README only)                                 | "Keys" button and `?`: the key overlay, with "Recent messages" and "Single-key shortcuts: on / off" |
-| Copy link      | unchanged                                     | Unchanged                                                    |
-| No token       | unchanged                                     | Unchanged                                                    |
+| Where     | Old           | New                                                                                                 |
+| --------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| Keys      | (README only) | "Keys" button and `?`: the key overlay, with "Recent messages" and "Single-key shortcuts: on / off" |
+| Copy link | unchanged     | Unchanged                                                                                           |
+| No token  | unchanged     | Unchanged                                                                                           |
 
 ### What Finish publishes for an accept note
 
@@ -704,29 +704,29 @@ switch, so a Space or Enter typed as it opens changes nothing. Turning the lette
 "Single-key shortcuts are off: letters do nothing until you turn them on again in Keys (?).", and
 every letter typed while they are off says it again.
 
-| Key          | Screen         | Action                                                                          | Change     |
-| ------------ | -------------- | ------------------------------------------------------------------------------- | ---------- |
-| J / K        | story          | Next / previous item of the pass; J on the last item shows the end card         | No wrap    |
-| A            | story          | Accept, once the images are shown                                               | -          |
-| (type), Escape, A | story     | Accept with a note: type in the note box, Escape leaves it, A accepts with the note | Listed |
-| R            | story          | Reject; with an empty note, focuses it for the reason                           | -          |
-| E            | story          | Exclude; with an empty note, focuses it; then the confirmation                  | -          |
-| U            | story          | Undo the item's decision; you stay on the item                                  | -          |
-| Enter        | note box       | Sends the Reject or Exclude that is waiting for its reason, then leaves the box; nothing otherwise | No hidden default reject |
-| F            | story          | Flash, or back to side by side; in Spotlight, Spotlight flash on or off         | -          |
-| Space (hold) | story          | Flash while held                                                                | -          |
-| H            | story          | Highlight, or back to side by side                                              | -          |
-| L            | story          | In Highlight: Blink on or off                                                   | -          |
-| S            | story          | Spotlight, or back to side by side (on iPad portrait, the way to see a change large) | -     |
-| B            | story          | Outline on or off                                                               | -          |
-| N            | story          | Next change                                                                     | -          |
-| Z            | story          | Next zoom: fit, 1x, 2x, 4x, 8x, fit (from fit, 2x is two presses)              | -          |
-| Shift+A      | grid           | Accept all undecided (asks first)                                               | Grid only  |
-| /            | grid           | Focus Find story                                                                | New        |
-| ?            | every screen   | Show or hide the key overlay                                                    | New        |
-| Escape       | story          | Back to the grid; in the note box, first leaves the box (the draft stays with its item) | Changed |
-| Escape       | dialog, sheet, overlay | Cancel or close                                                         | -          |
-| Enter        | end card       | Takes the focused offer (Next project first)                                    | New        |
+| Key               | Screen                 | Action                                                                                             | Change                   |
+| ----------------- | ---------------------- | -------------------------------------------------------------------------------------------------- | ------------------------ |
+| J / K             | story                  | Next / previous item of the pass; J on the last item shows the end card                            | No wrap                  |
+| A                 | story                  | Accept, once the images are shown                                                                  | -                        |
+| (type), Escape, A | story                  | Accept with a note: type in the note box, Escape leaves it, A accepts with the note                | Listed                   |
+| R                 | story                  | Reject; with an empty note, focuses it for the reason                                              | -                        |
+| E                 | story                  | Exclude; with an empty note, focuses it; then the confirmation                                     | -                        |
+| U                 | story                  | Undo the item's decision; you stay on the item                                                     | -                        |
+| Enter             | note box               | Sends the Reject or Exclude that is waiting for its reason, then leaves the box; nothing otherwise | No hidden default reject |
+| F                 | story                  | Flash, or back to side by side; in Spotlight, Spotlight flash on or off                            | -                        |
+| Space (hold)      | story                  | Flash while held                                                                                   | -                        |
+| H                 | story                  | Highlight, or back to side by side                                                                 | -                        |
+| L                 | story                  | In Highlight: Blink on or off                                                                      | -                        |
+| S                 | story                  | Spotlight, or back to side by side (on iPad portrait, the way to see a change large)               | -                        |
+| B                 | story                  | Outline on or off                                                                                  | -                        |
+| N                 | story                  | Next change                                                                                        | -                        |
+| Z                 | story                  | Next zoom: fit, 1x, 2x, 4x, 8x, fit (from fit, 2x is two presses)                                  | -                        |
+| Shift+A           | grid                   | Accept all undecided (asks first)                                                                  | Grid only                |
+| /                 | grid                   | Focus Find story                                                                                   | New                      |
+| ?                 | every screen           | Show or hide the key overlay                                                                       | New                      |
+| Escape            | story                  | Back to the grid; in the note box, first leaves the box (the draft stays with its item)            | Changed                  |
+| Escape            | dialog, sheet, overlay | Cancel or close                                                                                    | -                        |
+| Enter             | end card               | Takes the focused offer (Next project first)                                                       | New                      |
 
 Held decision keys still decide once. No key reverses a decision; Undo is explicit.
 

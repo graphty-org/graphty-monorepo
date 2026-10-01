@@ -35,7 +35,8 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;
-    const column = startColumn(s, options.pos, dim);
+    // drawn in float64, as arfLayout drew it: ARF is chaotic, so a float32 start ends in a different drawing
+    const column = Float64Array.from(startColumn(s, options.pos, dim));
     seedPositions(s, column, options.seed ?? null, dim, 1, null, "fr");
     const p = new Float64Array(dim * n);
     for (let i = 0; i < n; i++) {

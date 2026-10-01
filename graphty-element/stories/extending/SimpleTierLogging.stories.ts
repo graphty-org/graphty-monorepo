@@ -25,18 +25,16 @@ const EDGES = NODES.map((node, index) => ({ src: node.id, dst: NODES[(index + 1)
 let showing: Promise<() => void> | undefined;
 
 /**
- * The graph and, beside it, the panel the log destination writes into.
+ * The graph and, below it, the panel the log destination writes into. The graph keeps the element's
+ * own full-width frame, the one every other story draws in.
  * @returns The story's root.
  */
 function render(): HTMLElement {
     const root = document.createElement("div");
-    root.style.display = "flex";
-    root.style.gap = "16px";
 
     const panel = document.createElement("pre");
     panel.dataset.testid = "log-panel";
-    panel.style.width = "280px";
-    panel.style.margin = "0";
+    panel.style.margin = "16px 0 0";
     panel.style.font = "12px monospace";
 
     // Defined before the element exists: records made before a destination is attached are not replayed.
@@ -46,8 +44,8 @@ function render(): HTMLElement {
     element.nodeData = [...NODES];
     element.edgeData = [...EDGES];
     element.layout = "circular";
-    element.style.width = "480px";
-    element.style.height = "360px";
+    // The default radius of 80 scene units leaves six unit-sized nodes as specks once framed.
+    element.layoutConfig = { scale: 0.08 };
 
     root.append(element, panel);
     return root;
@@ -74,7 +72,7 @@ export default meta;
 
 type Story = StoryObj;
 
-/** Layout records at info and above, shown in a panel beside the graph. */
+/** Layout records at info and above, shown in a panel below the graph. */
 export const LayoutLogPanel: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);

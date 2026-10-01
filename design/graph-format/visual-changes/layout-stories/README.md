@@ -11,6 +11,13 @@ Layout's Storybook stories changed in two steps of the graph-format migration
 This page records every story whose picture differs from master, why, and what the owner is asked
 to accept. The owner has not reviewed any of it yet.
 
+**Update (owner review of pull request 641): rejected, and restored.** The owner rejected the new
+ARF and Kamada-Kawai 3D pictures. `arf` and the 3D `kamadaKawai` now draw their seeded start in
+float64, as layout 1.x did, and Kamada-Kawai rescales in float64 before its one float32 rounding.
+They reproduce layout 1.x's positions to the float32 rounding of the result (3e-8), and
+`layout/test/layouts/legacy-start.test.ts` pins them. The analysis below records the change as it
+was found.
+
 | Story                                                     | Changed by | What you see                          | Recommended verdict |
 | --------------------------------------------------------- | ---------- | ------------------------------------- | ------------------- |
 | Layout2D / ARF (`layout2d--arf`)                          | layout 2.0 | a different drawing of the same graph | accept              |

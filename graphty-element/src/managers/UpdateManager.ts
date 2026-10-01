@@ -428,6 +428,8 @@ export class UpdateManager implements Manager {
         }
 
         if (edgesMoved) {
+            let revealed = false;
+
             for (const edge of this.dataManager.edges.values()) {
                 const { index } = edge;
                 // `!placed` now means only "this edge is mid-teardown", which is a state lasting
@@ -437,8 +439,21 @@ export class UpdateManager implements Manager {
                 // removes them instead.
                 const placed = index !== INVALID_INDEX;
 
-                edge.setRenderVisible(edgeVisibility === null || !placed || edgeVisibility.has(index));
+                const visible = edgeVisibility === null || !placed || edgeVisibility.has(index);
+
+                if (edge.setRenderVisible(visible) && visible) {
+                    revealed = true;
+                }
+
                 edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
+            }
+
+            // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed
+            // its line slot and its caps, and showing only invalidates its endpoint cache. Nothing
+            // moved, so without this the walk is skipped and the edge stays collapsed -- a filter
+            // undone drew its edges as gone.
+            if (revealed) {
+                this.forceEdgeWalk();
             }
         }
 

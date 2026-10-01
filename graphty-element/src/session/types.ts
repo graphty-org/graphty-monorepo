@@ -873,6 +873,8 @@ export interface CommandOutcomeMap {
     "note.update": Promise<void>;
     /** Settles once the removal is recorded. */
     "note.remove": Promise<void>;
+    /** Settles once the merged notes are recorded; `session.notes.mergeDocument` returns the report. */
+    "note.merge": Promise<void>;
     /** Settles once the views are recorded. */
     "view.save": Promise<void>;
     /** Settles once the removal is recorded. */

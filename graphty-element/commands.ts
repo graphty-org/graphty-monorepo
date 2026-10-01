@@ -57,6 +57,7 @@ export const COMMANDS = Object.freeze({
     "note.add": { undo: "undoable" },
     "note.update": { undo: "undoable" },
     "note.remove": { undo: "undoable" },
+    "note.merge": { undo: "undoable" },
     "view.save": { undo: "undoable" },
     "view.remove": { undo: "undoable" },
     "view.camera": {

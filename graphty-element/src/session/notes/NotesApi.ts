@@ -15,8 +15,9 @@ import type { NoteCommand } from "../commands/notes";
 import type { Dispatcher } from "../project/Dispatcher";
 import type { NoteEntry } from "../project/state";
 import { canonicalize } from "../runs/runId";
-import { edgeRowsOf, nodeRowOf, statusOf, type StatusSources } from "./status";
-import type { Note, NoteChange, NoteId, NoteInput, NotePatch, NotesApi, NoteTarget } from "./types";
+import { supportedTarget, writeMember } from "./document";
+import { bindable, edgeRowsOf, nodeRowOf, statusOf, type StatusSources } from "./status";
+import type { Note, NoteChange, NoteId, NoteInput, NotePatch, NotesApi, NotesReport, NoteTarget } from "./types";
 import { refuseNote, targetKey } from "./validate";
 
 /** What the notes read of the session beside their slice. */
@@ -119,16 +120,19 @@ function changeOf(before: Note | undefined, after: Note | undefined): NoteChange
  * @returns Per note, per target: the row, negative when unbound, undefined for other kinds.
  */
 function rowsOf(notes: readonly Note[], snapshot: GraphSnapshot): (number | undefined)[][] {
-    const edges = notes.flatMap((note) => note.targets.flatMap((target) => ("edge" in target ? [target.edge] : [])));
+    const binds = notes.map(bindable);
+    const edges = notes.flatMap((note, at) =>
+        note.targets.flatMap((target, index) => (binds[at][index] && "edge" in target ? [target.edge] : [])),
+    );
     const edgeRows = edgeRowsOf(snapshot, edges);
     let next = 0;
-    return notes.map((note) =>
-        note.targets.map((target) => {
-            if ("node" in target) {
-                return nodeRowOf(snapshot, target.node);
+    return notes.map((note, at) =>
+        note.targets.map((target, index) => {
+            if (!binds[at][index]) {
+                return undefined;
             }
 
-            return "edge" in target ? edgeRows[next++] : undefined;
+            return "node" in target ? nodeRowOf(snapshot, target.node) : edgeRows[next++];
         }),
     );
 }
@@ -146,13 +150,17 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
     const dispatch = (command: NoteCommand): void => {
         void dispatcher.dispatchNow(command);
     };
-    // The id the last `note.add` minted, told by its body as it writes.
+    // The id the last `note.add` minted, and what the last `note.merge` did, told by their bodies.
     let added: NoteId | undefined;
+    let merged: Omit<NotesReport, "missing"> | undefined;
     dispatcher.services.notes = {
         edgeMember: (id: EdgeId) => dependencies.edgeMember(id),
         result: (id: ResultId) => dependencies.status.result(id),
         added: (id: NoteId) => {
             added = id;
+        },
+        merged: (report) => {
+            merged = report;
         },
     };
 
@@ -219,7 +227,8 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
                 found = found.filter((note) =>
                     note.targets.some(
                         (target) =>
-                            wanted.has(targetKey(target)) || ("item" in target && wanted.has(runlessKey(target))),
+                            supportedTarget(target) &&
+                            (wanted.has(targetKey(target)) || ("item" in target && wanted.has(runlessKey(target)))),
                     ),
                 );
             }
@@ -240,10 +249,12 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
                 // ponytail: one edge binding pass per note with edge targets; batch through
                 // `rowsOf` if a notes panel filters thousands of edge notes this way.
                 const wantMissing = options.missing;
+                const held = entries();
                 found = found.filter(
                     (note) =>
-                        statusOf(note, dependencies.status).targets.some((target) => target.state === "missing") ===
-                        wantMissing,
+                        statusOf(held.get(note.id) ?? { note }, dependencies.status).targets.some(
+                            (target) => target.state === "missing",
+                        ) === wantMissing,
                 );
             }
 
@@ -258,7 +269,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
                 throw refuseNote("E_BAD_COMMAND", "unknown-id", `No note has the id ${JSON.stringify(id)}.`, { id });
             }
 
-            return statusOf(entry.note, dependencies.status, entry.source);
+            return statusOf(entry, dependencies.status);
         },
 
         authors() {
@@ -308,6 +319,43 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
 
         remove(id: NoteId): void {
             dispatch({ op: "note.remove", id });
+        },
+
+        toDocument: (options = {}) => writeMember(notes(), options),
+
+        mergeDocument(document, options) {
+            merged = undefined;
+            dispatch({ op: "note.merge", document, ...(options === undefined ? {} : { options }) });
+            // Set by the merge's body during the dispatch, which flow analysis cannot see.
+            const report = merged as Omit<NotesReport, "missing"> | undefined;
+            if (report === undefined) {
+                throw new GraphtyError({
+                    code: "E_INTERNAL",
+                    message: "note.merge did not report as it was dispatched.",
+                    source: "data",
+                });
+            }
+
+            const held = entries();
+            const missing = [...report.added, ...report.replaced].filter((id) => {
+                const entry = held.get(id);
+                return (
+                    entry !== undefined &&
+                    statusOf(entry, dependencies.status).targets.some((target) => target.state === "missing")
+                );
+            }).length;
+            const freeze = <T>(list: readonly T[]): readonly T[] => Object.freeze([...list]);
+            return Object.freeze({
+                added: freeze(report.added),
+                unchanged: report.unchanged,
+                renamed: freeze(report.renamed.map((pair) => Object.freeze({ ...pair }))),
+                older: freeze(report.older),
+                replaced: freeze(report.replaced),
+                kept: freeze(report.kept),
+                missing,
+                skipped: freeze(report.skipped),
+                notices: freeze(report.notices),
+            });
         },
     };
 

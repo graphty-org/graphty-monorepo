@@ -11,8 +11,9 @@
 
 import type { EdgeId, EdgeMember, ResultId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { planMerge, readMember } from "../notes/document";
 import { mintNoteId, noteTime } from "../notes/ids";
-import type { NoteId, NoteInput, NotePatch } from "../notes/types";
+import type { NoteId, NoteInput, NoteMergeOptions, NotePatch, NotesReport } from "../notes/types";
 import { buildNote, type NoteContext, patchNote, refuseNote } from "../notes/validate";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { NoteEntry } from "../project/state";
@@ -36,8 +37,16 @@ interface NoteRemoveCommand {
     readonly id: NoteId;
 }
 
+/** `note.merge`: add a saved member's notes. */
+interface NoteMergeCommand {
+    readonly op: "note.merge";
+    /** The `graphty-notes` member, parsed from JSON. */
+    readonly document: unknown;
+    readonly options?: NoteMergeOptions;
+}
+
 /** Every note op. */
-export type NoteCommand = NoteAddCommand | NoteUpdateCommand | NoteRemoveCommand;
+export type NoteCommand = NoteAddCommand | NoteUpdateCommand | NoteRemoveCommand | NoteMergeCommand;
 
 /** What a note op reads of the session beyond project state: its graph and its runs. */
 export interface NoteService {
@@ -47,6 +56,8 @@ export interface NoteService {
     result(id: ResultId): { readonly execution: string | undefined } | undefined;
     /** Told the id each `note.add` minted, as it is written: how `session.notes.add` returns it. */
     added(id: NoteId): void;
+    /** Told what each `note.merge` did, its missing count still to work out: how `mergeDocument` reports. */
+    merged(report: Omit<NotesReport, "missing">): void;
 }
 
 /**
@@ -126,7 +137,12 @@ const noteUpdate: UndoableDefinition<NoteUpdateCommand> = {
         const entry = heldNote(ctx, command.id);
         const note = patchNote(entry.note, command.patch, noteTime(), contextOf(ctx));
         if (note !== null) {
-            ctx.draft.notes.set(command.id, Object.freeze({ ...entry, note }));
+            // Targets or cites the edit rewrote were checked against this session, so they bind here.
+            const unbound = entry.unbound && {
+                targets: entry.unbound.targets && note.targets === entry.note.targets,
+                cites: entry.unbound.cites && note.cites === entry.note.cites,
+            };
+            ctx.draft.notes.set(command.id, Object.freeze({ ...entry, note, unbound }));
         }
     },
 };
@@ -143,5 +159,71 @@ const noteRemove: UndoableDefinition<NoteRemoveCommand> = {
     },
 };
 
+/**
+ * The name a merge records as its source: the option's, else the member's.
+ * @param command - The merge.
+ * @returns The name, if any.
+ */
+function sourceName(command: NoteMergeCommand): string | undefined {
+    const given = command.options?.name;
+    if (given !== undefined) {
+        return given;
+    }
+
+    const { document } = command;
+    const name =
+        typeof document === "object" && document !== null
+            ? Object.getOwnPropertyDescriptor(document, "name")?.value
+            : undefined;
+    return typeof name === "string" ? name : undefined;
+}
+
+const ON_CONFLICT = ["keep-both", "replace", "keep-mine"] as const;
+
+const noteMerge: UndoableDefinition<NoteMergeCommand> = {
+    op: "note.merge",
+    moves: false,
+    lane: { kind: "immediate" },
+    byReference: ["document", "options"],
+    keys: () => ["notes"],
+    undo: {
+        kind: "undoable",
+        label: (command) => {
+            const name = sourceName(command);
+            return name === undefined ? "Added notes" : `Added notes from ${name}`;
+        },
+    },
+    execute: (command, ctx) => {
+        const { onConflict = "keep-both", name } = command.options ?? {};
+        if (!ON_CONFLICT.includes(onConflict) || (name !== undefined && typeof name !== "string")) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message:
+                    'mergeDocument takes onConflict "keep-both", "replace" or "keep-mine", and a name that is text.',
+                source: "data",
+                details: { option: ON_CONFLICT.includes(onConflict) ? "name" : "onConflict", values: ON_CONFLICT },
+            });
+        }
+
+        const now = Date.now();
+        const read = readMember(command.document, now);
+        const plan = planMerge(read.notes, ctx.state.notes, onConflict, () => mintNoteId(now));
+        const total = ctx.state.notes.size + plan.added.length;
+        if (total > 10_000) {
+            throw refuseNote("E_TOO_LARGE", "notes", "A session holds at most 10,000 notes.", { count: total });
+        }
+
+        const title = sourceName(command);
+        const source = Object.freeze({ ...(title === undefined ? {} : { name: title }), opened: noteTime(now) });
+        const unbound = Object.freeze({ targets: true, cites: true });
+        for (const [id, note] of plan.writes) {
+            ctx.draft.notes.set(id, Object.freeze({ note, source, unbound }));
+        }
+
+        const { writes: _writes, ...report } = plan;
+        serviceOf(ctx).merged({ ...report, skipped: read.skipped, notices: read.notices });
+    },
+};
+
 /** The note ops' definitions. */
-export const NOTE_DEFINITIONS = [noteAdd, noteUpdate, noteRemove] as const;
+export const NOTE_DEFINITIONS = [noteAdd, noteUpdate, noteRemove, noteMerge] as const;

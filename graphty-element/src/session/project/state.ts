@@ -124,6 +124,12 @@ export interface NoteEntry {
     readonly note: Note;
     /** The file it was opened from, when it was; session-only, never written into a notes file. */
     readonly source?: NoteStatus["source"];
+    /**
+     * Set when the note was opened from a file: its set, result and item targets, or its cites,
+     * name what the file named, not what this session holds, so they bind to nothing here
+     * (design/documents/notes.md, "Binding" rule 3). Cleared for whichever an edit rewrites.
+     */
+    readonly unbound?: { readonly targets: boolean; readonly cites: boolean };
 }
 
 /** The whole project, as readers see it. */

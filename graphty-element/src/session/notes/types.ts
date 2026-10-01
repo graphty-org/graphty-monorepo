@@ -7,6 +7,7 @@
  */
 
 import type { EdgeId, EdgeMember, NodeId, ResultId, ResultItem, SetId } from "../../catalog/types";
+import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 
 /** A note's id: `note_` then opaque characters. Globally unique; compare for equality only. */
 export type NoteId = string;
@@ -141,6 +142,66 @@ export interface NoteListOptions {
 }
 
 /**
+ * A session's notes as a saved `graphty-notes` member, version 1 (design/documents/notes.md). A
+ * bare member is also a valid `.graphty.json` file.
+ */
+export interface NotesDocument {
+    readonly kind: "graphty-notes";
+    readonly version: 1;
+    /** At most 1,024 characters. */
+    readonly name?: string;
+    /** At most 65,536 characters. */
+    readonly description?: string;
+    /** Oldest first: by time, then by id. At most 10,000. */
+    readonly notes: readonly Note[];
+    /** Data for other software, under reverse-domain keys. */
+    readonly extensions?: Readonly<Record<string, unknown>>;
+}
+
+/** One thing a report says about a document: where, why, and its code. */
+export interface Problem {
+    /** Where: a JSON pointer into the document (`/notes/3/time`). */
+    readonly what: string;
+    /** One sentence a person can act on. */
+    readonly reason: string;
+    readonly details?: Readonly<Record<string, unknown>>;
+    readonly code: GraphtyErrorCode | GraphtyWarningCode;
+}
+
+/** What `notes.mergeDocument` takes beside the member. */
+export interface NoteMergeOptions {
+    /**
+     * When a saved note and a held note share an id but disagree. Default `"keep-both"`: the saved
+     * note is added under a new id. `"replace"` overwrites the held note; `"keep-mine"` keeps it.
+     */
+    readonly onConflict?: "keep-both" | "replace" | "keep-mine";
+    /** What to call the source in each note's status and in the history: usually the file name. */
+    readonly name?: string;
+}
+
+/** What `notes.mergeDocument` did. Frozen. */
+export interface NotesReport {
+    /** Every note added, in file order: new ids, and the new ids of `renamed` copies. */
+    readonly added: readonly NoteId[];
+    /** Notes whose content a held note already had. */
+    readonly unchanged: number;
+    /** `"keep-both"`: saved notes whose id was held with other content, added under a new id. */
+    readonly renamed: readonly { readonly from: NoteId; readonly to: NoteId }[];
+    /** `"keep-both"`: saved notes a held note is a later edit of; not added. */
+    readonly older: readonly NoteId[];
+    /** `"replace"`: held notes the saved ones replaced. */
+    readonly replaced: readonly NoteId[];
+    /** `"keep-mine"`: held notes the saved ones disagreed with. */
+    readonly kept: readonly NoteId[];
+    /** Added or replaced notes with at least one target reading `missing`. */
+    readonly missing: number;
+    /** Notes that fail the schema, each skipped alone with `E_BAD_DOCUMENT` and its pointer. */
+    readonly skipped: readonly Problem[];
+    /** Unknown fields kept (`W_UNKNOWN_MEMBER`), and times far in the future (`W_FUTURE_TIME`). */
+    readonly notices: readonly Problem[];
+}
+
+/**
  * The session's notes: text people write about the graph, its nodes and edges, kept sets and
  * results, stored, undone and redone with everything else. graphty-element never interprets a
  * note's text.
@@ -189,4 +250,29 @@ export interface NotesApi {
      * @param id - The note.
      */
     remove(id: NoteId): void;
+    /**
+     * The session's notes as a `graphty-notes` member, ready to save as JSON: oldest first, the
+     * same bytes for the same notes. Where a note was opened from is never written.
+     * @param options - The member's `name` and `description`.
+     * @param options.name - Its name, at most 1,024 characters.
+     * @param options.description - Its description, at most 65,536 characters.
+     * @returns The member.
+     * @throws A `GraphtyError` `E_BAD_COMMAND` for a name over 1,024 or a description over 65,536
+     *     characters.
+     */
+    toDocument(options?: { readonly name?: string; readonly description?: string }): NotesDocument;
+    /**
+     * Add a saved member's notes to the session's, in one undoable step labeled "Added notes from
+     * <name>". Never deletes a note. A note whose id is held with other content is added under a
+     * new id by default (`onConflict`). A note that fails the schema is skipped alone. A set,
+     * result or item target, or a cite, read from a member binds to nothing here: it reads
+     * `missing`, because two projects can share a set or result id.
+     * @param document - The member, parsed from JSON.
+     * @param options - What to do on a conflicting id, and the source's name.
+     * @returns The report.
+     * @throws A `GraphtyError`, and nothing changes: `E_BAD_DOCUMENT` for what is not a
+     *     `graphty-notes` member, `E_UNSUPPORTED_VERSION` for another version, `E_TOO_LARGE` past
+     *     10,000 notes.
+     */
+    mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
 }

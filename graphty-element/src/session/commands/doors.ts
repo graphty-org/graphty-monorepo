@@ -329,6 +329,13 @@ async function withTemplateDegree(target: object): Promise<() => Promise<unknown
 /** The note the notes doors write. */
 const DOOR_NOTE_INPUT = { text: "door note", targets: [{ node: "d1" }] };
 
+/** The notes member the merge door opens. */
+const DOOR_NOTES_DOCUMENT = {
+    kind: "graphty-notes",
+    version: 1,
+    notes: [{ id: "note_door", time: "2026-10-01T09:00:00.000Z", targets: [{ node: "d1" }], text: "door note" }],
+};
+
 /** The id of the note a notes door edits: minted, so known only once `around` has added it. */
 const DOOR_NOTE = { id: "" };
 
@@ -1534,6 +1541,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             authors: READ,
             counts: READ,
+            toDocument: READ,
+            mergeDocument: calls(
+                [DOOR_NOTES_DOCUMENT, { name: "door.graphty.json" }],
+                [{ op: "note.merge", document: DOOR_NOTES_DOCUMENT, options: { name: "door.graphty.json" } }],
+            ),
             add: calls([DOOR_NOTE_INPUT], [{ op: "note.add", note: DOOR_NOTE_INPUT }]),
             update: withDoorNote(
                 () => [DOOR_NOTE.id, { text: "door edited" }],

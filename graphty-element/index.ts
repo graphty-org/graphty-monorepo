@@ -119,12 +119,16 @@ export type {
     NoteId,
     NoteInput,
     NoteListOptions,
+    NoteMergeOptions,
     NotePatch,
     NotesApi,
+    NotesDocument,
+    NotesReport,
     NoteStatus,
     NoteTarget,
     NoteTargetInput,
     NoteTargetStatus,
+    Problem,
 } from "./src/session/notes/types";
 
 // Color palettes for visualizations
@@ -293,6 +297,7 @@ export type {
     GraphtyErrorJson,
     GraphtyErrorSource,
     GraphtyErrorTarget,
+    GraphtyWarningCode,
 } from "./src/errors";
 export {
     ACCELERATION_ERROR_CODES,

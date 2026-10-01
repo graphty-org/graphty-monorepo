@@ -57,6 +57,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
 import { createNotesApi } from "./notes/NotesApi";
 import { noteMembers } from "./notes/select";
+import { boundTargets } from "./notes/status";
 import type { NoteId, NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
@@ -1922,21 +1923,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 ? []
                 : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
-            // And notes naming it, labeled with the note's first line (design/notes 5.7).
-            ...notes
-                .list()
-                .flatMap((note) =>
-                    note.targets.flatMap((target) =>
-                        "set" in target
-                            ? [
-                                  {
-                                      user: { kind: "note" as const, id: note.id, label: firstLineOf(note.text) },
-                                      scope: { set: target.set },
+            // And notes naming it, labeled with the note's first line (design/notes 5.7). A set a file
+            // named is that file's, not this session's set of the same id.
+            ...[...dispatcher.state.notes.values()].flatMap((entry) =>
+                boundTargets(entry).flatMap((target) =>
+                    "set" in target
+                        ? [
+                              {
+                                  user: {
+                                      kind: "note" as const,
+                                      id: entry.note.id,
+                                      label: firstLineOf(entry.note.text),
                                   },
-                              ]
-                            : [],
-                    ),
+                                  scope: { set: target.set },
+                              },
+                          ]
+                        : [],
                 ),
+            ),
         ],
         materialise: createMaterialiser({
             snapshot,
@@ -2129,13 +2133,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     ...layerScopesOf(stack),
                     visibility.filter,
                     // A note's item target selects what its run held (design/notes 5.6).
-                    ...notes
-                        .list()
-                        .flatMap((note) =>
-                            note.targets.flatMap((target) =>
-                                "item" in target ? [{ kind: "item", item: target.item }] : [],
-                            ),
+                    ...[...dispatcher.state.notes.values()].flatMap((entry) =>
+                        boundTargets(entry).flatMap((target) =>
+                            "item" in target ? [{ kind: "item", item: target.item }] : [],
                         ),
+                    ),
                 ],
                 runId,
             );

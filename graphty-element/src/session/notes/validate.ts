@@ -13,7 +13,7 @@ import { canonicalize } from "../runs/runId";
 import type { Note, NoteCite, NoteId, NoteTarget } from "./types";
 
 /** The version 1 limits. */
-const NOTE_LIMITS = Object.freeze({
+export const NOTE_LIMITS = Object.freeze({
     notes: 10_000,
     targets: 64,
     cites: 64,
@@ -75,7 +75,7 @@ export function refuseNote(
  * @param value - The value.
  * @returns True when it is.
  */
-function isPlain(value: unknown): value is Readonly<Record<string, unknown>> {
+export function isPlain(value: unknown): value is Readonly<Record<string, unknown>> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
@@ -176,7 +176,7 @@ function checkFields(input: Readonly<Record<string, unknown>>): void {
  * @param text - The text.
  * @returns It, unchanged.
  */
-function checkText(text: unknown): string {
+export function checkText(text: unknown): string {
     if (typeof text !== "string" || !/\S/u.test(text)) {
         throw refuseNote("E_BAD_COMMAND", "empty-text", "A note's text is empty or only white space.");
     }
@@ -196,7 +196,7 @@ function checkText(text: unknown): string {
  * @param mediaType - The media type.
  * @returns It, unchanged.
  */
-function checkMediaType(mediaType: unknown): string {
+export function checkMediaType(mediaType: unknown): string {
     if (typeof mediaType !== "string" || mediaType.length > NOTE_LIMITS.mediaType || !MEDIA_TYPE.test(mediaType)) {
         throw refuseNote(
             "E_BAD_COMMAND",
@@ -264,7 +264,7 @@ function plainJson(value: unknown, depth: number): unknown {
  * @param extensions - The extensions.
  * @returns A frozen null-prototype copy.
  */
-function checkExtensions(extensions: unknown): Readonly<Record<string, unknown>> {
+export function checkExtensions(extensions: unknown): Readonly<Record<string, unknown>> {
     if (!isPlain(extensions)) {
         throw refuseNote(
             "E_BAD_COMMAND",
@@ -574,15 +574,45 @@ interface NoteParts {
     readonly extensions: Readonly<Record<string, unknown>> | undefined;
 }
 
+/** The fields a version 1 note names; any other field of a note opened from a file is kept as read. */
+const NOTE_FIELDS: ReadonlySet<string> = new Set([
+    "id",
+    "time",
+    "targets",
+    "text",
+    "mediaType",
+    "author",
+    "edited",
+    "cites",
+    "extensions",
+]);
+
 /**
- * Assemble a frozen record in the saved key order, leaving out what has no value, and refuse one
- * larger than 256 KB saved.
+ * The fields of a note this release does not know, as read from a file, in their order.
+ * @param note - The note.
+ * @returns The fields, by name.
+ */
+export function unknownFields(note: object): Readonly<Record<string, unknown>> {
+    const extra: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(note)) {
+        if (!NOTE_FIELDS.has(key)) {
+            extra[key] = value;
+        }
+    }
+
+    return extra;
+}
+
+/**
+ * Assemble a frozen record in the saved key order, leaving out what has no value, then the fields
+ * this release does not know, and refuse one larger than 256 KB saved.
  * @param parts - The parts.
+ * @param extra - Fields this release does not know, kept as read.
  * @returns The record.
  */
-function recordOf(parts: NoteParts): Note {
+export function recordOf(parts: NoteParts, extra: Readonly<Record<string, unknown>> = {}): Note {
     const record: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(parts)) {
+    for (const [key, value] of [...Object.entries(parts), ...Object.entries(extra)]) {
         if (value !== undefined) {
             record[key] = value;
         }
@@ -623,7 +653,9 @@ export function buildNote(
         throw refuseNote("E_TOO_LARGE", "notes", "A session holds at most 10,000 notes.");
     }
 
-    return recordOf({ ...minted, targets, text, mediaType, edited: undefined, cites, extensions });
+    // Spelled out, so the record's keys are in the saved order (design/documents/notes.md, "Writing" rule 2).
+    const { id, time, author } = minted;
+    return recordOf({ id, time, targets, text, mediaType, author, edited: undefined, cites, extensions });
 }
 
 /**
@@ -662,15 +694,19 @@ export function patchNote(held: Note, patch: unknown, edited: string, context: N
         return null;
     }
 
-    return recordOf({
-        id: held.id,
-        time: held.time,
-        targets,
-        text,
-        mediaType,
-        author: held.author,
-        edited,
-        cites,
-        extensions,
-    });
+    // A field this release does not know stays as read (design/documents/notes.md, "Later versions" rule 3).
+    return recordOf(
+        {
+            id: held.id,
+            time: held.time,
+            targets,
+            text,
+            mediaType,
+            author: held.author,
+            edited,
+            cites,
+            extensions,
+        },
+        unknownFields(held),
+    );
 }

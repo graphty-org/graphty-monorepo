@@ -189,6 +189,8 @@
         "@types/toposort": "^2.0.7",
         "@vitest/browser-playwright": "catalog:",
         "ai": "^5.0.270",
+        "ajv": "^8.20.0",
+        "ajv-formats": "^3.0.1",
         "encrypt-storage": "^2.14.7",
         "eslint": "^9.29.0",
         "eslint-plugin-jsdoc": "^50.6.17",

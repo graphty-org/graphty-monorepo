@@ -60,15 +60,17 @@ export function noteMembers(
     const picked = targets.flatMap((target, index) =>
         only === undefined || only === index ? [{ target, state: status.targets[index].state }] : [],
     );
+    // An unsupported target is never bound, not even in part.
+    const isEdge = (target: NoteTarget, state: string): boolean => "edge" in target && state !== "unsupported";
     const edges = edgeRowsOf(
         snapshot,
-        picked.flatMap(({ target }) => ("edge" in target ? [target.edge] : [])),
+        picked.flatMap(({ target, state }) => (isEdge(target, state) && "edge" in target ? [target.edge] : [])),
     );
     let nextEdge = 0;
 
     for (const { target, state } of picked) {
         // Every edge target takes its row from the batch bound above, skipped or not.
-        const edgeRow = "edge" in target ? edges[nextEdge++] : -1;
+        const edgeRow = isEdge(target, state) ? edges[nextEdge++] : -1;
         if (state === "missing" || state === "unsupported") {
             skipped++;
         } else if ("node" in target) {

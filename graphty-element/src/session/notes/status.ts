@@ -13,7 +13,9 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeMember, NodeId, ResultId, SetId } from "../../catalog/types";
 import { pairsOrdered } from "../../data/edgeIdentity";
+import type { NoteEntry } from "../project/state";
 import { bindEdgeMembers } from "../sets/resolve";
+import { supportedCite, supportedTarget } from "./document";
 import type { Note, NoteCiteStatus, NoteStatus, NoteTarget, NoteTargetStatus } from "./types";
 
 /** What a status reads of the session. */
@@ -80,6 +82,10 @@ export function edgeRowsOf(snapshot: GraphSnapshot, members: readonly EdgeMember
  * @returns The label.
  */
 function labelOf(target: NoteTarget, snapshot: GraphSnapshot, set: StatusSources["set"]): string {
+    if (!supportedTarget(target)) {
+        return `Unsupported target (${Object.keys(target).join(", ")})`;
+    }
+
     if ("graph" in target) {
         return "Graph";
     }
@@ -101,23 +107,52 @@ function labelOf(target: NoteTarget, snapshot: GraphSnapshot, set: StatusSources
         return target.result;
     }
 
-    if ("item" in target) {
-        return `${target.item.result}: ${target.item.key.field} ${String(target.item.key.value)}`;
-    }
+    const { item } = target;
+    return `${item.result}: ${item.key.field} ${String(item.key.value)}`;
+}
 
-    return `Unsupported target (${Object.keys(target as object).join(", ")})`;
+/**
+ * Whether a target names something only the file it came from can bind: a set, a result or an
+ * item read from a file (design/documents/notes.md, "Binding" rule 3).
+ * @param target - A supported target.
+ * @param entry - The note's entry.
+ * @returns True when it binds to nothing here.
+ */
+function unboundHere(target: NoteTarget, entry: Pick<NoteEntry, "unbound">): boolean {
+    return entry.unbound?.targets === true && ("set" in target || "result" in target || "item" in target);
+}
+
+/**
+ * The targets of a note that name something in this session: of a form this release knows, and
+ * not a set, result or item a file named.
+ * @param entry - The note's entry.
+ * @returns Those targets.
+ */
+export function boundTargets(entry: NoteEntry): NoteTarget[] {
+    return entry.note.targets.filter((target) => supportedTarget(target) && !unboundHere(target, entry));
+}
+
+/**
+ * The node and edge targets of a note this release knows, which bind in a snapshot.
+ * @param note - The note.
+ * @returns Per target: whether it is a node or edge target to bind.
+ */
+export function bindable(note: Note): boolean[] {
+    return note.targets.map((target) => ("node" in target || "edge" in target) && supportedTarget(target));
 }
 
 /**
  * What a note's targets and cites point at now.
- * @param note - The note.
+ * @param entry - The note's entry: the record, where it came from, and whether a file named its
+ *     sets, results and items.
  * @param sources - What the status reads.
- * @param source - Where the note came from, when it was opened from a file.
  * @returns The status, frozen.
  */
-export function statusOf(note: Note, sources: StatusSources, source?: NoteStatus["source"]): NoteStatus {
+export function statusOf(entry: NoteEntry, sources: StatusSources): NoteStatus {
+    const { note, source } = entry;
     const snapshot = sources.snapshot();
-    const edges = note.targets.flatMap((target) => ("edge" in target ? [target.edge] : []));
+    const binds = bindable(note);
+    const edges = note.targets.flatMap((target, at) => (binds[at] && "edge" in target ? [target.edge] : []));
     const edgeRows = edgeRowsOf(snapshot, edges);
     let nextEdge = 0;
     const shown = (row: number, visible: (row: number) => boolean): NoteTargetStatus["state"] => {
@@ -140,7 +175,11 @@ export function statusOf(note: Note, sources: StatusSources, source?: NoteStatus
     const targets = note.targets.map((target): NoteTargetStatus => {
         const label = labelOf(target, snapshot, (id) => sources.set(id));
         let state: NoteTargetStatus["state"];
-        if ("graph" in target) {
+        if (!supportedTarget(target)) {
+            state = "unsupported";
+        } else if (unboundHere(target, entry)) {
+            state = "missing";
+        } else if ("graph" in target) {
             state = "present";
         } else if ("node" in target) {
             state = shown(nodeRowOf(snapshot, target.node), (row) => sources.visible.node(row));
@@ -150,18 +189,21 @@ export function statusOf(note: Note, sources: StatusSources, source?: NoteStatus
             state = sources.set(target.set) === undefined ? "missing" : "present";
         } else if ("result" in target) {
             state = sources.result(target.result) === undefined ? "missing" : "present";
-        } else if ("item" in target) {
+        } else {
             const run = pinned(target.item.result, target.item.run ?? "");
             state = run === "same" ? "present" : run;
-        } else {
-            state = "unsupported";
         }
 
         return Object.freeze({ state, label });
     });
 
     const cites = (note.cites ?? []).map((cite): NoteCiteStatus => {
-        const run = pinned(cite.result, cite.run);
+        if (!supportedCite(cite)) {
+            return Object.freeze({ state: "unsupported", label: `Unsupported cite (${Object.keys(cite).join(", ")})` });
+        }
+
+        // A cite read from a file names a result that file carries, not one of this session's.
+        const run = entry.unbound?.cites === true ? "missing" : pinned(cite.result, cite.run);
         return Object.freeze({ state: run === "same" ? "current" : run, label: cite.result });
     });
 

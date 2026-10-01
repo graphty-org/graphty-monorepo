@@ -1,0 +1,1403 @@
+{
+  "version": 1,
+  "unproven": true,
+  "pr": 627,
+  "subject": {
+    "builtMerge": "3839721f728f57f57713ffcbcaeddac705c5093b",
+    "head": "64a2e89b794aad02dd5ba1aa914f22730c27ede9",
+    "runId": 36737110569,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "3839721f728f57f57713ffcbcaeddac705c5093b"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--both-states.dark.png",
+      "from": "775b84577b4bca6494d30f4b1393943e03a4ff4e4c18d9bdf1d7baba81e188a7",
+      "to": "485d5c684ea13d0d057c45533c7fdbe72b7334169a9952d8acb639f77d8d10ff",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--both-states.light.png",
+      "from": "bc08fbd3572194cb279b2411423fd565053f3f60ae67e06d1ea829e0ca373b11",
+      "to": "35308fdd64ae1937c5d558983449dd2c072fe5fedd7da012261ae6f2e75a354d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--changed.dark.png",
+      "from": "a5c4248178db367324535057230a65520e3cab6041c06d1264dc20a3afceafd1",
+      "to": "f6a77d8f29b1f4a7fceb64a20a0491a741fdabcdc288947f7a5ef48b9f40577f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--custom-icon.dark.png",
+      "from": "6d9979a49eb75ec7a9bb3b8ac44123977a0383a0be86bf3f5554720cc33b3c0f",
+      "to": "8a3b654d91d6c6c943eedae0b5ca9e99176ccc10d2b9a54c84e1599993c1654f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--custom-icon.light.png",
+      "from": "ac4ffc680238720283b08c3783b05d510f3349c3f47577f6aa24242691e343cf",
+      "to": "f09611659db1065c150f884fb557571d3fe85fb6a427f5c32121c16531c3ba2d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--default.dark.png",
+      "from": "1034016f99517f0463ee749b4ee85aae5f5a7a2db031c169eaa1dd0ee978f94b",
+      "to": "9ade14f8034c87162c585c7c8573028cf151ab5f30a93de6625f9b09a5dccb27",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--default.light.png",
+      "from": "115776f32aecf6bcb9c1851cc7f1dc0dba53430b7d295915c463ef636d352f55",
+      "to": "279d2d9c62de0005b9477e0473f02d3479e12a443c177c32514c22af9ef452f2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--empty-slot-keeps-the-column.dark.png",
+      "from": "8cbc936854678918ae1f664109c087018356b9e23198b89fcee674a9d44270b6",
+      "to": "9057d15d6ccb97f855e99ea5c33828d9a159c8ca6cd2259b0762bf1f8c30294d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--empty-slot-keeps-the-column.light.png",
+      "from": "1e193601f645aa3e76bc9af4bb609eb0f9690d9d9129b2e2384e25f5e8293e9e",
+      "to": "06fd7c96b40d4e453adafbca62a083abd92f150fdf4909412e2f1e7674b633fd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--in-a-row.dark.png",
+      "from": "030a3a718fbae8504b2913eddd4d004d5a4228fe5be3899e079d41637a0ea791",
+      "to": "6f4abf308a4e1f48c4a8da16f8cb4c2c13c47e50505a986a0ca6d5238f055b4d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--right-to-left.dark.png",
+      "from": "c8084667b064277fdef3be01b6cddf465133afdc304e91464ce43c0880fb22db",
+      "to": "e5eca47859b7212c20a4a681f1e0f122311b0d1d37456fdc4a8c0c6dc3cbcd8e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--translated-labels.dark.png",
+      "from": "775b84577b4bca6494d30f4b1393943e03a4ff4e4c18d9bdf1d7baba81e188a7",
+      "to": "485d5c684ea13d0d057c45533c7fdbe72b7334169a9952d8acb639f77d8d10ff",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-advancedbutton--translated-labels.light.png",
+      "from": "bc08fbd3572194cb279b2411423fd565053f3f60ae67e06d1ea829e0ca373b11",
+      "to": "35308fdd64ae1937c5d558983449dd2c072fe5fedd7da012261ae6f2e75a354d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--long-label.dark.png",
+      "from": "12f6197a3aa6357fd8f53d8909de9b3b2041788e6615f29c7c66360898bac68f",
+      "to": "411905d8c64ccfee76aa3362396035e1dfb102118485c56fa5a6e21eec7a5a6c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlgroup--with-actions.dark.png",
+      "from": "cf535c0b36604641b0b3604e51061194340c66419ef077bcc19d69378d4e028c",
+      "to": "1c6e32ae85eb6122e6da1eb697c7dd5a2518c5778ce412c19fa6e3809de61682",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--a-panel-of-sections.dark.png",
+      "from": "7f90623b83cfaf236a30a4fdcea34dcb8cb9b7bfd2435d4674efb077c0ac1d2c",
+      "to": "5d32a70a2f13334299221a402e6d84a8b19a097f26a7d4505e283d1224632e19",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--a-panel-of-sections.light.png",
+      "from": "e2c86d6242045d55b0d239de10606cc32d60cb5b9410715b884705aa65cfc33f",
+      "to": "5f6020947a033f0eaf5ba5dc9f8da62acf5d49a385bb2508a602cd93aafa1022",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--collapsed.dark.png",
+      "from": "f7aeb50782f32296969763126183c65f9c2afd2878ad5d23e87dea9601f306ff",
+      "to": "45bac1dcbe6985ff978ad6928a9420cc644bb9b37bd1bd5b53a4fcb155041180",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--collapsed.light.png",
+      "from": "5df35f99f35f7c5809a747c4510883d9f41dba720cf229c516a580fd06abe7b4",
+      "to": "f8e88db8c26be1612963d6fd2712050b6d60530765315fa24ee86067da2a8bed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--controlled.dark.png",
+      "from": "3731b93f5118cda0319ba69e3c6f89cdd97bb801970d2798d86b3afe3c116dbe",
+      "to": "cb290c4c359898e481831f6cfb5ab9da7e9cb765d1af5944fd6143ebb9e7ecff",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--controlled.light.png",
+      "from": "4e7d3eb1072eef12fcae9fdde72085680d71995940b7ae6008f2c3a3b4f2085e",
+      "to": "a5cbba8c3a87b38cadefc175dfe07cc9809941aec39a13618a0991b3774877ca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--default.dark.png",
+      "from": "08f25d9243c13b852f0c5951e38ad351de39387b61ca8a9b84ebb25a3f3930ae",
+      "to": "bd7beedf91a813538654ebf0b418f51a91542dbede9e9337f121a1b9ba5d4a67",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--default.light.png",
+      "from": "9dec2b2be61528298897250b30aa0437f15001dfde7d38e30fdbf79ad629621e",
+      "to": "39fce7797ff17e85fa9e77f81ccca654fd967ad3e703de087ded772325f8c4c7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--right-to-left.dark.png",
+      "from": "ce11902fa6aeff689371fb5e65fb6d0b450785cba6dba4c8a36bd087ef6eedcf",
+      "to": "d6a02a97b38c59b4ce50cfa80ec71056da8343aada591de17b9ed4cdd9ed5f94",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--right-to-left.light.png",
+      "from": "26e92b6177352bc593f1bf9895b511f980309478352d84f5d5b665a376474e8f",
+      "to": "9288626377cf1b1926e48059506a37a2272d291ac4ce60f96ffb0c2e36390ef7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--translated.light.png",
+      "from": "a21b86d991fbb3ad4ca64bf5f4622f1b0c37071e24359ae5908c60771b85301c",
+      "to": "4ae5b41705e55d0503cfa4ac134cf1db1675e6a64919714a3d250fe46a9d81f1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-actions.dark.png",
+      "from": "09e0c65cc90440d717d2bc1168b525172c1fbd902a2c8fa994a75969d51e93a0",
+      "to": "58d3b949a48754a37528854c91e8a2d67be74ba6cb97cfa6cba4deedb144cf1b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-actions.light.png",
+      "from": "731e84e15ee720ef20bfc6386ac6e22e44f27525008055c8a6b54dc12b4ba92c",
+      "to": "7735adea17dbd6dcfaa9f12c1e60458f3da9c9e28ce460af5eee63c521b15de7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-configured-values.dark.png",
+      "from": "7f98e994418a861ec555082b7787885f480407282962783978aa578a89b81069",
+      "to": "19556c8a0304c7d212c515eceeff5af620ee916cf4ee4deb0de42d636b79c0fa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-configured-values.light.png",
+      "from": "54f150f8276e08a475ab2f20fa622fdcdb82c9bf258dac7f2ff06e5007dd7d79",
+      "to": "538cf9f6e1047678029c45a1cf780e5f81e92b165a37959f187dbfa427496733",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsection--with-info.light.png",
+      "from": "2694e1b225488c3a18c79431b33f95f6b42da228fc6504206d823655605a1188",
+      "to": "9a00488927de7a3bdb947044ab5904df8b336342a9a765f1431d139c7845eea3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-controlsubgroup--inside-a-section.light.png",
+      "from": "7653157dc3c336701ffa6968ebfe0101349ac2a4754ae78c89b10e034706d681",
+      "to": "8823700476573266132c9160e84c9a6970209262afa794856f850b30a671d999",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--default.light.png",
+      "from": "074c0eb5585ed7084f75708a655320ebaa79d4ac96165905c60c1fd539aeab3c",
+      "to": "3275bb1acea2a8ecaaa2435f1140834836b7a0c4b76affb5aacbbfe9f0c996ae",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--labels-right-to-left.light.png",
+      "from": "fa374dd710493366c8feeb8bb65c4834a61c6cd8891a91acf210c874dfcedaa6",
+      "to": "300db38ebbf2e53600309937ae54eaf871602adb6e6089ea507f8f54b25e002d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--multi-selection.dark.png",
+      "from": "ddb2e24663cb799365d8991e58bd32b4310e1878c7d3088b2949f29907d33918",
+      "to": "4d1c39993e85f5b0fa7406af05ae804fad5e1aec32cb8c0539c2f766e5fedb29",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--named-group.light.png",
+      "from": "074c0eb5585ed7084f75708a655320ebaa79d4ac96165905c60c1fd539aeab3c",
+      "to": "3275bb1acea2a8ecaaa2435f1140834836b7a0c4b76affb5aacbbfe9f0c996ae",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--pair-with-reset.light.png",
+      "from": "f2d7ce820292aa9c6ffeb8eae925a7a21bee88108b80c1ca738048849ab7673e",
+      "to": "a6d6b755d157cb539c7fc8b3102fff1f65f2d7959c02320f968b82d5cc7fedb3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--rhythm.dark.png",
+      "from": "665071c233fc9f284b8a8d917cfc61eab85660b63b71fc4ec30939319f74ebdc",
+      "to": "fed27796218a0d748aeacef749bed5eddee14745a639199e6a1bcec7a632fcef",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--rhythm.light.png",
+      "from": "5f0386526678831fbeea3bfa6de3385f90d25ab349f537266e6df294ca0a2a9d",
+      "to": "4cbbd3aa0efa8b49ab2e722d920f8857cf880ad432cf0c58c12c94bc52656b83",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--right-to-left.dark.png",
+      "from": "5ec790717ac714780fe3ca56a65b6d05a354b43bb8b7d0f442afa91d344cb281",
+      "to": "b7336bb20b183d13a9cbc322b3f1b344eb63e6a3d6415e3b9fbb9a3942920cc0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--right-to-left.light.png",
+      "from": "8fcfa248497701e381bde7de813a9283b5fc4b10ae81f3045b4a83f439a7374e",
+      "to": "e7d7a1329639ae9271edc648a3e82f6dca64c2495867edb5933bf31f96f067b1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--scrubbable.light.png",
+      "from": "f2d7ce820292aa9c6ffeb8eae925a7a21bee88108b80c1ca738048849ab7673e",
+      "to": "a6d6b755d157cb539c7fc8b3102fff1f65f2d7959c02320f968b82d5cc7fedb3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--single-with-advanced-settings.dark.png",
+      "from": "f4cdcd6aca984fb9f8f620a992282542c3d89b3f9d04a15e6f0ad643bdb1a2e7",
+      "to": "e119d51438358f45d83a100aadb1d71b42016fb69b932a34b7a9fc50d42538c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--single-with-advanced-settings.light.png",
+      "from": "e940c2c4f2f48c102c5c307937a12f4e86d37fec7c86da44ef8aaa8e6645857b",
+      "to": "213f8e1a9b6b5415507a512a60f48fab9b6b367d952313d477f7fbb76003699a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--single-with-labels.dark.png",
+      "from": "30999e017c0037b33716759967ede56d118d24e8bcf7623974b99934700e2a07",
+      "to": "c3f7771c247a26225aa40c54166aad99ca8b2694be3d247b41213ca91f092bd4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--single-with-labels.light.png",
+      "from": "fe7747f8abe0334067e3760e704917fd22cf9b70a7febd3abd9e77c5b9084d2e",
+      "to": "1be25236ce56f2d500197fded85c0ceb01c7db8be9dba5a9d2aba9b3bfd3008d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-fieldrow--with-labels.light.png",
+      "from": "dae78727aa29123d2aec9d1c5214fcca509c0ff888a6c673d481c21b40a6858e",
+      "to": "ee3755b286c76f1b58e57dacfc701bd6c6b38b220e27ce6cae51b9bce08a0abc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--default.dark.png",
+      "from": "9a7c9d01d7df2c22db5fe9acc26969d64913a826e4f01064bbf8f9c35f9de02a",
+      "to": "1c6f65f5e13ffb07af81a7776e482ce386b3c29473b7c8bc601a6c65e6a1ae03",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--default.light.png",
+      "from": "e7e2fca21d6efdbe242e7199d10c5eb905f2de1c8dead9818ceb84816f72c5fc",
+      "to": "65e734e38f332e1b27e6f63cf9789abe1f79b6297652dd5949b84b481e43ffec",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--empty-slots-keep-the-column.dark.png",
+      "from": "04b4edc63494db828a7c70c6ea24e156847c746958bb94fca21d1e9304d4ca9d",
+      "to": "05d21852d6b909753ea76d99c0922b86d1718b1103bac32859f1ef32908136b6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--empty-slots-keep-the-column.light.png",
+      "from": "b9b6a50f360cca817a989dd680d31db908df2107e67793deec8e73b11a488613",
+      "to": "056acf4e48df8c487bec16c8ceb74bb56efa7490b30635297185a28201cd5b2c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--right-to-left.dark.png",
+      "from": "c42dbd5c5ab18968eec34f5d7e3b9e44e0e0e43a655634f18573674dc825dc42",
+      "to": "9b29ad6c5c151652a75ab8e75dae2e7ddee0d0f60dbfacdd21907326bd0b15e7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--right-to-left.light.png",
+      "from": "7fb63633ab33eb0e0d2076f14b2bdc929381e685087f55d6c5ab8f4b09913a37",
+      "to": "ac504401e8345d17f7cca80ec79ce2e5eb80b17a6724e9bd784fa317a927f276",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--what-goes-in-it.dark.png",
+      "from": "03df7d7246cd95dfcd1740f815598bb8a1d5dc3a4387f094dae152776acf7d59",
+      "to": "ffb868cd42eecbf63e5e0be74f31faa52f06e32577647b2b9fe84f151ef5440b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/building-a-panel-trailingslot--what-goes-in-it.light.png",
+      "from": "29a8db134bde5b9aabe484a9b102ebb62e4893acebc4ea09d7d02499602d3841",
+      "to": "d474e536de81f476c1e92ce815f96de3e6b1342d8878138e3029198b2f51e09e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--colors.dark.png",
+      "from": "80b97c0d38987627f5a6341fb37dbec85de5e37a2cf80249f673ced1220303da",
+      "to": "4cfeeba7b5ae6e2198576362502ec42dad538ce51eab1efc7c376ef4959d16ad",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--colors.light.png",
+      "from": "8f33aeca06667f184a5d0360b5f2cb60d23f9b24b1693d44f53e80882da53235",
+      "to": "3fbdfb63797c6f3918d341c785e231fdfb9e24c920ff56226badbbd711e42a65",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--default.dark.png",
+      "from": "b3573b0238894294c6ba44280826de9b043450f5877e88cbbcd05d1edd65dde8",
+      "to": "5e623844f380e78bc12efe254968f3a9844882004f03bc69df8452b09a5e5bfa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-actionicon--default.light.png",
+      "from": "bbcbb960023693feb7251ccb3772f7e7094aefb9838e7bb708bee93fb8af598c",
+      "to": "7b2333d48c7bb82c582808e3754fde50f659e45274f5b224ac4175a7662dbfe9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--with-icon.dark.png",
+      "from": "3d943c068afe0894f6346886c82c492d6fa85ef3fba6d7d6cafea3884b0ac3c6",
+      "to": "2499809e85abe038b790ed30562f89022c1d43aabae23336202ce9b89a4729fd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-button--with-icon.light.png",
+      "from": "c1133f8b1a3b3440aad766fa1e0cd48c9412477a859e27aae4ec6ee5473056cf",
+      "to": "752e1059f4c860ade3c7247dee1e26e09cc15c538888c45fa76a1a7cf483d560",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-indicator--default.light.png",
+      "from": null,
+      "to": "65c498e7de30eeaee923613acf4ad18bb62feb2858e84dc341fc81cf0377d6a4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-light-dark-mode--control-section-colors.dark.png",
+      "from": "9d03e8f670d8af83f6eaba0cd3604217d8f0cebe4126973d1c69c255cdd0a97a",
+      "to": "564e61d0d2b31365389ef73c412a44f4a858d73a6b5ba39ec893944ef7fa8a77",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-light-dark-mode--control-section-colors.light.png",
+      "from": "34d1fd92bbaffa58ec9fc10f6988793b191b500fa48e49b33521282c013d315d",
+      "to": "ad949fa3c46d32ae3a7b832c3f2e78ef491574882736806286ccb76e91d277e1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-multiselect--with-error.dark.png",
+      "from": "23dbbcbce85cda36a12f6231fc9d685108f86bbf405114f69147f91465bbd95b",
+      "to": "63a666b145e64a0c8e8ceee3c01e4d87fabad80b60c6adbe52d74f7afd3a1c3f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--default.dark.png",
+      "from": "7d15a73680fb48b331eb13c75efb4462d923210b4c00e3e68026547a5f9bbbc0",
+      "to": "02618de93560205b3bcaf62a149fda15067d70ebf9b24a3100f1b39aeb7f669d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--default.light.png",
+      "from": "a3294cd2ea8aa1b67e44ae2aec44d0365ffaaa31cfa76d0ade52fd6f4e4c2347",
+      "to": "8dcfbb6e74babc158fe890ca1fbd253d134198fd4eafd8503b0e3602fa46475f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--with-controls.dark.png",
+      "from": "f22cebeeae27c0271f822af43b7065aa29e2e0e72bb55eaf487a23f5190aad87",
+      "to": "88161e43dac359bcbe34fa93eabce5cb3dad40cfb05f56191395624d68827f8d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--with-controls.light.png",
+      "from": "e00ba965d1d885e8d4e94623976aab961a4fe397b083267c48028bdcadda40b3",
+      "to": "3cf2586d3b8aeae3cc25ba13134757601bdeb203737b86231898002889d3d7fa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--with-label.dark.png",
+      "from": "1f3dd70804bd7d69402610fc4319879d2cea38fb6daaefc713a9988ea2f9a022",
+      "to": "917de0facbad65e28b3944731bc02eeee651d7d0f9f3e42272879f35cde61161",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--with-label.light.png",
+      "from": "2340c09bdf4d1350c642ed84ed8437114a06e9bc2a4679673b9e94f0507bfce2",
+      "to": "d568051cb2d2d53a994ef2a2fb533c8dd6da7960f9561fadac0e7ec78400c37c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--with-suffix.dark.png",
+      "from": "92f2a8fa0f76f8341fa3389de42f7f37896e7aed839cee0f37689d3616cadedf",
+      "to": "93561275d551e29d4e06e9f68b36fe0b48c6a46baf0107c0d7736cb4860cbee3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-numberinput--with-suffix.light.png",
+      "from": "e57da3d1f6cf55e96af50201b88f30166047003666dd78526fd4e1570b6fd436",
+      "to": "fc3762a6fb31b0a44445a74d4d629080c2acc9f88d19c9808fbc71f3e2d0030f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-pagination--default.light.png",
+      "from": "fae2dc3baf32228d8f168e7cc4addb59afd276c4d53cdfd2eb80881b0afb030b",
+      "to": "f4918f49909b3e9624c069240c7f3a2844891ba5bd0e6dffb05d41c6df6293f3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-tabs--default.dark.png",
+      "from": "e746cb7b529f5e36bc07095bbd188dc3f5e862be36b46f9aad3c99969e5a25c6",
+      "to": "a11609f795bec7a3f8313baaf2dd734a73f26d045197a2bae5b25963c493abfb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-mantine-components-tabs--default.light.png",
+      "from": "5fb1869ddbebc0ca64ce01c164fa0eede0ce2c99df7d65f9dc71b2b359d19120",
+      "to": "96d07c919159fa1aaa2fe3894460813e01ac90e6e5702ea0dffc000ddd137c65",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-showcase--control-group-patterns.light.png",
+      "from": "ae9771d2a522a5c4c1603fd715788476ff80fea5e03ef27cc3f097029afd1fc5",
+      "to": "cb90a066e574eaf8bc0509950723d69565f08aab6138131b467bed4175621fb8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-showcase--inline-settings-pattern.dark.png",
+      "from": "ab75d4ae7a1be16bb842550b2ebcf7abef0530c88bbc7d32616a90ad64003755",
+      "to": "1306a7c59f393c6c2f813e8f03f1ea9c91ad7f89a06266718f2a8850b1e31322",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-showcase--inline-settings-pattern.light.png",
+      "from": "10477d9ec81aa2ca76d17369cfce738c18f1afdbae879194b7cd0702519436ef",
+      "to": "f590e2698d2a931d2ce01d6fb49108c29da55910994d84637f6cad35cd268599",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-showcase--popout-panel-pattern.light.png",
+      "from": "5a9ee58201e59cca05d8538ea85304c4f148e0100dacd88ecc2b4878870fe36e",
+      "to": "ba894b354a3f17bb905f1bc102a6d174ae65230a7242cb8b382c781f940758b2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/compact-theme-showcase--sidebar-pattern.light.png",
+      "from": "3fea181fb5c9a6bdaf69713787bc9032edae81e1df91f2059ae14ba37fd0ff3b",
+      "to": "e24ccd21fe1b9407ba69778eb62c10d6f5dfe12574ca50316b466e6dc3ca93cf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compactcolorinput--controlled.light.png",
+      "from": "321f34663968d0d5d5741a1ed767e2328b99cf501afc1e07c711b3fbc40867a7",
+      "to": "c84e26d7a30448b3d9129d03d73af5352b020a0d45827602819f451d97cac40a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compactcolorinput--default.light.png",
+      "from": "e908329fb5f33f67c20feb9720f732d60930dee7f9c73d5beecc52870cfe2877",
+      "to": "68f9ef51a805cec464d74bc26b8066d8cd34343e5db67c337a1eb539b37a97fc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compactcolorinput--right-to-left.light.png",
+      "from": "8f57a0f1318806447a6735dbfe31bcd27756e4a53ae9c917922be59d296fa277",
+      "to": "db74af0b3ad5d8ed4d92c16801e2d7f157fda208047f5774541d93ed9414fc71",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compactcolorinput--translated.light.png",
+      "from": "c16dfb532cc087433bfbc78428e6ae1b9b4f7dbec7846a997dd308f0d4faba96",
+      "to": "411b298e9a456f7905054e9179f7297401df26f73a990f755180536d7428dfb5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compactcolorinput--with-label.light.png",
+      "from": "4dbd26404c8eaee70d19651374f72f94387be1519ae2a59a05f484a023ca79ee",
+      "to": "167c7fed35e0b021826f45a143577ab33464f3a121026dab12481d111abf8fd4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--graph-size.dark.png",
+      "from": "4735f2bc325efe45dfee8f7c8fe08d39e4c9fc76c8b462210be3e704f7c71954",
+      "to": "4c285d1fdbcf9bd8fb288ebe3794b6527b54c19e61d4d7f0bbf6719333f12147",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--graph-size.light.png",
+      "from": "09b21e93eb2e5dc1c21fc37a3b3e92cdd3273e67cd890fb207a27439fa9b1e5e",
+      "to": "6aae2a8d21b6b82c9a165c59e6fee41a043a53ae5816c43d6057a0725f5779ce",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--in-a-panel.dark.png",
+      "from": "3e436812d71f9726706686eb5f75f9f0216962be1771ccbe5425beb04fd1a959",
+      "to": "aac5c895d66862db14c991bec38c771bdf04e051cf587e10029e9be382cb63a5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--in-a-panel.light.png",
+      "from": "cbb9ca11c7a123356f4a2b4fbf2b948921ca2b6ae9f14a47726801402b371baf",
+      "to": "1699c7d35a56d47140e4b1c2cac56100463008de96a7ebd405d0de378649bd86",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--interactive.dark.png",
+      "from": "30b889c9c7c4e144d8b7fca4e7c73e86e104a39fe6874f9c73cb909907508a6f",
+      "to": "623b8c55701a9e3eba9a64668bc64fd43139de21f5be991b6df66a88268a840d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--interactive.light.png",
+      "from": "ed460ccecfc690e89d2a9a3937c75c9c8cc787afb6d41795ad6b367f1a83a425",
+      "to": "e00b267080d87265114de6d8da779c800ac5c3839f7427fc30518d7e790c197d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--right-to-left.dark.png",
+      "from": "ea1b47c4a54340e96ddefd4c45b97b3cc94184842e7a0931d571070fedaf9641",
+      "to": "8558fde9f28a8b41103d3c44ddddb087e0f400c7c6c60c6804b06e4fa6eeb5ba",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--right-to-left.light.png",
+      "from": "d3394a7f96ee6b58ae2dbd5743783250f24fd8e17257c8d87153da0728f21275",
+      "to": "31592346acb32f1a8d19810070ff403cfc007b7b374c201349e1253da370ba02",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-compoundrow--with-changed-settings.dark.png",
+      "from": "ad414b693278c712e4055e37ec30823684fd966ab4928dde10ea30b9c4e98cc2",
+      "to": "b0cdaf008f3c0971fce7d2b42ececc5f4ceebf1cbc3daa9939430fa1de476e4f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--at-maximum-stops.light.png",
+      "from": "40154f51e172d4ee39a0e088584d9faabebeb851a0c8715c8dbc0c7f2259ed45",
+      "to": "b40d62d00864e8e1cba8a44a07607032a7fc9dfe7dd24ba40ccaff292da7a6ab",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--coalesced-into-one-undo-entry.light.png",
+      "from": "118b17ca77a478055007d281f921e088e53d24ca068946fc8758c9052949c1e8",
+      "to": "ab52c13760f013da98edc1daf40dd2d1fe18bc8c0d341d526e2e4d7f564e309f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--controlled.light.png",
+      "from": "a0ae3b7f39a5c77e649494146ed55bcbdb1726e681e2646eab1a97d6384066e6",
+      "to": "f1a18c10dc9f1fbe4fd15fbb290ed721b189e385075afec42c6b90bf72f9d266",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--custom-bounds.light.png",
+      "from": "2bfcbcdf413b2f7b85891d0017bde482de4e0d651885bed81982a608c73abb54",
+      "to": "532ea8165c3696ff791de1fe5099bfd7a6e62a1ec9c2ba424afdbc89d91a504b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--default.light.png",
+      "from": "d3e004c64f0654193ff8bac09e9d3a30597dcd7c2d067fce86f90ec2415da604",
+      "to": "8738743b52a97747af58c204788a71b57a7dd7edc1f5cd5e0467af459067805a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--right-to-left.light.png",
+      "from": "c3713b6e235865d6c5d362bd1df866abf77980934a6c56798e4a05f23b0ff7db",
+      "to": "0eb43ea0dd75fd270db5162702f94b4f82c2152f5110c2af6f05f0662df41517",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--translated.light.png",
+      "from": "b174b7ec778d146d4f83971d59f2a0ebda9fbba391d3227eece4a4f393f2e7b7",
+      "to": "11814389e16f8ee6413c45516b810796ff529395fc5aaef771358d091a3d6025",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-gradienteditor--without-direction.light.png",
+      "from": "47952a1c473c39d54718ad9dd79680018a37dd5978a8c514b7d95f0a8434af41",
+      "to": "3755b8130c9cd790084a1973c9ced04c385c57c1d4ae1a49a70882de7b6c3f86",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--controlled.dark.png",
+      "from": "ea3db2eb9beb5aae959d9f43845d08e375bc66b73552b4912cdca04fe6ce9e04",
+      "to": "d4a62d05d001fdeb09d5e8d1a68ad2ab1ae4be5b86d7d59f55b124f000569037",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--controlled.light.png",
+      "from": "3f853b7c4ba1346cc5d09a99f2cc78921c83baf7b42c110d86c5d6e8e2dbc33f",
+      "to": "9d77787a3521a5a9ef8a869728321259aa45223c518bc42c91cfc62bd3a57db9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--default.dark.png",
+      "from": "7fbeb7306bf615fe018020f4a3c059be46c982ce1fbfd5e8e129d7451e7d8c01",
+      "to": "70c365d1fa95064b9e465510185325058b5a423249a29db7b5dfc4f682deebc8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--default.light.png",
+      "from": "bc09baad2529de1a555218db68c9e0019a4c8e9ab45d19e8587bae3a70aa219f",
+      "to": "8677f76fac52b294440da85132fa0be7e81b5beda5a3f4046d30e8b33a00f2bd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--fills-the-row.dark.png",
+      "from": "76e55d37e7fdf5224ad5ca3bc19dd16e010f7980686bd952c4f72a90dd2dc830",
+      "to": "3f0a318d88d582f4321d6c38bb761248a9e63da7b19710262ab0d1e3e2cf77c5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--fills-the-row.light.png",
+      "from": "5b197bebb1c1d0ba3b39020ae2cbcd66d253991fb2b9206f601d135295f779d3",
+      "to": "6357072bdc55794ffe1ad377cce687f0621168371a7b3d52f04903b1a519a432",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--hybrid.dark.png",
+      "from": "fe05d27238217831719ea1dbdff11a1d8c4e161e8370ff0d4032ed03790742f1",
+      "to": "904fb9f4b3917bc938f9f925222300560b08580c9c5baf79b759074113bf71a0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--hybrid.light.png",
+      "from": "ff9caf75f1d964dffd8f4c2d7c588a2cc6c18c8e37773df49a49e2593a0c0b53",
+      "to": "5b143451ca2d62ea6927cc09fb0235f9cfdf614c4054aee7ee71a0957ef63f1d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--right-to-left.dark.png",
+      "from": "c770684be045859fb108c0e75172f05169675c4e7ea79130dd45223ac4f93e86",
+      "to": "b0eb709e168b574d17d796349562d766f637d170ebb8a0d4e5fa39a972ddec21",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--right-to-left.light.png",
+      "from": "cee5a0e91a05ce3f94dd82d7eefda128e3c1209a8d7e5aaf06f92920cdc567ea",
+      "to": "c43fd865e993bdbf27dbda38fa3fabb0b4c8d80d255e9fd22f85327dc5246ead",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--six-options.dark.png",
+      "from": "f01c82f98c2f072276d19e2f40391f6ca78f55b917535e8de14dfbbf3666735d",
+      "to": "6a84b9027c6a47a29b0606b2edcee470d35cfa7c90964dba1e4dd07b7e190ecb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--six-options.light.png",
+      "from": "a52c995e44e2344034543fe201f510f4576eab88576c02a68da3e36bebbe56cd",
+      "to": "be6be1beb3319e56aa38f0192eb9bf0d42f92073f18170ade28153d704c1f556",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--unavailable.dark.png",
+      "from": "a948b1969a1aebc3c1b30a6c18523b466ef4fadb023fd4816659f5cef5d02fb2",
+      "to": "efa77aba63710e0e6a501de4be5fe012401acbba2d176fda91a9a0a3474017ba",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--unavailable.light.png",
+      "from": "70fafb917a8d1e6aff7c5a1930b2e4df10a7b2c72c1c772f0bdf9f1ff9e2f8b8",
+      "to": "f65c92a2baec88646a4eda4ed4ea22a064216f2031b4fa7b1267ced81d4aa5e4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--with-panel-labels.dark.png",
+      "from": "fb4c73bb03e0498bcede9b34ea26cb9021ac4a5103aa68859cae4ca818e36107",
+      "to": "3b4e86ee2e41b09e7d6d07f0284e242cef0ceb11930977dabf3c735f0351e4a2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--with-panel-labels.light.png",
+      "from": "3f8a46cb8d6c90f8e098ca9d902cc1731fdb454a63e84e45f43a95a101668a89",
+      "to": "2efb0e8767bde8384d861dc98c9c82e2bbc4258416edb6220cfe66417aadd520",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--with-trailing.dark.png",
+      "from": "e3e70d1ea30235422e3f29d7c8c2e4c290e4666a71f02410d1e4cd35e4a0a043",
+      "to": "7c6c8abb4bf3127e9f7a3ebf10a32dabedc93909da8d2b1ee9d7ca3608d667ec",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-icongrouprow--with-trailing.light.png",
+      "from": "e48bbe75e986805f55e77b159becb9e770d279a58d380f71f99f0598b4514209",
+      "to": "6aeb5fb527cd366d3a31598205d87be995358e839a0b87324abcc18551ebfdea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--default.light.png",
+      "from": "d8f31dd0cabc77fef141edea4b655b8cc24bec304cfd826a30b11e841e37d571",
+      "to": "bb20ee78a5484f790b0d24c2307e8ea03a60675fe6098bcb4514caa7da5cc5e3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--disabled.light.png",
+      "from": "a31f7a311fb8121e13dfde857190a36c361c0a41d70672e8e63bc5d6f437ac79",
+      "to": "28bb8249c216d1021a8cc24973d5c6d7ef45160a87277f5a6dc89e43932d677d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--draggable.light.png",
+      "from": "73efab2d1ee1a75240f45c37bbec7741130b07f6b55e66a458ab1998c0a1289e",
+      "to": "337aac339a2b135c2c17ca7a61caf31d521c55c2b0fe9757ea8a74d4382fe295",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--pair.light.png",
+      "from": "16c5cee6da257be32cc9d545be52cf22a121a40bbb2fcad4ef5c4a52f70e6952",
+      "to": "5fc17f2217c151dbae0fa148f5cb41d5e84dadd83c8083106c70e7a21ae3f440",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--right-to-left.light.png",
+      "from": "a67c371444eb6f9d648ea1ce7a55424bcd3190b8fb216ba4227784b288452a49",
+      "to": "5e90053ff8346fa5d860d39f94db978c719353ae6b3b1ac8072ad9bba6ff54d8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--with-labels.light.png",
+      "from": "e923120fc180b782d548be8303fa9f519155b027ab58aa1806060e621d597633",
+      "to": "7408ef2dc4da1bf7db7bf07c126dde9db29d6071b3f5646f5310a4d0ef98e1af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-panelfield--with-unit.light.png",
+      "from": "f0bfef843fda267d7258504766fea5bceb48d6bdb26a98311bf7f8fa98ca2b19",
+      "to": "35bd16980f3eefc8750eab0d75b167ecd29cd678e7eb5669ed6a605abcab630f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-ramprow--with-advanced-settings.dark.png",
+      "from": "3a5ca100b67569bea0432327ebeec2bd1127f4eb0098a3df60f7894531a28577",
+      "to": "81a85126d4cb1497743ed043f7dde48c01d9eae087555d4181cd0549dce4116f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-stylenumberinput--with-min-max-and-step.dark.png",
+      "from": "e7bd824ae19db7a7ede224d62c4e3c6a6e417cf5faaea5ad1a7bae29b98c52c6",
+      "to": "1fab4d17828a30567b14149c98bce41fc63e9c1c87ecd0803a2d4bbf649c8203",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-stylenumberinput--with-min-max-and-step.light.png",
+      "from": "f91cc0074fc3e17c02e9d6a095604ff3203c1c46d46ead97f55da1c56dabab1f",
+      "to": "be8c2ea6f7daf77c493ab039ea4681987f7b7abe4ff27e3c128e82e7bf03f527",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerow--long-labels.dark.png",
+      "from": "623281bbf862af356a7ee1da356577b83191f0d93bbd947d4486620760c9d1dc",
+      "to": "7e6024fb492cdc683b0d31d3c8c7d165024a642ef03c5c88f86a8f97872f09e9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerow--long-labels.light.png",
+      "from": "4de18d4f58fb16266263b1bcee9f5d820252a2a82b6743fffee3a10be1c9acac",
+      "to": "e88fd5b33bc3190491605485d6b6da6acdd7852d83cd8ab0a1226ce923a8efee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerow--right-to-left.dark.png",
+      "from": "277a8f8d0bb47ce22194739dbe64207760c46b4177d7f55f9e08fd1ca022be02",
+      "to": "e166c2200e638cfab2f20c803a1a054fb238e5905ff924c2ad55097d20f203af",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerow--right-to-left.light.png",
+      "from": "383c17b392b100a54b880ed010ef005ae268a20bd4476265a786dab2ff9d977b",
+      "to": "cd46107f3113d22254f891f4dfad0ccba8757a158224862daee6345b86847216",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerow--with-advanced-settings.dark.png",
+      "from": "ead304bf63e9c0ebc93d7d683b91d4b656ea1a09a3a6154d69bd463033ef4a5f",
+      "to": "26a7a1f80744aefa1dec53e728475866fe23eae00d9e01cdfa2904b4ed99abb0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerowgroup--in-the-panel.light.png",
+      "from": "5c573ec30df9fbc3e8c31d62705df10f864542c29c2b7b00a386308976f72370",
+      "to": "272e33394a37fe7f82b09e8af2529dc9478dc433cf32ff73f124b608394e1606",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerowgroup--right-to-left.dark.png",
+      "from": "2ed779c12500238f91ea20c38886884efd2ec0b15a64e3adb039b46ca9a6cd26",
+      "to": "b3eda4cb0ae6a3e312c06d81bd2bd91c97994d2e0f586bf1dc45bd9ef3692ab7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerowgroup--right-to-left.light.png",
+      "from": "577ff679261f8eae78881facf6c2d384fe6f8ac90dde87d8312599f0ea8bd0e7",
+      "to": "2e34f0455454c1dae801abc5a34d190eb111f165df73ce9ea06a85afbf1f2a32",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerowgroup--with-trailing-controls.dark.png",
+      "from": "cc392f4cae60bb5ee5bf1c34e7bf4f5a25c6ab16340c9ca83e1af37f1d1e63a0",
+      "to": "2fb8cb42c5c84c90930ee387750a9b7c85d0bd58be6243513c7eb6135d43e47f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglerowgroup--with-trailing-controls.light.png",
+      "from": "f2343c4ead06b21b48481a4612adadd060cef34673a65bbb5b0e782e557192e9",
+      "to": "f79a29c151a242f26472b12c215b0dbd08029217358c173de76e6b60955689a1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglewithcontent--enabled.light.png",
+      "from": "fd4c5cf162da2809f9bb97b5a19296eec9bb141e0d72d543b984e9d7fe1050e3",
+      "to": "c5062155b2af4c20ca38389fe1acd6cf9142225248d38531504ad6f57e7cbd18",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/editing-a-value-togglewithcontent--several.light.png",
+      "from": "49a84af53d5a2169964caa5325a26a0c29ad932d7f4ef2f7358d1cd4ac1a2ece",
+      "to": "3746392fe89119a371a2867ac9734c46cbd7b704a5b9f007f6b5f1b2f550e212",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--anchor-axes-interactions.light.png",
+      "from": "376e65d3ddcf888a05f79e7c4c722689590346980208d40bac9d81fbec0dae05",
+      "to": "b99978cd823ad9f88a73ccf739839e3ab46368e6940fbec784dd7df9388c15ea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--anchor-axes.light.png",
+      "from": "3113dd68d01930e4fbb959ea0c3278e48dc90618c0bd834a3f7d08ad6b5bf716",
+      "to": "6df123879c1a7dc1899838b18d87207189a33983f2679b3461cbfaa39ed1adea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--basic-interactions.light.png",
+      "from": "389a7784cb5dc9dcff2b1e4fefc5afa6ea5ebf204443f60119971e1ecd492d13",
+      "to": "1583733d55dd75d34408ab5627a6931e357cd08b69f55f7ad35adc2676bde0a3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--basic.light.png",
+      "from": "907d657965275d1890f354158a13db507e8dedd4dc082bf64b4ec6427e8bb9e0",
+      "to": "bade0dc09fc1c18e525802e741c5e2b0bc15c1e46b8a1b337592dfeb3f67cafc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--component-compatibility.light.png",
+      "from": "c64233ee09c44daed252e471da6ada1a5d5ec57483d84afcb270571ac3bb8228",
+      "to": "d604057c4aabef212edab799631f3408e0a12c6ff38f1274d38b4d2c74dc4723",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--controlled-interactions.light.png",
+      "from": "0222c7e2359e8ab31bac5561d957b4a5c773705f570119349333db46733cf793",
+      "to": "5f9afb3bcc71b7083cf55b3ad7ed0824405c8e6b4c46961aeceeeda92b1ed213",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--controlled.light.png",
+      "from": "91099464adddc23fdf29aba665fd636334ce64b0b5831d1e719044942852f231",
+      "to": "1fd5860b6d013be298317e64242b40cac3e51f633a89d8bee433548c9a9356b6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--demo-interactions.light.png",
+      "from": "9e8425fd01808b9848251c5a35943554087112379313f31746163f6b37215544",
+      "to": "9025dc878ea2f218feb787625fbbf03eac1e9f434fb3e8d5ead6100949ef97aa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--demo.light.png",
+      "from": "d06d55d59fc931a08890b70b7a5019e60d425726402d34ee7d9a9d0a545c75a3",
+      "to": "0922db423cecc71ff4b0d31597c02a02234c61b099b913f1063bfaeceb8ae9d9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--multiple-popouts-interactions.dark.png",
+      "from": "174e5691f500196e595d5113536cfbc105805cbc280518290432877c7af5b13c",
+      "to": "8b1b429c9f907ac5cbafe4598045f5d28d915962c984ebd27a9e4e5b08c501b6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--multiple-popouts-interactions.light.png",
+      "from": "a8a909b10014b6c10050d07c8e799f4c802e2104f8f9fcb5fce82a271f2a0010",
+      "to": "f30f257bf349114e57c445fca4cad372f96b2d6e44d1233884b0401af14214e7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--multiple-popouts.dark.png",
+      "from": "7b4ed942754145a1749985331f0eea6c04471b020bc6082995fd90284d8b4b9a",
+      "to": "b5d47cfd1b6c20742e4359d8768dec604e1e28fdecba059270b3afec2d08effb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--multiple-popouts.light.png",
+      "from": "c1c2aeab11e236436c21e393882ab15200dd4a7b3fa9f7a558d29c2715ae64d2",
+      "to": "7252e1787deae28a336a24ed6d1120a984e0e109242bc830dca7e186b2320dec",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--tabbed-interactions.light.png",
+      "from": "c058b38e7fd8f7da87f4d2af5ae40fde7eda3af36b0327794e76df812803cf6e",
+      "to": "dd2afd0f2fe985a2c7dd604ecc9070dd686a1b8516c74c30fe3db2747a6bbfc1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout--tabbed.light.png",
+      "from": "ae100ff119b93328a76ab0e8c548cc0e550114a9b27719077655b5ede17b2997",
+      "to": "1a629eb083d86309f81bf2788a50e48ddf5b1abdd916a6875aae4ddf0b7b2fcd",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout-anchor--anchor-to-panel.light.png",
+      "from": "ad17adce27b57a1c054fa309274c06491b862be10b9bde117018c57e08b4e386",
+      "to": "71ae83ac2e76884a4b5145456885d08b0f3a2458683a306485683eb636d419e0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popout-anchor--comparison.light.png",
+      "from": "cc90a30581703a935644b1beed5b33c3d54f038ce1632c3f1b03cfd09e3a7923",
+      "to": "0e62b02b61666a2bdd608dfa472d31d6e8fb4607b8f591c923a0afdccdf1b0ea",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--default-interactions.light.png",
+      "from": "75fe15d55c72d35411401d6eb2d372b7276f594d06ccd00476c3b2bccfbfad04",
+      "to": "8df39a0f5eaaa3cc868abb6f0517fdee924cd42d356ea927ec03c74fbb4eeff0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--default.light.png",
+      "from": "4970bcfa4697d9005b51e7511c595bbf009669ead366fef233d099d9fa572a39",
+      "to": "eca69467e1ddd2e7cf4c45cc880721fc93a2898e0416fa995a4010fc31ceef6c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--in-control-group.light.png",
+      "from": "18e4c47f8ca21f24ab07dc1c7491e743c0c4f4c31e148c63e2ec66650f3198e4",
+      "to": "88c7ac3e31d18747e44cd659befc75b638336f359d9a29e24d074b065a75c8c8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--multiple-buttons-interactions.dark.png",
+      "from": "dd0f13c2f91932cbf94ac9966247363bd0cf71ca8a1eb60128261e581391338e",
+      "to": "424c72c7f5c5ed8d529148f9cc5dca2d783645b20969bdad9ecc50d41f398c1e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--multiple-buttons-interactions.light.png",
+      "from": "e0bf24f23d8a9e6fc6683d85f08957b49bb2d0400065775ca711ac4428bb5df2",
+      "to": "98b11439fe43c8fa074359445be8047fad4ddae2a86e1a8150f4f280635c3c3a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--multiple-buttons.dark.png",
+      "from": "ee9abda6c6eadac7a7a71c396a39350767abca22807ef30b6293cf7092aebb73",
+      "to": "03a011598bf1831a1288750ced3b765bc516c57e063b2f508c06780ea88e52b5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--multiple-buttons.light.png",
+      "from": "52cdb798cc5a68449ca1c0281c5332a1ae4898312d6af0297378973d0f14ba58",
+      "to": "c2902d0f847f72c5ec07c9b0133ceca4d893e59aadad1fbc86c451634325d44b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/floating-panels-popoutbutton--with-and-without-anchor.light.png",
+      "from": "19dbeaa746073fb5209a8c71e61452a14139287994f71c8862f490df317ea6da",
+      "to": "f2c1dc1bfd816606cd3d4e2588e7ba8c3d7a19991cf11860d3c29388bac80c64",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--field-glyphs.dark.png",
+      "from": "8549147246cb8ac50d09f8a79e1770436c9c65aefdd5fccb933182947d66c1ed",
+      "to": "513d4fc79f59535e8542fc124607a150e5768e2c5d77f9635c7c6d16f7a65366",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--field-glyphs.light.png",
+      "from": null,
+      "to": "b8b2818961358bea57df6a441f5114b92d11b2ce8991d5393e86419f18320df8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--in-a-field.light.png",
+      "from": "31bf4e9bd72213023c80cb79bc9cde4d0d655c9509fd685b5c05e51d59e2b05f",
+      "to": "d6e6711aa7277174f149e3077807137839b51557f4484b0bc4a37cf112738f29",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--sizes.dark.png",
+      "from": "6a92b4d7e9a6c23926d8eb581e47c416b6159c469d0e44400100b4c28e89823f",
+      "to": "902e407f147dcb62ba609757210b519c62d0925b8d18a1251e8013d82577fdf1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--sizes.light.png",
+      "from": "cd6b1265e7bede34c8b9c8e912f625eb4e423b8b862746fbd15fd6b779b8620b",
+      "to": "8f425fc26227bc7559e3fab4a86c68143d584e8e5253f2f97a895665c873c515",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--ui-glyphs.dark.png",
+      "from": "01ae3c19711f6e728f2f6e301b1a43ecffd763635c651790535e7bdbf2f2131a",
+      "to": "1750a06f21c5260705132c7e27bd2065c80ed65aa42c8728c7d27419b1aee7f3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/glyphs-glyph-gallery--ui-glyphs.light.png",
+      "from": "fd8cef0ba98b257b856a27d9aa76a6dfff30b8ecbb120a13a436b0308733c4c2",
+      "to": "3beb0b77567e8ca60cc84a48535c7d46303dfd9b8a6005a6c0675fc7723abff3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-actionrow--held-open.dark.png",
+      "from": "68d256bd1284054b007675f1995cafa5bba8691940667cf0fd19508724496bb3",
+      "to": "f56ca23bc5e161723bbf585fa4e4c6c86583646cb757455ea8e2b59b612ddf49",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-actionrow--held-open.light.png",
+      "from": "ad609c1516240ff4b8c5099497c097082a443fae6a0bea71f3ae4e9c95616bf3",
+      "to": "eeb6c602181ba6ce2f799867a985ca6a14e1e1ea7f6d69afbe54cbf55c5df8ce",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--multi-column-sort.dark.png",
+      "from": "fef067ba8c34ad1a145886466072aaa7b4a6f39d04b33affc15e9bc19d73fe33",
+      "to": "f32c99e71312d8d22f29316782fceec194f521e44f6111245300b61ba22aeb26",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--multi-column-sort.light.png",
+      "from": "68ecd9f73e9198ddd9ab74d0f35fb16febe6e9142b4560946eaa7d610045d44e",
+      "to": "60dd5d6e81e448795a1f98f6f372b9d3e5cdf32d7dd84f800949ac306520f5e6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--right-to-left.dark.png",
+      "from": "78cb628198ceb5dc20428dce7e39c87562f257fc4de27ff60267fcef0390835d",
+      "to": "8eb059bde43ef1df5a88f569a8a6fee19ac5fec74d230284dc7ac29f53e83ca6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--right-to-left.light.png",
+      "from": "c250f3dbfd16f345c2b5b4902c5a21f8f70ee85cd18ba9cd1de0d6c06958828a",
+      "to": "2a7cde0052a5d7d0e524a8da3ef8c8e315841d18bfb5b03e5f562fd31f82b3d8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--sortable-header.dark.png",
+      "from": "5dee13cdaecf1514d31c23972404d981a230b480917721e102fa94b736610c12",
+      "to": "51bcd0d32a281583dc0359853fe5504cafd6d8dc835baac6a3147ac382443b0b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--sortable-header.light.png",
+      "from": "1fe56b4efce83970672716f7b14f9bfcdee821506369966023641ff8d8591f5c",
+      "to": "b6c1157102b80b2809abe5dd171c5f178fddcc535afdc973d76b04101ef6c585",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--with-trailing.dark.png",
+      "from": "c44935a55848ddfd7daff1482603cb962b0e223a7766095ac15bf43287b638ed",
+      "to": "a9bf1cabc8fa789cbd31422b62a02fcbfcedd9ca8ec12edf3f6629aeb7c9a0e4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarow--with-trailing.light.png",
+      "from": "21437529d038ef33ecbb8b9fc0af6866df32a7c04129b909257b1e520eb0dd2f",
+      "to": "bc7f856aec86261f2664af7c81c94d6ee54ae1b6b3f2a9987955b0d6ee99417f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarowheader--multiple-columns.dark.png",
+      "from": "17282573d8a389249bf651dd527ce27dc0f84cd63e2de9f657a58fea007698db",
+      "to": "899ef416f4b7976b85fcc6837e6febbcfa4d85c4e6c21647371b4a13953cb83a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarowheader--multiple-columns.light.png",
+      "from": "b27e2b88fe25181817f6d68e89e546565aa2fbb24fc45e1d717a3f705f87d172",
+      "to": "3397e28448c4967075542888bcd5094708e5f9fdfa4be882e1775fdc90e5311c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarowheader--right-to-left.dark.png",
+      "from": "edece517a51407cb0d81c49157057dca5cc165864633f2f0f9ca0aebd1893cd9",
+      "to": "7f54f0be1e866181498f548e79dce8c3ca480befdce560b0ee3a743acaea0fa4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarowheader--right-to-left.light.png",
+      "from": "3a3fc8cb2665b8e13758085108a15dcfd40029d5936b1653c1e59ffe09444959",
+      "to": "8928de68d8d5b663d54a30450635b1e215b1f191146b2fa3e8b9656faaad95fc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarowheader--sortable.dark.png",
+      "from": "cf85e4998c117425bd1b985140b81b4c5d960529b8c3097b06b8b79e128bf267",
+      "to": "e7c4ecbb8178492ec91db067629e657b106ec47a409a0414e90fdff6dcedcc23",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datarowheader--sortable.light.png",
+      "from": "a69605c02fc19492ead84bfdae5ae73a7c6ef60a1618ac8f5cbe5474ed02cfed",
+      "to": "2b7deae9dd0eab3a769589a039958818f4557ab62d66b9d73782474f389a1545",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--default.dark.png",
+      "from": "d7fde8f5b735bd433d944344cc4aeccae05b40449443ac3372925b956f289051",
+      "to": "97340e71523f67d350159b6046ee4eb238f1b3136f1e52d79d49968e3bd1d827",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--default.light.png",
+      "from": "cc329882e9871db58224dec88655efa3204cfcf902fb1055f9794a54f1f5624e",
+      "to": "ef0d691e4de7872abe7cec13b5df04a956b44fedfaa0ca166a4331adbde645c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--drawn-cells.dark.png",
+      "from": "721f96b4ea20cb04785b4e1c36e1a57574174ec132ba353f1e70318ff3a35d16",
+      "to": "d82f2b25cd76b61676b0ed70ee8b08b47bb5f8c8de845ea4987c251d9f61bfe3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--drawn-cells.light.png",
+      "from": "d935db0a2077a16461eaadc2e22ef63b2430ef7e1f9aec8ccfaa89d233954765",
+      "to": "81117b748c5dbaecd38a7026f6c1bb638170f5dd23b5467bb9a2c7181dd0c820",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--right-to-left.dark.png",
+      "from": "353223151ab29164f04a9d04fb3c5c2a5a7ff16102db0b03dfd180c7da51e411",
+      "to": "08219afcc5a6e9f0321e58973e6f1c52d70119999c4420638fcc33f0c35c31df",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--right-to-left.light.png",
+      "from": "1a121eb6e45374c09edf8cb9fecd39bdc02b091233e1319343dd686761d93306",
+      "to": "d292048c70981c07ba1f485596941f0526018912821bf4c7d6f407b3c9f7f7c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--sorting.dark.png",
+      "from": "7dc9fcb309df57aeb78262ec71523ed95a65387a434351520190174f8f3e37af",
+      "to": "25f74da6836cc03ac25d28314196e4261c2d281adb313bbfb90dff213d1b0907",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--sorting.light.png",
+      "from": "cb65e172a6cfb2b11589cf2cfd303c859d0cfddc5c5426e34d5fb5152d1b9c73",
+      "to": "bb35ed2a6c49863f0db670298046fadb30a0de03148e3bc695ef27061b1f5c6b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--translated.dark.png",
+      "from": "0983754f3c9ead84ebb2ffeb8ed6fd21c36cc81632a17e58b9f68919eb91f7fa",
+      "to": "aa53859949892bfd343ab979f8e1769ebc27f4c3cc85fbfe750ab4814dd2d5a0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-datatable--translated.light.png",
+      "from": "6e814f9eb57aba52974e9ca125f4aab10a49cee68b03f2ecaa4bda3edefacdaf",
+      "to": "6f589cf2331ee3f8f21742cb86d96da75032ad305de481415006b48d4d52687c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-histogramrow--right-to-left.dark.png",
+      "from": "4f8edb7aa05ec07a76c2b4b9e4ece27c8a33c12abf3aec6fdc9bf3ab43fe621c",
+      "to": "e7f25c02ab73100b4c91eb99a2e9263846badd5c9209dac55befe3e020ac363b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-histogramrow--right-to-left.light.png",
+      "from": "06a2b2c4544fb2fb194ec4a0c63670e33474e322629f58a51c9e4e735d7fd8d8",
+      "to": "ca24a32bdd0f1ef5afe1ac56cdb547a4c4d11ac5ee3f6e4078765ee3c8ea9584",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-histogramrow--with-the-other-chart-rows.dark.png",
+      "from": "706c4203d3d0ad49f74fb7528008af83134c38ea248ffd5cce0b6ac795ced198",
+      "to": "62fbb9d815e9e4c7fb1bac5a5fef3e42035969173e81cd1c880c4d7dff69eba0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-histogramrow--with-the-other-chart-rows.light.png",
+      "from": "309aa914753324d92f1dd8cd12d3739154f2303050783d8b32572944054ab77b",
+      "to": "93f6e927c796687fe7aae9a70f83b22b5fb7601a570c3e8713f758b4f7e038d7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-histogramrow--with-trailing.dark.png",
+      "from": "67ce8d824b7188a2043f3c79034ede54fb59e17722443144e876a237950c3335",
+      "to": "7386bf524721eea942d7485a1cff85dcbf2092a92ff251eaed3d5339a4e7c93b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--all-three-variants.dark.png",
+      "from": "3e866bdb736dc435d0d5c5078ab5114a0b53a17656425bba3d1920f7c3f85e7d",
+      "to": "83b275ff4a155cee11b557454265003b08a3041ea8deb759d4a6207ab25a1794",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--all-three-variants.light.png",
+      "from": "dcedc7f64eff6620148afc8c85546f95166d170c8365bf68a14e4172e69ca8ca",
+      "to": "3d49c6da5647842d2d667d2868d7c4d9f37147740eef91d402d8377d45e0df00",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--exact-run.dark.png",
+      "from": "3299c476fb1b13d8fe335ba8e7e6bdc0af30f8e18850cd04518e8e4637800918",
+      "to": "c2311d6d2bc4d7cbf4f15bf421a84d928ba8f99fa1cc58b5c1a5eed75bd25905",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--exact-run.light.png",
+      "from": "e4d3d937ff9afa2e42c56eacdc9ca37fd7bf9d45e3f7ef7c6e78ee34e6c7231f",
+      "to": "97fd21b884232fc0f807211ee5704beff406b0e28eea621a6dc43d01986756aa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--right-to-left.dark.png",
+      "from": "094718f7ae5d29ee8af290ef451f8693aeaf9d28ebe80c382dfe1d55ad689b92",
+      "to": "656fa9b98369eb5d7b8401bccaa4dcf8d8b6ae162df52ccf0cad335d463e8f38",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--right-to-left.light.png",
+      "from": "8ff0b22343e1eacafdeaf8cd477ba31110454539ffc21b5c64f9ea8f9f55f4fb",
+      "to": "1f4a75a49b195bc7e479e76c7b52531c3ff27bf6397efd7db02f38d7abdff990",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--run-record-that-overflows.dark.png",
+      "from": "be27827e647ca7ba1338716aa83686dcd142b640609410dbafe81e8345aa83b5",
+      "to": "81dc201930a91e483560961fabc71845c2ef6d04183ed92d0329b593358471c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--run-record-that-overflows.light.png",
+      "from": "0ad431e5f1cb2d9a636ac28c64e32ed629c44bea85484c207dedb16944e16e24",
+      "to": "f8ce4b7e4ae4370a589d29aa2b4786add58d39aaa0e503ba8660a5b60d85dc3b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--run-record.dark.png",
+      "from": "8f2da822f2cbcc10a7a0fe2d02e29ea46c7fe679a04147e3110973511612102d",
+      "to": "4b4ff66090b20f48814ea7fc49d1dfa9352d6f8f4e65fb76e4cacfb85c484dcb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--run-record.light.png",
+      "from": "2b0ef7c353be5a4ee8efd4ebce95505d87c5a12cc6af86c5d12c1d18fb7895a8",
+      "to": "5b5c995bde9a6478ab2f8051f84d5fce8b85f39005837916cecd53257788f462",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--translated-labels.dark.png",
+      "from": "271c72fa101751e6984b546b3df676c1cfb679cc2410ab51fa61a11089a07105",
+      "to": "b6a9d78a4dfb70007949f1e53e20ee395e8005760b7c4579c768e845a37f6cc5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-proseblock--translated-labels.light.png",
+      "from": "c2e23bbd6a8f77c022802d7dcce786e4ab34b67d1f2c69c1336841171055891e",
+      "to": "bf75760d3ae5b5387fa8d6a20fdff6da79781605b088d6cb7006bb53763cad79",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-rankchip--in-a-data-row.dark.png",
+      "from": "9bfd9144acd099d6d7965d8e281e2f8d9292da19c655cb0d536064b7b2037e1e",
+      "to": "d12f0dedc6ec065eeb904245bbe48a20886396478b0f9a7d671b76367039b9ca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-rankchip--in-a-data-row.light.png",
+      "from": "575184506c84cc82949bb18966fbb3ffced98f4cba516780449c4039637ec811",
+      "to": "15ded96bc0a8aaa95e138799cc2d7c67f433266abb5639d4960227d4274c463b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--default.dark.png",
+      "from": "2f16b9d3d691f79ea9d13f151e56d8adf235a82f04231374310700fd0bff1393",
+      "to": "5eaed5028927df38d568d32dbd8d0bbea7b0dac30cfcc8c8c931469294339313",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--default.light.png",
+      "from": "c12eced27ec29a7be5883063fcd376a1140fa7de130cf54f388d51bc48db4d66",
+      "to": "1fe7136b8ab7bda2939ee69655fd951a7b379170e6238d75ffe867d91b1d859a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--right-to-left.dark.png",
+      "from": "a573149af53ac5c880502ffa165459563cae4e021d7da3c3bffc6ecdd51999ce",
+      "to": "dd90138a93e93117921407c3c4d3bd9309910e1e688b4fb981d56ac074b1ce50",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--right-to-left.light.png",
+      "from": "9245b2f3eff05cb57084b6edf55b46492c8c11bc1bb589a682c029c88f2db5b7",
+      "to": "63163bc3e3b16659a2f45c0a76bb1d9665a11fc9b65706eb75b39d2be78b6968",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--several-at-once.dark.png",
+      "from": "d5b3ce9db8e52ec8254b45d802654825dbe2736487edfdebd1643992216ba7de",
+      "to": "994ab51d31777a6ba56073a4b8c6a7f211fd644b428d4202373c75a215a2f611",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--several-at-once.light.png",
+      "from": "371b989e076d420862cf292426eb9298f8a169a7460d2b62efc24cd2b7c0b060",
+      "to": "9812b53cd396f73e2bdd4a1a53640b456e16c52bbd6d0eba41d5f7dc5fc7a9c9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--translated.dark.png",
+      "from": "8ddf58c5a36eb76cd8a77f160e584dfb4b3c27fdf74957ff6fb23b02b3c42931",
+      "to": "49ad7b6d52b922256f278f93860401c32ae15bc5a6b70c95f53a07380afc671f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--translated.light.png",
+      "from": "a16ea47ef2e11d2be1c3e0b778b2d4bd74c7ee14903cd28fd825716b926dd756",
+      "to": "a20413a1d5081a7c45afb701596b0dae8ad451b32ac41833f489f4f0bf03faae",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--with-a-trailing-control.dark.png",
+      "from": "d69d4a8bc62043b834209c0f5b10cdd592576535d971a7110cf0364fa9019113",
+      "to": "9c11661ff85b753311e2156612550d6a13298c604b57376bd7ee749b9467b18c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/showing-data-sparklinerow--with-a-trailing-control.light.png",
+      "from": "43c7d2295fc11c96ce30615e37e71f0245d20249f7473d0db5609b64bd67bb37",
+      "to": "4ba3ddcacf6ec82089a6f03449e5a3228d3770c4143181e4df4ba79e4efca224",
+      "reason": null
+    }
+  ],
+  "reviewedAt": "2026-10-01T00:10:05.367Z"
+}

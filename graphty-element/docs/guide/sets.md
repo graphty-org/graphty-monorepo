@@ -284,8 +284,8 @@ switch (status.freshness) {
 `freshness` may gain values in a minor release, so treat an unknown one as "not current" and show
 its `reasons`. `status.earlierRuns` lists runs whose values the set holds from an earlier execution.
 
-`usedBy(id)` lists what names a set -- other sets, layers, the filter, the layout, runs -- so you can
-say what removing it will affect. Removing a set never breaks those users and never changes what
+`usedBy(id)` lists what names a set -- other sets, layers, the filter, the layout, runs,
+[notes](./notes) -- so you can say what removing it will affect. Removing a set never breaks those users and never changes what
 they show: a layer, a filter or a rule that names a removed set keeps reading it from the set's
 kept record, and `status` reports it `detached`, saying why. New work over a removed set -- a run,
 an explicit layout scope -- is refused.

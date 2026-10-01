@@ -139,6 +139,27 @@ await element.session.styles.add({
 });
 ```
 
+### Values the element provides
+
+A path that starts `graphty.` reads a value the element itself provides, not a column of your
+data. Today those are the three note values:
+
+| Path                       | Value on a node or an edge                    |
+| -------------------------- | --------------------------------------------- |
+| `graphty.notes.count`      | How many notes name it; no value when none do |
+| `graphty.notes.latest`     | The text of the newest of those notes         |
+| `graphty.notes.latestTime` | The `time` of the newest of those notes       |
+
+They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
+as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
+[Notes](./notes#notes-in-styles).
+
+The whole `graphty.` root is reserved for the element, now and in later releases. A data column
+whose name starts `graphty.` is still reachable, as `data.graphty.<name>`, and
+`session.styles.validate(spec)` lists a bare `graphty.` path that a column of the same name would
+have answered in `shadowedPaths`. A `graphty.` path this release does not know has no value, and
+the layer is reported unbound rather than painting anything.
+
 ## Channels
 
 A channel is one visual property with one name. These are all of them:

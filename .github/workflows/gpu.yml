@@ -135,6 +135,11 @@ jobs:
               working-directory: .
             - name: Adapter report (fails loudly on a software adapter; samples GPU utilisation for 10 s)
               run: node scripts/gpu-report.js > gpu-report.json && cat gpu-report.json # no pipe into tee: the report's non-zero exit must reach the step
+            # TEMPORARY (pull request #24, G-ENV finding ENV-F8): PageRank on this card under Dawn 0.6.1 and 0.4.0,
+            # with the dense-row loops counting down and counting up, plus the SPIR-V guard counts. Removed once read.
+            - name: PageRank loop-guard probe (temporary)
+              timeout-minutes: 20
+              run: bash scripts/env-f8-probe.sh
             - name: graph-format GPU audit on NVIDIA (canary)
               working-directory: graph-format
               run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step

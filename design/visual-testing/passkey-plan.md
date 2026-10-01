@@ -31,23 +31,23 @@ Everything here uses `node:crypto` and the browser's WebAuthn API. No new depend
 
 ## 2. Files
 
-| File | Change |
-|------|--------|
-| `visual-review/trusted/lib/approval.mjs` | NEW. Canonical JSON, the record hash, `passkeys.json` parsing, the four assertion checks, the record checks the gate runs, the registration check. `node:crypto` only, no other import, so the gate still runs without an install. |
-| `visual-review/trusted/gate.mjs` | Reads the base branch's keys, verifies each added record when enforced, counts only verified records, the enforcement-off ratchet, a `--pr` option, warnings when the pull request touches the trust files. |
-| `visual-review/trusted/lib/accept.mjs` | Record version 2 (with `rejects`), `prepareRecord` (the record before the worktree exists), the record built in the worktree must hash to what was approved, the approval verified with `approval.mjs` immediately before `git commit`; the approved record in the reject comment; `proposeKey` (the registration pull request). |
-| `visual-review/trusted/lib/serve.mjs` | New routes `GET /api/passkeys`, `POST /api/passkey-challenge`, `POST /api/register`, `POST /api/finish-prepare`; `POST /api/finish` takes and checks an approval; `/passkey.js` in `STATIC`; the new write routes in `WRITES`. |
-| `visual-review/trusted/page/passkey.js` | NEW. All WebAuthn browser code: base64url helpers, `registerPasskey(api)`, `approve(prepared)`. |
-| `visual-review/trusted/page/review.js` | Two touch points only (another branch is redesigning the page): the Finish step in `finishTarget`, and one "Register passkey" entry on the targets screen. |
-| `visual-review/trusted/cli.mjs` | Nothing beyond `GATE_USAGE`, which lives in gate.mjs. |
-| `visual-review/passkeys.json` | NEW, empty key list. |
-| `visual-review/templates/visual-review.yml` | The gate command gains `--pr "${{ github.event.pull_request.number }}"`. |
-| `.github/workflows/ci.yml` | The "Check visual changes were accepted" step gains the same `--pr` argument; its comment stops saying records are unproven. |
-| `visual-review/test/passkey-vectors.mjs` | NEW. A software authenticator for tests (section 10). |
-| `visual-review/test/approval.test.mjs` | NEW. The unit failure vectors. |
-| `visual-review/test/gate.test.mjs`, `accept.test.mjs`, `serve.test.mjs`, `page.test.mjs` | New cases (section 11). |
-| `visual-review/README.md` | New section "Approving with a passkey"; "Finish", "What the gate does and does not guarantee" and "Troubleshooting" updated. |
-| `CLAUDE.md` | "Visual review": the agent rules of section 12. |
+| File                                                                                     | Change                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `visual-review/trusted/lib/approval.mjs`                                                 | NEW. Canonical JSON, the record hash, `passkeys.json` parsing, the four assertion checks, the record checks the gate runs, the registration check. `node:crypto` only, no other import, so the gate still runs without an install.                                                                                               |
+| `visual-review/trusted/gate.mjs`                                                         | Reads the base branch's keys, verifies each added record when enforced, counts only verified records, the enforcement-off ratchet, a `--pr` option, warnings when the pull request touches the trust files.                                                                                                                      |
+| `visual-review/trusted/lib/accept.mjs`                                                   | Record version 2 (with `rejects`), `prepareRecord` (the record before the worktree exists), the record built in the worktree must hash to what was approved, the approval verified with `approval.mjs` immediately before `git commit`; the approved record in the reject comment; `proposeKey` (the registration pull request). |
+| `visual-review/trusted/lib/serve.mjs`                                                    | New routes `GET /api/passkeys`, `POST /api/passkey-challenge`, `POST /api/register`, `POST /api/finish-prepare`; `POST /api/finish` takes and checks an approval; `/passkey.js` in `STATIC`; the new write routes in `WRITES`.                                                                                                   |
+| `visual-review/trusted/page/passkey.js`                                                  | NEW. All WebAuthn browser code: base64url helpers, `registerPasskey(api)`, `approve(prepared)`.                                                                                                                                                                                                                                  |
+| `visual-review/trusted/page/review.js`                                                   | Two touch points only (another branch is redesigning the page): the Finish step in `finishTarget`, and one "Register passkey" entry on the targets screen.                                                                                                                                                                       |
+| `visual-review/trusted/cli.mjs`                                                          | Nothing beyond `GATE_USAGE`, which lives in gate.mjs.                                                                                                                                                                                                                                                                            |
+| `visual-review/passkeys.json`                                                            | NEW, empty key list.                                                                                                                                                                                                                                                                                                             |
+| `visual-review/templates/visual-review.yml`                                              | The gate command gains `--pr "${{ github.event.pull_request.number }}"`.                                                                                                                                                                                                                                                         |
+| `.github/workflows/ci.yml`                                                               | The "Check visual changes were accepted" step gains the same `--pr` argument; its comment stops saying records are unproven.                                                                                                                                                                                                     |
+| `visual-review/test/passkey-vectors.mjs`                                                 | NEW. A software authenticator for tests (section 10).                                                                                                                                                                                                                                                                            |
+| `visual-review/test/approval.test.mjs`                                                   | NEW. The unit failure vectors.                                                                                                                                                                                                                                                                                                   |
+| `visual-review/test/gate.test.mjs`, `accept.test.mjs`, `serve.test.mjs`, `page.test.mjs` | New cases (section 11).                                                                                                                                                                                                                                                                                                          |
+| `visual-review/README.md`                                                                | New section "Approving with a passkey"; "Finish", "What the gate does and does not guarantee" and "Troubleshooting" updated.                                                                                                                                                                                                     |
+| `CLAUDE.md`                                                                              | "Visual review": the agent rules of section 12.                                                                                                                                                                                                                                                                                  |
 
 Not touched: capture, comparison, `visual-baselines/`, `visual-seed.yml`, results.json.
 
@@ -57,8 +57,14 @@ Not touched: capture, comparison, `visual-baselines/`, `visual-seed.yml`, result
 {
     "version": 2,
     "pr": 123,
-    "subject": { "builtMerge": "<sha>", "head": "<sha>", "runId": 987654, "runAttempt": 1,
-                 "environment": { "...": "as today" }, "scale": 2 },
+    "subject": {
+        "builtMerge": "<sha>",
+        "head": "<sha>",
+        "runId": 987654,
+        "runAttempt": 1,
+        "environment": { "...": "as today" },
+        "scale": 2
+    },
     "items": [{ "path": "...", "from": "<sha256|null>", "to": "<sha256|null>", "reason": "..." }],
     "rejects": [{ "path": "visual-baselines/<project>/<file>", "capture": "<sha256>", "reason": "..." }],
     "reviewedAt": "2026-09-28T12:00:00.000Z",
@@ -136,7 +142,7 @@ the gate's line names it. In order:
 1. **The key.** `approval.credentialId` equals the `id` of a key in the list given. The gate gives
    the base branch's keys only.
 2. **clientDataJSON.** Parses as JSON; `type === "webauthn.get"`; `challenge ===
-   recordHash(record).toString("base64url")` (so an edited record, or an approval copied from
+recordHash(record).toString("base64url")` (so an edited record, or an approval copied from
    another record, fails here); `crossOrigin !== true`; the origin: with `options.origin` (the
    server), exactly that origin; without it (the gate), a URL whose protocol is `https:` and whose
    hostname equals the key's `rpId` or ends with `"." + rpId`.
@@ -144,7 +150,7 @@ the gate's line names it. In order:
    has UP (bit 0) and UV (bit 2) set. The signature counter (bytes 33-36) is ignored: iCloud
    Keychain passkeys report 0.
 4. **The signature.** `crypto.verify("sha256", concat(authenticatorData,
-   SHA-256(clientDataJSON)), publicKey, signature)` with the default DER encoding WebAuthn uses for
+SHA-256(clientDataJSON)), publicKey, signature)` with the default DER encoding WebAuthn uses for
    ES256. A throw counts as a bad signature.
 
 `verifyRecord(record, keys, { pr })` first checks `version === 2`, `items` and `rejects` arrays,
@@ -181,7 +187,7 @@ applies.
 - `POST /api/passkey-challenge` -> `{ challenge, userId }`: 32 random bytes, remembered for five
   minutes and usable once.
 - `POST /api/register` `{ challenge, credentialId, publicKey, algorithm, authenticatorData,
-  clientDataJSON, label }` -> `verifyRegistration`; refuses an id already known; then
+clientDataJSON, label }` -> `verifyRegistration`; refuses an id already known; then
   `proposeKey` (accept.mjs) in a throwaway worktree at the fetched default branch: append the
   entry to `passkeys.json` (create it if absent), commit with the config's commit prefix ("register
   a visual review passkey"), push branch `visual/passkey-<UTC stamp>`, open a pull request whose
@@ -192,9 +198,9 @@ applies.
 - `POST /api/finish-prepare` `{ id }` -> runs the same decision list `POST /api/finish` builds
   today, then `prepareRecord` (accept.mjs): `check()`, then the record without `approval` and with
   `reviewedAt` = now. Exclusion items need the old settings file, read with `git show
-  <captured head>:<path>` instead of from a worktree. Stored in memory as the target's pending
+<captured head>:<path>` instead of from a worktree. Stored in memory as the target's pending
   approval (one per target, replaced by the next prepare, gone after 10 minutes). Returns `{
-  challenge, rpId, allowCredentials, record, required }`. When nothing is required the page skips
+challenge, rpId, allowCredentials, record, required }`. When nothing is required the page skips
   Face ID.
 - `POST /api/finish` `{ id, challenge, approval }`: when approval is required, refuses with 400
   without `approval`, 409 when no pending approval for the target has that challenge (prepared on
@@ -224,13 +230,13 @@ approved when it was pushed.
 
 - `registerPasskey(api)`: `GET /api/passkeys`, `POST /api/passkey-challenge`, then
   `navigator.credentials.create({ publicKey: { rp: { id: rpId, name: "Visual review" }, user: {
-  id, name: "visual-review", displayName: "Visual review owner" }, challenge, pubKeyCredParams: [{
-  type: "public-key", alg: -7 }], authenticatorSelection: { residentKey: "preferred",
-  userVerification: "required" }, attestation: "none", excludeCredentials: known } })`, then
+id, name: "visual-review", displayName: "Visual review owner" }, challenge, pubKeyCredParams: [{
+type: "public-key", alg: -7 }], authenticatorSelection: { residentKey: "preferred",
+userVerification: "required" }, attestation: "none", excludeCredentials: known } })`, then
   `POST /api/register` with `response.getPublicKey()`, `getPublicKeyAlgorithm()`,
   `getAuthenticatorData()` and `clientDataJSON` as base64url. Returns the server's answer.
 - `approve(prepared)`: `navigator.credentials.get({ publicKey: { challenge, rpId,
-  allowCredentials, userVerification: "required", timeout: 120000 } })` and returns the four
+allowCredentials, userVerification: "required", timeout: 120000 } })` and returns the four
   approval fields as base64url.
 - Its own base64url helpers (no `Uint8Array.fromBase64`, which older Safari lacks).
 
@@ -251,6 +257,7 @@ and the WebAuthn call: the challenge is fetched before the button is shown.
 ## 8. The gate
 
 `runGate` gains `--pr <number>`. Before the existing checks it reads `git show
+
 <base>:visual-review/passkeys.json`:
 
 - absent, or zero keys: enforcement is off; the gate behaves exactly as today.
@@ -278,7 +285,7 @@ at the files a pull request could use to loosen the gate.
 ## 9. CI
 
 - `ci.yml`, "Check visual changes were accepted": `node visual-review/trusted/cli.mjs gate --captures
-  "$RUNNER_TEMP/visual" --pr "${{ github.event.pull_request.number }}" --base HEAD^1 --head HEAD`.
+"$RUNNER_TEMP/visual" --pr "${{ github.event.pull_request.number }}" --base HEAD^1 --head HEAD`.
   The step stays pull-request only and inside "All Checks Pass", the required check. The sparse
   checkout of `visual-review` already holds `passkeys.json`; the gate reads it from `HEAD^1` with
   `git show`, which the partial clone fetches on demand.
@@ -298,19 +305,36 @@ authenticator and browser produce:
 
 ```js
 const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-const entry = { id: randomBytes(16).toString("base64url"),
+const entry = {
+    id: randomBytes(16).toString("base64url"),
     publicKey: publicKey.export({ format: "der", type: "spki" }).toString("base64url"),
-    rpId: "dev.ato.ms", label: "test", registeredAt: "2026-09-28T12:00:00.000Z" };
+    rpId: "dev.ato.ms",
+    label: "test",
+    registeredAt: "2026-09-28T12:00:00.000Z",
+};
 
-function approve(record, key, { rpId = key.rpId, origin = `https://${rpId}:9443`,
-        flags = 0x05, type = "webauthn.get", challenge = recordHash(record) } = {}) {
+function approve(
+    record,
+    key,
+    {
+        rpId = key.rpId,
+        origin = `https://${rpId}:9443`,
+        flags = 0x05,
+        type = "webauthn.get",
+        challenge = recordHash(record),
+    } = {},
+) {
     const authenticatorData = Buffer.concat([sha256(rpId), Buffer.from([flags]), Buffer.alloc(4)]);
-    const clientDataJSON = Buffer.from(JSON.stringify({ type,
-        challenge: challenge.toString("base64url"), origin, crossOrigin: false }));
-    const signature = sign("sha256", Buffer.concat([authenticatorData, sha256(clientDataJSON)]),
-        key.privateKey);  // DER, as WebAuthn ES256
-    return { credentialId: key.entry.id, authenticatorData: b64u(authenticatorData),
-        clientDataJSON: b64u(clientDataJSON), signature: b64u(signature) };
+    const clientDataJSON = Buffer.from(
+        JSON.stringify({ type, challenge: challenge.toString("base64url"), origin, crossOrigin: false }),
+    );
+    const signature = sign("sha256", Buffer.concat([authenticatorData, sha256(clientDataJSON)]), key.privateKey); // DER, as WebAuthn ES256
+    return {
+        credentialId: key.entry.id,
+        authenticatorData: b64u(authenticatorData),
+        clientDataJSON: b64u(clientDataJSON),
+        signature: b64u(signature),
+    };
 }
 ```
 

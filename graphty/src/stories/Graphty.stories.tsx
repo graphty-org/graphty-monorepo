@@ -7,6 +7,14 @@ import type { Meta, StoryObj } from "@storybook/react";
 
 import { Graphty } from "../components/Graphty";
 
+/** Eight nodes on a ring, with two chords across it. */
+const NODES = Array.from({ length: 8 }, (_, i) => ({ id: `n${String(i)}` }));
+const EDGES = [
+    ...NODES.map((node, i) => ({ source: node.id, target: NODES[(i + 1) % NODES.length].id })),
+    { source: "n0", target: "n4" },
+    { source: "n2", target: "n6" },
+];
+
 const meta: Meta<typeof Graphty> = {
     title: "Components/Graphty",
     component: Graphty,
@@ -17,33 +25,43 @@ const meta: Meta<typeof Graphty> = {
         // Provide default empty layers array to prevent "e is not iterable" error
         layers: [],
     },
-    // One box per story, sized by its `box` parameter. A story-level decorator would sit INSIDE
-    // this one, so a larger story box overflowed the default 800 x 600 and widened the page.
-    decorators: [
-        (Story, { parameters }) => {
-            const { width, height } = (parameters.box as { width: number; height: number } | undefined) ?? {
-                width: 800,
-                height: 600,
-            };
-            return (
-                <div style={{ width: `${width}px`, height: `${height}px` }}>
-                    <Story />
-                </div>
-            );
-        },
-    ],
+    // An empty element is an empty canvas: load a small graph so the story shows what it draws.
+    play: async ({ canvasElement }) => {
+        await customElements.whenDefined("graphty-element");
+        const element = canvasElement.querySelector("graphty-element");
+        if (element === null) {
+            throw new Error("the story rendered no <graphty-element>");
+        }
+
+        // A flat circle is placed the same way every time, so the picture never depends on a seed.
+        await element.session.layout.setDimension("2d");
+        await element.session.layout.set("circular");
+        await element.session.data.addNodes(NODES);
+        await element.session.data.addEdges(EDGES);
+        await element.waitForStableFrame();
+    },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+/**
+ * The element at a fixed size, set per story: Storybook nests a story's decorators inside the
+ * meta's, so a size on the meta would box every other story inside it.
+ */
+function sized(width: number, height: number): Story["decorators"] {
+    return [
+        (Story) => (
+            <div style={{ width: `${String(width)}px`, height: `${String(height)}px` }}>
+                <Story />
+            </div>
+        ),
+    ];
+}
 
-export const Small: Story = {
-    parameters: { box: { width: 400, height: 300 } },
-};
+export const Default: Story = { decorators: sized(800, 600) };
 
-// The largest 4:3 box that fits the 1200 x 900 viewport inside the centered layout's padding.
-export const Large: Story = {
-    parameters: { box: { width: 1100, height: 825 } },
-};
+export const Small: Story = { decorators: sized(400, 300) };
+
+// The largest that fits the 1200 x 900 canvas inside the centered layout's padding.
+export const Large: Story = { decorators: sized(1100, 800) };

@@ -28,7 +28,7 @@ its section and number on the page the section heading names, or by page when it
 | doc-16 | `"requires": ["graphty-recipe"]`, opened with `members: ["graphty-style"]` | refused whole, `E_UNSUPPORTED` | Reading a file 8 |
 | doc-17 | members `{ "kind": 7 }`, `{ "kind": "graphty-style", "version": "1" }`, `{ "kind": "x" }` with no `version` | each skipped, `E_BAD_DOCUMENT`; the others apply | Reading a file 9 |
 | doc-18 | a member `{ "kind": "graphty-view", "version": 1, ... }` beside a style | the view skipped, `W_UNKNOWN_KIND`; the style applies; the view kept on save | Reading a file 10; Writing a file 3 |
-| doc-19 | a member of kind `org.example.notes` | skipped, `W_UNKNOWN_KIND`; kept in place on save | Reading a file 10 |
+| doc-19 | a member of kind `org.example.bookmarks` | skipped, `W_UNKNOWN_KIND`; kept in place on save | Reading a file 10 |
 | doc-20 | a style member with `"version": 2` beside a recipe of version 1 | the style skipped, `E_UNSUPPORTED_VERSION`; the recipe applies | Reading a file 11 |
 | doc-21 | a style member whose `layers` is a string | that member skipped, `E_BAD_DOCUMENT`; the others apply | Reading a file 12 |
 | doc-22 | members [a style whose applying throws, a recipe] | the exception is the style's report entry; the recipe applies | Reading a file 13 |
@@ -482,3 +482,40 @@ its section and number on the page the section heading names, or by page when it
 | exp-16 | an undirected graph exported to GraphML, then replayed through a recipe | `edgedefault="undirected"` written; read undirected | Per format |
 | exp-17 | a style layer hidden, then exported | the same result columns; only the drawn appearance changes | Results as columns 7 |
 | exp-18 | an export in `createGraphSession()` with no layout run | no positions written; the appearance is the resolved style values | The export call |
+
+## Notes (notes.md)
+
+<!-- prettier-ignore -->
+| Id | Input | Expected result | Rule |
+| --- | --- | --- | --- |
+| note-1 | a release without notes opens a file with a `graphty-notes` member | skipped, `W_UNKNOWN_KIND`; kept in place on save | Opening (last paragraph); container.md Reading a file 10 |
+| note-2 | a bare `{ "kind": "graphty-notes", "version": 1, "notes": [] }` | opened as a file holding that member | Writing; container.md Reading a file 4 |
+| note-3 | a note on `{ "node": "ACC-9999" }` the graph does not hold | added; reads `missing`; counted in `missing` | Binding 1 |
+| note-4 | the same file opened on data that holds `ACC-9999` | reads `present`; nothing rewritten | Status |
+| note-5 | targets `{ "filterStep": "s1" }` and `{ "node": 1, "type": "person" }`, checked against the schema, then opened on a release that knows neither | the schema accepts the note; it is added; both targets `unsupported`; written back as read | Targets 6; Later versions 1 |
+| note-6 | a cite `{ "result": "r", "run": "x", "weight": 2 }` | schema accepts; note added; cite `unsupported` | Targets 6 |
+| note-7 | `text` `"<img src=x onerror=alert(1)>"`, `"**bold**"` and `"<color='red'>x</color>"` | stored and returned exactly; a label bound to `graphty.notes.latest` draws every character | Text 1, 3 |
+| note-8 | a note with no `time`, and one with `"time": "2026-13-01T00:00:00Z"` | each skipped, `E_BAD_DOCUMENT`; not stamped | Opening 5 |
+| note-9 | `"author": ""` | fails the schema; skipped | Data model 3; Opening 5 |
+| note-10 | the same file merged twice | second merge: every note `unchanged`; no history step | Opening 2 |
+| note-11 | a held id with different text, held `edited` absent | added under a new id; `renamed` lists the pair; then the same file merged again: `unchanged` | Opening 2, 3 |
+| note-12 | a note edited locally (same id and time, later `edited`), then its file merged again | reported `older`; nothing added | Opening 3 |
+| note-13 | two notes with one id in one member | the second follows rule 3 against the first | Opening 4 |
+| note-14 | `{ "result": "rings" }` in a file whose recipe has `as: "rings"`, applied with namespace `fraud` | target rewritten to the namespaced run id | Opening 8 |
+| note-15 | `{ "set": "set_suspects" }` merged into a session holding its own `set_suspects` | reads `missing`, labeled with the target's `name` | Binding 3 |
+| note-16 | a note on `{ "node": 11 }` opened on CSV data whose id is `"11"` | `present` | Targets 1 |
+| note-17 | an edge note `{ "ordinal": 1, "among": 2 }` opened where the pair has 3 edges | `missing`; no edge guessed | Status; Targets 2 |
+| note-18 | a pair with 2 edges; the note's edge is removed and another edge of the pair added | binds to the new edge (the known limit of saving by position) | Targets 2 |
+| note-19 | an `{ item }` note, then the result is re-run | target `earlier-run`; note unchanged | Status; Targets 5 |
+| note-20 | `{ "__proto__": { "x": 1 } }` inside a note, inside a target, and inside `extensions` | the member is refused whole, `E_BAD_DOCUMENT`; nothing changes | Opening (all or nothing) |
+| note-21 | a member of 9,000 notes merged into a session holding 2,000 | refused whole, `E_TOO_LARGE`; nothing changes | Opening (all or nothing); Limits |
+| note-22 | `add` with `extensions: { "com.example.app": new Date() }` | refused, `bad-extensions` | Limits |
+| note-23 | a style with bare path `graphty.notes.count` on data with a column named `graphty.notes.count` | the path reads the note count; `styles.validate` reports it; `data.graphty.notes.count` reads the column | style.md Paths 1 |
+| note-23b | a style binding `graphty.unknownThing` | no value; the layer is reported unbound; nothing painted | style.md Paths 1 |
+| note-24 | `visibility.set` with a rule reading `graphty.notes.count` | refused, `E_BAD_SELECTOR`, reason `notes-path` | style.md Paths 1 |
+| note-25 | default whole-file save on a session holding notes | no notes member; `leftOut` lists the notes with their count | Saving 1; container.md Writing a file 4 |
+| note-26 | `exportGraph("gexf")` on a session holding notes | `W_GRAPHTY_NOTES`, count = notes held; no note columns | export-mapping.md Notes 1, 2 |
+| note-26b | `exportGraph("graphml", { notes: true })` on a session holding notes | `graphty.notes.count` and `graphty.notes.text` columns on noted elements; `W_GRAPHTY_NOTES` still reported | export-mapping.md Notes 1, 2 |
+| note-27 | `exportGraph("csv", { notes: true })` with a note `=SUM(A1)` | `graphty.notes.text` cell prefixed, `W_GRAPHTY_CSV_NEUTRALIZED` | export-mapping.md Notes 3 |
+| note-28 | a note whose `time` is `2099-01-01T00:00:00Z` | added; `W_FUTURE_TIME` notice | Opening 10 |
+| note-29 | a note with an unknown field `"reviewed": true`, merged and then edited | `W_UNKNOWN_MEMBER` at `/notes/0/reviewed`; the field is written back after the edit | Opening 7; Later versions 3 |

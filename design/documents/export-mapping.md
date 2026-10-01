@@ -166,6 +166,25 @@ single quote, so a spreadsheet does not run it as a formula; the count is report
 `W_GRAPHTY_CSV_NEUTRALIZED`. Header cells are cells and are neutralised the same way. A caller whose
 consumer is not a spreadsheet MAY turn this off.
 
+## Notes
+
+No format graph-io writes holds notes as notes (notes.md). An export carries them only when asked:
+
+1. **Off by default.** `exportGraph(format)` writes no note column. `exportGraph(format, { notes:
+   true })` adds two node and edge columns on the elements notes name: `graphty.notes.count`, the
+   number of notes with that element among their targets, and `graphty.notes.text`, the text of
+   each of those notes, newest first, joined by a blank line, cut to 64 KB per cell with
+   `W_GRAPHTY_TRUNCATED`. `notes` is one of the options every writer takes.
+2. **The loss is always reported.** Every export of a session holding notes reports
+   `W_GRAPHTY_NOTES`, `count` the number of notes held, because none of them is carried as a note:
+   notes about sets, items, results or the graph, which elements a multi-target note joins, and
+   every field but the text go nowhere but a `.graphty.json` saved beside the export.
+3. **Text is text.** `graphty.notes.text` is written as a quoted string where a format could read it
+   as markup, and a CSV cell is neutralised as any other ("Per format", CSV cells).
+4. **No collision.** A loaded column whose name starts `graphty.` is never exported, so the two
+   columns cannot collide with one. Read back, they are ordinary columns
+   (`data.graphty.notes.count`); they do not become notes.
+
 ## A graphty document beside an export
 
 No format graph-io writes can hold a style's rules or a recipe. So an export reports
@@ -195,6 +214,8 @@ next save, turning a reported loss into one nobody sees.
 | `W_GRAPHTY_GRAPH_FIELDS` | a run's graph-level fields have no place in the format | the run name | fields |
 | `W_GRAPHTY_TEXT_QUOTED` | text a format could read as markup was written quoted | the column | values |
 | `W_GRAPHTY_CSV_NEUTRALIZED` | CSV cells were prefixed so a spreadsheet does not run them | the column | cells |
+| `W_GRAPHTY_NOTES` | the session holds notes; none was carried as a note ("Notes") | null | notes |
+| `W_GRAPHTY_TRUNCATED` | a `graphty.notes.text` cell was cut to 64 KB ("Notes") | `graphty.notes.text` | cells |
 
 These codes are new and, like graph-io's, a published contract (README, "Error and warning codes").
 

@@ -2,7 +2,7 @@
 
 Status: design, not built. Written 2026-10-01 for two readers: a third party who uses
 `<graphty-element>` and has never seen this repository (sections 1 to 6), and the implementer who
-builds it (sections 7 and 8). Schema: [notes.schema.json](notes.schema.json), normative for the
+builds it (sections 7 and 8). Schema: [notes.schema.json](../documents/notes.schema.json), normative for the
 file form. The owner's decisions behind this page (all taken on 2026-10-01) and what it replaces
 are in [notes-decisions.md](notes-decisions.md); the build order is in [notes-plan.md](notes-plan.md).
 
@@ -610,7 +610,7 @@ in place when it saves the file again.
 
 ### 7.2 The member
 
-Schema: [notes.schema.json](notes.schema.json), `$id`
+Schema: [notes.schema.json](../documents/notes.schema.json), `$id`
 `https://graphty.app/schema/documents/graphty-notes/v1.json`.
 
 ```ts

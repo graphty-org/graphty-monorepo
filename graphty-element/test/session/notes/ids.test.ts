@@ -7,7 +7,7 @@ import { assert, describe, it } from "vitest";
 
 import { mintNoteId, noteTime } from "../../../src/session/notes/ids";
 
-/** The schema's `noteId` pattern (design/notes/notes.schema.json). */
+/** The schema's `noteId` pattern (design/documents/notes.schema.json). */
 const SCHEMA_ID = /^note_[0-9A-Za-z_-]{1,64}$/;
 
 /** A ULID: 26 characters of Crockford base 32. */

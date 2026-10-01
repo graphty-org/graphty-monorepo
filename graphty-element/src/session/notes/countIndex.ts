@@ -11,48 +11,10 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { Path } from "../../catalog/types";
 import type { NoteEntry } from "../project/state";
+import type { NoteFacts, NoteFactsReader } from "./paths";
 import { bindable, edgeRowsOf, nodeRowOf } from "./status";
 import type { Note, NoteId } from "./types";
-
-/** Every path under the `graphty.notes.` root reads a note value; nothing else does. */
-export const NOTE_PATH_PREFIX = "graphty.notes.";
-
-/** The note values one node or edge carries. */
-export interface NoteFacts {
-    /** How many notes name it. */
-    readonly count: number;
-    /** The newest note's text. */
-    readonly latest: string;
-    /** The newest note's time. */
-    readonly latestTime: string;
-}
-
-/** The fields each `graphty.notes.<field>` path reads. */
-const NOTE_FIELDS: Readonly<Record<string, keyof NoteFacts>> = Object.freeze({
-    "graphty.notes.count": "count",
-    "graphty.notes.latest": "latest",
-    "graphty.notes.latestTime": "latestTime",
-});
-
-/**
- * Whether a path reads a note value, known or not.
- * @param path - The path.
- * @returns True for a path under `graphty.notes.`.
- */
-export function isNotePath(path: Path): boolean {
-    return path.startsWith(NOTE_PATH_PREFIX);
-}
-
-/**
- * The field of {@link NoteFacts} a path reads.
- * @param path - The path.
- * @returns The field, or undefined for a path that names no note value this release knows.
- */
-export function noteFieldOf(path: Path): keyof NoteFacts | undefined {
-    return Object.hasOwn(NOTE_FIELDS, path) ? NOTE_FIELDS[path] : undefined;
-}
 
 /**
  * Newest first: by time, compared as instants, then by id.
@@ -95,7 +57,7 @@ export function rowsOf(notes: readonly Note[], snapshot: GraphSnapshot): (number
 }
 
 /** The rows a set of notes binds, by kind of element. */
-export interface NoteRows {
+interface NoteRows {
     /** Node rows. */
     readonly node: number[];
     /** Edge rows. */
@@ -173,9 +135,6 @@ function build(notes: ReadonlyMap<NoteId, NoteEntry>, snapshot: GraphSnapshot, v
         );
     return { version, snapshot, node: facts(tally.node), edge: facts(tally.edge) };
 }
-
-/** The note values a selector source reads. */
-export type NoteFactsReader = (target: "node" | "edge", row: number) => NoteFacts | undefined;
 
 /**
  * The reader of every row's note values, rebuilt when the notes or the snapshot change.

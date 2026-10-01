@@ -208,7 +208,10 @@ describe("format review: reserved graphty. root", () => {
 
     it("the filter reads data.graphty.x and is not refused as a notes path", async () => {
         const h = makeSession({ directed: true });
-        h.add([{ id: "a", "graphty.x": 5 }, { id: "b", "graphty.x": 1 }]);
+        h.add([
+            { id: "a", "graphty.x": 5 },
+            { id: "b", "graphty.x": 1 },
+        ]);
         const { session } = h;
         assert.isNull(refusalOf(() => session.visibility.set({ kind: "expression", where: "data.graphty.x > `2`" })));
         await session.styles.settled();

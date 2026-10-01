@@ -171,7 +171,7 @@ consumer is not a spreadsheet MAY turn this off.
 No format graph-io writes holds notes as notes (notes.md). An export carries them only when asked:
 
 1. **Off by default.** `exportGraph(format)` writes no note column. `exportGraph(format, { notes:
-   true })` adds two node and edge columns on the elements notes name: `graphty.notes.count`, the
+true })` adds two node and edge columns on the elements notes name: `graphty.notes.count`, the
    number of notes with that element among their targets, and `graphty.notes.text`, the text of
    each of those notes, newest first, joined by a blank line, cut to 64 KB per cell with
    `W_GRAPHTY_TRUNCATED`. `notes` is one of the options every writer takes.

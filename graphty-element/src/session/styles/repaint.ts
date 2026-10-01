@@ -57,7 +57,7 @@
 
 import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
-import { isNotePath } from "../notes/countIndex";
+import { isNotePath } from "../notes/paths";
 import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";

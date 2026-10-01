@@ -143,7 +143,8 @@ export function boundTargets(entry: NoteEntry): NoteTarget[] {
  */
 export function bindable(note: Note): boolean[] {
     return note.targets.map(
-        (target) => ("node" in target || "edge" in target) && supportedTarget(target) && !namesForeignSessionEdge(target),
+        (target) =>
+            ("node" in target || "edge" in target) && supportedTarget(target) && !namesForeignSessionEdge(target),
     );
 }
 

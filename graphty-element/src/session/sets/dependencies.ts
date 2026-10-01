@@ -30,7 +30,7 @@ import { runIdOfRef } from "../../catalog/sets/canonical";
 import { readingOfScope } from "../../catalog/sets/parse";
 import type { Path, Query, ResultItem, RuleTree, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { isNotePath } from "../notes/countIndex";
+import { isNotePath } from "../notes/paths";
 
 /** One thing a definition reads. */
 type Dependency =

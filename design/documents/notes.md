@@ -211,13 +211,13 @@ the session past 10,000 notes (`E_TOO_LARGE`), is refused whole, and nothing cha
    instants (`...Z` and `+00:00` spellings of one time are equal) and `extensions` with sorted
    keys. Merging the same file twice changes nothing and records no step.
 3. **A note whose id is held with different content** follows `onConflict`:
-   - `"keep-both"` (the default): if the held note has the same `time` and a later `edited`, it is
-     a later edit of the incoming one, which is reported as `older` and not added. Otherwise the
-     incoming note is added under a new id and the report lists the pair in `renamed`. Neither
-     person's words are lost, and an incoming note never overwrites a held one.
-   - `"replace"`: the incoming note replaces the held one, author and time included. Never a
-     default; an application asks first, naming how many held notes would change.
-   - `"keep-mine"`: the held note stays and is listed in `kept`; the incoming one is not added.
+    - `"keep-both"` (the default): if the held note has the same `time` and a later `edited`, it is
+      a later edit of the incoming one, which is reported as `older` and not added. Otherwise the
+      incoming note is added under a new id and the report lists the pair in `renamed`. Neither
+      person's words are lost, and an incoming note never overwrites a held one.
+    - `"replace"`: the incoming note replaces the held one, author and time included. Never a
+      default; an application asks first, naming how many held notes would change.
+    - `"keep-mine"`: the held note stays and is listed in `kept`; the incoming one is not added.
 4. **Two notes with one id inside one member**: the second is treated as rule 3 against the first.
 5. **A note that fails the schema** -- no `time`, a `time` that is not a real date, no text or blank
    text, a malformed id, no targets, an empty `author` -- is skipped alone and listed in `skipped`

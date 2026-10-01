@@ -45,7 +45,7 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, RunId } from "../../catalog/types";
-import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/countIndex";
+import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";

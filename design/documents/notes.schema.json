@@ -4,11 +4,7 @@
     "title": "graphty notes member, version 1",
     "description": "People's notes about one graph: its nodes, edges, kept sets, results, result items and the graph itself (notes.md). Normative for what a writer produces. A note's text is an uninterpreted string: graphty-element never parses, renders, sanitizes or trims it, and a consumer that interprets it does so under its own rules and MUST treat it as untrusted. The member and each note are open objects: a reader keeps a field it does not know and writes it back. Each target and each cite is checked on its own: one that matches none of the named forms matches the fallback form, reads as unsupported, is never bound by ignoring part of it, and is written back as read. A writer MUST produce only the named forms. String lengths count Unicode code points. Each note, saved as JSON, is at most 262,144 bytes (a rule this schema cannot express). The limits are fixed for version 1.",
     "type": "object",
-    "required": [
-        "kind",
-        "version",
-        "notes"
-    ],
+    "required": ["kind", "version", "notes"],
     "properties": {
         "kind": {
             "const": "graphty-notes"
@@ -57,19 +53,13 @@
             "description": "RFC 3339 with an explicit offset. graphty-element writes UTC as Date.prototype.toISOString() does (2026-10-01T09:12:03.120Z), keeps any other valid spelling it reads verbatim, and compares times as instants. A reader skips a note whose time is not a real date (2026-02-30) even when it matches this pattern. Seconds run 00 to 59: a leap second (:60) is not a time JavaScript dates can hold."
         },
         "nodeId": {
-            "type": [
-                "string",
-                "number"
-            ],
+            "type": ["string", "number"],
             "description": "A node's id as the data loaded it. Readers compare node ids by their text (11 and \"11\" name the same node), preferring a node whose id has the same type when the graph holds both."
         },
         "edgeMember": {
             "type": "object",
             "description": "An edge: its two ends plus exactly one of id, or ordinal with among. A form with other members (key, for instance) matches the fallback target instead.",
-            "required": [
-                "source",
-                "target"
-            ],
+            "required": ["source", "target"],
             "additionalProperties": false,
             "properties": {
                 "source": {
@@ -79,10 +69,7 @@
                     "$ref": "#/$defs/nodeId"
                 },
                 "id": {
-                    "type": [
-                        "string",
-                        "number"
-                    ]
+                    "type": ["string", "number"]
                 },
                 "ordinal": {
                     "type": "integer",
@@ -95,33 +82,22 @@
             },
             "oneOf": [
                 {
-                    "required": [
-                        "id"
-                    ],
+                    "required": ["id"],
                     "not": {
                         "anyOf": [
                             {
-                                "required": [
-                                    "ordinal"
-                                ]
+                                "required": ["ordinal"]
                             },
                             {
-                                "required": [
-                                    "among"
-                                ]
+                                "required": ["among"]
                             }
                         ]
                     }
                 },
                 {
-                    "required": [
-                        "ordinal",
-                        "among"
-                    ],
+                    "required": ["ordinal", "among"],
                     "not": {
-                        "required": [
-                            "id"
-                        ]
+                        "required": ["id"]
                     }
                 }
             ]
@@ -140,9 +116,7 @@
         },
         "graphTarget": {
             "type": "object",
-            "required": [
-                "graph"
-            ],
+            "required": ["graph"],
             "additionalProperties": false,
             "properties": {
                 "graph": {
@@ -153,9 +127,7 @@
         },
         "nodeTarget": {
             "type": "object",
-            "required": [
-                "node"
-            ],
+            "required": ["node"],
             "additionalProperties": false,
             "properties": {
                 "node": {
@@ -166,9 +138,7 @@
         },
         "edgeTarget": {
             "type": "object",
-            "required": [
-                "edge"
-            ],
+            "required": ["edge"],
             "additionalProperties": false,
             "properties": {
                 "edge": {
@@ -179,9 +149,7 @@
         },
         "setTarget": {
             "type": "object",
-            "required": [
-                "set"
-            ],
+            "required": ["set"],
             "additionalProperties": false,
             "properties": {
                 "set": {
@@ -200,9 +168,7 @@
         },
         "resultTarget": {
             "type": "object",
-            "required": [
-                "result"
-            ],
+            "required": ["result"],
             "additionalProperties": false,
             "properties": {
                 "result": {
@@ -213,18 +179,12 @@
         },
         "itemTarget": {
             "type": "object",
-            "required": [
-                "item"
-            ],
+            "required": ["item"],
             "additionalProperties": false,
             "properties": {
                 "item": {
                     "type": "object",
-                    "required": [
-                        "result",
-                        "run",
-                        "key"
-                    ],
+                    "required": ["result", "run", "key"],
                     "additionalProperties": false,
                     "properties": {
                         "result": {
@@ -235,10 +195,7 @@
                         },
                         "key": {
                             "type": "object",
-                            "required": [
-                                "field",
-                                "value"
-                            ],
+                            "required": ["field", "value"],
                             "additionalProperties": false,
                             "properties": {
                                 "field": {
@@ -247,11 +204,7 @@
                                     "maxLength": 256
                                 },
                                 "value": {
-                                    "type": [
-                                        "string",
-                                        "number",
-                                        "boolean"
-                                    ]
+                                    "type": ["string", "number", "boolean"]
                                 }
                             }
                         }
@@ -313,10 +266,7 @@
         },
         "knownCite": {
             "type": "object",
-            "required": [
-                "result",
-                "run"
-            ],
+            "required": ["result", "run"],
             "additionalProperties": false,
             "properties": {
                 "result": {
@@ -346,12 +296,7 @@
         },
         "note": {
             "type": "object",
-            "required": [
-                "id",
-                "time",
-                "targets",
-                "text"
-            ],
+            "required": ["id", "time", "targets", "text"],
             "properties": {
                 "id": {
                     "$ref": "#/$defs/noteId"

@@ -210,12 +210,12 @@ such as Louvain's). That has nothing to do with `session.notes`.
 
 ### 3.2 Required fields
 
-| Field | Rule |
-|---|---|
-| `id` | `note_` followed by 1 to 64 of `[0-9A-Za-z_-]`. graphty-element makes it; `add` never takes one. Compare for equality only. Ids are globally unique, because notes travel between people's files and are matched by id when opened. |
-| `time` | A date and time with an explicit offset. graphty-element writes UTC as `Date.prototype.toISOString()` does: `2026-10-01T09:12:03.120Z`. `add` never takes one. |
-| `targets` | One to 64 (section 3.3). A list, because "these two accounts are the same person" is one note about two things. Duplicates are collapsed to the first. |
-| `text` | Section 1.1. |
+| Field     | Rule                                                                                                                                                                                                                                |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`      | `note_` followed by 1 to 64 of `[0-9A-Za-z_-]`. graphty-element makes it; `add` never takes one. Compare for equality only. Ids are globally unique, because notes travel between people's files and are matched by id when opened. |
+| `time`    | A date and time with an explicit offset. graphty-element writes UTC as `Date.prototype.toISOString()` does: `2026-10-01T09:12:03.120Z`. `add` never takes one.                                                                      |
+| `targets` | One to 64 (section 3.3). A list, because "these two accounts are the same person" is one note about two things. Duplicates are collapsed to the first.                                                                              |
+| `text`    | Section 1.1.                                                                                                                                                                                                                        |
 
 ### 3.3 Targets
 
@@ -236,15 +236,15 @@ type NoteTargetInput = NoteTarget | { readonly edge: EdgeId };
 `NoteTarget` is an OPEN UNION: kinds may be added in a minor release. Show a kind you do not know
 by its `label` from `status()` (section 4.2).
 
-| The owner's word | Target |
-|---|---|
-| node | `{ node }` |
-| edge | `{ edge }` |
-| group | `{ item }` for a group a run found ("community 3"); `{ set }` once the group is kept as a set |
-| path | `{ set }` for a kept path (`sets.createPath`); `{ item }` for the path a shortest-path run found |
-| run, measure | `{ result }` |
-| the whole graph | `{ graph: true }` |
-| filter step | not yet: filter steps have no lasting ids |
+| The owner's word | Target                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| node             | `{ node }`                                                                                       |
+| edge             | `{ edge }`                                                                                       |
+| group            | `{ item }` for a group a run found ("community 3"); `{ set }` once the group is kept as a set    |
+| path             | `{ set }` for a kept path (`sets.createPath`); `{ item }` for the path a shortest-path run found |
+| run, measure     | `{ result }`                                                                                     |
+| the whole graph  | `{ graph: true }`                                                                                |
+| filter step      | not yet: filter steps have no lasting ids                                                        |
 
 How each target keeps pointing at the same thing:
 
@@ -266,13 +266,13 @@ How each target keeps pointing at the same thing:
 
 ### 3.4 Optional fields
 
-| Field | Set by | What it is for |
-|---|---|---|
-| `author` | graphty-element, from the project's author setting (section 5.5), when one is set | Who wrote it. Usually absent. A claim, never a verified identity. |
-| `edited` | graphty-element, on every `update` that changes something | That the note changed after it was written. No history is kept. |
-| `cites` | you pass `{ result }`; graphty-element adds the result's current finished run | Section 2.1. |
-| `mediaType` | you | Section 1.3. |
-| `extensions` | you | Data an application keeps about a note (a done flag, tags, a color) without a graphty-element release. Keys are reverse-domain names you own (`"com.example.casebook"`), so two applications never overwrite each other. graphty-element keeps it and writes it back; it never reads it. The value must be plain JSON (section 5.4). |
+| Field        | Set by                                                                            | What it is for                                                                                                                                                                                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `author`     | graphty-element, from the project's author setting (section 5.5), when one is set | Who wrote it. Usually absent. A claim, never a verified identity.                                                                                                                                                                                                                                                                    |
+| `edited`     | graphty-element, on every `update` that changes something                         | That the note changed after it was written. No history is kept.                                                                                                                                                                                                                                                                      |
+| `cites`      | you pass `{ result }`; graphty-element adds the result's current finished run     | Section 2.1.                                                                                                                                                                                                                                                                                                                         |
+| `mediaType`  | you                                                                               | Section 1.3.                                                                                                                                                                                                                                                                                                                         |
+| `extensions` | you                                                                               | Data an application keeps about a note (a done flag, tags, a color) without a graphty-element release. Keys are reverse-domain names you own (`"com.example.casebook"`), so two applications never overwrite each other. graphty-element keeps it and writes it back; it never reads it. The value must be plain JSON (section 5.4). |
 
 Not in the record, and why (each could be added later as an optional field): **tags** (a kept set
 groups things, and an application can keep tags in `extensions`); **status, done, replies,
@@ -304,17 +304,17 @@ its **status** says what happened. The status is worked out when it is read, so 
 comes back (the node reappears in the next load, the set is restored) is found again with nothing
 to repair.
 
-| What happened | The target reads |
-|---|---|
-| The node or edge is in the graph and visible | `present` |
-| It is in the graph, but a filter or the time window hides it | `filtered` |
-| It is not in the graph (deleted, not in this load, another dataset) | `missing` |
-| An edge saved by position, where the two nodes now have a different number of edges | `missing` |
-| The data comes back with that node id or that edge | `present` again |
-| The set was removed | `missing`, labeled with the set's name; restoring the set makes it `present` |
-| The result was re-run | `{ result }`: `present`; `{ item }`: `earlier-run` |
-| The result was removed | `missing` |
-| A target of a kind, or with a field, this release does not know | `unsupported`; kept and saved back exactly |
+| What happened                                                                       | The target reads                                                             |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| The node or edge is in the graph and visible                                        | `present`                                                                    |
+| It is in the graph, but a filter or the time window hides it                        | `filtered`                                                                   |
+| It is not in the graph (deleted, not in this load, another dataset)                 | `missing`                                                                    |
+| An edge saved by position, where the two nodes now have a different number of edges | `missing`                                                                    |
+| The data comes back with that node id or that edge                                  | `present` again                                                              |
+| The set was removed                                                                 | `missing`, labeled with the set's name; restoring the set makes it `present` |
+| The result was re-run                                                               | `{ result }`: `present`; `{ item }`: `earlier-run`                           |
+| The result was removed                                                              | `missing`                                                                    |
+| A target of a kind, or with a field, this release does not know                     | `unsupported`; kept and saved back exactly                                   |
 
 A cite reads `current` (the result's current run is the one cited), `earlier-run` (it is another
 run, or the cited run came from another session), `missing` (the result is gone) or `unsupported`.
@@ -471,22 +471,22 @@ through `tx.notes` with other changes into one step, as it does for everything e
 A refused write changes nothing and throws a `GraphtyError` (test with `isGraphtyError`, section
 2.2). The reason is in `error.details.reason`, an OPEN UNION:
 
-| Code | `details.reason` | When |
-|---|---|---|
-| `E_BAD_COMMAND` | `"empty-text"` | `text` is empty or only white space |
-| `E_BAD_COMMAND` | `"text-too-long"` | `text` is longer than 65,536 characters |
-| `E_BAD_COMMAND` | `"no-targets"` | `targets` is empty |
-| `E_BAD_COMMAND` | `"too-many"` | more than 64 targets or 64 cites (`details.field`) |
-| `E_BAD_COMMAND` | `"bad-target"` | a target is malformed, or names an edge by an `EdgeId` the graph does not hold (`details.index`) |
-| `E_BAD_COMMAND` | `"unknown-target"` | a set, result or item names an id this session does not hold (`details.index`) |
-| `E_BAD_COMMAND` | `"unknown-cite"` | a cite names a result this session does not hold |
-| `E_BAD_COMMAND` | `"not-finished"` | a cite, or an item without `run`, names a result with no finished run |
-| `E_BAD_COMMAND` | `"bad-media-type"` | `mediaType` is not `type/subtype` with optional parameters, or is longer than 255 characters |
-| `E_BAD_COMMAND` | `"bad-extensions"` | `extensions` is not plain JSON (below), or a key is not a reverse-domain name |
-| `E_BAD_COMMAND` | `"element-field"` | the input carries `id`, `time`, `author` or `edited` (`details.fields` names them) |
-| `E_BAD_COMMAND` | `"unknown-id"` | `update`, `remove` or `status` names a note that does not exist |
-| `E_TOO_LARGE` | `"notes"` | the session would hold more than 10,000 notes |
-| `E_TOO_LARGE` | `"note-size"` | the note, saved as JSON, would be larger than 256 KB |
+| Code            | `details.reason`   | When                                                                                             |
+| --------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| `E_BAD_COMMAND` | `"empty-text"`     | `text` is empty or only white space                                                              |
+| `E_BAD_COMMAND` | `"text-too-long"`  | `text` is longer than 65,536 characters                                                          |
+| `E_BAD_COMMAND` | `"no-targets"`     | `targets` is empty                                                                               |
+| `E_BAD_COMMAND` | `"too-many"`       | more than 64 targets or 64 cites (`details.field`)                                               |
+| `E_BAD_COMMAND` | `"bad-target"`     | a target is malformed, or names an edge by an `EdgeId` the graph does not hold (`details.index`) |
+| `E_BAD_COMMAND` | `"unknown-target"` | a set, result or item names an id this session does not hold (`details.index`)                   |
+| `E_BAD_COMMAND` | `"unknown-cite"`   | a cite names a result this session does not hold                                                 |
+| `E_BAD_COMMAND` | `"not-finished"`   | a cite, or an item without `run`, names a result with no finished run                            |
+| `E_BAD_COMMAND` | `"bad-media-type"` | `mediaType` is not `type/subtype` with optional parameters, or is longer than 255 characters     |
+| `E_BAD_COMMAND` | `"bad-extensions"` | `extensions` is not plain JSON (below), or a key is not a reverse-domain name                    |
+| `E_BAD_COMMAND` | `"element-field"`  | the input carries `id`, `time`, `author` or `edited` (`details.fields` names them)               |
+| `E_BAD_COMMAND` | `"unknown-id"`     | `update`, `remove` or `status` names a note that does not exist                                  |
+| `E_TOO_LARGE`   | `"notes"`          | the session would hold more than 10,000 notes                                                    |
+| `E_TOO_LARGE`   | `"note-size"`      | the note, saved as JSON, would be larger than 256 KB                                             |
 
 **Plain JSON** means objects, arrays, strings, finite numbers, booleans and `null`, nested at most
 32 levels and at most 64 KB once saved. A `Map`, a `Date`, a typed array, a function or a cycle is
@@ -533,11 +533,11 @@ A note naming a set is listed by `sets.usedBy(id)` as `{ kind: "note", id: <note
 
 ### 6.1 The paths
 
-| Path | Value on a node or an edge |
-|---|---|
-| `graphty.notes.count` | how many notes have this node or edge among their targets; **no value** when none |
-| `graphty.notes.latest` | the text of the newest of those notes; no value when none |
-| `graphty.notes.latestTime` | the `time` of the newest of those notes; no value when none |
+| Path                       | Value on a node or an edge                                                        |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `graphty.notes.count`      | how many notes have this node or edge among their targets; **no value** when none |
+| `graphty.notes.latest`     | the text of the newest of those notes; no value when none                         |
+| `graphty.notes.latestTime` | the `time` of the newest of those notes; no value when none                       |
 
 - Only node and edge targets count. A note about a set, an item, a result or the graph does not
   count on their members, and a note with two node targets counts on both.
@@ -732,13 +732,13 @@ object, breaks the limits below, or would take the session past 10,000 notes is 
    spellings of one time are equal), and `extensions` compare with sorted keys. Merging the same
    file twice changes nothing.
 3. **A note whose id is held with different content** follows `onConflict`:
-   - `"keep-both"` (the default): if the held note has the same `time` and a later `edited`, it is
-     a later edit of the incoming one, which is reported as `older` and not added. Otherwise the
-     incoming note is added under a new id and the report lists the pair. Neither person's words
-     are lost, and an incoming note never overwrites a held one.
-   - `"replace"`: the incoming note replaces the held one, author and time included. Never a
-     default; an application asks first, naming how many held notes would change.
-   - `"keep-mine"`: the held note stays; the incoming one is reported and not added.
+    - `"keep-both"` (the default): if the held note has the same `time` and a later `edited`, it is
+      a later edit of the incoming one, which is reported as `older` and not added. Otherwise the
+      incoming note is added under a new id and the report lists the pair. Neither person's words
+      are lost, and an incoming note never overwrites a held one.
+    - `"replace"`: the incoming note replaces the held one, author and time included. Never a
+      default; an application asks first, naming how many held notes would change.
+    - `"keep-mine"`: the held note stays; the incoming one is reported and not added.
 4. **Two notes with one id inside one member**: the second is treated as rule 3 against the first.
 5. **A note that fails the schema** -- no `time`, a `time` that is not a real date (month 13), no
    text, a malformed id, no targets -- is skipped alone, reported with `E_BAD_DOCUMENT` and its
@@ -790,11 +790,11 @@ interface NotesReport {
 
 No graph format holds notes as notes. What a format can hold is a column on node and edge rows:
 
-| Exported | Where |
-|---|---|
-| `graphty.notes.count` | a node and edge column, with `exportGraph(format, { notes: true })` |
-| `graphty.notes.text` | a node and edge column: the text of every note about that element, newest first, joined by a blank line, cut to 64 KB per cell (`W_GRAPHTY_TRUNCATED`) |
-| Notes about sets, items, results or the graph; which elements a multi-target note joins; `time`, `edited`, `author`, `cites`, `mediaType`, `extensions` | nowhere; only in a `.graphty.json` saved beside the export |
+| Exported                                                                                                                                                | Where                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `graphty.notes.count`                                                                                                                                   | a node and edge column, with `exportGraph(format, { notes: true })`                                                                                    |
+| `graphty.notes.text`                                                                                                                                    | a node and edge column: the text of every note about that element, newest first, joined by a blank line, cut to 64 KB per cell (`W_GRAPHTY_TRUNCATED`) |
+| Notes about sets, items, results or the graph; which elements a multi-target note joins; `time`, `edited`, `author`, `cites`, `mediaType`, `extensions` | nowhere; only in a `.graphty.json` saved beside the export                                                                                             |
 
 - Every export of a session holding notes reports **`W_GRAPHTY_NOTES`** with the number of notes
   not carried as notes, so the loss is seen before anything is shared.
@@ -893,52 +893,51 @@ plan, with files, tests and done-when for each step, is [notes-plan.md](notes-pl
 
 Made as the first step of [notes-plan.md](notes-plan.md).
 
-
-| File | Edit |
-|---|---|
-| `notes.md` (new) | Sections 1, 3, 4.1 and 7 of this page, written as the member's specification, in the style of `recipe.md`. |
-| `notes.schema.json` (new) | Moved from `design/notes/notes.schema.json`. |
-| `container.md` | "Data model": `NotesMember` joins the `Member` union; the kinds table gains `graphty-notes`. Change the example third-party kind `org.example.notes` (there and in doc-19) to `org.example.bookmarks`. "Versions" rule 2: the open lists gain note target kinds and item key forms. "Applying a file" rule 2: data, recipes, styles, then notes; rule 3: note targets and cites are rewritten like style paths. `onRepeat.notes`. `saveDocument`: `members` gains `"graphty-notes"`; rule 3 matches a notes member by being the only one or by `name`; rule 4: notes are never saved unless asked. "The report": `MemberReport.notes`. |
-| `container.schema.json` | A fourth `if`/`then` branch for `graphty-notes` version 1. |
-| `README.md` | The documents table gains notes.md; the `drafts/` row says notes.md supersedes annotations. "Trust" rule 5 gains: notes opened from a file record where they came from. "Trust" rule 6 gains: "A note's `text` is the one exception: an application MAY interpret it (notes.md) and MUST then treat it as untrusted; graphty-element never does." "Limits": 10,000 notes per member, 64 targets and 64 cites per note, 65,536 code points of text, 256 KB per note, `extensions` 64 KB and 32 levels. The codes table gains `W_GRAPHTY_NOTES` and `W_GRAPHTY_TRUNCATED`. |
-| `style.md` | "Paths" rule 1: the `graphty.` root is reserved for values graphty-element provides (section 6.4); `data.graphty.<name>` still reads a column; `graphty.notes.*` is accepted only in selectors, bindings and `select({ where })`; a label bound to `graphty.notes.*` is drawn literally. The rule that every bound label is literal is added by the breaking pull request, not here. |
-| `export-mapping.md` | A "Notes" section (section 7.8: the `notes` option, off by default; the `graphty.notes.count` and `graphty.notes.text` columns) and the `W_GRAPHTY_NOTES` and `W_GRAPHTY_TRUNCATED` rows. |
-| `conformance.md` | A "Notes (notes.md)" table with the rows below. |
-| `drafts/annotations.md`, `drafts/annotations.schema.json` | A banner: "Superseded by notes.md; kept as the record of the evidence-chain ideas." |
+| File                                                      | Edit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notes.md` (new)                                          | Sections 1, 3, 4.1 and 7 of this page, written as the member's specification, in the style of `recipe.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `notes.schema.json` (new)                                 | Moved from `design/notes/notes.schema.json`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `container.md`                                            | "Data model": `NotesMember` joins the `Member` union; the kinds table gains `graphty-notes`. Change the example third-party kind `org.example.notes` (there and in doc-19) to `org.example.bookmarks`. "Versions" rule 2: the open lists gain note target kinds and item key forms. "Applying a file" rule 2: data, recipes, styles, then notes; rule 3: note targets and cites are rewritten like style paths. `onRepeat.notes`. `saveDocument`: `members` gains `"graphty-notes"`; rule 3 matches a notes member by being the only one or by `name`; rule 4: notes are never saved unless asked. "The report": `MemberReport.notes`. |
+| `container.schema.json`                                   | A fourth `if`/`then` branch for `graphty-notes` version 1.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `README.md`                                               | The documents table gains notes.md; the `drafts/` row says notes.md supersedes annotations. "Trust" rule 5 gains: notes opened from a file record where they came from. "Trust" rule 6 gains: "A note's `text` is the one exception: an application MAY interpret it (notes.md) and MUST then treat it as untrusted; graphty-element never does." "Limits": 10,000 notes per member, 64 targets and 64 cites per note, 65,536 code points of text, 256 KB per note, `extensions` 64 KB and 32 levels. The codes table gains `W_GRAPHTY_NOTES` and `W_GRAPHTY_TRUNCATED`.                                                               |
+| `style.md`                                                | "Paths" rule 1: the `graphty.` root is reserved for values graphty-element provides (section 6.4); `data.graphty.<name>` still reads a column; `graphty.notes.*` is accepted only in selectors, bindings and `select({ where })`; a label bound to `graphty.notes.*` is drawn literally. The rule that every bound label is literal is added by the breaking pull request, not here.                                                                                                                                                                                                                                                   |
+| `export-mapping.md`                                       | A "Notes" section (section 7.8: the `notes` option, off by default; the `graphty.notes.count` and `graphty.notes.text` columns) and the `W_GRAPHTY_NOTES` and `W_GRAPHTY_TRUNCATED` rows.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `conformance.md`                                          | A "Notes (notes.md)" table with the rows below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `drafts/annotations.md`, `drafts/annotations.schema.json` | A banner: "Superseded by notes.md; kept as the record of the evidence-chain ideas."                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ### 8.7 Conformance rows
 
-| id | input | expected | rule |
-|---|---|---|---|
-| note-1 | a release without notes opens a file with a `graphty-notes` member | skipped, `W_UNKNOWN_KIND`; kept in place on save | 7.1 |
-| note-2 | a bare `{ "kind": "graphty-notes", "version": 1, "notes": [] }` | opened as a file holding that member | 7.1 |
-| note-3 | a note on `{ "node": "ACC-9999" }` the graph does not hold | added; reads `missing`; counted in `missing` | 7.5 |
-| note-4 | the same file opened on data that holds `ACC-9999` | reads `present`; nothing rewritten | 4.1 |
-| note-5 | targets `{ "filterStep": "s1" }` and `{ "node": 1, "type": "person" }`, checked against the schema, then opened on a release that knows neither | the schema accepts the note; it is added; both targets `unsupported`; written back as read | 7.4 rule 1 |
-| note-6 | a cite `{ "result": "r", "run": "x", "weight": 2 }` | schema accepts; note added; cite `unsupported` | 7.4 rule 1 |
-| note-7 | `text` `"<img src=x onerror=alert(1)>"`, `"**bold**"` and `"<color='red'>x</color>"` | stored and returned exactly; a label bound to `graphty.notes.latest` draws every character | 1.1, 6.3 |
-| note-8 | a note with no `time`, and one with `"time": "2026-13-01T00:00:00Z"` | each skipped, `E_BAD_DOCUMENT`; not stamped | 7.6 rule 5 |
-| note-9 | `"author": ""` | fails the schema; skipped | 7.3 |
-| note-10 | the same file merged twice | second merge: every note `unchanged`; no history step | 7.6 rule 2 |
-| note-11 | a held id with different text, held `edited` absent | added under a new id; `renamed` lists the pair; then the same file merged again: `unchanged` | 7.6 rules 2, 3 |
-| note-12 | a note edited locally (same id and time, later `edited`), then its file merged again | reported `older`; nothing added | 7.6 rule 3 |
-| note-13 | two notes with one id in one member | the second follows rule 3 against the first | 7.6 rule 4 |
-| note-14 | `{ "result": "rings" }` in a file whose recipe has `as: "rings"`, applied with namespace `fraud` | target rewritten to the namespaced run id | 7.6 rule 8 |
-| note-15 | `{ "set": "set_suspects" }` merged into a session holding its own `set_suspects` | reads `missing`, labeled with the target's `name` | 7.5 |
-| note-16 | a note on `{ "node": 11 }` opened on CSV data whose id is `"11"` | `present` | 3.3 |
-| note-17 | an edge note `{ "ordinal": 1, "among": 2 }` opened where the pair has 3 edges | `missing`; no edge guessed | 4.1 |
-| note-18 | a pair with 2 edges; the note's edge is removed and another edge of the pair added | binds to the new edge (the known limit of saving by position) | 3.3 |
-| note-19 | an `{ item }` note, then the result is re-run | target `earlier-run`; note unchanged | 4.1 |
-| note-20 | `{ "__proto__": { "x": 1 } }` inside a note, inside a target, and inside `extensions` | the member is refused whole, `E_BAD_DOCUMENT`; nothing changes | 8.4 |
-| note-21 | a member of 9,000 notes merged into a session holding 2,000 | refused whole, `E_TOO_LARGE`; nothing changes | 7.6 |
-| note-22 | `add` with `extensions: { "com.example.app": new Date() }` | refused, `bad-extensions` | 5.4 |
-| note-23 | a style with bare path `graphty.notes.count` on data with a column named `graphty.notes.count` | the path reads the note count; `styles.validate` reports it; `data.graphty.notes.count` reads the column | 6.4 |
-| note-23b | a style binding `graphty.unknownThing` | no value; the layer is reported unbound; nothing painted | 6.4 |
-| note-24 | `visibility.set` with a rule reading `graphty.notes.count` | refused, `E_BAD_SELECTOR`, reason `notes-path` | 6.2 |
-| note-25 | default whole-file save on a session holding notes | no notes member; `leftOut` lists the notes with their count | 7.7 |
-| note-26 | `exportGraph("gexf")` on a session holding notes | `W_GRAPHTY_NOTES`, count = notes held; no note columns | 7.8 |
-| note-26b | `exportGraph("graphml", { notes: true })` on a session holding notes | `graphty.notes.count` and `graphty.notes.text` columns on noted elements; `W_GRAPHTY_NOTES` still reported | 7.8 |
-| note-27 | `exportGraph("csv", { notes: true })` with a note `=SUM(A1)` | `graphty.notes.text` cell prefixed, `W_GRAPHTY_CSV_NEUTRALIZED` | 7.8 |
+| id       | input                                                                                                                                           | expected                                                                                                   | rule           |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------- |
+| note-1   | a release without notes opens a file with a `graphty-notes` member                                                                              | skipped, `W_UNKNOWN_KIND`; kept in place on save                                                           | 7.1            |
+| note-2   | a bare `{ "kind": "graphty-notes", "version": 1, "notes": [] }`                                                                                 | opened as a file holding that member                                                                       | 7.1            |
+| note-3   | a note on `{ "node": "ACC-9999" }` the graph does not hold                                                                                      | added; reads `missing`; counted in `missing`                                                               | 7.5            |
+| note-4   | the same file opened on data that holds `ACC-9999`                                                                                              | reads `present`; nothing rewritten                                                                         | 4.1            |
+| note-5   | targets `{ "filterStep": "s1" }` and `{ "node": 1, "type": "person" }`, checked against the schema, then opened on a release that knows neither | the schema accepts the note; it is added; both targets `unsupported`; written back as read                 | 7.4 rule 1     |
+| note-6   | a cite `{ "result": "r", "run": "x", "weight": 2 }`                                                                                             | schema accepts; note added; cite `unsupported`                                                             | 7.4 rule 1     |
+| note-7   | `text` `"<img src=x onerror=alert(1)>"`, `"**bold**"` and `"<color='red'>x</color>"`                                                            | stored and returned exactly; a label bound to `graphty.notes.latest` draws every character                 | 1.1, 6.3       |
+| note-8   | a note with no `time`, and one with `"time": "2026-13-01T00:00:00Z"`                                                                            | each skipped, `E_BAD_DOCUMENT`; not stamped                                                                | 7.6 rule 5     |
+| note-9   | `"author": ""`                                                                                                                                  | fails the schema; skipped                                                                                  | 7.3            |
+| note-10  | the same file merged twice                                                                                                                      | second merge: every note `unchanged`; no history step                                                      | 7.6 rule 2     |
+| note-11  | a held id with different text, held `edited` absent                                                                                             | added under a new id; `renamed` lists the pair; then the same file merged again: `unchanged`               | 7.6 rules 2, 3 |
+| note-12  | a note edited locally (same id and time, later `edited`), then its file merged again                                                            | reported `older`; nothing added                                                                            | 7.6 rule 3     |
+| note-13  | two notes with one id in one member                                                                                                             | the second follows rule 3 against the first                                                                | 7.6 rule 4     |
+| note-14  | `{ "result": "rings" }` in a file whose recipe has `as: "rings"`, applied with namespace `fraud`                                                | target rewritten to the namespaced run id                                                                  | 7.6 rule 8     |
+| note-15  | `{ "set": "set_suspects" }` merged into a session holding its own `set_suspects`                                                                | reads `missing`, labeled with the target's `name`                                                          | 7.5            |
+| note-16  | a note on `{ "node": 11 }` opened on CSV data whose id is `"11"`                                                                                | `present`                                                                                                  | 3.3            |
+| note-17  | an edge note `{ "ordinal": 1, "among": 2 }` opened where the pair has 3 edges                                                                   | `missing`; no edge guessed                                                                                 | 4.1            |
+| note-18  | a pair with 2 edges; the note's edge is removed and another edge of the pair added                                                              | binds to the new edge (the known limit of saving by position)                                              | 3.3            |
+| note-19  | an `{ item }` note, then the result is re-run                                                                                                   | target `earlier-run`; note unchanged                                                                       | 4.1            |
+| note-20  | `{ "__proto__": { "x": 1 } }` inside a note, inside a target, and inside `extensions`                                                           | the member is refused whole, `E_BAD_DOCUMENT`; nothing changes                                             | 8.4            |
+| note-21  | a member of 9,000 notes merged into a session holding 2,000                                                                                     | refused whole, `E_TOO_LARGE`; nothing changes                                                              | 7.6            |
+| note-22  | `add` with `extensions: { "com.example.app": new Date() }`                                                                                      | refused, `bad-extensions`                                                                                  | 5.4            |
+| note-23  | a style with bare path `graphty.notes.count` on data with a column named `graphty.notes.count`                                                  | the path reads the note count; `styles.validate` reports it; `data.graphty.notes.count` reads the column   | 6.4            |
+| note-23b | a style binding `graphty.unknownThing`                                                                                                          | no value; the layer is reported unbound; nothing painted                                                   | 6.4            |
+| note-24  | `visibility.set` with a rule reading `graphty.notes.count`                                                                                      | refused, `E_BAD_SELECTOR`, reason `notes-path`                                                             | 6.2            |
+| note-25  | default whole-file save on a session holding notes                                                                                              | no notes member; `leftOut` lists the notes with their count                                                | 7.7            |
+| note-26  | `exportGraph("gexf")` on a session holding notes                                                                                                | `W_GRAPHTY_NOTES`, count = notes held; no note columns                                                     | 7.8            |
+| note-26b | `exportGraph("graphml", { notes: true })` on a session holding notes                                                                            | `graphty.notes.count` and `graphty.notes.text` columns on noted elements; `W_GRAPHTY_NOTES` still reported | 7.8            |
+| note-27  | `exportGraph("csv", { notes: true })` with a note `=SUM(A1)`                                                                                    | `graphty.notes.text` cell prefixed, `W_GRAPHTY_CSV_NEUTRALIZED`                                            | 7.8            |
 
 ---
 
@@ -955,24 +954,24 @@ Made as the first step of [notes-plan.md](notes-plan.md).
   1.3 says), and as plain text with white space kept for anything else -- an HTML note is shown as
   its source, never rendered.
 - **Markdown rules, because note text comes from untrusted files:**
-  - CommonMark plus GitHub-style autolinks, strikethrough and tables, rendered to React elements
-    (for example `react-markdown` without `rehype-raw`), never through `innerHTML`.
-  - Raw HTML in a note is shown as literal text: the renderer maps HTML nodes to text nodes
-    explicitly, so `<b>` shows as `<b>` and nothing in a note is hidden from its reader.
-  - Links: a custom URL filter allows only `http:`, `https:` and `mailto:` (compared without regard
-    to case, after trimming). Relative, protocol-relative (`//`) and `#` links are shown as text,
-    so a note cannot trigger the app's own routes. Links open in a new tab with
-    `rel="noopener noreferrer nofollow"`. When a link's text differs from its address, the host is
-    shown beside the text, so a link cannot lie about where it goes on a touch screen.
-  - Images are not loaded: `![alt](url)` shows as a link labeled with its alt text, because a
-    remote image in an opened file would tell its author when and where the file was read.
-  - Headings render at body size, so a note cannot pass for the app's own headings.
-  - A long note shows its first 20 lines, then "Show more"; anything nested deeper than 32 levels
-    is shown as plain text; the notes list is virtualized.
-  - Note text, author names and target labels are isolated (`<bdi>` or `unicode-bidi: isolate`
-    with `dir="auto"`), so right-to-left override characters cannot reorder what follows.
-  - Tests pin all of this, including `[https://bank.example](https://evil.example)`,
-    `JaVaScRiPt:`, `javascript&#58;`, and reference-style links and images.
+    - CommonMark plus GitHub-style autolinks, strikethrough and tables, rendered to React elements
+      (for example `react-markdown` without `rehype-raw`), never through `innerHTML`.
+    - Raw HTML in a note is shown as literal text: the renderer maps HTML nodes to text nodes
+      explicitly, so `<b>` shows as `<b>` and nothing in a note is hidden from its reader.
+    - Links: a custom URL filter allows only `http:`, `https:` and `mailto:` (compared without regard
+      to case, after trimming). Relative, protocol-relative (`//`) and `#` links are shown as text,
+      so a note cannot trigger the app's own routes. Links open in a new tab with
+      `rel="noopener noreferrer nofollow"`. When a link's text differs from its address, the host is
+      shown beside the text, so a link cannot lie about where it goes on a touch screen.
+    - Images are not loaded: `![alt](url)` shows as a link labeled with its alt text, because a
+      remote image in an opened file would tell its author when and where the file was read.
+    - Headings render at body size, so a note cannot pass for the app's own headings.
+    - A long note shows its first 20 lines, then "Show more"; anything nested deeper than 32 levels
+      is shown as plain text; the notes list is virtualized.
+    - Note text, author names and target labels are isolated (`<bdi>` or `unicode-bidi: isolate`
+      with `dir="auto"`), so right-to-left override characters cannot reorder what follows.
+    - Tests pin all of this, including `[https://bank.example](https://evil.example)`,
+      `JaVaScRiPt:`, `javascript&#58;`, and reference-style links and images.
 - **The author:** Settings > General > "Your name (saved with this project)" writes
   `session.config.set({ author })`. Until project files exist, the app also remembers the last
   name entered with the reader's preferences and sets it on each new session. Nothing asks for a
@@ -1108,19 +1107,19 @@ them; `list` takes several targets and a `targetKind`; `counts()` gives "noted e
 
 **Rejected or narrowed, with why:**
 
-- *A separate `StoredNote` interface*: one type plus the promise in section 3.1 is
+- _A separate `StoredNote` interface_: one type plus the promise in section 3.1 is
   simpler and gives the same protection.
-- *Limits in UTF-16 code units*: code points match what the schema's `maxLength`
+- _Limits in UTF-16 code units_: code points match what the schema's `maxLength`
   counts, so a note the schema accepts is never refused by the element.
-- *Applying the first 10,000 notes of an oversized member*: conflicts with
+- _Applying the first 10,000 notes of an oversized member_: conflicts with
   all-or-nothing merging; the limit is documented as fixed for version 1 instead.
-- *`graphty.notes.*` in every query, including scopes and set definitions*: would make notes an
-  input to results and set membership with no dependency tracking. The
-  studio's counts come from `counts()` and `list({ targetKind })` instead.
-- *A data-load report field counting newly missing notes*: not added now; the app can
+- _`graphty.notes._`in every query, including scopes and set definitions*: would make notes an
+input to results and set membership with no dependency tracking. The
+studio's counts come from`counts()`and`list({ targetKind })` instead.
+- _A data-load report field counting newly missing notes_: not added now; the app can
   show `list({ missing: true }).length`, which the element computes. Adding the report field later
   is an addition.
-- *Keeping `userData` beside `extensions`*: one place for application data is enough,
+- _Keeping `userData` beside `extensions`_: one place for application data is enough,
   and only the namespaced one survives files from several applications.
-- *Allowing `{ filterStep }` notes now*: the visibility filter has no step ids; the
+- _Allowing `{ filterStep }` notes now_: the visibility filter has no step ids; the
   deferral stands and the studio's controls are listed as follow-ups.

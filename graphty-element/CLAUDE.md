@@ -299,7 +299,11 @@ arrives only through the `./webgpu` entry point.
 
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
-accelerator when the controller planned one and the CPU simulation when it did not; the
+accelerator when the controller planned one and the CPU simulation when it did not -- and the
+DEFAULT layout does too, without being named differently: `ngraph` and `spring-electrical` are one
+force model with two implementations, and `LayoutManager.forceDriver` chooses between them by
+accelerator and graph size, so a consumer who asks for nothing gets the accelerated arrangement on
+a graph big enough to need it; the
 algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector, HITS,
 Katz, betweenness, closeness, Floyd-Warshall, the clustering coefficient, label propagation,
 k-core and Louvain route through `@graphty/algorithms`' `accelerated()` and label the result's

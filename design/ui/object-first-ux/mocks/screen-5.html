@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Screen 5: creating a path with the Path tool, mid-flow</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  /* Page chrome. The mock frame is 1440 x 900; the caption bar sits below it. */
+  /* Without Inter installed, Chromium resolves ui-sans-serif and system-ui to DejaVu Sans on Linux,
+     about 10 percent wider than Inter, and every measured width overflows. Arial (Liberation Sans
+     here) has Inter-like widths, so it goes before the generic families on this page. */
+  :root { --k-font: Inter, Arial, "Helvetica Neue", Helvetica, ui-sans-serif, system-ui, sans-serif; }
+  html, body { margin: 0; background: #e6e6e6; }
+  .frame { width: 1440px; height: 900px; position: relative; overflow: hidden; }
+  .caption { width: 1440px; height: 60px; padding: 0 24px; display: flex; align-items: center; gap: 16px;
+    font: 450 12px/16px var(--k-font); color: #000000b2; }
+  .caption b { font-weight: 600; color: #000; }
+
+  /* --- Not in kit.css (kit gaps, listed in the summary) --- */
+  /* 2. The toolbar sits 16px above the status bar on these screens (the kit says 12). */
+  .k-toolbar-float { bottom: 16px; }
+  /* 12. The secondary bar of a tool: 32 tall, dark, radius 13, 8px above the toolbar. */
+  .k-secbar { position: absolute; left: 50%; bottom: calc(16px + var(--k-toolbar-h) + 8px); transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 12px;
+    background: var(--k-bg-menu); color: #fff; border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-300); white-space: nowrap; }
+  .k-secbar .k-select { background: transparent; color: #fff; box-shadow: inset 0 0 0 1px #ffffff33; width: 128px; }
+  .k-secbar .k-select .k-icon { color: #ffffffb2; }
+  .k-secbar .k-btn-ghost { color: #ffffffb2; }
+  /* 13. The legend overlay: a 160px light card, radius 5, blocks with a title and swatch rows. */
+  .k-legend-card { position: absolute; right: 16px; bottom: 16px; width: 160px; background: var(--k-bg); border-radius: var(--k-radius-md); box-shadow: var(--k-shadow-200); padding: 4px 0; }
+  .k-legend-title { height: 24px; padding: 0 12px; display: flex; align-items: center; font: var(--k-text-body-strong); }
+  .k-legend-row { height: 20px; padding: 0 12px; display: flex; align-items: center; gap: 8px; }
+  .k-legend-row .k-swatch { width: 10px; height: 10px; }
+  .k-legend-sep { height: 1px; background: var(--k-border); margin: 4px 0; }
+  /* 14. Mode switch with four options (2D, 3D, VR, AR). */
+  .k-mode-opt.has-text { font: 500 10px/28px var(--k-font); }
+  /* 15. Status bar chip with a glyph. */
+  .k-statusbar .k-chip .k-icon-16 { width: 12px; height: 12px; margin: 0 -2px; }
+  /* canvas */
+  .k-canvas .graph { position: absolute; inset: 0; }
+  .k-canvas { background: #f5f5f5; }
+  /* screen 3 tree rules */
+  .k-tree-row.is-selected .k-tree-name { font-weight: 550; }
+  .k-tree-chip { flex: none; margin-left: 6px; margin-right: 8px; display: grid; place-items: center; }
+  .k-tree-name { flex: 0 1 auto; }
+  .k-tree-meta { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .k-tree-spacer { flex: 1 1 0; min-width: 0; }
+  .k-tree-row .k-tree-actions { display: none; }
+  .k-tree-row.is-selected .k-tree-actions { display: flex; opacity: 1; gap: 0; margin: 0 8px 0 0; }
+  .k-tree-row.is-selected .k-tree-chip { margin-right: 0; }
+</style>
+</head>
+<body class="k-ui">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M9.5 10.5l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M10.5 9l2.5 3-2.5 3" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 16 16"><path d="M6 4.5l4 3.5-4 3.5z" fill="currentColor"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M5 12s2.6-4.5 7-4.5 7 4.5 7 4.5-2.6 4.5-7 4.5S5 12 5 12z" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="12" r="2.25" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="7.5" y="11" width="9" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 11V9a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="7.5" y="11" width="9" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 11V9a2.5 2.5 0 014.8-1" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="4.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M14.5 14.5L18 18" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="7" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="17" cy="12" r="1.2" fill="currentColor"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M7 6l11 5.5-4.6 1.3L11 18z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 12V7.5a1 1 0 012 0V11m0-4.5a1 1 0 012 0V11m0-3a1 1 0 012 0v6.5c0 2.5-2 4-4.5 4S8 16.8 7 14.5L6 12a1 1 0 011.8-.8L9 12.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M6 7h12l-4.5 5.5V17l-3 1v-5.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="9.5" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="15.5" cy="9.5" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="15" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-path" viewBox="0 0 24 24"><circle cx="7" cy="16" r="1.75" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17" cy="8" r="1.75" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M8.3 14.8L11 12l2-1 2.5-2" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-rank" viewBox="0 0 24 24"><path d="M7 17V11M12 17V7M17 17v-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-set" viewBox="0 0 24 24"><circle cx="10" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="14" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-measure" viewBox="0 0 24 24"><path d="M6 15h12M8 12.5V15M12 10.5V15M16 12.5V15" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-node" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-data" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="5" ry="2" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M7 8v8c0 1.1 2.2 2 5 2s5-.9 5-2V8M7 12c0 1.1 2.2 2 5 2s5-.9 5-2" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-comment" viewBox="0 0 24 24"><path d="M6.5 8.5A1.5 1.5 0 018 7h8a1.5 1.5 0 011.5 1.5v5A1.5 1.5 0 0116 15h-4.5L9 17.5V15H8a1.5 1.5 0 01-1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M12 6.5v2M12 15.5v2M6.5 12h2M15.5 12h2M8.1 8.1l1.4 1.4M14.5 14.5l1.4 1.4M8.1 15.9l1.4-1.4M14.5 9.5l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M16.5 10A5 5 0 007.3 9.5M7.5 14a5 5 0 009.2.5M16.5 6.5V10H13M7.5 17.5V14H11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 6l5.5 3v6L12 18l-5.5-3V9z M12 12l5.5-3M12 12L6.5 9M12 12v6" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-square" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <!-- Glyphs this screen needs that the kit sprite does not have yet -->
+  <symbol id="i-menu" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h10" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-neighbours" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="7" cy="8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17" cy="8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="18" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M8.3 9L10.6 11M15.7 9l-2.3 2M12 14v2.5" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9.5 8v8M14.5 8v8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-step" viewBox="0 0 24 24"><path d="M8 7.5v9l6-4.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><path d="M16.5 8v8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="frame">
+<div class="k-app has-statusbar no-rail">
+
+  <!-- ============================== left panel -->
+  <aside class="k-panel k-panel-left">
+    <div class="k-panel-file"><svg class="k-icon-16"><use href="#i-menu"/></svg><span class="k-heading">Karate Club</span><svg class="k-icon-16 k-tertiary"><use href="#i-chevron-down"/></svg></div>
+
+    <div class="k-panel-header"><span class="k-panel-title">Views</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></div>
+    <div class="k-list-row is-current"><div class="k-list-pill">Overview</div></div>
+
+    <div class="k-panel-header"><span class="k-panel-title">Objects</span><button class="k-icon-btn"><svg class="k-icon"><use href="#i-search"/></svg></button></div>
+    <div class="k-tree show-carets">
+      <!-- 1. the dataset root -->
+      <div class="k-tree-row is-top is-expanded">
+        <span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-data"/></svg></span>
+        <span class="k-tree-name">Karate Club</span>
+        <span class="k-tree-meta">34 nodes 78 edges</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="--swatch:#b3b3b3;display:grid;place-items:center;color:#fff"><svg width="10" height="10" viewBox="4 4 16 16"><use href="#i-lock"/></svg></span></span>
+      </div>
+      <!-- 2. a Set from the Filter tool: an outline Fill draws as a ring -->
+      <div class="k-tree-row is-leaf" style="--depth:1">
+        <span class="k-tree-caret"></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-set"/></svg></span>
+        <span class="k-tree-name">Degree &gt; 8</span>
+        <span class="k-tree-meta">5 nodes</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="--swatch:#fff;box-shadow:inset 0 0 0 2px #1e1e1e"></span></span>
+      </div>
+      <!-- 3. a Measure: its Fill is Size, so the chip is a size-scale glyph -->
+      <div class="k-tree-row is-leaf" style="--depth:1">
+        <span class="k-tree-caret"></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-measure"/></svg></span>
+        <span class="k-tree-name">Connections (Degree)</span>
+        <span class="k-tree-meta">34 values</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="3.5" cy="9" r="2" fill="#1e1e1e"/><circle cx="9.5" cy="6.5" r="4" fill="#1e1e1e"/></svg></span>
+      </div>
+      <!-- 4. a Grouping, expanded: the chip is the palette as a strip -->
+      <div class="k-tree-row is-expanded" style="--depth:1">
+        <span class="k-tree-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-group"/></svg></span>
+        <span class="k-tree-name">Communities (Louvain)</span>
+        <span class="k-tree-meta">4 groups</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="background:linear-gradient(90deg,#e69f00 0 25%,#56b4e9 25% 50%,#009e73 50% 75%,#cc79a7 75%)"></span></span>
+      </div>
+      <!-- 5-8. its Groups -->
+      <div class="k-tree-row is-leaf" style="--depth:2">
+        <span class="k-tree-caret"></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-node"/></svg></span>
+        <span class="k-tree-name">Group 1</span>
+        <span class="k-tree-meta">12</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="--swatch:#e69f00"></span></span>
+      </div>
+      <div class="k-tree-row is-leaf" style="--depth:2">
+        <span class="k-tree-caret"></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-node"/></svg></span>
+        <span class="k-tree-name">Group 2</span>
+        <span class="k-tree-meta">11</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="--swatch:#d55e00"></span></span>
+      </div>
+      <div class="k-tree-row is-leaf" style="--depth:2">
+        <span class="k-tree-caret"></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-node"/></svg></span>
+        <span class="k-tree-name">Group 3</span>
+        <span class="k-tree-meta">6</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="--swatch:#009e73"></span></span>
+      </div>
+      <div class="k-tree-row is-leaf" style="--depth:2">
+        <span class="k-tree-caret"></span>
+        <span class="k-tree-icon"><svg class="k-icon-16"><use href="#i-node"/></svg></span>
+        <span class="k-tree-name">Group 4</span>
+        <span class="k-tree-meta">5</span>
+        <span class="k-tree-spacer"></span>
+        <span class="k-tree-chip"><span class="k-swatch" style="--swatch:#cc79a7"></span></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================== canvas -->
+  <main class="k-canvas">
+    <svg class="graph" width="959" height="876" viewBox="0 0 959 876" aria-label="Karate Club, 34 nodes">
+<g stroke="#b3b3b3" stroke-width="1">
+<line x1="330" y1="330" x2="290" y2="450"/>
+<line x1="330" y1="330" x2="440" y2="410"/>
+<line x1="330" y1="330" x2="360" y2="520"/>
+<line x1="330" y1="330" x2="200" y2="150"/>
+<line x1="330" y1="330" x2="150" y2="230"/>
+<line x1="330" y1="330" x2="230" y2="240"/>
+<line x1="330" y1="330" x2="420" y2="480"/>
+<line x1="330" y1="330" x2="560" y2="350"/>
+<line x1="330" y1="330" x2="270" y2="120"/>
+<line x1="330" y1="330" x2="250" y2="290"/>
+<line x1="330" y1="330" x2="250" y2="390"/>
+<line x1="330" y1="330" x2="500" y2="470"/>
+<line x1="330" y1="330" x2="210" y2="470"/>
+<line x1="330" y1="330" x2="370" y2="590"/>
+<line x1="330" y1="330" x2="240" y2="530"/>
+<line x1="330" y1="330" x2="540" y2="570"/>
+<line x1="290" y1="450" x2="440" y2="410"/>
+<line x1="290" y1="450" x2="360" y2="520"/>
+<line x1="290" y1="450" x2="420" y2="480"/>
+<line x1="290" y1="450" x2="500" y2="470"/>
+<line x1="290" y1="450" x2="210" y2="470"/>
+<line x1="290" y1="450" x2="370" y2="590"/>
+<line x1="290" y1="450" x2="240" y2="530"/>
+<line x1="290" y1="450" x2="640" y2="420"/>
+<line x1="440" y1="410" x2="360" y2="520"/>
+<line x1="440" y1="410" x2="420" y2="480"/>
+<line x1="440" y1="410" x2="560" y2="350"/>
+<line x1="440" y1="410" x2="590" y2="270"/>
+<line x1="440" y1="410" x2="500" y2="470"/>
+<line x1="440" y1="410" x2="600" y2="520"/>
+<line x1="440" y1="410" x2="540" y2="460"/>
+<line x1="440" y1="410" x2="780" y2="300"/>
+<line x1="360" y1="520" x2="420" y2="480"/>
+<line x1="360" y1="520" x2="250" y2="390"/>
+<line x1="360" y1="520" x2="500" y2="470"/>
+<line x1="200" y1="150" x2="230" y2="240"/>
+<line x1="200" y1="150" x2="270" y2="120"/>
+<line x1="150" y1="230" x2="230" y2="240"/>
+<line x1="150" y1="230" x2="270" y2="120"/>
+<line x1="150" y1="230" x2="140" y2="320"/>
+<line x1="230" y1="240" x2="140" y2="320"/>
+<line x1="560" y1="350" x2="640" y2="420"/>
+<line x1="560" y1="350" x2="780" y2="300"/>
+<line x1="560" y1="350" x2="720" y2="400"/>
+<line x1="590" y1="270" x2="720" y2="400"/>
+<line x1="500" y1="470" x2="720" y2="400"/>
+<line x1="850" y1="380" x2="780" y2="300"/>
+<line x1="850" y1="380" x2="720" y2="400"/>
+<line x1="860" y1="300" x2="780" y2="300"/>
+<line x1="860" y1="300" x2="720" y2="400"/>
+<line x1="830" y1="230" x2="780" y2="300"/>
+<line x1="830" y1="230" x2="720" y2="400"/>
+<line x1="370" y1="590" x2="720" y2="400"/>
+<line x1="790" y1="190" x2="780" y2="300"/>
+<line x1="790" y1="190" x2="720" y2="400"/>
+<line x1="740" y1="200" x2="780" y2="300"/>
+<line x1="740" y1="200" x2="720" y2="400"/>
+<line x1="700" y1="570" x2="650" y2="620"/>
+<line x1="700" y1="570" x2="600" y2="520"/>
+<line x1="700" y1="570" x2="800" y2="430"/>
+<line x1="700" y1="570" x2="780" y2="300"/>
+<line x1="700" y1="570" x2="720" y2="400"/>
+<line x1="590" y1="640" x2="650" y2="620"/>
+<line x1="590" y1="640" x2="600" y2="520"/>
+<line x1="590" y1="640" x2="540" y2="570"/>
+<line x1="650" y1="620" x2="540" y2="570"/>
+<line x1="760" y1="480" x2="800" y2="430"/>
+<line x1="760" y1="480" x2="720" y2="400"/>
+<line x1="600" y1="520" x2="720" y2="400"/>
+<line x1="540" y1="460" x2="540" y2="570"/>
+<line x1="540" y1="460" x2="720" y2="400"/>
+<line x1="800" y1="430" x2="780" y2="300"/>
+<line x1="800" y1="430" x2="720" y2="400"/>
+<line x1="640" y1="420" x2="780" y2="300"/>
+<line x1="640" y1="420" x2="720" y2="400"/>
+<line x1="540" y1="570" x2="780" y2="300"/>
+<line x1="540" y1="570" x2="720" y2="400"/>
+<line x1="780" y1="300" x2="720" y2="400"/>
+</g>
+<g>
+<circle cx="330" cy="330" r="11.6" fill="#d55e00" stroke="#1e1e1e" stroke-width="2"/>
+<circle cx="290" cy="450" r="8.4" fill="#d55e00" stroke="#1e1e1e" stroke-width="2"/>
+<circle cx="440" cy="410" r="8.9" fill="#d55e00" stroke="#1e1e1e" stroke-width="2"/>
+<circle cx="360" cy="520" r="7.1" fill="#d55e00"/>
+<circle cx="200" cy="150" r="5.7" fill="#cc79a7"/>
+<circle cx="150" cy="230" r="6.1" fill="#cc79a7"/>
+<circle cx="230" cy="240" r="6.1" fill="#cc79a7"/>
+<circle cx="420" cy="480" r="6.1" fill="#d55e00"/>
+<circle cx="560" cy="350" r="6.6" fill="#e69f00"/>
+<circle cx="590" cy="270" r="5.3" fill="#e69f00"/>
+<circle cx="270" cy="120" r="5.7" fill="#cc79a7"/>
+<circle cx="250" cy="290" r="4.8" fill="#d55e00"/>
+<circle cx="250" cy="390" r="5.3" fill="#d55e00"/>
+<circle cx="500" cy="470" r="6.6" fill="#d55e00"/>
+<circle cx="850" cy="380" r="5.3" fill="#e69f00"/>
+<circle cx="860" cy="300" r="5.3" fill="#e69f00"/>
+<circle cx="140" cy="320" r="5.3" fill="#cc79a7"/>
+<circle cx="210" cy="470" r="5.3" fill="#d55e00"/>
+<circle cx="830" cy="230" r="5.3" fill="#e69f00"/>
+<circle cx="370" cy="590" r="5.7" fill="#d55e00"/>
+<circle cx="790" cy="190" r="5.3" fill="#e69f00"/>
+<circle cx="240" cy="530" r="5.3" fill="#d55e00"/>
+<circle cx="740" cy="200" r="5.3" fill="#e69f00"/>
+<circle cx="700" cy="570" r="6.6" fill="#009e73"/>
+<circle cx="590" cy="640" r="5.7" fill="#009e73"/>
+<circle cx="650" cy="620" r="5.7" fill="#009e73"/>
+<circle cx="760" cy="480" r="5.3" fill="#e69f00"/>
+<circle cx="600" cy="520" r="6.1" fill="#009e73"/>
+<circle cx="540" cy="460" r="5.7" fill="#009e73"/>
+<circle cx="800" cy="430" r="6.1" fill="#e69f00"/>
+<circle cx="640" cy="420" r="6.1" fill="#e69f00"/>
+<circle cx="540" cy="570" r="7.1" fill="#009e73"/>
+<circle cx="780" cy="300" r="9.8" fill="#e69f00" stroke="#1e1e1e" stroke-width="2"/>
+<circle cx="720" cy="400" r="12.0" fill="#e69f00" stroke="#1e1e1e" stroke-width="2"/>
+</g>
+<g font-family="Inter, Arial, Helvetica, sans-serif" font-size="11" font-weight="450" fill="#000000e5">
+<text x="735" y="390">34</text>
+<text x="344.55" y="320.45">1</text>
+<text x="792.75" y="292.25">33</text>
+<text x="451.85" y="403.15">3</text>
+<text x="301.4" y="443.6">2</text>
+<text x="569.6" y="345.4">9</text>
+</g>
+<circle cx="330" cy="330" r="16.6" fill="none" stroke="#0d99ff" stroke-width="2"/>
+<line x1="330" y1="330" x2="767" y2="486" stroke="#0d99ff" stroke-width="1" stroke-dasharray="4 3"/>
+<circle cx="760" cy="480" r="8.3" fill="none" stroke="#0d99ff" stroke-width="2"/>
+<g stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M758 486h18M767 477v18"/></g>
+<g stroke="#1e1e1e" stroke-width="1.25" stroke-linecap="round"><path d="M758 486h18M767 477v18"/></g>
+</svg>
+
+    <div class="k-legend-card">
+      <div class="k-legend-title">Communities</div>
+      <div class="k-legend-row"><span class="k-swatch" style="--swatch:#e69f00"></span><span>Group 1</span></div>
+      <div class="k-legend-row"><span class="k-swatch" style="--swatch:#d55e00"></span><span>Group 2</span></div>
+      <div class="k-legend-row"><span class="k-swatch" style="--swatch:#009e73"></span><span>Group 3</span></div>
+      <div class="k-legend-row"><span class="k-swatch" style="--swatch:#cc79a7"></span><span>Group 4</span></div>
+      <div class="k-legend-sep"></div>
+      <div class="k-legend-title">Connections</div>
+      <div class="k-legend-row"><svg width="28" height="14" viewBox="0 0 28 14"><circle cx="4" cy="7" r="2.4" fill="#b3b3b3"/><circle cx="12" cy="7" r="4" fill="#b3b3b3"/><circle cx="22" cy="7" r="6" fill="#b3b3b3"/></svg><span class="k-secondary">1 to 17</span></div>
+    </div>
+
+    <div class="k-secbar"><span>Pick the end node</span><button class="k-select"><span>Shortest route</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-btn k-btn-ghost">Cancel</button></div>
+
+    <div class="k-toolbar k-toolbar-float">
+      <button class="k-tool"><svg class="k-icon"><use href="#i-cursor"/></svg></button>
+      <button class="k-tool"><svg class="k-icon"><use href="#i-hand"/></svg></button>
+      <div class="k-toolbar-divider"></div>
+      <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-filter"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+      <button class="k-tool"><svg class="k-icon"><use href="#i-neighbours"/></svg></button>
+      <div class="k-tool-group"><button class="k-tool is-selected"><svg class="k-icon"><use href="#i-path"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+      <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-group"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+      <div class="k-tool-group"><button class="k-tool"><svg class="k-icon"><use href="#i-rank"/></svg></button><button class="k-tool-chevron"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+      <div class="k-toolbar-divider"></div>
+      <button class="k-tool"><svg class="k-icon"><use href="#i-comment"/></svg></button>
+      <div class="k-toolbar-divider"></div>
+      <div class="k-mode"><button class="k-mode-opt is-selected"><svg class="k-icon"><use href="#i-square"/></svg></button><button class="k-mode-opt"><svg class="k-icon"><use href="#i-cube"/></svg></button><button class="k-mode-opt has-text">VR</button><button class="k-mode-opt has-text">AR</button></div>
+    </div>
+  </main>
+
+  <!-- ============================== right panel: the Dataset inspector -->
+            <aside class="k-panel k-panel-right">
+    <div class="k-panel-top"><button class="k-btn k-btn-ghost k-zoom">100%<svg class="k-icon"><use href="#i-chevron-down"/></svg></button><span class="k-spacer"></span><button class="k-btn">Share</button></div>
+    <div class="k-panel-type"><div class="k-title2"><span class="k-heading">Karate Club</span><span class="k-secondary">karate.gml, GML</span></div><button class="k-icon-btn" title="Add data"><svg class="k-icon"><use href="#i-plus"/></svg></button><button class="k-icon-btn"><svg class="k-icon"><use href="#i-more"/></svg></button></div>
+    <div class="k-section">
+      <div class="k-section-header"><span class="k-section-title">Summary</span></div>
+      <div class="k-row-text">34 nodes joined by 78 edges in one connected part</div>
+      <div class="k-row"><span class="k-kv"><span class="k-secondary">Nodes</span>34</span><span class="k-kv"><span class="k-secondary">Edges</span>78</span></div>
+      <div class="k-prop"><span class="k-label">Direction</span><div class="k-ctl k-gap-1"><button class="k-select k-fixed"><span>Undirected</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><span class="k-note">from file</span></div></div>
+      <div class="k-row"><span class="k-kv"><span class="k-secondary">Density</span>0.139</span><span class="k-kv"><span class="k-secondary">Mean links</span>4.6</span></div>
+      <div class="k-row"><span class="k-kv"><span class="k-secondary">Parts</span>1</span><span class="k-kv"><span class="k-secondary">Weighted</span>No</span></div>
+      <div class="k-row-disclose"><span>Import report</span><svg class="k-icon"><use href="#i-chevron-right"/></svg></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header"><span class="k-section-title">Arrangement</span></div>
+      <div class="k-prop"><span class="k-label">Layout</span><div class="k-ctl"><button class="k-select"><span>Spread out</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-icon-btn" title="Layout settings"><svg class="k-icon"><use href="#i-settings"/></svg></button></div></div>
+      <div class="k-prop"><span class="k-label">Dimensions</span><div class="k-ctl"><div class="k-seg k-w-88"><button class="k-seg-opt has-text is-checked">2D</button><button class="k-seg-opt has-text">3D</button></div></div></div>
+      <div class="k-prop"><span class="k-label"></span><div class="k-ctl k-gap-1"><button class="k-icon-btn" title="Pause"><svg class="k-icon"><use href="#i-pause"/></svg></button><button class="k-icon-btn" title="Step"><svg class="k-icon"><use href="#i-step"/></svg></button><button class="k-icon-btn" title="Re-run"><svg class="k-icon"><use href="#i-refresh"/></svg></button><span class="k-note">Settled</span></div></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header"><span class="k-section-title">Showing<span class="k-section-count">34 of 34</span></span></div>
+      <div class="k-prop"><span class="k-label">Show</span><div class="k-ctl"><button class="k-select"><span>Everything</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header"><span class="k-section-title">Canvas</span></div>
+      <div class="k-prop"><span class="k-label">Background</span><div class="k-ctl"><div class="k-paint" style="width:88px"><span class="k-swatch" style="--swatch:#ffffff"></span><span class="k-paint-hex" style="width:auto">FFFFFF</span></div></div></div>
+      <div class="k-prop"><span class="k-label">Labels</span><div class="k-ctl"><button class="k-select"><span>Top 6 by Connections</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div></div>
+      <div class="k-prop"><span class="k-label">Legend</span><div class="k-ctl"><span class="k-switch is-on"></span></div></div>
+      <div class="k-prop"><span class="k-label">Minimap</span><div class="k-ctl"><span class="k-switch"></span></div></div>
+      <div class="k-prop"><span class="k-label">Notes</span><div class="k-ctl"><span class="k-switch"></span></div></div>
+      <div class="k-row-flex"><span class="k-secondary">Default look</span></div>
+      <div class="k-prop"><span class="k-label">Node</span><div class="k-ctl"><div class="k-paint k-paint-mini"><span class="k-swatch" style="--swatch:#b3b3b3"></span><span class="k-paint-hex">B3B3B3</span><span class="k-paint-divider"></span><span class="k-paint-opacity">1.0</span></div><span class="k-lock-12"><svg><use href="#i-lock"/></svg></span></div></div>
+      <div class="k-prop"><span class="k-label">Edge</span><div class="k-ctl"><div class="k-paint k-paint-mini"><span class="k-swatch" style="--swatch:#b3b3b3"></span><span class="k-paint-hex">B3B3B3</span><span class="k-paint-divider"></span><span class="k-paint-opacity">1.0</span></div><span class="k-lock-12"><svg><use href="#i-lock"/></svg></span></div></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header is-collapsible"><span class="k-section-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-section-title">Attributes<span class="k-section-count">1</span></span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header is-collapsible"><span class="k-section-caret"><svg class="k-icon-16"><use href="#i-caret"/></svg></span><span class="k-section-title">Made by</span></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header"><span class="k-section-title">Export</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div>
+      <div class="k-prop"><span class="k-label">Image</span><div class="k-ctl k-gap-1"><button class="k-select" style="width:64px;flex:none"><span>PNG</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-btn k-btn-secondary k-btn-export">Export</button><button class="k-icon-btn" title="Image options: scale, transparent background, legend in picture"><svg class="k-icon"><use href="#i-settings"/></svg></button></div></div>
+      <div class="k-prop"><span class="k-label">Data</span><div class="k-ctl k-gap-1"><button class="k-select" style="width:88px;flex:none"><span>GraphML</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button><button class="k-btn k-btn-secondary k-btn-export">Export</button></div></div>
+    </div>
+    <div class="k-section">
+      <div class="k-section-header is-empty"><span class="k-section-title">Notes</span><span class="k-section-actions"><button class="k-icon-btn"><svg class="k-icon"><use href="#i-plus"/></svg></button></span></div>
+    </div>
+  </aside>
+
+  <!-- ============================== status bar -->
+  <footer class="k-statusbar"><span>34 nodes&nbsp; 78 edges</span><span class="k-divider-v" style="height:12px"></span><span class="k-chip"><svg class="k-icon-16"><use href="#i-pause"/></svg>Spread out: settled</span><span class="k-statusbar-spacer"></span><span>Path: pick the end node</span><span class="k-divider-v" style="height:12px"></span><span>100%</span></footer>
+</div>
+<div class="k-scroll-thumb" style="top:52px;height:576px"></div>
+</div>
+
+<div class="caption"><b>Screen 5</b><span>The Path tool mid-flow. Node 1 is picked (blue ring); a dashed rubber-band line follows the pointer, now over node 27 (hover outline, crosshair). The dark bar above the toolbar asks for the end node; no dialog is open and the tree has not changed. Right: the Dataset inspector, since nothing is selected.</span></div>
+<script>
+  // Tree rule (as screen 3): when a row is too narrow for its name and its count, the count yields.
+  document.fonts.ready.then(function () {
+    document.querySelectorAll(".k-tree-row").forEach(function (r) {
+      var n = r.querySelector(".k-tree-name"), m = r.querySelector(".k-tree-meta");
+      if (n && m && n.scrollWidth > n.clientWidth) m.style.display = "none";
+    });
+  });
+</script>
+</body>
+</html>

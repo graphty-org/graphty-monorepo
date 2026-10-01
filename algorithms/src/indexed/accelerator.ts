@@ -313,6 +313,11 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * planted structure. Use it where a result should not depend on whether a device answered; use
  * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
  *
+ * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override, which the
+ * accelerator does not take: it spans the snapshot's own edge weights. Both paths return the forest of the total edge
+ * order (weight, then edge index), so the edge SET is the same; the order of `edges` and the summation order of
+ * `totalWeight` may differ (webgpu-graph-algorithms' Boruvka lists the edges round by round).
+ *
  * `triangleCount` goes to the accelerator whenever it has the member, and the result always carries the
  * clustering coefficient and the transitivity: an accelerator that returns only the seam's
  * `{ perNode, total }` gets them computed here from the counts and the distinct degrees.
@@ -766,8 +771,8 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.weaklyConnectedComponents(s)
                 : Promise.resolve(indexed.weaklyConnectedComponents(s)),
         minimumSpanningTree: (s, options) =>
-            acc?.minimumSpanningTree !== undefined
-                ? acc.minimumSpanningTree(s, options)
+            acc?.minimumSpanningTree !== undefined && options?.weights === undefined
+                ? acc.minimumSpanningTree(s)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
         kCoreDecomposition: (s) =>
             acc?.kCoreDecomposition !== undefined

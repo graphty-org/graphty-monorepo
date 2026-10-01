@@ -1338,7 +1338,7 @@ class Runs implements SessionRunsApi {
 
         for (const suggestion of suggestions) {
             try {
-                styles.execute(suggestionCommand(suggestion), draft);
+                styles.execute(suggestionCommand(suggestion, true), draft);
             } catch (error) {
                 this.options.styling?.refused(runId, error);
             }
@@ -1688,7 +1688,7 @@ class Runs implements SessionRunsApi {
 
                 for (const suggestion of hold?.release() ?? []) {
                     const runId = typeof suggestion.spec.run === "string" ? suggestion.spec.run : label;
-                    await via(suggestionCommand(suggestion)).catch((error: unknown) => {
+                    await via(suggestionCommand(suggestion, true)).catch((error: unknown) => {
                         this.options.styling?.refused(runId, error);
                     });
                 }

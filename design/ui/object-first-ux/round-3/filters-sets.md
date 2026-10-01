@@ -6,7 +6,7 @@ object-first design (`design/ui/object-first-ux/round-2/revision.md`) named but 
 a reader of the mocks could not see how to do it. For each one this document gives the design,
 the graphty-element API it needs, and the mock that now draws it. The mocks are
 `design/ui/object-first-ux/mocks/v2/screen-59.png` to `screen-68.png`, generated from
-`tmp/object-first/gen/screens/screen-59.mjs` to `screen-68.mjs`.
+`design/ui/object-first-ux/gen/screens/screen-59.mjs` to `screen-68.mjs`.
 
 ## Terms used here
 
@@ -449,6 +449,6 @@ For `design/ui/object-first-ux/round-3/gaps.md`, cluster 6, and the matching row
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `tmp/object-first/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
 The after-Create states of screens 59, 62, 65 and 67, a Group's Profile (66) and the node About tab's "Member of" x (68) are insets; the histogram band (60), the pattern diagram (63), the rule lines with a Not toggle and the code field with its error and completion (61), and the bars of 62, 64 and 67 (edge units, a removable centre chip, a typed name field) are drawn with their own parts. The armed Pattern popover is still not drawn: screen 63 draws the result, whose Define tab holds the same editor.

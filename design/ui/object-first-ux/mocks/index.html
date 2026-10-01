@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Object-first graphty mocks</title>
+<style>
+  :root { color-scheme: light dark; --ink: #000; --ink-2: #00000080; --line: #e6e6e6; --bg: #fff; --card: #f5f5f5; --link: #007be5; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #fff; --ink-2: #ffffffb2; --line: #444; --bg: #2c2c2c; --card: #383838; --link: #7cc4f8; } }
+  html { background: var(--bg); color: var(--ink); font: 450 14px/22px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { margin: 0; padding: 32px 24px 64px; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 22px; line-height: 30px; font-weight: 600; margin: 0 0 8px; }
+  h2 { font-size: 16px; line-height: 24px; font-weight: 600; margin: 40px 0 8px; }
+  p { margin: 0 0 8px; }
+  .lede { color: var(--ink-2); max-width: 760px; margin-bottom: 24px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .screen { display: grid; grid-template-columns: minmax(0, 720px) minmax(240px, 1fr); gap: 24px; padding: 24px 0; border-top: 1px solid var(--line); align-items: start; }
+  .screen img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 5px; background: var(--card); }
+  .screen h3 { font-size: 15px; line-height: 22px; font-weight: 600; margin: 0 0 6px; }
+  .screen .state { color: var(--ink-2); font-size: 13px; line-height: 20px; margin-bottom: 8px; }
+  .screen .links { font-size: 13px; line-height: 20px; margin-top: 8px; }
+  .screen .links a + a { margin-left: 12px; }
+  .kit { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-top: 16px; }
+  .kit img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 5px; }
+  @media (max-width: 900px) { .screen, .kit { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Object-first graphty: the mocks</h1>
+<p class="lede"><strong>The current mocks are round 2: <a href="v2/index.html">open the round-2 gallery</a></strong> (fifteen screens generated from one spec each: the frame with no rail, the tabbed inspector, the labelled toolbar with its secondary bar, two Paths as edge styles, the timeline, the Import and reload dialogs, the toolbar reference sheet). The eight screens below are round 1, kept for history; their spec is <code>screens.md</code> and the round-2 spec is <code>../round-2/screens.md</code>.</p>
+
+<h2>Round 1 (history)</h2>
+<p class="lede">Eight stills of a graphty app whose left panel is a tree of the objects a reader makes from the data (sets, groups, measures, groupings), whose toolbar holds the tools that make them, and whose right panel is the inspector of the selected object. Every screen is a static HTML file at a 1440 x 900 frame plus a 60 px caption, built from <a href="kit.html">kit.html</a> and <a href="kit.css">kit.css</a>, with the Figma study's measurements. Values are plausible, not computed. The spec of each screen is <code>screens.md</code>; the model they draw is <code>../object-model.md</code>.</p>
+
+<div class="screen">
+  <a href="screen-1.html"><img src="screen-1.png" alt="Screen 1: nothing loaded"></a>
+  <div>
+    <h3>1. First run, nothing loaded</h3>
+    <p class="state">No dataset. The Welcome sheet with a drop zone, one filled button and three samples; two quiet panels; the toolbar with every tool but Select and Hand disabled.</p>
+    <p>Shows: the empty state. Panels do not pre-announce sections, and the one action is the one filled button.</p>
+    <p class="links"><a href="screen-1.html">Open the HTML</a><a href="screen-1.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-2.html"><img src="screen-2.png" alt="Screen 2: loaded, nothing selected"></a>
+  <div>
+    <h3>2. Loaded, nothing selected</h3>
+    <p class="state">Karate Club just opened. One tree row and three suggestion rows; the Dataset inspector (Summary, Arrangement, Showing, Canvas, Attributes, Export); every node the default grey.</p>
+    <p>Shows: the resting identity of both panels. The app switched no panel and computed nothing unasked; guidance is three rows that vanish after the first object.</p>
+    <p class="links"><a href="screen-2.html">Open the HTML</a><a href="screen-2.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-3.html"><img src="screen-3.png" alt="Screen 3: a Group selected"></a>
+  <div>
+    <h3>3. A Group selected, its inspector with Fill</h3>
+    <p class="state">After two runs and a filter: a Set (Degree &gt; 8), a Measure (Connections) and a Grouping (Communities) with four Groups nested under it. Group 2 is selected: its eleven members carry the gold halo, and its Fill shows the orange override above the inherited blue.</p>
+    <p>Shows: the three-click recolour, nesting, the size-instead-of-colour default when colour is taken, and the halo that follows an object selection.</p>
+    <p class="links"><a href="screen-3.html">Open the HTML</a><a href="screen-3.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-4.html"><img src="screen-4.png" alt="Screen 4: a node selected"></a>
+  <div>
+    <h3>4. A node selected</h3>
+    <p class="state">College football. The node FloridaState is clicked: the inspector is a report (attributes, values from every Measure and Grouping, member of, neighbours, look) plus one door to painting it through a one-node Set. Every tree row containing the node is tinted.</p>
+    <p>Shows: a node is material, not an object. Look says which object won each channel; Top 10 by Bridges sits directly above the Measure it was cut from.</p>
+    <p class="links"><a href="screen-4.html">Open the HTML</a><a href="screen-4.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-5.html"><img src="screen-5.png" alt="Screen 5: the Path tool mid-flow"></a>
+  <div>
+    <h3>5. The Path tool, mid-flow</h3>
+    <p class="state">Node 1 is picked (blue ring); a dashed line follows the pointer; the bar above the toolbar says "Pick the end node"; no dialog; the tree has not changed yet.</p>
+    <p>Shows: a tool that behaves like a drawing tool. Options come after creation; a pick is asked for on the canvas, never in a dialog.</p>
+    <p class="links"><a href="screen-5.html">Open the HTML</a><a href="screen-5.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-6.html"><img src="screen-6.png" alt="Screen 6: a Measure selected"></a>
+  <div>
+    <h3>6. A Measure (PageRank) selected</h3>
+    <p class="state">Influence (PageRank) colours every node on a ramp and sizes it by the same value. The inspector shows the parameters, the values (histogram, top 10) and the encoding (channel, scale, palette, domain, a second channel). The Grouping beneath is covered and its chip dims.</p>
+    <p>Shows: the other family. A Measure's Fill is a scale, not a colour, and precedence is made visible.</p>
+    <p class="links"><a href="screen-6.html">Open the HTML</a><a href="screen-6.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-7.html"><img src="screen-7.png" alt="Screen 7: the table dock and a rule being built"></a>
+  <div>
+    <h3>7. The data table dock, a rule being built</h3>
+    <p class="state">The table dock is open with one column per attribute and per object in tree order. The Filter tool's popover holds "value = 7" with a live count; the matches preview as dashed rings on the canvas and tinted rows in the table; Select and Create are both secondary buttons.</p>
+    <p>Shows: rule-based selection as a form with a live preview in three places, and the table as the material at full resolution.</p>
+    <p class="links"><a href="screen-7.html">Open the HTML</a><a href="screen-7.png">PNG</a></p>
+  </div>
+</div>
+
+<div class="screen">
+  <a href="screen-8.html"><img src="screen-8.png" alt="Screen 8: screen 3 in the dark theme"></a>
+  <div>
+    <h3>8. Screen 3 in the dark theme</h3>
+    <p class="state">The same file as screen 3 with the dark theme on and the canvas greys the theme implies. It is generated from screen 3 so that nothing but the tokens can differ.</p>
+    <p>Shows: the visual language holds in dark: one accent, dark menus that were already dark, data colours unchanged.</p>
+    <p class="links"><a href="screen-8.html">Open the HTML</a><a href="screen-8.png">PNG</a></p>
+  </div>
+</div>
+
+<h2>The kit</h2>
+<p class="lede">The reference sheet of every part the mocks are built from: tokens, type roles, rows, controls, menus, the toolbar, the tree row, the inspector sections. Open <a href="kit.html">kit.html</a> (add <code>?theme=dark</code> for the dark theme). The two stills are the whole sheet.</p>
+<div class="kit">
+  <a href="kit-light.png"><img src="kit-light.png" alt="The kit in the light theme"></a>
+  <a href="kit-dark.png"><img src="kit-dark.png" alt="The kit in the dark theme"></a>
+</div>
+
+</body>
+</html>

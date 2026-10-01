@@ -724,7 +724,7 @@ relies on. They are drawn once on the kit sheet, light and dark:
 Round 3 draws the key functions round 2 left undrawn. Screens 1, 13 and 14 are redrawn (four
 ways in and a Recent list; Settings; the Import dialog's tabs, Options, Node id and Label). The
 design is `../round-3/revision-round-3.md`; each screen's exact state is in its area document
-under `../round-3/` and in its spec, `tmp/object-first/gen/screens/screen-N.mjs`. A dark tag
+under `../round-3/` and in its spec, `design/ui/object-first-ux/gen/screens/screen-N.mjs`. A dark tag
 above a card or a menu marks a second moment drawn on the same screen.
 
 | Screens | Area | Document |

@@ -499,11 +499,11 @@ void main() {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-         
+
         _cache: MeshCache,
     ): Mesh {
         // Use custom line renderer if flag is enabled
-         
+
         if (this.USE_CUSTOM_RENDERER) {
             const points = [
                 new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
@@ -566,6 +566,10 @@ void main() {
             {
                 width: options.width,
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
+                // Babylon otherwise binds one colours texture shared by every engine on the page
+                // and disposed with whichever engine goes first. WebGL tolerates the stale
+                // binding; WebGPU refuses the draw ("Trying to bind a null gpu texture").
+                colorsTexture: this.emptyColorsTexture(scene),
             },
             scene,
         );
@@ -580,6 +584,28 @@ void main() {
         return mesh as Mesh;
     }
 
+    /**
+     * An empty colours texture for one animated line, disposed with it. Not shared: the line's
+     * mesh disposes its material's textures when it goes, so a shared one would be disposed under
+     * every other line still using it.
+     * @param scene - The scene the line is drawn in.
+     * @returns The texture.
+     */
+    private static emptyColorsTexture(scene: Scene): RawTexture {
+        const texture = new RawTexture(
+            new Uint8Array(4),
+            1,
+            1,
+            Engine.TEXTUREFORMAT_RGBA,
+            scene,
+            false,
+            false,
+            Engine.TEXTURE_NEAREST_NEAREST,
+        );
+        texture.name = "edge-moving-empty-colors";
+        return texture;
+    }
+
     private static createAnimatedTexture(baseColor: Color3, movingColor: Color3, scene: Scene): RawTexture {
         const r1 = Math.floor(baseColor.r * 255);
         const g1 = Math.floor(baseColor.g * 255);
@@ -588,13 +614,14 @@ void main() {
         const g2 = Math.floor(movingColor.g * 255);
         const b2 = Math.floor(movingColor.b * 255);
 
-        const textureData = new Uint8Array([r1, g1, b1, r2, g2, b2]);
+        // RGBA, not RGB: WebGPU has no three-channel texture format, and Babylon refuses one there.
+        const textureData = new Uint8Array([r1, g1, b1, 255, r2, g2, b2, 255]);
 
         const texture = new RawTexture(
             textureData,
-            textureData.length / 3,
+            textureData.length / 4,
             1,
-            Engine.TEXTUREFORMAT_RGB,
+            Engine.TEXTUREFORMAT_RGBA,
             scene,
             false,
             true,
@@ -611,7 +638,7 @@ void main() {
         mesh: GreasedLineBaseMesh,
         texture: RawTexture,
         scene: Scene,
-         
+
         _animationSpeed?: number,
     ): void {
         const material = mesh.material as StandardMaterial;

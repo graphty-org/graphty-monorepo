@@ -25,6 +25,7 @@ await session.styles.add({
     selector: { match: "has", path: "graphty.notes.count" },
     encode: { "node.label": { by: "graphty.notes.latest" } },
 });
+// Or label it with how many notes name it: { by: "graphty.notes.count" }
 
 // Save the notes as JSON, and open them again later
 const saved = JSON.stringify(session.notes.toDocument());
@@ -200,8 +201,9 @@ await session.config.set({ author: "Ada" }); // notes written from now on say "A
 await session.config.set({ author: null }); // and from now on, no name
 ```
 
-The author is a project setting like the others: saved with the project, and one undoable step to
-change. Empty or white space means no name; at most 256 characters. It is a claim, never a
+The author is a project setting like the others: one undoable step to change. Neither
+`notes.toDocument()` nor `styles.toDocument()` carries it; the project file
+([#301](https://github.com/graphty-org/graphty-monorepo/issues/301)) will save it once it lands. Empty or white space means no name; at most 256 characters. It is a claim, never a
 verified identity, and the element never makes one up.
 
 ## What a note points at now
@@ -315,8 +317,14 @@ const report = session.notes.mergeDocument(JSON.parse(localStorage.getItem("note
 console.log(`${report.added.length} added, ${report.missing} about things not in this graph`);
 ```
 
-Save style layers beside them with `session.styles.toDocument()` and put them back with
-`session.styles.applyTemplate(...)`. The data stays wherever it came from.
+To keep notes in a file, write `toDocument()`'s JSON to a file named `*.graphty.json`: a bare notes
+document is a valid `.graphty.json` file. The element has no call yet that saves or opens a whole
+project file; until the project file
+([#301](https://github.com/graphty-org/graphty-monorepo/issues/301)) lands, save style layers in a
+separate file with `session.styles.toDocument()` and put them back with
+`session.styles.applyTemplate(document)`, typing the parsed JSON with
+`import type { StyleDocument } from "@graphty/graphty-element/schema"`. The data stays wherever it
+came from.
 
 **Opening always merges; it never deletes a note.** On a fresh session it restores the notes
 exactly, with their ids and times, and merging the same document twice changes nothing. When a
@@ -355,7 +363,8 @@ With `{ notes: true }`, noted nodes and edges gain two columns: `graphty.notes.c
 line and cut to 64 KB per cell (`W_GRAPHTY_TRUNCATED`). Notes about sets, items, results or the
 graph, and every field but the text, go nowhere: save the notes document beside the export to keep
 them. Read back, the two columns are ordinary data (`data.graphty.notes.count`); they do not become
-notes.
+notes. A later export leaves any loaded column under the reserved `graphty.` root out, and reports
+each one as a `W_GRAPHTY_COLUMN_DROPPED` loss note.
 
 ## Limits
 

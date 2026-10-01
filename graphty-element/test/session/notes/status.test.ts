@@ -45,8 +45,11 @@ describe("notes.status", () => {
 
     it("reads an edge by position, and missing once a load gives its pair a different number of edges", async () => {
         const session = createGraphSession();
-        const load = async (parallel: number): Promise<void> => {
-            const edges = [{ src: "a", dst: "b" }, ...Array.from({ length: parallel }, () => ({ src: "c", dst: 11 }))];
+        const load = async (parallel: number, weight = 1): Promise<void> => {
+            const edges = [
+                { src: "a", dst: "b" },
+                ...Array.from({ length: parallel }, (_, n) => ({ src: "c", dst: 11, weight: weight + n })),
+            ];
             const data = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: 11 }], edges });
             await session.execute({ op: "data.import", source: { type: "json", config: { data } }, mode: "replace" });
         };
@@ -70,6 +73,14 @@ describe("notes.status", () => {
             session.notes.status(id).targets.map((target) => target.state),
             ["present", "missing"],
             "no edge guessed",
+        );
+
+        // Two edges again, but not the two the note was written about: a position names whatever
+        // edge now holds it (conformance note-18, the known limit of saving by position).
+        await load(2, 10);
+        assert.deepEqual(
+            session.notes.status(id).targets.map((target) => target.state),
+            ["present", "present"],
         );
         session.dispose();
     });

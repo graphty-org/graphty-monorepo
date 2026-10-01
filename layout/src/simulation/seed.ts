@@ -7,7 +7,7 @@
  * RandomNumberGenerator (src/utils/random.ts) bit for bit; test/simulation/seed.test.ts is the W1 cross-test.
  */
 
-import type { F32, GraphSnapshot } from "@graphty/graph-format";
+import type { F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
 /** The CPU port's LCG constants (layout/src/utils/random.ts): m = 2^35 - 31, a = 185852, c = 1. */
 export const LCG_M = 34359738337;
@@ -80,7 +80,8 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
  * rows' box (pinned by webgpu-graph-algorithms/test/layouts/seed.test.ts). PLAN DECISION 13: a 2D row whose x and y
  * are finite is seeded whatever its z holds.
  * @param s - the snapshot (nodeCount rows)
- * @param positions - the owner's stride-3 scene-unit array, length 3 * nodeCount, modified in place
+ * @param positions - the owner's stride-3 scene-unit array, length 3 * nodeCount, modified in place; an F64 array
+ *     keeps the drawn values in float64, as the legacy layouts did
  * @param seed - the LCG seed (0 / null = unseeded, the port's quirk)
  * @param dim - 2 or 3
  * @param scale - the scene scale (> 0)
@@ -89,7 +90,7 @@ function resolveCenter(center: ArrayLike<number> | null): [number, number, numbe
  */
 export function seedPositions(
     s: GraphSnapshot,
-    positions: F32,
+    positions: F32 | F64,
     seed: number | null,
     dim: 2 | 3,
     scale: number,

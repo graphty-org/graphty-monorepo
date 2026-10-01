@@ -1,8 +1,8 @@
-import { GraphBuilder, type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
+import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, renumberPartition } from "@graphty/graph-format";
 import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
-import { labelPropagation } from "../../../src/indexed/label-propagation.js";
+import { labelPropagation, labelPropagationSemiSupervised } from "../../../src/indexed/label-propagation.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
@@ -406,6 +406,33 @@ describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", ()
             expect(r.iterations).toBeLessThanOrEqual(5);
             expect(dominanceHolds(s, r.labels)).toBe(true);
         }
+        s.validate({ checksum: true });
+    });
+
+    it("draws a tie between a node's own label and one other label with equal odds (issue #562)", () => {
+        // a - b - d with a held at its label. If d is visited first it takes b's label, and b then
+        // draws between a's label and its own; if b goes first it draws between a's label and d's,
+        // and d follows b. A uniform draw leaves b outside a's community half the time either way.
+        // Listing the current label twice, as 2.x did, gives 7/12; keeping it on a tie gives 3/4.
+        const b = new GraphBuilder({ directed: false });
+        b.addEdge("a", "b");
+        b.addEdge("b", "d");
+        const s = b.freeze({ checksum: true });
+        const a = s.ids.requireIndex("a");
+        const mid = s.ids.requireIndex("b");
+        const seeds = new Uint32Array(s.nodeCount).fill(INVALID_INDEX);
+        seeds[a] = 0;
+        const runs = 4000;
+        let kept = 0;
+        for (let randomSeed = 1; randomSeed <= runs; randomSeed++) {
+            const r = labelPropagationSemiSupervised(s, seeds, { randomSeed });
+            expect(r.converged).toBe(true);
+            if (r.labels[mid] !== r.labels[a]) {
+                kept++;
+            }
+        }
+        // Five standard deviations of a fair coin over 4,000 runs is 0.04.
+        expect(Math.abs(kept / runs - 0.5)).toBeLessThan(0.04);
         s.validate({ checksum: true });
     });
 

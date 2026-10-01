@@ -7,8 +7,8 @@ import {
     type NumericVector,
 } from "@graphty/graph-format";
 
+import { mulberry32 } from "../utils/math-utilities.js";
 import { crossingEdges, edgeCapacities, type MinCutResult } from "./flow.js";
-import { mulberry32 } from "./label-propagation.js";
 import { IndexedMaxHeap } from "./structures/max-heap.js";
 import { IntUnionFind } from "./structures/union-find.js";
 

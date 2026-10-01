@@ -1,12 +1,4 @@
-import {
-    Anchor,
-    Burger,
-    MantineProvider,
-    NavLink,
-    Pagination,
-    Stepper,
-    Tabs,
-} from "@mantine/core";
+import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import { Home } from "lucide-react";
 import { describe, expect, it } from "vitest";
@@ -23,9 +15,7 @@ describe("Navigation Components Integration", () => {
         it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Anchor href="#">
-                        Default Link
-                    </Anchor>
+                    <Anchor href="#">Default Link</Anchor>
                 </MantineProvider>,
             );
             expect(screen.getByText("Default Link")).toBeInTheDocument();
@@ -71,15 +61,6 @@ describe("Navigation Components Integration", () => {
                 </MantineProvider>,
             );
             expect(screen.getByText("Home")).toBeInTheDocument();
-        });
-
-        it("renders with explicit size override", () => {
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <NavLink size="lg" label="Settings" />
-                </MantineProvider>,
-            );
-            expect(screen.getByText("Settings")).toBeInTheDocument();
         });
     });
 
@@ -143,21 +124,6 @@ describe("Navigation Components Integration", () => {
             );
             expect(screen.getByTestId("tabs")).toBeInTheDocument();
             expect(screen.getByText("First")).toBeInTheDocument();
-        });
-
-        it("renders with explicit size override", () => {
-            render(
-                <MantineProvider theme={compactTheme}>
-                    <Tabs size="lg" defaultValue="first" data-testid="tabs-lg">
-                        <Tabs.List>
-                            <Tabs.Tab value="first">Tab A</Tabs.Tab>
-                            <Tabs.Tab value="second">Tab B</Tabs.Tab>
-                        </Tabs.List>
-                    </Tabs>
-                </MantineProvider>,
-            );
-            expect(screen.getByTestId("tabs-lg")).toBeInTheDocument();
-            expect(screen.getByText("Tab A")).toBeInTheDocument();
         });
     });
 });

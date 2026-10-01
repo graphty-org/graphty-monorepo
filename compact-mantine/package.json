@@ -69,7 +69,7 @@
         "coverage": "vitest run --coverage",
         "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} --host ${HOST:-localhost} ${HTTPS_CERT_PATH:+--https --ssl-cert $HTTPS_CERT_PATH --ssl-key $HTTPS_KEY_PATH} --no-open",
         "build-storybook": "storybook build",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint": "eslint && tsc -p tsconfig.check.json",
         "lint:fix": "eslint --fix",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace compact-mantine"
     },

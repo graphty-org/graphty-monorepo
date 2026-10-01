@@ -1,6 +1,6 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, renumberPartition, type U32 } from "@graphty/graph-format";
 
-import { SeededRandom } from "../utils/math-utilities.js";
+import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based GRSBM, matching the legacy `grsbm`. @public */
@@ -112,7 +112,7 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
     if (n === 0) {
         throw new Error("Cannot cluster empty graph");
     }
-    const random = SeededRandom.createGenerator(seed);
+    const random = mulberry32(seed);
     const arcWeights = weighted ? s.weights : null;
     if (arcWeights !== null) {
         for (let a = 0; a < arcWeights.length; a++) {

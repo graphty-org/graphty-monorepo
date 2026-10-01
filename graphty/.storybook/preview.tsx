@@ -23,6 +23,12 @@ eruda.position({ x: window.innerWidth - 60, y: 20 });
  * Supports both Storybook's built-in backgrounds addon and custom theme global.
  */
 function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
+    // The light and dark modes the visual capture renders (parameters.chromatic.modes below) set
+    // this global. Without reading it every story fell through to the default, dark, in both modes.
+    if (globals.colorScheme === "light" || globals.colorScheme === "dark") {
+        return globals.colorScheme;
+    }
+
     // Check Storybook's built-in backgrounds addon
     const backgroundValue = globals.backgrounds as { value?: string } | undefined;
     if (

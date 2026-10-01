@@ -131,7 +131,8 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
         const theta = np.linspace(0, 2 * Math.PI, n + 1);
         return Array.from({ length: n }, (_, i) => [Math.cos(theta[i]), Math.sin(theta[i])]);
     }
-    const column = new Float32Array(3 * n).fill(Number.NaN);
+    // float64, as kamadaKawaiLayout drew it: a float32 start settles in a different local minimum
+    const column = new Float64Array(3 * n).fill(Number.NaN);
     seedPositions(s, column, options.seed === undefined ? START_SEED : options.seed, 3, 1, null, "fr");
     return Array.from({ length: n }, (_, i) => Array.from(column.subarray(3 * i, 3 * i + 3)));
 }
@@ -147,16 +148,16 @@ export function kamadaKawai(g: GraphSnapshot, options: KamadaKawaiOptions = {}):
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;
-    const positions = new Float32Array(dim * n);
-    if (n === 1) {
-        positions.set(Array.from({ length: dim }, (_, k) => options.center?.[k] ?? 0));
-    }
     if (n <= 1) {
+        const positions = new Float32Array(dim * n);
+        if (n === 1) {
+            positions.set(Array.from({ length: dim }, (_, k) => options.center?.[k] ?? 0));
+        }
         return { positions, dim, n };
     }
     const solved = _kamadaKawaiSolve(idealDistances(s, options), startPositions(s, options, dim), dim);
-    solved.forEach((row, i) => {
-        positions.set(row, dim * i);
-    });
-    return { positions: rescaleInPlace(positions, dim, options.scale ?? 1, options.center), dim, n };
+    // rescaled in float64 and rounded once, as the legacy layout did
+    const positions = Float64Array.from(solved.flat());
+    rescaleInPlace(positions, dim, options.scale ?? 1, options.center);
+    return { positions: Float32Array.from(positions), dim, n };
 }

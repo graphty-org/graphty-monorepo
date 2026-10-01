@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "unproven": true,
+  "pr": 641,
+  "subject": {
+    "builtMerge": "173ca4df840f2dace77975606058603ff9e2cf38",
+    "head": "5baa8e975287f9c88450f4d2174106c955b22f3a",
+    "runId": 36838176794,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "173ca4df840f2dace77975606058603ff9e2cf38"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/ai-control--default.png",
+      "from": "25883f622ce8cafa3f406b01d2fba572821542086fa13399b4a654a57e4e7341",
+      "to": "5f0c85a27c5b4c4a136837e620ed00556dff17c658b786b6d92038dd15870261",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/extending-simple-tier-algorithm--confidence-degree.png",
+      "from": "eca51a0241963cf4eec47d4b66e5fc9d7f41743c34afeedc2d7aa3344f112fb1",
+      "to": "4ef30f38b2d1531db2691b91dd21c569b037504988de68b673665b9cf1486492",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/extending-simple-tier-layout--rows-by-tier.png",
+      "from": "bc04877c5593f69eb6410e665bb62446fdb6c66bb3dc154549085817f1f36b7a",
+      "to": "3a9ca9a85410e66c233e821535322ede18db2ff77628f2fd855dfaa37aff343d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/extending-simple-tier-logging--layout-log-panel.png",
+      "from": "f0fdbf3cc66902a301512f28c67f79e30f08c3034d9e47590228ea5e1e80dc9f",
+      "to": "95603c87a570c7472e72bf541e7190c29682037afd8520c7a6facbca54f2d355",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-gpu--force-atlas-2-fake.png",
+      "from": "13f78d40e6eb1ff0563d298e723d7762df18514e7719bd7b3a9d3955408fcd14",
+      "to": "9d3bad91e44939abf80ed13669e1d5f7c577394488e2bdc3cc7f1206eecccb86",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-gpu--spring-fake.png",
+      "from": "eab1b36258e71b972806b08448f926d304b4afe5ddc1b98fee59efaf64426336",
+      "to": "85055a345350c097cf233235cfc22ab41b89033ae83e5bc65b0cd09675c0d7be",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--array-value.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--boolean-value.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--default.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--extra-small-size.light.png",
+      "from": null,
+      "to": "a8ae1eba8f40417bc722220a8f620063add637fd63e3df660d678d8acd0d452e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--large-size.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--number-value.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--object-value.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-copybutton--with-path.light.png",
+      "from": null,
+      "to": "5b230dd5c588523f5deedba3dc5ff0d6a1dea333c10f0285359687c98d922030",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--complex-node-data.light.png",
+      "from": null,
+      "to": "0ba14f2914a440d69fdb13a1fd998128bad7f1edf7ad656675b03064ba5d0099",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--custom-title.light.png",
+      "from": null,
+      "to": "069f78ea3613a6f85970cfce2e9706de00a09db8595a5906e633cc59a0cb5e83",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--narrow-width.light.png",
+      "from": null,
+      "to": "7298f43135f7a676ac96020d675993cbd15fd49f6319de35ff5002962419f63f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--no-selection.light.png",
+      "from": null,
+      "to": "5bcf34fa14b9d06f85d40c041ade8ccd7b018d5c6312fa87cbfa642831cc6520",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-dataview-dataaccordion--with-node-data.light.png",
+      "from": null,
+      "to": "fe57f106a5bf7a3fcc5536df8318d31a969a3d06cac6157449d8cb1c008d6e15",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--default.dark.png",
+      "from": null,
+      "to": "480d631b064a6769136abae22f32aa484e7914a8a881d6bda7a5f9546c4ce2e5",
+      "reason": "the graph in this snapshot should be larger so that any visual changes can be readily identified"
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--default.light.png",
+      "from": null,
+      "to": "d7068879a3d14c71790987afc87b5beec066ee3d7c0480cdc28f1a3936b84ec0",
+      "reason": "the graph in this snapshot should be larger so that any visual changes can be readily identified"
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--large.dark.png",
+      "from": null,
+      "to": "229fcbf444bafddfcc8861d66f38eefef0fc8736ed92fa607ad212e108db4086",
+      "reason": "the graph in this snapshot should be larger so that any visual changes can be readily identified"
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--large.light.png",
+      "from": null,
+      "to": "3fe1873ae380e41712b5fad43ca25f2e3bdadae37c2d0aad9edf4e0081c5bbb0",
+      "reason": "the graph in this snapshot should be larger so that any visual changes can be readily identified"
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--small.dark.png",
+      "from": null,
+      "to": "f8ae5b22dd9cb4db37b90b864d52efc5f0d623a7c1026b3c8fa5da3a22c902a1",
+      "reason": "the graph in this snapshot should be larger so that any visual changes can be readily identified"
+    },
+    {
+      "path": "visual-baselines/graphty/components-graphty--small.light.png",
+      "from": null,
+      "to": "dc075e2bbe03bf87ab3d043327576277809744de33c0a45a29cb74d6b204b58e",
+      "reason": "the graph in this snapshot should be larger so that any visual changes can be readily identified"
+    }
+  ],
+  "reviewedAt": "2026-10-01T12:05:01.539Z"
+}

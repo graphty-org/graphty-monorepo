@@ -95,8 +95,10 @@ one note about two things.
    because one file loads as either type depending on the format), except that when the graph holds
    both a number and a string with the same text, a target binds to the one of its own type.
 2. **An edge** is saved by its two ends plus the file's edge id, or, for an edge without one, its
-   position among the edges between the same two nodes (`ordinal`, out of `among`). A session's own
-   edge ids are renumbered on every load and are never written. An edge saved by position finds no
+   position among the edges between the same two nodes (`ordinal`, out of `among`). An edge added
+   in the session without a file id has no position in any load, so it is saved by the id
+   graphty-element made up for it (`graphty:e<n>`), which binds nothing once opened ("Binding"
+   rule 2). An edge saved by position finds no
    edge once the pair has a different number of edges; if one edge of a pair is removed and another
    added, the position names the new one.
 3. **A set** is saved by its id, plus its name for display. The name is never used to bind.

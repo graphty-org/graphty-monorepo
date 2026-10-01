@@ -254,7 +254,8 @@ How each target keeps pointing at the same thing:
 - **An edge** is saved by its two ends plus the file's edge id or, for an edge without one, its
   position among the edges between the same two nodes (`ordinal`, out of `among`). A session
   `EdgeId` passed to `add` is turned into this form, because an `EdgeId` is renumbered on every
-  load. An edge saved by position finds no edge once the pair has a different number of edges; if
+  load; an edge added in the session without a file id has no position in any load, so it is saved
+  by its made-up id (`graphty:e<n>`), which binds nothing once opened (section 7.5). An edge saved by position finds no edge once the pair has a different number of edges; if
   one edge of a pair is removed and another added, the position can name the new edge. Give edges
   ids in your data when notes about them matter.
 - **A set** is saved by its id, plus its name for display.

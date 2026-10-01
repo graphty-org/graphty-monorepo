@@ -53,8 +53,8 @@
         "timestamp": {
             "type": "string",
             "format": "date-time",
-            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
-            "description": "RFC 3339 with an explicit offset. graphty-element writes UTC as Date.prototype.toISOString() does (2026-10-01T09:12:03.120Z), keeps any other valid spelling it reads verbatim, and compares times as instants. A reader skips a note whose time is not a real date (2026-02-30) even when it matches this pattern."
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$",
+            "description": "RFC 3339 with an explicit offset. graphty-element writes UTC as Date.prototype.toISOString() does (2026-10-01T09:12:03.120Z), keeps any other valid spelling it reads verbatim, and compares times as instants. A reader skips a note whose time is not a real date (2026-02-30) even when it matches this pattern. Seconds run 00 to 59: a leap second (:60) is not a time JavaScript dates can hold."
         },
         "nodeId": {
             "type": [

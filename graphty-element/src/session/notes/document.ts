@@ -36,7 +36,7 @@ const NOTE_ID = /^note_[0-9A-Za-z_-]{1,64}$/;
 
 /** The schema's `timestamp` pattern: RFC 3339 with an explicit offset. */
 const TIMESTAMP =
-    /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$/;
+    /^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$/;
 
 /** A day, in milliseconds: how far past the moment of opening a time may be before it is noted. */
 const DAY = 86_400_000;
@@ -66,33 +66,58 @@ function pointerSegment(key: string): string {
 }
 
 /**
- * Refuse a member holding `__proto__` anywhere, or nested past the limit (notes.md, "Opening").
+ * Copy a member before anything reads it, so every later check reads the copy and never the
+ * caller's object: each own property is read once, through its descriptor. Refuses an accessor
+ * (it could answer a check one way and the store another), an object reached twice (JSON cannot
+ * share objects, and walking a shared tree as a tree is exponential), `__proto__` anywhere, and
+ * nesting past the limit (notes.md, "Opening"). An object that is not a plain object or array is
+ * kept as it is, for the note checks to refuse.
  * @param value - The value.
  * @param depth - Its nesting level.
+ * @param seen - The objects copied so far.
+ * @returns The copy, frozen.
  */
-function scan(value: unknown, depth: number): void {
-    if (typeof value !== "object" || value === null) {
-        return;
+function memberCopy(value: unknown, depth: number, seen: Set<object>): unknown {
+    if (typeof value !== "object" || value === null || (!Array.isArray(value) && !isPlain(value))) {
+        return value;
     }
 
     if (depth > MAX_DEPTH) {
         throw refuseMember("E_BAD_DOCUMENT", "The notes member is nested more than 64 levels deep.");
     }
 
+    if (seen.has(value)) {
+        throw refuseMember("E_BAD_DOCUMENT", "The notes member reaches one object twice, which JSON cannot.");
+    }
+
+    seen.add(value);
+    const copy: Record<string, unknown> = Array.isArray(value) ? ([] as unknown as Record<string, unknown>) : {};
     for (const key of Reflect.ownKeys(value)) {
         if (key === "__proto__") {
             throw refuseMember("E_BAD_DOCUMENT", "The notes member holds a member named __proto__.");
         }
 
-        if (!Array.isArray(value) || key !== "length") {
-            scan((value as Record<PropertyKey, unknown>)[key], depth + 1);
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (typeof key === "symbol" || descriptor === undefined || (Array.isArray(value) && key === "length")) {
+            continue;
+        }
+
+        if (!("value" in descriptor)) {
+            throw refuseMember("E_BAD_DOCUMENT", "The notes member holds an accessor, which JSON cannot.");
+        }
+
+        if (descriptor.enumerable === true) {
+            // `__proto__` was refused above, so plain assignment is safe.
+            copy[key] = memberCopy(descriptor.value, depth + 1, seen);
         }
     }
+
+    return Object.freeze(copy);
 }
 
 /**
  * A frozen copy of a JSON value read from a member.
- * @param value - The value; the member was scanned, so it holds no `__proto__` and is not too deep.
+ * @param value - The value, from the member's copy: no `__proto__`, no accessor, not too deep.
  * @returns The copy.
  * @throws When the value is not plain JSON.
  */
@@ -238,6 +263,25 @@ function isCiteForm(cite: object): boolean {
     return keysAre(c, ["result", "run"]) && isString(c.result, 256) && isString(c.run, 256);
 }
 
+/** An edge id graphty-element mints for an edge added in a session (`mintedEdgeId`). */
+const SESSION_EDGE_ID = /^graphty:e\d+$/;
+
+/**
+ * Edge targets read from a file that name an edge by a session-made id. That id means nothing in
+ * this session, so the target binds nothing (notes.md, "Binding" rule 2). Kept per frozen target,
+ * so a renamed copy or a text edit keeps it, and new targets written by `update` drop it.
+ */
+const sessionEdgesFromFiles = new WeakSet();
+
+/**
+ * Whether a target was read from a file and names an edge by a session-made id.
+ * @param target - The target.
+ * @returns True when it binds nothing.
+ */
+export function namesForeignSessionEdge(target: object): boolean {
+    return sessionEdgesFromFiles.has(target);
+}
+
 const supportedTargets = new WeakMap<object, boolean>();
 const supportedCites = new WeakMap<object, boolean>();
 
@@ -351,6 +395,13 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
     }
 
     const targets = objectsOf(raw.targets, "targets");
+    for (const target of targets) {
+        const { edge } = target as { edge?: unknown };
+        if (isPlain(edge) && typeof edge.id === "string" && SESSION_EDGE_ID.test(edge.id)) {
+            sessionEdgesFromFiles.add(target);
+        }
+    }
+
     const cites = raw.cites === undefined ? undefined : objectsOf(raw.cites, "cites");
     // The note checks shared with `add` throw a GraphtyError whose message says why.
     const text = checkText(raw.text);
@@ -413,12 +464,14 @@ interface ReadMember {
 
 /**
  * Read a `graphty-notes` member.
- * @param document - The member, parsed from JSON.
+ * @param input - The member, parsed from JSON.
  * @param now - The moment of opening.
  * @returns The member's notes, checked.
  * @throws A `GraphtyError` for a member refused whole.
  */
-export function readMember(document: unknown, now: number): ReadMember {
+export function readMember(input: unknown, now: number): ReadMember {
+    // Everything below reads this copy, never the caller's object.
+    const document = memberCopy(input, 1, new Set());
     if (!isPlain(document) || document.kind !== "graphty-notes") {
         throw refuseMember("E_BAD_DOCUMENT", 'A notes member is an object whose kind is "graphty-notes".', {
             kind: isPlain(document) ? document.kind : undefined,
@@ -442,7 +495,6 @@ export function readMember(document: unknown, now: number): ReadMember {
         );
     }
 
-    scan(document, 1);
     const { notes, name, description, extensions } = document;
     if (!Array.isArray(notes)) {
         throw refuseMember("E_BAD_DOCUMENT", "A notes member's notes are a list.");

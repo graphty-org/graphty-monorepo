@@ -468,28 +468,30 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         before: withFixtureNote,
         command: {
             op: "note.merge",
-            document: {
-                kind: "graphty-notes",
-                version: 1,
-                name: "Fixture notes",
-                notes: [
-                    {
-                        id: "note_fixture-merged",
-                        time: "2026-10-01T09:00:00.000Z",
-                        targets: [{ node: "n1" }, { filterStep: "s1" }],
-                        text: "A merged fixture note",
-                        author: "Someone else",
-                    },
-                    // The held fixture note's id with other content: kept both, under a new id.
-                    {
-                        get id() {
-                            return FIXTURE_NOTE.id;
+            // A getter, because the held fixture note's id is minted when the fixture runs; the
+            // document it returns is plain JSON, as mergeDocument requires.
+            get document() {
+                return {
+                    kind: "graphty-notes",
+                    version: 1,
+                    name: "Fixture notes",
+                    notes: [
+                        {
+                            id: "note_fixture-merged",
+                            time: "2026-10-01T09:00:00.000Z",
+                            targets: [{ node: "n1" }, { filterStep: "s1" }],
+                            text: "A merged fixture note",
+                            author: "Someone else",
                         },
-                        time: "2026-10-01T09:00:00.000Z",
-                        targets: [{ node: "n2" }],
-                        text: "Another version",
-                    },
-                ],
+                        // The held fixture note's id with other content: kept both, under a new id.
+                        {
+                            id: FIXTURE_NOTE.id,
+                            time: "2026-10-01T09:00:00.000Z",
+                            targets: [{ node: "n2" }],
+                            text: "Another version",
+                        },
+                    ],
+                };
             },
         },
     },

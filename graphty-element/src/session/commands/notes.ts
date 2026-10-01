@@ -14,7 +14,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import { planMerge, readMember } from "../notes/document";
 import { mintNoteId, noteTime } from "../notes/ids";
 import type { NoteId, NoteInput, NoteMergeOptions, NotePatch, NotesReport } from "../notes/types";
-import { buildNote, type NoteContext, patchNote, refuseNote } from "../notes/validate";
+import { buildNote, codePoints, type NoteContext, patchNote, refuseNote } from "../notes/validate";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { NoteEntry } from "../project/state";
 
@@ -195,11 +195,14 @@ const noteMerge: UndoableDefinition<NoteMergeCommand> = {
     },
     execute: (command, ctx) => {
         const { onConflict = "keep-both", name } = command.options ?? {};
-        if (!ON_CONFLICT.includes(onConflict) || (name !== undefined && typeof name !== "string")) {
+        if (
+            !ON_CONFLICT.includes(onConflict) ||
+            (name !== undefined && (typeof name !== "string" || codePoints(name) > 1024))
+        ) {
             throw new GraphtyError({
                 code: "E_OPTION_RANGE",
                 message:
-                    'mergeDocument takes onConflict "keep-both", "replace" or "keep-mine", and a name that is text.',
+                    'mergeDocument takes onConflict "keep-both", "replace" or "keep-mine", and a name that is text of at most 1,024 characters.',
                 source: "data",
                 details: { option: ON_CONFLICT.includes(onConflict) ? "name" : "onConflict", values: ON_CONFLICT },
             });

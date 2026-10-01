@@ -15,7 +15,7 @@ import type { EdgeMember, NodeId, ResultId, SetId } from "../../catalog/types";
 import { pairsOrdered } from "../../data/edgeIdentity";
 import type { NoteEntry } from "../project/state";
 import { bindEdgeMembers } from "../sets/resolve";
-import { supportedCite, supportedTarget } from "./document";
+import { namesForeignSessionEdge, supportedCite, supportedTarget } from "./document";
 import type { Note, NoteCiteStatus, NoteStatus, NoteTarget, NoteTargetStatus } from "./types";
 
 /** What a status reads of the session. */
@@ -113,13 +113,17 @@ function labelOf(target: NoteTarget, snapshot: GraphSnapshot, set: StatusSources
 
 /**
  * Whether a target names something only the file it came from can bind: a set, a result or an
- * item read from a file (design/documents/notes.md, "Binding" rule 3).
+ * item read from a file (design/documents/notes.md, "Binding" rule 3), or an edge a file named by
+ * a session-made id (rule 2).
  * @param target - A supported target.
  * @param entry - The note's entry.
  * @returns True when it binds to nothing here.
  */
 function unboundHere(target: NoteTarget, entry: Pick<NoteEntry, "unbound">): boolean {
-    return entry.unbound?.targets === true && ("set" in target || "result" in target || "item" in target);
+    return (
+        namesForeignSessionEdge(target) ||
+        (entry.unbound?.targets === true && ("set" in target || "result" in target || "item" in target))
+    );
 }
 
 /**
@@ -138,7 +142,9 @@ export function boundTargets(entry: NoteEntry): NoteTarget[] {
  * @returns Per target: whether it is a node or edge target to bind.
  */
 export function bindable(note: Note): boolean[] {
-    return note.targets.map((target) => ("node" in target || "edge" in target) && supportedTarget(target));
+    return note.targets.map(
+        (target) => ("node" in target || "edge" in target) && supportedTarget(target) && !namesForeignSessionEdge(target),
+    );
 }
 
 /**

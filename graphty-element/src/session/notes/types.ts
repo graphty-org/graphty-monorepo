@@ -224,7 +224,7 @@ export interface NoteMergeOptions {
      * note is added under a new id. `"replace"` overwrites the held note; `"keep-mine"` keeps it.
      */
     readonly onConflict?: "keep-both" | "replace" | "keep-mine";
-    /** What to call the source in each note's status and in the history: usually the file name. */
+    /** What to call the source in each note's status and in the history: usually the file name. At most 1,024 characters. */
     readonly name?: string;
 }
 

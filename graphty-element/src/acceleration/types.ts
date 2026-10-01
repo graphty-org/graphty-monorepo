@@ -503,8 +503,29 @@ export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<Floor
         // Wins 1.1x to 2.8x at 5,000 to 20,000 nodes and loses at 50,000 nodes with 100,000 edges
         // (0.51x to 0.59x, where the CPU port converged in 10 passes); 3x to 4x at 100,000.
         labelPropagation: 100_000,
+        // Weighted graphs (unweighted ones have their own floor below): 0.44x to 1.04x at 2,000,
+        // 0.72x to 1.06x at 3,000, 1.2x to 1.7x at 5,000, 2.9x to 3x at 10,000, 16x to 19x at
+        // 100,000 nodes with 1,000,000 edges. Measured 2026-09-30 against Kruskal's CPU port.
+        minimumSpanningTree: 5_000,
     },
 );
+
+/**
+ * The node count below which the element declines the accelerator for one capability when every
+ * edge of the graph weighs the same (as on a graph with no weight attribute), in place of {@link ACCELERATION_MIN_NODES_BY_CAPABILITY}. Same
+ * method, same measurement, same override by `acceleration.minNodes`.
+ *
+ * Only the minimum spanning tree needs it. Kruskal's CPU implementation sorts the edges by
+ * weight, and with every weight equal that sort is already done, so the unweighted CPU run is
+ * five to ten times faster than the weighted one on the same graph while the device's run costs
+ * the same either way.
+ */
+export const ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
+    Object.freeze({
+        // Loses at every size the element holds (1.00x at best, 30,000 nodes); 0.72x to 1.58x at
+        // 20,000 nodes with 200,000 edges, 3.6x to 4.1x at 100,000 nodes with 1,000,000 edges.
+        minimumSpanningTree: 100_000,
+    });
 
 /**
  * For a run that searches from a set of sources, the smallest (sources x edges) at which the

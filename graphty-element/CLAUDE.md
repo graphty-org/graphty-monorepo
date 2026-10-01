@@ -305,7 +305,8 @@ k-core and Louvain route through `@graphty/algorithms`' `accelerated()` and labe
 `caveats.precision` with the arithmetic that produced it. Only the members listed in
 `src/acceleration/narrow.ts` are ever offered to the device, each above its measured floor in
 `ACCELERATION_MIN_NODES_BY_CAPABILITY` and, for a search from sources, in
-`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
+`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY`, and for a graph whose edges all weigh the same, in
+`ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
 measured); k-core and Louvain are not offered, so they always take the CPU port and
 `acceleration="required"` does not refuse them.
 `src/testing/fakeAccelerator.ts` is the one fake, deterministic and

@@ -4,6 +4,8 @@
  * makes the next step() reject E_RELEASED and residency.stats().snapshots is 1 after load + release of a previous
  * snapshot; device loss mid-run rejects the pending step with E_DEVICE_LOST, disposes the simulation, leaves the
  * context "lost", and a context from a fresh adapter runs afterwards.
+ *
+ * run-twice exempt: it asserts errors, state transitions and leak counts, not a kernel's numbers.
  */
 
 import { GpuContext } from "../../src/context.js";

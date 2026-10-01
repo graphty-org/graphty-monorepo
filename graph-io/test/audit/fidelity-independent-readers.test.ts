@@ -31,7 +31,7 @@ import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import { type CommonImportOptions, type GraphImporter } from "../../src/types.js";
 import { DYNAMIC_1_3, OPEN_1_2 } from "../formats/gexf/fixtures.js";
-import { CORPUS_FORMATS, CORPUS_ROOT, type CorpusFormat } from "../helpers/corpus.js";
+import { CORPUS_FORMATS, CORPUS_ROOT, type CorpusFormat, corpusOptions } from "../helpers/corpus.js";
 
 type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
@@ -69,7 +69,7 @@ function importOptionsFor(format: CorpusFormat, name: string): AnyImportOptions 
     if (format === "csv" && name === "got-edges.csv") {
         return { nodes: corpusText("csv", "got-nodes.csv") };
     }
-    return {};
+    return { ...corpusOptions(format, name) };
 }
 
 function allInputs(): Input[] {

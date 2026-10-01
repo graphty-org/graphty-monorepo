@@ -13,7 +13,9 @@
  * error), and are tallied per source in WORKGROUP memory -- one global `atomicAdd` per source per workgroup after the
  * strip loop, never one per arc. Uniformity (spec 3.5 rule 1): the guarded loads write locals, the scan and the
  * `workgroupUniformLoad` sit unconditionally after the guard, the strip loop is bounded by the uniform aggregate, and
- * the flush's barrier follows it in uniform control flow. Body only (spec 3.5, D9); the text is normative: the
+ * the flush's barrier follows it in uniform control flow. A sampled run (`P.perNode == 1`) also adds each claim's
+ * distance (`level + 1`, one per won bit) into the per-node sum of `x`, `perSource[128 + x]`: the distance from each
+ * of the batch's sources TO `x`, which is what a node's sampled closeness sums on an undirected graph. Body only (spec 3.5, D9); the text is normative: the
  * sabotage rows of test/helpers/sabotage.ts are textual edits of it.
  */
 export const closenessSweepWgsl = /* wgsl */ `
@@ -22,11 +24,16 @@ var<workgroup> rowStart: array<u32, WG>;          // the first bound arc of each
 var<workgroup> rowOf: array<u32, WG>;             // the frontier vertex of each entry (the source end of its arcs)
 var<workgroup> local: array<atomic<u32>, 32>;     // this workgroup's fresh claims per source
 var<workgroup> wcount: u32;                       // the frontier list's length
+var<workgroup> wdist: u32;                        // the distance of this level's claims
 
 @compute @workgroup_size(WG)
 fn closeness_sweep(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
-    if (lid.x == 0u) { wcount = atomicLoad(&counters[0]); }          // the frontier list's length (compact's total)
+    if (lid.x == 0u) {
+        wcount = atomicLoad(&counters[0]);                           // the frontier list's length (compact's total)
+        wdist = atomicLoad(&counters[11]) + 1u;                      // the level word: this level claims at level + 1
+    }
     let count = workgroupUniformLoad(&wcount);                       // uniform: the block loop below holds barriers
+    let dist = workgroupUniformLoad(&wdist);
     let nextBase = select(2u * P.bitsBase, P.bitsBase, P.mode == 1u);   // the region that is next this level
     let frontierBase = 3u * P.bitsBase - nextBase;                   // the other one: the region that is the frontier
     for (var b0 = group_id(wid) * WG; b0 < count; b0 = b0 + P.stride) {   // grid-stride over blocks of WG entries
@@ -74,6 +81,9 @@ fn closeness_sweep(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocat
                 if (fresh != 0u) {
                     atomicOr(&bits[nextBase + x], fresh);
                     atomicStore(&bits[3u * P.bitsBase + x], 1u);         // flags: x is in the next frontier list (compact reads it)
+                    if (P.perNode == 1u) {                               // a sampled run: x's distance to each source won
+                        atomicAdd(&perSource[128u + x], countOneBits(fresh) * dist);
+                    }
                     var b = fresh;
                     loop {                                               // one tally per set bit of fresh
                         if (b == 0u) { break; }

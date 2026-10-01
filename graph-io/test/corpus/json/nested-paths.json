@@ -1,0 +1,19 @@
+{
+    "meta": { "generator": "hand-written", "version": 3 },
+    "data": {
+        "directed": true,
+        "multigraph": false,
+        "nodes": [
+            { "id": "a", "group": 1 },
+            { "id": "b", "group": 2 },
+            { "id": "c", "group": 2 },
+            { "id": "d", "group": 3 }
+        ],
+        "relationships": [
+            { "source": "a", "target": "b", "weight": 0.1 },
+            { "source": "b", "target": "c", "weight": 16777217 },
+            { "source": "c", "target": "a" },
+            { "source": "a", "target": "d", "weight": 2.5 }
+        ]
+    }
+}

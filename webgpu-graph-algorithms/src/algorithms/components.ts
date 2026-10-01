@@ -92,12 +92,12 @@ function bindingOf(buffer: GPUBuffer, size: number): Binding {
 
 /**
  * The result object over a label array whose labels are all `< n`: `count` blocks, `groups()` built lazily once in
- * first-seen label order (which for renumbered labels is index order).
+ * first-seen label order (which for renumbered labels is index order). Shared with label propagation.
  * @param labels - the labels
  * @param count - the block count
  * @returns the result
  */
-function labelResult(labels: U32, count: number): GpuLabelResult {
+export function labelResult(labels: U32, count: number): GpuLabelResult {
     let groups: U32[] | null = null;
     return {
         labels,

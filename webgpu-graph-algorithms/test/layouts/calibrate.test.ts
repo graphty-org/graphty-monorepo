@@ -8,6 +8,9 @@
  * and not on the second); `sizes` that are not positive integers are E_INVALID_ARGUMENT; and every probe is released
  * (the allocator's live-buffer count and the residency's buffer count are back to their values before the call). The
  * values are compared in shape only: on lavapipe they are honest but meaningless (spec 7.8: never `caps.software`).
+ *
+ * run-twice exempt: calibrateLayout returns timings, which are compared in shape only and differ run to run by
+ * nature; the layout kernels it times run twice with a bitwise comparison in their own tests.
  */
 
 import { EXACT_BUDGET_MS, exactMaxNodesFromLadder, floorPow2 } from "../../benchmarks/layout-exact.bench.js";

@@ -24,7 +24,7 @@ graphty-element/
 |-- format.ts                 # Entry point: "./format"
 |-- logging.ts                # Entry point: "./logging"
 |-- session.ts                # Entry point: "./session"
-|-- commands.ts               # Entry point: "./commands" (deprecated, exports nothing; removed at next major)
+|-- commands.ts               # Entry point: "./commands" (the command vocabulary, COMMANDS)
 |-- react.ts                  # Entry point: "./react" (reserved, exports nothing yet)
 |-- webgpu.ts                 # Entry point: "./webgpu" (side-effect: registers the accelerator)
 |-- ai.ts                     # Entry point: "./ai"
@@ -49,7 +49,7 @@ graphty-element/
 |   |-- config/               # Configuration types and palettes
 |   |-- constants/            # Mesh constants, obsolescence rules
 |   |-- data/                 # Data source implementations
-|   |-- errors/               # GraphtyError, GraphtyErrorCode (44 codes), isGraphtyError
+|   |-- errors/               # GraphtyError, GraphtyErrorCode (50 codes), isGraphtyError
 |   |-- input/                # Input handling (keyboard, mouse, touch)
 |   |-- layout/               # Layout engine wrappers
 |   |-- logging/              # Logging infrastructure
@@ -57,6 +57,7 @@ graphty-element/
 |   |-- meshes/               # Babylon.js mesh factories
 |   |-- screenshot/           # Screenshot capture utilities
 |   |-- shaders/              # Custom GLSL shaders
+|   |-- simple/               # The simple extension tier: define* verbs, the graph view, beginner errors
 |   |-- types/                # Shared type declarations
 |   |-- ui/                   # UI overlay components
 |   |-- utils/                # Utility functions (incl. styleHelpers)
@@ -81,20 +82,20 @@ graphty-element/
 This package is not one barrel. `package.json` publishes an exports map, and each subpath has a
 source file of the same name at the package root:
 
-| Subpath | Source | What it carries | Node-safe |
-|---------|--------|-----------------|-----------|
-| `.` | `index.ts` | The custom element; defines the tag; pulls in Babylon.js and Lit | No |
-| `./schema` | `schema.ts` | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes |
-| `./catalog` | `catalog.ts` | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types | Yes |
-| `./extend` | `extend.ts` | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `GraphtyError` | Yes |
-| `./format` | `format.ts` | The graph-format decode vocabulary (read-only half; no brand, no version) | Yes |
-| `./session` | `session.ts` | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model | Yes |
-| `./logging` | `logging.ts` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes |
-| `./commands` | `commands.ts` | Nothing. Deprecated: removed at the next major unless the serialisable command union (#337) lands first | Yes (empty) |
-| `./react` | `react.ts` | Nothing yet; the name is reserved for typed React wrappers | Yes (empty) |
-| `./webgpu` | `webgpu.ts` | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer | No |
-| `./ai` | `ai.ts` | The natural-language layer and its LLM SDKs; needs a DOM | No |
-| `./bundle` | `index.ts` via `vite.bundle.config.ts` | One self-contained file for a `<script>` tag (replaced the UMD build) | No |
+| Subpath      | Source                                 | What it carries                                                                                                                                                        | Node-safe   |
+| ------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `.`          | `index.ts`                             | The custom element; defines the tag; pulls in Babylon.js and Lit                                                                                                       | No          |
+| `./schema`   | `schema.ts`                            | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, style config types, the colour helpers | Yes         |
+| `./catalog`  | `catalog.ts`                           | Plain-JSON descriptors: `BUILT_IN_ALGORITHMS`, `LAYOUT_DESCRIPTORS`, formats, palettes, scales, `optionsFromZod`, descriptor types                                     | Yes         |
+| `./extend`   | `extend.ts`                            | The registration surface: `Algorithm`, `LayoutEngine`, `registerSnapshotLayout`, `DataSource`, `registerFormatWriter`, `registerAccelerator`, `GraphtyError`           | Yes         |
+| `./format`   | `format.ts`                            | The graph-format decode vocabulary (read-only half; no brand, no version)                                                                                              | Yes         |
+| `./session`  | `session.ts`                           | Types only so far -- identities, scopes, result shapes, `Capabilities`, the error model                                                                                | Yes         |
+| `./logging`  | `logging.ts`                           | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy` | Yes         |
+| `./commands` | `commands.ts`                          | `COMMANDS` (every op, undoable or exempt with a reason), `CommandMeta`, `isSessionCommand`, `SessionCommand`                                                           | Yes         |
+| `./react`    | `react.ts`                             | Nothing yet; the name is reserved for typed React wrappers                                                                                                             | Yes (empty) |
+| `./webgpu`   | `webgpu.ts`                            | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer                                                                 | No          |
+| `./ai`       | `ai.ts`                                | The natural-language layer and its LLM SDKs; needs a DOM                                                                                                               | No          |
+| `./bundle`   | `index.ts` via `vite.bundle.config.ts` | One self-contained file for a `<script>` tag (replaced the UMD build)                                                                                                  | No          |
 
 **Node-safe means the module resolves with no Babylon.js, no Lit and no DOM anywhere in its
 run-time import graph.** `test/packaging/node-safe-entries.test.ts` enforces it for `session.ts`,
@@ -102,7 +103,7 @@ run-time import graph.** `test/packaging/node-safe-entries.test.ts` enforces it 
 `logging.ts`: it transpiles each one and everything it reaches (so `import type` is correctly
 erased), fails if `@babylonjs/*`, `lit`, `@lit/*` or `@mlc-ai/*` appears, checks that `index.ts`
 does reach Babylon and Lit so a walker that resolved nothing cannot pass, and then imports
-`session`, `schema`, `catalog`, `extend`, `format` and `logging` in plain Node.
+`session`, `schema`, `catalog`, `commands`, `extend`, `format` and `logging` in plain Node.
 `test/packaging/exports-map.test.ts` checks the exports map, the `sideEffects` list and the peer
 dependency declarations against the build.
 
@@ -127,14 +128,14 @@ Six things can be brought to the element from outside. This list is the SUPPORTE
 closed: it is what a third party may build against, what the element promises not to break, and
 what every change here is measured against.
 
-| Extension point | What a third party brings |
-|---|---|
-| Palette | A named set of colour anchors a style layer ramps through |
-| File format | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are |
-| Camera | A way of deciding where the viewer is and what they are looking at |
-| Layout | An engine that decides where nodes sit, live or in a single pass |
-| Algorithm | Something computed over the graph that publishes a result |
-| Logging | A destination the element's log records are delivered to |
+| Extension point | What a third party brings                                                                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Palette         | A named set of colour anchors a style layer ramps through                                                                                                                        |
+| File format     | A reader for a graph file the element does not ship, reached by the same routes the built-in formats are, and a writer for it (`registerFormatWriter`), reached by `exportGraph` |
+| Camera          | A way of deciding where the viewer is and what they are looking at                                                                                                               |
+| Layout          | An engine that decides where nodes sit, live or in a single pass                                                                                                                 |
+| Algorithm       | Something computed over the graph that publishes a result                                                                                                                        |
+| Logging         | A destination the element's log records are delivered to                                                                                                                         |
 
 **The rule: an extension must be able to do everything its built-in peer can.** Whatever the
 element's own palettes, importers, cameras, layouts, algorithms and log sinks can do, a third
@@ -178,9 +179,10 @@ plugin author who expected otherwise would be misled.
 
 - **Progress and cancellation.** A palette does no work over time; a camera view computes
   synchronously; a log destination's `write` is fire-and-forget. None of those has progress or
-  cancellation to be at parity about. An import cannot be cancelled and a layout reports no
-  progress, for a built-in as much as for a plugin. Only the algorithm point has both, and it has
-  them fully.
+  cancellation to be at parity about. An import cannot be cancelled and a live layout reports no
+  progress, for a built-in as much as for a plugin. The algorithm point has both fully; a
+  single-pass layout registered with `registerSnapshotLayout` has both (`report` and `signal`),
+  the same contract the element's own single-pass layouts are built on.
 - **A saved document.** A palette travels in one (`toDocument` writes the descriptor of every
   non-built-in palette its layers name), a format id and an algorithm run are recorded in one, and
   a logging configuration round-trips by name. A camera view is recorded in no saved document at
@@ -193,9 +195,9 @@ plugin author who expected otherwise would be misled.
   closing one.
 - **`scope`, `seed`, `exact`, `sample` and `timeBox`** are resolved by a run and not forwarded to
   `compute`, so no algorithm receives them: not a plugin's, and not one of the element's own.
-- **The element's own importers still throw plain `Error`s.** A registered format reports
-  `E_PARSE_FAILED` and `E_FETCH_FAILED`; the seven built-in readers do not yet. A plugin is ahead
-  of the built-ins here rather than behind them.
+- **The CSV and JSON readers still throw plain `Error`s.** A registered format reports
+  `E_PARSE_FAILED` and `E_FETCH_FAILED`; of the seven built-in readers GEXF, GraphML, GML, DOT
+  and Pajek do too. A plugin is ahead of those two here rather than behind them.
 - **An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
   renderer-backed `Graph`. `./extend` resolving in Node buys type-checking, not a headless test.
 
@@ -263,6 +265,27 @@ the element re-reports them as one of these codes with the original attached as 
 is deliberately no `E_NOT_READY`: every method is safe to call before the element is ready, and
 work queues until it is.
 
+### Every change goes through the dispatcher
+
+Undo covers every change a project saves because there is one path for changes: the session's
+dispatcher (`src/session/project/Dispatcher.ts`). Project state is frozen outside it, and the
+strict build (every test) throws on a write that did not come through a command. So:
+
+- **A new public member that changes the graph, a style, a setting or anything else a project
+  saves dispatches a command.** It never writes a manager, a record or a map itself, and it never
+  records its own undo: the command's definition declares the keys it writes, and the dispatcher
+  records forward and inverse values. List the member in `src/session/commands/doors.ts`;
+  `test/session/history/doors.test.ts` and `test/browser/doors.test.ts` fail on a public member
+  that is on no list.
+- **A new op declares `undoable`, or `exempt` with a reason**, in its definition under
+  `src/session/commands/` and in `COMMANDS` (`commands.ts`), which does not compile without it.
+  `test/session/history/vocabulary.test.ts` checks the two agree and fails until an undoable op
+  has a round-trip fixture in `test/session/history/fixtures.ts`.
+- Exempt means it changes nothing a project file saves: the camera, the selection, a moving
+  layout, a device session. When in doubt it is undoable.
+
+The guide a consumer reads is `docs/guide/undo.md`; the design is `design/undo/undo-design.md`.
+
 ### Acceleration
 
 `src/acceleration/` owns hardware acceleration end to end: a registry an accelerator factory
@@ -275,21 +298,28 @@ arrives only through the `./webgpu` entry point.
 
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the
-accelerator when the controller planned one and the CPU simulation when it did not; five
-algorithm adapters (PageRank, Dijkstra, BFS, connected components, Kruskal) route through
-`@graphty/algorithms`' `accelerated()` and label the result's `caveats.precision` with the
-arithmetic that produced it. `src/testing/fakeAccelerator.ts` is the one fake, deterministic and
+accelerator when the controller planned one and the CPU simulation when it did not; the
+algorithm adapters for PageRank, Dijkstra, BFS, connected components, Kruskal, eigenvector, HITS,
+Katz, betweenness, closeness, Floyd-Warshall, the clustering coefficient, label propagation,
+k-core and Louvain route through `@graphty/algorithms`' `accelerated()` and label the result's
+`caveats.precision` with the arithmetic that produced it. Only the members listed in
+`src/acceleration/narrow.ts` are ever offered to the device, each above its measured floor in
+`ACCELERATION_MIN_NODES_BY_CAPABILITY` and, for a search from sources, in
+`ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY` (`src/acceleration/types.ts`, which says how the floors were
+measured); k-core and Louvain are not offered, so they always take the CPU port and
+`acceleration="required"` does not refuse them.
+`src/testing/fakeAccelerator.ts` is the one fake, deterministic and
 frame-count-independent, and it is shared by the tests and the stories -- write no second one.
 
 ### Test Projects
 
-| Project | Environment | Purpose |
-|---------|-------------|---------|
-| `default` | happy-dom | Unit tests |
-| `browser` | Playwright/Chromium | Browser integration tests |
-| `storybook` | Playwright | Component tests via stories |
-| `interactions` | Playwright | User interaction tests |
-| `llm-regression` | Node | AI/LLM regression tests |
+| Project          | Environment         | Purpose                     |
+| ---------------- | ------------------- | --------------------------- |
+| `default`        | happy-dom           | Unit tests                  |
+| `browser`        | Playwright/Chromium | Browser integration tests   |
+| `storybook`      | Playwright          | Component tests via stories |
+| `interactions`   | Playwright          | User interaction tests      |
+| `llm-regression` | Node                | AI/LLM regression tests     |
 
 `GRAPHTY_BROWSER_GPU` picks the Chromium flag set the `browser` project launches with --
 `swiftshader` for a workstation or a plain runner, `nvidia` for the GPU lane's card (add
@@ -299,10 +329,10 @@ launches with no flags and sees no WebGPU at all, which is what the five CI shar
 
 ## Common Pitfalls
 
-**Entry point contamination**: Six published entry points carry exports that must resolve in
-Node with no renderer (two more are checked but still empty). Importing a value from a module
-that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`, `extend.ts`,
-`format.ts`, `logging.ts` or `session.ts` reaches fails
+**Entry point contamination**: Seven published entry points carry exports that must resolve in
+Node with no renderer (one more, `react.ts`, is checked but still empty). Importing a value from
+a module that reaches Babylon.js, Lit or the DOM into anything `schema.ts`, `catalog.ts`,
+`commands.ts`, `extend.ts`, `format.ts`, `logging.ts` or `session.ts` reaches fails
 `test/packaging/node-safe-entries.test.ts`, not the file you edited. Use `import type` when you
 only need the type -- it is erased and costs nothing. See "Entry Points" above.
 
@@ -323,10 +353,12 @@ for an element the algorithm never measured. Fix the layer's selector so the unm
 is never visited; do not pick a prettier colour.
 
 **Manager Pattern**: Always use manager methods instead of direct manipulation:
+
 - Right: `styleManager.addLayer(layer)` - uses manager
 - Wrong: `graph.styles.layers.push(layer)` - bypasses cache invalidation
 
 **Algorithm Registration**: All algorithm classes must auto-register:
+
 ```typescript
 export class MyAlgorithm extends Algorithm {
     static namespace = "my-namespace";
@@ -414,6 +446,7 @@ rather than inferred because every agent involved in it complied with every inst
 ## Edge Styling System
 
 Comprehensive edge customization:
+
 - **Line Types**: solid, dash, dot, star, diamond, dash-dot, sinewave, zigzag
 - **Arrow Types**: normal, inverted, dot, diamond, box, vee, tee, half-open, crow, etc.
 - **Bezier Curves**: Smooth curved edges with automatic control points
@@ -424,6 +457,7 @@ Key files: `src/Edge.ts`, `src/meshes/EdgeMesh.ts`, `src/meshes/PatternedLineMes
 ## AI Integration
 
 The `src/ai/` directory provides LLM-powered features:
+
 - Natural language commands for graph manipulation
 - Schema extraction for data understanding
 - Multiple provider support (OpenAI, Anthropic, Google)
@@ -438,6 +472,7 @@ and scales, with every option each accepts -- is published as plain JSON by
 ## XR Support
 
 The `src/xr/` directory provides VR/AR support:
+
 - WebXR integration with Babylon.js
 - Controller input handling
 - Immersive graph exploration
@@ -445,6 +480,7 @@ The `src/xr/` directory provides VR/AR support:
 ## Debugging
 
 ### Screenshot Capture
+
 ```bash
 # Multi-angle 3D screenshots
 npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id> [--axes]
@@ -456,5 +492,6 @@ npx tsx test/helpers/capture-2d-screenshots.ts <story-id> [--zoom-levels]
 ## Configuration Stability
 
 The config interface in `src/config` should be stable:
+
 - Don't remove or change existing config settings
 - Adding new settings is acceptable for new features

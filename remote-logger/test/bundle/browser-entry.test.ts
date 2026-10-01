@@ -18,7 +18,7 @@ describe("browser-entry auto-init", () => {
         savedDebug = console.debug;
 
         delete window.__remoteLogger__;
-        delete (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__;
+        delete (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__;
     });
 
     afterEach(() => {
@@ -35,7 +35,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("detects server URL from window global", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
 
@@ -45,7 +45,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("exposes window.__remoteLogger__", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
 
@@ -55,7 +55,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("intercepts console methods", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
 
@@ -70,7 +70,7 @@ describe("browser-entry auto-init", () => {
     test("intercepted console methods still call originals", () => {
         const spy = vi.fn();
         console.log = spy;
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
 
@@ -79,7 +79,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("intercepted console methods forward to RemoteLogClient", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
         const logSpy = vi.spyOn(result!.client, "log");
@@ -101,7 +101,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("stringifies non-string arguments", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
         const logSpy = vi.spyOn(result!.client, "log");
@@ -111,7 +111,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("destroy restores console methods", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
         const preLog = console.log;
         const preWarn = console.warn;
         const preError = console.error;
@@ -121,7 +121,7 @@ describe("browser-entry auto-init", () => {
         // Methods should be different after init
         expect(console.log).not.toBe(preLog);
 
-        result.destroy();
+        result!.destroy();
         result = undefined;
 
         // After destroy, calling console.log should not forward to RemoteLogClient
@@ -133,7 +133,7 @@ describe("browser-entry auto-init", () => {
     });
 
     test("destroy removes window.__remoteLogger__", () => {
-        (window as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
 
         result = initRemoteLogger();
         expect(window.__remoteLogger__).toBeDefined();

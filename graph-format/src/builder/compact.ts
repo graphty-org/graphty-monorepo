@@ -983,6 +983,48 @@ export interface ExtensionStaging {
 // ============================================================ staging
 
 /** Construction options of a Staging. */
+/** One incidence list to walk: its head, its link column, the endpoint column to test and the wanted endpoint. */
+type EdgeList = [head: number, next: GrowableTypedArray<U32>, end: GrowableTypedArray<U32>, want: number];
+
+/** A walk over one or more incidence lists in turn, collecting the live edges whose far end is wanted. */
+class EdgeListWalk {
+    readonly found: number[] = [];
+    private list = 0;
+    private edge: number;
+
+    /**
+     * Start at the head of the first list.
+     * @param lists - the lists, walked in order; never empty
+     * @param alive - the live-edge bitmap
+     */
+    constructor(
+        private readonly lists: readonly EdgeList[],
+        private readonly alive: GrowableBitmap,
+    ) {
+        this.edge = lists[0][0];
+    }
+
+    /**
+     * Visit one edge.
+     * @returns true once every list has been walked
+     */
+    step(): boolean {
+        while (this.edge === INVALID_INDEX) {
+            this.list++;
+            if (this.list === this.lists.length) {
+                return true;
+            }
+            this.edge = this.lists[this.list][0];
+        }
+        const [, next, end, want] = this.lists[this.list];
+        if (this.alive.get(this.edge) && end.get(this.edge) === want) {
+            this.found.push(this.edge);
+        }
+        this.edge = next.get(this.edge);
+        return false;
+    }
+}
+
 interface StagingOptions {
     /** Staging weight precision (design section 3.7). */
     readonly weightDtype: "f32" | "f64";
@@ -1403,6 +1445,37 @@ export class Staging {
             }
         }
         return Uint32Array.from(out).sort();
+    }
+
+    /**
+     * Live edges between two nodes, from the incidence lists of whichever endpoint has fewer.
+     *
+     * Both endpoints' lists name the same edges, so they are walked a step at a time together and
+     * the answer comes from the one that ends first: a lookup between a hub and a leaf costs the
+     * leaf's degree, not the hub's. Walking only the source's out-list made adding the edges of a
+     * high-degree node one at a time, each checked for a repeat, quadratic in that degree.
+     * @param u - the source index
+     * @param v - the target index
+     * @param directed - false to match either orientation
+     * @returns the live edge indices in ascending order
+     */
+    edgesBetween(u: number, v: number, directed: boolean): U32 {
+        const out = (x: number, y: number): EdgeList => [this.firstOut.get(x), this.nextOut, this.dst, y];
+        const into = (x: number, y: number): EdgeList => [this.firstIn.get(x), this.nextIn, this.src, y];
+
+        // A self-loop is on its node's out-list and in-list both; the out-list alone names it once.
+        const fromU = directed || u === v ? [out(u, v)] : [out(u, v), into(u, v)];
+        const fromV = directed ? [into(v, u)] : [out(v, u), into(v, u)];
+        const a = new EdgeListWalk(fromU, this.edgeAlive);
+        const b = u === v ? a : new EdgeListWalk(fromV, this.edgeAlive);
+        for (;;) {
+            if (a.step()) {
+                return Uint32Array.from(a.found).sort();
+            }
+            if (b.step()) {
+                return Uint32Array.from(b.found).sort();
+            }
+        }
     }
 
     /**

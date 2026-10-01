@@ -1,6 +1,0 @@
-digraph G {
-    A [label=];
-    B [=value];
-    C [label="ok" broken];
-    A -> B;
-}

@@ -1,0 +1,43 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-data/v1.json",
+    "title": "graphty data member, version 1",
+    "description": "The graph itself inside a graphty document (container.md, 'The data member'), embedded as one of graph-io's JSON dialects. Normative for what a writer produces. Its members are closed: a reader skips a data member with a member this schema does not list.",
+    "type": "object",
+    "required": ["kind", "version", "format", "dialect", "graph"],
+    "properties": {
+        "kind": {
+            "const": "graphty-data"
+        },
+        "version": {
+            "const": 1
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "format": {
+            "const": "json",
+            "description": "Embedded data is always json."
+        },
+        "dialect": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "The graph-io JSON dialect of the embedded graph: node-link, d3, jgf, cytoscape, graphology, vis, or one a later graph-io adds. A reader whose graph-io does not read it skips the member with E_UNKNOWN_FORMAT."
+        },
+        "graph": {
+            "type": ["object", "array"],
+            "description": "The graph, embedded as a JSON value in the named dialect, written with that dialect's own member names."
+        },
+        "extensions": {
+            "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
+        }
+    },
+    "unevaluatedProperties": false
+}

@@ -21,6 +21,9 @@
  * package (the `raw` loop only), e.g. a scratch install of a newer Dawn.
  */
 
+// Installed on globalThis from dawn.globals before the loop runs
+/* global GPUBufferUsage, GPUMapMode */
+
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";

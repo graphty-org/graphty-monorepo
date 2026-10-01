@@ -1,11 +1,10 @@
-import { BenchmarkBenchmarkGraphImpl } from "../../types";
+import type { GraphImpl as BenchmarkGraphImpl, GraphMetadata } from "../../benchmark-graph";
 
 /**
  * Generate Small-World Networks using the Watts-Strogatz model
  *
  * Creates graphs with high clustering and short average path lengths,
  * characteristic of many real-world networks like social networks.
- *
  * @param vertices - Number of vertices
  * @param k - Initial nearest neighbors (must be even)
  * @param p - Rewiring probability (0 = regular lattice, 1 = random graph)
@@ -25,7 +24,7 @@ export function generateSmallWorld(
         throw new Error(`Rewiring probability must be between 0 and 1, got ${p}`);
     }
 
-    const metadata = {
+    const metadata: GraphMetadata = {
         generationAlgorithm: "Watts-Strogatz Small-World",
         parameters: {
             vertices,
@@ -129,6 +128,7 @@ export function generateSmallWorld(
 /**
  * Generate Small-World graph suitable for benchmarking
  * Uses parameters that create good small-world properties
+ * @param vertices
  */
 export function generateSmallWorldBenchmark(vertices: number): BenchmarkGraphImpl {
     // Choose k based on graph size
@@ -146,7 +146,7 @@ export function generateSmallWorldBenchmark(vertices: number): BenchmarkGraphImp
 
     // Ensure k is even and reasonable
     k = Math.max(2, Math.min(k, Math.floor(vertices / 10)));
-    if (k % 2 !== 0) k--;
+    if (k % 2 !== 0) {k--;}
 
     // Use rewiring probability of 0.1 (good small-world properties)
     const p = 0.1;
@@ -157,13 +157,16 @@ export function generateSmallWorldBenchmark(vertices: number): BenchmarkGraphImp
 /**
  * Generate Newman-Watts Small-World variant
  * Instead of rewiring, adds shortcuts (preserves connectivity)
+ * @param vertices
+ * @param k
+ * @param p
  */
 export function generateNewmanWatts(vertices: number, k: number, p: number): BenchmarkGraphImpl {
     if (k % 2 !== 0) {
         throw new Error("k must be even");
     }
 
-    const metadata = {
+    const metadata: GraphMetadata = {
         generationAlgorithm: "Newman-Watts Small-World",
         parameters: {
             vertices,

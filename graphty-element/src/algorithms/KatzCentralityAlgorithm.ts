@@ -1,15 +1,17 @@
-import { katzCentrality } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { releaseOnAccelerator, type ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
 import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
+import { refuseEndpoints } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Katz Centrality algorithm
@@ -60,7 +62,8 @@ const katzCentralityOptionsSchema = defineOptions({
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description:
+                "Which paths count: arriving along each edge's direction (in), leaving (out), or either way (total)",
             advanced: true,
         },
     },
@@ -68,7 +71,8 @@ const katzCentralityOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description:
+                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     },
@@ -88,9 +92,9 @@ interface KatzCentralityOptions extends Record<string, unknown> {
     tolerance: number;
     /** Whether to normalize the final scores */
     normalized: boolean;
-    /** Direction mode for directed graphs: "in", "out", or "total" */
+    /** Which paths count: arriving along each edge's direction ("in"), leaving ("out"), or either way ("total") */
     mode: "in" | "out" | "total";
-    /** Whether to include endpoints in path calculations */
+    /** Not supported: Katz walks no paths end to end, so `true` is refused */
     endpoints: boolean;
 }
 
@@ -99,6 +103,13 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
     plainName: "Influence at a distance",
     technicalName: "Katz score",
 });
+
+/** Which paths were counted, by the `mode` option, in a sentence a reader can read. */
+const MODE_NOTES: Readonly<Record<KatzCentralityOptions["mode"], string>> = {
+    in: "Paths were counted arriving at each node, along the direction each edge was declared in.",
+    out: "Paths were counted leaving each node, along the direction each edge was declared in.",
+    total: "Paths were counted over the graph read as undirected, so an edge carries influence both ways.",
+};
 
 /**
  * Katz centrality: every path that reaches a node, with a longer path counting for less.
@@ -109,6 +120,8 @@ const KATZ_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptions> {
     static namespace = "graphty";
     static type = "katz";
+    /** Computes over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = katzCentralityOptionsSchema;
 
@@ -161,11 +174,12 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             type: "select",
             default: "total",
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description:
+                "Which paths count: arriving along each edge's direction (in), leaving (out), or either way (total)",
             options: [
-                { value: "total", label: "Total (both directions)" },
-                { value: "in", label: "In-degree (incoming edges)" },
-                { value: "out", label: "Out-degree (outgoing edges)" },
+                { value: "total", label: "Either direction" },
+                { value: "in", label: "Paths arriving" },
+                { value: "out", label: "Paths leaving" },
             ],
             advanced: true,
         },
@@ -173,7 +187,8 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             type: "boolean",
             default: false,
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description:
+                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     };
@@ -194,9 +209,18 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { alpha, beta, maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        refuseEndpoints("Katz centrality", endpoints);
 
-        // Undirected: every neighbour counts as an influence, whichever way the record declared it.
-        const graphData = this.algorithmGraph("undirected");
+        /* `"total"`, the default: every neighbour counts as an influence, whichever way the record
+           declared the edge. `"in"` counts the paths that ARRIVE at a node along the declared
+           direction, which is what the port reads off a directed snapshot; `"out"` counts the
+           paths that LEAVE it, which is the same reading over the transposed snapshot. A graph
+           loaded undirected has no direction to keep, so every mode reads it undirected. */
+        const direction = mode !== "total" && this.input("declared").graph.directed ? "directed" : "undirected";
+        const { snapshot, run } = this.accelerated("katzCentrality", direction);
+        // Built here, per run and uncached, so it is released here: an accelerator that uploaded it
+        // would otherwise hold it until its device is torn down.
+        const transposed = mode === "out" && direction === "directed" ? snapshot.transpose().snapshot : null;
 
         context.report({
             phase: "iterating",
@@ -204,23 +228,24 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             total: nodeIds.length,
             message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
         });
-        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
-        // The element's own half -- reading the scores back out -- is chunked below.
-        const scores = katzCentrality(graphData, {
-            normalized,
-            alpha,
-            beta,
-            maxIterations,
-            tolerance,
-            mode,
-            endpoints,
-        });
+        let outcome;
+        try {
+            outcome = await run((dispatch, s) =>
+                dispatch.katzCentrality(transposed ?? s, { alpha, beta, maxIterations, tolerance, normalized }),
+            );
+        } finally {
+            if (transposed !== null) {
+                releaseOnAccelerator(this.graph, transposed);
+            }
+        }
+        const { value: result, precision } = outcome;
         context.signal.throwIfAborted();
 
+        const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const score = scores[String(nodeId)];
-            nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
+            const index = ids.indexOf(nodeId);
+            nodes.push({ id: nodeId, values: index === INVALID_INDEX ? {} : { value: result.scores[index] } });
         });
 
         return {
@@ -230,16 +255,19 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             normalization: normalized ? "min-max" : "none",
             caveats: {
                 exact: true,
-                direction: "undirected",
+                direction,
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "katz-iteration",
-                // `converged` and `iterations` are deliberately absent: the implementation stops
-                // either at its tolerance or at its iteration cap and reports neither.
+                converged: result.converged,
+                iterations: result.iterations,
                 notes: [
                     `Every node starts with a base influence of ${String(beta)}, and a path of length k contributes ${String(alpha)} to the power k.`,
+                    MODE_NOTES[mode],
                     `Iteration stops at a tolerance of ${String(tolerance)} or after ${String(maxIterations)} passes, whichever comes first.`,
-                    "Whether it reached the tolerance is not reported by the implementation, so this run cannot say whether it converged.",
+                    ...(result.converged
+                        ? []
+                        : [`It stopped at the ${String(maxIterations)}-pass cap without reaching the tolerance.`]),
                     "Edge weights are not read.",
                 ],
             },

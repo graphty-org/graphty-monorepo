@@ -14,6 +14,7 @@ import _ from "lodash";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
@@ -24,6 +25,8 @@ import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { dispatcherOf } from "./session/GraphSession";
+import { frozenRecord } from "./session/project/draft";
 
 export type NodeIdType = string | number;
 
@@ -70,6 +73,33 @@ interface NodeOpts {
     pinOnDrag?: boolean;
 }
 
+/** Writes a node's row; see {@link placeNodeRow}. */
+let writeNodeRow: (node: Node, row: number) => void;
+
+/**
+ * Move a node to a row of the current snapshot. Only the data manager calls it, as a node reaches
+ * the builder, leaves it, or is renumbered by a freeze.
+ * @param node - The node.
+ * @param row - Its row, or INVALID_INDEX.
+ */
+export function placeNodeRow(node: Node, row: number): void {
+    writeNodeRow(node, row);
+}
+
+/** Writes an node's record; see {@link adoptNodeRecord}. */
+let writeRecord: (node: Node, record: AdHocData<string | number>) => void;
+
+/**
+ * Hand an node the record the graph now holds for it. Only the data manager calls it, from the
+ * render half of the graph's derivation, when a command, an undo or a redo changed the record;
+ * no entry point exports it, so `node.data` is always the graph's record.
+ * @param node - The node.
+ * @param record - The record.
+ */
+export function adoptNodeRecord(node: Node, record: AdHocData<string | number>): void {
+    writeRecord(node, record);
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
@@ -77,16 +107,44 @@ interface NodeOpts {
 export class Node {
     parentGraph: Graph | GraphContext;
     opts: NodeOpts;
-    id: NodeIdType;
+    readonly id: NodeIdType;
+
+    private row: number = INVALID_INDEX;
+
+    static {
+        writeNodeRow = (node, row) => {
+            node.index = row;
+        };
+        writeRecord = (node, record) => {
+            node.#record = frozenRecord(record);
+        };
+    }
 
     /**
      * This node's index in the element's current GraphSnapshot, assigned at add time as
      * `builder.addNode(id)` and walked through `report.nodeRemap` on a renumbering freeze
      * (graph-format design 14.4 rule 5). INVALID_INDEX until the node reaches the builder.
+     * @returns The row.
      */
-    index: number = INVALID_INDEX;
+    get index(): number {
+        return this.row;
+    }
 
-    data: AdHocData<string | number>;
+    private set index(row: number) {
+        this.row = row;
+    }
+
+    /**
+     * The record this node carries, as the graph holds it: deep-frozen, so a write to it throws. A
+     * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * @returns The record.
+     */
+    get data(): AdHocData<string | number> {
+        return this.#record;
+    }
+
+    /** The record, as the graph last handed it over. */
+    #record: AdHocData<string | number>;
     mesh: AbstractMesh;
     label?: RichTextLabel;
 
@@ -245,7 +303,7 @@ export class Node {
         this.parentGraph = graph;
         this.id = nodeId;
         this.opts = opts;
-        this.data = data;
+        this.#record = frozenRecord(data);
 
         this.meshKey = paint.meshKey;
 
@@ -1040,8 +1098,15 @@ export class Node {
      * of the element's bit and never a second source of truth. The order is load-bearing: the bit
      * is recorded FIRST, so an engine that calls back into {@link Node.isPinned} while being told
      * sees the pin.
+     *
+     * In a graph with a session the pin is an undoable step: it is recorded in the session's
+     * `pins`, which writes the byte and tells the engine.
      */
     pin(): void {
+        if (this.dispatchPin(true)) {
+            return;
+        }
+
         if (!this.positionsLane?.setPinned(this.index, true)) {
             // A node the graph builder never took has no row to pin, and pinning happens from a
             // pointer gesture, so this says so rather than throwing inside the frame that reports
@@ -1062,8 +1127,27 @@ export class Node {
      * been told about.
      */
     unpin(): void {
+        if (this.dispatchPin(false)) {
+            return;
+        }
+
         this.positionsLane?.setPinned(this.index, false);
         this.tellEngine("unpin");
+    }
+
+    /**
+     * Pin or release this node as a step of its graph's session, when it has one.
+     * @param pinned - Pin, or release.
+     * @returns False when there is no session to dispatch through.
+     */
+    private dispatchPin(pinned: boolean): boolean {
+        const session = this.context.getSession?.();
+        if (session === undefined) {
+            return false;
+        }
+
+        void dispatcherOf(session).dispatchNow({ op: "positions.pin", ids: [this.id], pinned });
+        return true;
     }
 
     /**
@@ -1101,7 +1185,7 @@ export class Node {
      * @returns the array, or undefined for a node built outside a graph
      */
     private get positionsLane(): ElementPositions | undefined {
-        return this.context.getDataManager?.()?.positions;
+        return writableLane(this.context.getDataManager?.());
     }
 
     /**

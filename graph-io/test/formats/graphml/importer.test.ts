@@ -12,6 +12,7 @@ import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } f
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
 import { GRAPHML_ISSUE, GRAPHML_LOSS } from "../../../src/formats/graphml/constants.js";
+import { graphmlExporter } from "../../../src/formats/graphml/exporter.js";
 import { graphmlImporter, type GraphmlImportOptions } from "../../../src/formats/graphml/importer.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../../src/types.js";
 import {
@@ -402,6 +403,15 @@ describe("graphmlImporter keys and data", () => {
             GRAPHML_ISSUE.KEY_FOR_INVALID,
         ]);
         expect(snapshot.nodes.names()).toEqual(["b"]);
+    });
+
+    it("reads one key id declared once for the graph and once for nodes, as igraph writes it", async () => {
+        const keys = `<key id="name" for="graph" attr.name="name" attr.type="string"/>\n<key id="name" for="node" attr.name="name" attr.type="string"/>\n`;
+        const body = `<data key="name">club</data><node id="a"><data key="name">Mr Hi</data></node>`;
+        const { snapshot, report } = await load(doc(body, "undirected", keys));
+        expect(codes(report)).toEqual([]);
+        expect(column(snapshot, "nodes", "name")).toEqual(["Mr Hi"]);
+        expect(snapshot.graph.value("name", 0)).toBe("club");
     });
 
     it("renames a key that collides with an XML-derived or earlier column and records the rename", async () => {
@@ -864,6 +874,248 @@ describe("graphmlImporter options and sniff", () => {
         expect(sniff(encode("<graphml><graph/></graphml>"))).toBe(0.9);
         expect(sniff(encode('<?xml version="1.0"?>\n<gexf/>'))).toBe(0.05);
         expect(sniff(encode("source,target\n1,2\n"))).toBe(0);
+        expect(sniff(encode('{ "label": "<graphml >" }'))).toBe(0);
         expect(sniff(encode(""))).toBe(0);
+    });
+});
+
+describe("graphmlImporter: yFiles graphics mapped to columns", () => {
+    /**
+     * graphty-element's GraphML parser (graphty-element/src/data/GraphMLDataSource.ts) output for
+     * yed-graphics.graphml, graphics and description keys only, as that parser produced it when
+     * this mapping was written. graph-io keeps the yFiles shape type as written; the element maps
+     * it to its own shape names with this table.
+     */
+    const ELEMENT_SHAPES: Record<string, string> = { roundrectangle: "box", ellipse: "sphere", diamond: "box" };
+    const ELEMENT_NODES = [
+        {
+            id: "n0",
+            description: "entry point",
+            position: { x: -15.5, y: 0, z: 0 },
+            width: 60,
+            height: 30,
+            color: "#FFCC00",
+            borderColor: "#000000",
+            borderWidth: 1.5,
+            label: "Start",
+            shape: "box",
+        },
+        {
+            id: "n1",
+            position: { x: 100.25, y: 40, z: 0 },
+            width: 40,
+            height: 40,
+            color: "#99CCFF",
+            borderColor: "#336699",
+            label: "",
+            shape: "sphere",
+        },
+        { id: "n2", description: "no graphics" },
+        {
+            id: "n3",
+            position: { x: 150, y: 100, z: 0 },
+            width: 60,
+            height: 30,
+            color: "#FF6666CC",
+            label: "End",
+            shape: "box",
+        },
+    ];
+    const ELEMENT_EDGES = [
+        {
+            source: "n0",
+            target: "n1",
+            description: "first step",
+            color: "#FF0000",
+            width: 2.5,
+            directed: true,
+            targetArrow: "standard",
+        },
+        { source: "n1", target: "n3", color: "#000000", width: 1, directed: false, sourceArrow: "delta" },
+        { source: "n0", target: "n3", color: "#00FF00", width: 1, directed: false },
+        { source: "n3", target: "n2", color: "#AABBCC" },
+    ];
+
+    /**
+     * Rebuild element-style records from a snapshot: every `yfiles.*` column under its name without
+     * the prefix, the position vector as {x, y, z}, the shape through the element's table.
+     */
+    function records(snapshot: GraphSnapshot, table: "nodes" | "edges"): Record<string, unknown>[] {
+        const count = table === "nodes" ? snapshot.nodeCount : snapshot.edgeCount;
+        const el = snapshot.edgeList();
+        return Array.from({ length: count }, (_, row) => {
+            const record: Record<string, unknown> =
+                table === "nodes"
+                    ? { id: snapshot.ids.idOf(row) }
+                    : { source: snapshot.ids.idOf(el.src[row]), target: snapshot.ids.idOf(el.dst[row]) };
+            const description = snapshot[table].get("description")?.value(row);
+            if (description !== undefined) {
+                record.description = description;
+            }
+            for (const c of snapshot[table]) {
+                const { name } = c.meta;
+                const value = c.value(row);
+                if (!name.startsWith("yfiles.") || value === undefined) {
+                    continue;
+                }
+                const key = name.slice("yfiles.".length);
+                if (key === "position") {
+                    const [x, y, z] = Array.from(value as ArrayLike<number>);
+                    record.position = { x, y, z };
+                } else if (key === "shape") {
+                    record.shape = ELEMENT_SHAPES[value as string];
+                } else {
+                    record[key] = value;
+                }
+            }
+            return record;
+        });
+    }
+
+    it("yed-graphics.graphml: ShapeNode and PolyLineEdge values equal graphty-element's parser output", async () => {
+        const { snapshot, report } = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        expect(records(snapshot, "nodes")).toEqual(ELEMENT_NODES);
+        expect(records(snapshot, "edges")).toEqual(ELEMENT_EDGES);
+        expect(report.errorCount).toBe(0);
+        // the nested XML is still kept, beside the mapped columns
+        expect(snapshot.nodes.require("d0").meta.dtype).toBe("json");
+        expect(snapshot.edges.require("d1").meta.dtype).toBe("json");
+        // topology follows edgedefault, not the arrows
+        expect(snapshot.directed).toBe(true);
+        expect(snapshot.edgeCount).toBe(4);
+    });
+
+    it("gives the mapped position and label their roles, typed columns and a yfiles origin", async () => {
+        const { snapshot } = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        const position = snapshot.nodes.require("yfiles.position");
+        expect(position.meta).toMatchObject({ role: "position", dtype: "f64", components: 3 });
+        expect(position.meta.origin).toMatchObject({ format: "graphml", id: "d0", namespace: "yfiles" });
+        expect(snapshot.nodes.byRole("label")?.meta.name).toBe("yfiles.label");
+        expect(snapshot.nodes.require("yfiles.width").meta.dtype).toBe("f64");
+        expect(snapshot.edges.require("yfiles.directed").meta.dtype).toBe("bool");
+        // the file's own direction, not the arrows, decides topology: no directed role column
+        expect(snapshot.edges.byRole("directed")).toBeNull();
+    });
+
+    it("maps nothing under yfiles: skip", async () => {
+        const { snapshot } = await load(readCorpusText("graphml", "yed-graphics.graphml"), { yfiles: "skip" });
+        expect([...snapshot.nodes].map((c) => c.meta.name).filter((n) => n.startsWith("yfiles."))).toEqual([]);
+        expect([...snapshot.edges].map((c) => c.meta.name).filter((n) => n.startsWith("yfiles."))).toEqual([]);
+    });
+
+    it("maps a ShapeNode under another namespace prefix and whose node is declared after its data", async () => {
+        const keys = '<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const body =
+            '<node id="a"><data key="g"><yy:ShapeNode xmlns:yy="http://www.yworks.com/xml/graphml"><yy:Geometry x="1.5" y="2" width="3" height="4"/></yy:ShapeNode></data></node>';
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        expect(Array.from(snapshot.nodes.require("yfiles.position").value(0) as ArrayLike<number>)).toEqual([
+            1.5, 2, 0,
+        ]);
+        expect(snapshot.nodes.require("yfiles.height").value(0)).toBe(4);
+    });
+
+    it("exports a yEd graph with its graphics trees only, and re-imports the same mapped columns", async () => {
+        const first = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        const text = await graphmlExporter.exportToString(first.snapshot);
+        expect(text).not.toContain('attr.name="yfiles.');
+        expect(graphmlExporter.check(first.snapshot).map((n) => n.code)).toEqual([]);
+        const second = await load(text);
+        expect(records(second.snapshot, "nodes")).toEqual(ELEMENT_NODES);
+        expect(records(second.snapshot, "edges")).toEqual(ELEMENT_EDGES);
+    });
+
+    it("reports an edited position as a loss, since only the tree is written", async () => {
+        const { snapshot } = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        const position = snapshot.nodes.require("yfiles.position");
+        if (position.dtype !== "f64") {
+            throw new Error("position is not f64");
+        }
+        position.mutableData().fill(777);
+        const notes = graphmlExporter.check(snapshot).filter((n) => n.code === GRAPHML_LOSS.YFILES_GRAPHICS_STALE);
+        // three nodes have a position; n2's row stays unset
+        expect(notes).toEqual([expect.objectContaining({ column: "yfiles.position", count: 3 })]);
+    });
+
+    it("reports every mapped value as a loss when the tree column is removed", async () => {
+        const { snapshot } = await load(readCorpusText("graphml", "yed-graphics.graphml"));
+        snapshot.edges.remove("d1");
+        const stale = graphmlExporter
+            .check(snapshot)
+            .filter((n) => n.code === GRAPHML_LOSS.YFILES_GRAPHICS_STALE)
+            .map((n) => [n.column, n.count]);
+        expect(stale).toEqual([
+            ["yfiles.color", 4],
+            ["yfiles.width", 3],
+            ["yfiles.directed", 3],
+            ["yfiles.targetArrow", 1],
+            ["yfiles.sourceArrow", 1],
+        ]);
+    });
+
+    it("reports no loss for an unedited graph whose graphics come from two yFiles keys", async () => {
+        const keys =
+            '<key id="g" for="node" yfiles.type="nodegraphics"/>\n<key id="h" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body =
+            `<node id="a"><data key="g"><y:ShapeNode ${y}><y:Geometry x="1" y="2"/><y:Fill color="#111111"/></y:ShapeNode></data></node>` +
+            `<node id="b"><data key="h"><y:ShapeNode ${y}><y:Geometry x="3" y="4"/><y:Fill color="#222222"/></y:ShapeNode></data></node>`;
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        expect(snapshot.nodes.require("yfiles.color").value(1)).toBe("#222222");
+        expect(graphmlExporter.check(snapshot).map((n) => n.code)).toEqual([]);
+    });
+
+    it("leaves the label role with a declared label key, and maps the NodeLabel to a plain column", async () => {
+        const keys =
+            '<key id="l" for="node" attr.name="label" attr.type="string"/>\n<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body = `<node id="a"><data key="l">own</data><data key="g"><y:ShapeNode ${y}><y:NodeLabel>drawn</y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot, report } = await load(doc(body, "undirected", keys));
+        expect(snapshot.nodes.byRole("label")?.meta.name).toBe("label");
+        expect(snapshot.nodes.require("yfiles.label").value(0)).toBe("drawn");
+        expect(codes(report)).toEqual([ROLE_TAKEN_CODE]);
+    });
+
+    it("keeps a NodeLabel whose text is a number as that text", async () => {
+        const keys = '<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body =
+            `<node id="a"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>0</y:NodeLabel></y:ShapeNode></data></node>` +
+            `<node id="b"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>123</y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        const label = snapshot.nodes.require("yfiles.label");
+        expect([label.value(0), label.value(1)]).toEqual(["0", "123"]);
+    });
+
+    it("trims the label text as the element's parser does, and reads the first of several NodeLabels", async () => {
+        const keys = '<key id="g" for="node" yfiles.type="nodegraphics"/>\n';
+        const y = 'xmlns:y="http://www.yworks.com/xml/graphml"';
+        const body =
+            `<node id="a"><data key="g"><y:ShapeNode ${y}><y:NodeLabel alignment="center">Start<y:LabelModel>\n   <y:SmartNodeLabelModel/>\n </y:LabelModel>\n</y:NodeLabel></y:ShapeNode></data></node>` +
+            `<node id="b"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>  padded  </y:NodeLabel></y:ShapeNode></data></node>` +
+            `<node id="c"><data key="g"><y:ShapeNode ${y}><y:NodeLabel>first</y:NodeLabel><y:NodeLabel>second</y:NodeLabel></y:ShapeNode></data></node>`;
+        const { snapshot } = await load(doc(body, "undirected", keys));
+        expect(column(snapshot, "nodes", "yfiles.label")).toEqual(["Start", "padded", "first"]);
+    });
+});
+
+describe("graphmlImporter: key name and type attributes", () => {
+    it("reads a key's name and type when attr.name and attr.type are absent", async () => {
+        const keys =
+            '<key id="k0" for="node" name="score" type="int"/>\n<key id="k1" for="edge" name="cost" type="double"/>\n';
+        const body =
+            '<node id="a"><data key="k0">7</data></node><node id="b"/><edge source="a" target="b"><data key="k1">0.5</data></edge>';
+        const { snapshot, report } = await load(doc(body, "directed", keys));
+        expect(report.issues).toEqual([]);
+        expect(snapshot.nodes.require("score").meta).toMatchObject({ dtype: "i32" });
+        expect(snapshot.nodes.require("score").meta.origin).toMatchObject({ id: "k0", type: "int" });
+        expect(column(snapshot, "nodes", "score")).toEqual([7, undefined]);
+        expect(column(snapshot, "edges", "cost")).toEqual([0.5]);
+    });
+
+    it("prefers attr.name and attr.type over name and type", async () => {
+        const keys = '<key id="k0" for="node" attr.name="rank" attr.type="double" name="score" type="int"/>\n';
+        const { snapshot } = await load(doc('<node id="a"><data key="k0">1.5</data></node>', "directed", keys));
+        expect(snapshot.nodes.require("rank").meta.dtype).toBe("f64");
+        expect(snapshot.nodes.get("score")).toBeNull();
     });
 });

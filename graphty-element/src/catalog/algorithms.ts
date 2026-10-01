@@ -20,10 +20,9 @@
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
- * - **The table only lists what ships.** Two members of `KNOWN_ALGORITHMS` -- `all-paths` and
- *   `clustering-coefficient`, listed in `DEPRECATED_ALGORITHMS` -- are not implemented and
- *   therefore have no descriptor here. A catalogue that advertised them would be lying about
- *   what the element can run.
+ * - **The table only lists what ships.** One member of `KNOWN_ALGORITHMS` -- `all-paths`, listed
+ *   in `DEPRECATED_ALGORITHMS` -- is not implemented and therefore has no descriptor here. A
+ *   catalogue that advertised it would be lying about what the element can run.
  *
  * Two conventions worth stating once:
  *
@@ -47,6 +46,7 @@ import { BetweennessCentralityAlgorithm } from "../algorithms/BetweennessCentral
 import { BFSAlgorithm } from "../algorithms/BFSAlgorithm";
 import { BipartiteMatchingAlgorithm } from "../algorithms/BipartiteMatchingAlgorithm";
 import { ClosenessCentralityAlgorithm } from "../algorithms/ClosenessCentralityAlgorithm";
+import { ClusteringCoefficientAlgorithm } from "../algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../algorithms/ConnectedComponentsAlgorithm";
 import { DegreeAlgorithm } from "../algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../algorithms/DFSAlgorithm";
@@ -331,15 +331,8 @@ const componentStrengthOptions = defineOptions({
 // The table
 // ---------------------------------------------------------------------------------------------
 
-/**
- * Every algorithm this package registers, as a plain-JSON descriptor.
- *
- * Twenty-three descriptors for twenty-five registered algorithms: the two single-source
- * shortest-path engines are one key with a `method` parameter, and the two component algorithms
- * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
- * replaces and the parameters that reproduce them.
- */
-export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
+/** The built-in descriptors as written, before what is read from the classes is added. */
+const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     {
         key: "degree",
         plainName: "Connections",
@@ -348,7 +341,12 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "Connections", technicalName: "degree", type: "integer", unit: "links" }),
+            ...metricFields("node", {
+                plainName: "Connections",
+                technicalName: "degree",
+                type: "integer",
+                unit: "links",
+            }),
             field({
                 name: "inDegree",
                 plainName: "Incoming connections",
@@ -544,13 +542,49 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "path",
         fields: [
-            field({ name: "onPath", plainName: "On the route", technicalName: "onPath", kind: "node", type: "boolean" }),
-            field({ name: "order", plainName: "Position on the route", technicalName: "order", kind: "node", type: "integer" }),
-            field({ name: "distance", plainName: "Distance from the source", technicalName: "distance", kind: "node", type: "number" }),
-            field({ name: "onPath", plainName: "On the route", technicalName: "onPath", kind: "edge", type: "boolean" }),
-            field({ name: "length", plainName: "Nodes on the route", technicalName: "length", kind: "graph", type: "integer" }),
+            field({
+                name: "onPath",
+                plainName: "On the route",
+                technicalName: "onPath",
+                kind: "node",
+                type: "boolean",
+            }),
+            field({
+                name: "order",
+                plainName: "Position on the route",
+                technicalName: "order",
+                kind: "node",
+                type: "integer",
+            }),
+            field({
+                name: "distance",
+                plainName: "Distance from the source",
+                technicalName: "distance",
+                kind: "node",
+                type: "number",
+            }),
+            field({
+                name: "onPath",
+                plainName: "On the route",
+                technicalName: "onPath",
+                kind: "edge",
+                type: "boolean",
+            }),
+            field({
+                name: "length",
+                plainName: "Nodes on the route",
+                technicalName: "length",
+                kind: "graph",
+                type: "integer",
+            }),
             field({ name: "cost", plainName: "Total cost", technicalName: "cost", kind: "graph", type: "number" }),
-            field({ name: "hops", plainName: "Edges on the route", technicalName: "hops", kind: "graph", type: "integer" }),
+            field({
+                name: "hops",
+                plainName: "Edges on the route",
+                technicalName: "hops",
+                kind: "graph",
+                type: "integer",
+            }),
             field({
                 name: "hasNegativeCycle",
                 plainName: "Has a loop that costs less every time round",
@@ -589,8 +623,20 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         shape: "node-metric",
         fields: [
             ...metricFields("node", { plainName: "Distance to the furthest node", technicalName: "eccentricity" }),
-            field({ name: "diameter", plainName: "Widest distance", technicalName: "diameter", kind: "graph", type: "number" }),
-            field({ name: "radius", plainName: "Narrowest distance", technicalName: "radius", kind: "graph", type: "number" }),
+            field({
+                name: "diameter",
+                plainName: "Widest distance",
+                technicalName: "diameter",
+                kind: "graph",
+                type: "number",
+            }),
+            field({
+                name: "radius",
+                plainName: "Narrowest distance",
+                technicalName: "radius",
+                kind: "graph",
+                type: "number",
+            }),
             field({
                 name: "hasNegativeCycle",
                 plainName: "Has a loop that costs less every time round",
@@ -613,11 +659,29 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         shape: "layered-grouping",
         fields: [
             field({ name: "level", plainName: "Steps away", technicalName: "level", kind: "node", type: "integer" }),
-            field({ name: "levelSize", plainName: "Nodes this many steps away", technicalName: "levelSize", kind: "node", type: "integer" }),
+            field({
+                name: "levelSize",
+                plainName: "Nodes this many steps away",
+                technicalName: "levelSize",
+                kind: "node",
+                type: "integer",
+            }),
             field({ name: "order", plainName: "Visit order", technicalName: "order", kind: "node", type: "integer" }),
-            field({ name: "levelCount", plainName: "Levels", technicalName: "levelCount", kind: "graph", type: "integer" }),
+            field({
+                name: "levelCount",
+                plainName: "Levels",
+                technicalName: "levelCount",
+                kind: "graph",
+                type: "integer",
+            }),
             field({ name: "sizes", plainName: "Level sizes", technicalName: "sizes", kind: "graph", type: "table" }),
-            field({ name: "targetFound", plainName: "Target reached", technicalName: "targetFound", kind: "graph", type: "boolean" }),
+            field({
+                name: "targetFound",
+                plainName: "Target reached",
+                technicalName: "targetFound",
+                kind: "graph",
+                type: "boolean",
+            }),
         ],
         options: optionsOf(BFSAlgorithm),
         costClass: "instant",
@@ -633,7 +697,11 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "Exploration order", technicalName: "discovery time", type: "integer" }),
+            ...metricFields("node", {
+                plainName: "Exploration order",
+                technicalName: "discovery time",
+                type: "integer",
+            }),
             field({ name: "visited", plainName: "Reached", technicalName: "visited", kind: "node", type: "boolean" }),
         ],
         options: optionsOf(DFSAlgorithm),
@@ -715,10 +783,22 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         fields: [
             ...metricFields("edge", { plainName: "Flow", technicalName: "flow" }),
             field({ name: "capacity", plainName: "Capacity", technicalName: "capacity", kind: "edge", type: "number" }),
-            field({ name: "utilization", plainName: "Share of capacity used", technicalName: "utilization", kind: "edge", type: "number" }),
+            field({
+                name: "utilization",
+                plainName: "Share of capacity used",
+                technicalName: "utilization",
+                kind: "edge",
+                type: "number",
+            }),
             field({ name: "netFlow", plainName: "Net flow", technicalName: "netFlow", kind: "node", type: "number" }),
             field({ name: "role", plainName: "Source or sink", technicalName: "role", kind: "node", type: "string" }),
-            field({ name: "maxFlow", plainName: "Most that can flow", technicalName: "maxFlow", kind: "graph", type: "number" }),
+            field({
+                name: "maxFlow",
+                plainName: "Most that can flow",
+                technicalName: "maxFlow",
+                kind: "graph",
+                type: "number",
+            }),
         ],
         options: optionsOf(MaxFlowAlgorithm),
         costClass: "heavy",
@@ -761,6 +841,43 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         legacyKeys: [{ key: "k-core" }],
     },
     {
+        key: "clustering-coefficient",
+        plainName: "How tightly knit",
+        technicalName: "Clustering coefficient",
+        description:
+            "Scores a node by how many of its neighbours are also neighbours of each other, and counts the triangles that makes.",
+        category: "structure",
+        shape: "node-metric",
+        fields: [
+            ...metricFields("node", { plainName: "How tightly knit", technicalName: "local clustering coefficient" }),
+            field({
+                name: "triangles",
+                plainName: "Triangles",
+                technicalName: "triangle count",
+                kind: "node",
+                type: "integer",
+            }),
+            field({
+                name: "transitivity",
+                plainName: "Share of closed triples",
+                technicalName: "transitivity",
+                kind: "graph",
+                type: "number",
+            }),
+            field({
+                name: "triangleCount",
+                plainName: "Triangles in the graph",
+                technicalName: "triangle count",
+                kind: "graph",
+                type: "integer",
+            }),
+        ],
+        options: optionsOf(ClusteringCoefficientAlgorithm),
+        costClass: "heavy",
+        complexity: "O(m^1.5)",
+        legacyKeys: [{ key: "clustering-coefficient" }],
+    },
+    {
         key: "link-prediction",
         plainName: "Likely new links",
         technicalName: "Link prediction",
@@ -769,7 +886,13 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "prediction",
         shape: "pair-list",
         fields: [
-            field({ name: "pairs", plainName: "Likely new links", technicalName: "pairs", kind: "graph", type: "table" }),
+            field({
+                name: "pairs",
+                plainName: "Likely new links",
+                technicalName: "pairs",
+                kind: "graph",
+                type: "table",
+            }),
         ],
         options: optionsOf(LinkPredictionAlgorithm),
         costClass: "heavy",
@@ -777,6 +900,55 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         legacyKeys: [{ key: "link-prediction" }],
     },
 ];
+
+/** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
+const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
+    [
+        BellmanFordAlgorithm,
+        BetweennessCentralityAlgorithm,
+        BFSAlgorithm,
+        BipartiteMatchingAlgorithm,
+        ClosenessCentralityAlgorithm,
+        ConnectedComponentsAlgorithm,
+        DegreeAlgorithm,
+        DFSAlgorithm,
+        DijkstraAlgorithm,
+        EigenvectorCentralityAlgorithm,
+        FloydWarshallAlgorithm,
+        GirvanNewmanAlgorithm,
+        HITSAlgorithm,
+        KatzCentralityAlgorithm,
+        KCoreAlgorithm,
+        KruskalAlgorithm,
+        LabelPropagationAlgorithm,
+        LeidenAlgorithm,
+        LinkPredictionAlgorithm,
+        LouvainAlgorithm,
+        MaxFlowAlgorithm,
+        MinCutAlgorithm,
+        PageRankAlgorithm,
+        PrimAlgorithm,
+        StronglyConnectedComponentsAlgorithm,
+    ].map((cls) => [cls.type, cls]),
+);
+
+/**
+ * Every algorithm this package registers, as a plain-JSON descriptor.
+ *
+ * Twenty-three descriptors for twenty-five registered algorithms: the two single-source
+ * shortest-path engines are one key with a `method` parameter, and the two component algorithms
+ * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
+ * replaces and the parameters that reproduce them.
+ *
+ * `scopeInput` is read from the classes rather than written here, so it cannot disagree with what
+ * a run computes over: a folded key computes over its scope only when every class behind it does.
+ */
+export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => ({
+    ...descriptor,
+    scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
+        ? "subgraph"
+        : "none",
+}));
 
 // ---------------------------------------------------------------------------------------------
 // Lookups

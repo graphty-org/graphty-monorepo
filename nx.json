@@ -21,7 +21,8 @@
                     "authors": true,
                     "commitReferences": true,
                     "versionTitleDate": true
-                }
+                },
+                "renderer": "{workspaceRoot}/tools/changelog-renderer.cjs"
             }
         },
         "git": {
@@ -29,7 +30,8 @@
             "tag": true,
             "push": true,
             "commitMessage": "chore(release): publish {projectName} v{version} [skip ci]",
-            "commitArgs": "--no-verify"
+            "commitArgs": "--no-verify",
+            "pushArgs": "origin refs/tags/*:refs/tags/*"
         }
     },
     "plugins": [

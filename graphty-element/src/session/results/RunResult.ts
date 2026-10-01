@@ -30,7 +30,8 @@ import {
     buildHistogram,
     isNormalization,
     type NumericColumnSource,
-    rankEntries,
+    rankedPrefix,
+    rankOrder,
     topOfRanking,
 } from "./statistics";
 import {
@@ -147,49 +148,188 @@ export interface RunResultInit {
 // Element storage
 // ---------------------------------------------------------------------------------------------
 
+/** Marks, in a column that is not all numbers, an element that carries no value for the field. */
+const MISSING: unique symbol = Symbol("missing");
+
 /**
- * The published elements of one half of a result, in column order.
+ * One field of one half: a `Float64Array` when every element carries a number for it, otherwise
+ * one slot per element holding the value or {@link MISSING}.
+ */
+type Column = Float64Array | unknown[];
+
+/**
+ * Where each element of one half sits: position to id, and id to position. A graph-format node id
+ * map is one, which is what lets a result share the snapshot's instead of building its own.
+ */
+interface ResultIdIndex {
+    /** How many elements it holds. */
+    readonly size: number;
+    /**
+     * The id at a position.
+     * @param position - The position, from 0 to `size - 1`.
+     * @returns The id.
+     */
+    idOf(position: number): NodeId;
+    /**
+     * The position of an id, by SameValueZero.
+     * @param id - The id.
+     * @returns The position, or a number outside `[0, size)` when it holds no such id.
+     */
+    indexOf(id: NodeId): number;
+}
+
+/** An id index a result built for itself. */
+class OwnIndex implements ResultIdIndex {
+    readonly ids: NodeId[] = [];
+    readonly positions = new Map<NodeId, number>();
+
+    get size(): number {
+        return this.ids.length;
+    }
+
+    idOf(position: number): NodeId {
+        return this.ids[position];
+    }
+
+    indexOf(id: NodeId): number {
+        return this.positions.get(id) ?? -1;
+    }
+}
+
+/**
+ * What an id index costs, estimated: an id slot and a map entry per element.
+ * @param index - The index.
+ * @returns Bytes.
+ */
+function indexBytes(index: ResultIdIndex): number {
+    return 64 * index.size;
+}
+
+/**
+ * The published elements of one half of a result, as columns over one id index.
  *
  * Edge ids are strings and node ids are strings or numbers, so one table type holds both halves:
  * an edge id is a node id that happens never to be a number.
  */
 interface ElementTable {
-    /** The ids, in the order a column reads them. */
-    readonly ids: NodeId[];
-    /** The fields, one record per id, at the same positions. */
-    readonly records: Record<string, unknown>[];
-    /** Where each id sits, so `node(id)` is a lookup rather than a scan. */
-    readonly index: Map<NodeId, number>;
+    /** Where each element sits; swapped for the snapshot's own when {@link shareNodeIndex} matches it. */
+    index: ResultIdIndex;
+    /** The graph token of the snapshot the index belongs to, or null when the result owns it. */
+    token: number | null;
+    /** How many elements. */
+    readonly length: number;
+    /** The fields, in the order they were first published. */
+    readonly columns: Map<string, Column>;
 }
 
 /**
- * Copy what a run published into the storage a result reads.
+ * Copy what a run published into the columns a result reads.
  *
- * The records are copied rather than referenced, because a result is immutable once built and the
+ * The values are copied rather than referenced, because a result is immutable once built and the
  * caller's objects are not. An id that arrives twice merges into the row it already has: two rows
  * for one element would make a column longer than the set of elements it measures.
  * @param entries - What the run published, or undefined when this half is empty.
- * @returns The table.
+ * @returns The table; its columns stay plain arrays until {@link sealTable}.
  */
 function buildTable(entries: readonly ResultElementValues[] | undefined): ElementTable {
-    const table: ElementTable = { ids: [], records: [], index: new Map<NodeId, number>() };
-    if (entries === undefined) {
-        return table;
-    }
-
-    for (const entry of entries) {
-        const seen = table.index.get(entry.id);
-        if (seen === undefined) {
-            table.index.set(entry.id, table.ids.length);
-            table.ids.push(entry.id);
-            table.records.push({ ...entry.values });
-            continue;
+    const index = new OwnIndex();
+    const positions: number[] = [];
+    for (const entry of entries ?? []) {
+        let position = index.positions.get(entry.id);
+        if (position === undefined) {
+            position = index.ids.length;
+            index.positions.set(entry.id, position);
+            index.ids.push(entry.id);
         }
 
-        Object.assign(table.records[seen], entry.values);
+        positions.push(position);
     }
 
+    const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
+    (entries ?? []).forEach((entry, at) => {
+        for (const [name, value] of Object.entries(entry.values)) {
+            (columnFor(table, name) as unknown[])[positions[at]] = value;
+        }
+    });
+
     return table;
+}
+
+/**
+ * A field's column, created empty when the table has none yet. Only while the table is filled.
+ * @param table - The table.
+ * @param field - The field.
+ * @returns The column.
+ */
+function columnFor(table: ElementTable, field: string): Column {
+    let column = table.columns.get(field);
+    if (column === undefined) {
+        column = new Array<unknown>(table.length).fill(MISSING);
+        table.columns.set(field, column);
+    }
+
+    return column;
+}
+
+/**
+ * Turn every column whose elements all carry a number into a `Float64Array`.
+ * @param table - The filled table.
+ */
+function sealTable(table: ElementTable): void {
+    for (const [name, column] of table.columns) {
+        if (Array.isArray(column) && column.every((value): value is number => typeof value === "number")) {
+            table.columns.set(name, Float64Array.from(column));
+        }
+    }
+}
+
+/**
+ * One element's value for one field.
+ * @param table - The table.
+ * @param field - The field.
+ * @param position - The element's position.
+ * @returns The value, or undefined when it carries none.
+ */
+function valueAt(table: ElementTable, field: string, position: number): unknown {
+    const value = table.columns.get(field)?.[position];
+    return value === MISSING ? undefined : value;
+}
+
+/**
+ * One element's fields, built from the columns.
+ * @param table - The table.
+ * @param id - The element's id.
+ * @returns A frozen record, or undefined when the table holds no such id.
+ */
+function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unknown>> | undefined {
+    const position = table.index.indexOf(id);
+    if (!(position >= 0 && position < table.length)) {
+        return undefined;
+    }
+
+    const record: Record<string, unknown> = {};
+    for (const [name, column] of table.columns) {
+        const value = column[position];
+        if (value !== MISSING) {
+            record[name] = value;
+        }
+    }
+
+    return Object.freeze(record);
+}
+
+/**
+ * What a table's columns hold, in bytes: eight per slot, typed or not.
+ * @param table - The table.
+ * @returns Bytes; the id index is not counted (see {@link retentionOf}).
+ */
+function columnBytes(table: ElementTable): number {
+    let bytes = 0;
+    for (const column of table.columns.values()) {
+        bytes += column instanceof Float64Array ? column.byteLength : 8 * column.length;
+    }
+
+    return bytes;
 }
 
 /**
@@ -199,22 +339,27 @@ function buildTable(entries: readonly ResultElementValues[] | undefined): Elemen
  * @returns A source over the table's own storage.
  */
 function tableColumn(table: ElementTable, field: string): NumericColumnSource {
-    const { records } = table;
+    const column = table.columns.get(field);
 
     return {
-        length: records.length,
-        get: (index: number): number => numberOf(records[index][field]),
+        length: table.length,
+        get: (position: number): number => numberOf(column?.[position]),
     };
 }
 
 /**
- * Read a table's field as the entries a ranking is built from.
- * @param table - The elements to read.
+ * A table's field in ranking order.
+ * @param table - The elements to rank.
  * @param field - The field name.
- * @returns One entry per element, in table order.
+ * @returns The ranked positions, best first.
  */
-function rankableEntries(table: ElementTable, field: string): { id: NodeId; value: number }[] {
-    return table.ids.map((id, position) => ({ id, value: numberOf(table.records[position][field]) }));
+function orderOf(table: ElementTable, field: string): Uint32Array {
+    const column = tableColumn(table, field);
+    return rankOrder(
+        table.length,
+        (position) => column.get(position),
+        (position) => table.index.idOf(position),
+    );
 }
 
 /**
@@ -262,13 +407,15 @@ function fillGraph(graph: Record<string, unknown>, field: string, value: unknown
 
 /**
  * Publish an element-level field the algorithm did not publish itself.
- * @param record - The element's fields, still mutable.
+ * @param table - The table, still being filled.
  * @param field - The field name.
+ * @param position - The element's position.
  * @param value - What to publish.
  */
-function fillElement(record: Record<string, unknown>, field: string, value: unknown): void {
-    if (record[field] === undefined) {
-        record[field] = value;
+function fillElement(table: ElementTable, field: string, position: number, value: unknown): void {
+    const column = columnFor(table, field) as unknown[];
+    if (column[position] === MISSING || column[position] === undefined) {
+        column[position] = value;
     }
 }
 
@@ -281,8 +428,8 @@ function fillElement(record: Record<string, unknown>, field: string, value: unkn
 function countByKey(table: ElementTable, field: string): Map<string | number, number> {
     const counts = new Map<string | number, number>();
 
-    for (const record of table.records) {
-        const key = record[field];
+    for (let position = 0; position < table.length; position++) {
+        const key = valueAt(table, field, position);
         if (isGroupKey(key)) {
             counts.set(key, (counts.get(key) ?? 0) + 1);
         }
@@ -316,6 +463,32 @@ function declaredNormalization(fields: readonly FieldDescriptor[], name: string)
 }
 
 /**
+ * Give every ranked element its rank, and optionally its percentile, where it has none.
+ * @param table - The table, still being filled.
+ * @param field - The field ranked on.
+ * @param percentile - Whether to fill the percentile too.
+ */
+function fillRanks(table: ElementTable, field: string, percentile: boolean): void {
+    const order = orderOf(table, field);
+    const measured = order.length;
+    let rank = 0;
+    let previous = Number.NaN;
+    for (let index = 0; index < measured; index++) {
+        const position = order[index];
+        const value = numberOf(valueAt(table, field, position));
+        if (value !== previous) {
+            rank = index + 1;
+            previous = value;
+        }
+
+        fillElement(table, "rank", position, rank);
+        if (percentile) {
+            fillElement(table, "percentile", position, (measured - rank + 1) / measured);
+        }
+    }
+}
+
+/**
  * Fill in what a metric shape declares: a place for every element, and the range for the graph.
  *
  * The range is published only when something was measured. A `min` of 0 over a run that measured
@@ -325,15 +498,9 @@ function declaredNormalization(fields: readonly FieldDescriptor[], name: string)
  * @param fields - The fields the run published, read for the value field's declared scaling.
  */
 function fillMetric(table: ElementTable, graph: Record<string, unknown>, fields: readonly FieldDescriptor[]): void {
-    const {statistics} = analyzeColumn(tableColumn(table, "value"));
+    const { statistics } = analyzeColumn(tableColumn(table, "value"));
 
-    for (const entry of rankEntries(rankableEntries(table, "value"))) {
-        const position = table.index.get(entry.id);
-        if (position !== undefined) {
-            fillElement(table.records[position], "rank", entry.rank);
-            fillElement(table.records[position], "percentile", entry.percentile);
-        }
-    }
+    fillRanks(table, "value", true);
 
     if (statistics.measured > 0) {
         fillGraph(graph, "min", statistics.min);
@@ -364,10 +531,10 @@ function fillGrouping(
 ): void {
     const counts = countByKey(table, keyField);
 
-    for (const record of table.records) {
-        const key = record[keyField];
+    for (let position = 0; position < table.length; position++) {
+        const key = valueAt(table, keyField, position);
         if (isGroupKey(key)) {
-            fillElement(record, sizeField, counts.get(key));
+            fillElement(table, sizeField, position, counts.get(key));
         }
     }
 
@@ -381,12 +548,7 @@ function fillGrouping(
  * @param graph - The graph half, still mutable.
  */
 function fillCategories(table: ElementTable, graph: Record<string, unknown>): void {
-    for (const entry of rankEntries(rankableEntries(table, "score"))) {
-        const position = table.index.get(entry.id);
-        if (position !== undefined) {
-            fillElement(table.records[position], "rank", entry.rank);
-        }
-    }
+    fillRanks(table, "score", false);
 
     const rows: ResultCategoryRow[] = [...countByKey(table, "category").entries()].map(([category, count]) => ({
         category: String(category),
@@ -406,8 +568,8 @@ function fillCategories(table: ElementTable, graph: Record<string, unknown>): vo
 function countTrue(table: ElementTable, field: string): number {
     let total = 0;
 
-    for (const record of table.records) {
-        if (record[field] === true) {
+    for (let position = 0; position < table.length; position++) {
+        if (valueAt(table, field, position) === true) {
             total++;
         }
     }
@@ -424,8 +586,8 @@ function countTrue(table: ElementTable, field: string): number {
 function countDefined(table: ElementTable, field: string): number {
     let total = 0;
 
-    for (const record of table.records) {
-        if (record[field] !== undefined) {
+    for (let position = 0; position < table.length; position++) {
+        if (valueAt(table, field, position) !== undefined) {
             total++;
         }
     }
@@ -578,7 +740,8 @@ class Result implements RunResult {
     readonly #labelOf: (id: NodeId) => string | undefined;
     readonly #reading: ResultReadingGenerator;
     readonly #columns = new Map<string, AnalyzedColumn>();
-    readonly #rankings = new Map<string, readonly RankingEntry[]>();
+    /** Each ranked field's order, as positions: four bytes per ranked element. */
+    readonly #orders = new Map<string, Uint32Array>();
     readonly #tops = new Map<string, TopRanking>();
     #summary: ResultSummary | undefined;
 
@@ -617,9 +780,7 @@ class Result implements RunResult {
      * @returns The fields, or undefined when the run produced nothing for that node.
      */
     node(id: NodeId): Readonly<Record<string, unknown>> | undefined {
-        const position = this.#nodes.index.get(id);
-
-        return position === undefined ? undefined : this.#nodes.records[position];
+        return recordOf(this.#nodes, id);
     }
 
     /**
@@ -628,9 +789,7 @@ class Result implements RunResult {
      * @returns The fields, or undefined when the run produced nothing for that edge.
      */
     edge(id: EdgeId): Readonly<Record<string, unknown>> | undefined {
-        const position = this.#edges.index.get(id);
-
-        return position === undefined ? undefined : this.#edges.records[position];
+        return recordOf(this.#edges, id);
     }
 
     /**
@@ -665,9 +824,16 @@ class Result implements RunResult {
             this.#checkLimit(limit, "limit");
         }
 
-        const cached = this.#rankings.get(field) ?? this.#rank(field);
+        const table = this.#tableFor(field);
+        const order = this.#orderFor(field, table);
+        const column = tableColumn(table, field);
 
-        return limit === undefined ? cached : Object.freeze(cached.slice(0, limit));
+        return rankedPrefix(
+            order,
+            limit ?? order.length,
+            (position) => column.get(position),
+            (position) => table.index.idOf(position),
+        );
     }
 
     /**
@@ -688,7 +854,28 @@ class Result implements RunResult {
             return cached;
         }
 
-        const top = topOfRanking(this.ranking(field), this.#checkLimit(n, "n"));
+        const limit = this.#checkLimit(n, "n");
+        const table = this.#tableFor(field);
+        const order = this.#orderFor(field, table);
+        const column = tableColumn(table, field);
+        // Only the entries the cut can reach: up to n, and on through the tie group n falls in.
+        let end = Math.min(limit, order.length);
+        if (end < order.length) {
+            const tied = column.get(order[end]);
+            while (end < order.length && column.get(order[end]) === tied) {
+                end++;
+            }
+        }
+
+        const top = topOfRanking(
+            rankedPrefix(
+                order,
+                end,
+                (position) => column.get(position),
+                (position) => table.index.idOf(position),
+            ),
+            limit,
+        );
         this.#tops.set(key, top);
 
         return top;
@@ -850,16 +1037,70 @@ class Result implements RunResult {
     }
 
     /**
-     * Rank one field for the first time and keep the answer.
+     * One field's ranking order, computed on the first ask and kept.
      * @param field - The field to rank on.
-     * @returns The whole ranking, best first.
-     * @throws A GraphtyError naming what went wrong.
+     * @param table - The half it belongs to.
+     * @returns The ranked positions, best first.
      */
-    #rank(field: string): readonly RankingEntry[] {
-        const ranked = rankEntries(rankableEntries(this.#tableFor(field), field));
-        this.#rankings.set(field, ranked);
+    #orderFor(field: string, table: ElementTable): Uint32Array {
+        let order = this.#orders.get(field);
+        if (order === undefined) {
+            order = orderOf(table, field);
+            this.#orders.set(field, order);
+        }
 
-        return ranked;
+        return order;
+    }
+
+    /**
+     * What this result retains, in bytes: its columns and every cache it has built. Its id
+     * indexes are not counted; see {@link retentionOf}.
+     * @returns Bytes.
+     */
+    get byteSize(): number {
+        let bytes = columnBytes(this.#nodes) + columnBytes(this.#edges);
+        for (const order of this.#orders.values()) {
+            bytes += order.byteLength;
+        }
+
+        for (const top of this.#tops.values()) {
+            bytes += 64 * top.entries.length;
+        }
+
+        return bytes;
+    }
+
+    /**
+     * The id indexes this result reads through, for whoever charges for them.
+     * @returns One per half that holds elements.
+     */
+    indexes(): readonly RetainedIndex[] {
+        return [this.#nodes, this.#edges]
+            .filter((table) => table.length > 0)
+            .map((table) => ({ index: table.index, token: table.token, bytes: indexBytes(table.index) }));
+    }
+
+    /**
+     * Read the nodes through a snapshot's id index instead of this result's own, when the two hold
+     * the same ids in the same order.
+     * @param index - The snapshot's node id index.
+     * @param token - The graph token of that snapshot.
+     */
+    shareNodeIndex(index: ResultIdIndex, token: number): void {
+        const table = this.#nodes;
+        if (!(table.index instanceof OwnIndex) || index.size !== table.length) {
+            return;
+        }
+
+        const { ids } = table.index;
+        for (let position = 0; position < ids.length; position++) {
+            if (index.idOf(position) !== ids[position]) {
+                return;
+            }
+        }
+
+        table.index = index;
+        table.token = token;
     }
 
     /**
@@ -970,14 +1211,42 @@ export function createRunResult(init: RunResultInit): RunResult {
     const graph: Record<string, unknown> = { ...init.graph };
 
     fillShapeFields(init.shape, nodes, edges, graph, init.fields);
-
-    for (const record of nodes.records) {
-        Object.freeze(record);
-    }
-
-    for (const record of edges.records) {
-        Object.freeze(record);
-    }
+    sealTable(nodes);
+    sealTable(edges);
 
     return new Result(init, nodes, edges, Object.freeze(graph));
+}
+
+/** One id index a result reads through, as the undo history charges for it. */
+interface RetainedIndex {
+    /** The index object: charged once however many results share it. */
+    readonly index: object;
+    /** The graph token of the snapshot it belongs to, or null when the result owns it. */
+    readonly token: number | null;
+    /** What it costs, estimated. */
+    readonly bytes: number;
+}
+
+/**
+ * What a result retains: its columns and caches, and the id indexes it reads through. The
+ * indexes are apart because whether one costs anything depends on what else is alive: one shared
+ * with the resident snapshot costs nothing extra (design/undo/undo-design.md section 7).
+ * @param result - The result; one this module did not build retains nothing it can see.
+ * @returns The bytes and the indexes.
+ */
+export function retentionOf(result: RunResult): { readonly bytes: number; readonly indexes: readonly RetainedIndex[] } {
+    return result instanceof Result ? { bytes: result.byteSize, indexes: result.indexes() } : { bytes: 0, indexes: [] };
+}
+
+/**
+ * Let a result read its nodes through a snapshot's id index, dropping its own, when the two hold
+ * the same ids in the same order. Nothing observable changes.
+ * @param result - The result.
+ * @param index - The snapshot's node id index.
+ * @param token - The graph token of that snapshot.
+ */
+export function shareNodeIndex(result: RunResult, index: ResultIdIndex, token: number): void {
+    if (result instanceof Result) {
+        result.shareNodeIndex(index, token);
+    }
 }

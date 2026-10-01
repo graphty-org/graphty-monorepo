@@ -1,5 +1,7 @@
 import { assert, describe, it } from "vitest";
 
+import { createGraphSession } from "../../src/session";
+import { laneOf } from "../../src/session/GraphSession";
 import { makeSession } from "./helpers";
 
 describe("reading one node or one edge", () => {
@@ -15,7 +17,7 @@ describe("reading one node or one edge", () => {
         harness.session.dispose();
     });
 
-    it("misses without coercing, so 1 and \"1\" stay two different nodes", () => {
+    it('misses without coercing, so 1 and "1" stay two different nodes', () => {
         const harness = makeSession();
         harness.add([{ id: 1 }]);
 
@@ -87,11 +89,42 @@ describe("reading one node or one edge", () => {
     });
 });
 
+describe("listing every node and every edge", () => {
+    it("hands back each record exactly as reading it by id does, in the graph's order", () => {
+        const harness = makeSession();
+        harness.add(
+            [{ id: "a", label: "Alpha" }, { id: 2 }],
+            [
+                { src: "a", dst: 2, kind: "knows" },
+                { src: 2, dst: "a" },
+            ],
+        );
+        const { data } = harness.session;
+
+        assert.deepEqual<unknown[]>([...data.nodes()], [data.node("a"), data.node(2)]);
+        assert.deepEqual<unknown[]>([...data.edges()], [data.edge("0"), data.edge("1")]);
+        assert.strictEqual(data.edges()[0].kind, "knows");
+        assert.isTrue(Object.isFrozen(data.nodes()[0]), "a listed record is as read-only as one read by id");
+        harness.session.dispose();
+    });
+
+    it("lists nothing for an empty graph", () => {
+        const harness = makeSession();
+
+        assert.deepEqual(harness.session.data.nodes(), []);
+        assert.deepEqual(harness.session.data.edges(), []);
+        harness.session.dispose();
+    });
+});
+
 describe("what attributes the graph carries", () => {
     it("describes node and edge attributes with their type, completeness and samples", () => {
         const harness = makeSession();
         harness.add(
-            [{ id: "a", label: "Alpha", weightKg: 1.5 }, { id: "b", label: "Beta" }],
+            [
+                { id: "a", label: "Alpha", weightKg: 1.5 },
+                { id: "b", label: "Beta" },
+            ],
             [{ src: "a", dst: "b", kind: "knows" }],
         );
 
@@ -196,7 +229,8 @@ describe("the topology fingerprint", () => {
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);
         const before = harness.session.fingerprint();
 
-        harness.session.positions.write(0, 10, 20, 30);
+        // As a layout moves it: straight into the lane.
+        laneOf(harness.session).write(0, 10, 20, 30);
 
         assert.strictEqual(harness.session.fingerprint(), before);
         harness.session.dispose();
@@ -215,5 +249,48 @@ describe("the cost of asking twice", () => {
 
         assert.notStrictEqual(harness.session.data.statistics(), first, "a changed graph is walked again");
         harness.session.dispose();
+    });
+});
+
+describe("writing the graph with no renderer", () => {
+    it("adds nodes and edges, edits them, and undoes each as a step", async () => {
+        const session = createGraphSession();
+
+        await session.data.addNodes([
+            { id: "a", label: "Alpha" },
+            { id: "b", label: "Beta" },
+        ]);
+        await session.data.addEdges([{ source: "a", target: "b", kind: "knows" }]);
+        await session.data.updateNodes([{ id: "a", values: { label: "First" } }]);
+        await session.data.updateEdges([{ id: "0", values: { kind: "likes" } }]);
+
+        assert.strictEqual(session.status.counts.nodes, 2);
+        assert.strictEqual(session.data.node("a")?.label, "First");
+        assert.strictEqual(session.data.edge("0")?.kind, "likes");
+        assert.strictEqual(session.data.edge("0")?.source, "a");
+        assert.strictEqual(session.data.lastImport()?.counts.edges, 1);
+        assert.lengthOf(session.history.steps, 4);
+
+        await session.history.restoreTo(null);
+        assert.strictEqual(session.status.counts.nodes, 0);
+        assert.isUndefined(session.data.node("a"));
+        assert.isNull(session.data.lastImport());
+
+        await session.redo();
+        assert.strictEqual(session.data.node("a")?.label, "Alpha");
+        session.dispose();
+    });
+
+    it("reads the attributes a filter and a style select on from what the verbs wrote", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", type: "hub" },
+            { id: "b", type: "leaf" },
+        ]);
+
+        await session.visibility.set({ kind: "categories", attribute: "data.type", values: ["hub"] });
+
+        assert.deepEqual([...session.visibility.nodes], ["a"]);
+        session.dispose();
     });
 });

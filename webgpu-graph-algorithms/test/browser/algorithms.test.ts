@@ -4,17 +4,21 @@
  * 1e-5 relative of the f64 oracle, the Afforest labels identical to the union-find oracle's, item 4's third case
  * `breadthFirstSearch` from vertex 0 with `depth` (the depth buffer) identical to the FIFO oracle's, `order` grouped
  * by level and the direction switches matching the host replay of Beamer's rule, and one `sssp` on the weighted
- * karate with `dist` (the dist buffer) bitwise the f32 oracle's.
+ * karate with `dist` (the dist buffer) bitwise the f32 oracle's, and exact betweenness and edge betweenness on karate
+ * within 1e-4 of the Brandes reference.
  */
 
+import { betweennessCentrality, edgeBetweennessCentrality } from "../../src/algorithms/betweenness.js";
 import { breadthFirstSearch } from "../../src/algorithms/bfs.js";
 import { connectedComponents } from "../../src/algorithms/components.js";
 import { pageRank } from "../../src/algorithms/pagerank.js";
 import { sssp } from "../../src/algorithms/sssp.js";
 import { BEAMER_BETA, MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
+import { edgeConvention, scoreError, vertexConvention } from "../helpers/centrality-check.js";
 import { type EdgeSpec, KARATE_EDGES, snapshotOf, xorshift } from "../helpers/graphs.js";
 import { expectAllClose, expectBitwiseEqual } from "../helpers/matchers.js";
 import { expectedDirections, expectOrderGroupedByLevel, levelStatsOf } from "../helpers/traversal-check.js";
+import { brandesOracle } from "../oracle/betweenness.js";
 import { componentsOracle } from "../oracle/components.js";
 import { pageRankOracleTo } from "../oracle/pagerank.js";
 import { bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
@@ -26,7 +30,7 @@ function weightedKarate(): EdgeSpec[] {
     return KARATE_EDGES.map(([u, v]) => [u, v, 0.1 + 9.9 * random()]);
 }
 
-describe("PageRank, connected components, BFS and sssp in the browser (spec 11.6 item 4)", () => {
+describe("PageRank, connected components, BFS, sssp and betweenness in the browser (spec 11.6 item 4)", () => {
     it("pageRank on karate matches the oracle after 8 iterations within 1e-5 relative", async (t) => {
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser({ label: "browser-algorithms/pagerank" });
@@ -73,7 +77,7 @@ describe("PageRank, connected components, BFS and sssp in the browser (spec 11.6
             degreeSums,
             karate.nodeCount,
             karate.arcCount,
-            Math.max(1, Math.floor(karate.arcCount / karate.nodeCount)),   // the driver's default alpha
+            Math.max(1, Math.floor(karate.arcCount / karate.nodeCount)), // the driver's default alpha
             BEAMER_BETA,
             MAX_LEVELS_PER_SUBMIT,
         );
@@ -102,6 +106,19 @@ describe("PageRank, connected components, BFS and sssp in the browser (spec 11.6
             "karate dist (the dist buffer) vs the f32 oracle, as bit patterns",
         );
         expect(result.reachedCount).toBe(expected.reachedCount);
+        ctx.release(karate);
+    });
+
+    it("betweenness and edge betweenness on karate within 1e-4 of the Brandes reference", async (t) => {
+        await requireBrowserGpu(t);
+        const ctx = await acquireBrowser({ label: "browser-algorithms/betweenness" });
+        const karate = snapshotOf(KARATE_EDGES, { label: "browser-algorithms/karate-betweenness" });
+        const raw = brandesOracle(karate);
+        const vertex = await betweennessCentrality(ctx, karate);
+        expect(vertex.sigmaOverflow).toBe(false);
+        expect(scoreError(vertex.scores, vertexConvention(karate, raw.vertex))).toBeLessThanOrEqual(1e-4);
+        const edges = await edgeBetweennessCentrality(ctx, karate);
+        expect(scoreError(edges.scores, edgeConvention(karate, raw.perArc))).toBeLessThanOrEqual(1e-4);
         ctx.release(karate);
     });
 });

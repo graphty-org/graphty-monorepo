@@ -122,8 +122,9 @@ export const Default: Story = {
 
         await holds(
             report === null || report.counts.edgeRecords === 45,
-            `XR Default: the story generates 45 edge records and the importer was handed ` +
-                `${String(report?.counts.edgeRecords)}`,
+            `XR Default: the story generates 45 edge records and the importer was handed ${String(
+                report?.counts.edgeRecords,
+            )}`,
         );
 
         await assertGraphLoaded(scene, { nodes: 30, edges: scene.edgeCount });

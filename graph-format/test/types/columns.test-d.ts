@@ -21,6 +21,8 @@ import {
     type KnownColumnRole,
     type ListColumn,
     type Loose,
+    maskAnd,
+    maskNot,
     type NodeMask,
     type ScalarDtype,
     type StringColumn,
@@ -163,3 +165,6 @@ expectTypeOf<number>().not.toMatchTypeOf<ColumnRole>();
 // ---- masks share the packed u32 layout
 expectTypeOf<NodeMask>().toEqualTypeOf<U32>();
 expectTypeOf<EdgeMask>().toEqualTypeOf<U32>();
+declare const nodeMask: NodeMask;
+expectTypeOf(maskAnd(nodeMask, nodeMask, 10)).toEqualTypeOf<U32>();
+expectTypeOf(maskNot(nodeMask, 10, nodeMask)).toEqualTypeOf<U32>();

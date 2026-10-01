@@ -392,6 +392,23 @@ describe("indexed.labelPropagation: the FLPA kernel on undirected snapshots", ()
         }
     });
 
+    it("stops a 1,000-node path in a few sweeps for seeds 1, 2 and 3, where 2.x ran all 100 (issue #561)", () => {
+        // 2.x redrew every tie on every sweep and stopped only after a sweep with no change, so a
+        // path kept flipping until maxIterations. The queue stops once every label is dominant.
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 1; i < 1000; i++) {
+            b.addEdge(`p${i - 1}`, `p${i}`);
+        }
+        const s = b.freeze({ checksum: true });
+        for (const randomSeed of [1, 2, 3]) {
+            const r = labelPropagation(s, { randomSeed });
+            expect(r.converged).toBe(true);
+            expect(r.iterations).toBeLessThanOrEqual(5);
+            expect(dominanceHolds(s, r.labels)).toBe(true);
+        }
+        s.validate({ checksum: true });
+    });
+
     it("is deterministic per seed and varies across seeds on the karate club", () => {
         const s = fixture("Zachary's karate club");
         expect([...labelPropagation(s, { randomSeed: 7 }).labels]).toEqual([

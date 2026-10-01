@@ -7,7 +7,7 @@ the app needs, for which the round-2 object-first design (`round-2/revision.md` 
 the design (where the reader starts it, what they see, the rows, the keys, what happens when it
 goes wrong), what graphty-element must provide for it, and which mock now draws it. The mocks
 are screens 83 to 100 in `design/ui/object-first-ux/mocks/v2/`, built from the specs in
-`tmp/object-first/gen/screens/screen-83.mjs` to `screen-100.mjs`.
+`design/ui/object-first-ux/gen/screens/screen-83.mjs` to `screen-100.mjs`.
 
 It is written for an engineer who is not a designer. Paths are under
 `/home/apowers/Projects/graphty-monorepo/`. `#NNN` is an open issue in
@@ -607,6 +607,6 @@ paint is a layer on an object the element owns.
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `tmp/object-first/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
 Menus are dark menus anchored to their control; a menu that leads to the state drawn beside it carries a "A moment before" tag. Screens 84 to 86 move nodes with `canvas.positions`; 86 draws pin marks; 89 the dark tooltip; 91 the legend's width block; 92 node shapes and the legend's shape column; 90 the midpoint mark on the ramp; 95 and 98 the dashed export frame; 95 to 98 the Export sheet's footer; 99 Present mode without panels; 100 the "new" badge and the return notice.

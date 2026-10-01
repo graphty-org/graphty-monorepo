@@ -1,3 +1,27 @@
+## 3.1.3 (2026-10-01)
+
+### 🩹 Fixes
+
+- **graphty-element:** stop color-control inference on the background property ([7919af6b](https://github.com/graphty-org/graphty-monorepo/commit/7919af6b))
+- **graphty-element:** stop the color control matching the background object ([b97ece3b](https://github.com/graphty-org/graphty-monorepo/commit/b97ece3b))
+- **graphty-element:** draw the GPU, log panel, AI and simple tier stories in the standard frame ([e7f59a2d](https://github.com/graphty-org/graphty-monorepo/commit/e7f59a2d))
+- **graphty-element:** take no placement steps while a layout's pre-steps are owed ([#553](https://github.com/graphty-org/graphty-monorepo/issues/553))
+- **graphty-element:** an element with no data reports a stable frame ([76f701df](https://github.com/graphty-org/graphty-monorepo/commit/76f701df))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.18
+- Updated @graphty/remote-logger to 1.3.16
+- Updated graph-samples to 0.1.12
+- Updated graph-format to 1.2.4
+- Updated algorithms to 3.1.2
+- Updated graph-io to 0.3.14
+- Updated layout to 2.0.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.2 (2026-10-01)
 
 ### 🧱 Updated Dependencies

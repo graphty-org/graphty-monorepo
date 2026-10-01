@@ -298,6 +298,16 @@ describe("when somebody has already said what that channel looks like", () => {
         assert.lengthOf(harness.policy.completed(BETWEENNESS, false).paint, 1);
     });
 
+    it("still paints when the authored layer names only some elements", () => {
+        // A reader who coloured one node by hand decided about that node, not about the graph:
+        // the run still paints, and is placed beneath the override so the node stays as chosen.
+        const harness = record();
+        harness.layers = [layerOf("one node", { by: "user" }, { selector: { match: "ids", nodes: ["n0"] } })];
+
+        assert.lengthOf(harness.policy.completed(BETWEENNESS, false).paint, 1);
+        assert.lengthOf(highlights(harness.policy.completed(INFLUENCERS, false).paint), 1);
+    });
+
     it("suppresses a highlight when an authored layer drives a colour it would paint", () => {
         const harness = record();
         harness.layers = [layerOf("mine", { by: "user" })];
@@ -604,6 +614,31 @@ describe("what a session's runs paint", () => {
         assert.deepStrictEqual(encodedChannels(session), ["node.color"]);
         assert.strictEqual(session.runs.list().length, 3, "every member still ran and kept its result");
         assert.lengthOf(session.history.steps, 1, "the batch and its layer are one step");
+        session.dispose();
+    });
+
+    it("paints beneath a user layer that colours one node, so the override still wins there", async () => {
+        const session = await fixtureSession();
+        const mine = await session.styles.add({
+            name: "n1 in red",
+            selector: { match: "ids", nodes: ["n1"] },
+            set: { "node.color": "#ff0000" },
+        });
+
+        await session.runs.start("degree", {}, { as: "deg" });
+
+        const ids = session.styles.list().map((each) => each.id);
+        const [derived] = layersOf(session, "deg");
+        assert.isDefined(derived, "the run painted the nodes it measured");
+        assert.isBelow(ids.indexOf(derived.id), ids.indexOf(mine.id), "the hand-coloured node keeps its colour");
+
+        await session.runs.batch([{ algorithm: "degree", as: "deg2" }]);
+
+        const after = session.styles.list().map((each) => each.id);
+        const [batched] = layersOf(session, "deg2");
+        assert.isDefined(batched, "a sweep paints too");
+        assert.isBelow(after.indexOf(batched.id), after.indexOf(mine.id));
+        assert.isAbove(after.indexOf(batched.id), after.indexOf(derived.id), "later runs still stack above earlier");
         session.dispose();
     });
 

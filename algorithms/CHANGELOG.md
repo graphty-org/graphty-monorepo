@@ -1,3 +1,18 @@
+## 3.1.2 (2026-10-01)
+
+### 🩹 Fixes
+
+- **algorithms:** restore the 2.x tie order of maximumBipartiteMatching ([6c6daedb](https://github.com/graphty-org/graphty-monorepo/commit/6c6daedb))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.12
+- Updated graph-format to 1.2.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.1 (2026-10-01)
 
 ### 🧱 Updated Dependencies

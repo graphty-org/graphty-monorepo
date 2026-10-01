@@ -60,7 +60,7 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // instead of copying the facts into the application where they drift the first time a channel's
 // bounds or values change. `CHANNEL_DESCRIPTORS` is defined beside the channel value types in
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
-export type { ChannelDescriptor, ChannelValueKind } from "./src/session/styles/channels";
+export type { ChannelDescriptor, ChannelGroup, ChannelValueKind } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
 
 // ---------------------------------------------------------------------------------------------

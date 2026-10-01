@@ -2,7 +2,8 @@ import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
 import type { EdgeLinePattern } from "../../../src/catalog/types";
-import { NodeShapes } from "../../../src/config/NodeStyle";
+import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
+import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
     type ArrowValue,
     type AuthoredValue,
@@ -203,7 +204,10 @@ describe("what the element can really draw", () => {
     it("offers the nine line patterns the edge renderer has meshes for", () => {
         const patterns = CHANNEL_DESCRIPTORS["edge.style"].values ?? [];
 
-        assert.deepEqual([...patterns], ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
+        assert.deepEqual(
+            [...patterns],
+            ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"],
+        );
     });
 
     it("publishes the same nine patterns from the catalogue that the control offers", () => {
@@ -258,6 +262,105 @@ describe("what the element can really draw", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.opacity"].max, 1);
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.size"].min, 0);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.size"].max);
+    });
+});
+
+describe("what a style editor needs to draw a row", () => {
+    /** The groups each target's channels may sit in. */
+    const GROUPS = { node: ["shape", "color", "effects", "text"], edge: ["line", "arrows", "text"] };
+
+    /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
+    const NO_DEFAULT = new Set([
+        "node.label",
+        "node.labelStyle",
+        "node.tooltip",
+        "node.tooltipStyle",
+        "node.outline",
+        "node.glow",
+        "node.glowStrength",
+        "node.marker",
+        "edge.patternCount",
+        "edge.arrowHeadText",
+        "edge.arrowHeadTextStyle",
+        "edge.arrowTailText",
+        "edge.arrowTailTextStyle",
+        "edge.label",
+        "edge.labelStyle",
+    ]);
+
+    /** The JavaScript type a default must have, per value kind. */
+    const DEFAULT_TYPE: Partial<Record<ChannelValueKind, string>> = {
+        color: "string",
+        number: "number",
+        boolean: "boolean",
+        enum: "string",
+    };
+
+    it("gives every channel a short name and a group of its own target", () => {
+        for (const channel of CHANNELS) {
+            const { shortName, group, target, plainName } = CHANNEL_DESCRIPTORS[channel];
+
+            assert.isAbove(shortName.length, 0, channel);
+            assert.notInclude(shortName, target === "node" ? "Node" : "Edge", `${channel} names its target`);
+            assert.isBelow(shortName.length, plainName.length + 1, `${channel} is shorter than its plain name`);
+            assert.include(GROUPS[target], group, `${channel} sits in a ${target} group`);
+        }
+    });
+
+    it("gives a default to every channel that draws something when unset, of the kind it accepts", () => {
+        for (const channel of CHANNELS) {
+            const descriptor = CHANNEL_DESCRIPTORS[channel];
+
+            if (NO_DEFAULT.has(channel)) {
+                assert.isUndefined(descriptor.default, `${channel} draws nothing unset`);
+                continue;
+            }
+
+            assert.strictEqual(typeof descriptor.default, DEFAULT_TYPE[descriptor.accepts], channel);
+
+            if (descriptor.accepts === "enum") {
+                assert.include(descriptor.values, descriptor.default, channel);
+            }
+
+            if (descriptor.accepts === "color") {
+                assert.match(String(descriptor.default), /^#[\dA-F]{6}$/, channel);
+            }
+        }
+    });
+
+    it("reads the defaults out of the element's default styles rather than restating them", () => {
+        const nodeColor = defaultNodeStyle.texture?.color;
+
+        assert.isString(nodeColor, "the element's default node colour is one solid colour");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.color"].default, nodeColor.toUpperCase());
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.size"].default, defaultNodeStyle.shape?.size);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.shape"].default, defaultNodeStyle.shape?.type);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].default, defaultEdgeStyle.line?.width);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.style"].default, defaultEdgeStyle.line?.type);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHead"].default, defaultEdgeStyle.arrowHead?.type);
+        // "darkgrey", written as the hex a swatch can open on.
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.color"].default, "#A9A9A9");
+    });
+
+    it("draws an unset arrow cap in its line's colour, so that is its default", () => {
+        assert.strictEqual(
+            CHANNEL_DESCRIPTORS["edge.arrowHeadColor"].default,
+            CHANNEL_DESCRIPTORS["edge.color"].default,
+        );
+        assert.strictEqual(
+            CHANNEL_DESCRIPTORS["edge.arrowTailColor"].default,
+            CHANNEL_DESCRIPTORS["edge.color"].default,
+        );
+    });
+
+    it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
+        for (const channel of CHANNELS) {
+            const { renderable, unsupportedReason } = CHANNEL_DESCRIPTORS[channel];
+
+            assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+        }
+
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
     });
 });
 

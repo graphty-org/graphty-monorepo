@@ -2232,6 +2232,27 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D. Ids that name no node are skipped; when none of them names a
+     * node the camera does not move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - The nodes to frame.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await element.zoomToNodes(["n1", "n2"], { animate: true });
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: Iterable<string | number>,
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.zoomToNodes(nodeIds, options);
+    }
+
+    /**
      * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
      * @param camera - The camera state to save instead of where the camera is now

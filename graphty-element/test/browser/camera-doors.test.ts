@@ -220,6 +220,37 @@ describe("camera doors", () => {
         TEST_TIMEOUT_MS,
     );
 
+    for (const mode of ["3d", "2d"] as const) {
+        it(
+            `zoomToNodes frames only the named nodes on the ${mode} camera`,
+            async () => {
+                const graph = await loadedGraph(mode);
+                const subset = graph.resolveCameraPreset("fitToGraph", { nodes: ["n1", "n2"] });
+                const whole = graph.resolveCameraPreset("fitToGraph");
+                assert.notDeepEqual(subset, whole, `${mode}: the pair frames differently from the graph`);
+                await compare(
+                    graph,
+                    `${mode} zoomToNodes`,
+                    () => graph.setCameraState(subset),
+                    () => graph.zoomToNodes(["n1", "n2"]),
+                );
+            },
+            TEST_TIMEOUT_MS,
+        );
+    }
+
+    it(
+        "zoomToNodes with no node it knows leaves the camera where it is",
+        async () => {
+            const graph = await loadedGraph("3d");
+            const start = graph.getCameraState();
+            await graph.zoomToNodes([]);
+            await graph.zoomToNodes(["no-such-node"]);
+            assertSameCamera(graph.getCameraState(), start, "unknown nodes");
+        },
+        TEST_TIMEOUT_MS,
+    );
+
     it(
         "loadCameraPreset answers the app's Top, Front and Side rows with the element's view names",
         async () => {

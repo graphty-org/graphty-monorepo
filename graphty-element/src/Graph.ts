@@ -5455,6 +5455,35 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D -- it is the `fitToGraph` view measured over these nodes only.
+     * Ids that name no node are skipped; when none of them names a node the camera does not
+     * move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - The nodes to frame.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await graph.zoomToNodes(["n1", "n2"]);
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: Iterable<string | number>,
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        // Each id is looked up the way getNode looks it up, so either spelling of an integer id
+        // frames the node, and the scope is handed the ids the graph itself holds.
+        const nodes = [...nodeIds].flatMap((id) => this.getNode(id)?.id ?? []);
+        if (nodes.length === 0) {
+            return undefined;
+        }
+
+        return this.applyCameraView("fitToGraph", { ...options, scope: { nodes } });
+    }
+
+    /**
      * Get default camera state for current camera type
      * Lazily captures the initial state on first use, or returns captured state
      * @returns The default camera state

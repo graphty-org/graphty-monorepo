@@ -50,6 +50,30 @@ With padding:
 graph.zoomToFit({ padding: 1.2 }); // 20% extra space
 ```
 
+### Zoom In and Out
+
+Move the camera one step nearer or further, the way a zoom button does. The same call works on
+the 2D and the 3D camera:
+
+```typescript
+await graph.zoomStep("in");
+await graph.zoomStep("out");
+```
+
+### Zoom to Nodes
+
+Frame some of the nodes, in 2D or 3D. Ids that name no node are skipped, and when none of them
+names a node the camera stays where it is:
+
+```typescript
+await graph.zoomToNodes(["alice", "bob"], { animate: true });
+```
+
+`zoomToSelection()` turns the camera to look at the middle of the selected nodes, keeping
+where it stands.
+
+None of these is an undoable step: the camera is view state, not part of a project.
+
 ### Set Complete State
 
 ```typescript
@@ -201,31 +225,10 @@ graph.on("camera-state-changed", ({ state }) => {
 
 ## Focus on Node
 
-Animate camera to focus on a specific node:
+Animate the camera to frame a single node:
 
 ```typescript
-async function focusNode(nodeId) {
-    const node = graph.getNode(nodeId);
-    if (!node) return;
-
-    const position = node.position;
-
-    graph.setCameraState(
-        {
-            position: {
-                x: position.x,
-                y: position.y,
-                z: position.z + 50, // Back away a bit
-            },
-            target: position,
-            up: { x: 0, y: 1, z: 0 },
-        },
-        {
-            animate: true,
-            duration: 500,
-        },
-    );
-}
+await graph.zoomToNodes([nodeId], { animate: true, duration: 500 });
 ```
 
 ## Orbit Animation

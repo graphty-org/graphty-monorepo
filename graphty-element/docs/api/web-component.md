@@ -102,15 +102,18 @@ The Web Component provides these methods for imperative control:
 
 ### Camera Control
 
-| Method                              | Parameters                              | Returns         | Description              |
-| ----------------------------------- | --------------------------------------- | --------------- | ------------------------ |
-| `getCameraState()`                  | -                                       | `CameraState`   | Get camera state         |
-| `setCameraState(state, options?)`   | `CameraState`, `CameraAnimationOptions` | `Promise<void>` | Set camera state         |
-| `setCameraPosition(pos, options?)`  | `{x, y, z}`, `CameraAnimationOptions`   | `Promise<void>` | Set camera position (3D) |
-| `setCameraTarget(target, options?)` | `{x, y, z}`, `CameraAnimationOptions`   | `Promise<void>` | Set camera target (3D)   |
-| `setCameraZoom(zoom, options?)`     | `number`, `CameraAnimationOptions`      | `Promise<void>` | Set zoom (2D)            |
-| `setCameraPan(pan, options?)`       | `{x, y}`, `CameraAnimationOptions`      | `Promise<void>` | Set pan (2D)             |
-| `resetCamera(options?)`             | `CameraAnimationOptions`                | `Promise<void>` | Reset to default         |
+| Method                              | Parameters                                             | Returns         | Description                   |
+| ----------------------------------- | ------------------------------------------------------ | --------------- | ----------------------------- |
+| `getCameraState()`                  | -                                                      | `CameraState`   | Get camera state              |
+| `setCameraState(state, options?)`   | `CameraState`, `CameraAnimationOptions`                | `Promise<void>` | Set camera state              |
+| `setCameraPosition(pos, options?)`  | `{x, y, z}`, `CameraAnimationOptions`                  | `Promise<void>` | Set camera position (3D)      |
+| `setCameraTarget(target, options?)` | `{x, y, z}`, `CameraAnimationOptions`                  | `Promise<void>` | Set camera target (3D)        |
+| `setCameraZoom(zoom, options?)`     | `number`, `CameraAnimationOptions`                     | `Promise<void>` | Set zoom (2D)                 |
+| `setCameraPan(pan, options?)`       | `{x, y}`, `CameraAnimationOptions`                     | `Promise<void>` | Set pan (2D)                  |
+| `resetCamera(options?)`             | `CameraAnimationOptions`                               | `Promise<void>` | Reset to default              |
+| `zoomStep(direction, options?)`     | `"in" \| "out"`, `CameraAnimationOptions`              | `Promise<void>` | One zoom step (2D and 3D)     |
+| `zoomToNodes(ids, options?)`        | `Iterable<string \| number>`, `CameraAnimationOptions` | `Promise<void>` | Frame these nodes (2D and 3D) |
+| `zoomToSelection(options?)`         | `CameraAnimationOptions`                               | `Promise<void>` | Look at the selected nodes    |
 
 ### Camera Presets
 

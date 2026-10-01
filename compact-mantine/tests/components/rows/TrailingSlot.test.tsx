@@ -5,11 +5,7 @@ import React, { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type ActivationEvent, compactTheme } from "../../../src";
-import {
-    AdvancedButton,
-    holdsSomething,
-    TrailingSlot,
-} from "../../../src/components/rows/TrailingSlot";
+import { AdvancedButton, holdsSomething, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 import { UI_GLYPH_NAMES, UiGlyph } from "../../../src/icons";

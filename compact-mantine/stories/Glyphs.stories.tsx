@@ -130,8 +130,8 @@ function GlyphCard({
                 alignItems: "flex-start",
             }}
         >
-            <Box style={{display: "flex", gap: 4, flex: "0 0 auto"}}>{children}</Box>
-            <Box style={{minWidth: 0}}>
+            <Box style={{ display: "flex", gap: 4, flex: "0 0 auto" }}>{children}</Box>
+            <Box style={{ minWidth: 0 }}>
                 <Text size="sm" c={PANEL_INK.VALUE} ff="monospace">
                     {name}
                 </Text>
@@ -150,7 +150,7 @@ function GlyphCard({
  * @param root0.children - The glyph to draw
  * @returns The tile
  */
-function Tile({children}: {children: React.ReactNode}): React.JSX.Element {
+function Tile({ children }: { children: React.ReactNode }): React.JSX.Element {
     return (
         <Box
             style={{
@@ -177,9 +177,9 @@ function Tile({children}: {children: React.ReactNode}): React.JSX.Element {
  * @param root0.children - The entries
  * @returns The grid, under its caption
  */
-function Gallery({caption, children}: {caption: string; children: React.ReactNode}): React.JSX.Element {
+function Gallery({ caption, children }: { caption: string; children: React.ReactNode }): React.JSX.Element {
     return (
-        <Stack gap={PANEL_GRID.GUTTER} style={{maxWidth: GALLERY_MAX_WIDTH}}>
+        <Stack gap={PANEL_GRID.GUTTER} style={{ maxWidth: GALLERY_MAX_WIDTH }}>
             <Text size="xs" c={PANEL_INK.CHROME}>
                 {caption}
             </Text>
@@ -293,11 +293,11 @@ export const InAField: Story = {
     render: (): React.JSX.Element => (
         <Box w={PANEL_GRID.WIDTH}>
             <Stack gap={PANEL_GRID.GUTTER}>
-                <Box style={{display: "flex", gap: PANEL_GRID.GUTTER}}>
+                <Box style={{ display: "flex", gap: PANEL_GRID.GUTTER }}>
                     <PanelField label="Smallest node size" glyph="sizeSmallest" kind="number" defaultValue={1} />
                     <PanelField label="Largest node size" glyph="sizeLargest" kind="number" defaultValue={4} />
                 </Box>
-                <Box style={{display: "flex", gap: PANEL_GRID.GUTTER}}>
+                <Box style={{ display: "flex", gap: PANEL_GRID.GUTTER }}>
                     <PanelField label="Edge width" glyph="width" kind="number" defaultValue={2} />
                     <PanelField label="Opacity" glyph="opacity" kind="number" unit="%" defaultValue={80} />
                 </Box>
@@ -323,16 +323,16 @@ export const InAField: Story = {
  */
 export const Sizes: Story = {
     render: (): React.JSX.Element => (
-        <Box style={{display: "flex", gap: PANEL_GRID.PAD_LEFT, alignItems: "flex-end"}}>
+        <Box style={{ display: "flex", gap: PANEL_GRID.PAD_LEFT, alignItems: "flex-end" }}>
             {[12, 14, 20, 32, 48].map((size) => (
-                <Box key={size} style={{textAlign: "center", color: PANEL_INK.VALUE}}>
+                <Box key={size} style={{ textAlign: "center", color: PANEL_INK.VALUE }}>
                     <UiGlyph name="gear" size={size} />
                     <Text size="xs" c={PANEL_INK.CHROME}>
                         {size}px
                     </Text>
                 </Box>
             ))}
-            <Box style={{textAlign: "center", color: PANEL_INK.ACCENT}}>
+            <Box style={{ textAlign: "center", color: PANEL_INK.ACCENT }}>
                 <UiGlyph name="gear" size={32} />
                 <Text size="xs" c={PANEL_INK.CHROME}>
                     inherited

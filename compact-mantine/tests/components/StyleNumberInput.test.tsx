@@ -247,9 +247,7 @@ describe("StyleNumberInput", () => {
             const user = userEvent.setup();
             const onFocus = vi.fn();
             const onBlur = vi.fn();
-            renderInput(
-                <StyleNumberInput label="Size" defaultValue={10} onFocus={onFocus} onBlur={onBlur} />,
-            );
+            renderInput(<StyleNumberInput label="Size" defaultValue={10} onFocus={onFocus} onBlur={onBlur} />);
 
             const input = screen.getByRole("textbox");
             await user.click(input);
@@ -263,9 +261,7 @@ describe("StyleNumberInput", () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             const onBlur = vi.fn();
-            renderInput(
-                <StyleNumberInput label="Size" defaultValue={10} onChange={onChange} onBlur={onBlur} />,
-            );
+            renderInput(<StyleNumberInput label="Size" defaultValue={10} onChange={onChange} onBlur={onBlur} />);
 
             const input = screen.getByRole("textbox");
             await user.clear(input);
@@ -279,9 +275,7 @@ describe("StyleNumberInput", () => {
 
     describe("spinner controls", () => {
         it("hides spinner controls by default (hideControls=true)", () => {
-            const { container } = renderInput(
-                <StyleNumberInput label="Size" defaultValue={10} onChange={vi.fn()} />,
-            );
+            const { container } = renderInput(<StyleNumberInput label="Size" defaultValue={10} onChange={vi.fn()} />);
             expect(container.querySelector(".mantine-NumberInput-controls")).not.toBeInTheDocument();
         });
 

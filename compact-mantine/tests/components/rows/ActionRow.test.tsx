@@ -168,10 +168,7 @@ describe("ActionRow", () => {
         it("lets stateTitle override a plain-text reading", () => {
             renderRow(<ActionRow state="20 nodes" stateTitle="20 nodes, 34 edges, 2 components" />);
 
-            expect(screen.getByTestId("action-row-state")).toHaveAttribute(
-                "title",
-                "20 nodes, 34 edges, 2 components",
-            );
+            expect(screen.getByTestId("action-row-state")).toHaveAttribute("title", "20 nodes, 34 edges, 2 components");
         });
 
         it("offers no tooltip for markup with no stateTitle, rather than an invented one", () => {
@@ -460,9 +457,7 @@ describe("ActionRow", () => {
 
     describe("holding the actions open", () => {
         it("draws them with no hover and no focus when the caller asks", () => {
-            renderRow(
-                <ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" />} />,
-            );
+            renderRow(<ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" />} />);
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
@@ -473,7 +468,11 @@ describe("ActionRow", () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" onClick={onClick} />} />,
+                <ActionRow
+                    state="20 nodes"
+                    actionsVisible
+                    actions={<GlyphAction label="Node options" onClick={onClick} />}
+                />,
             );
 
             await user.click(screen.getByRole("button", { name: "Node options" }));

@@ -1,12 +1,4 @@
-import {
-    Anchor,
-    Burger,
-    MantineProvider,
-    NavLink,
-    Pagination,
-    Stepper,
-    Tabs,
-} from "@mantine/core";
+import { Anchor, Burger, MantineProvider, NavLink, Pagination, Stepper, Tabs } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import { Home } from "lucide-react";
 import { describe, expect, it } from "vitest";
@@ -23,9 +15,7 @@ describe("Navigation Components Integration", () => {
         it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <Anchor href="#">
-                        Default Link
-                    </Anchor>
+                    <Anchor href="#">Default Link</Anchor>
                 </MantineProvider>,
             );
             expect(screen.getByText("Default Link")).toBeInTheDocument();

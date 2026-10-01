@@ -82,6 +82,7 @@ import type {
     SynchronousLabelPropagationOptions,
     TeraHacOptions,
     TeraHacResult,
+    TriangleCountResult,
 } from "../../src/index.js";
 import * as algorithms from "../../src/index.js";
 
@@ -251,6 +252,7 @@ expectTypeOf(algorithms.syncClustering).toEqualTypeOf<
     (s: GraphSnapshot, options: SyncClusteringOptions) => SyncClusteringResult
 >();
 expectTypeOf(algorithms.teraHAC).toEqualTypeOf<(s: GraphSnapshot, options?: TeraHacOptions) => TeraHacResult>();
+expectTypeOf(algorithms.triangleCount).toEqualTypeOf<(s: GraphSnapshot) => TriangleCountResult>();
 
 // ---- the promoted classes and the constant
 expectTypeOf(new algorithms.DeltaPageRank(s)).toEqualTypeOf<InstanceType<typeof algorithms.DeltaPageRank>>();
@@ -329,6 +331,7 @@ type Promoted =
     | "syncClustering"
     | "teraHAC"
     | "topologicalSort"
+    | "triangleCount"
     | "walkPredArcs"
     | "walkPredEdges"
     | "weaklyConnectedComponents";

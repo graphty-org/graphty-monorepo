@@ -416,7 +416,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * THE DECISION IS TAKEN ONCE, HERE, BEFORE ANY WORK STARTS. The controller answers "the policy
      * is off", "no accelerator", "below `acceleration.minNodes`" or "this accelerator does not
      * implement that" up front, and under `acceleration="required"` it throws `E_NO_ACCELERATOR`
-     * rather than answering quietly. A capability the element does not forward (betweenness,
+     * rather than answering quietly. A capability the element does not forward (edge betweenness,
      * k-core and Louvain today) never asks the controller, so it runs on the CPU and
      * says `f64` even under `"required"`. A call the dispatcher itself keeps on the CPU port (an
      * option or a graph shape the device's kernel is not defined for, such as a Katz `alpha` whose
@@ -433,6 +433,10 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      *   answers, such as a walk that stops at a target, so the decision is the CPU port's (and
      *   `E_NO_ACCELERATOR` under `acceleration="required"`). A capability the element does not
      *   forward to an accelerator is never accelerable, whatever this says.
+     * @param options.sources - For a run that searches from a set of sources, how many: `k` for a
+     *   sampled run, the node count for an exact one. A count past the node count is read as the
+     *   node count. The decision then also weighs sources times edges against the capability's
+     *   measured floor, because that and not the node count is what the CPU run costs.
      * @param options.over - A graph the adapter built itself for the work to run over, such as a
      *   flow network. It stands in for the derived snapshot, which is then never built, and its
      *   edge space is its own (`edgeRemap` is null).
@@ -447,7 +451,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     protected accelerated(
         capability: string,
         mode: AlgorithmGraphMode,
-        options?: { accelerable?: boolean; over?: GraphSnapshot },
+        options?: { accelerable?: boolean; sources?: number; over?: GraphSnapshot },
     ): AcceleratedAlgorithmRun {
         /* The input accessor derives the snapshot: the declared one or the store's cached
            undirected view, over the run's scope when the class declares one. It leaves the NODE
@@ -473,6 +477,9 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             capability,
             nodeCount: snapshot.nodeCount,
             forwarded: (options?.accelerable ?? true) && forwardsAlgorithm(capability),
+            ...(options?.sources === undefined
+                ? {}
+                : { sourceEdges: Math.min(options.sources, snapshot.nodeCount) * snapshot.edgeCount }),
         };
 
         return {

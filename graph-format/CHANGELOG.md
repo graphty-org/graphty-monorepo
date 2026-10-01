@@ -1,3 +1,21 @@
+## 1.2.3 (2026-10-01)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.2.2 (2026-09-30)
+
+### 🚀 Features
+
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+
+### 🩹 Fixes
+
+- **graph-format:** publish only the commit-stamped bundle as runtime code ([#101](https://github.com/graphty-org/graphty-monorepo/issues/101))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.2.1 (2026-09-30)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

@@ -1,11 +1,16 @@
 import type {
     AcceleratedAlgorithms,
     AlgorithmAccelerator,
+    ApspResultLike,
     BellmanFordResultLike,
+    BetweennessAcceleratorOptions,
     BfsOptions,
     BfsResultLike,
     ClosenessAcceleratorOptions,
     ClosenessResultLike,
+    EdgeScoresResultLike,
+    HitsOptionsLike,
+    LabelResultLike,
     PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -127,3 +132,25 @@ expectTypeOf<Awaited<ReturnType<GpuAccelerator["breadthFirstSearch"]>>>().toMatc
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["sssp"]>>>().toMatchTypeOf<SsspResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["bellmanFord"]>>>().toMatchTypeOf<BellmanFordResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["closenessCentrality"]>>>().toMatchTypeOf<ClosenessResultLike>();
+
+// ---- betweenness: the seam's option type in, the design's result records out, which satisfy the seam's shapes
+expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["betweennessCentrality"]>[1]
+>();
+expectTypeOf<BetweennessAcceleratorOptions | undefined>().toEqualTypeOf<
+    Parameters<GpuAccelerator["edgeBetweennessCentrality"]>[1]
+>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["betweennessCentrality"]>>>().toMatchTypeOf<ScoresResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["edgeBetweennessCentrality"]>>>().toMatchTypeOf<EdgeScoresResultLike>();
+// ---- all-pairs shortest paths: the seam's own option type in (both keys refused at run time), a result that
+// satisfies `ApspResultLike` out.
+expectTypeOf<SsspOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["allPairsShortestPath"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["allPairsShortestPath"]>>>().toMatchTypeOf<ApspResultLike>();
+// ---- P11: labelPropagation takes the seam's HitsOptionsLike; triangleCount's wider result satisfies the seam's
+// `{ perNode, total }` (the coefficient and the transitivity are extra fields, which a dispatcher typed against the
+// seam does not see until the seam declares them)
+expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["labelPropagation"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["labelPropagation"]>>>().toMatchTypeOf<LabelResultLike>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["triangleCount"]>>>().toMatchTypeOf<
+    Awaited<ReturnType<NonNullable<AlgorithmAccelerator["triangleCount"]>>>
+>();

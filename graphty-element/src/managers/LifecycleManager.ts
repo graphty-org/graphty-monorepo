@@ -3,7 +3,7 @@ import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
 
 // Type guard for render managers with startRenderLoop method
-type RenderManagerWithStartLoop = Manager & { startRenderLoop(callback: () => void): void };
+type RenderManagerWithStartLoop = Manager & { startRenderLoop(callback: (frameMs: number) => void): void };
 
 function hasStartRenderLoop(manager: Manager): manager is RenderManagerWithStartLoop {
     return "startRenderLoop" in manager;
@@ -114,9 +114,10 @@ export class LifecycleManager implements Manager {
     /**
      * Start the graph system after initialization
      * This coordinates starting the render loop and other post-init setup
-     * @param updateCallback - Callback function to execute on each render frame
+     * @param updateCallback - Callback function to execute on each render frame, given the
+     *     previous frame's duration in milliseconds
      */
-    startGraph(updateCallback: () => void): void {
+    startGraph(updateCallback: (frameMs: number) => void): void {
         if (!this.initialized) {
             throw new Error("Cannot start graph before initialization");
         }

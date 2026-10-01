@@ -286,6 +286,25 @@ describe("indexed.labelPropagationSynchronous", () => {
         s.validate({ checksum: true });
     });
 
+    it("settles bipartite components, which 2.x swapped for ever like the single edge (issue #564)", () => {
+        const k34: [string, string][] = [];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 4; j++) {
+                k34.push([`l${i}`, `r${j}`]);
+            }
+        }
+        const star = Array.from({ length: 49 }, (_, i): [string, string] => ["hub", `leaf${i}`]);
+        const cycle = Array.from({ length: 8 }, (_, i): [string, string] => [`c${i}`, `c${(i + 1) % 8}`]);
+        const path = Array.from({ length: 19 }, (_, i): [string, string] => [`p${i}`, `p${i + 1}`]);
+        for (const [name, edges] of Object.entries({ k34, star, cycle, path })) {
+            const s = snapshotOf(edges);
+            const r = labelPropagationSynchronous(s);
+            expect(r.converged, name).toBe(true);
+            expect(dominant(s, r.labels), name).toBe(true);
+            s.validate({ checksum: true });
+        }
+    });
+
     it("puts each clique in one community", () => {
         const s = cliquePair(5, false);
         const r = labelPropagationSynchronous(s);

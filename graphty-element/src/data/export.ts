@@ -14,6 +14,11 @@
  * `graphty.`-prefixed column. A value an algorithm did not measure is left unset, which each
  * format writes as its own "absent".
  *
+ * NOTES are left out unless asked for (design/notes/notes-design.md section 7.8). With
+ * `{ notes: true }` each node and edge a note names gets two columns, `graphty.notes.count` and
+ * `graphty.notes.text`; either way an export of a session holding notes reports
+ * `W_GRAPHTY_NOTES`, because no format holds notes as notes.
+ *
  * Nothing here reaches Babylon.js, Lit or the DOM: the renderer hands style in through
  * {@link ExportViewState}.
  */
@@ -43,6 +48,7 @@ import {
     registeredFormatWriter,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
+import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
 import type { GraphSession } from "../session/types";
 
@@ -124,6 +130,12 @@ const EDGE_THICKNESS: ColumnDecl = { name: "style.thickness", dtype: "f64", role
 const NODE_STYLE_KEYS = [NODE_COLOR.name, NODE_SIZE.name, NODE_SHAPE.name];
 const EDGE_STYLE_KEYS = [EDGE_COLOR.name, EDGE_THICKNESS.name];
 
+/** The note columns `{ notes: true }` writes, after the `graphty.` filter has dropped loaded ones. */
+const NOTE_COUNT: ColumnDecl = { name: "graphty.notes.count", dtype: "i32", nullable: true };
+const NOTE_TEXT = "graphty.notes.text";
+/** The most UTF-8 bytes one `graphty.notes.text` cell holds. */
+const NOTE_TEXT_BYTES = 65_536;
+
 /** A text a spreadsheet would run as a formula. */
 const FORMULA_START = /^[=+\-@\t\r]/;
 /** A text that is a number in the JSON number grammar: a spreadsheet reads it as that number. */
@@ -177,6 +189,86 @@ interface ExportBuildOptions {
      * apostrophe. The CSV writer's `neutraliseFormulas`, on by default there.
      */
     readonly neutraliseFormulas?: boolean;
+    /** Write the note columns. The `notes` option every writer takes; off by default. */
+    readonly notes?: boolean;
+}
+
+/**
+ * Cut a text to at most a number of UTF-8 bytes, never inside a code point.
+ * @param text - The text.
+ * @param limit - The most bytes.
+ * @returns The text, or its longest prefix that fits; and whether it was cut.
+ */
+function cutToBytes(text: string, limit: number): { text: string; cut: boolean } {
+    const bytes = new TextEncoder().encode(text);
+    if (bytes.length <= limit) {
+        return { text, cut: false };
+    }
+
+    // Back off to the first byte of a code point: a continuation byte is 10xxxxxx.
+    let end = limit;
+    while ((bytes[end] & 0xc0) === 0x80) {
+        end--;
+    }
+
+    return { text: new TextDecoder().decode(bytes.subarray(0, end)), cut: true };
+}
+
+/**
+ * Write the note columns: per node and edge row a note names, how many notes name it and their
+ * text, newest first, joined by a blank line.
+ * @param session - The session.
+ * @param builder - The export's builder, rows in the session's order.
+ * @param lossNotes - Receives `W_GRAPHTY_TRUNCATED` for each cut cell.
+ * @param cell - What each text value goes through.
+ */
+function writeNotes(
+    session: GraphSession,
+    builder: GraphBuilder,
+    lossNotes: LossNote[],
+    cell: <T>(value: T) => T | string,
+): void {
+    // `list()` is newest first, so each row's texts arrive in the order they are written.
+    const notes = session.notes.list();
+    const texts = { node: new Map<number, string[]>(), edge: new Map<number, string[]>() };
+    rowsOf(notes, session.data.snapshot()).forEach((rows, at) => {
+        const seen = { node: new Set<number>(), edge: new Set<number>() };
+        rows.forEach((row, position) => {
+            const kind = "node" in notes[at].targets[position] ? "node" : "edge";
+            if (row === undefined || row < 0 || seen[kind].has(row)) {
+                return;
+            }
+
+            seen[kind].add(row);
+            const held = texts[kind].get(row);
+            if (held === undefined) {
+                texts[kind].set(row, [notes[at].text]);
+            } else {
+                held.push(notes[at].text);
+            }
+        });
+    });
+
+    let cut = 0;
+    const count = { node: builder.declareNodeColumn(NOTE_COUNT), edge: builder.declareEdgeColumn(NOTE_COUNT) };
+    for (const kind of ["node", "edge"] as const) {
+        const set = kind === "node" ? builder.setNodeValue.bind(builder) : builder.setEdgeValue.bind(builder);
+        for (const [row, list] of texts[kind]) {
+            const text = cutToBytes(list.join("\n\n"), NOTE_TEXT_BYTES);
+            cut += text.cut ? 1 : 0;
+            set(count[kind], row, list.length);
+            set(NOTE_TEXT, row, cell(text.text));
+        }
+    }
+
+    if (cut > 0) {
+        lossNotes.push({
+            code: "W_GRAPHTY_TRUNCATED",
+            message: `${String(cut)} ${NOTE_TEXT} cell(s) were cut to 64 KB`,
+            column: NOTE_TEXT,
+            count: cut,
+        });
+    }
 }
 
 /**
@@ -192,7 +284,15 @@ export function buildExportSnapshot(
     options: ExportBuildOptions = {},
 ): { snapshot: GraphSnapshot; notes: LossNote[] } {
     const notes: LossNote[] = [];
-    const cell = options.neutraliseFormulas === true ? neutraliseFormula : <T>(value: T): T => value;
+    let neutralised = 0;
+    const cell =
+        options.neutraliseFormulas === true
+            ? <T>(value: T): T | string => {
+                  const written = neutraliseFormula(value);
+                  neutralised += written === value ? 0 : 1;
+                  return written;
+              }
+            : <T>(value: T): T => value;
     const current = session.data.snapshot();
     const { knownFields } = session.config.data;
     const builder = new GraphBuilder({
@@ -299,6 +399,34 @@ export function buildExportSnapshot(
     }
 
     writeResults(session, builder, notes, cell);
+    const held = session.notes.counts().notes;
+    if (held > 0) {
+        if (options.notes === true) {
+            writeNotes(session, builder, notes, cell);
+        }
+
+        notes.push({
+            code: "W_GRAPHTY_NOTES",
+            message:
+                options.notes === true
+                    ? `${String(held)} note(s) are not carried as notes: only their text is, in the ` +
+                      `graphty.notes.count and graphty.notes.text columns. Save them with notes.toDocument()`
+                    : `${String(held)} note(s) were left out. Export with { notes: true } to write their text ` +
+                      `as columns, or save them with notes.toDocument()`,
+            column: null,
+            count: held,
+        });
+    }
+
+    if (neutralised > 0) {
+        notes.push({
+            code: "W_GRAPHTY_CSV_NEUTRALIZED",
+            message: `${String(neutralised)} cell(s) a spreadsheet would run as a formula were prefixed with an apostrophe`,
+            column: null,
+            count: neutralised,
+        });
+    }
+
     return { snapshot: builder.freeze(), notes };
 }
 
@@ -399,9 +527,14 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     } else if (registered !== undefined) {
         declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
     }
-    const resolved = resolveOptionValues(declared, options, { kind: "format", id: format });
+    // `notes` is the element's own option; no exporter reads it.
+    const { notes, ...resolved } = resolveOptionValues(declared, options, { kind: "format", id: format });
     if (format !== "csv") {
-        return { exporter: builtIn ?? (registered as FormatWriterRegistration).exporter, options: resolved, build: {} };
+        return {
+            exporter: builtIn ?? (registered as FormatWriterRegistration).exporter,
+            options: resolved,
+            build: { notes: notes === true },
+        };
     }
 
     // `variant` picks the writer and `neutraliseFormulas` is the element's own guard; graph-io
@@ -411,7 +544,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     return {
         exporter: neo4j ? (neo4jExporter as AnyExporter) : builtIn,
         options: rest,
-        build: { neutraliseFormulas: neutraliseFormulas !== false },
+        build: { neutraliseFormulas: neutraliseFormulas !== false, notes: notes === true },
     };
 }
 

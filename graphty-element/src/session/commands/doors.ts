@@ -1552,6 +1552,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: READ,
             selectionStyle: READ,
             layoutBehavior: READ,
+            author: READ,
             acceleration: READ,
             set: calls([{ runAlgorithmsOnLoad: true }], [{ op: "config.set", values: { runAlgorithmsOnLoad: true } }]),
         },

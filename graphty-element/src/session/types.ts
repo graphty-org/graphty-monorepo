@@ -572,6 +572,11 @@ export interface ProjectConfig {
         /** The movement below which a simulation counts as settled. */
         readonly minDelta: number;
     };
+    /**
+     * Who is writing: stamped on each note added from now on. Absent when no name is set, never
+     * blank. A claim, never a verified identity.
+     */
+    readonly author?: string;
 }
 
 /**
@@ -589,6 +594,8 @@ export interface ProjectConfigPatch {
     readonly background?: GraphBackgroundConfig;
     readonly selectionStyle?: GraphSelectionStyleInput;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
+    readonly author?: string | null;
 }
 
 /**

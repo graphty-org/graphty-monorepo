@@ -464,6 +464,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
     },
     {
+        name: "config.set author",
+        variant: "author",
+        tags: BOTH,
+        command: { op: "config.set", values: { author: "Fixture author" } },
+    },
+    {
         name: "config.set layoutBehavior.preSteps",
         variant: "layoutBehavior",
         tags: BOTH,

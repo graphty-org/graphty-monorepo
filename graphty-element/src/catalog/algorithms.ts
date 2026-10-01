@@ -69,7 +69,13 @@ import { PrimAlgorithm } from "../algorithms/PrimAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../algorithms/StronglyConnectedComponentsAlgorithm";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config/OptionsSchema";
 import { optionsFromZod } from "./optionsFromZod";
-import type { AlgorithmDescriptor, FieldDescriptor, KnownAlgorithm, OptionDescriptor } from "./types";
+import type {
+    AlgorithmDescriptor,
+    FieldDescriptor,
+    FieldInterpretation,
+    KnownAlgorithm,
+    OptionDescriptor,
+} from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The descriptor, plus the 1.10 keys it replaces
@@ -179,6 +185,37 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
 }
 
 /**
+ * How to read modularity. The 0.3 line is Newman and Girvan's; the 0.1 line is this element's
+ * convention for "close to what a random split of the same graph would score".
+ */
+const MODULARITY_INTERPRETATION: FieldInterpretation = {
+    summary: "Modularity scores how separated the groups are. Above 0.3 counts as well separated.",
+    source:
+        "Above 0.3: M. E. J. Newman and M. Girvan, \"Finding and evaluating community structure in " +
+        "networks\", Phys. Rev. E 69, 026113 (2004). Below 0.1: graphty-element's convention for a " +
+        "partition barely better than a random one.",
+    bands: [
+        {
+            id: "clear",
+            plainName: "Clearly separated",
+            description: "The groups have far more links inside them than a random split would.",
+            above: 0.3,
+        },
+        {
+            id: "weak",
+            plainName: "Weakly separated",
+            description: "The groups are only somewhat denser inside than a random split; treat with caution.",
+            atLeast: 0.1,
+        },
+        {
+            id: "barely",
+            plainName: "Barely separated",
+            description: "The groups are hardly denser inside than a random split; the grouping may not be meaningful.",
+        },
+    ],
+};
+
+/**
  * Build the fields every community result publishes.
  * @param plainName - What one group is called in plain words, such as "Community" or "Piece".
  * @param withModularity - Whether the algorithm scores its partition with modularity.
@@ -218,6 +255,7 @@ function communityFields(plainName: string, withModularity: boolean): readonly F
                 technicalName: "modularity",
                 kind: "graph",
                 type: "number",
+                interpretation: MODULARITY_INTERPRETATION,
             }),
         );
     }

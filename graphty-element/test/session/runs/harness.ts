@@ -256,6 +256,7 @@ export function stubResult(runId: RunId): RunResult {
         histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
+        band: () => undefined,
     };
 }
 

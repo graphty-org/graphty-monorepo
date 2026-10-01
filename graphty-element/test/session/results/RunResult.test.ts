@@ -738,3 +738,64 @@ describe("the top of a ranking, cut only between tie groups", () => {
         }
     });
 });
+
+describe("a quality score's band", () => {
+    const louvain = BUILT_IN_ALGORITHMS.find((entry) => entry.key === "louvain");
+
+    /** A Louvain result carrying the catalogue's own fields and the given modularity. */
+    function louvainResult(modularity: unknown): RunResult {
+        assert.isDefined(louvain);
+
+        return createRunResult({
+            runId: "louvain",
+            shape: "community",
+            fields: louvain.fields,
+            measured: { nodes: 2, edges: 1 },
+            nodes: [
+                { id: "a", values: { group: 0 } },
+                { id: "b", values: { group: 1 } },
+            ],
+            graph: { modularity },
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+    }
+
+    it("reads modularity above 0.3 as clear, 0.1 to 0.3 as weak and below 0.1 as barely", () => {
+        const bands: [number, string][] = [
+            [0.54, "clear"],
+            [0.3001, "clear"],
+            [0.3, "weak"],
+            [0.2, "weak"],
+            [0.1, "weak"],
+            [0.0999, "barely"],
+            [0, "barely"],
+            [-0.2, "barely"],
+        ];
+
+        for (const [modularity, id] of bands) {
+            assert.strictEqual(louvainResult(modularity).band("modularity")?.id, id, `modularity ${modularity}`);
+        }
+    });
+
+    it("has no band for a missing or non-finite value, or a field without a scale", () => {
+        assert.isUndefined(louvainResult(undefined).band("modularity"));
+        assert.isUndefined(louvainResult(Number.NaN).band("modularity"));
+        assert.isUndefined(louvainResult(0.5).band("groupCount"));
+        assert.isUndefined(louvainResult(0.5).band("nope"));
+    });
+
+    it("publishes the scale in the catalogue as plain JSON with its source", () => {
+        const interpretation = louvain?.fields.find((entry) => entry.name === "modularity")?.interpretation;
+
+        assert.isDefined(interpretation);
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(interpretation)), interpretation);
+        assert.include(interpretation.source, "Newman");
+        assert.deepStrictEqual(
+            interpretation.bands.map((band) => band.id),
+            ["clear", "weak", "barely"],
+        );
+        assert.isUndefined(interpretation.bands.at(-1)?.above);
+        assert.isUndefined(interpretation.bands.at(-1)?.atLeast);
+    });
+});

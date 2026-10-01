@@ -209,7 +209,7 @@ then the two panes filling the rest of the window (section 3).
 - **Accept on a removed item** deletes the baseline. The button still reads "Accept"; the item
   line's explanation says "Removed from the Storybook: Accept deletes its baseline."
 - **Reject** with an empty note: the Reject button takes its waiting look (outlined, pressed), the
-  note box is focused with the placeholder "Reason for the reject, then Enter", and the status row
+  note box is focused with the placeholder "Reason to reject, then Enter", and the status row
   says "Type the reason, then press Enter to reject." Enter sends the reject. Typing the note first
   and then pressing Reject sends it at once.
 - **Exclude**: the same, then the confirmation dialog (unchanged text, section 5).
@@ -404,7 +404,7 @@ on-screen keyboard opens. The bars use the safe-area insets.
 button's state is shown by its look (spinner, pressed, waiting outline, unavailable), and its
 explanation is in the item line and the status row.
 
-At 1050 px and wider, one row, 52 px:
+At 1280 px and wider, one row, 52 px:
 
 `Grid` | `< K` | `12 of 230 -- 18 left in this pass` | `J >` || `Accept  A` | `Reject  R` | `Exclude  E` | `Undo  U` || note box
 
@@ -412,11 +412,17 @@ Widths at the default text size: Grid 60, Previous 64, the count 230, Next 64, A
 100, Exclude 110, Undo 90: about 820 px plus gaps, which leaves the note box at least 160 px at
 1180 px.
 
-Below 1050 px (iPad portrait), two rows, 100 px:
+Below 1280 px, two rows, 100 px, the cells sharing the width in six equal columns:
 
-1. `Grid` | `Accept  A` | `Reject  R` | `Exclude  E` | `Undo  U` (about 470 px)
-2. `< K` | `12 of 230 -- 18 left in this pass` | `J >` | note box (the box takes the rest, at least
-   200 px at 768 px)
+1. `Grid` | `Accept  A` | `Reject  R` | `Exclude  E` | `Undo  U`
+2. `< K` | `12 of 230 -- 18 left in this pass` | `J >` | note box (two columns)
+
+On an iPad held upright, and below 900 px (Split View, a zoomed page), three rows, 150 px, in five
+equal columns: the decisions, then `< K` | the count | `J >`, then the note box on a row of its own.
+Below 600 px, four columns (`Accept` `Reject` `Exclude` `Undo`, then `Grid` `< K` the count `J >`,
+then the note), without the key chips, which the Keys list still names. The cells never add up to
+more than the window, so Undo and the note box are always reachable. While the images load,
+Accept's spinner sits in its left padding, so its label and key chip are never cut.
 
 - Every button is always present, at a fixed minimum width, so neighbors never shift.
 - Buttons have stable ids; after every render, focus returns to the id that had it.
@@ -598,8 +604,8 @@ No string lives only in a tooltip.
 | Accept unavailable, unstable/failed | (button absent)                                                                  | Item line and on press: "Unstable: two captures of the same commit differed, so it cannot be accepted or rejected. Fix the story, or exclude it." / "Failed: the story did not render. Fix it, re-run the visual job, or exclude it." |
 | Accept unavailable, not seeded | (button absent)                                                                       | "Accept on a pull request: <project> is not seeded from <branch>."     |
 | Exclude                        | tooltip "E: stop capturing every mode of this story"                                  | Item line on a waiting Exclude: "Exclude stops capturing every mode of this story." |
-| Note box (1193)                | "Reason (needed to reject or exclude); Enter rejects"                                 | Label "Note"; placeholder "Optional for Accept; required to Reject or Exclude" |
-| Reject waiting                 | "A reject needs a reason: type it, then press Enter."                                 | Placeholder "Reason for the reject, then Enter"; status "Type the reason, then press Enter to reject." |
+| Note box (1193)                | "Reason (needed to reject or exclude); Enter rejects"                                 | Label "Note"; placeholder "Needed to Reject or Exclude" (short enough to show whole at every width) |
+| Reject waiting                 | "A reject needs a reason: type it, then press Enter."                                 | Placeholder "Reason to reject, then Enter"; status "Type the reason, then press Enter to reject." |
 | Decided row (1008)             | "Decided: accept. To change it, undo it first."                                       | Removed: the pressed button and the item line badge say it             |
 | Decision badge (1074)          | "accept: new spacing is intended"                                                     | "Accepted: new spacing is intended"                                     |
 | After deciding (1653)          | "<item>: reject" / "<item>: undone, undecided again"                                  | "Rejected #56. Now #57, 13 of 230: <story>, <status>." / "Undid #56: undecided again." |
@@ -693,7 +699,10 @@ Every key works only on the screen named, never while a dialog, the Finish sheet
 open, never in a text box except where listed, and never with Ctrl, Cmd or Alt held. Keys are
 shown on the buttons themselves and in the `?` overlay. The overlay's **Single-key shortcuts:
 on / off** switch (remembered in this browser) turns off every letter key, for speech input or a
-stray press; the buttons still work.
+stray press; the buttons still work. The overlay opens with focus on its own box, never on the
+switch, so a Space or Enter typed as it opens changes nothing. Turning the letters off says
+"Single-key shortcuts are off: letters do nothing until you turn them on again in Keys (?).", and
+every letter typed while they are off says it again.
 
 | Key          | Screen         | Action                                                                          | Change     |
 | ------------ | -------------- | ------------------------------------------------------------------------------- | ---------- |
@@ -711,7 +720,7 @@ stray press; the buttons still work.
 | S            | story          | Spotlight, or back to side by side (on iPad portrait, the way to see a change large) | -     |
 | B            | story          | Outline on or off                                                               | -          |
 | N            | story          | Next change                                                                     | -          |
-| Z            | story          | Next zoom: fit, 1x, 2x, 4x, 8x, fit (on iPad portrait, 2x is one press)         | -          |
+| Z            | story          | Next zoom: fit, 1x, 2x, 4x, 8x, fit (from fit, 2x is two presses)              | -          |
 | Shift+A      | grid           | Accept all undecided (asks first)                                               | Grid only  |
 | /            | grid           | Focus Find story                                                                | New        |
 | ?            | every screen   | Show or hide the key overlay                                                    | New        |

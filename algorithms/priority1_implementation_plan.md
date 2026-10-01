@@ -102,7 +102,7 @@ export interface ComponentResult {
 }
 ```
 
-**Reference Implementation**: Based on [Graphology types](https://graphology.github.io/docs/graph#graph-types)
+**Reference Implementation**: Based on [Graphology types](https://graphology.github.io/)
 
 ### 1.2 Core Graph Data Structure
 
@@ -261,7 +261,7 @@ export function shortestPathBFS(graph: Graph, source: NodeId, target: NodeId): S
 
 **Complexity**: O(V + E)
 
-**Reference Implementation**: [Graphology BFS traversal](https://github.com/graphology/graphology-traversal)
+**Reference Implementation**: [Graphology BFS traversal](https://github.com/graphology/graphology/tree/master/src/traversal)
 
 ### 2.2 Depth-First Search (DFS)
 
@@ -366,7 +366,7 @@ function reconstructPath(target: NodeId, previous: Map<NodeId, NodeId | null>): 
 
 **Complexity**: O((V + E) log V) with binary heap
 
-**Reference Implementation**: [Cytoscape.js Dijkstra](https://github.com/cytoscape/cytoscape.js/blob/master/src/algorithms/dijkstra.js)
+**Reference Implementation**: [Cytoscape.js Dijkstra](https://github.com/cytoscape/cytoscape.js/blob/master/src/collection/algorithms/dijkstra.mjs)
 
 ### 3.2 Bellman-Ford Algorithm
 
@@ -558,7 +558,7 @@ export function closenessCentrality(
 
 **Complexity**: O(V²) using BFS, O(V³) using Floyd-Warshall
 
-**Reference Implementation**: [Graphology metrics](https://github.com/graphology/graphology-metrics)
+**Reference Implementation**: [Graphology metrics](https://github.com/graphology/graphology/tree/master/src/metrics)
 
 ### 4.4 PageRank
 
@@ -642,7 +642,7 @@ export function pageRank(
 
 **Complexity**: O(V + E) per iteration
 
-**Reference Implementation**: [Cytoscape.js PageRank](https://github.com/cytoscape/cytoscape.js/blob/master/src/algorithms/page-rank.js)
+**Reference Implementation**: [Cytoscape.js PageRank](https://github.com/cytoscape/cytoscape.js/blob/master/src/collection/algorithms/page-rank.mjs)
 
 ---
 

@@ -9,7 +9,8 @@
  * `sourceport` / `targetport` edge attributes are kept as role columns; hyperedges follow the
  * `hyperedges` option (refuse, skip with a report entry, star, clique); yFiles `yfiles.type` keys
  * become `json` columns holding the nested XML as a tree (origin.namespace "yfiles"), reported as
- * a loss note because the structure, not the bytes, is preserved.
+ * a loss note because the structure, not the bytes, is preserved; a `y:ShapeNode` or
+ * `y:PolyLineEdge` in such a tree is also read into typed `yfiles.*` columns (yfiles.ts).
  *
  * Ids are coerced with the common rule (`ids: "canonical"` by default, design section 4.1); the
  * edge attribute whose `attr.name` is `weightFrom` ("weight" by default) is THE weight and is
@@ -51,7 +52,14 @@ import {
 } from "../../common/options.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
-import { isWhitespace, localName, tokenizeXml, type XmlHandler, XmlSyntaxError } from "../../common/xml.js";
+import {
+    isWhitespace,
+    localName,
+    tokenizeXml,
+    xmlDeclaredEncoding,
+    type XmlHandler,
+    XmlSyntaxError,
+} from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EDGE_ID_COLUMN,
@@ -75,6 +83,19 @@ import {
     XSI_NAMESPACE,
 } from "./constants.js";
 import { XmlTreeBuilder } from "./tree.js";
+import { graphicsDecl, graphicsValues } from "./yfiles.js";
+
+/** The XML attributes the importer reads on `<graph>`, `<node>` and `<edge>`; any other is reported. */
+const GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set(["id", "edgedefault", "parse.nodes", "parse.edges"]);
+const NODE_ATTRIBUTES: ReadonlySet<string> = new Set(["id"]);
+const EDGE_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "id",
+    "source",
+    "target",
+    "directed",
+    "sourceport",
+    "targetport",
+]);
 
 /** The format-specific options of the GraphML importer. */
 export interface GraphmlImportOptions {
@@ -303,7 +324,8 @@ class GraphmlReader implements XmlHandler {
 
     private readonly ctx: Ctx[] = [];
 
-    private readonly keys = new Map<string, KeyEntry>();
+    /** Keys by id; one id may be declared once per domain (igraph writes `name` for graph and node). */
+    private readonly keys = new Map<string, KeyEntry[]>();
 
     private readonly graphs: GraphState[] = [];
 
@@ -352,6 +374,9 @@ class GraphmlReader implements XmlHandler {
     private weightOrigin: { id: string; title: string | null; type: string | null } | null = null;
 
     private yfilesLossNoted = false;
+
+    /** The mapped yFiles graphics columns declared so far, by domain and field. */
+    private readonly graphicsColumns = new Map<string, ColumnHandle>();
 
     private hyperedgeCount = 0;
 
@@ -821,6 +846,39 @@ class GraphmlReader implements XmlHandler {
     // ------------------------------------------------------------------ graphs
 
     /**
+     * Report, once per element kind and attribute name, an XML attribute the importer does not read:
+     * a GraphML `parse.*` hint as ignored, anything else as unknown. Namespace declarations and
+     * `xml:` / `xsi:` attributes are not data and pass silently.
+     * @param kind - the element name
+     * @param attrs - the element's attributes
+     * @param known - the attributes the importer reads on that element
+     * @param line - the line
+     */
+    private reportUnreadAttributes(
+        kind: string,
+        attrs: ReadonlyMap<string, string>,
+        known: ReadonlySet<string>,
+        line: number,
+    ): void {
+        for (const name of attrs.keys()) {
+            if (known.has(name) || name === "xmlns" || /^(xmlns|xml|xsi):/.test(name)) {
+                continue;
+            }
+            const hint = name.startsWith("parse.");
+            const code = hint ? GRAPHML_ISSUE.PARSE_HINT_IGNORED : GRAPHML_ISSUE.UNKNOWN_XML_ATTRIBUTE;
+            this.report.warnOnce(
+                "unsupported",
+                code,
+                hint
+                    ? `the <${kind}> parse hint ${name} is ignored`
+                    : `the <${kind}> attribute ${name} is not a GraphML attribute; it is not kept`,
+                { line, element: name },
+                `${code}:${kind}:${name}`,
+            );
+        }
+    }
+
+    /**
      * Open a `<graph>`: the top-level one sets the sink's direction (rule 1 of design section
      * 8.4); a nested one records its container as the parent of its nodes.
      * @param attrs - the graph attributes
@@ -828,6 +886,7 @@ class GraphmlReader implements XmlHandler {
      * @param parent - the containing node's index, or INVALID_INDEX
      */
     private beginGraph(attrs: ReadonlyMap<string, string>, line: number, parent: number): void {
+        this.reportUnreadAttributes("graph", attrs, GRAPH_ATTRIBUTES, line);
         const top = this.graphs.length === 0;
         const edgedefault = attrs.get("edgedefault");
         let directed: boolean;
@@ -952,8 +1011,9 @@ class GraphmlReader implements XmlHandler {
         }
         this.pendingKey = {
             id,
-            attrName: attrs.get("attr.name") ?? null,
-            attrType: attrs.get("attr.type") ?? null,
+            // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
+            attrName: attrs.get("attr.name") ?? attrs.get("name") ?? null,
+            attrType: attrs.get("attr.type") ?? attrs.get("type") ?? null,
             yfilesType: attrs.get("yfiles.type") ?? null,
             domains,
             line,
@@ -976,11 +1036,12 @@ class GraphmlReader implements XmlHandler {
             this.report.error("validation-error", GRAPHML_ISSUE.KEY_MISSING_ID, "<key> without an id", where);
             return;
         }
-        if (this.keys.has(key.id)) {
+        const declared = this.keys.get(key.id) ?? [];
+        if (declared.some((entry) => entry.domains.some((domain) => key.domains.includes(domain)))) {
             this.report.error(
                 "validation-error",
                 GRAPHML_ISSUE.DUPLICATE_KEY,
-                `key "${key.id}" is declared twice`,
+                `key "${key.id}" is declared twice for the same kind of element`,
                 where,
             );
             return;
@@ -1031,18 +1092,21 @@ class GraphmlReader implements XmlHandler {
                 this.report.recordError(err, where);
             }
         }
-        this.keys.set(key.id, {
-            id: key.id,
-            name,
-            node,
-            edge,
-            graph,
-            weight,
-            originalId,
-            yfiles,
-            skipped,
-            domains: key.domains,
-        });
+        this.keys.set(key.id, [
+            ...declared,
+            {
+                id: key.id,
+                name,
+                node,
+                edge,
+                graph,
+                weight,
+                originalId,
+                yfiles,
+                skipped,
+                domains: key.domains,
+            },
+        ]);
     }
 
     /**
@@ -1194,7 +1258,8 @@ class GraphmlReader implements XmlHandler {
                 line,
             });
         } else {
-            const key = this.keys.get(keyId);
+            const entries = this.keys.get(keyId);
+            const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
             if (key === undefined) {
                 this.report.error(
                     "validation-error",
@@ -1277,17 +1342,17 @@ class GraphmlReader implements XmlHandler {
                     }
                     return;
                 }
+                if (key.yfiles) {
+                    for (const [handle, mapped] of this.graphics("node", key, value, where)) {
+                        this.setNodeData(node, handle, mapped);
+                    }
+                }
                 if (key.node === null) {
                     return;
                 }
                 const parsed = this.parseValue(key.node, value, where);
-                if (parsed === undefined) {
-                    return;
-                }
-                if (node.index === INVALID_INDEX) {
-                    node.pending.push(key.node.handle, parsed);
-                } else if (!node.failed) {
-                    this.sink.setNodeValue(key.node.handle, node.index, parsed);
+                if (parsed !== undefined) {
+                    this.setNodeData(node, key.node.handle, parsed);
                 }
                 return;
             }
@@ -1313,6 +1378,11 @@ class GraphmlReader implements XmlHandler {
                         this.report.recordError(err, where);
                     }
                     return;
+                }
+                if (key.yfiles) {
+                    for (const [handle, mapped] of this.graphics("edge", key, value, where)) {
+                        edge.pending.push(handle, mapped);
+                    }
                 }
                 if (key.edge === null) {
                     return;
@@ -1342,6 +1412,54 @@ class GraphmlReader implements XmlHandler {
                 throw new GraphFormatError("E_UNSUPPORTED", `unknown data domain ${String(domain)}`, {});
             }
         }
+    }
+
+    /**
+     * Write a node value now, or keep it until the node is added.
+     * @param node - the node state
+     * @param handle - the column
+     * @param value - the value
+     */
+    private setNodeData(node: NodeState, handle: ColumnHandle, value: unknown): void {
+        if (node.index === INVALID_INDEX) {
+            node.pending.push(handle, value);
+        } else if (!node.failed) {
+            this.sink.setNodeValue(handle, node.index, value);
+        }
+    }
+
+    /**
+     * The typed values mapped from a yFiles graphics tree (yfiles.ts), each with its column,
+     * declared on first use.
+     * @param domain - node or edge
+     * @param key - the yFiles key
+     * @param tree - the `<data>` content
+     * @param where - the location for issues
+     * @returns column handle and value pairs
+     */
+    private graphics(domain: "node" | "edge", key: KeyEntry, tree: unknown, where: Where): [ColumnHandle, unknown][] {
+        const out: [ColumnHandle, unknown][] = [];
+        for (const [field, value] of graphicsValues(domain, tree)) {
+            const id = `${domain}:${field}`;
+            let handle = this.graphicsColumns.get(id);
+            if (handle === undefined) {
+                try {
+                    ({ handle } = declareResolved(
+                        this.sink,
+                        domain,
+                        graphicsDecl(domain, field, key.id),
+                        this.report,
+                        where,
+                    ));
+                } catch (err) {
+                    this.report.recordError(err, where);
+                    continue;
+                }
+                this.graphicsColumns.set(id, handle);
+            }
+            out.push([handle, value]);
+        }
+        return out;
     }
 
     /**
@@ -1402,6 +1520,7 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private beginNode(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.reportUnreadAttributes("node", attrs, NODE_ATTRIBUTES, line);
         const graph = this.graphs[this.graphs.length - 1];
         const state: NodeState = {
             id: null,
@@ -1523,6 +1642,7 @@ class GraphmlReader implements XmlHandler {
      * @param line - the line
      */
     private beginEdge(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.reportUnreadAttributes("edge", attrs, EDGE_ATTRIBUTES, line);
         const graph = this.graphs[this.graphs.length - 1];
         const edge: EdgeState = {
             source: null,
@@ -1976,9 +2096,14 @@ function resolveYfiles(options: GraphmlImportOptions | undefined): "json" | "ski
  * Confidence that a head of bytes is GraphML.
  * @param head - the first bytes
  * @returns 1 for a `<graphml` root in the GraphML namespace, 0.9 for a `<graphml` root, 0.05 for other XML, 0 otherwise
+ *     or when the head does not start with markup
  */
 function sniffGraphml(head: Uint8Array): number {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES));
+    // Only a document that starts as markup: a JSON or CSV value may mention a `<graphml>` tag.
+    if (!/^\uFEFF?\s*</.test(text)) {
+        return 0;
+    }
     const root = text.indexOf("<graphml");
     if (root >= 0) {
         return text.includes(GRAPHML_NAMESPACE, root) ? 1 : 0.9;
@@ -2005,7 +2130,7 @@ async function importGraphml(
     reportUnusedOptions(options, report, USED_OPTIONS);
     const reader = new GraphmlReader(sink, report, common, yfilesMode);
     try {
-        await tokenizeXml(textChunks(input, report, common), reader);
+        await tokenizeXml(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding }), reader);
     } catch (err) {
         if (err instanceof XmlSyntaxError) {
             report.fail(GRAPHML_ISSUE.XML_SYNTAX, err.message, { line: err.line });

@@ -3,11 +3,11 @@
 WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format` snapshot, for Node
 (Dawn, through the `webgpu` npm package) and browsers (Chromium). One code base, three entry points:
 
-| Entry                                      | Import        | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry                                      | Import        | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@graphty/webgpu-graph-algorithms`         | the core      | the layouts (`createForceAtlas2`, `createFruchtermanReingold`, `createSpringElectrical`, `seedPositions`), the algorithms (`pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents`, `degree`), `createAccelerator`, `calibrateLayout`, `verifyDevice`, `GpuContext`, `WebGpuGraphError`, `isSoftwareAdapter`, the constants (`EXACT_MAX_NODES`, `FA2_DEFAULTS`, `FR_DEFAULTS`, `SE_DEFAULTS`, `LAYOUT_TUNING_DEFAULTS`, ...) and the option / stats / accelerator types |
-| `@graphty/webgpu-graph-algorithms/node`    | Node only     | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `@graphty/webgpu-graph-algorithms/browser` | browsers only | `probeBrowserWebGpu`, `requestGpuContext`                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `@graphty/webgpu-graph-algorithms/node`    | Node only     | `createNodeGpuContext`, `probeNodeWebGpu`, `createNodeGpu` (Dawn), `dawnFlags`                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `@graphty/webgpu-graph-algorithms/browser` | browsers only | `probeBrowserWebGpu`, `requestGpuContext`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Status: three force layouts and six algorithms, on the exact and the grid repulsion tiers.**
 ForceAtlas2, Fruchterman-Reingold and ngraph's spring-electrical preset run from Node (`run()`) and from a
@@ -132,25 +132,25 @@ caller re-issues its pins with a mask over the new index space), and the simulat
 `createForceAtlas2(ctx, options)` and `accelerator.forceAtlas2(options)` take `ForceAtlas2Options` (the same
 names and defaults as the CPU port in `@graphty/layout`) plus the GPU tuning:
 
-| Option                            | Default          | Meaning                                                                                                                                                                   |
-| --------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dim`                             | `2`              | `2` or `3`; in 2D every readback writes `z = center[2]` whatever was uploaded                                                                                             |
-| `scale`, `center`                 | `1`, `[0, 0, 0]` | scene units = layout units x `scale` + `center`                                                                                                                           |
-| `seed`                            | `null`           | the LCG seed of the NaN rows (the CPU port's generator, bit for bit); `0` / `null` draws a random seed                                                                    |
-| `maxIter`                         | `100`            | `run()` stops and `settled` turns true after this many iterations since `load()` / `reheat()`                                                                             |
-| `jitterTolerance`                 | `1`              | the speed controller's tolerance                                                                                                                                          |
-| `scalingRatio`                    | `2`              | the repulsion constant                                                                                                                                                    |
-| `gravity`                         | `1`              | toward the centroid (`compat: "paper"`) or the origin (`compat: "networkx"`)                                                                                              |
-| `strongGravity`                   | `false`          | gravity proportional to the distance                                                                                                                                      |
-| `distributedAction`               | `false`          | attraction divided by the source's mass                                                                                                                                   |
-| `linlog`                          | `false`          | logarithmic attraction                                                                                                                                                    |
-| `nodeMass`                        | `null`           | `null`: the node column with the role `mass` when present, else `outDegree + 1`; a `Float32Array` of length n; a numeric node column name (a `Record` is `E_UNSUPPORTED`) |
-| `nodeSize`                        | `null`           | `E_UNSUPPORTED` when non-null (no overlap prevention)                                                                                                                     |
-| `weight`                          | unset            | `true`: the snapshot's arc weights; an edge column name: that numeric column; unset / `false` / `null`: every edge weighs 1                                               |
-| `dissuadeHubs`                    | `false`          | accepted and ignored                                                                                                                                                      |
-| `settleThreshold`, `settleWindow` | `0.001`, `10`    | settled when the mean displacement stayed below the threshold for `settleWindow` iterations                                                                               |
-| `iterationsPerStep`               | `1`              | iterations per `step()` (the Node `run()` uses its own `batch`)                                                                                                           |
-| `maxInFlight`                     | `2`              | batches in flight before `step()` coalesces; `1` for the strictest freshness                                                                                              |
+| Option                            | Default          | Meaning                                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dim`                             | `2`              | `2` or `3`; in 2D every readback writes `z = center[2]` whatever was uploaded                                                                                                                                                                                                                            |
+| `scale`, `center`                 | `1`, `[0, 0, 0]` | scene units = layout units x `scale` + `center`                                                                                                                                                                                                                                                          |
+| `seed`                            | `null`           | the LCG seed of the NaN rows (the CPU port's generator, bit for bit); `0` / `null` draws a random seed                                                                                                                                                                                                   |
+| `maxIter`                         | `100`            | `run()` stops and `settled` turns true after this many iterations since `load()` / `reheat()`                                                                                                                                                                                                            |
+| `jitterTolerance`                 | `1`              | the speed controller's tolerance                                                                                                                                                                                                                                                                         |
+| `scalingRatio`                    | `2`              | the repulsion constant                                                                                                                                                                                                                                                                                   |
+| `gravity`                         | `1`              | toward the centroid (`compat: "paper"`) or the origin (`compat: "networkx"`)                                                                                                                                                                                                                             |
+| `strongGravity`                   | `false`          | gravity proportional to the distance                                                                                                                                                                                                                                                                     |
+| `distributedAction`               | `false`          | attraction divided by the source's mass                                                                                                                                                                                                                                                                  |
+| `linlog`                          | `false`          | logarithmic attraction                                                                                                                                                                                                                                                                                   |
+| `nodeMass`                        | `null`           | `null`: the node column with the role `mass` when present, else `outDegree + 1`; a `Float32Array` of length n; a numeric node column name (a `Record` is `E_UNSUPPORTED`)                                                                                                                                |
+| `nodeSize`                        | `null`           | `E_UNSUPPORTED` when non-null (no overlap prevention)                                                                                                                                                                                                                                                    |
+| `weight`                          | unset            | `true`: the snapshot's arc weights; an edge column name: that numeric column; unset / `false` / `null`: every edge weighs 1                                                                                                                                                                              |
+| `dissuadeHubs`                    | `false`          | accepted and ignored                                                                                                                                                                                                                                                                                     |
+| `settleThreshold`, `settleWindow` | `0.001`, `10`    | settled when the mean displacement stayed below `settleThreshold x rmsRadius` AND below an absolute floor (a fraction of the model's length unit: 0.003 `springLength` x (2000 / n)^(1/4) for spring-electrical, 0.002 `k` for Fruchterman-Reingold; ForceAtlas2 has none) for `settleWindow` iterations |
+| `iterationsPerStep`               | `1`              | iterations per `step()` (the Node `run()` uses its own `batch`)                                                                                                                                                                                                                                          |
+| `maxInFlight`                     | `2`              | batches in flight before `step()` coalesces; `1` for the strictest freshness                                                                                                                                                                                                                             |
 
 GPU tuning (`GpuLayoutTuning`; also the `layout` field of `createAccelerator`'s options, inherited by every
 simulation the accelerator creates):
@@ -657,7 +657,8 @@ pnpm run bench                                                 # every group; ap
 pnpm exec tsx benchmarks/run.ts upload roundtrip layout-exact  # selected groups; --no-save, --runs N, --allow-software
 pnpm exec tsx benchmarks/layout-run.ts --nodes 100000 --edges 1000000   # the end-to-end layout driver (exit 1 on a bad result)
 pnpm run gpu:report > gpu-report.json                          # the adapter report with a 10 s nvidia-smi sample
-pnpm run bench:compare                                         # the last out session vs benchmarks/results/<runner-class>.json (> 3x fails)
+pnpm run bench:compare                                         # the last out session vs benchmarks/results/<runner-class>.json (1.35x and 2.5 ms over the pinned best fails)
+pnpm run bench:append benchmarks/out/<class>.json benchmarks/results/<class>.json   # append the last out session to a baseline (refuses software / incomplete / duplicate sessions)
 ```
 
 The runner class is `<vendor>-<architecture>-driver<major>` (`scripts/runner-class.js`; `GRAPHTY_RUNNER_CLASS` overrides it,
@@ -674,7 +675,12 @@ SM clock at its idle 210 MHz under sparse sub-millisecond dispatches and the ker
 at 10k and at 100k with `repulsion: "exact"`, the same two rows per model and rung as `layout-exact`, tagged `fr` /
 `se`), `layout-grid` (T-6 and T-7: `step(1)` of the grid tier on the grid ladder 32k / 65k / 100k / 262k / 1M in 2D
 and in 3D, the same two rows per rung tagged `grid` with the dimension, plus the `fa2-attraction` pass of the 1M 2D
-iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check). The Chromium numbers of T-5 (10k on the exact tier, 100k on the grid tier) come from the
+iteration from the profiler, and the exact ladder's 1k / 4k / 8k / 16k rungs in 2D for the crossover re-check),
+`attraction-scale` (no target: the `fa2-attraction` pass across a working-set ladder, the G4-F16 diagnostic) and `bfs`
+(T-10: `breadthFirstSearch` direction-optimizing and top-down from node 0 of the undirected RMAT tiers 100k / 1M and
+1M / 10M, `sssp` on the same tiers with random weights in [0.1, 10), and `breadthFirstSearch` from a corner of the
+1000 x 1000 grid, all wall end to end including the upload). A baseline session must carry every group:
+`pnpm run bench:append` refuses one that does not. The Chromium numbers of T-5 (10k on the exact tier, 100k on the grid tier) come from the
 `bench`-tagged browser test (`GRAPHTY_BROWSER_GPU=nvidia node scripts/run-browser-project.js`), which appends its
 session through the Vitest commands bridge. `exactMaxNodes` is re-fixed from the ladder by the rule of plan section 7.8
 (the largest rung under 4 ms per iteration and not slower than the grid tier at the same n -- the `layout-grid` 2D rows,
@@ -684,40 +690,106 @@ measures the same crossover on a consumer's own device.
 
 ## Performance
 
-Regenerated from the last session of each baseline under `benchmarks/results/` (`nvidia-lovelace-driver580.json`, the
-dev box; `gpu-linux-t4.json`, the CI lane) by the procedure recorded in `docs/decisions/G3.md` appendix A; the targets
-are the T-table of plan section 10.4. A missed target is re-fixed by a recorded owner decision in
-`docs/decisions/G<n>.md`, never relaxed silently.
+The targets are the T-table of plan section 10.4, kept in `benchmarks/results/targets.json` with one entry per
+benchmark row. They bind the reference card, the Tesla T4 of the GPU lane: on that class `bench:compare` fails the lane
+when a row misses its target, unless the row is one of the class's known misses, which carry the reason and the
+decision record beside the target. Every other runner class reports met or missed and does not gate. The two tables
+below are generated from that file and the checked-in results (`pnpm run bench:readme`, which a node test checks), so
+they are never edited by hand. A missed target is re-fixed by a recorded owner decision in `docs/decisions/G<n>.md`,
+never relaxed silently.
 
 ### The dev box (nvidia-lovelace-driver580)
 
-Measured on nvidia-lovelace-driver580 (NVIDIA: 580.173.02 580.173.2.0), session 2026-09-20T01:06:48.656Z, medians of 5 runs; Chromium: nvidia / lovelace (nvidia-lovelace-driver0, the description is redacted by Chromium), session 2026-09-16T02:18:11.896Z. The T-5 (100k), T-6 and T-7 rows are from the later session 2026-09-21T06:15:17.027Z (the file's last session, the current baseline, the one the crossover re-check reads; its Chromium session 2026-09-21T05:48:14.190Z), whose other rows are within 1.25x of this table's.
+<!-- targets-table:nvidia-lovelace-driver580 -->
 
-| Id   | What                                                                                                                                     | Target                        | Measured                     |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------- |
-| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms           | 5.980 ms; 125.738 ms         |
-| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms                       | 0.870 ms                     |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms                     | 0.181 ms                     |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms              | 0.586 ms; 1.053 ms           |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms                       | 2.400 ms (0.726 ms)          |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium (Node in brackets)                           | <= 12 ms                      | 3.700 ms (2.087 ms)          |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D; at 1M 2D; at 100k 3D                                                | <= 10 ms; <= 100 ms; <= 20 ms | 0.634 ms; 5.414 ms; 1.306 ms |
-| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                            | <= 15 ms                      | 1.493 ms                     |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s           | 17.204 ms; 198.645 ms        |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms                     | 145.970 ms (12.613 ms)       |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded                      | 0.617 ms; 16.367 ms          |
+Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Each figure is the best median the row has recorded, the baseline `bench:compare` pins: Node rows across the 10 session(s) of `benchmarks/results/nvidia-lovelace-driver580.json`, Chromium rows across the 3 of `benchmarks/results/nvidia-lovelace-driver0.json`.
 
-Three rows miss their target in this session: the 1M / 10M upload (125.7 ms against 100 ms, the open owner decision of
-`docs/decisions/G1.md` section 7), the empty-submit round trip (0.181 ms against 0.1 ms: the row is measured after the
-`upload` group, whose CPU-heavy setup lets the SM clock fall to its idle state; the same row measures 0.041-0.075 ms at
-the working clock -- finding G3-F2 of `docs/decisions/G3.md` section 10), and WCC at 1M / 10M (146.0 ms against
-100 ms: the row is wall end to end from a released core, so it carries the same 164 MB upload T-1 times at 125.7 ms;
-with the core resident the same call takes 11-16 ms). The T-9 target is therefore below
-the T-1 upload it includes, an owner decision for `docs/decisions/G7.md`. The `pagerank` rows run all 100 iterations
-(`tolerance: 0`): at the NetworkX tolerance of 1e-6 the seeded G(n, m) input converges from the uniform start in one to
-four iterations, which would time one pull and call it a hundred. The T-14 row is the `layout-fr` group of the later
-session 2026-09-20T19:25:37.311Z (the file's last session, the current baseline), whose other rows are within 1.08x of
-this table's; the spring-electrical preset measures 0.648 ms at 10k and 18.154 ms at 100k in the same session.
+| Id   | What                                                                                                                                                                   | Target     | Measured   | Status   |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------- | -------- |
+| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB), Node                                                                                                            | <= 10 ms   | 5.734 ms   | met      |
+| T-1  | Upload of the 1M / 10M weighted hot prefix (164 MB), Node                                                                                                              | <= 100 ms  | 74.110 ms  | met      |
+| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                                               | <= 2 ms    | 0.256 ms   | met      |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn in Node                                                                                                               | <= 0.1 ms  | 0.037 ms   | met      |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Chromium (the <= 0.1 ms target is Dawn's)                                                                                  | recorded   | 0.170 ms   | recorded |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k                                                                                                       | <= 1 ms    | 0.586 ms   | met      |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 16k                                                                                                       | <= 2 ms    | 1.052 ms   | met      |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium                                                                                              | <= 6 ms    | 2.400 ms   | met      |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Node                                                                                                  | recorded   | 0.713 ms   | recorded |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium                                                                            | <= 12 ms   | 3.700 ms   | met      |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Node                                                                                | recorded   | 1.769 ms   | recorded |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D                                                                                                    | <= 10 ms   | 0.553 ms   | met      |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 1M 2D                                                                                                      | <= 100 ms  | 5.303 ms   | met      |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 3D                                                                                                    | <= 20 ms   | 1.279 ms   | met      |
+| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                                                          | <= 15 ms   | 1.475 ms   | met      |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M                                                                                           | <= 150 ms  | 17.204 ms  | met      |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 1M / 10M                                                                                            | <= 1500 ms | 197.154 ms | met      |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M                                                       | <= 100 ms  | 138.425 ms | missed   |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 100k / 1M                                                      | recorded   | 12.613 ms  | recorded |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k                                                                                              | recorded   | 0.566 ms   | recorded |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                      | recorded   | 16.322 ms  | recorded |
+| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 10k                                                                                                     | recorded   | 0.648 ms   | recorded |
+| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                             | recorded   | 18.154 ms  | recorded |
+| T-10 | BFS direction-optimizing (`breadthFirstSearch`), wall end to end including the upload, from node 0 of the undirected RMAT at 1M / 10M (a contract on the dev box only) | <= 100 ms  | 84.989 ms  | met      |
+| T-10 | BFS top-down, the same traversal at 1M / 10M                                                                                                                           | recorded   | 81.261 ms  | recorded |
+| T-10 | BFS direction-optimizing, the same traversal at 100k / 1M                                                                                                              | recorded   | 12.837 ms  | recorded |
+| T-10 | BFS on the 1000 x 1000 grid from a corner (1,999 levels), wall including the upload (a contract on the dev box only)                                                   | <= 1500 ms | 369.673 ms | met      |
+| T-10 | `sssp` (the near-far queue), wall end to end including the upload, random f32 weights in [0.1, 10), at 1M / 10M                                                        | recorded   | 256.320 ms | recorded |
+| T-10 | `sssp`, the same run at 100k / 1M                                                                                                                                      | recorded   | 47.421 ms  | recorded |
+
+<!-- /targets-table:nvidia-lovelace-driver580 -->
+
+Why the misses miss. The 1M / 10M upload is the open owner decision of `docs/decisions/G1.md` section 7. The
+empty-submit round trip in Node meets its target at the working clock, but a session that measures it right after the
+`upload` group reads about 0.15-0.18 ms, because the group's CPU-heavy setup lets the SM clock fall to its idle state
+(finding G3-F2 of `docs/decisions/G3.md` section 10). WCC at 1M / 10M is wall end to end from a released core, so it
+carries the same 164 MB upload T-1 times; with the core resident the same call takes 11-16 ms, and the T-9 target is
+therefore below the T-1 upload it includes, an owner decision for `docs/decisions/G7.md`. The `pagerank` rows run all
+100 iterations (`tolerance: 0`): at the NetworkX tolerance of 1e-6 the seeded G(n, m) input converges from the uniform
+start in one to four iterations, which would time one pull and call it a hundred. The Chromium round trip (T-3, issue
+#278) is what every interactive frame of a browser layout pays; its figure is the mean of batches of 20 round trips,
+because Chromium quantises `performance.now()` to 100 us, and it was measured on 2026-09-27 at a load average near 70,
+so it is an upper bound.
+
+The three T-10 rows are the `bfs` group of session 2026-09-25T10:19:11.536Z (the file's last session, the current
+baseline; `webgpu` 0.4.0, driver 580.173.02, load average 1.7-2.1, medians of 5). Both T-10 targets are MISSED on the
+reference card, by 2.4x and 3.8x, and the cost is not in the kernels: a traversal costs about 2.85 ms per LEVEL
+whatever the level's size or the submit cadence (the 200 x 200 grid, 399 levels, at 32, 8 and 1 levels per submit
+alike) plus about 80 ms per CALL (a karate BFS, 34 nodes and 3 levels, takes 90 ms), and with Dawn's `skip_validation`
+toggle the same karate call takes 3.0 ms and the 399-level grid 27 ms. About 97 % of the wall time is Dawn's own
+validation of `dispatchWorkgroupsIndirect`, which the frontier design pays nine times a level; the baseline records
+the default runtime because that is what a consumer gets, and the toggle is unsafe. The decision -- re-fix T-10 to
+the class, fold the per-level indirect dispatches, or dispatch directly where the host already knows a count -- is
+recorded in `docs/decisions/G8.md`.
+
+That decision was taken on 2026-09-25, before the merge: every level kernel is now a DIRECT grid-stride dispatch
+gated by a path word the device-side selector writes, and no traversal driver dispatches indirectly
+(`design/decisions/2026-09-25-frontier-kernels-dispatch-directly.md`; the measurement of Dawn's per-indirect-dispatch
+cost, about 0.4 ms each in Node and Chromium alike, is `design/webgpu/dawn-indirect-dispatch-validation-cost.md`).
+Re-measured on the same card with `--no-save --runs 3` at load average about 20 (so an upper bound, and not appended
+to the baseline): a 34-node BFS 7.2 ms (from 89.3 with the core resident), the grid row 427 ms (MET), the 1M / 10M
+auto row 156.6 ms and the top-down row 88.6 ms. The auto row now misses only because the direction-optimizing
+choice itself is slower than top-down on that graph, which the validation cost had hidden (G8-F21).
+
+That miss was not the direction choice either (G8-F21, closed by issue #391). The 156.6 against 88.6 ms gap was the
+card clocking down to P5 and then ramping back up: the benchmark runs the auto row first, so whichever row runs
+first carries the ramp, and alternating the two directions end to end reads the same 75 ms from the third iteration
+on. The upload cannot explain it, being paid by both rows alike. The real defect the issue uncovered was Beamer's m_f
+measured one level stale -- `frontierDegreeSum` is the degree of the frontier the PREVIOUS level expanded, which is
+0 after a bottom-up level -- so the switch into bottom-up was missed at the level holding 13.6M of the 21M arcs. The
+`bfs-next-degree` kernel now sums the out-degree of the frontier about to be expanded (counters word 25) and the
+boundary compares that. With the core resident on the card the 1M / 10M auto traversal went from 37.8 to 31.4 ms
+and 100k / 1M from 10.3 to 8.8 ms; the three bottom-up levels of the 1M / 10M run read 649,743 arcs in total. At
+100k / 1M the direction-optimizing traversal still loses to plain top-down on this card, 9.55 against 9.34 ms
+resident, which is a smaller loss than the 10.87 against 9.91 ms it read before the fix, and still a loss. The
+new kernel is dispatched on every level, so a high-diameter traversal pays its fixed cost per level: the grid
+traversal resident on the card went 339 -> 421 ms with the full-width grid `planGridStride(n, wg)` gives it and
+back to 356 ms with the grid capped at 128 workgroups (`NEXT_DEGREE_MAX_GROUPS`), which is still enough to sum n
+out-degrees by grid stride; neither R-MAT row moved. The
+rows in the table (`--no-save --runs 3`, not appended to the baseline; both samples on 2026-09-25, one minute
+apart): at load average 7.3 the 1M / 10M auto row is 89.2 ms against 95.0 ms top-down, the 100k / 1M row 14.9
+against 14.7 ms, the grid row 542 ms and `sssp` 275.5 ms (48.3 ms); at load average 10.5 the same auto row read
+134.7 ms and top-down 99.0 ms. The two samples ran the same code on the same card, so the 100 ms target is met or
+missed by the upload and the clock state the row starts in, not by the traversal.
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 
@@ -740,27 +812,57 @@ GPU time per iteration in the last batch).
 The first run of the GPU lane (`gpu.yml`, graphty-monorepo run 35316416067, 2026-09-18) on a machine.dev T4 -- one Tesla
 T4 (16 GB), 4 vCPU of a Xeon Platinum 8259CL, driver 580.126.20 -- wrote this baseline; `scripts/bench-compare.js` fails
 a later run of the lane whose median AND minimum both exceed 1.35x the best figures this file has ever held, by at
-least 2.5 ms. The T-table targets were set on the dev box; the T4 meets
-T-4, T-5 and T-6 and misses T-1 (both uploads), T-2, T-3 and T-7 (the 1M attraction pass of the grid tier, 18.165 ms
-against 15 ms), which is the class difference of a datacentre card behind a cloud vCPU (host-side copies and submit
+least 2.5 ms, or whose row misses a target that is not one of the known misses listed under the table. The T-table
+targets were set on the dev box; the T4 meets T-4, T-5, T-6 and T-8 and misses T-1 (both uploads), T-2, T-3, T-7 (the
+1M attraction pass of the grid tier, 18.165 ms against 15 ms) and T-9, which is the class difference of a datacentre card behind a cloud vCPU (host-side copies and submit
 latency), not a regression: the exact tier's `ms / iteration` is 1.7x the RTX 4070 SUPER's at 10k and 3.0x at 65k, and
 the grid tier's is 2.8x at 100k 2D and 5.7x at 1M 2D while the attraction pass alone is 12.2x.
 
-Measured on gpu-linux-t4 (NVIDIA: 580.126.20 580.126.20.0), session 2026-09-20T02:29:33.210Z (run 35483512705), medians of 5 runs; Chromium: nvidia / turing (nvidia-turing-driver0, the description is redacted by Chromium), session 2026-09-20T02:28:10.676Z. The T-5 (100k), T-6 and T-7 rows are from the later session 2026-09-22T20:21:53.814Z (GPU lane run 35775999450 on commit 1d2d4dcf, the file's last session and the current baseline of this class; its Chromium session 2026-09-22T20:19:30.117Z).
+<!-- targets-table:gpu-linux-t4 -->
 
-| Id   | What                                                                                                                                     | Target                        | Measured                                                                                                         |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB); 1M / 10M (164 MB)                                                                 | <= 10 ms; <= 100 ms           | 14.338 ms; 256.418 ms                                                                                            |
-| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                 | <= 2 ms                       | 2.957 ms                                                                                                         |
-| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn                                                                                         | <= 0.1 ms                     | 1.296 ms                                                                                                         |
-| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k; at 16k                                                                 | <= 1 ms; <= 2 ms              | 0.972 ms; 1.953 ms                                                                                               |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium (Node in brackets)                                             | <= 6 ms                       | 2.600 ms (1.359 ms)                                                                                              |
-| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium (Node in brackets)                           | <= 12 ms                      | 8.100 ms (5.314 ms)                                                                                              |
-| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D; at 1M 2D; at 100k 3D                                                | <= 10 ms; <= 100 ms; <= 20 ms | 1.790 ms; 31.057 ms; 3.954 ms                                                                                    |
-| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                            | <= 15 ms                      | 18.165 ms -- MISSED: 21 % over the target on this card (1.493 ms on the dev box; G4-F16 of docs/decisions/G4.md) |
-| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M; at 1M / 10M                                                | <= 150 ms; <= 1.5 s           | 45.461 ms; 1092.799 ms                                                                                           |
-| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (100k / 1M in brackets) | <= 100 ms                     | 293.079 ms (28.544 ms)                                                                                           |
-| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k; at 100k (`repulsion: "exact"`)                                | recorded                      | 0.942 ms; 54.232 ms (the spring preset 1.051 ms; 60.706 ms)                                                      |
+Generated by `pnpm run bench:readme` from `benchmarks/results/targets.json`. Each figure is the best median the row has recorded, the baseline `bench:compare` pins: Node rows across the 4 session(s) of `benchmarks/results/gpu-linux-t4.json`, Chromium rows across the 2 of `benchmarks/results/nvidia-turing-driver0.json`.
+
+| Id   | What                                                                                                                                                                   | Target     | Measured         | Status         |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------- | -------------- |
+| T-1  | Upload of the 100k / 1M weighted hot prefix (16.4 MB), Node                                                                                                            | <= 10 ms   | 14.338 ms        | missed (known) |
+| T-1  | Upload of the 1M / 10M weighted hot prefix (164 MB), Node                                                                                                              | <= 100 ms  | 256.418 ms       | missed (known) |
+| T-2  | `degree` + 400 KB readback at 100k (core resident), Node                                                                                                               | <= 2 ms    | 2.292 ms         | missed (known) |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Dawn in Node                                                                                                               | <= 0.1 ms  | 0.155 ms         | missed (known) |
+| T-3  | Empty submit + 4-byte `readU32` round trip, Chromium (the <= 0.1 ms target is Dawn's)                                                                                  | recorded   | not yet measured | -              |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 10k                                                                                                       | <= 1 ms    | 0.972 ms         | met            |
+| T-4  | ForceAtlas2 exact tier, GPU time per iteration (profiler) at 16k                                                                                                       | <= 2 ms    | 1.844 ms         | met            |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Chromium                                                                                              | <= 6 ms    | 2.600 ms         | met            |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 10k, Node                                                                                                  | recorded   | 1.357 ms         | recorded       |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Chromium                                                                            | <= 12 ms   | 6.450 ms         | met            |
+| T-5  | ForceAtlas2 per-frame cost, `step(1)` + the 12n readback at 100k on the grid tier, Node                                                                                | recorded   | 5.314 ms         | recorded       |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 2D                                                                                                    | <= 10 ms   | 1.790 ms         | met            |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 1M 2D                                                                                                      | <= 100 ms  | 31.057 ms        | met            |
+| T-6  | ForceAtlas2 grid tier, GPU time per iteration (profiler) at 100k 3D                                                                                                    | <= 20 ms   | 3.954 ms         | met            |
+| T-7  | Attraction gather (the `fa2-attraction` pass of the grid tier), GPU time per iteration (profiler) at 1M / 10M                                                          | <= 15 ms   | 18.165 ms        | missed (known) |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 100k / 1M                                                                                           | <= 150 ms  | 45.461 ms        | met            |
+| T-8  | PageRank, 100 iterations, wall end to end including the upload, at 1M / 10M                                                                                            | <= 1500 ms | 1092.799 ms      | met            |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M                                                       | <= 100 ms  | 290.695 ms       | missed (known) |
+| T-9  | Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 100k / 1M                                                      | recorded   | 28.475 ms        | recorded       |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 10k                                                                                              | recorded   | 0.942 ms         | recorded       |
+| T-14 | Fruchterman-Reingold exact tier, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                      | recorded   | 52.591 ms        | recorded       |
+| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 10k                                                                                                     | recorded   | 1.051 ms         | recorded       |
+| T-14 | Spring-electrical preset, GPU time per iteration (profiler) at 100k (`repulsion: "exact"`)                                                                             | recorded   | 59.260 ms        | recorded       |
+| T-10 | BFS direction-optimizing (`breadthFirstSearch`), wall end to end including the upload, from node 0 of the undirected RMAT at 1M / 10M (a contract on the dev box only) | <= 100 ms  | not yet measured | -              |
+| T-10 | BFS top-down, the same traversal at 1M / 10M                                                                                                                           | recorded   | not yet measured | -              |
+| T-10 | BFS direction-optimizing, the same traversal at 100k / 1M                                                                                                              | recorded   | not yet measured | -              |
+| T-10 | BFS on the 1000 x 1000 grid from a corner (1,999 levels), wall including the upload (a contract on the dev box only)                                                   | <= 1500 ms | not yet measured | -              |
+| T-10 | `sssp` (the near-far queue), wall end to end including the upload, random f32 weights in [0.1, 10), at 1M / 10M                                                        | recorded   | not yet measured | -              |
+| T-10 | `sssp`, the same run at 100k / 1M                                                                                                                                      | recorded   | not yet measured | -              |
+
+Known misses on this class, which `bench:compare` reports without failing:
+
+- T-1: host-side copy cost of a datacentre card behind a cloud vCPU (the README's CI-lane section); the 1M / 10M upload misses on the dev box too (docs/decisions/G1.md section 7).
+- T-2: readback and submit latency of a datacentre card behind a cloud vCPU (the README's CI-lane section); met on the dev box.
+- T-3: submit latency of the cloud runner; on the dev box the row misses too whenever the SM clock has dropped to idle (G3-F2 of docs/decisions/G3.md section 10).
+- T-7: the pass's 16 MiB working set does not fit the T4's 4 MiB L2, and two T4 instances read 13.8 and 18.2 ms on the same work (G4-F16 and G4-F21 of docs/decisions/G4.md).
+- T-9: the row carries the same 164 MB upload T-1 times, which alone takes longer than the 100 ms target; it misses on the dev box too (docs/decisions/G7.md).
+
+<!-- /targets-table:gpu-linux-t4 -->
 
 The exact curve (the `layout-exact` group: 2D, E = 10n, seeded G(n, m), one simulation per rung; ms / iteration from the profiler):
 

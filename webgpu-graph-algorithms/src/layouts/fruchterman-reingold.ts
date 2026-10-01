@@ -32,6 +32,7 @@ import {
     FR_REHEAT_FRACTION,
     FR_START_TEMPERATURE,
     MAX_ITERATIONS_PER_STEP,
+    SETTLE_FLOOR_FRACTION,
     TRACE_RECORD_BYTES,
     UNIFORM_SLOT_BYTES,
 } from "../constants.js";
@@ -84,6 +85,7 @@ import {
     subset,
     vector,
 } from "./model-common.js";
+import { recordExactRepulsion } from "./repulsion-exact.js";
 import { type GridStage, RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js";
 
 // ============================================================ constants
@@ -587,6 +589,7 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
             hiEnd,
             midEnd,
             frK: resolved.k ?? 1 / Math.sqrt(n),
+            settleFloor: SETTLE_FLOOR_FRACTION.fruchtermanReingold * (resolved.k ?? 1 / Math.sqrt(n)),
             temperature: adaptive ? FR_START_TEMPERATURE : this.temperatureAt(iteration, resolved),
         };
     }
@@ -640,7 +643,7 @@ export class FruchtermanReingoldModel implements ForceModel<FruchtermanReingoldO
         if (stop < 2) {
             return;
         }
-        k3.dispatch(pass, k3Bound, bound.plan, [offset]);
+        recordExactRepulsion(k3, pass, k3Bound, bound.plan, bound.n, offset);
         if (stop < STAGE_K5) {
             return;
         }

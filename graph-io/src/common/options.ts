@@ -9,6 +9,7 @@ import { type DuplicatePolicy, GraphFormatError, type GraphSink, type IdCoercion
 
 import { type CommonExportOptions, type CommonImportOptions } from "../types.js";
 import { OPTION_IGNORED_CODE, SINK_OPTION_CODE } from "./codes.js";
+import { canonicalEncoding } from "./input.js";
 import { type ImportReportBuilder } from "./report.js";
 
 /** The defaults an importer supplies for the options whose default is per format (design section 8.4). */
@@ -59,6 +60,8 @@ export interface ResolvedImportOptions {
     readonly signal: AbortSignal | null;
     /** The progress callback, or null. */
     readonly onProgress: ((bytesDone: number, bytesTotal?: number) => void) | null;
+    /** The caller's byte encoding (canonical name), or null to detect it. */
+    readonly encoding: string | null;
 }
 
 /** CommonExportOptions with every field present (design section 8.5 defaults applied). */
@@ -213,6 +216,7 @@ export function resolveImportOptions(
         errorLimit: errorLimitOption(o.errorLimit),
         signal: signalOption(o.signal),
         onProgress: progressOption(o.onProgress),
+        encoding: encodingOption(o.encoding),
     });
 }
 
@@ -348,6 +352,26 @@ function progressOption(value: unknown): ((bytesDone: number, bytesTotal?: numbe
         option: "onProgress",
         found: typeof value,
     });
+}
+
+/**
+ * Resolve the encoding option: a label the platform's TextDecoder knows.
+ * @param value - the caller's value
+ * @returns the canonical encoding name, or null for detection
+ */
+function encodingOption(value: unknown): string | null {
+    if (value === undefined || value === null) {
+        return null;
+    }
+    const canonical = typeof value === "string" ? canonicalEncoding(value) : null;
+    if (canonical === null) {
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            `option encoding: ${describe(value)} is not an encoding this platform's TextDecoder knows`,
+            { option: "encoding", found: value },
+        );
+    }
+    return canonical;
 }
 
 /**

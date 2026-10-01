@@ -29,17 +29,9 @@ const typedocBin = resolve(packageRoot, "node_modules/.bin/typedoc");
  * Add to this list only when the fix belongs to a file this package's documentation build does
  * not own, and always with the file and the correction. Delete an entry as soon as it is fixed;
  * a stale entry fails the run.
+ * @type {{ match: string, fix: string }[]}
  */
-const KNOWN_BROKEN_LINKS = [
-    {
-        match: 'The comment for index.Edge.dispose links to "Edge.disposed"',
-        fix: 'src/Edge.ts: the comment on dispose() should link to {@link Edge.isDisposed}, the public getter, not to the private "disposed" field.',
-    },
-    {
-        match: 'The comment for index.Node.dispose links to "Node.disposed"',
-        fix: 'src/Node.ts: the comment on dispose() should link to {@link Node.isDisposed}, the public getter, not to the private "disposed" field.',
-    },
-];
+const KNOWN_BROKEN_LINKS = [];
 
 /** Warning text that means a documentation link does not resolve to a page. */
 const LINK_PATTERNS = [/Failed to resolve link to /, /links to ".*" which was resolved but is not included/];

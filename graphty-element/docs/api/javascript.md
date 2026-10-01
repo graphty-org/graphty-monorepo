@@ -12,24 +12,25 @@ const graph = element.graph;
 ```
 
 ::: tip
-For usage patterns and examples, see the [JavaScript API Guide](/guide/javascript-api).
+For usage patterns and examples, see the [JavaScript API Guide](../guide/javascript-api).
 :::
 
 ## Core Methods
 
 ### Data Management
 
-| Method                 | Parameters     | Returns             | Description            |
-| ---------------------- | -------------- | ------------------- | ---------------------- |
-| `addNodes(nodes)`      | `NodeData[]`   | `Promise<void>`     | Add nodes to the graph |
-| `addEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>` | Add edges to the graph |
-| `setEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>` | Replace every edge with these |
-| `removeNodes(ids)`     | `string[]`     | `Promise<void>`     | Remove nodes and their incident edges |
-| `updateNodes(updates)` | `NodeUpdate[]` | `Promise<void>`     | Update node properties |
-| `getNode(id)`          | `string`       | `Node \| undefined` | Get node by ID         |
-| `getNodes()`           | -              | `Node[]`            | Get all nodes          |
-| `clear()`              | -              | `Promise<void>`     | Remove all data        |
+| Method                      | Parameters                                    | Returns             | Description                           |
+| --------------------------- | --------------------------------------------- | ------------------- | ------------------------------------- |
+| `addNodes(nodes)`           | `NodeData[]`                                  | `Promise<void>`     | Add nodes to the graph                |
+| `addEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>`     | Add edges to the graph                |
+| `setEdges(edges, options?)` | `EdgeData[]`, `{source?, target?, repeated?}` | `Promise<void>`     | Replace every edge with these         |
+| `removeNodes(ids)`          | `string[]`                                    | `Promise<void>`     | Remove nodes and their incident edges |
+| `updateNodes(updates)`      | `NodeUpdate[]`                                | `Promise<void>`     | Update node properties                |
+| `getNode(id)`               | `string`                                      | `Node \| undefined` | Get node by ID                        |
+| `getNodes()`                | -                                             | `Node[]`            | Get all nodes                         |
+| `clear()`                   | -                                             | `Promise<void>`     | Remove all data                       |
 
+Every node and edge record at once is `session.data.nodes()` and `session.data.edges()`.
 Edge records are read through the session, by edge id -- `session.data.edge(id)` -- because an
 edge's identity is the element's own counter rather than a pair of endpoints. Every edge running
 between two nodes is `graph.getDataManager().getEdgesBetween(a, b)`, which answers a list because
@@ -49,13 +50,13 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 
 ### Layout
 
-| Method                      | Parameters         | Returns         | Description                  |
-| --------------------------- | ------------------ | --------------- | ---------------------------- |
-| `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm         |
-| `waitForSettled()`          | -                  | `Promise<void>` | Wait for queued operations to finish |
-| `waitForStableFrame(opts?)` | `{ timeoutMs? }`   | `Promise<void>` | Wait for the picture to stop changing |
+| Method                      | Parameters         | Returns         | Description                              |
+| --------------------------- | ------------------ | --------------- | ---------------------------------------- |
+| `setLayout(type, options?)` | `string`, `object` | `void`          | Set layout algorithm                     |
+| `waitForSettled()`          | -                  | `Promise<void>` | Wait for queued operations to finish     |
+| `waitForStableFrame(opts?)` | `{ timeoutMs? }`   | `Promise<void>` | Wait for the picture to stop changing    |
 | `isFrameStable`             | -                  | `boolean`       | Whether the drawn frame is the final one |
-| `isSettled()`               | -                  | `boolean`       | Check if layout is stable    |
+| `isSettled()`               | -                  | `boolean`       | Check if layout is stable                |
 
 ### Algorithms
 
@@ -106,9 +107,9 @@ can report progress and be cancelled. The stack moves only once the repaint has 
 
 ### Batch Operations
 
-| Method                | Parameters       | Returns         | Description               |
-| --------------------- | ---------------- | --------------- | ------------------------- |
-| `batchOperations(fn)` | `async Function` | `Promise<void>` | Batch multiple operations |
+| Method                | Parameters           | Returns         | Description                                                |
+| --------------------- | -------------------- | --------------- | ---------------------------------------------------------- |
+| `batchOperations(fn)` | `async (tx) => void` | `Promise<void>` | Make the changes `fn` makes through `tx` one undoable step |
 
 ## Manager Classes
 
@@ -192,26 +193,26 @@ interface LayerSpec {
 ```
 
 The channels a layer can write, the selector language and the scales an encoding reads through
-are all in the [styling guide](/guide/styling).
+are all in the [styling guide](../guide/styling).
 
 ## Generated Reference
 
 For complete type definitions and detailed API documentation:
 
-- [Graph Class](/api/generated/index/classes/Graph.md) - Full TypeDoc reference
-- [Node Class](/api/generated/index/classes/Node.md) - Node type reference
-- [Edge Class](/api/generated/index/classes/Edge.md) - Edge type reference
-- [Managers](/api/generated/index/) - Manager class references
+- [Graph Class](./generated/index/classes/Graph.md) - Full TypeDoc reference
+- [Node Class](./generated/index/classes/Node.md) - Node type reference
+- [Edge Class](./generated/index/classes/Edge.md) - Edge type reference
+- [Managers](./generated/index/) - Manager class references
 
 ## Extension Classes
 
 For creating custom extensions:
 
-- [LayoutEngine](/api/generated/index/classes/LayoutEngine.md) - Custom layout base class
-- [Algorithm](/api/generated/index/classes/Algorithm.md) - Custom algorithm base class
-- [DataSource](/api/generated/index/classes/DataSource.md) - Custom data source base class
+- [LayoutEngine](./generated/index/classes/LayoutEngine.md) - Custom layout base class
+- [Algorithm](./generated/index/classes/Algorithm.md) - Custom algorithm base class
+- [DataSource](./generated/index/classes/DataSource.md) - Custom data source base class
 
 ## Related
 
-- [JavaScript API Guide](/guide/javascript-api) - Usage patterns and examples
-- [Web Component API Reference](/api/web-component) - Declarative Web Component API
+- [JavaScript API Guide](../guide/javascript-api) - Usage patterns and examples
+- [Web Component API Reference](./web-component) - Declarative Web Component API

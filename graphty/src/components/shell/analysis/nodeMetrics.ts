@@ -52,10 +52,9 @@
  * App shell progressive disclosure design, section 6.3 (capability names), 2307 (the Node
  * metric shape) and 7.5 (readings built from these statistics).
  */
-import type { Histogram, RunId, RunResult } from "@graphty/graphty-element/session";
+import type { GraphSession, Histogram, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
-import type { ElementGraph } from "./elementBridge";
 
 /**
  * The three node metrics this slice runs, by the id the Suggested card and the command
@@ -430,16 +429,13 @@ function rankingFromResult(metric: NodeMetricId, result: RunResult): NodeMetricR
  * walking the graph: the most recent succeeded run of that algorithm, which is the one whose
  * numbers the picture was painted from. A metric nobody has run yet reports an empty ranking
  * rather than zeros, so a card can say "not run" instead of "measured nothing".
- * @param graph - the element graph whose session holds the runs.
+ * @param session - the element's session, which holds the runs.
  * @param metric - which metric to read.
  * @returns the ranking, highest value first, empty when that metric has not run.
  * @public
  */
-export function readNodeMetricResults(graph: ElementGraph, metric: NodeMetricId): NodeMetricRanking {
-    const finished = graph
-        .getSession()
-        .runs.list()
-        .filter((run) => run.algorithm === metric && run.status === "succeeded");
+export function readNodeMetricResults(session: Pick<GraphSession, "runs">, metric: NodeMetricId): NodeMetricRanking {
+    const finished = session.runs.list().filter((run) => run.algorithm === metric && run.status === "succeeded");
     const latest = finished.at(-1);
 
     if (latest?.result === undefined) {
@@ -462,16 +458,19 @@ export function readNodeMetricResults(graph: ElementGraph, metric: NodeMetricId)
  * own policy decides whether its suggested encoding stands or a layer somebody wrote by hand
  * keeps the channel. Starting the same metric twice on an unchanged graph returns the run that
  * already exists rather than recomputing it.
- * @param graph - the element graph to run on.
+ * @param session - the element's session, or a transaction's `tx`, to run through.
  * @param metric - which metric to run.
  * @returns the ranking, highest value first.
  * @public
  */
-export async function runNodeMetric(graph: ElementGraph, metric: NodeMetricId): Promise<NodeMetricRanking> {
+export async function runNodeMetric(
+    session: Pick<GraphSession, "runs">,
+    metric: NodeMetricId,
+): Promise<NodeMetricRanking> {
     /* Through the session rather than the 1.10 address, so the run's id comes back with it: a
        style layer scopes itself to the run whose column it reads, and the card's "Remove result"
        verb names that run too. */
-    const run = graph.getSession().runs.start(metric);
+    const run = session.runs.start(metric);
     const result = await run;
 
     return { ...rankingFromResult(metric, result), runId: run.id };
@@ -567,8 +566,8 @@ function binLabel(definition: NodeMetricDefinition, from: number, to: number, co
  *
  * One bar per distinct value while that fits under {@link METRIC_DISTRIBUTION_MAX_BINS},
  * bands once it does not -- so a graph whose degrees run to the thousands draws twenty
- * bars rather than thousands -- the same shape AppShell's degree histogram already
- * draws, generalised to a metric whose values are not counts.
+ * bars rather than thousands. The graph summary's degree histogram is the same bins,
+ * worded by {@link formatMetricDistribution}.
  *
  * The heavy-tail test is spec 2307's rule and nothing else: maximum over median above
  * {@link LOG_X_RATIO_THRESHOLD}, with a median above 0 so the ratio means something. It
@@ -587,8 +586,29 @@ function binLabel(definition: NodeMetricDefinition, from: number, to: number, co
  * @public
  */
 export function metricDistribution(ranking: NodeMetricRanking): MetricDistribution {
-    const definition = NODE_METRIC_DEFINITIONS[ranking.metric];
-    const { distribution } = ranking;
+    return formatMetricDistribution(
+        NODE_METRIC_DEFINITIONS[ranking.metric],
+        ranking.distribution,
+        ranking.minValue,
+        ranking.maxValue,
+    );
+}
+
+/**
+ * Words graphty-element's bins for one metric: a label per bar, the two axis ends and the
+ * caption. It bins nothing -- the bars are the element's, one for one.
+ * @param definition - the metric being drawn.
+ * @param distribution - what `RunResult.histogram()` returned for the metric's value field.
+ * @param minValue - the lowest value measured, for the axis's left end.
+ * @param maxValue - the highest value measured, for the axis's right end.
+ * @returns the bars, the two axis ends and the caption.
+ */
+export function formatMetricDistribution(
+    definition: NodeMetricDefinition,
+    distribution: Histogram,
+    minValue: number,
+    maxValue: number,
+): MetricDistribution {
     const logApplied = distribution.scale === "log";
     const caption = `${definition.plainName} per node${logApplied ? " (log scale)" : ""}`;
 
@@ -601,8 +621,8 @@ export function metricDistribution(ranking: NodeMetricRanking): MetricDistributi
             label: binLabel(definition, bin.from, bin.to, bin.count),
             count: bin.count,
         })),
-        axisMin: formatMetricValue(ranking.minValue, definition.integerValued),
-        axisMax: formatMetricValue(ranking.maxValue, definition.integerValued),
+        axisMin: formatMetricValue(minValue, definition.integerValued),
+        axisMax: formatMetricValue(maxValue, definition.integerValued),
         logX: logApplied,
         caption,
     };

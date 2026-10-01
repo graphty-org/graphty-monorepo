@@ -1,0 +1,94 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="cap" type="long" />
+      <attribute id="5" title="rel" type="string" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="rank" type="long" />
+      <attribute id="2" title="tag" type="string" />
+      <attribute id="3" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="node 0" label="node 0">
+        <viz:color r="182" g="57" b="119" a="1.0" />
+        <viz:size value="7.59" />
+        <viz:position x="24.424" y="27.246" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e+300" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="two words" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="node 1" label="node 1">
+        <viz:color r="46" g="133" b="132" a="1.0" />
+        <viz:size value="2.13" />
+        <viz:position x="14.591" y="-42.802" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="node 2" label="node 2">
+        <viz:color r="92" g="2" b="22" a="1.0" />
+        <viz:size value="2.9" />
+        <viz:position x="14.455" y="45.885" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="1" />
+          <attvalue for="2" value="plain" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="node 3" label="node 3">
+        <viz:color r="35" g="57" b="170" a="1.0" />
+        <viz:size value="2.27" />
+        <viz:position x="-31.931" y="41.203" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="1" value="42" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="node 4" label="node 4">
+        <viz:color r="221" g="244" b="72" a="1.0" />
+        <viz:size value="9.59" />
+        <viz:position x="-36.585" y="-27.068" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e+300" />
+          <attvalue for="1" value="0" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="node 0" target="node 1" id="0" />
+      <edge source="node 0" target="node 4" id="1" weight="9.1696">
+        <attvalues>
+          <attvalue for="4" value="255" />
+        </attvalues>
+      </edge>
+      <edge source="node 1" target="node 2" id="2" weight="7.4552">
+        <attvalues>
+          <attvalue for="4" value="468" />
+        </attvalues>
+      </edge>
+      <edge source="node 2" target="node 3" id="3" weight="3.3707">
+        <attvalues>
+          <attvalue for="5" value="&lt;tag&gt;" />
+          <attvalue for="4" value="736" />
+        </attvalues>
+      </edge>
+      <edge source="node 3" target="node 4" id="4" weight="1e+300">
+        <attvalues>
+          <attvalue for="5" value="中文" />
+          <attvalue for="4" value="103" />
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

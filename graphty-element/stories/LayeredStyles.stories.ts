@@ -31,24 +31,14 @@ const simpleNodeData = [
     { id: "E", type: "tertiary", position: { x: 0, y: 0, z: 2 } },
 ];
 
-/**
- * Six weighted edges, each carrying a copy of its own source id.
- *
- * `origin` IS A WORKAROUND AND SHOULD NOT BE NEEDED. A layer selects edges with a JMESPath
- * expression over `data.*`, and `data.*` reaches the attribute columns the importer kept -- which
- * are the record's own fields MINUS its two endpoints. `src` and `dst` are consumed as structure
- * and published as nothing, so `data.src == 'A'`, `data.source == 'A'` and even
- * `has data.source` all match zero edges, and the stack reports no problem while they do it.
- * This column exists so the layer below has something it is allowed to read. See the handover
- * note: a style layer cannot select an edge by either of its endpoints.
- */
+/** Six weighted edges. A layer below selects the ones leaving A with `data.source == 'A'`. */
 const simpleEdgeData = [
-    { src: "A", dst: "B", weight: 1, origin: "A" },
-    { src: "A", dst: "C", weight: 2, origin: "A" },
-    { src: "B", dst: "D", weight: 1, origin: "B" },
-    { src: "C", dst: "D", weight: 2, origin: "C" },
-    { src: "D", dst: "E", weight: 1, origin: "D" },
-    { src: "E", dst: "A", weight: 2, origin: "E" },
+    { src: "A", dst: "B", weight: 1 },
+    { src: "A", dst: "C", weight: 2 },
+    { src: "B", dst: "D", weight: 1 },
+    { src: "C", dst: "D", weight: 2 },
+    { src: "D", dst: "E", weight: 1 },
+    { src: "E", dst: "A", weight: 2 },
 ];
 
 const meta: Meta = {
@@ -570,7 +560,7 @@ export const ArrowSizeVariations: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ArrowSizeVariations");
         await assertGraphLoaded(scene, { nodes: 5, edges: 6 });
-        await assertLayerPainted(scene, "edges where data.origin == 'A'", { edges: 2 });
+        await assertLayerPainted(scene, "edges where data.source == 'A'", { edges: 2 });
         await assertArrowCapsDrawn(scene, ["filled-triangle-arrow"]);
         await assertEdgeVariety(scene, 2);
 
@@ -608,9 +598,9 @@ export const ArrowSizeVariations: Story = {
                     set: { "edge.arrowHead": "normal", "edge.arrowHeadSize": 2, "edge.arrowHeadColor": "white" },
                 },
                 {
-                    name: "edges where data.origin == 'A'",
+                    name: "edges where data.source == 'A'",
                     target: "edge",
-                    selector: { match: "expression", where: "data.origin == 'A'" },
+                    selector: { match: "expression", where: "data.source == 'A'" },
                     set: {
                         "edge.color": "purple",
                         "edge.arrowHead": "normal",

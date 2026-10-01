@@ -33,7 +33,7 @@ import { algorithmScope } from "./scope.js";
 
 /** Iterations per submit (spec 8.2: k = 8). */
 const BATCH = 8;
-/** Params slots of one batch: four blocks per iteration times the batch, plus a margin (the plan's `4 * 8 + 8`). */
+/** Params slots of one batch: four blocks per iteration times the batch, plus a margin (the plan's `4 * 8 + 8`) that also holds the last batch's convergence check. */
 const RING_SLOTS = 4 * BATCH + 8;
 
 /**
@@ -210,7 +210,10 @@ export async function runPowerIteration(
             const k = Math.min(BATCH, config.maxIterations - iterationsRun);
             const batch = new CommandBatch(ctx, config.label);
             const pass = batch.pass("iterations");
-            for (let i = 0; i < k; i++) {
+            // the scale + finalize of iteration i measures the error of iteration i - 1 (PD-9), so the last batch
+            // runs them once more, with no apply and no pull, to measure the error of iteration maxIterations itself
+            const last = iterationsRun + k === config.maxIterations;
+            for (let i = 0; i < k + (last ? 1 : 0); i++) {
                 const iteration = iterationsRun + i + 1;
                 const params = scope.params(PR_PARAMS, {
                     n,
@@ -234,6 +237,9 @@ export async function runPowerIteration(
                 };
                 scaleNorm.dispatch(pass, scaleNorm.bind(scaleBindings), scalePlan, [params.offset]);
                 finalize.dispatch(pass, finalize.bind({ partials, P: params.binding }), finalizePlan, [params.offset]);
+                if (i === k) {
+                    break;
+                }
                 if (scaleApply !== null) {
                     scaleApply.dispatch(pass, scaleApply.bind(scaleBindings), scalePlan, [params.offset]);
                 }

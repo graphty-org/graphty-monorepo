@@ -21,7 +21,8 @@
                     "authors": true,
                     "commitReferences": true,
                     "versionTitleDate": true
-                }
+                },
+                "renderer": "{workspaceRoot}/tools/changelog-renderer.cjs"
             }
         },
         "git": {
@@ -29,7 +30,8 @@
             "tag": true,
             "push": true,
             "commitMessage": "chore(release): publish {projectName} v{version} [skip ci]",
-            "commitArgs": "--no-verify"
+            "commitArgs": "--no-verify",
+            "pushArgs": "origin refs/tags/*:refs/tags/*"
         }
     },
     "plugins": [
@@ -82,7 +84,7 @@
             "dependsOn": ["^build"]
         },
         "lint": {
-            "inputs": ["default", "{workspaceRoot}/eslint.config.js"],
+            "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"],
             "cache": true
         },
         "@nx/vitest:test": {
@@ -100,7 +102,15 @@
             "!{projectRoot}/eslint.config.js",
             "!{projectRoot}/**/*.md"
         ],
-        "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json", "{workspaceRoot}/eslint.config.js"]
+        "sharedGlobals": [
+            "{workspaceRoot}/tsconfig.base.json",
+            "{workspaceRoot}/eslint.config.js",
+            "{workspaceRoot}/vite.shared.config.ts",
+            "{workspaceRoot}/vitest.shared.config.ts",
+            "{workspaceRoot}/pnpm-workspace.yaml",
+            "{workspaceRoot}/.npmrc",
+            "{workspaceRoot}/.github/workflows/**/*"
+        ]
     },
     "generators": {
         "@nx/js:library": {

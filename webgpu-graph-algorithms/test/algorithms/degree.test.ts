@@ -9,8 +9,6 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
-
 import { degree } from "../../src/algorithms/degree.js";
 import { WebGpuGraphError } from "../../src/errors.js";
 import { type GraphResidency } from "../../src/memory/residency.js";
@@ -24,7 +22,7 @@ import {
     windowsOf,
     withResidency,
 } from "../helpers/degree-check.js";
-import { csrSnapshotOf, fixture, FIXTURE_NAMES, KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
+import { csrSnapshotOf, fixture, FIXTURE_NAMES, hubbedRandom, KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import {
     adapterClass,
@@ -45,34 +43,6 @@ const KARATE_UNDIRECTED = [
 const KARATE_DIRECTED = [
     16, 8, 8, 3, 2, 3, 1, 0, 3, 1, 0, 0, 0, 1, 2, 2, 0, 0, 2, 1, 2, 0, 2, 5, 3, 1, 2, 1, 2, 2, 2, 2, 1, 0,
 ];
-
-/**
- * A seeded G(n, m) with parallels and self-loops (an LCG over typed arrays: 10n edges at n = 2^20 must not go through
- * a tuple list) plus one star of `leaves` leaves on node 0, undirected: the hub row is node 0.
- * @param n - the node count
- * @param m - the random edge count
- * @param leaves - the star's leaves (nodes 1..leaves)
- * @param seed - the generator seed
- * @returns the snapshot
- */
-function hubbedRandom(n: number, m: number, leaves: number, seed: number): GraphSnapshot {
-    const src = new Uint32Array(m + leaves);
-    const dst = new Uint32Array(m + leaves);
-    let state = seed >>> 0;
-    const next = (): number => {
-        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-        return state;
-    };
-    for (let e = 0; e < m; e++) {
-        src[e] = next() % n;
-        dst[e] = next() % n;
-    }
-    for (let i = 0; i < leaves; i++) {
-        src[m + i] = 0;
-        dst[m + i] = 1 + (i % (n - 1));
-    }
-    return fromEdgeArrays({ directed: false, nodeCount: n, src, dst }, { label: `hubbed-random-${n}` });
-}
 
 describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
     it("equals outDegreeOracle bitwise on every named fixture, twice, and release() leaves no buffers", async (t) => {

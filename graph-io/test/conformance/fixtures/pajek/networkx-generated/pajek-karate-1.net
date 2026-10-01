@@ -1,0 +1,114 @@
+*vertices 34
+1 0 0.0 0.0 ellipse tag café
+2 1 0.0 0.0 ellipse
+3 2 0.0 0.0 ellipse
+4 3 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+5 4 0.0 0.0 ellipse tag semi;colon
+6 5 0.0 0.0 ellipse tag plain
+7 6 0.0 0.0 ellipse tag semi;colon
+8 7 0.0 0.0 ellipse
+9 8 0.0 0.0 ellipse tag "two words"
+10 9 0.0 0.0 ellipse tag café
+11 10 0.0 0.0 ellipse tag 中文
+12 11 0.0 0.0 ellipse tag a&b
+13 12 0.0 0.0 ellipse tag 中文
+14 13 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+15 14 0.0 0.0 ellipse tag "two words"
+16 15 0.0 0.0 ellipse tag a&b
+17 16 0.0 0.0 ellipse tag "two words"
+18 17 0.0 0.0 ellipse tag café
+19 18 0.0 0.0 ellipse tag semi;colon
+20 19 0.0 0.0 ellipse tag "two words"
+21 20 0.0 0.0 ellipse
+22 21 0.0 0.0 ellipse tag semi;colon
+23 22 0.0 0.0 ellipse tag café
+24 23 0.0 0.0 ellipse tag café
+25 24 0.0 0.0 ellipse tag "two words"
+26 25 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+27 26 0.0 0.0 ellipse tag "two words"
+28 27 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+29 28 0.0 0.0 ellipse tag xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+30 29 0.0 0.0 ellipse
+31 30 0.0 0.0 ellipse
+32 31 0.0 0.0 ellipse
+33 32 0.0 0.0 ellipse tag plain
+34 33 0.0 0.0 ellipse tag 中文
+*edges
+1 2 1.0
+1 3 1.0
+1 4 1e-300 rel semi;colon
+1 5 -0.0 rel a&b
+1 6 3 rel café
+1 7 9.2752 rel café
+1 8 1.0
+1 9 1e-300
+1 11 -2.25
+1 12 0.5611 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+1 13 1e-300
+1 14 1e+300
+1 18 0.5
+1 20 0.0364
+1 22 3
+1 32 8.9613 rel semi;colon
+2 3 1.0 rel plain
+2 4 1.0
+2 8 9.3722 rel plain
+2 14 5.3205 rel 中文
+2 18 3.3977
+2 20 0.0862 rel 中文
+2 22 1e-300 rel a&b
+2 31 1 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+3 4 -0.0 rel café
+3 8 4.0446 rel "two words"
+3 9 1.0 rel semi;colon
+3 10 1.0
+3 14 1e+300 rel semi;colon
+3 28 8.762
+3 29 1e-300
+3 33 1.0
+4 8 1e-300
+4 13 1
+4 14 10
+5 7 1
+5 11 0.5
+6 7 1.0 rel plain
+6 11 -0.0 rel café
+6 17 5.9105 rel café
+7 17 1.0 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+9 31 -2.25
+9 33 2.6594
+9 34 0.7347 rel a&b
+10 34 1e-300 rel café
+14 34 10 rel a&b
+15 33 1.0 rel plain
+15 34 0.5156 rel a&b
+16 33 4.4904 rel xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+16 34 7.2754
+19 33 6.1311
+19 34 8.7066 rel café
+20 34 1.3119
+21 33 1e+300 rel semi;colon
+21 34 1.0 rel plain
+23 33 10
+23 34 1.2023 rel semi;colon
+24 26 3.7983
+24 28 1.0 rel plain
+24 30 7.8231 rel semi;colon
+24 33 7.8847 rel semi;colon
+24 34 1e-300
+25 26 -2.25 rel a&b
+25 28 3.3555
+25 32 3.5964 rel "two words"
+26 32 8.4418
+27 30 -2.25
+27 34 1.0 rel a&b
+28 34 6.0826 rel "two words"
+29 32 9.2647 rel a&b
+29 34 1e+300 rel plain
+30 33 -2.25
+30 34 8.4468
+31 33 0.9848 rel plain
+31 34 8.6547 rel plain
+32 33 1.5037
+32 34 5.5393 rel plain
+33 34 3

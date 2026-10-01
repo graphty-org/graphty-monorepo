@@ -88,16 +88,40 @@ export function quoteGmlString(text: string): string {
     return `"${escaped}"`;
 }
 
-const GML_ENTITY = /&(#[0-9]+|#x[0-9a-fA-F]+|amp|quot|lt|gt|apos);/g;
-const GML_NAMED: Readonly<Record<string, string>> = { amp: "&", quot: '"', lt: "<", gt: ">", apos: "'" };
+const GML_ENTITY = /&(#[0-9]+|#x[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/g;
+
+/** The XML entities and the ISO-8859-1 HTML entities (U+00A0..U+00FF), which GML uses for characters above 127. */
+const GML_NAMED: ReadonlyMap<string, string> = (() => {
+    const table = new Map<string, string>([
+        ["amp", "&"],
+        ["quot", '"'],
+        ["lt", "<"],
+        ["gt", ">"],
+        ["apos", "'"],
+    ]);
+    const latin1 = (
+        "nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr deg plusmn sup2 " +
+        "sup3 acute micro para middot cedil sup1 ordm raquo frac14 frac12 frac34 iquest Agrave Aacute Acirc " +
+        "Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc Iuml ETH Ntilde Ograve " +
+        "Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig agrave aacute " +
+        "acirc atilde auml aring aelig ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde " +
+        "ograve oacute ocirc otilde ouml divide oslash ugrave uacute ucirc uuml yacute thorn yuml"
+    ).split(" ");
+    latin1.forEach((name, i) => {
+        table.set(name, String.fromCharCode(0xa0 + i));
+    });
+    return table;
+})();
 
 /**
  * Decode the character entities of a GML string body (the inverse of quoteGmlString on the text
- * between the quotes). An unknown entity is left as written.
+ * between the quotes): numeric references, the XML entities and the ISO-8859-1 HTML entities. An
+ * unknown named entity is left as written and handed to `onUnknown`.
  * @param body - the text between the quotes
+ * @param onUnknown - called with each unknown named entity (`&name;`), when given
  * @returns the decoded text
  */
-export function decodeGmlString(body: string): string {
+export function decodeGmlString(body: string, onUnknown?: (entity: string) => void): string {
     return body.replace(GML_ENTITY, (whole, entity: string) => {
         if (entity.startsWith("#x")) {
             return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
@@ -105,7 +129,12 @@ export function decodeGmlString(body: string): string {
         if (entity.startsWith("#")) {
             return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
         }
-        return GML_NAMED[entity] ?? whole;
+        const known = GML_NAMED.get(entity);
+        if (known === undefined) {
+            onUnknown?.(whole);
+            return whole;
+        }
+        return known;
     });
 }
 
@@ -148,15 +177,16 @@ function isDotIdentifier(text: string): boolean {
 
 /**
  * Whether a text can be written as a DOT ID at all. Graphviz's scanner consumes a backslash pair
- * `\\` as one unit and `\"` as an escaped quote, left to right, so a backslash that precedes a
- * double quote or ends the text cannot be written: the written `\\"` reads as a pair and a closing
- * quote, and a trailing backslash escapes the closing quote. Every other text is writable;
- * quoteDotId() writes it.
+ * `\\` as one unit, `\"` as an escaped quote and a backslash before a line break as a line
+ * continuation (both removed), left to right, so a backslash that precedes a double quote or a
+ * line break, or ends the text, cannot be written: the written `\\"` reads as a pair and a closing
+ * quote, a backslash before a line break vanishes with the break, and a trailing backslash escapes
+ * the closing quote. Every other text is writable; quoteDotId() writes it.
  * @param text - the id, name or value text
  * @returns true when quoteDotId(text) reads back as `text`
  */
 export function isWritableDotText(text: string): boolean {
-    return !text.endsWith("\\") && !text.includes('\\"');
+    return !text.endsWith("\\") && !text.includes('\\"') && !/\\[\r\n]/.test(text);
 }
 
 /**
@@ -211,9 +241,10 @@ export function isPajekLabel(text: string): boolean {
 }
 
 /**
- * Write a Pajek label: bare when it is a single run of non-space, non-quote characters, otherwise
- * double-quoted. E_UNSUPPORTED (reason "pajek label") for a text isPajekLabel() rejects; the
- * exporter's check() counts those.
+ * Write a Pajek label: bare when it is a single run of non-space, non-quote characters that does
+ * not start with `[` (a bare `[` opens a time set, which the reader groups up to its `]`),
+ * otherwise double-quoted. E_UNSUPPORTED (reason "pajek label") for a text isPajekLabel() rejects;
+ * the exporter's check() counts those.
  * @param text - the label text
  * @returns the label as written
  */
@@ -224,7 +255,7 @@ export function quotePajekLabel(text: string): string {
             value: text,
         });
     }
-    if (text.length > 0 && !/[\s"]/.test(text)) {
+    if (text.length > 0 && !/[\s"]/.test(text) && !text.startsWith("[")) {
         return text;
     }
     return `"${text}"`;

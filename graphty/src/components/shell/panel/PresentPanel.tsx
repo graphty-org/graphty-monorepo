@@ -1,4 +1,5 @@
 import { ActionRow, AdvancedButton, FieldRow, PANEL_GRID, PanelField, ToggleRow } from "@graphty/compact-mantine";
+import { FORMAT_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Box, Button } from "@mantine/core";
 import React from "react";
 
@@ -27,14 +28,13 @@ const IMAGE_FORMATS: readonly { readonly value: string; readonly label: string; 
 /** The one scope every graph can be exported at, and the default (spec 03 section 2.5). */
 const DEFAULT_DATA_SCOPE = "whole-graph";
 
-/** The data formats spec 03 section 2.5 item 2 lists. */
-const DATA_FORMATS: readonly { readonly value: string; readonly label: string }[] = [
-    { value: "json", label: "JSON" },
-    { value: "csv", label: "CSV" },
-    { value: "graphml", label: "GraphML" },
-    { value: "gexf", label: "GEXF" },
-    { value: "cx2", label: "CX2" },
-];
+/**
+ * The data formats graphty-element can write, read from its format catalogue so the
+ * list offers exactly what the element can export and nothing it cannot.
+ */
+const DATA_FORMATS: readonly { readonly value: string; readonly label: string }[] = FORMAT_DESCRIPTORS.filter(
+    (descriptor) => descriptor.canExport,
+).map((descriptor) => ({ value: descriptor.id, label: descriptor.plainName }));
 
 /**
  * Items 4 to 8 of spec 03 section 2.5, in that order. Five contiguous rows share
@@ -117,7 +117,7 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
         onCopyImage,
         onExportImage,
         onOpenImageOptions,
-        dataFormat = "json",
+        dataFormat = DATA_FORMATS[0]?.value ?? null,
         onDataFormatChange,
         dataScope = DEFAULT_DATA_SCOPE,
         dataScopeOptions = [{ value: DEFAULT_DATA_SCOPE, label: "Whole graph" }],
@@ -140,6 +140,7 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
                     <AdvancedButton
                         label={IMAGE_OPTIONS_LABEL}
                         title={IMAGE_OPTIONS_LABEL}
+                        disabled={onOpenImageOptions === undefined}
                         onClick={onOpenImageOptions}
                     />
                 }
@@ -180,15 +181,23 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
                 </Box>
             </PanelSection>
 
+            {/*
+                graphty-element writes every format in its catalogue (exportGraph), but this
+                panel does not call it yet, so the whole section is unshipped: 5.8's group
+                form, one tag on the header, and every control dimmed and disabled rather
+                than drawn operable and snapping back. The props stay for the day it ships.
+            */}
             <PanelSection
                 sectionId="present.data"
                 label="Export data"
+                info={COMING_GROUP_SENTENCE}
                 actions={
                     <>
                         <ComingTag />
                         <AdvancedButton
                             label={DATA_OPTIONS_LABEL}
                             title={DATA_OPTIONS_LABEL}
+                            disabled
                             onClick={onOpenDataOptions}
                         />
                     </>
@@ -198,6 +207,7 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
                     <PanelField
                         label="Data format"
                         kind="select"
+                        disabled
                         value={dataFormat}
                         data={DATA_FORMATS.map((format) => ({ ...format }))}
                         onChange={(value) => {
@@ -211,6 +221,7 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
                     <PanelField
                         label="Scope"
                         kind="select"
+                        disabled
                         value={dataScope}
                         data={dataScopeOptions.map((option) => ({ ...option }))}
                         onChange={(value) => {
@@ -222,6 +233,7 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
                 <ToggleRow
                     label="Include notes"
                     control="checkbox"
+                    disabled
                     checked={includeNotes}
                     onChange={(checked) => {
                         onIncludeNotesChange?.(checked);
@@ -238,12 +250,15 @@ export function PresentPanel(props: PresentPanelProps): React.JSX.Element {
                         height: PANEL_GRID.ROW_PITCH,
                     }}
                 >
-                    <PanelOutlineButton onClick={onCopyNodeIds}>Copy node ids</PanelOutlineButton>
+                    <PanelOutlineButton disabled onClick={onCopyNodeIds}>
+                        Copy node ids
+                    </PanelOutlineButton>
                     <Button
                         variant="filled"
                         h={PANEL_GRID.CONTROL_HEIGHT}
                         px={PANEL_GRID.TRAIL_GAP}
                         radius="sm"
+                        disabled
                         onClick={onExportData}
                     >
                         Export data

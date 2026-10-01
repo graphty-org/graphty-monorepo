@@ -1,0 +1,186 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="rel" type="string" />
+      <attribute id="5" title="cap" type="long" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="tag" type="string" />
+      <attribute id="2" title="flag" type="boolean" />
+      <attribute id="3" title="rank" type="long" />
+    </attributes>
+    <nodes>
+      <node id="0" label="0">
+        <attvalues>
+          <attvalue for="0" value="3.141592653589793" />
+          <attvalue for="1" value="中文" />
+          <attvalue for="2" value="false" />
+        </attvalues>
+      </node>
+      <node id="1" label="1">
+        <attvalues>
+          <attvalue for="0" value="-69.553888" />
+          <attvalue for="3" value="1" />
+          <attvalue for="1" value="it's" />
+          <attvalue for="2" value="true" />
+        </attvalues>
+      </node>
+      <node id="2" label="2">
+        <attvalues>
+          <attvalue for="3" value="2147483647" />
+          <attvalue for="1" value="a&amp;b" />
+        </attvalues>
+      </node>
+      <node id="3" label="3">
+        <attvalues>
+          <attvalue for="0" value="36.611398" />
+          <attvalue for="1" value="a&amp;b" />
+          <attvalue for="2" value="true" />
+        </attvalues>
+      </node>
+      <node id="4" label="4">
+        <attvalues>
+          <attvalue for="3" value="1" />
+          <attvalue for="2" value="true" />
+        </attvalues>
+      </node>
+      <node id="5" label="5">
+        <attvalues>
+          <attvalue for="0" value="96.483595" />
+          <attvalue for="1" value="it's" />
+          <attvalue for="2" value="true" />
+        </attvalues>
+      </node>
+      <node id="6" label="6">
+        <attvalues>
+          <attvalue for="0" value="58.678702" />
+          <attvalue for="1" value="it's" />
+          <attvalue for="2" value="false" />
+        </attvalues>
+      </node>
+      <node id="7" label="7">
+        <attvalues>
+          <attvalue for="0" value="9.557673" />
+          <attvalue for="3" value="0" />
+          <attvalue for="1" value="it's" />
+        </attvalues>
+      </node>
+      <node id="8" label="8">
+        <attvalues>
+          <attvalue for="0" value="64.977554" />
+          <attvalue for="1" value="tab&#09;here" />
+          <attvalue for="2" value="false" />
+        </attvalues>
+      </node>
+      <node id="9" label="9">
+        <attvalues>
+          <attvalue for="0" value="-36.917704" />
+          <attvalue for="2" value="true" />
+        </attvalues>
+      </node>
+      <node id="10" label="10">
+        <attvalues>
+          <attvalue for="0" value="1.916748" />
+          <attvalue for="3" value="-7" />
+          <attvalue for="1" value="plain" />
+          <attvalue for="2" value="true" />
+        </attvalues>
+      </node>
+      <node id="11" label="11">
+        <attvalues>
+          <attvalue for="0" value="15.020035" />
+          <attvalue for="3" value="2147483647" />
+          <attvalue for="1" value="say &quot;hi&quot;" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="0" target="4" id="0" weight="10">
+        <attvalues>
+          <attvalue for="4" value="&lt;tag&gt;" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="3" id="1" weight="7.0394">
+        <attvalues>
+          <attvalue for="4" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="10" id="2" weight="-0.0">
+        <attvalues>
+          <attvalue for="5" value="225" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="10" id="3" weight="2.4213">
+        <attvalues>
+          <attvalue for="4" value="it's" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="9" id="4" weight="3.557">
+        <attvalues>
+          <attvalue for="5" value="-3" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="11" id="5" />
+      <edge source="1" target="7" id="6" />
+      <edge source="1" target="3" id="7" weight="0.5" />
+      <edge source="2" target="5" id="8" weight="1e+300">
+        <attvalues>
+          <attvalue for="4" value="&lt;tag&gt;" />
+          <attvalue for="5" value="165" />
+        </attvalues>
+      </edge>
+      <edge source="3" target="4" id="9" weight="0.8526">
+        <attvalues>
+          <attvalue for="5" value="506" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="11" id="10" />
+      <edge source="4" target="8" id="11" weight="-2.25" />
+      <edge source="4" target="10" id="12" />
+      <edge source="5" target="9" id="13" weight="4.1638">
+        <attvalues>
+          <attvalue for="4" value="tab&#09;here" />
+          <attvalue for="5" value="954" />
+        </attvalues>
+      </edge>
+      <edge source="5" target="8" id="14" weight="-2.25">
+        <attvalues>
+          <attvalue for="4" value="café" />
+          <attvalue for="5" value="921" />
+        </attvalues>
+      </edge>
+      <edge source="6" target="9" id="15" weight="-0.0">
+        <attvalues>
+          <attvalue for="4" value="it's" />
+          <attvalue for="5" value="573" />
+        </attvalues>
+      </edge>
+      <edge source="6" target="7" id="16" weight="1e-300">
+        <attvalues>
+          <attvalue for="5" value="519" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="11" id="17">
+        <attvalues>
+          <attvalue for="4" value="&lt;tag&gt;" />
+          <attvalue for="5" value="336" />
+        </attvalues>
+      </edge>
+      <edge source="9" target="10" id="18" weight="-0.0">
+        <attvalues>
+          <attvalue for="4" value="café" />
+        </attvalues>
+      </edge>
+      <edge source="10" target="11" id="19" weight="1e+300">
+        <attvalues>
+          <attvalue for="4" value="it's" />
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

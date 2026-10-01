@@ -23,13 +23,54 @@ const NodeBehaviorOpts = z
     })
     .prefault({});
 
+const LabelBehaviorOpts = z
+    .strictObject({
+        /*
+         * Whether node labels that would be drawn on top of each other are thinned out.
+         *
+         * OFF BY DEFAULT, so a graph looks the way it always has: every label a style asks for is
+         * drawn. On, the element hides a label whose words would overlap a label it keeps, and it
+         * keeps a selected node's label first, then the label of the node with more edges. The
+         * decision is taken again whenever the camera, the viewport, a label, a node's position or
+         * the selection changes, and never on a frame where none of them did.
+         */
+        declutter: z.boolean().default(false),
+    })
+    .prefault({});
+
 const GraphLayoutOpts = z.strictObject({
     type: z.string().default("ngraph"),
     preSteps: z.number().default(0),
     stepMultiplier: z.number().default(1),
     minDelta: z.number().default(0),
     zoomStepInterval: z.number().min(1).default(1),
+
+    /*
+     * How many iterations of a simulation layout one frame computes.
+     *
+     * LEFT UNSET ON PURPOSE by default, because the right answer depends on the graph in front of
+     * the reader rather than on the host: a simulation resolves it at every load from
+     * `stepMultiplier`, raising it fourfold once the graph is large enough that one round trip per
+     * iteration costs more than the arithmetic. Setting it here pins the count whatever the size.
+     *
+     * It reaches nothing but a simulation layout -- `forceatlas2`, `spring` and `spring-electrical`
+     * -- because no other engine computes in batches.
+     */
+    iterationsPerStep: z.number().int().positive().optional(),
+
+    /*
+     * How many accelerated batches a simulation layout may have in flight at once.
+     *
+     * Two is one being computed while the next is being prepared, which is what keeps the device
+     * busy without letting the frame loop queue work faster than the device retires it. One makes
+     * every frame wait for the readback; more than four buys nothing and costs a uniform ring
+     * entry per batch. A CPU simulation ignores it: its step is synchronous.
+     */
+    maxInFlight: z.number().int().min(1).max(4).default(2),
 });
+
+/** How the element drives a layout, as the behaviour configuration resolves it. */
+export type GraphLayoutBehavior = z.infer<typeof GraphLayoutOpts>;
 
 /** How the element drives the layout, as a caller supplies it: every field optional. */
 export type GraphBehaviorConfig = z.input<typeof GraphBehaviorOpts>;
@@ -38,6 +79,7 @@ export const GraphBehaviorOpts = z.strictObject({
     // dimensions: z.int().min(2).max(3).default(3),
     layout: GraphLayoutOpts.prefault({}),
     node: NodeBehaviorOpts,
+    labels: LabelBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

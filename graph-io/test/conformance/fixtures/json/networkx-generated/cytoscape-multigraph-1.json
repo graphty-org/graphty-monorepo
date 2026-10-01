@@ -1,0 +1,130 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": true,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "rank": 0,
+     "tag": "a&b",
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 53.649311,
+     "rank": -7,
+     "tag": "two words",
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": -21.354842,
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": 72.29272,
+     "rank": 0,
+     "flag": true,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": -40.552574,
+     "rank": -7,
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "flag": true,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 0.5,
+     "rel": "it's",
+     "cap": 6,
+     "source": 0,
+     "target": 1,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "a&b",
+     "source": 0,
+     "target": 1,
+     "key": 1
+    }
+   },
+   {
+    "data": {
+     "weight": 9.8258,
+     "source": 1,
+     "target": 2,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "source": 1,
+     "target": 1,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "cap": 663,
+     "source": 2,
+     "target": 3,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 6.0599,
+     "rel": "back\\slash",
+     "source": 2,
+     "target": 3,
+     "key": 1
+    }
+   },
+   {
+    "data": {
+     "cap": 826,
+     "source": 3,
+     "target": 4,
+     "key": 0
+    }
+   },
+   {
+    "data": {
+     "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "cap": 219,
+     "source": 4,
+     "target": 4,
+     "key": 0
+    }
+   }
+  ]
+ }
+}

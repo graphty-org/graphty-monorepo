@@ -1,0 +1,9 @@
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<key id="g0" for="graphml" attr.name="creator" attr.type="string"/>
+<key id="d0" for="node" attr.name="label" attr.type="string"/>
+<data key="g0">hand</data>
+<graph edgedefault="directed">
+<node id="a"><data key="d0">A</data></node><node id="b"/>
+<edge source="a" target="b"/>
+</graph>
+</graphml>

@@ -9,6 +9,9 @@
  * count. The printed line names the device's workgroup size, the dispatch count, the last word of block 0, the
  * first word of block 1 (the poison 0xdeadbeef when nothing wrote it) and the total, so a red lane says which
  * stage lost the data rather than only that it did.
+ *
+ * run-twice exempt: a diagnostic probe that prints one multi-block scan stage by stage for a failing host;
+ * test/primitives/scan.test.ts runs the same scan twice and compares the outputs bitwise.
  */
 
 import { runScan } from "../helpers/scan.js";

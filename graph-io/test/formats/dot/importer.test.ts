@@ -327,7 +327,9 @@ describe("dot importer: malformed corpus", () => {
     });
 
     it("rejects invalid UTF-8 as a fatal parse error", async () => {
-        const err = await failure(new Uint8Array([0x64, 0x69, 0x67, 0x72, 0x61, 0x70, 0x68, 0x20, 0xff, 0x7b, 0x7d]));
+        const err = await failure(new Uint8Array([0x64, 0x69, 0x67, 0x72, 0x61, 0x70, 0x68, 0x20, 0xff, 0x7b, 0x7d]), {
+            encoding: "utf-8",
+        });
         expect(err.report.issues[0].code).toBe(INVALID_UTF8_CODE);
     });
 });
@@ -510,6 +512,15 @@ describe("dot importer: the grammar", () => {
         expect(nodeCell(snapshot, "b", "pin")).toBe(true);
         expect(nodeCell(snapshot, "a", "pin")).toBeUndefined();
         expect(cell(snapshot, "edges", "pos", 0)).toBe("e,1,2 3,4");
+    });
+
+    it("keeps a node pos as written text with positions false", async () => {
+        const { snapshot, report } = await load('digraph { a [pos="1,2!"]; b [pos="nope"] }', { positions: false });
+        expect(codes(report)).toEqual([]);
+        expect(snapshot.nodes.byRole("position")).toBeNull();
+        expect(nodeCell(snapshot, "a", "pos")).toBe("1,2!");
+        expect(nodeCell(snapshot, "b", "pos")).toBe("nope");
+        expect(snapshot.nodes.get("pin")).toBeNull();
     });
 
     it("takes the weight from the weight attribute, explicit only", async () => {
@@ -841,8 +852,15 @@ describe("dot importer: sniff and metadata", () => {
         expect(dotImporter.sniff?.(encode("digraph {"))).toBe(0.95);
         expect(dotImporter.sniff?.(encode("source,target\na,b\n"))).toBe(0);
         expect(dotImporter.sniff?.(encode("graphml"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph,id,name\ng1,1,x\n"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph\n{ a }"))).toBe(0.95);
+        expect(dotImporter.sniff?.(encode('digraph"G"{a->b}'))).toBe(0.95);
+        expect(dotImporter.sniff?.(encode("digraph/* c */G{a->b}"))).toBe(0.95);
         expect(dotImporter.sniff?.(encode("/* unterminated"))).toBe(0);
         expect(dotImporter.sniff?.(encode("// only"))).toBe(0);
+        // a GML list, whatever the keyword's case: DOT never has "[" after the header keyword
+        expect(dotImporter.sniff?.(encode("Graph [ node [ id 1 ] ]"))).toBe(0);
+        expect(dotImporter.sniff?.(encode("graph\n[ node [ id 1 ] ]"))).toBe(0);
     });
 
     it("declares its format, extensions and mime types", () => {

@@ -72,6 +72,69 @@ n2\tn3\t2.0`;
         assert.strictEqual(chunks[0].edges.length, 2);
     });
 
+    describe("delimiter detection when none is given", () => {
+        async function collect(config: ConstructorParameters<typeof CSVDataSource>[0]) {
+            const nodes = [];
+            const edges = [];
+            for await (const chunk of new CSVDataSource(config).getData()) {
+                nodes.push(...chunk.nodes);
+                edges.push(...chunk.edges);
+            }
+
+            return { nodes, edges };
+        }
+
+        for (const [name, delimiter] of [
+            ["tab", "\t"],
+            ["semicolon", ";"],
+            ["pipe", "|"],
+        ] as const) {
+            test(`reads a ${name}-separated edge list`, async () => {
+                const { edges } = await collect({ data: `source${delimiter}target\na${delimiter}b\n` });
+
+                assert.strictEqual(edges.length, 1);
+                assert.strictEqual(edges[0].source, "a");
+                assert.strictEqual(edges[0].target, "b");
+            });
+        }
+
+        test("ignores a delimiter inside a quoted header field", async () => {
+            const { edges } = await collect({ data: '"source;x",target\na,b\n', edgeSource: "source;x" });
+
+            assert.strictEqual(edges.length, 1);
+            assert.strictEqual(edges[0].source, "a");
+        });
+
+        test("detects the delimiter when the variant is given explicitly", async () => {
+            const { edges } = await collect({ data: "source\ttarget\na\tb\n", variant: "edge-list" });
+
+            assert.strictEqual(edges.length, 1);
+            assert.strictEqual(edges[0].target, "b");
+        });
+
+        test("an explicit delimiter still wins over the file's own", async () => {
+            const { edges } = await collect({ data: "source\ttarget\na\tb\n", delimiter: "," });
+
+            // Read with a comma, the one column is named "source\ttarget": no endpoints, no edges.
+            assert.notStrictEqual(edges[0]?.target, "b");
+        });
+
+        test("detects the delimiter of each file of a node and edge pair", async () => {
+            const { nodes, edges } = await collect({
+                nodeFile: new File(["id\tlabel\nn1\tOne\nn2\tTwo"], "nodes.tsv"),
+                edgeFile: new File(["source;target\nn1;n2"], "edges.csv"),
+            });
+
+            assert.deepEqual(
+                nodes.map((node) => node.id),
+                ["n1", "n2"],
+            );
+            assert.strictEqual(edges.length, 1);
+            assert.strictEqual(edges[0].source, "n1");
+            assert.strictEqual(edges[0].target, "n2");
+        });
+    });
+
     test("yields in chunks for large files", async () => {
         let csv = "source,target\n";
         for (let i = 0; i < 5000; i++) {

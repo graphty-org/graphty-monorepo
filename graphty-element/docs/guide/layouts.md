@@ -8,15 +8,44 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 ## Available Layouts
 
-| Layout         | Type           | Best For               | Dimensions |
-| -------------- | -------------- | ---------------------- | ---------- |
-| `ngraph`       | Force-directed | General graphs         | 2D/3D      |
-| `d3-force`     | Force-directed | Web-standard           | 2D         |
-| `circular`     | Geometric      | Cycles, small graphs   | 2D/3D      |
-| `grid`         | Geometric      | Regular structures     | 2D/3D      |
-| `hierarchical` | Layered        | Trees, DAGs            | 2D/3D      |
-| `random`       | Random         | Testing, initial state | 2D/3D      |
-| `fixed`        | Manual         | Pre-computed positions | 2D/3D      |
+`setLayout` takes either an engine name from the table below or a layout id from
+`catalog.layouts()`. An id runs that layout's default engine, so `setLayout("force")` runs
+`ngraph`, `"force-2d"` runs `arf`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+
+| Layout              | Type           | Best For                                  | Dimensions |
+| ------------------- | -------------- | ----------------------------------------- | ---------- |
+| `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
+| `d3-force`          | Force-directed | Web-standard                              | 2D         |
+| `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
+| `grid`              | Geometric      | Regular structures                        | 2D         |
+| `radial`            | Geometric      | Distance from one node                    | 2D         |
+| `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
+| `random`            | Random         | Testing, initial state                    | 2D/3D      |
+| `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
+| `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
+| `spring`            | Force-directed | General graphs                            | 2D/3D      |
+| `spring-electrical` | Force-directed | Large graphs, with a hardware accelerator | 2D/3D      |
+
+The last three are live simulations: they keep stepping until the arrangement comes to rest
+rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
+`element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
+nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
+but never restarts the simulation. `getLayoutManager().isPaused` is true for a layout stopped
+before it came to rest, and `isSettled` is true only once it has. They are also the three that run on a hardware
+accelerator when there is one -- and `spring-electrical` only runs on one. It has no CPU
+implementation at all, so `setLayout("spring-electrical")` without an accelerator that implements
+it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the
+[acceleration guide](./acceleration).
+
+The default layout runs on an accelerator too, without being asked to and without being named
+differently. `ngraph` and `spring-electrical` are one force model with two implementations, so on a
+graph of two thousand nodes or more, with an accelerator attached that computes it, the element
+draws `ngraph`'s arrangement on the accelerator; below that size, and on any machine with no
+accelerator, ngraph itself draws it. `getLayoutManager().layoutType` says `ngraph` either way --
+it is the same arrangement -- and nothing you write chooses between them. Two thousand is where
+ngraph's own step stops fitting inside a frame, measured: 2.6 ms at a thousand nodes, 12 ms at two
+thousand and 1.8 seconds at a hundred thousand. `acceleration="required"` uses the accelerator at
+any size, and `acceleration="off"` never does.
 
 ## Setting a Layout
 
@@ -50,6 +79,8 @@ The default layout. Uses physics simulation where:
 - Edges act like springs pulling connected nodes together
 - Nodes repel each other to prevent overlap
 - Works well for most general graphs
+- Runs on a hardware accelerator, as `spring-electrical`, from two thousand nodes upwards when one
+  is attached; see the note at the top of this page
 
 ```typescript
 graph.setLayout("ngraph", {
@@ -92,12 +123,24 @@ graph.setLayout("circular", {
 
 ### grid
 
-Arranges nodes in a regular grid:
+Arranges nodes in evenly spaced rows and columns, in the order they were loaded:
 
 ```typescript
 graph.setLayout("grid", {
-    columns: 5, // Number of columns
-    spacing: 10, // Space between nodes
+    columns: 5, // Number of columns (default: as close to square as possible)
+    scale: 1, // Half the length of the grid's longer side
+});
+```
+
+### radial
+
+Puts one node at the centre and every other node on a ring by its hop distance from it. Nodes the
+root cannot reach share one extra outer ring:
+
+```typescript
+graph.setLayout("radial", {
+    root: "node-1", // The node at the centre (default: the node with the most edges)
+    scale: 1, // Radius of the outermost ring
 });
 ```
 
@@ -143,6 +186,57 @@ const nodes = [
 await graph.addNodes(nodes);
 graph.setLayout("fixed");
 ```
+
+### forceatlas2 (Force-Directed, live)
+
+Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling communities apart:
+
+```typescript
+graph.setLayout("forceatlas2", {
+    seed: 42, // Same seed, same settled shape
+    scalingRatio: 2.0, // Node repulsion
+    gravity: 1.0, // Pull towards the centre
+    linlog: false, // Log attraction: tighter clusters
+    dissuadeHubs: false, // Push high-degree nodes outwards
+});
+```
+
+Runs on a hardware accelerator when one is attached. See the [acceleration guide](./acceleration).
+
+### spring (Force-Directed, live)
+
+Fruchterman-Reingold, also a live simulation. Pick it when the arrangement has to be reproducible
+from a seed:
+
+```typescript
+graph.setLayout("spring", {
+    seed: 42, // Same seed, same settled shape
+    k: null, // Ideal node distance; null auto-calculates it
+    iterations: 50, // Simulation steps per settle
+    scale: 1, // Multiplies the radius the arrangement is drawn at
+});
+```
+
+Runs on a hardware accelerator when one is attached.
+
+### spring-electrical (Force-Directed, live, accelerator only)
+
+ngraph's spring-electrical model at a size ngraph itself cannot reach, and what the default layout
+is drawn by on a big enough graph when an accelerator is attached. Asked for by name it has no CPU
+implementation: without an accelerator that implements it, `setLayout("spring-electrical")`
+throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way.
+
+```typescript
+graph.setLayout("spring-electrical", {
+    seed: 42,
+    springLength: 10, // The distance an edge pulls its nodes towards
+    springCoefficient: 0.8, // How hard an edge pulls
+    gravity: -12, // Node repulsion; negative repels
+    dragCoefficient: 0.9, // How quickly motion bleeds away
+});
+```
+
+See the [acceleration guide](./acceleration) for how to attach one.
 
 ## Layout Transitions
 
@@ -253,6 +347,38 @@ element.pinnedNodes; // a Set of the pinned node ids
 Turn the drag behaviour off with `pinOnDrag: false` in the graph's behaviour configuration; the
 verbs above still work.
 
+## Laying out part of the graph
+
+`setLayout` takes a `scope` as its third argument. The layout moves only the scope's nodes and
+holds every other node exactly where it is -- useful for tidying one community or a kept
+[set](./sets) without disturbing the rest:
+
+```typescript
+const cluster = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d"], reading: "induced" });
+
+await element.setLayout("ngraph", { seed: 7 }, { scope: { set: cluster } });
+
+// The scope is kept: changing an option lays out the same nodes again
+element.layoutConfig = { seed: 8 };
+
+// Back to the whole graph
+await element.setLayout("ngraph", {}, { scope: "graph" });
+```
+
+The same scope is the `layoutScope` property and the `layout-scope` attribute (JSON), which read
+`undefined` for the whole graph.
+
+- **The members are captured when the layout starts.** A click, a filter change or an attribute
+  edit does not move the hold, and a node added later is held too.
+- **The physics layouts accept a scope**: `ngraph`, `d3`, `forceatlas2`, `spring` and
+  `spring-electrical`. Any other refuses one with `E_UNSUPPORTED`; `session.catalog.layouts()`
+  says which as `scoped`.
+- **A hold is not a pin.** It is never saved as a pin, and unpinning a held node does not release
+  it.
+- **Removing the set releases the hold**: the layout runs over the whole graph, and nothing throws.
+- Held nodes still push and pull on the members, so a scoped layout costs the same per step as a
+  whole-graph one, and a small scope is spread over the whole layout's extent.
+
 ## Performance Tips
 
 1. **Large graphs**: Use Barnes-Hut approximation (ngraph with default theta)
@@ -266,5 +392,5 @@ Create your own layout algorithms. See [Custom Layouts](./extending/custom-layou
 
 ## Interactive Examples
 
-- [3D Layouts](https://graphty.app/storybook/element/?path=/story/layout-3d--circular)
-- [2D Layouts](https://graphty.app/storybook/element/?path=/story/layout-2d--circular)
+- [3D Layouts](https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular)
+- [2D Layouts](https://graphty.app/storybook/graphty-element/?path=/story/layout-2d--circular)

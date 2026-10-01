@@ -120,6 +120,7 @@ describe("Graphty API Parity", () => {
             it("has lifecycle methods", () => {
                 assert.isFunction(Graphty.prototype.shutdown);
                 assert.isFunction(Graphty.prototype.isRunning);
+                assert.isFunction(Graphty.prototype.setRunning);
             });
         });
 

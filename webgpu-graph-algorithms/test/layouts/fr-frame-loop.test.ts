@@ -15,6 +15,10 @@
  *
  * The calibration idiom (calibrateHeavyStep, calibrateFlight, measureTickMs and the timed steps) is copied from
  * test/layouts/frame-loop.test.ts, where it is module-private, over createFruchtermanReingold.
+ *
+ * run-twice exempt: the frame-loop cases assert scheduling (submissions, coalescing, holds, the pause window), not a
+ * kernel's numbers; the one numeric comparison, the pause case, already compares its trace bitwise against a second,
+ * unpaused run of the same simulation.
  */
 
 import { type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";

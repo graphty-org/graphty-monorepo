@@ -119,18 +119,3 @@ export function removeRunLayers(session: GraphSession, runId?: RunId): PromiseLi
         (source) => source.by === "run" && (runId === undefined || source.runId === runId),
     );
 }
-
-/**
- * Takes every layer one run painted out of the stack EXCEPT one run's.
- *
- * Node colour has one owner at a time: a metric ramp and a community's categories both paint it,
- * and two of them stacked leave colours on the canvas that nothing on screen accounts for. The
- * run that has just finished keeps its layers and every other run's go.
- * @param session - the element's session.
- * @param keep - the run whose layers survive.
- * @returns the run that resolves when the others are gone.
- * @public
- */
-export function removeOtherRunLayers(session: GraphSession, keep: RunId): PromiseLike<readonly string[]> {
-    return session.styles.removeBySource((source) => source.by === "run" && source.runId !== keep);
-}

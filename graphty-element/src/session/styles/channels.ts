@@ -21,13 +21,12 @@
  *   compile error rather than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
- * - `node.glowStrength` is drawn, but Babylon keeps a glow's intensity on the LAYER rather than
- *   on a mesh, so two glowing styles on screen share whichever strength was applied last.
  * - `node.outline` is a colour and no width, for the same reason in the same shape: the stroke
  *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
  *   screen is one width. This is the sentence the element's natural-language layer reads out
  *   when someone asks for an outline width, so it answers with a reason rather than a refusal.
- * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count.
+ * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
+ *   and zigzag and sinewave ignore it because they always tile the whole edge.
  * - The four arrow caption channels draw words at ONE END of an edge, hanging from the cap
  *   there. An end with no cap carries no caption, and the words are what switch one on.
  * - The two node tooltip channels draw on HOVER and only on hover, so a graph at rest carries
@@ -59,7 +58,7 @@
 
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
-import { EdgeStyle, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import { EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
 import { NodeShapes, type NodeStyleConfig } from "../../config/NodeStyle";
 
 // ---------------------------------------------------------------------------------------------
@@ -231,10 +230,10 @@ export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
 /** Every line pattern, in schema order. */
-const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeStyle.shape.line.unwrap().shape.type.unwrap().options;
+const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeLineTypes.options;
 
 /** Every arrow, in schema order. */
-const ARROW_VALUES: readonly ArrowValue[] = EdgeStyle.shape.arrowHead.unwrap().shape.type.unwrap().unwrap().options;
+const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
 
 // ---------------------------------------------------------------------------------------------
 // What each channel carries
@@ -374,9 +373,26 @@ export const NODE_OUTLINE_CAVEAT =
  * channel with no words beneath it -- says how a caption should look without asking for one,
  * which is the same rule `node.labelStyle` follows beside `node.label`.
  */
+/**
+ * What an edge animation speed can and cannot move.
+ *
+ * Only one of the element's line renderers carries a moving texture: the one that draws a
+ * straight solid line in 3D. A two-dimensional line, a bezier and all eight patterned line types
+ * are built by renderers that have nothing to run along them, so a speed set on one of those is
+ * accepted and the line stays still.
+ *
+ * The number is a MULTIPLE of the element's own pace rather than a distance or a frequency. One
+ * is that pace, two is twice it, a half is half, and zero is the value that switches the
+ * animation off and draws a flat line.
+ */
+const EDGE_ANIMATION_CAVEAT =
+    "An edge animates only where it is a straight solid line in 3D; a 2D line, a bezier and a " +
+    "patterned line have no moving texture to run. The value is a multiple of the element's own " +
+    "pace -- 1 is that pace, 2 is twice it -- and 0 draws a flat line.";
+
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
-    "none: a tail caption needs `edge.arrowTail` set to something other than \"none\". The words " +
+    'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
     "are what switch a caption on, so a layer that writes only the caption's appearance and no " +
     "words draws nothing, exactly as `node.labelStyle` draws nothing without `node.label`.";
 
@@ -507,10 +523,6 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         min: 0,
         stylePath: "effect.glow.strength",
         renderable: true,
-        caveat:
-            "Babylon's glow intensity belongs to the glow LAYER rather than to a mesh, so with " +
-            "two glowing styles on screen both are drawn at whichever strength was applied last. " +
-            "The glow's COLOUR is per style. Per-style strength needs one full-screen pass each.",
     },
     "node.wireframe": {
         channel: "node.wireframe",
@@ -585,7 +597,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         renderable: true,
         caveat:
             "A cap on how many dots or dashes a patterned edge draws, and it applies to a " +
-            "patterned line only: a solid line has no elements to count. Left unset, the spacing " +
+            "patterned line only: a solid line has no elements to count, and zigzag and " +
+            "sinewave always tile the whole edge, so they ignore it. Left unset, the spacing " +
             "rule decides, so a long edge or a thin one draws more of them.",
     },
     "edge.curvature": {
@@ -715,6 +728,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         min: 0,
         stylePath: "line.animationSpeed",
         renderable: true,
+        caveat: EDGE_ANIMATION_CAVEAT,
     },
     "edge.label": {
         channel: "edge.label",
@@ -771,7 +785,5 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
  * @returns Every channel for that target, in table order.
  */
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
-    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter(
-        (descriptor) => descriptor.target === target,
-    );
+    return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
 }

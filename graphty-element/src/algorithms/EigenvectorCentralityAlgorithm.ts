@@ -1,16 +1,19 @@
-import { ConvergenceError, eigenvectorCentrality } from "@graphty/algorithms";
+import { ConvergenceError } from "@graphty/algorithms";
 import { z } from "zod/v4";
 
+import type { AccelerationPrecision } from "../acceleration/types";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
 import type { MetricMeasurement, MetricRunContext } from "./metrics/types";
 import type { OptionsSchema } from "./types/OptionSchema";
+import { refuseEndpoints } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Eigenvector Centrality algorithm
@@ -44,7 +47,8 @@ const eigenvectorCentralityOptionsSchema = defineOptions({
         schema: z.enum(["in", "out", "total"]).default("total"),
         meta: {
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description:
+                "On a directed graph, score a node by the nodes pointing at it (in), the nodes it points at (out), or ignore direction (total)",
             advanced: true,
         },
     },
@@ -52,7 +56,8 @@ const eigenvectorCentralityOptionsSchema = defineOptions({
         schema: z.boolean().default(false),
         meta: {
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description:
+                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
     },
@@ -68,9 +73,9 @@ interface EigenvectorCentralityOptions extends Record<string, unknown> {
     tolerance: number;
     /** Whether to normalize the final scores */
     normalized: boolean;
-    /** Direction mode for directed graphs: "in", "out", or "total" */
+    /** On a directed graph: score by the nodes pointing in ("in"), out ("out"), or either ("total") */
     mode: "in" | "out" | "total";
-    /** Whether to include endpoints in path calculations */
+    /** Not supported: this method walks no paths, so `true` is refused */
     endpoints: boolean;
     /** Custom initial vector for power iteration (programmatic only, not in schema) */
     startVector: Map<string, number> | null;
@@ -91,6 +96,7 @@ const EIGENVECTOR_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorCentralityOptions> {
     static namespace = "graphty";
     static type = "eigenvector";
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = eigenvectorCentralityOptionsSchema;
 
@@ -124,7 +130,8 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             type: "select",
             default: "total",
             label: "Direction Mode",
-            description: "Direction mode for directed graphs",
+            description:
+                "On a directed graph, score a node by the nodes pointing at it (in), the nodes it points at (out), or ignore direction (total)",
             options: [
                 { value: "total", label: "Total (both directions)" },
                 { value: "in", label: "In-degree (incoming edges)" },
@@ -136,7 +143,8 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             type: "boolean",
             default: false,
             label: "Include Endpoints",
-            description: "Whether to include endpoints in path calculations",
+            description:
+                "Not supported: this method walks no paths, so a run with it switched on is refused. Leave it off",
             advanced: true,
         },
         // Note: startVector is a Map type - programmatic only, not in schema
@@ -158,11 +166,16 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { maxIterations, tolerance, normalized, mode, endpoints } = this.schemaOptions;
+        refuseEndpoints("Eigenvector centrality", endpoints);
         // Map types are programmatic-only (not in schema)
         const startVector = this._schemaOptions.startVector ?? undefined;
 
-        // Undirected: influence flows across an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
+        // "total" (the default), or a graph loaded undirected: influence flows across an edge in
+        // either direction. "in" and "out" on a directed graph keep the declared direction and let
+        // the algorithm pick which edges feed a node.
+        const directed = mode !== "total" && this.input("declared").graph.directed;
+        const { snapshot, run } = this.accelerated("eigenvectorCentrality", directed ? "directed" : "undirected");
+        const { ids } = snapshot;
 
         context.report({
             phase: "iterating",
@@ -170,20 +183,33 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             total: nodeIds.length,
             message: `Power iteration, up to ${String(maxIterations)} passes.`,
         });
-        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
-        // The element's own half -- reading the scores back out -- is chunked below.
-        let scores: Record<string, number>;
+        let scores: ArrayLike<number>;
+        let precision: AccelerationPrecision;
         try {
-            scores = eigenvectorCentrality(graphData, {
-                normalized,
-                maxIterations,
-                tolerance,
-                mode,
-                endpoints,
-                startVector,
-            });
+            ({
+                value: { scores },
+                precision,
+            } = await run((dispatch, s) =>
+                dispatch.eigenvectorCentrality(s, {
+                    normalized,
+                    maxIterations,
+                    tolerance,
+                    mode,
+                    // Keyed by node id; a node the map does not name starts at 1, as it always has.
+                    startVector:
+                        startVector === undefined
+                            ? undefined
+                            : Float64Array.from(
+                                  { length: s.nodeCount },
+                                  (_, i) => startVector.get(String(ids.idOf(i))) ?? 1,
+                              ),
+                }),
+            ));
         } catch (error) {
-            if (!(error instanceof ConvergenceError)) {
+            // On the device path the controller reports the failure as its own, with the
+            // algorithm's error as the cause; either way an unconverged run is E_NOT_CONVERGED.
+            const convergence = error instanceof Error && !(error instanceof ConvergenceError) ? error.cause : error;
+            if (!(convergence instanceof ConvergenceError)) {
                 throw error;
             }
             const algorithm = `${EigenvectorCentralityAlgorithm.namespace}:${EigenvectorCentralityAlgorithm.type}`;
@@ -195,14 +221,14 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                 source: "run",
                 target: { kind: "run", id: context.runId },
                 details: { algorithm, maxIterations, tolerance },
-                cause: error,
+                cause: convergence,
             });
         }
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
-            const score = scores[String(nodeId)];
+            const score = scores[ids.indexOf(nodeId)];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 
@@ -213,15 +239,22 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
             normalization: normalized ? "min-max" : "none",
             caveats: {
                 exact: true,
-                direction: "undirected",
+                direction: directed ? "directed" : "undirected",
                 weight: null,
-                precision: "f64",
+                precision,
                 method: "power-iteration",
                 // Measured, not assumed: the algorithm throws when it hits its iteration cap, and
                 // that becomes E_NOT_CONVERGED above, so a result exists only when it converged.
                 converged: true,
                 notes: [
                     `Power iteration reached a tolerance of ${String(tolerance)} within ${String(maxIterations)} passes.`,
+                    ...(directed
+                        ? [
+                              mode === "in"
+                                  ? "A node is scored by the nodes whose edges point at it."
+                                  : "A node is scored by the nodes its edges point at.",
+                          ]
+                        : []),
                     "Edge weights are not read.",
                 ],
             },

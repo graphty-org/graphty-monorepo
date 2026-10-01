@@ -1,3 +1,294 @@
+## 0.6.18 (2026-10-01)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.4
+- Updated algorithms to 3.1.2
+- Updated layout to 2.0.4
+
+## 0.6.17 (2026-10-01)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.3
+- Updated algorithms to 3.1.1
+- Updated layout to 2.0.3
+
+## 0.6.16 (2026-10-01)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** device graph build, triangle counting and label propagation ([#422](https://github.com/graphty-org/graphty-monorepo/issues/422))
+- **webgpu-graph-algorithms:** expose allPairsShortestPath on the accelerator ([4467a9b2](https://github.com/graphty-org/graphty-monorepo/commit/4467a9b2))
+- **webgpu-graph-algorithms:** blocked Floyd-Warshall all-pairs shortest paths ([2d4ee686](https://github.com/graphty-org/graphty-monorepo/commit/2d4ee686))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** refuse oversized structure builds and make LPA rounding exact ([8dce68d9](https://github.com/graphty-org/graphty-monorepo/commit/8dce68d9))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** measure the triangle and label propagation crossover ([6b03cd65](https://github.com/graphty-org/graphty-monorepo/commit/6b03cd65))
+- **webgpu-graph-algorithms:** measure the all-pairs CPU/GPU crossover ([a3099aad](https://github.com/graphty-org/graphty-monorepo/commit/a3099aad))
+- **webgpu-graph-algorithms:** benchmark groups for triangles and label propagation ([#422](https://github.com/graphty-org/graphty-monorepo/issues/422))
+- **webgpu-graph-algorithms:** the apsp benchmark group and the real-ceiling test ([246e1c14](https://github.com/graphty-org/graphty-monorepo/commit/246e1c14))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.15 (2026-09-30)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** sampled closeness from the seam's sources ([#426](https://github.com/graphty-org/graphty-monorepo/issues/426))
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+- **webgpu-graph-algorithms:** expose betweenness on the accelerator and the barrel ([21853d18](https://github.com/graphty-org/graphty-monorepo/commit/21853d18))
+- **webgpu-graph-algorithms:** compute exact and sampled betweenness on the GPU ([adaf31bd](https://github.com/graphty-org/graphty-monorepo/commit/adaf31bd))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** correct sampled edge betweenness and the size bound ([e50f033b](https://github.com/graphty-org/graphty-monorepo/commit/e50f033b))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** measure the sampled betweenness crossover ([9daf8146](https://github.com/graphty-org/graphty-monorepo/commit/9daf8146))
+- **webgpu-graph-algorithms:** add the betweenness benchmark group ([ccedf52e](https://github.com/graphty-org/graphty-monorepo/commit/ccedf52e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.2
+- Updated algorithms to 3.0.0
+- Updated layout to 2.0.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.14 (2026-09-30)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.1
+- Updated algorithms to 2.2.1
+- Updated layout to 2.0.1
+
+## 0.6.13 (2026-09-29)
+
+### 🚀 Features
+
+- ⚠️ **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+- **algorithms:** dispatch eigenvector centrality and personalized pagerank ([f37e5b72](https://github.com/graphty-org/graphty-monorepo/commit/f37e5b72))
+
+### 🩹 Fixes
+
+- **algorithms:** give accelerated hits and katz the cpu port's scale and weighting ([062aafb2](https://github.com/graphty-org/graphty-monorepo/commit/062aafb2))
+
+### ⚠️ Breaking Changes
+
+- **layout:** make the snapshot layouts the only layouts and drop the generators ([45ded070](https://github.com/graphty-org/graphty-monorepo/commit/45ded070))
+  the positional layouts are removed. Replace each with
+  the snapshot layout of the same algorithm, and toPositionMap(result,
+  s.ids) where id-keyed positions are needed (s = toLayoutSnapshot(graph)
+  for a nodes()/edges() object):
+  randomLayout(G, center, dim, seed) -> random(s, { center, dim, seed });
+  circularLayout(G, scale, center, dim) -> circular(s, { scale, center, dim });
+  gridLayout(G, columns, scale, center) -> grid(s, { columns, scale, center });
+  shellLayout(G, nlist, ...) -> shell(s, { nlist, ... }), nlist as node indices;
+  spiralLayout(G, scale, center, dim, resolution, equidistant) -> spiral(s, { ... });
+  spectralLayout(G, scale, center, dim, seed) -> spectral(s, { ... });
+  planarLayout(G, scale, center, dim, seed) -> planar(s, { ... });
+  radialLayout(G, root, scale, center) -> radial(s, { root, ... }), root as a node index;
+  bfsLayout(G, start, align, scale, center) -> bfs(s, { start, ... }), start as a node index;
+  bipartiteLayout(G, nodes, align, scale, center, aspectRatio) -> bipartite(s, { top, ... }),
+  top a node mask or a bool column;
+  multipartiteLayout(G, subsetKey, align, scale, center) -> multipartite(s, { subsets, ... });
+  kamadaKawaiLayout(G, dist, pos, weight, scale, center, dim) -> kamadaKawai(s, { ... });
+  forceatlas2Layout(G, pos, maxIter, ...) -> forceAtlas2(s, { pos, maxIter, ... });
+  fruchtermanReingoldLayout and springLayout(G, k, pos, fixed, iterations, ...) ->
+  fruchtermanReingold(s, { ... }), fixed a node mask;
+  arfLayout(G, pos, scaling, a, maxIter, seed) -> arf(s, { ... }).
+  The generators completeGraph, cycleGraph, starGraph, wheelGraph,
+  gridGraph, randomGraph, bipartiteGraph and scaleFreeGraph are removed:
+  use @graphty/graph-samples/generators (randomGraph is erdosRenyiGraph,
+  bipartiteGraph is randomBipartiteGraph, scaleFreeGraph is
+  barabasiAlbertGraph) and freeze the result with fromEdgeArrays.
+  Results that differ from 1.x: kamadaKawai reads a zero weight as a zero
+  distance, gives an unreachable pair the ideal distance 1e6 instead of
+  Infinity, rejects a negative or NaN weight and starts a 2D layout from
+  the unit circle about the origin, so its positions differ from
+  kamadaKawaiLayout's; every layout takes dim 2 or 3 only, where
+  circularLayout, fruchtermanReingoldLayout, springLayout and
+  kamadaKawaiLayout accepted other dimensions; fruchtermanReingold rejects
+  a negative or infinite k and leaves a pinned single node where pos put
+  it instead of moving it to center; bipartite and multipartite centre a
+  horizontal layout on center, where 1.x centred it on the swapped centre;
+  positions are Float32Array values, not f64 numbers.
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.0
+- Updated algorithms to 2.2.0
+- Updated layout to 2.0.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.12 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.1.2
+- Updated algorithms to 2.1.2
+- Updated layout to 1.10.5
+
+## 0.6.11 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.1.1
+- Updated algorithms to 2.1.1
+- Updated layout to 1.10.4
+
+## 0.6.10 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.1.0
+- Updated algorithms to 2.1.0
+- Updated layout to 1.10.3
+
+## 0.6.9 (2026-09-27)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** bound each kernel's bind-group cache ([#162](https://github.com/graphty-org/graphty-monorepo/issues/162))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.7
+- Updated algorithms to 2.0.6
+- Updated layout to 1.10.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.8 (2026-09-27)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.6
+- Updated algorithms to 2.0.5
+- Updated layout to 1.10.1
+
+## 0.6.7 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep each dawn instance alive for the process ([#30](https://github.com/graphty-org/graphty-monorepo/issues/30))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.6 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** scale the spring settle floor with node count ([#97](https://github.com/graphty-org/graphty-monorepo/issues/97))
+- **webgpu-graph-algorithms:** measure Beamer's m_f on the frontier about to be expanded ([#391](https://github.com/graphty-org/graphty-monorepo/issues/391))
+- **webgpu-graph-algorithms:** converged at the iteration cap, and edgeless graphs ([#88](https://github.com/graphty-org/graphty-monorepo/issues/88), [#93](https://github.com/graphty-org/graphty-monorepo/issues/93))
+- **webgpu-graph-algorithms:** accurate repulsion on lavapipe and grids, and a settle floor ([#87](https://github.com/graphty-org/graphty-monorepo/issues/87), [#89](https://github.com/graphty-org/graphty-monorepo/issues/89), [#90](https://github.com/graphty-org/graphty-monorepo/issues/90), [#97](https://github.com/graphty-org/graphty-monorepo/issues/97))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** cap the bfs-next-degree grid ([fa3dc4fe](https://github.com/graphty-org/graphty-monorepo/commit/fa3dc4fe))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 2.0.4
+- Updated layout to 1.10.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.5 (2026-09-26)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** drop the selector's indirect slot record and args buffer ([#387](https://github.com/graphty-org/graphty-monorepo/issues/387))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.4 (2026-09-26)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** the traversal accelerator members and the barrel ([e76f266a](https://github.com/graphty-org/graphty-monorepo/commit/e76f266a))
+- **webgpu-graph-algorithms:** window-aware advance ([3446303f](https://github.com/graphty-org/graphty-monorepo/commit/3446303f))
+- **webgpu-graph-algorithms:** closeness centrality over the bit-parallel multi-source sweep ([26c939fb](https://github.com/graphty-org/graphty-monorepo/commit/26c939fb))
+- **webgpu-graph-algorithms:** Bellman-Ford with negative-cycle detection ([80dc5576](https://github.com/graphty-org/graphty-monorepo/commit/80dc5576))
+- **webgpu-graph-algorithms:** near-far single-source shortest paths ([be6f2768](https://github.com/graphty-org/graphty-monorepo/commit/be6f2768))
+- **webgpu-graph-algorithms:** direction-optimizing BFS with a device-side switch ([9f19d5d2](https://github.com/graphty-org/graphty-monorepo/commit/9f19d5d2))
+- **webgpu-graph-algorithms:** the fused BFS level and the device-side per-level choice ([a7330db2](https://github.com/graphty-org/graphty-monorepo/commit/a7330db2))
+- **webgpu-graph-algorithms:** breadth-first search on the GPU frontier ([abc6c275](https://github.com/graphty-org/graphty-monorepo/commit/abc6c275))
+- **webgpu-graph-algorithms:** the block-mapped advance primitive and its edge queue ([d72f11c2](https://github.com/graphty-org/graphty-monorepo/commit/d72f11c2))
+- **webgpu-graph-algorithms:** the frontier queue and the device-side dispatch selector ([21cbe357](https://github.com/graphty-org/graphty-monorepo/commit/21cbe357))
+- **webgpu-graph-algorithms:** the compact and dedupe primitive ([76ae5b8b](https://github.com/graphty-org/graphty-monorepo/commit/76ae5b8b))
+- **webgpu-graph-algorithms:** the frontier family's result types, constants and the workgroup scan helper ([a4e5d7d8](https://github.com/graphty-org/graphty-monorepo/commit/a4e5d7d8))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** keep the per-lane-reservation mutant compilable under FXC ([435b14a6](https://github.com/graphty-org/graphty-monorepo/commit/435b14a6))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** dispatch the frontier kernels directly, gated by a path word ([#387](https://github.com/graphty-org/graphty-monorepo/issues/387), [#391](https://github.com/graphty-org/graphty-monorepo/issues/391), [#386](https://github.com/graphty-org/graphty-monorepo/issues/386))
+- **webgpu-graph-algorithms:** the BFS and SSSP benchmarks, the append-session script and the T-10 baselines ([c811ee2e](https://github.com/graphty-org/graphty-monorepo/commit/c811ee2e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.5
+- Updated algorithms to 2.0.3
+- Updated layout to 1.9.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.3 (2026-09-24)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.4
+- Updated algorithms to 2.0.2
+- Updated layout to 1.9.0
+
+## 0.6.2 (2026-09-24)
+
+### 🩹 Fixes
+
+- **deps:** stop publishing build caches and test configuration ([b7537fef](https://github.com/graphty-org/graphty-monorepo/commit/b7537fef))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.0.3
+- Updated algorithms to 2.0.1
+- Updated layout to 1.8.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.1 (2026-09-24)
 
 ### 🩹 Fixes
@@ -19,7 +310,7 @@
 
 ### 🚀 Features
 
-- ⚠️  **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
+- ⚠️ **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
 - **webgpu-graph-algorithms:** record the grid layout baseline on the Tesla T4 ([4c0735b0](https://github.com/graphty-org/graphty-monorepo/commit/4c0735b0))
 - **webgpu-graph-algorithms:** add calibrateLayout, layout-grid and the crossover re-check ([f12b9098](https://github.com/graphty-org/graphty-monorepo/commit/f12b9098))
 - **webgpu-graph-algorithms:** give the FR and spring-electrical models the grid tier through LAW ([201ba566](https://github.com/graphty-org/graphty-monorepo/commit/201ba566))
@@ -52,9 +343,9 @@
 
 - **webgpu-graph-algorithms:** walk a dense row with a constant stride again ([57873440](https://github.com/graphty-org/graphty-monorepo/commit/57873440))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **webgpu-graph-algorithms:** refuse a device that computes the wrong answer  ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
+- **webgpu-graph-algorithms:** refuse a device that computes the wrong answer ([ff3384f9](https://github.com/graphty-org/graphty-monorepo/commit/ff3384f9))
   E_DEVICE_INCORRECT joins the exported error code union, and a device that
   computes incorrectly now raises it instead of returning numbers.
 
@@ -95,11 +386,11 @@
 
 ### 🚀 Features
 
-- ⚠️  **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
+- ⚠️ **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions  ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
+- **webgpu-graph-algorithms:** import the real AlgorithmAccelerator and retire CpuAlgorithmOptions ([48a28adc](https://github.com/graphty-org/graphty-monorepo/commit/48a28adc))
   CpuAlgorithmOptions is no longer exported. The accelerator
   methods' option parameters are now the CPU package's own types
   (IndexedPageRankOptions, HitsOptionsLike, BetweennessAcceleratorOptions).

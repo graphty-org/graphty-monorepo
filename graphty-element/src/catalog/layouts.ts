@@ -2,7 +2,7 @@
  * @file The layout catalogue: the arrangements the element offers, and the engines behind them.
  *
  * A public layout name says what the arrangement IS -- "force", "hierarchical", "circular" --
- * and never which library draws it. The element registers sixteen engines whose registered
+ * and never which library draws it. The element registers nineteen engines whose registered
  * names ARE their implementations ("ngraph", "d3", "forceatlas2"), and freezing those into the
  * public API makes swapping an implementation a rename every consumer can see. So the engine is
  * data on the descriptor instead: `LayoutDescriptor.engine` names the implementation the element
@@ -14,10 +14,11 @@
  * descriptor a consumer reads carries the default engine and that engine's options; the rest of
  * the list is there for a consumer that wants to choose.
  *
- * Two names in the built-in layout list have no engine behind them yet, and two engines describe
- * an arrangement that list has no name for. Both are recorded here -- {@link UNSERVED_LAYOUT_IDS}
- * and the `spiral` and `planar` entries -- rather than left for a consumer to discover by asking
- * for a layout that never answers, or by never learning a capability exists.
+ * A name in the built-in layout list with no engine behind it would be recorded in
+ * {@link UNSERVED_LAYOUT_IDS} (none is, today), and two engines describe an arrangement that list
+ * has no name for, which the `spiral` and `planar` entries record -- rather than left for a
+ * consumer to discover by asking for a layout that never answers, or by never learning a
+ * capability exists.
  *
  * `sizeRating` is the largest graph the default engine is recommended for, read from its cost: a
  * placement that visits each node once rates "any", an iterative all-pairs force rates 2000.
@@ -31,14 +32,17 @@ import { CircularLayout } from "../layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
+import { GridLayout } from "../layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../layout/KamadaKawaiLayoutEngine";
 import { MultipartiteLayout } from "../layout/MultipartiteLayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { PlanarLayout } from "../layout/PlanarLayoutEngine";
+import { RadialLayout } from "../layout/RadialLayoutEngine";
 import { RandomLayout } from "../layout/RandomLayoutEngine";
 import { ShellLayout } from "../layout/ShellLayoutEngine";
 import { SpectralLayout } from "../layout/SpectralLayoutEngine";
 import { SpiralLayout } from "../layout/SpiralLayoutEngine";
+import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { registeredLayoutById } from "./layoutRegistry";
 import { optionsFromZod } from "./optionsFromZod";
@@ -71,6 +75,18 @@ export interface LayoutImplementation {
      * catalogue cannot claim a weight channel an engine does not have.
      */
     honoursWeights: boolean;
+    /** Whether this engine accepts a scope, read off the engine class's own `static scoped`. */
+    scoped: boolean;
+    /**
+     * What has to be true before this engine can run at all, in the same shape an algorithm
+     * declares it.
+     *
+     * `accelerator: true` means the engine is computed on hardware and has no processor
+     * implementation, so a picker greys the entry out when `capabilities.acceleration.state` says
+     * nothing is attached. It belongs to the ENGINE rather than to the arrangement: `force` is
+     * drawn by six engines, five of which need nothing.
+     */
+    requires?: { accelerator?: boolean };
 }
 
 /** An implementation as it is authored here. Which one is the default is decided by position. */
@@ -124,7 +140,7 @@ function engineOptions(
  * @returns The finished entry.
  */
 function entry(
-    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights">,
+    base: Omit<LayoutDescriptor, "engine" | "options" | "honoursWeights" | "scoped">,
     primary: LayoutImplementationSpec,
     alternates: readonly LayoutImplementationSpec[] = [],
 ): LayoutCatalogEntry {
@@ -134,6 +150,7 @@ function entry(
             engine: primary.engine,
             options: primary.options,
             honoursWeights: primary.honoursWeights,
+            scoped: primary.scoped,
         },
         implementations: [
             { ...primary, isDefault: true },
@@ -153,10 +170,13 @@ const ngraph: LayoutImplementationSpec = {
     kind: "live",
     maxDimensions: 3,
     reason:
-        "The default: a Barnes-Hut simulation that runs live, accepts nodes and edges added " +
-        "while it is running, and stays interactive on graphs of a hundred thousand nodes.",
+        "The default, and the processor half of it: a Barnes-Hut simulation that runs live and " +
+        "accepts nodes and edges added while it is running. One step costs 2.6 ms at a thousand " +
+        "nodes and 1.8 seconds at a hundred thousand, so from two thousand nodes the element " +
+        "draws this same arrangement on an accelerator instead, whenever one is attached.",
     options: engineOptions(NGraphEngine.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: NGraphEngine.honoursWeights,
+    scoped: NGraphEngine.scoped,
 };
 
 const d3: LayoutImplementationSpec = {
@@ -170,32 +190,51 @@ const d3: LayoutImplementationSpec = {
         "the arrangement has to match a d3 drawing elsewhere in the product.",
     options: engineOptions(D3GraphEngine.zodOptionsSchema),
     honoursWeights: D3GraphEngine.honoursWeights,
+    scoped: D3GraphEngine.scoped,
 };
 
 const forceAtlas2: LayoutImplementationSpec = {
     engine: "forceatlas2",
     plainName: "ForceAtlas2",
     technicalName: "ForceAtlas2 (Gephi)",
-    kind: "batch",
+    kind: "live",
     maxDimensions: 3,
     reason:
         "Choose it for the Gephi look, and for the arrangement an accelerator reproduces first. " +
-        "It runs a fixed number of iterations and stops rather than staying live.",
+        "It keeps running until the layout settles and reheats on a drag or a pin.",
     options: engineOptions(ForceAtlas2Layout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ForceAtlas2Layout.honoursWeights,
+    scoped: ForceAtlas2Layout.scoped,
 };
 
 const spring: LayoutImplementationSpec = {
     engine: "spring",
     plainName: "Spring",
     technicalName: "Fruchterman-Reingold",
-    kind: "batch",
+    kind: "live",
     maxDimensions: 3,
     reason:
-        "Choose it when the arrangement must be reproducible from a seed: a fixed number of " +
-        "iterations from a seeded start, then done.",
+        "Choose it when the arrangement must be reproducible from a seed: the same seed gives " +
+        "the same settled shape.",
     options: engineOptions(SpringLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: SpringLayout.honoursWeights,
+    scoped: SpringLayout.scoped,
+};
+
+const springElectrical: LayoutImplementationSpec = {
+    engine: "spring-electrical",
+    plainName: "Spring Electrical",
+    technicalName: "ngraph.forcelayout (spring-electrical)",
+    kind: "live",
+    maxDimensions: 3,
+    reason:
+        "ngraph's own force model computed on hardware, which is what the default arrangement " +
+        "routes to on a graph big enough to need it. Ask for it by name to have it at any size: " +
+        "it then needs an accelerator and says so when there is none.",
+    options: engineOptions(SpringElectricalLayout.zodOptionsSchema, SEED_OVERRIDE),
+    honoursWeights: SpringElectricalLayout.honoursWeights,
+    scoped: SpringElectricalLayout.scoped,
+    requires: { accelerator: true },
 };
 
 const kamadaKawai: LayoutImplementationSpec = {
@@ -209,6 +248,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
     honoursWeights: KamadaKawaiLayout.honoursWeights,
+    scoped: KamadaKawaiLayout.scoped,
 };
 
 const arf: LayoutImplementationSpec = {
@@ -222,6 +262,7 @@ const arf: LayoutImplementationSpec = {
         "is what it computes rather than what it is flattened into afterwards.",
     options: engineOptions(ArfLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: ArfLayout.honoursWeights,
+    scoped: ArfLayout.scoped,
 };
 
 const circular: LayoutImplementationSpec = {
@@ -233,6 +274,7 @@ const circular: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(CircularLayout.zodOptionsSchema),
     honoursWeights: CircularLayout.honoursWeights,
+    scoped: CircularLayout.scoped,
 };
 
 const shell: LayoutImplementationSpec = {
@@ -244,6 +286,31 @@ const shell: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(ShellLayout.zodOptionsSchema),
     honoursWeights: ShellLayout.honoursWeights,
+    scoped: ShellLayout.scoped,
+};
+
+const radial: LayoutImplementationSpec = {
+    engine: "radial",
+    plainName: "Radial",
+    technicalName: "Radial layout",
+    kind: "batch",
+    maxDimensions: 2,
+    reason: "The only engine that draws this arrangement.",
+    options: engineOptions(RadialLayout.zodOptionsSchema),
+    honoursWeights: RadialLayout.honoursWeights,
+    scoped: RadialLayout.scoped,
+};
+
+const grid: LayoutImplementationSpec = {
+    engine: "grid",
+    plainName: "Grid",
+    technicalName: "Grid layout",
+    kind: "batch",
+    maxDimensions: 2,
+    reason: "The only engine that draws this arrangement.",
+    options: engineOptions(GridLayout.zodOptionsSchema),
+    honoursWeights: GridLayout.honoursWeights,
+    scoped: GridLayout.scoped,
 };
 
 const spiral: LayoutImplementationSpec = {
@@ -255,6 +322,7 @@ const spiral: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(SpiralLayout.zodOptionsSchema),
     honoursWeights: SpiralLayout.honoursWeights,
+    scoped: SpiralLayout.scoped,
 };
 
 const spectral: LayoutImplementationSpec = {
@@ -266,6 +334,7 @@ const spectral: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(SpectralLayout.zodOptionsSchema),
     honoursWeights: SpectralLayout.honoursWeights,
+    scoped: SpectralLayout.scoped,
 };
 
 const planar: LayoutImplementationSpec = {
@@ -277,6 +346,7 @@ const planar: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(PlanarLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: PlanarLayout.honoursWeights,
+    scoped: PlanarLayout.scoped,
 };
 
 const bfs: LayoutImplementationSpec = {
@@ -290,6 +360,7 @@ const bfs: LayoutImplementationSpec = {
         "arrival and does not reduce edge crossings between rows.",
     options: engineOptions(BfsLayout.zodOptionsSchema),
     honoursWeights: BfsLayout.honoursWeights,
+    scoped: BfsLayout.scoped,
 };
 
 const bipartite: LayoutImplementationSpec = {
@@ -301,6 +372,7 @@ const bipartite: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(BipartiteLayout.zodOptionsSchema),
     honoursWeights: BipartiteLayout.honoursWeights,
+    scoped: BipartiteLayout.scoped,
 };
 
 const multipartite: LayoutImplementationSpec = {
@@ -312,6 +384,7 @@ const multipartite: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(MultipartiteLayout.zodOptionsSchema),
     honoursWeights: MultipartiteLayout.honoursWeights,
+    scoped: MultipartiteLayout.scoped,
 };
 
 const fixed: LayoutImplementationSpec = {
@@ -323,6 +396,7 @@ const fixed: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(FixedLayout.zodOptionsSchema),
     honoursWeights: FixedLayout.honoursWeights,
+    scoped: FixedLayout.scoped,
 };
 
 const random: LayoutImplementationSpec = {
@@ -334,6 +408,7 @@ const random: LayoutImplementationSpec = {
     reason: "The only engine that draws this arrangement.",
     options: engineOptions(RandomLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: RandomLayout.honoursWeights,
+    scoped: RandomLayout.scoped,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -357,7 +432,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         ngraph,
-        [d3, forceAtlas2, spring, kamadaKawai],
+        [d3, forceAtlas2, spring, kamadaKawai, springElectrical],
     ),
     entry(
         {
@@ -386,6 +461,36 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         circular,
+    ),
+    entry(
+        {
+            id: "radial",
+            plainName: "Rings from a Node",
+            technicalName: "Radial layout",
+            description:
+                "Puts one node at the centre and every other node on a ring by how many steps away " +
+                "it is, so the rings read outward as distance from that node.",
+            family: "geometric",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        radial,
+    ),
+    entry(
+        {
+            id: "grid",
+            plainName: "Grid",
+            technicalName: "Grid layout",
+            description: "Places nodes in evenly spaced rows and columns, in the order the nodes were loaded.",
+            family: "geometric",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        grid,
     ),
     entry(
         {
@@ -436,8 +541,7 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             id: "planar",
             plainName: "No Crossings",
             technicalName: "Planar embedding",
-            description:
-                "Places nodes so that no two edges cross, for the graphs where that is possible.",
+            description: "Places nodes so that no two edges cross, for the graphs where that is possible.",
             family: "geometric",
             kind: "batch",
             maxDimensions: 2,
@@ -528,21 +632,9 @@ export const LAYOUT_DESCRIPTORS: readonly LayoutDescriptor[] = LAYOUT_CATALOG.ma
 /**
  * The built-in layout names no registered engine draws yet. Listed rather than omitted, because
  * a name that is in the type and missing from the catalogue is otherwise discovered by asking
- * for it and getting an error.
+ * for it and getting an error. Empty today: every built-in name has an engine.
  */
-export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [
-    {
-        id: "radial",
-        reason:
-            "No engine arranges a graph in rings by distance from a chosen node. The spiral " +
-            "layout winds outward but orders nodes by position in the list, not by the graph, " +
-            "so it answers a different question and is published under its own name instead.",
-    },
-    {
-        id: "grid",
-        reason: "No engine places nodes on a regular lattice.",
-    },
-];
+export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [];
 
 // ---------------------------------------------------------------------------------------------
 // Lookups

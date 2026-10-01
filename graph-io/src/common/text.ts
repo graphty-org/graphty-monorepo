@@ -277,7 +277,9 @@ export class TextCellWriter {
 export const WIDENING_UNSUPPORTED_CODE = "W_WIDENING_UNSUPPORTED";
 
 /**
- * The text dtype a parsed cell value implies on its own (what the sink's inference sees).
+ * The text dtype a parsed cell value implies on its own (what the sink's inference sees). It must
+ * be graph-format's inference rule exactly: -0 is an integer there, so a column holding only
+ * `-0.0` is inferred i32 and must be widened to f64, or the sign is lost.
  * @param value - the parsed value
  * @returns the dtype
  */
@@ -288,7 +290,5 @@ function kindOfValue(value: boolean | number | string): TextDtype {
     if (typeof value === "string") {
         return "string";
     }
-    return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647 && !Object.is(value, -0)
-        ? "i32"
-        : "f64";
+    return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647 ? "i32" : "f64";
 }

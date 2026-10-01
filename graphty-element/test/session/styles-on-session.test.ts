@@ -257,19 +257,25 @@ describe("session.styles", () => {
         harness.session.dispose();
     });
 
-    it("takes its turn in the queue the session runs on, beside the algorithm runs", async () => {
+    it("writes an edit at once rather than taking a turn in the queue the runs share", async () => {
         const recorder = recordingQueue();
         const harness = harnessOf({ queue: recorder.queue });
 
-        await harness.session.styles.add(hostLayer());
+        const added = harness.session.styles.add(hostLayer());
+
+        assert.include(
+            harness.session.styles.list().map((layer) => layer.name),
+            "Hosts in orange",
+            "the stack holds the layer as soon as the verb returns",
+        );
+        await added;
         const run = harness.session.runs.start("degree");
         await run.then(
             () => undefined,
             () => undefined,
         );
 
-        assert.include(recorder.descriptions, 'Add layer "Hosts in orange"');
-        assert.strictEqual(recorder.descriptions.length, 2, "one queue carried both, not two carrying one each");
+        assert.strictEqual(recorder.descriptions.length, 1, "only the run took a turn in the queue");
         harness.session.dispose();
     });
 
@@ -337,7 +343,10 @@ describe("session.styles", () => {
         const harness = harnessOf();
 
         assert.isNull(syncCodeOf(() => harness.session.styles.explain({ node: "a" })));
-        assert.strictEqual(syncCodeOf(() => harness.session.styles.explain({ node: "zz" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            syncCodeOf(() => harness.session.styles.explain({ node: "zz" })),
+            "E_BAD_COMMAND",
+        );
         assert.isNull(syncCodeOf(() => harness.session.styles.explain({ edge: edgeBetween(harness, "a", "b") })));
         harness.session.dispose();
     });
@@ -350,6 +359,64 @@ describe("session.styles", () => {
         );
 
         assert.strictEqual(code, "E_UNKNOWN_RUN");
+        harness.session.dispose();
+    });
+
+    it("paints the top n of a real run whole tie groups at a time", async () => {
+        // The line a-b-c-d-e: b, c and d have two links each, a and e one. A top of three is the
+        // three-way tie; a top of two cannot take any of it and paints nothing.
+        const runner = degreeRunner();
+        const harness = harnessOf({ execute: runner.execute });
+        runner.store = harness.store;
+        await harness.session.runs.start("degree", {}, { style: false, as: "degree" });
+        const seen: StyleChange[] = [];
+        const stop = harness.session.on("style:changed", (change) => {
+            seen.push(change);
+        });
+        const topLayer = (n: number): LayerSpec => ({
+            name: `Top ${String(n)}`,
+            target: "node",
+            selector: { match: "top", path: "results.degree.value", n },
+            set: { "node.color": "#ff9900" },
+        });
+
+        await harness.session.styles.add(topLayer(3));
+        await harness.session.styles.add(topLayer(2));
+        stop();
+
+        assert.strictEqual(seen[0]?.painted?.nodes, 3);
+        assert.strictEqual(seen[1]?.painted?.nodes, 0, "three tie at 2, and three do not fit in two");
+        harness.session.dispose();
+    });
+
+    it("takes the top again from a re-run's new values", async () => {
+        // The line a-b-c-d-e has b, c and d tied at two links, so a top of three paints them.
+        // Closing it into a ring puts all five at two links, and five do not fit in three. The
+        // cut is read from the run as it stands at each repaint, never captured when the layer
+        // was added, so the repaint after the re-run takes it again.
+        const runner = degreeRunner();
+        const harness = harnessOf({ execute: runner.execute });
+        runner.store = harness.store;
+        await harness.session.runs.start("degree", {}, { style: false, as: "degree" });
+        const seen: StyleChange[] = [];
+        const stop = harness.session.on("style:changed", (change) => {
+            seen.push(change);
+        });
+
+        const layer = await harness.session.styles.add({
+            name: "Top 3",
+            target: "node",
+            selector: { match: "top", path: "results.degree.value", n: 3 },
+            set: { "node.color": "#ff9900" },
+        });
+        assert.strictEqual(seen.at(-1)?.painted?.nodes, 3);
+
+        harness.add([], [{ src: "e", dst: "a" }]);
+        await harness.session.runs.start("degree", {}, { style: false, as: "degree" });
+        await harness.session.styles.update(layer.id, { set: { "node.color": "#0099ff" } });
+        stop();
+
+        assert.strictEqual(seen.at(-1)?.painted?.nodes, 0, "the ring ties all five, and five do not fit in three");
         harness.session.dispose();
     });
 
@@ -372,5 +439,34 @@ describe("session.styles", () => {
         assert.strictEqual(layer.kind, "encoding");
         assert.strictEqual(harness.session.styles.list().length, 3);
         harness.session.dispose();
+    });
+});
+
+describe("a style edit across dispose()", () => {
+    /**
+     * How an edit settled.
+     * @param edit - The edit.
+     * @returns The rejection's name, or "resolved".
+     */
+    async function outcomeOf(edit: PromiseLike<unknown>): Promise<string> {
+        return Promise.resolve(edit).then(
+            () => "resolved",
+            (error: unknown) => (error instanceof Error || error instanceof DOMException ? error.name : "rejected"),
+        );
+    }
+
+    it("rejects an edit still pending when the session is disposed, rather than leaving it pending", async () => {
+        const harness = harnessOf();
+        const edit = harness.session.styles.add(hostLayer());
+        harness.session.dispose();
+
+        assert.strictEqual(await outcomeOf(edit), "AbortError");
+    });
+
+    it("rejects an edit issued after the session is disposed", async () => {
+        const harness = harnessOf();
+        harness.session.dispose();
+
+        assert.strictEqual(await outcomeOf(harness.session.styles.add(hostLayer())), "AbortError");
     });
 });

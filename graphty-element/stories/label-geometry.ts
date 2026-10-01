@@ -381,26 +381,28 @@ export function labelGeometry(scene: Drawn, onlyColour?: string): readonly Label
  * How much empty space the renderer left above and below the words, in the label's own canvas
  * pixels -- the unit a `marginTop` or `marginBottom` is written in.
  *
- * WHY NOT READ THE INSET STRAIGHT OFF THE TEXTURE. Where the ink starts depends on the typeface:
- * the gap between the top of a line and the top of its tallest glyph differs from font to font,
- * and the machine a story runs on decides which font a family name like "Verdana" falls back to.
- * With the same ten-pixel margins, the ink starts 16-26px down a 128px texture across six fonts,
- * and 9-19px down with none -- so no fixed pixel threshold separates the two everywhere.
+ * WHY NOT READ THE INSET STRAIGHT OFF THE TEXTURE. The ink of a particular string does not fill
+ * its line box: the renderer sizes the line from the font's own box, and the letters on a label
+ * reach only part of it -- how much depends on the letters and on the typeface the machine falls
+ * back to for a family name like "Verdana".
  *
  * WHAT THIS DOES INSTEAD. The browser that drew the label is asked how tall this text is in this
  * font (`measureText`), which turns the ink's height on the texture into the texture's scale;
- * dividing the inset by that scale and taking away the font's own gap leaves the margin itself.
+ * dividing the inset by that scale and taking away the gap between the line box and the ink
+ * leaves the margin itself. The line box is laid out the way `measureLine` in
+ * `src/meshes/RichTextParser.ts` lays it out: the larger of the font box and the ink box, times
+ * the line height, with the extra leading split evenly above and below.
  * @param label - One reading from {@link labelGeometry}, taken with the text colour.
  * @param text - The words on the label.
  * @param font - The CSS font the label is drawn in, such as `"normal 48px Verdana"`.
- * @param lineBoxPx - The height of one line box: the font size times the line height.
+ * @param lineHeight - The label's line height multiplier.
  * @returns The margin above and below the words, in canvas pixels.
  */
 export function drawnMargins(
     label: LabelGeometry,
     text: string,
     font: string,
-    lineBoxPx: number,
+    lineHeight: number,
 ): { readonly top: number; readonly bottom: number } {
     const context = document.createElement("canvas").getContext("2d");
 
@@ -408,18 +410,20 @@ export function drawnMargins(
         return { top: 0, bottom: 0 };
     }
 
-    // The renderer draws each line with a "top" baseline at the top margin, so a glyph's ink runs
-    // from `-actualBoundingBoxAscent` to `actualBoundingBoxDescent` below that line.
     context.font = font;
-    context.textBaseline = "top";
+    context.textBaseline = "alphabetic";
     const metrics = context.measureText(text);
+    const ascent = Math.max(metrics.fontBoundingBoxAscent, metrics.actualBoundingBoxAscent);
+    const descent = Math.max(metrics.fontBoundingBoxDescent, metrics.actualBoundingBoxDescent);
+    const lineBox = (ascent + descent) * lineHeight;
+    const baseline = (lineBox - ascent - descent) / 2 + ascent;
     const scale = label.ink.height / (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
     const above = label.ink.minY;
     const below = label.texture.height - 1 - label.ink.maxY;
 
     return {
-        top: above / scale + metrics.actualBoundingBoxAscent,
-        bottom: below / scale - (lineBoxPx - metrics.actualBoundingBoxDescent),
+        top: above / scale - (baseline - metrics.actualBoundingBoxAscent),
+        bottom: below / scale - (lineBox - baseline - metrics.actualBoundingBoxDescent),
     };
 }
 
@@ -466,16 +470,23 @@ export function drawnText(
 }
 
 /**
- * Watch one label's plane for a while and report how far it moved.
+ * Watch the label planes for a number of rendered frames and report how far they moved.
  *
  * FOR THE STORIES WHOSE SUBJECT IS MOTION. An animated label is the one case where a single
  * reading of the scene says nothing: a pulse is a scale that changes, and any one frame of it is
- * a still label at some scale. Two readings a few frames apart is the smallest honest test.
+ * a still label at some scale.
+ *
+ * COUNTED IN FRAMES, NOT MILLISECONDS. A label animation advances by a fixed step per rendered
+ * frame, so how far it moves in a stretch of wall-clock time depends on how fast the browser
+ * draws. The storybook test browser renders in software, where one frame can take a few hundred
+ * milliseconds, and a 400 ms window then held one or two frames: a pulse caught near its peak
+ * moved a quarter of the threshold and the story failed. Every frame is read, not just the last,
+ * because two readings can land on the same point of a cycle and show no change at all.
  * @param scene - What the story drew.
- * @param overMs - How long to watch for.
+ * @param frames - How many rendered frames to watch.
  * @returns The largest change in scale and in position any one label showed.
  */
-export async function labelMotion(scene: Drawn, overMs = 400): Promise<{ scale: number; position: number }> {
+export async function labelMotion(scene: Drawn, frames = 20): Promise<{ scale: number; position: number }> {
     const planes = scene.graph
         .getNodes()
         .map((node) => node.label?.labelMesh ?? null)
@@ -486,21 +497,32 @@ export async function labelMotion(scene: Drawn, overMs = 400): Promise<{ scale: 
         position: [plane.position.x, plane.position.y, plane.position.z] as const,
     }));
 
-    await new Promise((resolve) => setTimeout(resolve, overMs));
-
     let scale = 0;
     let position = 0;
+    const read = (): void => {
+        planes.forEach((plane, at) => {
+            scale = Math.max(scale, Math.abs(plane.scaling.x - before[at].scale));
+            position = Math.max(
+                position,
+                Math.hypot(
+                    plane.position.x - before[at].position[0],
+                    plane.position.y - before[at].position[1],
+                    plane.position.z - before[at].position[2],
+                ),
+            );
+        });
+    };
 
-    planes.forEach((plane, at) => {
-        scale = Math.max(scale, Math.abs(plane.scaling.x - before[at].scale));
-        position = Math.max(
-            position,
-            Math.hypot(
-                plane.position.x - before[at].position[0],
-                plane.position.y - before[at].position[1],
-                plane.position.z - before[at].position[2],
-            ),
-        );
+    await new Promise<void>((resolve) => {
+        let seen = 0;
+        const observer = scene.graph.scene.onAfterRenderObservable.add(() => {
+            read();
+            seen++;
+            if (seen >= frames) {
+                scene.graph.scene.onAfterRenderObservable.remove(observer);
+                resolve();
+            }
+        });
     });
 
     return { scale, position };

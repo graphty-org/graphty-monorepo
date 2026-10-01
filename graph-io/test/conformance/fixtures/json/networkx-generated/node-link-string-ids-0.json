@@ -1,0 +1,63 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "rank": 0,
+   "tag": "tab\there",
+   "id": "node 0"
+  },
+  {
+   "score": 123456789.125,
+   "rank": 1,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "flag": true,
+   "id": "node 1"
+  },
+  {
+   "score": 123456789.125,
+   "tag": "tab\there",
+   "id": "node 2"
+  },
+  {
+   "score": -2.25,
+   "id": "node 3"
+  },
+  {
+   "tag": "<tag>",
+   "id": "node 4"
+  }
+ ],
+ "links": [
+  {
+   "weight": -2.25,
+   "source": "node 0",
+   "target": "node 1"
+  },
+  {
+   "weight": 9.1215,
+   "rel": "two words",
+   "source": "node 0",
+   "target": "node 4"
+  },
+  {
+   "weight": 0.5,
+   "rel": "café",
+   "cap": 90,
+   "source": "node 1",
+   "target": "node 2"
+  },
+  {
+   "rel": "back\\slash",
+   "source": "node 2",
+   "target": "node 3"
+  },
+  {
+   "weight": -2.25,
+   "rel": "<tag>",
+   "source": "node 3",
+   "target": "node 4"
+  }
+ ]
+}

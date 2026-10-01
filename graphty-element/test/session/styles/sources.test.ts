@@ -43,12 +43,7 @@ const CAVEATS: Caveats = {
  * @param type - What its values are.
  * @returns The descriptor.
  */
-function field(
-    runId: string,
-    name: string,
-    kind: "edge" | "node",
-    type: FieldDescriptor["type"],
-): FieldDescriptor {
+function field(runId: string, name: string, kind: "edge" | "node", type: FieldDescriptor["type"]): FieldDescriptor {
     return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
 }
 
@@ -93,6 +88,26 @@ function flows(entries: readonly (readonly [string, number])[]) {
 }
 
 /**
+ * An executor that measures a number for some of the nodes.
+ * @param values - The value each measured node carries, by node id.
+ * @returns The executor.
+ */
+function metric(values: readonly (readonly [NodeId, number])[]) {
+    return (context: RunExecutionContext): Promise<RunOutcome> =>
+        Promise.resolve({
+            result: createRunResult({
+                runId: context.runId,
+                shape: "node-metric",
+                fields: [field(context.runId, "value", "node", "integer")],
+                measured: { nodes: values.length, edges: 0 },
+                nodes: values.map(([id, value]) => ({ id, values: { value } })),
+                caveats: CAVEATS,
+                durationMs: 1,
+            }),
+        });
+}
+
+/**
  * The element's ids for two of the fixture's three edges.
  *
  * The fixture adds a->b, b->c and c->d in that order, and the element stamps its edge counter in
@@ -126,12 +141,7 @@ function fixture(options: { execute?: (context: RunExecutionContext) => Promise<
     const harness = makeSession(options.execute === undefined ? {} : { runs: { execute: options.execute } });
 
     harness.add(
-        [
-            { id: "a", label: "alpha" },
-            { id: "b", label: "beta" },
-            { id: "c", label: null },
-            { id: "d" },
-        ],
+        [{ id: "a", label: "alpha" }, { id: "b", label: "beta" }, { id: "c", label: null }, { id: "d" }],
         [
             { src: "a", dst: "b" },
             { src: "b", dst: "c" },
@@ -158,7 +168,7 @@ function fixture(options: { execute?: (context: RunExecutionContext) => Promise<
     harness.store.touch();
 
     const parts: SelectorSourceParts = {
-        snapshot: () => harness.session.snapshot(),
+        snapshot: () => harness.store.getSnapshot(),
         results: (runId) => harness.session.runs.get(runId)?.result,
         records: {
             nodeAttributes: (index) => harness.nodeAttributes.get(index),
@@ -245,7 +255,7 @@ describe("a selector source over the session's own attributes", () => {
 
     it("resolves one column once, however many elements read it", () => {
         const { harness, source } = fixture();
-        const snapshot = harness.session.snapshot();
+        const snapshot = harness.store.getSnapshot();
         const lookups = vi.spyOn(snapshot.nodes, "get");
 
         for (let index = 0; index < 4; index++) {
@@ -255,6 +265,50 @@ describe("a selector source over the session's own attributes", () => {
 
         assert.strictEqual(lookups.mock.calls.length, 1, "eight reads, one column lookup");
         lookups.mockRestore();
+        harness.session.dispose();
+    });
+});
+
+describe("an edge's endpoints", () => {
+    it("reads an edge's source and target ids, though the record no longer carries them", () => {
+        // The fixture's edges arrived as { src, dst }, and those keys are removed from the record
+        // a selector reads so the data table does not show them twice.
+        const { harness, source } = fixture();
+
+        assert.strictEqual(source.edgeValue(0, "data.source"), "a");
+        assert.strictEqual(source.edgeValue(0, "data.target"), "b");
+        assert.strictEqual(source.edgeValue(2, "source"), "c");
+        assert.isTrue(source.edgeHas(1, "data.source"));
+        assert.isTrue(source.edgeHas(1, "data.target"));
+        assert.isUndefined(source.nodeValue(0, "data.source"), "a node has no endpoints");
+        harness.session.dispose();
+    });
+
+    it("lets an edge layer select by source, and paints only the edges leaving that node", () => {
+        const { harness, source } = fixture();
+        const bySource = compileSelector({ match: "expression", where: "data.source == 'b'" }, "edge", source);
+        const byTarget = compileSelector({ match: "has", path: "data.target" }, "edge", source);
+
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => bySource.test?.(index)),
+            [false, true, false],
+        );
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => byTarget.test?.(index)),
+            [true, true, true],
+        );
+        harness.session.dispose();
+    });
+
+    it("keeps a `source` attribute the edge really carries, with its endpoints under src/dst", () => {
+        const { harness, source } = fixture();
+
+        // Edge 1 arrived as { src: "b", dst: "c", source: "crawler" }: a provenance field.
+        harness.edgeAttributes.set(1, { source: "crawler" });
+
+        assert.strictEqual(source.edgeValue(1, "data.source"), "crawler");
+        assert.strictEqual(source.edgeValue(1, "data.target"), "c", "the other endpoint still reads");
+        assert.strictEqual(source.edgeValue(0, "data.source"), "a", "an edge without one reads its endpoint");
         harness.session.dispose();
     });
 });
@@ -388,7 +442,7 @@ describe("a selector source reading past what it holds", () => {
 
         const asked: NodeId[] = [];
         const source = createSelectorSource({
-            snapshot: () => harness.session.snapshot(),
+            snapshot: () => harness.store.getSnapshot(),
             records: {
                 nodeAttributes: (_index, id) => {
                     asked.push(id);
@@ -542,7 +596,11 @@ describe("a freeze that renumbers the rows", () => {
         harness.store.touch();
 
         assert.strictEqual(source.nodeIdOf(0), "b");
-        assert.strictEqual(source.edgeIdOf(0), edgeBetween(harness, "b", "c"), "the a->b edge died with a, so b->c slid down");
+        assert.strictEqual(
+            source.edgeIdOf(0),
+            edgeBetween(harness, "b", "c"),
+            "the a->b edge died with a, so b->c slid down",
+        );
         harness.session.dispose();
     });
 
@@ -660,12 +718,19 @@ describe("wired to the selector engine it was written for", () => {
         const { harness, source } = fixture();
         const selector = compileSelector({ match: "ids", nodes: ["b", "d"] }, "node", source);
 
-        assert.deepStrictEqual([0, 1, 2, 3].map((index) => selector.test?.(index)), [false, true, false, true]);
+        assert.deepStrictEqual(
+            [0, 1, 2, 3].map((index) => selector.test?.(index)),
+            [false, true, false, true],
+        );
 
         harness.store.builder.removeNode("a");
         harness.store.touch();
 
-        assert.deepStrictEqual([0, 1, 2].map((index) => selector.test?.(index)), [true, false, true], "b and d moved");
+        assert.deepStrictEqual(
+            [0, 1, 2].map((index) => selector.test?.(index)),
+            [true, false, true],
+            "b and d moved",
+        );
         harness.session.dispose();
     });
 
@@ -677,6 +742,67 @@ describe("wired to the selector engine it was written for", () => {
             assert.isFalse(selector.test?.(index), `node ${index}`);
         }
 
+        harness.session.dispose();
+    });
+});
+
+describe("a top selector over a run's column", () => {
+    /**
+     * Which of the fixture's four nodes a top selector paints.
+     * @param source - The source.
+     * @param n - How many the top may hold.
+     * @returns The node indices it accepts.
+     */
+    function topOf(source: SessionSelectorSource, n: number): number[] {
+        const selector = compileSelector({ match: "top", path: "results.degree.value", n }, "node", source);
+        const accepted: number[] = [];
+
+        for (let index = 0; index < 4; index++) {
+            if (selector.test?.(index) === true) {
+                accepted.push(index);
+            }
+        }
+
+        return accepted;
+    }
+
+    it("paints whole tie groups only, and never more than n", async () => {
+        const { harness, source } = fixture({
+            execute: metric([
+                ["a", 5],
+                ["b", 5],
+                ["c", 3],
+                ["d", 1],
+            ]),
+        });
+        await harness.session.runs.start("degree", undefined, { as: "degree" });
+
+        assert.deepStrictEqual(topOf(source, 1), [], "a and b tie at 5, and two do not fit in one");
+        assert.deepStrictEqual(topOf(source, 2), [0, 1]);
+        assert.deepStrictEqual(topOf(source, 3), [0, 1, 2]);
+        assert.deepStrictEqual(topOf(source, 9), [0, 1, 2, 3]);
+        harness.session.dispose();
+    });
+
+    it("paints nothing on a regular graph whose one tie group is larger than n", async () => {
+        const { harness, source } = fixture({
+            execute: metric([
+                ["a", 2],
+                ["b", 2],
+                ["c", 2],
+                ["d", 2],
+            ]),
+        });
+        await harness.session.runs.start("degree", undefined, { as: "degree" });
+
+        assert.deepStrictEqual(topOf(source, 3), []);
+        harness.session.dispose();
+    });
+
+    it("matches nothing, and refuses nothing, before the run has published", () => {
+        const { harness, source } = fixture();
+
+        assert.deepStrictEqual(topOf(source, 3), []);
         harness.session.dispose();
     });
 });

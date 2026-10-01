@@ -5,7 +5,7 @@
  * bundled together, matching the structure of dist/layout.js
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { writeFileSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -21,28 +21,15 @@ function bundleTypes() {
     }
 
     try {
-        // For now, we'll create a simple declaration file that re-exports everything
-        // from the proper location. This works because all exports go through index.ts
+        // dist/layout.js is bundled from src/index.ts, so its declarations are exactly those of src/index: a hand-kept
+        // list here would drift from the bundle whenever the entry gains an export
         const content = `/**
  * TypeScript declarations for @graphty/layout
- * 
+ *
  * This file provides type information for the bundled dist/layout.js module.
  */
 
-// Re-export all types
-export * from './src/types/index';
-
-// Re-export utilities that are part of the public API  
-export { rescaleLayout, rescaleLayoutDict } from './src/utils/rescale';
-
-// Re-export all layout algorithms
-export * from './src/layouts/index';
-
-// Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
-export * from './src/simulation/index';
-
-// Re-export all graph generation functions
-export * from './src/generators/index';
+export * from './src/index';
 `;
 
         const outputPath = path.resolve(__dirname, "../dist/layout.d.ts");

@@ -107,6 +107,40 @@ export function windowBinding(core: CoreBinding, name: "colIdx" | "weights" | "a
     return { buffer, offset: w.offset, size: 4 * (w.end - w.start), window: w };
 }
 
+/** One dispatch of a frontier-walking kernel over a core (P8-T12): the arc range it owns and the core with its arc-indexed arrays bound to that window (the core itself, over every arc, when it is not windowed). */
+export interface CoreWindow {
+    readonly arcBase: number;
+    readonly arcEnd: number;
+    readonly core: CoreBinding;
+}
+
+/**
+ * The per-window dispatches of a kernel that walks rows named by a FRONTIER rather than by a row range (P8-T12:
+ * `advance-expand`, `bfs-fused`, `bfs-bottom-up`, `sssp-pred`): every window sees every frontier entry and clips
+ * each row to `[arcBase, arcEnd)`, so the ranges must PARTITION `[0, arcCount)` or a row is expanded twice. P4's
+ * windows do not: `planArcWindows` opens a window at the previous window's end aligned DOWN to 64 arcs, so two
+ * consecutive windows overlap by up to 63 arcs at an unaligned row boundary (the overlap belongs to the earlier
+ * window's rows, which a row-range dispatch such as `degree` never revisits). Here a window owns `[start, next
+ * window's start)` -- the last one `[start, end)` -- which is inside its binding (`next.start <= end`) and
+ * partitions the arcs exactly; a window whose owned range is empty dispatches, harmlessly, over nothing.
+ * @param core - the core (windowed or not)
+ * @returns one entry per window, in arc order; exactly one entry over `[0, arcCount)` when the core is not windowed
+ */
+export function coreWindows(core: CoreBinding): readonly CoreWindow[] {
+    if (core.windows === null) {
+        return [{ arcBase: 0, arcEnd: arcCountOf(core), core }];
+    }
+    return core.windows.map((w, k, all) => ({
+        arcBase: w.start,
+        arcEnd: k + 1 < all.length ? all[k + 1].start : w.end,
+        core: {
+            ...core,
+            colIdx: windowBinding(core, "colIdx", w),
+            weights: core.weights === null ? null : windowBinding(core, "weights", w),
+        },
+    }));
+}
+
 /**
  * Rejects a windowed core: the pull cannot accumulate its affine epilogue across windows (DEP-P4-B).
  * @param core - the core
@@ -146,7 +180,9 @@ export function assertWholeCore(core: CoreBinding, arcCount: number, limit: numb
  * package. `plan` is "perArray" because views always upload per array (spec 4.3 lines 1182-1186) and `windows` is
  * null because a view is never windowed, which is what makes assertNotWindowed pass for a view. `serial` is -1: a
  * view is not a core and no caller of this function reads serial (nothing in src/primitives or src/algorithms
- * reads CoreBinding.serial).
+ * reads CoreBinding.serial). A zero-size `colIdx` or `weights` binding (the reverse view of an arc-less directed
+ * snapshot uploads zero-byte arc arrays) becomes null, the core's own spelling of "no arcs", so `graphBindings` binds
+ * the dummy instead of a zero-length range (P8-T8: the one-node directed fixture of the BFS suite).
  * @param v - the view binding, from residency.view(s, "reverse") or view(s, "edgeList")
  * @param arcCount - the arc count of the view, from v.scalars.arcCount[0]; it must agree with the colIdx binding,
  * which is what record() derives the arc window from (E_INVALID_ARGUMENT { argument: "arcCount" } otherwise)
@@ -161,8 +197,10 @@ export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding {
             expected: "a view with a rowPtr binding (reverse)",
         });
     }
-    const colIdx = v.bindings.colIdx ?? null;
-    const weights = v.bindings.weights ?? null;
+    // an arc-less DIRECTED snapshot's reverse view uploads zero-byte arc arrays; the core spells "no arcs" as null
+    // (graphBindings then binds the rowPtr dummy), and a zero-size binding is never bound (spec 3.6)
+    const colIdx = v.bindings.colIdx === undefined || v.bindings.colIdx.size === 0 ? null : v.bindings.colIdx;
+    const weights = v.bindings.weights === undefined || v.bindings.weights.size === 0 ? null : v.bindings.weights;
     const bound = colIdx === null ? 0 : colIdx.size / 4;
     if (bound !== arcCount) {
         throw new WebGpuGraphError(

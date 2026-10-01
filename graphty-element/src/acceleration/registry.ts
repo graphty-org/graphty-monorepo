@@ -11,6 +11,7 @@
  * it happens once, when a controller probes, and not at import time.
  */
 
+import { sharedStore } from "../catalog/pluginRegistry";
 import { GraphtyError } from "../errors";
 import type { AcceleratorFactory } from "./types";
 
@@ -182,8 +183,11 @@ export class AcceleratorRegistry {
 /**
  * The registry the element uses when it is not given another, and the one the `./webgpu` entry
  * point registers into.
+ *
+ * One per page rather than one per copy of graphty-element, so the `./webgpu` entry reaches the
+ * element whichever copy defined it.
  */
-export const acceleratorRegistry = new AcceleratorRegistry();
+export const acceleratorRegistry = sharedStore("accelerator", () => new AcceleratorRegistry());
 
 /**
  * Registers an accelerator factory with the default registry.

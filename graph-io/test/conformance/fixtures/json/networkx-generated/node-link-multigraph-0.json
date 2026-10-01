@@ -1,0 +1,91 @@
+{
+ "directed": false,
+ "multigraph": true,
+ "graph": {},
+ "nodes": [
+  {
+   "rank": 2147483647,
+   "tag": "中文",
+   "id": 0
+  },
+  {
+   "score": -0.0,
+   "flag": true,
+   "id": 1
+  },
+  {
+   "score": 1e-07,
+   "rank": 42,
+   "tag": "say \"hi\"",
+   "id": 2
+  },
+  {
+   "score": -30.248125,
+   "rank": 42,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": 3
+  },
+  {
+   "score": -64.480962,
+   "rank": 0,
+   "tag": "plain",
+   "flag": true,
+   "id": 4
+  }
+ ],
+ "links": [
+  {
+   "cap": 288,
+   "source": 0,
+   "target": 1,
+   "key": 0
+  },
+  {
+   "rel": "😀",
+   "source": 0,
+   "target": 1,
+   "key": 1
+  },
+  {
+   "weight": 1,
+   "rel": "<tag>",
+   "source": 1,
+   "target": 2,
+   "key": 0
+  },
+  {
+   "rel": "say \"hi\"",
+   "source": 1,
+   "target": 1,
+   "key": 0
+  },
+  {
+   "weight": 1.6584,
+   "rel": "tab\there",
+   "source": 2,
+   "target": 3,
+   "key": 0
+  },
+  {
+   "rel": "<tag>",
+   "source": 2,
+   "target": 3,
+   "key": 1
+  },
+  {
+   "weight": 0.1476,
+   "rel": "😀",
+   "cap": 371,
+   "source": 3,
+   "target": 4,
+   "key": 0
+  },
+  {
+   "weight": 6.9303,
+   "cap": 813,
+   "source": 4,
+   "target": 4,
+   "key": 0
+  }
+ ]
+}

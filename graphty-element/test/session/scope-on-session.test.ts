@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
-import type { Filter } from "../../src/session/visibility";
+import type { RuleTree } from "../../src/session/visibility";
 import { edgeBetween, type Harness, makeSession } from "./helpers";
 
 /** Three hosts, two services, and four edges between them. */
@@ -27,7 +27,7 @@ function harnessOf(): Harness {
 }
 
 /** Only the hosts. */
-const HOSTS: Filter = { kind: "categories", attribute: "data.type", values: ["host"] };
+const HOSTS: RuleTree = { kind: "categories", attribute: "data.type", values: ["host"] };
 
 /** The code a call refused with, or null when it did not refuse. */
 function codeOf(call: () => unknown): string | null {
@@ -75,7 +75,11 @@ describe("session.scope", () => {
         const whole = await harness.session.scope.resolve("graph");
 
         assert.deepStrictEqual([...visible.nodes].sort(), ["a", "b", "c"]);
-        assert.deepStrictEqual([...visible.edges].sort(), [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")], "an edge needs both endpoints");
+        assert.deepStrictEqual(
+            [...visible.edges].sort(),
+            [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+            "an edge needs both endpoints",
+        );
         assert.strictEqual(whole.nodeCount, 5);
         harness.session.dispose();
     });
@@ -87,7 +91,11 @@ describe("session.scope", () => {
         const scope = await harness.session.scope.resolve("selection");
 
         assert.deepStrictEqual([...scope.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...scope.edges], [edgeBetween(harness, "a", "b")], "a scope's edges are induced from its nodes");
+        assert.deepStrictEqual(
+            [...scope.edges],
+            [edgeBetween(harness, "a", "b")],
+            "a scope's edges are induced from its nodes",
+        );
         harness.session.dispose();
     });
 
@@ -132,13 +140,17 @@ describe("session.scope", () => {
         harness.session.dispose();
     });
 
-    it("refuses a predicate rather than resolving it to nothing", () => {
-        // A session with no query engine that answered "0 nodes matched" would be indistinguishable
-        // from a predicate that genuinely matched nothing, and no consumer can tell those apart
-        // after the fact.
+    it("resolves a predicate, and refuses one that does not parse rather than matching nothing", async () => {
+        // A malformed predicate answering "0 nodes matched" would be indistinguishable from a
+        // predicate that genuinely matched nothing. (`host` in backticks is a JSON literal, and
+        // a bare word is not JSON.)
         const harness = harnessOf();
 
-        assert.strictEqual(codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })), "E_UNSUPPORTED");
+        assert.strictEqual((await harness.session.scope.count({ where: "data.type == 'host'" })).nodes, 3);
+        assert.strictEqual(
+            codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })),
+            "E_BAD_SELECTOR",
+        );
         harness.session.dispose();
     });
 });

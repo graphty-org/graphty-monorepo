@@ -19,7 +19,7 @@ export class RandomNumberGenerator {
      * @param seed - Initial seed value for the generator. If not provided, uses a random seed.
      */
     constructor(seed?: number) {
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+        this.seed = seed ?? Math.floor(Math.random() * 1000000);
         this.m = 2 ** 35 - 31;
         this.a = 185852;
         this.c = 1;

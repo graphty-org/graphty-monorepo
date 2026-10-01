@@ -35,7 +35,15 @@
  * own the anchor, the caret, the focus trap, Escape and the outside click.
  */
 
-import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, POPOUT_GAP, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
+import {
+    COMPACT_SIZING,
+    PANEL_GRID,
+    PANEL_INK,
+    POPOUT_GAP,
+    UiGlyph,
+    useNumberFormatter,
+} from "@graphty/compact-mantine";
+import type { CameraId } from "@graphty/graphty-element/catalog";
 import { ActionIcon, createScopedKeydownHandler, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
@@ -85,15 +93,6 @@ const ENTER_VR_LABEL = "Enter VR";
 const ENTER_AR_LABEL = "Enter AR";
 
 /**
- * Which camera preset a row asks for. The three presets keep their key chips: the
- * shortcuts table lists those bindings as live, and that reading wins.
- *
- * Named in {@link ViewsMenuProps.onViewPreset}, so a caller can name the preset it is handed.
- * @public
- */
-export type ViewPresetId = "front" | "side" | "top";
-
-/**
  * Props of {@link ViewsMenu}.
  */
 export interface ViewsMenuProps {
@@ -103,8 +102,6 @@ export interface ViewsMenuProps {
     readonly onOpenChange: (opened: boolean) => void;
     /** The size profile in force; the trigger is 36 x 28 or 40 x 32. */
     readonly profile: CanvasToolbarProfile;
-    /** Whether the minimap is shown; the row is checked when it is. */
-    readonly minimapShown: boolean;
     /** Whether the legend is shown. */
     readonly legendShown: boolean;
     /**
@@ -129,10 +126,8 @@ export interface ViewsMenuProps {
     readonly visibleEdgeCount?: number;
     /** Reset view (Shift+0). */
     readonly onResetView: () => void;
-    /** Top (7), Front (1), Side (3). */
-    readonly onViewPreset: (preset: ViewPresetId) => void;
-    /** Toggle the minimap. The same action the M binding fires. */
-    readonly onToggleMinimap: () => void;
+    /** Top (7), Front (1), Side (3), by the element's own view names: "topView", "frontView", "sideView". */
+    readonly onViewPreset: (preset: CameraId) => void;
     /** Toggle the toolbar. No binding fires this -- the palette row does. */
     readonly onToggleToolbar: () => void;
     /** Toggle the legend. The same action the L binding fires. */
@@ -291,7 +286,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         opened,
         onOpenChange,
         profile,
-        minimapShown,
         legendShown,
         legendAvailable = true,
         toolbarShown,
@@ -301,7 +295,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         visibleEdgeCount = 0,
         onResetView,
         onViewPreset,
-        onToggleMinimap,
         onToggleToolbar,
         onToggleLegend,
         onEnterVr,
@@ -356,6 +349,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         >
             <Menu.Target>
                 <Tooltip
+                    disabled={opened}
                     label={VIEWS_LABEL}
                     openDelay={TOOLTIP_DELAY_MS}
                     position="top"
@@ -408,7 +402,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     glyph={<ToolbarGlyph name="viewTop" size={glyphSize} />}
                     keyChip={keyChipFor("viewTop")}
                     onSelect={choose(() => {
-                        onViewPreset("top");
+                        onViewPreset("topView");
                     })}
                 />
                 <ViewsMenuRow
@@ -416,7 +410,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     glyph={<ToolbarGlyph name="viewFront" size={glyphSize} />}
                     keyChip={keyChipFor("viewFront")}
                     onSelect={choose(() => {
-                        onViewPreset("front");
+                        onViewPreset("frontView");
                     })}
                 />
                 <ViewsMenuRow
@@ -424,7 +418,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     glyph={<ToolbarGlyph name="viewSide" size={glyphSize} />}
                     keyChip={keyChipFor("viewSide")}
                     onSelect={choose(() => {
-                        onViewPreset("side");
+                        onViewPreset("sideView");
                     })}
                 />
                 <ViewsMenuRow label="Isometric" glyph={<ToolbarGlyph name="cube" size={glyphSize} />} coming />
@@ -440,13 +434,9 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
 
                 <ViewsMenuSeparator />
 
-                <ViewsMenuRow
-                    label="Minimap"
-                    checked={minimapShown}
-                    glyph={minimapShown ? <UiGlyph name="check" size={glyphSize} /> : undefined}
-                    keyChip={keyChipFor("toggleMinimap")}
-                    onSelect={onToggleMinimap}
-                />
+                {/* Unshipped until graphty-element publishes node positions and camera
+                    changes for it to project (#293). */}
+                <ViewsMenuRow label="Minimap" coming />
                 <ViewsMenuRow
                     label="Toolbar"
                     checked={toolbarShown}

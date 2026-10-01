@@ -24,11 +24,11 @@ import { PANEL_INK } from "@graphty/compact-mantine";
 import React, { useState } from "react";
 
 import { STATUS_BAR_NEVER_DROP, STATUS_BAR_SLOT_ORDER } from "../constants";
-import type { StatusBarIssues, StatusBarSlotId } from "../types";
+import type { StatusBarSlotId } from "../types";
 import { LayoutChipMenu } from "./LayoutChipMenu";
 import { LoadCompleteToast } from "./LoadCompleteToast";
 import { STATUS_BAR_GEOMETRY } from "./statusBarGeometry";
-import type { StatusBarRegionProps } from "./statusBarModel";
+import type { StatusBarIssuesModel, StatusBarRegionProps } from "./statusBarModel";
 import {
     StatusBarAiSlot,
     StatusBarCountsSlot,
@@ -42,6 +42,21 @@ import {
     StatusBarZoomSlot,
 } from "./StatusBarSlots";
 import { useStatusBarOverflow } from "./useStatusBarOverflow";
+
+/**
+ * The box the bar occupies, and the anchor the completion toast hangs from.
+ *
+ * The toast cannot be a child of the bar: the bar clips its own overflow (BAR_STYLE)
+ * so that a slot table too wide for the shell is cut off rather than spilled over the
+ * canvas, and that same clip cut the toast -- which sits ENTIRELY above the bar -- out
+ * of the picture altogether. Every failed load and every lost device reported nothing
+ * a reader could see. So the toast is the bar's sibling inside this frame, which is
+ * exactly the bar's own box and does not clip.
+ */
+const BAR_FRAME_STYLE: React.CSSProperties = {
+    position: "relative",
+    flex: `0 0 ${String(STATUS_BAR_GEOMETRY.HEIGHT)}px`,
+};
 
 /** The bar itself. */
 const BAR_STYLE: React.CSSProperties = {
@@ -106,18 +121,18 @@ function SlotDivider(): React.JSX.Element {
  * @param exploreNotesExpanded - Whether Explore is open with Notes expanded.
  * @returns The issues to draw, or undefined when nothing is left to draw.
  */
-function visibleIssues(issues: StatusBarIssues | undefined, exploreNotesExpanded: boolean): StatusBarIssues | undefined {
+function visibleIssues(issues: StatusBarIssuesModel | undefined, exploreNotesExpanded: boolean): StatusBarIssuesModel | undefined {
     if (issues === undefined) {
         return undefined;
     }
 
     const notes = exploreNotesExpanded ? undefined : issues.notes;
 
-    if (issues.validation === undefined && notes === undefined && issues.performance === undefined) {
+    if (issues.validation === undefined && notes === undefined && issues.performance === undefined && issues.acceleration === undefined) {
         return undefined;
     }
 
-    return { validation: issues.validation, notes, performance: issues.performance };
+    return { validation: issues.validation, notes, performance: issues.performance, acceleration: issues.acceleration };
 }
 
 /**
@@ -225,11 +240,13 @@ export function StatusBar(props: StatusBarRegionProps): React.JSX.Element {
     };
 
     return (
-        <div ref={overflow.barRef} style={BAR_STYLE}>
+        <div style={BAR_FRAME_STYLE}>
             {completion === undefined ? null : <LoadCompleteToast completion={completion} />}
-            {rendered.filter((slot) => !RIGHT_OF_SPACER.includes(slot)).map(drawSlot)}
-            <span data-status-spacer="true" style={{ flex: "1 1 auto" }} />
-            {rendered.filter((slot) => RIGHT_OF_SPACER.includes(slot)).map(drawSlot)}
+            <div ref={overflow.barRef} style={BAR_STYLE}>
+                {rendered.filter((slot) => !RIGHT_OF_SPACER.includes(slot)).map(drawSlot)}
+                <span data-status-spacer="true" style={{ flex: "1 1 auto" }} />
+                {rendered.filter((slot) => RIGHT_OF_SPACER.includes(slot)).map(drawSlot)}
+            </div>
         </div>
     );
 }

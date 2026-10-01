@@ -6,6 +6,8 @@
 
 import {
     COLUMN_RENAMED_CODE,
+    ENCODING_FALLBACK_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MUTUAL_EXPANDED_CODE,
     OPTION_IGNORED_CODE,
@@ -13,6 +15,7 @@ import {
     ROLE_DROPPED_CODE,
     SINK_OPTION_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
+    UNKNOWN_ENCODING_CODE,
     WEIGHT_KEY_CLASH_CODE,
 } from "../../common/codes.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "../csv/records.js";
@@ -29,6 +32,7 @@ import {
 import {
     COLUMN_COUNT_CODE,
     DUPLICATE_NODE_CODE,
+    ENDPOINT_SPACE_CODE,
     HEADER_CODE,
     HEADER_OPTION_CODE,
     ID_MERGED_CODE,
@@ -40,7 +44,14 @@ import {
 } from "./importer.js";
 
 export { NEO4J_CAPABILITIES, neo4jExporter, type Neo4jExportOptions } from "./exporter.js";
-export { ID_SPACE_COLUMN, LABELS_COLUMN, neo4jImporter, type Neo4jImportOptions, TYPE_COLUMN } from "./importer.js";
+export {
+    ID_SPACE_COLUMN,
+    LABELS_COLUMN,
+    neo4jImporter,
+    type Neo4jImportOptions,
+    ORIGINAL_ID_COLUMN,
+    TYPE_COLUMN,
+} from "./importer.js";
 
 /**
  * The issue codes the Neo4j importer records (design section 8.6), by name: the codes shared with
@@ -50,6 +61,12 @@ export { ID_SPACE_COLUMN, LABELS_COLUMN, neo4jImporter, type Neo4jImportOptions,
 export const NEO4J_ISSUE = Object.freeze({
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** An unterminated quoted field (fatal). */
     CSV_UNCLOSED_QUOTE: UNCLOSED_QUOTE_CODE,
     /** Text after a closing quote (fatal). */
@@ -64,8 +81,10 @@ export const NEO4J_ISSUE = Object.freeze({
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
     /** A node id repeated in one id space (last write wins). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
-    /** A node id declared in two id spaces. */
+    /** A spaced node id `Space:id` that equals the text of an id declared without a space. */
     ID_SPACE_COLLISION: ID_SPACE_COLLISION_CODE,
+    /** A spaced relationship endpoint `Space:id` that names a node declared without a space; the row is skipped. */
+    ENDPOINT_SPACE: ENDPOINT_SPACE_CODE,
     /** Two id texts merged into one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
     /** A header brace option the importer does not apply. */

@@ -135,6 +135,9 @@ export interface ExplicitWeights {
     text(e: number, integral?: boolean): string | null;
 }
 
+/** A weight of -0 keeps its sign: every importer's weight grammar reads "-0" back as -0. */
+const NEGATIVE_ZERO_TEXT = "-0";
+
 /** The dtypes a weight role column may have (an integer column declared by a caller included). */
 const NUMERIC_DTYPES: ReadonlySet<string> = new Set(["f32", "f64", "i32", "u32", "u8"]);
 
@@ -175,6 +178,9 @@ export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
                     return null;
                 }
                 const value = shadow.value(e) as number;
+                if (Object.is(value, -0)) {
+                    return NEGATIVE_ZERO_TEXT;
+                }
                 return integral && Number.isInteger(value) ? formatInteger(value) : format(value);
             },
         };
@@ -196,6 +202,9 @@ export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
         value: (e: number): number => weights[e],
         text: (e: number, integral = false): string => {
             const value = weights[e];
+            if (Object.is(value, -0)) {
+                return NEGATIVE_ZERO_TEXT;
+            }
             return integral && Number.isInteger(value) ? formatInteger(value) : formatF32(value);
         },
     };

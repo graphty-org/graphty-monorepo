@@ -2097,7 +2097,7 @@ test("piecewise amplification visual", async () => {
 
 8. **Unity Technologies**
    XR Interaction Toolkit Documentation
-   https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit
+   https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@latest
 
 ### Research Databases
 

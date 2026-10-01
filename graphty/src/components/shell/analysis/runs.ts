@@ -23,10 +23,15 @@
  * App shell progressive disclosure design, section 7 "Novice path".
  */
 
-import type { RunId, RunResult } from "@graphty/graphty-element/session";
+import type { GraphSession, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
-import type { ElementGraph } from "./elementBridge";
+import {
+    formatMetricDistribution,
+    METRIC_DISTRIBUTION_MAX_BINS,
+    type MetricDistribution,
+    NODE_METRIC_DEFINITIONS,
+} from "./nodeMetrics";
 
 /** graphty-element's registry coordinates for the two algorithms this slice reads back. */
 export const DEGREE_NAMESPACE = "graphty";
@@ -65,8 +70,11 @@ export interface DegreeResults {
     readonly byDegreeDescending: readonly DegreeReading[];
     /** The highest degree found. */
     readonly maxDegree: number;
-    /** Just the degrees, highest first -- what `labelDegreeThreshold` takes. */
-    readonly degreesDescending: readonly number[];
+    /**
+     * The degree distribution the graph summary draws: graphty-element's own bins for the run,
+     * asked for with the options the Most connected result card uses, so the two charts agree.
+     */
+    readonly distribution: MetricDistribution;
     /**
      * The run that measured them, when these readings came from a run started here.
      *
@@ -92,11 +100,18 @@ export interface CommunityRunResult {
     /** Every group, largest first. */
     readonly groups: readonly {
         readonly communityId: number;
+        readonly name: string;
         readonly size: number;
     }[];
 }
 
-
+/** No degree pass yet: no bar, and an axis that claims no range. */
+export const NO_DEGREE_DISTRIBUTION: MetricDistribution = formatMetricDistribution(
+    NODE_METRIC_DEFINITIONS.degree,
+    { bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" },
+    0,
+    0,
+);
 
 /**
  * Turns graphty-element's degree result into the readings this slice carries.
@@ -120,6 +135,7 @@ export interface CommunityRunResult {
 function degreeResultsFrom(result: RunResult): DegreeResults {
     const summary = result.summary();
     const maxDegree = summary.max ?? 0;
+    const histogram = result.histogram(METRIC_VALUE_FIELD, { bins: METRIC_DISTRIBUTION_MAX_BINS, scale: "auto" });
     const byDegreeDescending: DegreeReading[] = result.ranking(METRIC_VALUE_FIELD).map((entry) => ({
         id: String(entry.id),
         degree: entry.value,
@@ -129,7 +145,7 @@ function degreeResultsFrom(result: RunResult): DegreeResults {
     return {
         byDegreeDescending,
         maxDegree,
-        degreesDescending: byDegreeDescending.map((reading) => reading.degree),
+        distribution: formatMetricDistribution(NODE_METRIC_DEFINITIONS.degree, histogram, summary.min ?? 0, maxDegree),
     };
 }
 
@@ -139,39 +155,46 @@ function degreeResultsFrom(result: RunResult): DegreeResults {
  * The numbers live on the run rather than on the nodes, so this finds the run rather than
  * walking the graph: the most recent succeeded degree run, which is the one the label cut and
  * the size ramp were built from. No degree run yet reports nothing rather than zeros.
- * @param graph - the element graph whose session holds the runs.
+ * @param session - the element's session, which holds the runs.
  * @returns the readings, highest degree first.
  */
-export function readDegreeResults(graph: ElementGraph): DegreeResults {
-    const latest = graph
-        .getSession()
-        .runs.list()
+export function readDegreeResults(session: Pick<GraphSession, "runs">): DegreeResults {
+    const latest = session.runs
+        .list()
         .filter((run) => run.algorithm === DEGREE_ALGORITHM && run.status === "succeeded")
         .at(-1);
 
     if (latest?.result === undefined) {
-        return { byDegreeDescending: [], maxDegree: 0, degreesDescending: [] };
+        return { byDegreeDescending: [], maxDegree: 0, distribution: NO_DEGREE_DISTRIBUTION };
     }
 
     return { ...degreeResultsFrom(latest.result), runId: latest.id };
 }
 
 /**
- * Runs the degree pass and reads it back, WITHOUT letting it paint.
+ * Starts the degree pass, WITHOUT letting it paint, and reads it back once it finishes.
  *
  * `{ style: false }` is the whole reason this goes through `session.runs.start` rather than
  * through the 1.10 address: a run paints itself on its first completion, and this one is
  * measurement for the label cut and the Most connected card. A load that recoloured every
  * node from a background pass would be overriding the element's own hand-tuned defaults,
  * which 7.2's colour and size layers were reverted in order to stop doing.
- * @param graph - the element graph to run on.
- * @returns the readings, highest degree first, and the run that produced them.
+ *
+ * The run's id is handed back at once, before the run finishes, so a caller inside a
+ * transaction can add the layer that reads the run in the same step.
+ * @param session - the session, or a transaction's `tx`, to start the run through.
+ * @returns the run's id, and the readings, highest degree first, once it has finished.
  */
-export async function runDegreePass(graph: ElementGraph): Promise<DegreeResults> {
-    const run = graph.getSession().runs.start(DEGREE_ALGORITHM, {}, { style: false });
-    const result = await run;
+export function startDegreePass(session: Pick<GraphSession, "runs">): {
+    readonly runId: RunId;
+    readonly results: Promise<DegreeResults>;
+} {
+    const run = session.runs.start(DEGREE_ALGORITHM, {}, { style: false });
 
-    return { ...degreeResultsFrom(result), runId: run.id };
+    return {
+        runId: run.id,
+        results: Promise.resolve(run).then((result) => ({ ...degreeResultsFrom(result), runId: run.id })),
+    };
 }
 
 /**
@@ -182,26 +205,28 @@ export async function runDegreePass(graph: ElementGraph): Promise<DegreeResults>
  * comes from the graph result, and only when it is a finite number: an older element
  * bundle that does not publish it must degrade to the reading with no banded clause,
  * never to a fabricated score.
- * @param graph - the element graph to run on.
+ * @param session - the session, or a transaction's `tx`, to start the run through.
  * @returns the group sizes, the group count and modularity when one was reported.
  */
-export async function runCommunityDetection(graph: ElementGraph): Promise<CommunityRunResult> {
+export async function runCommunityDetection(session: Pick<GraphSession, "runs">): Promise<CommunityRunResult> {
     /* This one PAINTS. A reader asking to see the groups is asking for the picture, and the
        session derives it from the result's shape: a categorical colour over the nodes the run
        grouped, with the palette, the legend and the swatch counts read off the same prepared
        binding the repaint painted from. The shell used to build one layer per group by hand. */
-    const run = graph.getSession().runs.start(COMMUNITY_ALGORITHM);
+    const run = session.runs.start(COMMUNITY_ALGORITHM);
     const result = await run;
     const summary = result.summary();
 
     /* The element counts the groups while it walks the result, so the sizes and the count come
-       from one reading and cannot disagree -- which is what the shell used to get by counting
-       the grouped nodes itself rather than trusting a graph-level number beside them. Largest
-       first, ties broken by group id, so the card's "largest group" row does not reshuffle
-       between two equally large groups on a re-run. */
-    const groups = [...(summary.groups ?? [])]
-        .map((entry) => ({ communityId: Number(entry.group), size: entry.size }))
-        .sort((a, b) => (b.size === a.size ? a.communityId - b.communityId : b.size - a.size));
+       from one reading and cannot disagree. It also orders them (largest first, equal sizes by
+       id) and names them, and the legend of the run's colours uses the same order and names, so
+       the list is taken as it comes: re-sorting or renaming here is how the result panel once
+       said "Group 1" for the group the legend called "0". */
+    const groups = (summary.groups ?? []).map((entry) => ({
+        communityId: Number(entry.group),
+        name: entry.name ?? String(entry.group),
+        size: entry.size,
+    }));
 
     /* Only a finite number is carried. Modularity is a graph-level field of the grouping shape,
        and a run that did not publish one must degrade to the reading with no banded clause

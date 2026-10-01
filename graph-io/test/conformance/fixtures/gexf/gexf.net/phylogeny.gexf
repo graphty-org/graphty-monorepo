@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" version="1.3">
+  <graph>
+    <nodes>
+      <node id="a" label="cheese" />
+      <node id="b" label="cherry" />
+      <node id="c" label="cake">
+        <parents>
+          <parent for="a" />
+          <parent for="b" />
+        </parents>
+      </node>
+    </nodes>
+  </graph>
+</gexf>

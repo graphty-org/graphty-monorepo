@@ -1,0 +1,906 @@
+/**
+ * Breadth-first search on the GPU frontier (design 8.4, 9.7, 11.3; P8-T6) against the FIFO oracle on the fixture
+ * list of design 11.3, directed and undirected, from several sources including an isolated vertex and the LAST
+ * index, every readback naming its buffer: `depth` EXACT (u32, bitwise); `parent` by the level rule and the
+ * smallest-predecessor rule (PD-24: the oracle's FIFO parent is a valid predecessor but not this one, so never by
+ * equality with the oracle) and bitwise against the host's spelling of that rule; `order` grouped by depth and
+ * ascending by index within a depth (PD-14), bitwise against the host's sort of the oracle's depths and equal to the
+ * oracle's level sets; `visitedCount`, `levels` and `switches` (0: top-down only until P8-T8); `maxDepth` as the CPU
+ * port reads it and the normalisation cases (0, 2.5, -1, Infinity, NaN) compared with the oracle called with the
+ * SAME raw value; run-twice bitwise on the four arrays and on the counters block after every submit; the device's
+ * rowPtr / colIdx unchanged and the snapshot's checksums intact after a run; the inspect seam (`levelsPerSubmit: 1`,
+ * `onLevel`) handing back every level's frontier as the oracle's set; the one-workgroup `sssp-pred` case that proves
+ * the predecessor pass strides; the run options; and the gate's two named fixtures under the leak counter --
+ * `ceil(levels / 32) + 1` mapAsync calls (PD-7), one per submit plus the result batch.
+ */
+
+import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { type TestContext } from "vitest";
+
+import { type BfsTuning, bfsWithTuning, breadthFirstSearch } from "../../src/algorithms/bfs.js";
+import { type AlgorithmScope } from "../../src/algorithms/scope.js";
+import { FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../../src/constants.js";
+import { GpuContext } from "../../src/context.js";
+import { type WebGpuGraphError } from "../../src/errors.js";
+import { type UniformValues } from "../../src/kernel/struct-block.js";
+import { GraphResidency } from "../../src/memory/residency.js";
+import { verifyDevice } from "../../src/primitives/verify.js";
+import { type BfsOptions } from "../../src/types/accelerator.js";
+import { type PlanCaps } from "../../src/types/context.js";
+import { type GpuBfsResult } from "../../src/types/traversal.js";
+import { levelsOf } from "../helpers/advance.js";
+import {
+    bfsReport,
+    directionModel,
+    levelCountOf,
+    runPredOneWorkgroup,
+    smallestParents,
+    sortedOrder,
+    STRIDE_PATH_NODES,
+    unvisitedListLenAt,
+} from "../helpers/bfs.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
+import { withResidency } from "../helpers/degree-check.js";
+import { readU32 } from "../helpers/device.js";
+import {
+    completeEdges,
+    type EdgeSpec,
+    gridEdges,
+    hubbedRandom,
+    KARATE_EDGES,
+    pathEdges,
+    randomEdges,
+    randomEdgesLoose,
+    rmatEdges,
+    snapshotOf,
+    starEdges,
+} from "../helpers/graphs.js";
+import { LeakCounter } from "../helpers/leak-counter.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
+import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
+import { assertCheckPasses } from "../helpers/sabotage.js";
+import {
+    expectLevelConsistent,
+    expectOrderGroupedByLevel,
+    expectSmallestPredecessor,
+} from "../helpers/traversal-check.js";
+import { bfsOracle } from "../oracle/traversal.js";
+import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
+
+/** One fixture of design 11.3: its edges, an optional node count (isolated vertices above the edges' indices) and the sources to run from (`-1` = the last index). */
+interface Fixture {
+    readonly name: string;
+    readonly edges: readonly EdgeSpec[];
+    readonly nodeCount?: number | undefined;
+    readonly sources: readonly number[];
+}
+
+const FIXTURES: readonly Fixture[] = [
+    { name: "one", edges: [], nodeCount: 1, sources: [0] },
+    {
+        name: "self-loop",
+        edges: [
+            [0, 0],
+            [0, 1],
+            [1, 2],
+        ],
+        sources: [0, -1],
+    },
+    { name: "karate", edges: KARATE_EDGES, sources: [0, 16, -1] },
+    { name: "grid30", edges: gridEdges(30, 30), sources: [0, 465, -1] },
+    { name: "path500", edges: pathEdges(500), sources: [0, 250, -1] },
+    { name: "star10k", edges: starEdges(10_000), sources: [0, -1] },
+    { name: "complete64", edges: completeEdges(64), sources: [0, -1] },
+    // three isolated vertices above the random graph's indices: the last index is isolated
+    { name: "random1k-isolated", edges: randomEdges(1000, 5000, 1001), nodeCount: 1003, sources: [0, -1] },
+    // self-loops, parallels and integer weights (ignored by a traversal)
+    { name: "loose", edges: randomEdgesLoose(600, 2400, 7), nodeCount: 600, sources: [0, -1] },
+    { name: "rmat14", edges: rmatEdges(14, 10, 7), sources: [0, -1] },
+];
+
+/** The star hub's degree (the gate's workgroup-tier row). */
+const HUB_DEGREE = 10_000;
+
+/** Awaits a rejection and asserts its code; returns the error for detail assertions. */
+async function expectRejection(promise: Promise<unknown>, code: string): Promise<WebGpuGraphError> {
+    let caught: unknown = null;
+    try {
+        await promise;
+    } catch (err) {
+        caught = err;
+    }
+    expect(caught).toMatchObject({ code });
+    return caught as WebGpuGraphError;
+}
+
+/** The context with its caps replaced (the driver's binding-limit check reads `ctx.caps`, the residency its own). */
+function withCaps(ctx: GpuContext, caps: PlanCaps): GpuContext {
+    return new Proxy(ctx, {
+        get(target, key, receiver): unknown {
+            if (key === "caps") {
+                return caps;
+            }
+            const value: unknown = Reflect.get(target, key, receiver);
+            return typeof value === "function" ? value.bind(target) : value;
+        },
+    });
+}
+
+/** The reached nodes of `order` grouped by depth, each group sorted ascending. */
+function levelSetsOf(order: U32, depth: U32): number[][] {
+    const groups: number[][] = [];
+    for (const v of order) {
+        const d = depth[v];
+        while (groups.length <= d) {
+            groups.push([]);
+        }
+        groups[d].push(v);
+    }
+    return groups.map((group) => group.sort((a, b) => a - b));
+}
+
+/** The forced rules beside the default: `fusedMax 0` never fuses a level, `U32_MAX` fuses every level (P8-T7 Step 4), and `"top-down"` disables the bottom-up candidate (P8-T8 Step 5). */
+const FORCED_TUNINGS: readonly (readonly [string, BfsTuning])[] = [
+    ["never fused (fusedMax 0)", { fusedMax: 0 }],
+    ["always fused (fusedMax U32_MAX)", { fusedMax: U32_MAX }],
+    ["top-down only", { direction: "top-down" }],
+];
+
+/** The level sizes the oracle predicts (level 0 is the source alone), in level order. */
+function levelSizesOf(s: GraphSnapshot, source: number): number[] {
+    return levelsOf(s, source).map((level) => level.length);
+}
+
+/** The last element of a non-empty list. */
+function lastOf<T>(items: readonly T[], label: string): T {
+    expect(items.length, label).toBeGreaterThan(0);
+    return items[items.length - 1];
+}
+
+/** The mapAsync count PD-7 predicts for `levels`: one per submit plus one for the result batch; a level count that is an exact multiple of the cadence needs one more submit for the done boundary. */
+function expectedMaps(levels: number): number {
+    return levels % MAX_LEVELS_PER_SUBMIT === 0
+        ? Math.floor(levels / MAX_LEVELS_PER_SUBMIT) + 2
+        : Math.ceil(levels / MAX_LEVELS_PER_SUBMIT) + 1;
+}
+
+describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
+    let shared: GpuContext | null = null;
+
+    async function context(t: TestContext): Promise<GpuContext> {
+        requireGpu(t);
+        const ctx = shared ?? (await acquire({ label: "bfs" }));
+        shared = ctx;
+        return ctx;
+    }
+
+    /**
+     * The differential of one run: twice through the tuning entry (which reads the counters block after every
+     * submit), every array against the oracle and the host rules, the two runs bitwise.
+     */
+    async function checkRun(
+        ctx: GpuContext,
+        label: string,
+        s: GraphSnapshot,
+        source: number,
+        options?: BfsOptions,
+    ): Promise<GpuBfsResult> {
+        const want = bfsOracle(s, source, options?.maxDepth);
+        const blocks: UniformValues[] = [];
+        const first = await bfsWithTuning(ctx, s, source, options, {
+            onLevel: (_level, block) => {
+                blocks.push(block);
+            },
+        });
+        const again: UniformValues[] = [];
+        const second = await bfsWithTuning(ctx, s, source, options, {
+            onLevel: (_level, block) => {
+                again.push(block);
+            },
+        });
+        expect(first.depth).toBeInstanceOf(Uint32Array);
+        expectBitwiseEqual(first.depth, want.depth, `${label}: depth (the depth buffer) vs the oracle`);
+        expectLevelConsistent(first, s, source);
+        expectSmallestPredecessor(first, s);
+        expectBitwiseEqual(
+            first.parent,
+            smallestParents(s, want.depth),
+            `${label}: parent (the pred buffer) vs the host rule`,
+        );
+        expectOrderGroupedByLevel(first);
+        expectBitwiseEqual(
+            first.order,
+            sortedOrder(want.depth),
+            `${label}: order (the sorted vals buffer) vs the host sort`,
+        );
+        expect(levelSetsOf(first.order, first.depth), `${label}: the level sets of order`).toEqual(
+            levelSetsOf(want.order, want.depth),
+        );
+        expect(first.visitedCount, `${label}: visitedCount (the counters block)`).toBe(want.visitedCount);
+        expect(first.levels, `${label}: levels (the counters block)`).toBe(levelCountOf(want.depth));
+        // P8-T8 Step 5: switches is a device counter over Beamer's rule, replayed on the host from the oracle's levels
+        const model = directionModel(s, want.depth, {}, options?.maxDepth);
+        expect(first.switches, `${label}: switches (the counters block) vs the direction model`).toBe(
+            lastOf(model, `${label}: the direction model`).switches,
+        );
+        expectBitwiseEqual(second.depth, first.depth, `${label}: depth, run twice`);
+        expectBitwiseEqual(second.parent, first.parent, `${label}: parent, run twice`);
+        expectBitwiseEqual(second.order, first.order, `${label}: order, run twice`);
+        expect(second.visitedCount).toBe(first.visitedCount);
+        expect(second.levels).toBe(first.levels);
+        expect(blocks.length, `${label}: submits`).toBeGreaterThan(0);
+        expect(again, `${label}: the counters block after every submit, run twice`).toEqual(blocks);
+        // P8-T7 Step 4: the two forced candidate rules agree with the default bitwise (PD-14); P8-T8 Step 5: so does
+        // the top-down-only mode, which never switches
+        for (const [name, tuning] of FORCED_TUNINGS) {
+            const forced = await bfsWithTuning(ctx, s, source, options, tuning);
+            expectBitwiseEqual(forced.depth, first.depth, `${label}: depth, ${name} vs the default`);
+            expectBitwiseEqual(forced.parent, first.parent, `${label}: parent, ${name} vs the default`);
+            expectBitwiseEqual(forced.order, first.order, `${label}: order, ${name} vs the default`);
+            expect(forced.visitedCount, `${label}: visitedCount, ${name}`).toBe(first.visitedCount);
+            expect(forced.levels, `${label}: levels, ${name}`).toBe(first.levels);
+            if (tuning.direction === "top-down") {
+                expect(forced.switches, `${label}: switches, ${name}`).toBe(0);
+            }
+        }
+        return first;
+    }
+
+    /** One run through the tuning entry with the counters block as its LAST submit left it: the choice counters freeze at the done boundary. */
+    async function runWithCounters(
+        ctx: GpuContext,
+        s: GraphSnapshot,
+        source: number,
+        options: BfsOptions | undefined,
+        tuning: BfsTuning,
+    ): Promise<{ result: GpuBfsResult; block: UniformValues }> {
+        const blocks: UniformValues[] = [];
+        const result = await bfsWithTuning(ctx, s, source, options, {
+            ...tuning,
+            onLevel: (_level, block) => {
+                blocks.push(block);
+            },
+        });
+        return { result, block: lastOf(blocks, "submits") };
+    }
+
+    /** P8-T7 Step 4's invariant: the three choice counters count the boundaries that dispatched a level, which is the level word. */
+    function expectChoicesSumToLevel(block: UniformValues, label: string): void {
+        const fused = block.fusedLevels;
+        const twoPhase = block.twoPhaseLevels;
+        const bottomUp = block.bottomUpLevels;
+        expect(
+            Number(fused) + Number(twoPhase) + Number(bottomUp),
+            `${label}: fusedLevels + twoPhaseLevels + bottomUpLevels vs the level word`,
+        ).toBe(block.level);
+    }
+
+    for (const fixture of FIXTURES) {
+        for (const directed of [false, true]) {
+            const kind = directed ? "directed" : "undirected";
+            it(`${fixture.name} (${kind}): depth exact, parent by the smallest-predecessor rule, order grouped and sorted, counts, run twice`, async (t) => {
+                const ctx = await context(t);
+                const s = snapshotOf(fixture.edges, {
+                    directed,
+                    nodeCount: fixture.nodeCount,
+                    label: `${fixture.name}-${kind}`,
+                });
+                for (const raw of fixture.sources) {
+                    const source = raw < 0 ? s.nodeCount - 1 : raw;
+                    await checkRun(ctx, `${fixture.name} ${kind} from ${source}`, s, source);
+                }
+                ctx.release(s);
+            }, 300_000);
+        }
+    }
+
+    it("the empty graph is E_INVALID_ARGUMENT { argument: 'source' } for any source; so is a source outside [0, n)", async (t) => {
+        const ctx = await context(t);
+        const empty = snapshotOf([], { nodeCount: 0, label: "empty" });
+        for (const source of [0, 1, -1]) {
+            const err = await expectRejection(breadthFirstSearch(ctx, empty, source), "E_INVALID_ARGUMENT");
+            expect(err.details).toMatchObject({ argument: "source" });
+        }
+        const karate = snapshotOf(KARATE_EDGES, { label: "karate-source" });
+        for (const source of [34, -1, 1.5, Number.NaN]) {
+            const err = await expectRejection(breadthFirstSearch(ctx, karate, source), "E_INVALID_ARGUMENT");
+            expect(err.details).toMatchObject({ argument: "source" });
+        }
+    });
+
+    it("maxDepth 2 on the star (from the hub and from a leaf) and on the grid: a node at the cap is reached and not expanded, visitedCount equals the oracle's under the same cap, no depth exceeds 2", async (t) => {
+        const ctx = await context(t);
+        const star = snapshotOf(starEdges(HUB_DEGREE), { label: "star-cap" });
+        const grid = snapshotOf(gridEdges(30, 30), { label: "grid-cap" });
+        for (const [label, s, source] of [
+            ["star from the hub", star, 0],
+            ["star from a leaf", star, HUB_DEGREE],
+            ["grid from the corner", grid, 0],
+        ] as const) {
+            const result = await checkRun(ctx, `${label} maxDepth 2`, s, source, { maxDepth: 2 });
+            let deepest = 0;
+            for (const d of result.depth) {
+                if (d !== INVALID_INDEX) {
+                    deepest = Math.max(deepest, d);
+                }
+            }
+            expect(deepest, `${label}: the deepest reached node`).toBeLessThanOrEqual(2);
+            expect(result.levels).toBe(deepest + 1);
+        }
+        const leaf = await breadthFirstSearch(ctx, star, HUB_DEGREE, { maxDepth: 1 });
+        expect(leaf.visitedCount).toBe(2);
+        expect(leaf.levels).toBe(2);
+        ctx.release(star);
+        ctx.release(grid);
+    });
+
+    it("the maxDepth normalisation cases on the grid, each compared with the oracle under the SAME raw value: 0 and -1 are the source alone, 2.5 is 3, Infinity and NaN are no cap; none throws", async (t) => {
+        const ctx = await context(t);
+        const grid = snapshotOf(gridEdges(30, 30), { label: "grid-normalise" });
+        const uncapped = await checkRun(ctx, "grid uncapped", grid, 0);
+        const three = await checkRun(ctx, "grid maxDepth 3", grid, 0, { maxDepth: 3 });
+        for (const raw of [0, -1]) {
+            const alone = await checkRun(ctx, `grid maxDepth ${raw}`, grid, 0, { maxDepth: raw });
+            expect(alone.visitedCount).toBe(1);
+            expect(alone.levels).toBe(1);
+            expect(Array.from(alone.order)).toEqual([0]);
+        }
+        const half = await checkRun(ctx, "grid maxDepth 2.5", grid, 0, { maxDepth: 2.5 });
+        expectBitwiseEqual(half.depth, three.depth, "maxDepth 2.5 vs 3: depth");
+        expect(half.visitedCount).toBe(three.visitedCount);
+        for (const raw of [Number.POSITIVE_INFINITY, Number.NaN]) {
+            const same = await checkRun(ctx, `grid maxDepth ${raw}`, grid, 0, { maxDepth: raw });
+            expectBitwiseEqual(same.depth, uncapped.depth, `maxDepth ${raw} vs no cap: depth`);
+            expect(same.visitedCount).toBe(uncapped.visitedCount);
+            expect(same.levels).toBe(uncapped.levels);
+        }
+        ctx.release(grid);
+    });
+
+    it("the inspect seam: levelsPerSubmit 1 hands back every level's frontier (the next level's input queue) as the oracle's set, with frontierCount and level from the block", async (t) => {
+        const ctx = await context(t);
+        const grid = snapshotOf(gridEdges(30, 30), { label: "grid-inspect" });
+        const levels = levelsOf(grid, 0);
+        const seen: { level: number; block: UniformValues; frontier: number[] }[] = [];
+        const result = await bfsWithTuning(ctx, grid, 0, undefined, {
+            levelsPerSubmit: 1,
+            onLevel: (level, block, frontier) => {
+                seen.push({ level, block, frontier: Array.from(frontier).sort((a, b) => a - b) });
+            },
+        });
+        expect(result.levels).toBe(levels.length);
+        // one submit per level, plus the boundary that finds the frontier empty
+        expect(seen).toHaveLength(levels.length + 1);
+        seen.forEach((entry, k) => {
+            expect(entry.level).toBe(k);
+            expect(entry.block.level, `level word after submit ${k}`).toBe(k);
+            if (k < levels.length) {
+                expect(entry.block.frontierCount, `frontierCount after submit ${k}`).toBe(levels[k].length);
+                expect(entry.frontier, `the frontier handed back after submit ${k}`).toEqual(levels[k + 1] ?? []);
+                expect(entry.block.done).toBe(0);
+            } else {
+                expect(entry.block.frontierCount).toBe(0);
+                expect(entry.block.done).toBe(1);
+                expect(entry.frontier).toEqual([]);
+            }
+        });
+        ctx.release(grid);
+    });
+
+    it("the inspect stage comparison (P8-T15 Step 2): on rmat14 at levelsPerSubmit 1 under the default and under top-down, every submit's frontier is the oracle's next level as a set, frontierCount that level's size, frontierDegreeSum the expanded level's out-degree sum (0 after a bottom-up sweep), and the two unvisited words the oracle's complement of everything claimed through that level", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(rmatEdges(14, 10, 7), { label: "rmat14-inspect" });
+        const n = s.nodeCount;
+        const levels = levelsOf(s, 0);
+        const degreeSums = levels.map((level) => level.reduce((sum, v) => sum + (s.rowPtr[v + 1] - s.rowPtr[v]), 0));
+        // the complement after level k: every node of a deeper level or unreached, and its out-degree sum
+        let claimed = 0;
+        let claimedDegree = 0;
+        const unvisitedAfter = levels.map((level, k) => {
+            claimed += level.length;
+            claimedDegree += degreeSums[k];
+            return { count: n - claimed, degreeSum: s.arcCount - claimedDegree };
+        });
+        for (const [name, tuning] of [
+            ["default", {}],
+            ["top-down", { direction: "top-down" }],
+        ] as const) {
+            const seen: { level: number; block: UniformValues; frontier: number[] }[] = [];
+            const result = await bfsWithTuning(ctx, s, 0, undefined, {
+                ...tuning,
+                levelsPerSubmit: 1,
+                onLevel: (level, block, frontier) => {
+                    seen.push({ level, block, frontier: Array.from(frontier).sort((a, b) => a - b) });
+                },
+            });
+            expect(result.levels, `${name}: levels`).toBe(levels.length);
+            expect(seen, `${name}: one submit per level plus the empty boundary`).toHaveLength(levels.length + 1);
+            let bottomUp = 0;
+            seen.forEach((entry, k) => {
+                const label = `${name}: after submit ${k}`;
+                expect(entry.block.level, `${label}: the level word`).toBe(k);
+                expect(entry.block.overflowLevels, `${label}: overflowLevels (no retry doubles the degree sum)`).toBe(
+                    0,
+                );
+                if (k === levels.length) {
+                    expect(entry.block.done, `${label}: done`).toBe(1);
+                    expect(entry.frontier, `${label}: the frontier`).toEqual([]);
+                    return;
+                }
+                expect(entry.block.done, `${label}: done`).toBe(0);
+                expect(
+                    entry.frontier,
+                    `${label}: the next frontier (the input queue) as the oracle's level ${k + 1}`,
+                ).toEqual(levels[k + 1] ?? []);
+                expect(entry.block.frontierCount, `${label}: frontierCount vs |level ${k}|`).toBe(levels[k].length);
+                // the sweep of a bottom-up level adds nothing to the degree sum (P8-T8); a top-down level adds the level's out-degree sum
+                const sweep = Number(entry.block.direction) === 1;
+                bottomUp += sweep ? 1 : 0;
+                expect(
+                    entry.block.frontierDegreeSum,
+                    `${label}: frontierDegreeSum vs the oracle's sum over level ${k}`,
+                ).toBe(sweep ? 0 : degreeSums[k]);
+                // issue #391: bfs-next-degree summed the out-degrees of what the level claimed -- the NEXT level, whichever
+                // direction claimed it -- and the next boundary reads that as Beamer's m_f
+                expect(
+                    entry.block.nextDegreeSum,
+                    `${label}: nextDegreeSum vs the oracle's sum over level ${k + 1}`,
+                ).toBe(degreeSums[k + 1] ?? 0);
+                // cadence 1: the words are rebuilt from the flags at the top of the submit and no boundary subtracts
+                expect(entry.block.unvisitedCount, `${label}: unvisitedCount vs the oracle's complement`).toBe(
+                    unvisitedAfter[k].count,
+                );
+                expect(
+                    entry.block.unvisitedDegreeSum,
+                    `${label}: unvisitedDegreeSum vs the complement's degree sum`,
+                ).toBe(unvisitedAfter[k].degreeSum);
+            });
+            if (tuning.direction === "top-down") {
+                expect(bottomUp, `${name}: bottom-up levels`).toBe(0);
+            } else {
+                expect(
+                    bottomUp,
+                    `${name}: bottom-up levels (rmat14 switches at level 1 under the exact m_f)`,
+                ).toBeGreaterThan(0);
+            }
+        }
+        ctx.release(s);
+    }, 120_000);
+
+    it("the workgroup twin (P8-T15 Step 3): a second context without the subgroups feature reads depth, parent, order and every counters-block word of every submit bitwise equal to the feature context's on rmat16 at cadence 1 (bfs-bottom-up and bfs-unvisited-flags call wg_reduce_u32; arcsScanned and the unvisited words are its sums)", async (t) => {
+        const ctx = await context(t);
+        const twin = await acquire({ subgroups: false, label: "bfs-twin" });
+        expect(twin.caps.features.has("subgroups")).toBe(false);
+        const s = snapshotOf(rmatEdges(16, 10, 3), { label: "rmat16-twin" });
+        const runOn = async (on: GpuContext): Promise<{ result: GpuBfsResult; blocks: UniformValues[] }> => {
+            const blocks: UniformValues[] = [];
+            const result = await bfsWithTuning(on, s, 0, undefined, {
+                levelsPerSubmit: 1,
+                onLevel: (_level, block) => {
+                    blocks.push(block);
+                },
+            });
+            return { result, blocks };
+        };
+        const feature = await runOn(ctx);
+        const workgroup = await runOn(twin);
+        expect(feature.result.switches, "switches (the sweep ran on both)").toBeGreaterThan(0);
+        expectBitwiseEqual(workgroup.result.depth, feature.result.depth, "twin depth (the depth buffer)");
+        expectBitwiseEqual(workgroup.result.parent, feature.result.parent, "twin parent (the pred buffer)");
+        expectBitwiseEqual(workgroup.result.order, feature.result.order, "twin order (the sorted vals buffer)");
+        expect(workgroup.result.switches).toBe(feature.result.switches);
+        expect(feature.blocks.length).toBeGreaterThan(0);
+        expect(workgroup.blocks, "the counters block after every submit, twin vs feature").toEqual(feature.blocks);
+        const last = feature.blocks[feature.blocks.length - 1];
+        expect(last.arcsScanned, "arcsScanned (the sweep's sum) is non-zero").toBeGreaterThan(0);
+        ctx.release(s);
+        twin.release(s);
+    }, 300_000);
+
+    it("the noise-floor fixture (P8-T15 Step 6): depth on rmat14 from 0, written for this adapter class under GRAPHTY_NOISE_FLOOR_WRITE=1 (test/noise-floor.test.ts holds the classes bitwise)", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(rmatEdges(14, 10, 7), { label: "rmat14-noise" });
+        const result = await breadthFirstSearch(ctx, s, 0);
+        expectBitwiseEqual(result.depth, bfsOracle(s, 0).depth, "rmat14 depth (the depth buffer) vs the oracle");
+        writeNoiseFixture("bfs-contract", "rmat14-depth", adapterClass(ctx.caps), result.depth, "u32");
+        ctx.release(s);
+    });
+
+    it("the run options: dest is filled and returned as depth, a wrong dest is E_INVALID_ARGUMENT, an aborted signal is E_ABORTED, onProgress reports per submit up to n, a bad levelsPerSubmit is refused", async (t) => {
+        const ctx = await context(t);
+        const path = snapshotOf(pathEdges(100), { label: "path-options" });
+        const n = path.nodeCount;
+        const dest = new Uint32Array(n);
+        const seen: number[] = [];
+        let total = -1;
+        const result = await breadthFirstSearch(ctx, path, 0, {
+            dest,
+            onProgress: (done, max) => {
+                seen.push(done);
+                total = max;
+            },
+        });
+        expect(result.depth).toBe(dest);
+        expectBitwiseEqual(dest, bfsOracle(path, 0).depth, "dest (the depth buffer) vs the oracle");
+        expect(total).toBe(n);
+        expect(seen).toHaveLength(expectedMaps(result.levels) - 1);
+        for (let i = 1; i < seen.length; i++) {
+            expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1]);
+        }
+        expect(seen[seen.length - 1]).toBeLessThanOrEqual(n);
+        const wrong = await expectRejection(
+            breadthFirstSearch(ctx, path, 0, { dest: new Float32Array(n) }),
+            "E_INVALID_ARGUMENT",
+        );
+        expect(wrong.details).toMatchObject({ argument: "dest" });
+        const short = await expectRejection(
+            breadthFirstSearch(ctx, path, 0, { dest: new Uint32Array(n - 1) }),
+            "E_INVALID_ARGUMENT",
+        );
+        expect(short.details).toMatchObject({ argument: "dest" });
+        const controller = new AbortController();
+        controller.abort();
+        await expectRejection(breadthFirstSearch(ctx, path, 0, { signal: controller.signal }), "E_ABORTED");
+        for (const levelsPerSubmit of [0, MAX_LEVELS_PER_SUBMIT + 1, 1.5]) {
+            const err = await expectRejection(
+                bfsWithTuning(ctx, path, 0, undefined, { levelsPerSubmit }),
+                "E_INVALID_ARGUMENT",
+            );
+            expect(err.details).toMatchObject({ argument: "levelsPerSubmit" });
+        }
+        ctx.release(path);
+    });
+
+    it("no kernel writes into a view: the device's rowPtr and colIdx read back equal the snapshot's after a run, and validate({ checksum: true }) passes", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(KARATE_EDGES, { checksum: true, label: "karate-checksum" });
+        await checkRun(ctx, "karate checksum", s, 0);
+        const core = ctx.residency.core(s);
+        const rowPtr = await readU32(ctx, core.rowPtr.buffer, s.nodeCount + 1, core.rowPtr.offset);
+        expectBitwiseEqual(rowPtr, s.rowPtr, "the device rowPtr after the run");
+        expect(core.colIdx).not.toBeNull();
+        if (core.colIdx !== null) {
+            const colIdx = await readU32(ctx, core.colIdx.buffer, s.arcCount, core.colIdx.offset);
+            expectBitwiseEqual(colIdx, s.colIdx, "the device colIdx after the run");
+        }
+        expect(() => {
+            s.validate({ checksum: true });
+        }).not.toThrow();
+        ctx.release(s);
+    });
+
+    it("the predecessor pass strides: sssp-pred (MODE 1) over ONE workgroup with the 1,000-node path's depths writes pred[v] = v - 1 for every v >= 1", async (t) => {
+        const ctx = await context(t);
+        const pred = await runPredOneWorkgroup(ctx);
+        expect(pred).toHaveLength(STRIDE_PATH_NODES);
+        expect(pred[0]).toBe(INVALID_INDEX);
+        let wrong = -1;
+        for (let v = 1; v < STRIDE_PATH_NODES; v++) {
+            if (pred[v] !== v - 1) {
+                wrong = v;
+                break;
+            }
+        }
+        expect(wrong, `first wrong pred word (${wrong >= 0 ? pred[wrong] : "-"})`).toBe(-1);
+    });
+
+    it("the device-side per-level choice (P8-T7): on rmat14 at the default fusedMax, top-down only (P8-T8's bottom-up candidate disabled), the selector picks the fused path and the two-phase path each at least once, fusedLevels equals the number of oracle levels below FUSED_FRONTIER_MAX and twoPhaseLevels the number at or above it, and the choices sum to the level word", async (t) => {
+        const ctx = await context(t);
+        for (const directed of [false, true]) {
+            const kind = directed ? "directed" : "undirected";
+            const s = snapshotOf(rmatEdges(14, 10, 7), { directed, label: `rmat14-choice-${kind}` });
+            const sizes = levelSizesOf(s, 0);
+            const fused = sizes.filter((size) => size < FUSED_FRONTIER_MAX).length;
+            const { result, block } = await runWithCounters(ctx, s, 0, undefined, { direction: "top-down" });
+            expect(block.bottomUpLevels, `${kind}: bottomUpLevels (the counters block) under top-down`).toBe(0);
+            console.warn(
+                `[bfs] rmat14 ${kind} from 0: level sizes ${sizes.join(" ")} -> fused ${fused}, two-phase ${sizes.length - fused}`,
+            );
+            expect(block.fusedLevels, `${kind}: fusedLevels (the counters block)`).toBeGreaterThan(0);
+            expect(block.twoPhaseLevels, `${kind}: twoPhaseLevels (the counters block)`).toBeGreaterThan(0);
+            expect(block.fusedLevels, `${kind}: fusedLevels vs the oracle's level sizes`).toBe(fused);
+            expect(block.twoPhaseLevels, `${kind}: twoPhaseLevels vs the oracle's level sizes`).toBe(
+                sizes.length - fused,
+            );
+            expect(block.overflowLevels, `${kind}: overflowLevels`).toBe(0);
+            expect(block.level, `${kind}: the level word`).toBe(sizes.length);
+            expectChoicesSumToLevel(block, kind);
+            expectBitwiseEqual(result.depth, bfsOracle(s, 0).depth, `${kind}: depth (the depth buffer) vs the oracle`);
+            ctx.release(s);
+        }
+    }, 120_000);
+
+    it("the overflow retry (PD-23, P8-T7): with edgeCapacity 4096, the two-phase path forced (fusedMax 0) and top-down only (a retry level doubles frontierDegreeSum, which would flip Beamer's test) the undirected star from the hub overflows on both levels and the directed star on one, rmat14 on at least one; depth stays exact, every fused level is a retry, and the choices sum to the level word (levels - 1 when maxDepth stopped the run)", async (t) => {
+        const ctx = await context(t);
+        const tuning: BfsTuning = { edgeCapacity: 4096, fusedMax: 0, direction: "top-down" };
+        for (const [label, edges, directed, overflows] of [
+            ["undirected star from the hub", starEdges(HUB_DEGREE), false, 2],
+            ["directed star from the hub", starEdges(HUB_DEGREE), true, 1],
+            ["rmat14 from 0", rmatEdges(14, 10, 7), false, null],
+        ] as const) {
+            const s = snapshotOf(edges, { directed, label: `overflow-${label}` });
+            const want = bfsOracle(s, 0);
+            const { result, block } = await runWithCounters(ctx, s, 0, undefined, tuning);
+            expectBitwiseEqual(result.depth, want.depth, `${label}: depth (the depth buffer) vs the oracle`);
+            expect(result.visitedCount, `${label}: visitedCount`).toBe(want.visitedCount);
+            if (overflows === null) {
+                expect(block.overflowLevels, `${label}: overflowLevels (the counters block)`).toBeGreaterThan(0);
+            } else {
+                expect(block.overflowLevels, `${label}: overflowLevels (the counters block)`).toBe(overflows);
+            }
+            expect(block.bottomUpLevels, `${label}: bottomUpLevels under top-down`).toBe(0);
+            // fusedMax 0 never chooses the fused slot at a boundary, so every fused level is role 1's retry
+            expect(block.fusedLevels, `${label}: fusedLevels vs overflowLevels`).toBe(block.overflowLevels);
+            expect(block.twoPhaseLevels, `${label}: twoPhaseLevels`).toBe(
+                Number(block.level) - Number(block.overflowLevels),
+            );
+            expect(block.level, `${label}: the level word`).toBe(result.levels);
+            expectChoicesSumToLevel(block, label);
+            ctx.release(s);
+        }
+        // maxDepth stops the run with a reached-but-unexpanded level: the capped boundary chose nothing
+        const star = snapshotOf(starEdges(HUB_DEGREE), { label: "star-capped-choice" });
+        const capped = await runWithCounters(ctx, star, 0, { maxDepth: 1 }, {});
+        expect(capped.result.levels).toBe(2);
+        expect(capped.block.level, "the level word under maxDepth 1").toBe(1);
+        expect(capped.block.fusedLevels, "fusedLevels under maxDepth 1 (the hub alone is below the threshold)").toBe(1);
+        expectChoicesSumToLevel(capped.block, "star maxDepth 1");
+        ctx.release(star);
+    }, 120_000);
+
+    it("direction-optimizing (P8-T8, design 13 gate item): on rmatEdges(16, 10, 3) the default switches at least once and exactly as the host model of Beamer's rule predicts, reproducibly; top-down only never switches and gives the same depth, parent and order; at levelsPerSubmit 1 the per-level direction, unvisitedCount and unvisitedDegreeSum words equal the model's sequence, unvisitedListLen the oracle's complement and compactCount that word", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(rmatEdges(16, 10, 3), { label: "rmat16-direction" });
+        const want = bfsOracle(s, 0);
+        const first = await runWithCounters(ctx, s, 0, undefined, {});
+        expect(first.result.switches, "switches (the counters block) at the default").toBeGreaterThan(0);
+        const model = directionModel(s, want.depth, {});
+        expect(first.result.switches, "switches vs the direction model at the production cadence").toBe(
+            lastOf(model, "the direction model").switches,
+        );
+        expect(first.block.bottomUpLevels, "bottomUpLevels (the counters block)").toBeGreaterThan(0);
+        expect(first.block.switches).toBe(first.result.switches);
+        expectBitwiseEqual(first.result.depth, want.depth, "depth (the depth buffer) vs the oracle");
+        const again = await runWithCounters(ctx, s, 0, undefined, {});
+        expect(again.result.switches, "switches, run twice").toBe(first.result.switches);
+        expect(again.block, "the last block, run twice").toEqual(first.block);
+        expectBitwiseEqual(again.result.depth, first.result.depth, "depth, run twice");
+        const topDown = await bfsWithTuning(ctx, s, 0, undefined, { direction: "top-down" });
+        expect(topDown.switches, "switches under top-down").toBe(0);
+        expectBitwiseEqual(topDown.depth, first.result.depth, "depth, top-down vs the default");
+        expectBitwiseEqual(topDown.parent, first.result.parent, "parent, top-down vs the default");
+        expectBitwiseEqual(topDown.order, first.result.order, "order, top-down vs the default");
+        // cadence 1: every boundary is the first of its submit, so the block after submit k is boundary k's
+        const perLevel = directionModel(s, want.depth, { levelsPerSubmit: 1 });
+        const seen: { direction: number; unvisitedCount: number; unvisitedDegreeSum: number; switches: number }[] = [];
+        await bfsWithTuning(ctx, s, 0, undefined, {
+            levelsPerSubmit: 1,
+            onLevel: (level, block, _frontier, compactCount) => {
+                seen.push({
+                    direction: Number(block.direction),
+                    unvisitedCount: Number(block.unvisitedCount),
+                    unvisitedDegreeSum: Number(block.unvisitedDegreeSum),
+                    switches: Number(block.switches),
+                });
+                expect(block.unvisitedListLen, `unvisitedListLen after submit ${level}`).toBe(
+                    unvisitedListLenAt(s, want.depth, level),
+                );
+                expect(compactCount, `compactCount after submit ${level}`).toBe(block.unvisitedListLen);
+            },
+        });
+        expect(seen, "the per-level words vs the direction model at cadence 1").toEqual(
+            perLevel.map(({ direction, unvisitedCount, unvisitedDegreeSum, switches }) => ({
+                direction,
+                unvisitedCount,
+                unvisitedDegreeSum,
+                switches,
+            })),
+        );
+        console.warn(
+            `[bfs] rmat16 from 0: level sizes ${levelSizesOf(s, 0).join(" ")}; directions ${perLevel.map((b) => b.direction).join("")}; switches ${first.result.switches}`,
+        );
+        ctx.release(s);
+    }, 300_000);
+
+    it("the unvisited bookkeeping (P8-T8 Step 5, PD-18): after the first rebuild on the grid unvisitedCount is n - 1 and unvisitedDegreeSum arcCount - outDegree(source); on the ten-leaf star from the hub both words read 0 after the second boundary (cadence 2: the leaves' 10 arcs are subtracted with the leaves themselves, issue #391) and 0 (not 2^32 - 10) at the production cadence; isolated vertices are counted but not listed; compactCount equals unvisitedListLen on every rebuild", async (t) => {
+        const ctx = await context(t);
+        const grid = snapshotOf(gridEdges(30, 30), { label: "grid-unvisited" });
+        const n = grid.nodeCount;
+        const gridDepth = bfsOracle(grid, 0).depth;
+        let calls = 0;
+        await bfsWithTuning(ctx, grid, 0, undefined, {
+            levelsPerSubmit: 1,
+            onLevel: (level, block, _frontier, compactCount) => {
+                if (level === 0) {
+                    expect(block.unvisitedCount, "unvisitedCount after the first rebuild").toBe(n - 1);
+                    expect(block.unvisitedDegreeSum, "unvisitedDegreeSum after the first rebuild").toBe(
+                        grid.arcCount - (grid.rowPtr[1] - grid.rowPtr[0]),
+                    );
+                    expect(block.unvisitedListLen, "unvisitedListLen after the first rebuild").toBe(n - 1);
+                }
+                expect(block.unvisitedListLen, `unvisitedListLen after submit ${level}`).toBe(
+                    unvisitedListLenAt(grid, gridDepth, level),
+                );
+                expect(compactCount, `compactCount after submit ${level}`).toBe(block.unvisitedListLen);
+                calls += 1;
+            },
+        });
+        expect(calls).toBeGreaterThan(1);
+        ctx.release(grid);
+
+        const star = snapshotOf(starEdges(10), { label: "star10-unvisited" });
+        const hubDegree = star.rowPtr[1] - star.rowPtr[0];
+        expect(star.arcCount - hubDegree).toBe(10);
+        const blocks: UniformValues[] = [];
+        await bfsWithTuning(ctx, star, 0, undefined, {
+            levelsPerSubmit: 2,
+            onLevel: (_level, block) => {
+                blocks.push(block);
+            },
+        });
+        // the first submit holds boundaries 0 and 1: both words are subtracted at the second boundary -- the degree sum
+        // by the out-degree sum bfs-next-degree measured when the leaves were claimed (issue #391), so it reads 0
+        // here where the one-level-stale rule it replaced left the leaves' 10 arcs in the word until the next rebuild
+        expect(blocks[0].unvisitedCount, "star unvisitedCount after the second boundary").toBe(0);
+        expect(blocks[0].unvisitedDegreeSum, "star unvisitedDegreeSum after the second boundary").toBe(0);
+        const production = await runWithCounters(ctx, star, 0, undefined, {});
+        expect(production.block.unvisitedDegreeSum, "star unvisitedDegreeSum at the done boundary").toBe(0);
+        expect(production.block.unvisitedCount, "star unvisitedCount at the done boundary").toBe(0);
+        ctx.release(star);
+
+        const isolated = snapshotOf(gridEdges(30, 30), { nodeCount: n + 5, label: "grid-isolated-unvisited" });
+        const isolatedDepth = bfsOracle(isolated, 0).depth;
+        const firstBlocks: UniformValues[] = [];
+        await bfsWithTuning(ctx, isolated, 0, undefined, {
+            levelsPerSubmit: 1,
+            onLevel: (_level, block, _frontier, compactCount) => {
+                firstBlocks.push(block);
+                expect(compactCount).toBe(block.unvisitedListLen);
+            },
+        });
+        expect(firstBlocks[0].unvisitedCount, "isolated: unvisitedCount after the first rebuild").toBe(n + 5 - 1);
+        expect(firstBlocks[0].unvisitedListLen, "isolated: unvisitedListLen after the first rebuild").toBe(n - 1);
+        expect(unvisitedListLenAt(isolated, isolatedDepth, 0)).toBe(n - 1);
+        ctx.release(isolated);
+    }, 300_000);
+
+    it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row straddling two) the traversal from the hub and from a leaf gives depth, parent, order and the counts bitwise equal to the unwindowed run's and the oracle's -- at the default cadence, at cadence 1 and with bottom-up forced -- with no ring overrun; a directed snapshot whose reverse adjacency exceeds the binding limit is E_TOO_LARGE before any device work", async (t) => {
+        const ctx = await context(t);
+        const scale = gpuScale();
+        const limit = Math.max(256, 256 * Math.round((2 ** 20 * scale) / 256));
+        // the planner needs rowPtr inside the binding too: the largest row count whose rowPtr fits (262,143 at 1 MiB)
+        const n = limit / 4 - 1;
+        const s = hubbedRandom(n, 10 * n, Math.ceil(300_000 * scale), 20);
+        const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: limit });
+        const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+        try {
+            const faked = withResidency(ctx, residency);
+            const core = residency.core(s);
+            expect(core.plan).toBe("windowed");
+            const windows = core.windows ?? [];
+            expect(windows.length, "windows").toBeGreaterThanOrEqual(8);
+            expect(
+                windows.filter((w) => w.rowFirst <= 0 && w.rowLast >= 0).length,
+                "windows the hub row spans",
+            ).toBeGreaterThanOrEqual(2);
+            // alpha U32_MAX makes Beamer's test switch to bottom-up on the first growing level, so the sweep runs
+            // per window of the reverse core too (the forward core's windows, on this undirected snapshot)
+            const variants: readonly (readonly [string, BfsTuning])[] = [
+                ["default cadence", {}],
+                ["cadence 1", { levelsPerSubmit: 1 }],
+                ["bottom-up forced", { alpha: U32_MAX }],
+            ];
+            for (const source of [0, n - 1]) {
+                const want = bfsOracle(s, source);
+                for (const [name, tuning] of variants) {
+                    const label = `windowed from ${source}, ${name}`;
+                    // both runs hand their scope out, and neither ring may have wrapped over a record its batch still
+                    // read (the unwindowed run at cadence 1 is where a result batch larger than the ring shows)
+                    const held: { whole: AlgorithmScope | null; windowed: AlgorithmScope | null } = {
+                        whole: null,
+                        windowed: null,
+                    };
+                    const whole = await bfsWithTuning(ctx, s, source, undefined, {
+                        ...tuning,
+                        onScope: (scope) => {
+                            held.whole = scope;
+                        },
+                    });
+                    const windowed = await bfsWithTuning(faked, s, source, undefined, {
+                        ...tuning,
+                        onScope: (scope) => {
+                            held.windowed = scope;
+                        },
+                    });
+                    expect(held.whole?.ringOverruns(), `${label}: ring overruns of the unwindowed run`).toBe(0);
+                    expect(
+                        held.windowed?.ringOverruns(),
+                        `${label}: ring overruns over ${windows.length} windows`,
+                    ).toBe(0);
+                    expectBitwiseEqual(windowed.depth, want.depth, `${label}: depth (the depth buffer) vs the oracle`);
+                    expectBitwiseEqual(windowed.depth, whole.depth, `${label}: depth vs the unwindowed run`);
+                    expectBitwiseEqual(
+                        windowed.parent,
+                        whole.parent,
+                        `${label}: parent (the pred buffer) vs the unwindowed run`,
+                    );
+                    expectBitwiseEqual(
+                        windowed.order,
+                        whole.order,
+                        `${label}: order (the sorted vals buffer) vs the unwindowed run`,
+                    );
+                    expect(windowed.visitedCount, `${label}: visitedCount`).toBe(whole.visitedCount);
+                    expect(windowed.levels, `${label}: levels`).toBe(whole.levels);
+                    expect(windowed.switches, `${label}: switches`).toBe(whole.switches);
+                    if (tuning.alpha === U32_MAX) {
+                        expect(windowed.switches, `${label}: the sweep ran`).toBeGreaterThanOrEqual(1);
+                    }
+                }
+            }
+        } finally {
+            residency.destroyAll();
+        }
+        ctx.release(s);
+        // the reverse view of a directed snapshot is never windowed (spec 4.3): refused up front, no device work
+        const directed = snapshotOf(KARATE_EDGES, { directed: true, label: "karate-directed-tiny-limit" });
+        const tiny = withCaps(ctx, fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 }));
+        const err = await expectRejection(breadthFirstSearch(tiny, directed, 0), "E_TOO_LARGE");
+        expect(err.details).toMatchObject({
+            needed: 4 * directed.arcCount,
+            limit: 256,
+            path: "windowed",
+            algorithm: "breadthFirstSearch",
+        });
+        expect(ctx.residency.stats().snapshots).toBe(1);
+        ctx.release(directed);
+    }, 600_000);
+
+    it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
+        const ctx = await context(t);
+        const report = await bfsReport(ctx);
+        expect(report.worst).toBe(0);
+        assertCheckPasses(report);
+    }, 120_000);
+
+    it("gate (PD-7): the scaled 1,000 x 1,000 grid and the 10,000-degree star from the hub map exactly ceil(levels / 32) + 1 staging buffers each, on an adopted device after the self-check", async (t) => {
+        requireGpu(t);
+        const { device } = await acquireRaw();
+        const counter = LeakCounter.wrap(device);
+        const own = GpuContext.from(device);
+        try {
+            // the device self-check runs once per device and maps two staging buffers of its own; pay it first
+            await verifyDevice(own);
+            const side = Math.max(4, Math.round(1000 * gpuScale()));
+            const grid = snapshotOf(gridEdges(side, side), { label: "grid-gate" });
+            counter.resetMapAsync();
+            let rebuilds = 0;
+            const result = await breadthFirstSearch(own, grid, 0, {
+                onProgress: () => {
+                    rebuilds += 1;
+                },
+            });
+            expect(result.levels).toBe(2 * side - 1);
+            expect(counter.mapAsyncCalls, `mapAsync calls of a ${result.levels}-level traversal`).toBe(
+                expectedMaps(result.levels),
+            );
+            // P8-T8 Step 5: the unvisited set is rebuilt once per submit, which onProgress counts
+            expect(rebuilds, "rebuilds (onProgress calls) of the scaled grid").toBe(expectedMaps(result.levels) - 1);
+            expectBitwiseEqual(result.depth, bfsOracle(grid, 0).depth, "grid depth (the depth buffer) vs the oracle");
+            own.release(grid);
+
+            const star = snapshotOf(starEdges(HUB_DEGREE), { label: "star-gate" });
+            counter.resetMapAsync();
+            const hub = await breadthFirstSearch(own, star, 0);
+            expect(hub.levels).toBe(2);
+            expect(counter.mapAsyncCalls, "mapAsync calls of the star from the hub").toBe(expectedMaps(2));
+            expectBitwiseEqual(hub.depth, bfsOracle(star, 0).depth, "star depth (the depth buffer) vs the oracle");
+            expect(hub.visitedCount).toBe(HUB_DEGREE + 1);
+            own.release(star);
+            expect(own.residency.stats().buffers).toBe(0);
+        } finally {
+            own.dispose();
+        }
+        expect(counter.live, "live buffers after release + dispose").toBe(0);
+        counter.restore();
+    }, 600_000);
+});

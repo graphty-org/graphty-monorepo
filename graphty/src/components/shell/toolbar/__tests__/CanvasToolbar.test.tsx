@@ -9,13 +9,29 @@ import {
     CANVAS_TOOLBAR_Z_INDEX,
     canvasToolbarWidth,
 } from "../../constants";
-import { CANVAS_TOOLBAR_LABEL, CanvasToolbar,type CanvasToolbarComponentProps, type CanvasToolbarViewsProps } from "../CanvasToolbar";
+import {
+    CANVAS_TOOLBAR_LABEL,
+    CanvasToolbar,
+    type CanvasToolbarComponentProps,
+    type CanvasToolbarViewsProps,
+    ZOOM_IN_LABEL,
+    ZOOM_OUT_LABEL,
+    ZOOM_TO_FIT_LABEL,
+    ZOOM_TO_SELECTION_DISABLED_REASON,
+    ZOOM_TO_SELECTION_LABEL,
+} from "../CanvasToolbar";
+import { toolbarItemTitle } from "../toolbarMetrics";
+import { VIEWS_LABEL } from "../ViewsMenu";
 
-const ZOOM_NAMES = ["Zoom out", "Zoom in", "Zoom to fit", "Zoom to selection"];
+const ZOOM_NAMES = [ZOOM_OUT_LABEL, ZOOM_IN_LABEL, ZOOM_TO_FIT_LABEL, ZOOM_TO_SELECTION_LABEL];
+const ZOOM_TO_SELECTION_DISABLED_NAME = toolbarItemTitle(
+    ZOOM_TO_SELECTION_LABEL,
+    null,
+    ZOOM_TO_SELECTION_DISABLED_REASON,
+);
 
 function views(overrides: Partial<CanvasToolbarViewsProps> = {}): CanvasToolbarViewsProps {
     return {
-        minimapShown: true,
         legendShown: true,
         toolbarShown: true,
         vrSupported: false,
@@ -23,7 +39,6 @@ function views(overrides: Partial<CanvasToolbarViewsProps> = {}): CanvasToolbarV
         visibleNodeCount: 20,
         onResetView: vi.fn(),
         onViewPreset: vi.fn(),
-        onToggleMinimap: vi.fn(),
         onToggleToolbar: vi.fn(),
         onToggleLegend: vi.fn(),
         onEnterVr: vi.fn(),
@@ -63,7 +78,7 @@ describe("CanvasToolbar", () => {
                 .getAllByRole("button")
                 .map((button) => button.getAttribute("aria-label"));
 
-            expect(names).toEqual([...ZOOM_NAMES, "Views"]);
+            expect(names).toEqual([...ZOOM_NAMES, VIEWS_LABEL]);
         });
 
         it("opens with the 2D / 3D segmented control", () => {
@@ -95,7 +110,7 @@ describe("CanvasToolbar", () => {
                 .map((button) => button.getAttribute("aria-label"));
 
             expect(names).toHaveLength(5);
-            expect(names[3]).toBe("Zoom to selection. Select something first");
+            expect(names[3]).toBe(ZOOM_TO_SELECTION_DISABLED_NAME);
         });
     });
 
@@ -121,7 +136,7 @@ describe("CanvasToolbar", () => {
         it("draws 28 px items with a 14 px glyph on the desktop profile", () => {
             render(<CanvasToolbar {...props()} />);
 
-            const item = screen.getByRole("button", { name: "Zoom to fit" });
+            const item = screen.getByRole("button", { name: ZOOM_TO_FIT_LABEL });
             const glyph = item.querySelector("svg");
 
             expect(Math.round(item.getBoundingClientRect().width)).toBe(CANVAS_TOOLBAR_DESKTOP.itemSize);
@@ -131,7 +146,7 @@ describe("CanvasToolbar", () => {
         it("grows to 32 px items with a 16 px glyph below 1280 px", () => {
             render(<CanvasToolbar {...props({ profileId: "narrow" })} />);
 
-            const item = screen.getByRole("button", { name: "Zoom to fit" });
+            const item = screen.getByRole("button", { name: ZOOM_TO_FIT_LABEL });
             const glyph = item.querySelector("svg");
 
             expect(Math.round(item.getBoundingClientRect().width)).toBe(CANVAS_TOOLBAR_NARROW.itemSize);
@@ -162,7 +177,7 @@ describe("CanvasToolbar", () => {
         it("is enabled with the register's enabled name", () => {
             render(<CanvasToolbar {...props()} />);
 
-            const item = screen.getByRole("button", { name: "Zoom to selection" });
+            const item = screen.getByRole("button", { name: ZOOM_TO_SELECTION_LABEL });
 
             expect(item).toHaveAttribute("aria-disabled", "false");
         });
@@ -170,7 +185,7 @@ describe("CanvasToolbar", () => {
         it("is drawn disabled with its reason when nothing is selected", () => {
             render(<CanvasToolbar {...props({ zoomToSelectionEnabled: false })} />);
 
-            const item = screen.getByRole("button", { name: "Zoom to selection. Select something first" });
+            const item = screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME });
 
             expect(item).toHaveAttribute("aria-disabled", "true");
         });
@@ -181,7 +196,7 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ zoomToSelectionEnabled: false, onZoomToSelection })} />);
 
-            await user.click(screen.getByRole("button", { name: "Zoom to selection. Select something first" }));
+            await user.click(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }));
 
             expect(onZoomToSelection).not.toHaveBeenCalled();
         });
@@ -191,9 +206,9 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ zoomToSelectionEnabled: false })} />);
 
-            await user.hover(screen.getByRole("button", { name: "Zoom to selection. Select something first" }));
+            await user.hover(screen.getByRole("button", { name: ZOOM_TO_SELECTION_DISABLED_NAME }));
 
-            expect(await screen.findByText("Zoom to selection. Select something first")).toBeInTheDocument();
+            expect(await screen.findByText(ZOOM_TO_SELECTION_DISABLED_NAME)).toBeInTheDocument();
         });
     });
 
@@ -234,7 +249,7 @@ describe("CanvasToolbar", () => {
 
             render(<CanvasToolbar {...props({ onViewsMenuOpenChange })} />);
 
-            await user.click(screen.getByRole("button", { name: "Views" }));
+            await user.click(screen.getByRole("button", { name: VIEWS_LABEL }));
 
             expect(onViewsMenuOpenChange).toHaveBeenCalledWith(true);
         });
@@ -250,7 +265,7 @@ describe("CanvasToolbar", () => {
                 </div>,
             );
 
-            await user.click(screen.getByRole("button", { name: "Zoom to fit" }));
+            await user.click(screen.getByRole("button", { name: ZOOM_TO_FIT_LABEL }));
 
             expect(onZoomToFit).toHaveBeenCalledTimes(1);
             expect(onCanvasTap).not.toHaveBeenCalled();

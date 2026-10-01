@@ -2,6 +2,7 @@ import { afterEach, assert, test } from "vitest";
 
 import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
+import { ANIMATION_FRAME_MS, animationFramesOf } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -137,28 +138,36 @@ test("camera animation works during rendering activity", async () => {
 test("animation completion event timing is accurate", async () => {
     graph = await createTestGraph();
 
-    let completionTime = 0;
+    // Frames are counted on the scene's animation clock (16 ms per frame), not the wall clock.
+    let framesSoFar = 0;
+    let completionFrames = 0;
     const listenerId = graph.eventManager.addListener("camera-state-changed", () => {
-        completionTime = Date.now();
+        completionFrames = framesSoFar;
     });
 
-    const startTime = Date.now();
-    await graph.setCameraState(
-        { position: { x: 100, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
-        { animate: true, duration: 500 },
+    const { frames } = await animationFramesOf(
+        graph,
+        () =>
+            graph.setCameraState(
+                { position: { x: 100, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+                { animate: true, duration: 500 },
+            ),
+        (count) => {
+            framesSoFar = count;
+        },
     );
 
     graph.eventManager.removeListener(listenerId);
 
-    // Completion event should have fired
-    assert.ok(completionTime > 0, "Completion event should have fired");
+    // Completion event should have fired, and at the animation's end rather than its start
+    assert.ok(completionFrames > 0, "Completion event should have fired after the animation started");
+    assert.ok(completionFrames <= frames, "Completion event should fire before the call resolves");
 
-    // Event should fire after animation (not before)
-    assert.ok(completionTime >= startTime, "Completion event should fire after animation start");
-
-    // Event should fire around the animation end time (within tolerance)
-    const actualDuration = completionTime - startTime;
-    assert.ok(actualDuration >= 450 && actualDuration <= 650, `Animation took ${actualDuration}ms, expected ~500ms`);
+    const actualDuration = completionFrames * ANIMATION_FRAME_MS;
+    assert.ok(
+        actualDuration >= 450 && actualDuration <= 600,
+        `Completion fired after ${actualDuration}ms of animation time, expected ~500ms`,
+    );
 });
 
 test("camera animation with target and position simultaneously", async () => {
@@ -190,15 +199,15 @@ test("short animation durations complete correctly", async () => {
     graph = await createTestGraph();
 
     // Test very short animation (100ms)
-    const startTime = Date.now();
-    await graph.setCameraState(
-        { position: { x: 30, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 } },
-        { animate: true, duration: 100 },
+    const { ms } = await animationFramesOf(graph, () =>
+        graph.setCameraState(
+            { position: { x: 30, y: 30, z: 30 }, target: { x: 0, y: 0, z: 0 } },
+            { animate: true, duration: 100 },
+        ),
     );
-    const elapsed = Date.now() - startTime;
 
-    // Should complete in approximately 100ms (with some tolerance)
-    assert.ok(elapsed >= 80 && elapsed <= 250, `Short animation took ${elapsed}ms, expected ~100ms`);
+    // Should complete in approximately 100ms of animation time
+    assert.ok(ms >= 80 && ms <= 160, `Short animation took ${ms}ms of animation time, expected ~100ms`);
 
     const state = graph.getCameraState();
     assert.ok(state.position, "Camera should reach final position");
@@ -208,15 +217,15 @@ test("long animation durations complete correctly", async () => {
     graph = await createTestGraph();
 
     // Test longer animation (1000ms)
-    const startTime = Date.now();
-    await graph.setCameraState(
-        { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
-        { animate: true, duration: 1000 },
+    const { ms } = await animationFramesOf(graph, () =>
+        graph.setCameraState(
+            { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
+            { animate: true, duration: 1000 },
+        ),
     );
-    const elapsed = Date.now() - startTime;
 
-    // Should complete in approximately 1000ms (with some tolerance)
-    assert.ok(elapsed >= 950 && elapsed <= 1200, `Long animation took ${elapsed}ms, expected ~1000ms`);
+    // Should complete in approximately 1000ms of animation time
+    assert.ok(ms >= 950 && ms <= 1100, `Long animation took ${ms}ms of animation time, expected ~1000ms`);
 
     const state = graph.getCameraState();
     assert.ok(state.position, "Camera should reach final position");

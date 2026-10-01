@@ -1,0 +1,7 @@
+digraph {
+  graph [rankdir=LR]
+  node [shape=box]
+  edge [arrowhead=none]
+  rankdir=TB
+  a -> b
+}

@@ -16,9 +16,8 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { GraphSelectionStyleInput } from "../src/config";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
-import { type Graphty } from "../src/graphty-element";
-import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
-import { eventWaitingDecorator, waitForGraphSettled } from "./helpers";
+import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
+import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
 const NODES = [{ id: "alpha" }, { id: "beta" }, { id: "gamma" }, { id: "delta" }, { id: "epsilon" }];
@@ -52,11 +51,10 @@ interface HighlightArgs {
  * @returns The element.
  */
 function render(args: HighlightArgs): Element {
-    const element = document.createElement("graphty-element") as Graphty;
+    const element = document.createElement("graphty-element");
 
-    element.startingCameraDistance = 20;
-    // Stepped before the first frame, so the snapshot is the same picture twice.
-    element.layoutBehavior = { layout: { preSteps: 2000 } };
+    // Stepped before the first frame under Chromatic, so the snapshot is the same picture twice.
+    setLayoutPreSteps(element, 2000);
 
     if (args.selectionStyle) {
         element.selectionStyle = args.selectionStyle;
@@ -223,7 +221,7 @@ export const RestyledWhileSelected: Story = {
 
         await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
 
-        const element = canvasElement.querySelector("graphty-element") as Graphty;
+        const element = await renderedElement(canvasElement, "RestyledWhileSelected: no <graphty-element> rendered");
         element.selectionStyle = { color: "#7CB342", scale: 2, opacity: 0.7 };
         await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 

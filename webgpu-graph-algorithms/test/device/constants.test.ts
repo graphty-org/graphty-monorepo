@@ -4,11 +4,21 @@
  * check green for the constants nothing in src/ reads before P1).
  */
 
+import { bfsRingSlots } from "../../src/algorithms/bfs.js";
 import {
+    APSP_MAX_DISPATCHES_PER_SUBMIT,
+    APSP_TILE,
     ARC_WINDOW_ALIGN,
+    BC_BACKWARD_LEVELS_PER_SUBMIT,
+    BC_BATCH_BUDGET_FRACTION,
+    BC_EDGE_PARALLEL_GAMMA,
+    BC_MAX_BATCH,
+    BEAMER_BETA,
+    BORUVKA_ROUNDS_PER_SUBMIT,
     DEFAULT_STAGING_SLOTS,
     DEFAULT_WARN_UNRELEASED_SNAPSHOTS,
     EXACT_MAX_NODES,
+    F32_INF_BITS,
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
     FA2_DISTANCE_FLOOR,
@@ -17,15 +27,21 @@ import {
     FR_DEFAULTS,
     FR_REHEAT_FRACTION,
     FR_START_TEMPERATURE,
+    FUSED_FRONTIER_MAX,
     GRID_BBOX_MARGIN,
     GRID_COARSEST_SIDE,
     GRID_EXTENT_FLOOR,
     GRID_HUB_CELL,
     GRID_MIN_SIDE,
     GRID_SORT_BITS,
+    GROUP_HASH_LOAD_FACTOR,
+    GROUP_ROW_THREAD_LIMIT,
+    GROUP_ROW_THREAD_MAX,
+    LABEL_PROP_PASSES_PER_SUBMIT,
     LAYOUT_TUNING_DEFAULTS,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
+    MAX_LEVELS_PER_SUBMIT,
     MAX_WORKGROUPS_PER_DIM,
     OOM_SCOPE_THRESHOLD_BYTES,
     PARTIAL_BYTES,
@@ -36,9 +52,11 @@ import {
     PROFILER_QUERY_SLOTS,
     RADIX_BINS,
     SE_DEFAULTS,
+    SSSP_DELTA_FACTOR,
     STATE_HEADER_BYTES,
     STORAGE_ALIGN,
     TRACE_RECORD_BYTES,
+    TRIANGLE_BINARY_SEARCH_RATIO,
     U32_MAX,
     UNIFORM_SLOT_BYTES,
     WORKGROUP_SIZE,
@@ -235,5 +253,65 @@ describe("constants.ts (contract 3.2)", () => {
         expect(Object.isFrozen(SE_DEFAULTS)).toBe(true);
         expect(FR_START_TEMPERATURE).toBe(0.1);
         expect(FR_REHEAT_FRACTION).toBe(0.7);
+    });
+
+    it("pins the frontier-family constants (design 8.4, 6 row 8; P8-T1 PD-7, PD-9, PD-21, PD-22)", () => {
+        expect(MAX_LEVELS_PER_SUBMIT).toBe(32);
+        expect(FUSED_FRONTIER_MAX).toBe(4096);
+        expect(BEAMER_BETA).toBe(24);
+        expect(SSSP_DELTA_FACTOR).toBe(32);
+        expect(F32_INF_BITS).toBe(0x7f800000);
+    });
+
+    it("pins the betweenness batch constants (design 8.4, 10.1)", () => {
+        expect(BC_BATCH_BUDGET_FRACTION).toBe(0.25);
+        expect(BC_MAX_BATCH).toBe(64);
+        expect(BC_EDGE_PARALLEL_GAMMA).toBe(2);
+        expect(BC_BACKWARD_LEVELS_PER_SUBMIT).toBe(64);
+    });
+
+    it("pins the structure and community constants (design 8.5, 8.6; issue #422)", () => {
+        // at least 8 passes per readback: below it the 10,000-node call loses to the CPU in Chromium; even, so a
+        // submit holds as many descending as ascending passes of the direction rule
+        expect(LABEL_PROP_PASSES_PER_SUBMIT).toBe(8);
+        expect(LABEL_PROP_PASSES_PER_SUBMIT % 2).toBe(0);
+        expect(BORUVKA_ROUNDS_PER_SUBMIT).toBe(4);
+        expect(GROUP_ROW_THREAD_MAX).toBe(32);
+        // the thread tier's pairwise scan is about d^2 / 2 + d^2 / 2 + d steps: under llvmpipe's 65,535 at the limit
+        expect(GROUP_ROW_THREAD_LIMIT * GROUP_ROW_THREAD_LIMIT + 2 * GROUP_ROW_THREAD_LIMIT).toBeLessThan(65535);
+        expect(GROUP_ROW_THREAD_MAX).toBeLessThanOrEqual(GROUP_ROW_THREAD_LIMIT);
+        expect(GROUP_HASH_LOAD_FACTOR).toBe(2);
+        expect(TRIANGLE_BINARY_SEARCH_RATIO).toBe(32);
+    });
+
+    it("pins the BFS ring arithmetic (P8-T12): 304 at one window, 1,200 at eight, 4 x levels per extra window once the level submit is the larger batch (a fifth per-window kernel must change this pin), and never below the result batch's 34 + w at any cadence", () => {
+        expect(bfsRingSlots(1, MAX_LEVELS_PER_SUBMIT)).toBe(304);
+        expect(bfsRingSlots(8, MAX_LEVELS_PER_SUBMIT)).toBe(1200);
+        // the result batch (two fills, the 32-bit radix sort's four passes of at most eight records, sssp-pred per
+        // window) is 34 + w at most and flushes in its own submit: at cadence 1 or 2 it can be the larger batch
+        expect(bfsRingSlots(1, 1)).toBe(35);
+        expect(bfsRingSlots(1, 2)).toBe(35);
+        for (const levels of [1, 2, 3, 7, MAX_LEVELS_PER_SUBMIT]) {
+            for (let w = 1; w <= 64; w++) {
+                expect(bfsRingSlots(w, levels)).toBeGreaterThanOrEqual(34 + w);
+                expect(bfsRingSlots(w, levels)).toBeGreaterThanOrEqual((5 + 4 * w) * levels + 16);
+                if (levels >= 3) {
+                    expect(bfsRingSlots(w + 1, levels) - bfsRingSlots(w, levels)).toBe(4 * levels);
+                }
+            }
+        }
+    });
+
+    it("pins the all-pairs constants (design 8.7): 32 x 32 tiles, two of which fit 16 KiB of workgroup memory, and the dispatch cap of one submit", () => {
+        expect(APSP_TILE).toBe(32);
+        expect(2 * APSP_TILE * APSP_TILE * 4).toBeLessThanOrEqual(16 * 1024);
+        expect(APSP_MAX_DISPATCHES_PER_SUBMIT).toBe(4096);
+        // the whole sweep of a 32,767-node matrix (Chromium's 4 GiB binding) is 3 x 1,024 dispatches: one submit
+        expect(3 * Math.ceil(32767 / APSP_TILE)).toBeLessThanOrEqual(APSP_MAX_DISPATCHES_PER_SUBMIT);
+    });
+
+    it("F32_INF_BITS is the bit pattern of +Infinity, derived rather than remembered", () => {
+        expect(F32_INF_BITS).toBe(new Uint32Array(new Float32Array([Infinity]).buffer)[0]);
+        expect(new Float32Array(new Uint32Array([F32_INF_BITS]).buffer)[0]).toBe(Infinity);
     });
 });

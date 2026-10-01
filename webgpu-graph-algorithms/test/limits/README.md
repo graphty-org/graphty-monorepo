@@ -28,8 +28,29 @@ Files, planned and landed, and the gate that lands each:
   distributional comparison at 262,144, and the 1M grid run with its `msPerIteration`.
   The 1M 200-iteration comparison is the owner's `benchmarks/layout-run.ts` run, never a
   lane's.
+- `advance-windowed.test.ts` (G8, landed): `breadthFirstSearch` over the 2.5M-node / 50M-arc
+  snapshot of `windowed-200mb.test.ts` at the default limits, its core in two arc windows
+  (P8-T12: every frontier-walking kernel dispatched once per window); `depth` exact against
+  the FIFO oracle, `parent` and `order` by their rules, twice.
+- `bfs-large.test.ts` (G8, landed): the 1000 x 1000 grid unscaled from its corner (1,999
+  levels; `depth` against the FIFO oracle; exactly `ceil(levels / 32) + 1` mapAsync calls on
+  a device wrapped by the leak counter after the self-check -- the T-10 accounting of PD-7),
+  and the 1M / 10M R-MAT tier from node 0 (an edge queue of 4 x arcCount bytes, about 84 MB;
+  `depth` against the oracle; `switches > 0`, so the sweep ran at that size).
+- `sssp-1m.test.ts` (G8, landed): `sssp` over the 1M / 10M R-MAT tier with random f32 weights
+  in [0.1, 10) (the benchmark's SSSP row; the near-far queue binds 8 x roundUp(arcCount, 64)
+  bytes whole, above lavapipe's 128 MiB): `dist` bitwise against the f32 oracle, the triangle
+  inequality, `reachedCount`.
 - `apsp-bound.test.ts` (G9): APSP exact / weighted inside the binding-size bound
   of spec 8.7 and `E_TOO_LARGE` above it.
+- `betweenness-1m.test.ts` (betweenness, landed): 64 sampled sources on the 1M / 10M RMAT rung --
+  the planned batch count, the scores against the Brandes reference within 1e-4, and bitwise the
+  same scores when a faked `maxBufferSize` forces eight sources per batch.
+- `apsp-ceiling.test.ts` (all-pairs shortest paths, landed): an 8,192-node matrix (268 MB) is
+  `E_TOO_LARGE` under `limits: "default"` (128 MiB, 5,792 nodes) and, on a hardware adapter,
+  runs under the context's default `limits: "raise"` and matches one BFS per source exactly;
+  one node above the raised ceiling is `E_TOO_LARGE` naming the node count, the ceiling, the
+  limit and `GpuContextOptions.limits`.
 
 The six G4 files are the P4 phase's (`design/webgpu/plans/2026-09-20-webgpu-p4-grid-pyramid-and-tiers.md`,
 Task P4-T15); their measured numbers are in the G4 record, `docs/decisions/G4.md`.

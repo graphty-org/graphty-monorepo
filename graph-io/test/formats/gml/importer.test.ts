@@ -21,6 +21,8 @@ import {
     REPEATED_KEY_CODE,
     ROLE_TAKEN_CODE,
     SECOND_GRAPH_CODE,
+    STRING_ID_CODE,
+    UNKNOWN_ENTITY_CODE,
 } from "../../../src/formats/gml/importer.js";
 import {
     LIST_START_MARKER,
@@ -320,6 +322,23 @@ describe("gmlImporter: structure and flags", () => {
         expect(bad.report.issues[0]).toMatchObject({ code: FLAG_TYPE_CODE, severity: "error", element: "directed" });
     });
 
+    it("reads a flag written as a quoted integer, with a warning", async () => {
+        const quoted = await importGml('graph [ directed "1" edge [ source 1 target 2 ] ]');
+        expect(quoted.snapshot.directed).toBe(true);
+        expect(quoted.report.issues).toEqual([
+            expect.objectContaining({ code: FLAG_VALUE_CODE, severity: "warning", element: "directed" }),
+        ]);
+        expect(quoted.snapshot.meta.extra).toEqual({ gml: { directed: "1" } });
+        expect((await importGml('graph [ directed "0" ]', { defaultDirected: true })).snapshot.directed).toBe(false);
+    });
+
+    it("records the directed key as the file wrote it in meta.extra.gml, and nothing when it is absent", async () => {
+        expect((await importGml("graph [ directed 1 ]")).snapshot.meta.extra).toEqual({ gml: { directed: "1" } });
+        expect((await importGml("graph [ directed 0 ]")).snapshot.meta.extra).toEqual({ gml: { directed: "0" } });
+        expect((await importGml('graph [ directed "yes" ]')).snapshot.meta.extra).toEqual({ gml: { directed: "yes" } });
+        expect((await importGml("graph [ ]")).snapshot.meta.extra).toEqual({});
+    });
+
     it("records the multigraph flag in meta.declaredMultigraph", async () => {
         expect((await importGml("graph [ multigraph 1 ]")).snapshot.meta.declaredMultigraph).toBe(true);
         expect((await importGml("graph [ multigraph 0 ]")).snapshot.meta.declaredMultigraph).toBe(false);
@@ -359,9 +378,26 @@ describe("gmlImporter: structure and flags", () => {
         expect(strict.report.counts.skippedEdges).toBe(1);
     });
 
-    it("refuses more than one graph block", async () => {
-        const error = await importError("graph [ ] graph [ ]");
-        expect(error.report.issues[0].code).toBe(SECOND_GRAPH_CODE);
+    it("reads the first of several graph blocks and warns how many it skipped", async () => {
+        const { report, snapshot } = await importGml('Creator "t" graph [ node [ id 1 ] ] graph [ ] graph [ ]');
+        expect(codes(report)).toEqual([SECOND_GRAPH_CODE]);
+        expect(report.issues[0].message).toContain("2 more graph block(s)");
+        expect(snapshot.nodeCount).toBe(1);
+    });
+
+    it("importAll reads every graph block into its own sink", async () => {
+        const sinks: GraphBuilder[] = [];
+        const reports = await gmlImporter.importAll?.(
+            "graph [ node [ id 1 ] ] graph [ directed 1 node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]",
+            () => {
+                sinks.push(new GraphBuilder({ directed: false }));
+                return sinks[sinks.length - 1];
+            },
+        );
+        expect(reports?.map((r) => r.issues.length)).toEqual([0, 0]);
+        const [first, second] = sinks.map((b) => b.freeze());
+        expect([first.nodeCount, first.edgeCount]).toEqual([1, 0]);
+        expect([second.nodeCount, second.edgeCount, second.directed]).toEqual([2, 1, true]);
     });
 
     it("reports node and edge keys whose value is not a block", async () => {
@@ -375,7 +411,7 @@ describe("gmlImporter: structure and flags", () => {
 
     it("reports duplicate node ids, duplicate structural keys and non-integer endpoints", async () => {
         const { report, snapshot } = await importGml(
-            'graph [ node [ id 1 ] node [ id 1 ] node [ id 2 id 3 ] edge [ source 1 source 2 target 1 ] edge [ source 1.5 target 1 ] edge [ source 1 target "x" ] ]',
+            "graph [ node [ id 1 ] node [ id 1 ] node [ id 2 id 3 ] edge [ source 1 source 2 target 1 ] edge [ source 1.5 target 1 ] edge [ source 1 target [ x 1 ] ] ]",
         );
         expect(codes(report)).toEqual([
             DUPLICATE_NODE_CODE,
@@ -390,15 +426,97 @@ describe("gmlImporter: structure and flags", () => {
         expect(ids(snapshot)).toEqual([1]);
     });
 
-    it("skips a node without an id and a string or real id", async () => {
+    it("skips a node without an id and a real or record id, and keeps a string id", async () => {
         const { report, snapshot } = await importGml(
-            'graph [ node [ label "a" ] node [ id "n1" ] node [ id 1.5 ] node [ id 4 ] ]',
+            'graph [ node [ label "a" ] node [ id "n1" ] node [ id 1.5 ] node [ id [ x 1 ] ] node [ id 4 ] ]',
         );
-        expect(codes(report)).toEqual([MISSING_ID_CODE, ID_TYPE_CODE, ID_TYPE_CODE]);
+        expect(codes(report)).toEqual([MISSING_ID_CODE, STRING_ID_CODE, ID_TYPE_CODE, ID_TYPE_CODE]);
         expect(report.issues[0].category).toBe("missing-value");
-        expect(report.issues[1].category).toBe("validation-error");
-        expect(report.issues[1].message).toContain('the string "n1"');
-        expect(ids(snapshot)).toEqual([4]);
+        expect(report.issues[2].category).toBe("validation-error");
+        expect(report.issues[2].message).toContain("the real 1.5");
+        expect(ids(snapshot)).toEqual(["n1", 4]);
+    });
+
+    it("keys string node ids and endpoints by their value with one warning for the whole file", async () => {
+        const { report, snapshot } = await importGml(
+            'graph [ node [ id "a" ] node [ id "b" ] node [ id 3 ] edge [ source "a" target "b" ] edge [ source "b" target 3 ] ]',
+        );
+        expect(codes(report)).toEqual([STRING_ID_CODE]);
+        expect(report.issues[0]).toMatchObject({ severity: "warning", line: 1 });
+        expect(report.errorCount).toBe(0);
+        expect(ids(snapshot)).toEqual(["a", "b", 3]);
+        expect(edges(snapshot)).toEqual(["a-b", "b-3"]);
+        expect(report.counts).toMatchObject({ nodes: 3, edges: 2, skippedNodes: 0, skippedEdges: 0 });
+    });
+
+    it("maps a string id to its label under nodeIdFrom label, so string endpoints resolve", async () => {
+        const { report, snapshot } = await importGml(
+            'graph [ node [ id "a" label "Alpha" ] node [ id "b" label "Beta" ] edge [ source "a" target "b" ] ]',
+            { nodeIdFrom: "label" },
+        );
+        expect(codes(report).filter((c) => c === STRING_ID_CODE)).toHaveLength(1);
+        expect(ids(snapshot)).toEqual(["Alpha", "Beta"]);
+        expect(edges(snapshot)).toEqual(["Alpha-Beta"]);
+    });
+
+    it.each([
+        ["id", [1, 2], ["1-2"]],
+        ["label", ["a", "b"], ["a-b"]],
+        ["index", [0, 1], ["0-1"]],
+    ] as const)(
+        "resolves an endpoint spelled as a string of an integer node id under nodeIdFrom %s",
+        async (from, want, wantEdges) => {
+            const { snapshot } = await importGml(
+                'graph [ node [ id 1 label "a" ] node [ id 2 label "b" ] edge [ source "1" target 2 ] ]',
+                {
+                    nodeIdFrom: from,
+                },
+            );
+            expect(ids(snapshot)).toEqual(want);
+            expect(edges(snapshot)).toEqual(wantEdges);
+        },
+    );
+});
+
+describe("gmlImporter: edge-level direction and entities", () => {
+    const MIXED =
+        'graph [ directed 0 node [ id 1 label "caf&eacute;" ] node [ id 2 ] edge [ source 1 target 2 directed 1 ] ]';
+
+    it("honours an edge-level directed key instead of storing it as a column", async () => {
+        const { snapshot, report } = await importGml(MIXED);
+        expect(snapshot.directed).toBe(true);
+        expect(edges(snapshot)).toEqual(["1-2"]);
+        expect(snapshot.edges.get("directed")).toBeNull();
+        expect(codes(report)).toEqual([]);
+    });
+
+    it("expands the undirected edges of a mixed file around a directed one", async () => {
+        const { snapshot } = await importGml(
+            "graph [ directed 0 edge [ source 1 target 2 ] edge [ source 2 target 3 directed 1 ] ]",
+        );
+        expect(snapshot.directed).toBe(true);
+        expect(edges(snapshot)).toEqual(["1-2", "2-1", "2-3"]);
+    });
+
+    it("reports an edge directed flag that is not an integer and uses the graph's direction", async () => {
+        const { snapshot, report } = await importGml('graph [ directed 0 edge [ source 1 target 2 directed "yes" ] ]');
+        expect(snapshot.directed).toBe(false);
+        expect(snapshot.edgeCount).toBe(1);
+        expect(codes(report)).toEqual([FLAG_TYPE_CODE]);
+    });
+
+    it("decodes the Latin-1 HTML entities", async () => {
+        const { snapshot, report } = await importGml(MIXED);
+        expect(column(snapshot, "nodes", "label")[0]).toBe("caf\u00e9");
+        expect(codes(report)).toEqual([]);
+    });
+
+    it("reports a named entity it cannot decode and keeps it as written", async () => {
+        const { snapshot, report } = await importGml(
+            'graph [ node [ id 1 label "a&bogus;" ] node [ id 2 label "b&bogus;" ] ]',
+        );
+        expect(column(snapshot, "nodes", "label")).toEqual(["a&bogus;", "b&bogus;"]);
+        expect(report.issues.map((i) => [i.code, i.element, i.line])).toEqual([[UNKNOWN_ENTITY_CODE, "&bogus;", 1]]);
     });
 });
 
@@ -902,7 +1020,7 @@ describe("gmlImporter: limits, cancellation and input handling", () => {
         const builder = new GraphBuilder({ directed: false, weightDtype: "f64" });
         let error: ImportError | null = null;
         try {
-            await gmlImporter.import(new Uint8Array([0x67, 0x72, 0xff, 0xfe]), builder);
+            await gmlImporter.import(new Uint8Array([0x67, 0x72, 0xff, 0xfe]), builder, { encoding: "utf-8" });
         } catch (err) {
             error = err as ImportError;
         }

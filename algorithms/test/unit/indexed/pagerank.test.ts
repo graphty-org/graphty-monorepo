@@ -1,9 +1,11 @@
+import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { pageRank as legacyPageRank } from "../../../src/algorithms/centrality/pagerank.js";
-import { Graph } from "../../../src/core/graph.js";
-import { pageRank } from "../../../src/indexed/pagerank.js";
+import { pageRank, personalizedPageRank } from "../../../src/indexed/pagerank.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 function directedFrom(edges: readonly (readonly [string, string, number?])[]): Graph {
     const g = new Graph({ directed: true });
@@ -22,14 +24,6 @@ function sum(scores: ArrayLike<number>): number {
 }
 
 describe("indexed.pageRank", () => {
-    it("throws on an undirected snapshot", () => {
-        const g = new Graph({ directed: false });
-        g.addEdge("a", "b");
-        const s = checksummedSnapshot(g);
-        expect(() => pageRank(s)).toThrow("PageRank requires a directed graph");
-        s.validate({ checksum: true });
-    });
-
     it("gives a directed 4-cycle four equal scores summing to 1", () => {
         const s = checksummedSnapshot(
             directedFrom([
@@ -126,13 +120,225 @@ describe("indexed.pageRank", () => {
         // the default tolerance the legacy loop stops up to n iterations earlier and the two answers differ
         // by about its residual, which on scores near 0.25 is several times 1e-6 relative.
         // `useDelta: false` is MANDATORY, not tidiness: `options.useDelta !== false && n > 100`
-        // (pagerank.ts:110) switches the legacy call to SimpleDeltaPageRank, a different algorithm that
-        // then reports `iterations: maxIterations, converged: true` unconditionally (pagerank.ts:146-147).
-        const legacy = legacyPageRank(g, { dampingFactor: 0.85, maxIterations: 200, tolerance: 1e-12, useDelta: false });
+        // (pagerank.ts) switches the legacy call to SimpleDeltaPageRank, a separate implementation.
+        const legacy = legacyResult() as PageRankResult;
         const ported = pageRank(s, { dampingFactor: 0.85, maxIterations: 200, tolerance: 1e-12 });
         for (let u = 0; u < s.nodeCount; u++) {
             expect(ported.scores[u]).toBeCloseTo(legacy.ranks[String(s.ids.idOf(u))], 9); // 1e-9 absolute
         }
         s.validate({ checksum: true });
+    });
+});
+
+/** The directed graph with both arcs of every edge of an undirected one (a self-loop stays one arc). */
+function bothArcs(g: Graph): Graph {
+    const d = new Graph({ directed: true });
+    for (const node of g.nodes()) {
+        d.addNode(node.id);
+    }
+    for (const edge of g.edges()) {
+        d.addEdge(edge.source, edge.target, edge.weight);
+        if (edge.source !== edge.target) {
+            d.addEdge(edge.target, edge.source, edge.weight);
+        }
+    }
+    return d;
+}
+
+function hasDanglingNode(g: Graph): boolean {
+    return [...g.nodes()].some((node) => g.outDegree(node.id) === 0);
+}
+
+// Every legacy result was recorded from the legacy `pageRank(graph, options)` with `useDelta: false`
+// added to the options named at each call: above 100 nodes the legacy function otherwise switches to
+// SimpleDeltaPageRank, a separate implementation. `convergenceNorm: "max"` on
+// every port call: it is the legacy stopping rule, so iterations and converged flags are comparable,
+// not only scores.
+const LEGACY_RULE = { convergenceNorm: "max" } as const;
+
+function expectSameRanks(
+    s: ReturnType<typeof checksummedSnapshot>,
+    ported: { scores: ArrayLike<number>; iterations: number; converged: boolean },
+    legacy: { ranks: Record<string, number>; iterations: number; converged: boolean },
+): void {
+    expect(ported.iterations).toBe(legacy.iterations);
+    expect(ported.converged).toBe(legacy.converged);
+    for (let u = 0; u < s.nodeCount; u++) {
+        expect(Math.abs(ported.scores[u] - legacy.ranks[String(s.ids.idOf(u))])).toBeLessThan(1e-9);
+    }
+}
+
+describe("indexed.pageRank against legacy, with the legacy stopping rule", () => {
+    for (const { name, graph } of directedFixtures()) {
+        it(`matches scores, iterations and converged on ${name}`, () => {
+            const s = checksummedSnapshot(graph);
+            for (const options of [{}, { dampingFactor: 0.6, tolerance: 1e-9 }, { maxIterations: 3 }]) {
+                // legacy: the same options
+                expectSameRanks(s, pageRank(s, { ...options, ...LEGACY_RULE }), legacyResult() as PageRankResult);
+            }
+            // legacy: { weight: "weight" }
+            expectSameRanks(s, pageRank(s, { weighted: true, ...LEGACY_RULE }), legacyResult() as PageRankResult);
+            s.validate({ checksum: true });
+        });
+    }
+
+    it("the default L1 rule stops no earlier than the legacy rule", () => {
+        const { graph } = directedFixtures()[2];
+        const s = checksummedSnapshot(graph);
+        // legacy: no other options
+        expect(pageRank(s).iterations).toBeGreaterThanOrEqual((legacyResult() as PageRankResult).iterations);
+    });
+});
+
+describe("indexed.pageRank on an undirected snapshot", () => {
+    for (const { name, graph } of undirectedFixtures()) {
+        it(`carries rank both ways along every edge of ${name}`, () => {
+            const s = checksummedSnapshot(graph);
+            // legacy: on bothArcs(graph), the directed graph with both arcs of every edge; then with
+            // { weight: "weight" }
+            expectSameRanks(s, pageRank(s, LEGACY_RULE), legacyResult() as PageRankResult);
+            expectSameRanks(s, pageRank(s, { weighted: true, ...LEGACY_RULE }), legacyResult() as PageRankResult);
+            s.validate({ checksum: true });
+        });
+    }
+
+    it("sends a self-loop's rank back to its node once", () => {
+        const b = new GraphBuilder({ directed: false, weighted: false });
+        b.addEdge("a", "a");
+        b.addEdge("a", "b");
+        b.addEdge("b", "c");
+        const s = b.freeze();
+        // legacy: on the directed graph a->a, a->b, b->a, b->c, c->b (the self-loop one arc)
+        expectSameRanks(s, pageRank(s, LEGACY_RULE), legacyResult() as PageRankResult);
+    });
+});
+
+describe("indexed.pageRank initialRanks", () => {
+    it("starts from the given ranks, normalised to sum 1, as legacy does", () => {
+        const { graph } = directedFixtures()[2];
+        const s = checksummedSnapshot(graph);
+        const initial = new Float64Array(s.nodeCount);
+        for (let u = 0; u < s.nodeCount; u++) {
+            initial[u] = u + 1;
+        }
+        for (const options of [{}, { maxIterations: 2 }]) {
+            // legacy: the same options and initialRanks, a Map from each node's id to index + 1
+            expectSameRanks(
+                s,
+                pageRank(s, { ...options, initialRanks: initial, ...LEGACY_RULE }),
+                legacyResult() as PageRankResult,
+            );
+        }
+    });
+
+    it("starts from all zero when every initial rank is 0, as legacy does", () => {
+        const { graph } = directedFixtures()[2];
+        const s = checksummedSnapshot(graph);
+        // legacy: { initialRanks: a Map from every node's id to 0, maxIterations: 1 }
+        expectSameRanks(
+            s,
+            pageRank(s, { initialRanks: new Float64Array(s.nodeCount), maxIterations: 1, ...LEGACY_RULE }),
+            legacyResult() as PageRankResult,
+        );
+    });
+
+    it("refuses initial ranks of the wrong length", () => {
+        const s = checksummedSnapshot(directedFixtures()[0].graph);
+        expect(() => pageRank(s, { initialRanks: new Float64Array(1) })).toThrow(/initialRanks/);
+    });
+});
+
+describe("indexed.personalizedPageRank", () => {
+    const fixtures = [
+        ...directedFixtures(),
+        ...undirectedFixtures().map(({ name, graph }) => ({ name: `both arcs of ${name}`, graph: bothArcs(graph) })),
+    ];
+
+    it("has fixtures to compare on, dangling nodes included", () => {
+        expect(fixtures.length).toBeGreaterThanOrEqual(5);
+        expect(fixtures.some(({ graph }) => hasDanglingNode(graph))).toBe(true);
+    });
+
+    for (const { name, graph } of fixtures) {
+        it(`matches legacy personalizedPageRank on ${name}`, () => {
+            const s = checksummedSnapshot(graph);
+            const chosen = [0, Math.floor(s.nodeCount / 2), s.nodeCount - 1];
+            const personalization = new Float64Array(s.nodeCount);
+            for (const u of chosen) {
+                personalization[u] = 1;
+            }
+            for (const options of [{}, { dampingFactor: 0.5 }, { maxIterations: 4 }]) {
+                expectSameRanks(
+                    s,
+                    personalizedPageRank(s, personalization, { ...options, ...LEGACY_RULE }),
+                    legacyResult() as PageRankResult,
+                );
+            }
+            s.validate({ checksum: true });
+        });
+    }
+
+    it("with a uniform vector equals plain PageRank when no node is dangling", () => {
+        const { graph } = fixtures.find(({ graph: g }) => !hasDanglingNode(g)) ?? fixtures[0];
+        const s = checksummedSnapshot(graph);
+        expect(hasDanglingNode(graph)).toBe(false);
+        const plain = pageRank(s);
+        const uniform = personalizedPageRank(s, new Float64Array(s.nodeCount).fill(3));
+        expect(uniform.iterations).toBe(plain.iterations);
+        for (let u = 0; u < s.nodeCount; u++) {
+            expect(uniform.scores[u]).toBeCloseTo(plain.scores[u], 12);
+        }
+    });
+
+    it("an all-zero vector gives plain PageRank, as legacy does for no personal nodes", () => {
+        const { graph } = directedFixtures()[0];
+        const s = checksummedSnapshot(graph);
+        expectSameRanks(
+            s,
+            personalizedPageRank(s, new Float64Array(s.nodeCount), LEGACY_RULE),
+            legacyResult() as PageRankResult,
+        );
+    });
+
+    it("reads weights that are not f32-exact at full precision, as legacy does", () => {
+        const g = directedFrom([
+            ["a", "b", 0.1],
+            ["a", "c", 2.345678901234567],
+            ["b", "c", 1.3],
+            ["c", "a", 0.7],
+            ["c", "b", 0.2],
+        ]);
+        const s = checksummedSnapshot(g);
+        const port = { weighted: true, tolerance: 1e-10, maxIterations: 500, ...LEGACY_RULE };
+        expectSameRanks(s, pageRank(s, port), legacyResult() as PageRankResult);
+        const p = Float64Array.of(1, 0, 0);
+        expectSameRanks(s, personalizedPageRank(s, p, port), legacyResult() as PageRankResult);
+        // Exact to the last bit on the f64 side: the f32 rounding of 0.1 alone moves a score by
+        // about 1e-9, far above what this comparison allows.
+        const ported = pageRank(s, port).scores;
+        const { ranks } = legacyResult() as PageRankResult;
+        for (let u = 0; u < s.nodeCount; u++) {
+            expect(Math.abs(ported[u] - ranks[String(s.ids.idOf(u))])).toBeLessThan(1e-12);
+        }
+    });
+
+    it("returns an empty result on an empty snapshot, as legacy does", () => {
+        const s = new GraphBuilder({ directed: true }).freeze();
+        for (const r of [pageRank(s), personalizedPageRank(s, new Float64Array(0))]) {
+            expect(r.scores).toHaveLength(0);
+            expect(r.iterations).toBe(0);
+            expect(r.converged).toBe(true);
+        }
+    });
+
+    it("refuses a vector of the wrong length, a negative or a non-finite entry", () => {
+        const s = checksummedSnapshot(directedFixtures()[0].graph);
+        const n = s.nodeCount;
+        expect(() => personalizedPageRank(s, new Float64Array(n - 1).fill(1))).toThrow(/personalization/);
+        for (const bad of [-1, Number.NaN, Infinity]) {
+            const vector = new Float64Array(n).fill(1);
+            vector[1] = bad;
+            expect(() => personalizedPageRank(s, vector)).toThrow(/personalization/);
+        }
     });
 });

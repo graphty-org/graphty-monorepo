@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" version="1.3">
+<graph defaultedgetype="directed">
+<nodes>
+<node id="a"/>
+<node id="b"/>
+</nodes>
+<edges>
+<edge source="a" target="b" kind="likes" weight="1"/>
+<edge source="a" target="b" kind="knows" weight="2"/>
+<edge source="a" target="b" weight="3"/>
+<edge source="a" target="a" kind="self"/>
+</edges>
+</graph>
+</gexf>

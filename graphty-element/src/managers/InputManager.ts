@@ -44,6 +44,16 @@ export interface InputManagerConfig {
      */
     recordInput?: boolean;
     playbackFile?: string;
+
+    /**
+     * Whether Mod+Z undoes and Shift+Mod+Z or Mod+Y redoes, through {@link InputManagerConfig.history}.
+     * On by default. A handled key has its default prevented, so a host binding the same keys
+     * skips events with `defaultPrevented` set.
+     */
+    historyKeys?: boolean;
+
+    /** What the history keys call: the graph's session. */
+    history?: { undo(): unknown; redo(): unknown };
 }
 
 /**
@@ -286,12 +296,27 @@ export class InputManager implements Manager {
                 return;
             }
 
-            // Emit specific shortcut events
-            if (info.ctrlKey && info.key === "z") {
+            // Emit specific shortcut events. Ctrl on Windows and Linux, Cmd on macOS. Shift turns
+            // the key upper case, so compare lower case: Ctrl/Cmd+Shift+Z is redo.
+            if (!info.ctrlKey && !info.metaKey) {
+                return;
+            }
+
+            const key = info.key.toLowerCase();
+            const history = this.config.historyKeys === false ? undefined : this.config.history;
+            if (key === "z" && !info.shiftKey) {
                 this.context.eventManager.emitGraphEvent("input:undo", {});
-            } else if (info.ctrlKey && info.key === "y") {
+                if (history !== undefined) {
+                    info.preventDefault?.();
+                    void history.undo();
+                }
+            } else if (key === "y" || (key === "z" && info.shiftKey)) {
                 this.context.eventManager.emitGraphEvent("input:redo", {});
-            } else if (info.ctrlKey && info.key === "a") {
+                if (history !== undefined) {
+                    info.preventDefault?.();
+                    void history.redo();
+                }
+            } else if (key === "a") {
                 this.context.eventManager.emitGraphEvent("input:select-all", {});
             }
             // Add more shortcuts as needed
@@ -321,11 +346,14 @@ export class InputManager implements Manager {
             return { array: data.map((item) => this.serializeEventData(item)) };
         }
 
-        // Handle objects
+        // Handle objects. A callback (a key's `preventDefault`) is not data and is left out.
         if (data && typeof data === "object") {
             const serialized: Record<string, unknown> = {};
             for (const key in data) {
-                if (Object.prototype.hasOwnProperty.call(data, key)) {
+                if (
+                    Object.prototype.hasOwnProperty.call(data, key) &&
+                    typeof (data as Record<string, unknown>)[key] !== "function"
+                ) {
                     serialized[key] = this.serializeEventData((data as Record<string, unknown>)[key]);
                 }
             }

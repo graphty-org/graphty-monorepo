@@ -59,10 +59,10 @@ describe("PresentPanel", () => {
             expect(screen.queryByText(/about/)).not.toBeInTheDocument();
         });
 
-        it("offers the image options gear", () => {
+        it("offers the image options gear, disabled until something opens its pop-over", () => {
             renderPanel();
 
-            expect(screen.getByRole("button", { name: "Image options" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Image options" })).toBeDisabled();
         });
 
         it("reports the export", () => {
@@ -98,6 +98,31 @@ describe("PresentPanel", () => {
             renderPanel();
 
             expect(screen.getByRole("button", { name: "Data options" })).toBeInTheDocument();
+        });
+
+        /* The app does not call graphty-element's exportGraph yet, so nothing here can act. Drawn
+           enabled, each control took a click and snapped back, because nothing supplied its value. */
+        it("draws every control disabled, because the app has not wired the export yet", async () => {
+            renderPanel({ onExportData: vi.fn(), onCopyNodeIds: vi.fn(), onOpenDataOptions: vi.fn() });
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+
+            expect(await screen.findByRole("button", { name: "Export data" })).toBeDisabled();
+            expect(screen.getByRole("button", { name: "Copy node ids" })).toBeDisabled();
+            expect(screen.getByRole("button", { name: "Data options" })).toBeDisabled();
+            expect(screen.getByRole("checkbox", { name: "Include notes" })).toBeDisabled();
+            expect(screen.getByRole("textbox", { name: "Data format" })).toBeDisabled();
+            expect(screen.getByRole("textbox", { name: "Scope" })).toBeDisabled();
+        });
+
+        /* The format list comes from the element's catalogue, so the field names the first
+           format the element can write. */
+        it("names the first data format the element's catalogue says it can write", async () => {
+            renderPanel();
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Export data" }));
+
+            expect(await screen.findByRole("textbox", { name: "Data format" })).toHaveValue("JSON");
         });
     });
 

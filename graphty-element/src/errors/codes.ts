@@ -132,6 +132,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_RUN"
     /**
+     * A styles call names a layer id the stack does not hold -- usually one removed a moment
+     * earlier, so the caller's layer list is stale. The call itself is well formed, which is why
+     * this is not `E_BAD_COMMAND`. `details.known` lists the ids the stack does hold. The caller
+     * refreshes its layer list.
+     */
+    | "E_UNKNOWN_LAYER"
+    /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
@@ -164,7 +171,8 @@ export type GraphtyErrorCode =
     /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
      * unreadable file. `details` carry the url and the status where there was one, and `cause`
-     * carries the original failure. Usually recoverable by retrying.
+     * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
+     * than 408 and 429), which fails after one request with `recoverable: false`.
      */
     | "E_FETCH_FAILED"
     /**
@@ -186,6 +194,20 @@ export type GraphtyErrorCode =
      * import plan or the data.
      */
     | "E_ID_MISSING"
+    /**
+     * A load read its source to the end and found nothing in it: no node records and no edge
+     * records. It is reported as a failure rather than as a success with zero counts, and a
+     * load asked to `replace` keeps the graph it would have replaced. `details` carry the
+     * format. The caller checks the file, or the format it was read as.
+     */
+    | "E_EMPTY_LOAD"
+    /**
+     * A load was overtaken: a REPLACING load was called after it, or `clearData` ran, so its data
+     * would have replaced or mixed into the newer dataset. It stops without touching the graph.
+     * `details` carry the format. Not a fault in the source; the caller ignores it, or loads
+     * again.
+     */
+    | "E_SUPERSEDED"
     /**
      * The graph exceeds a hard structural limit of an index or of the accelerator, and no scope
      * or sample makes the work runnable. `details` carry the size and the limit. Distinct from
@@ -245,6 +267,19 @@ export type GraphtyErrorCode =
      */
     | "E_SOFTWARE_ONLY"
     /**
+     * An adapter was found, it answered, and its answers are wrong. Before any of the element's
+     * work goes to an accelerator, the accelerator is asked to compute something whose answer is
+     * already known; a device that gets that wrong is refused, and the CPU path runs. The
+     * software renderer that ships with Windows is the device this exists for: it miscomputes
+     * shaders that pass a value across a workgroup barrier, so every prefix sum, sort and grid
+     * layout above one comes back wrong -- with plausible numbers and no error anywhere.
+     *
+     * `details` carry what the accelerator reported about the disagreement. Reported through
+     * `capabilities.acceleration` rather than thrown during ordinary use. Nothing the caller
+     * changes helps; a driver update might.
+     */
+    | "E_DEVICE_INCORRECT"
+    /**
      * The GPU device was lost mid-session -- a driver reset, a tab suspension, or the browser
      * reclaiming the device. `details.reason` carries what the runtime said. The element reports
      * the loss and continues on the CPU path; it never finishes an in-flight accelerated run on
@@ -274,6 +309,29 @@ export type GraphtyErrorCode =
      * was disposed. The caller creates a new session; nothing about the disposed one recovers.
      */
     | "E_DISPOSED"
+    /**
+     * An extension's own code threw: a function in a simple-tier definition (an algorithm's
+     * `node`, a layout's `place`), called by the element. `details.extension` is the extension's
+     * id, `details.member` the function, and `cause` the original error. The extension's author
+     * fixes their code; this is not a defect in graphty-element, which is what `E_INTERNAL` means.
+     */
+    | "E_EXTENSION_FAILED"
+    /**
+     * A command was dispatched through a transaction's `tx` after the transaction's callback had
+     * settled, so the step it belonged to was already recorded. `details.transaction` names the
+     * transaction. The caller dispatches everything the transaction should contain before its
+     * callback returns (awaiting what it needs), or dispatches later work through the session as
+     * its own step.
+     */
+    | "E_TRANSACTION_CLOSED"
+    /**
+     * A command needs a node or edge id (or a whole graph or pin slice) that an open transaction
+     * has written and holds until it is recorded. It fails at once rather than waiting, because
+     * the transaction's callback may itself be waiting on this command. `details.transaction`
+     * names the transaction and `details.key` the held key. The caller dispatches the command
+     * through that transaction's `tx`, or dispatches it again once the transaction has settled.
+     */
+    | "E_HELD_BY_TRANSACTION"
     /**
      * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
@@ -307,6 +365,7 @@ const CODE_TABLE = {
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
+    E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
@@ -316,6 +375,8 @@ const CODE_TABLE = {
     E_PARSE_FAILED: "E_PARSE_FAILED",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",
+    E_EMPTY_LOAD: "E_EMPTY_LOAD",
+    E_SUPERSEDED: "E_SUPERSEDED",
     E_TOO_LARGE: "E_TOO_LARGE",
     E_OUT_OF_MEMORY: "E_OUT_OF_MEMORY",
     E_CAP_EXCEEDED: "E_CAP_EXCEEDED",
@@ -325,11 +386,15 @@ const CODE_TABLE = {
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
+    E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
     E_DISPOSED: "E_DISPOSED",
+    E_EXTENSION_FAILED: "E_EXTENSION_FAILED",
+    E_TRANSACTION_CLOSED: "E_TRANSACTION_CLOSED",
+    E_HELD_BY_TRANSACTION: "E_HELD_BY_TRANSACTION",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 
@@ -351,6 +416,7 @@ export type AccelerationErrorCode =
     | "E_NO_WEBGPU"
     | "E_NO_ADAPTER"
     | "E_SOFTWARE_ONLY"
+    | "E_DEVICE_INCORRECT"
     | "E_DEVICE_LOST"
     | "E_TOO_LARGE";
 
@@ -361,6 +427,7 @@ export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[] = Object
     CODE_TABLE.E_NO_WEBGPU,
     CODE_TABLE.E_NO_ADAPTER,
     CODE_TABLE.E_SOFTWARE_ONLY,
+    CODE_TABLE.E_DEVICE_INCORRECT,
     CODE_TABLE.E_DEVICE_LOST,
     CODE_TABLE.E_TOO_LARGE,
 ]);

@@ -35,4 +35,5 @@ export {
     type RunResult,
     type SummaryEntry,
     type SummaryGroup,
+    type TopRanking,
 } from "./types";

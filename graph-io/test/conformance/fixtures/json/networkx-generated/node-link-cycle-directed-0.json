@@ -1,0 +1,92 @@
+{
+ "directed": true,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 26.874904,
+   "rank": 2147483647,
+   "tag": "😀",
+   "flag": true,
+   "id": 0
+  },
+  {
+   "score": 123456789.125,
+   "rank": 2147483647,
+   "tag": "café",
+   "flag": true,
+   "id": 1
+  },
+  {
+   "score": 0.5,
+   "tag": "tab\there",
+   "flag": true,
+   "id": 2
+  },
+  {
+   "rank": 1,
+   "flag": true,
+   "id": 3
+  },
+  {
+   "score": 55.877075,
+   "tag": "café",
+   "flag": false,
+   "id": 4
+  },
+  {
+   "score": 3.141592653589793,
+   "rank": -7,
+   "tag": " nbsp",
+   "id": 5
+  },
+  {
+   "rank": -7,
+   "tag": "tab\there",
+   "id": 6
+  }
+ ],
+ "links": [
+  {
+   "weight": 1.4161,
+   "rel": "plain",
+   "source": 0,
+   "target": 1
+  },
+  {
+   "weight": 0.3479,
+   "rel": "line\nbreak",
+   "cap": 695,
+   "source": 1,
+   "target": 2
+  },
+  {
+   "weight": 3,
+   "source": 2,
+   "target": 3
+  },
+  {
+   "weight": 10,
+   "cap": 75,
+   "source": 3,
+   "target": 4
+  },
+  {
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "cap": 646,
+   "source": 4,
+   "target": 5
+  },
+  {
+   "weight": 3.73,
+   "rel": "café",
+   "cap": 69,
+   "source": 5,
+   "target": 6
+  },
+  {
+   "source": 6,
+   "target": 0
+  }
+ ]
+}

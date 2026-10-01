@@ -108,7 +108,7 @@ element.layoutConfig = { ndim: 3 };  // 3D layout
 | Node Rendering  | 3D meshes at human scale                             |
 | Edge Rendering  | 3D tubes/lines                                       |
 | Reference Space | `local-floor` (default)                              |
-| Hand Tracking   | Enabled with rigged hand meshes (purple hands)       |
+| Hand Tracking   | Enabled; hands draw as tracked joint spheres         |
 | Use Case        | Immersive graph exploration                          |
 
 ## WebXR Integration

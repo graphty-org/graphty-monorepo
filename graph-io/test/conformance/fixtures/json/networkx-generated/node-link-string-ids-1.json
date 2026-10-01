@@ -1,0 +1,68 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 2.0,
+   "rank": 2147483647,
+   "flag": false,
+   "id": "node 0"
+  },
+  {
+   "score": 19.790978,
+   "rank": -7,
+   "tag": "it's",
+   "flag": false,
+   "id": "node 1"
+  },
+  {
+   "score": 1e-07,
+   "rank": -2147483648,
+   "tag": "café",
+   "id": "node 2"
+  },
+  {
+   "score": 1e-07,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "flag": true,
+   "id": "node 3"
+  },
+  {
+   "score": 46.858552,
+   "rank": -2147483648,
+   "flag": false,
+   "id": "node 4"
+  }
+ ],
+ "links": [
+  {
+   "weight": 6.1396,
+   "rel": "<tag>",
+   "source": "node 0",
+   "target": "node 1"
+  },
+  {
+   "cap": 537,
+   "source": "node 0",
+   "target": "node 4"
+  },
+  {
+   "weight": 5.6611,
+   "cap": 201,
+   "source": "node 1",
+   "target": "node 2"
+  },
+  {
+   "weight": 1e-300,
+   "rel": "line\nbreak",
+   "source": "node 2",
+   "target": "node 3"
+  },
+  {
+   "weight": 0.5,
+   "source": "node 3",
+   "target": "node 4"
+  }
+ ]
+}

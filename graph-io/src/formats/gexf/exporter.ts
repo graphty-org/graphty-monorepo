@@ -172,6 +172,7 @@ interface RoleColumns {
     end: Column | null;
     timestamp: Column | null;
     spells: Column | null;
+    spellsOpen: Column | null;
     timestamps: Column | null;
     open: Column | null;
     position: Column | null;
@@ -289,6 +290,14 @@ function planExport(
                     null,
                 );
             }
+        }
+        if (graphExtraText(snapshot, "timestamp") !== null) {
+            note(
+                GEXF_LOSS.TIMESTAMP_AS_INTERVAL,
+                "the graph timestamp is written as a closed interval (start = end); GEXF 1.2 has no timestamp representation",
+                null,
+                null,
+            );
         }
         if (edgeRoles.kind !== null) {
             note(
@@ -409,6 +418,8 @@ function roleShapeOk(role: string, column: Column, domain: "node" | "edge"): boo
             return domain === "edge" && isNumericScalar(column);
         case "spells":
             return isNumericList(column, 2);
+        case "spellsOpen":
+            return column.dtype === "list" && column.meta.itemDtype === "u8";
         case "timestamps":
             return isNumericList(column, 1);
         case "position":
@@ -434,6 +445,7 @@ const MAPPED_ROLES: ReadonlySet<string> = new Set([
     "end",
     "timestamp",
     "spells",
+    "spellsOpen",
     "timestamps",
     "open",
     "position",
@@ -454,6 +466,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
     end: NODE_COLUMNS.end,
     timestamp: NODE_COLUMNS.timestamp,
     spells: NODE_COLUMNS.spells,
+    spellsOpen: NODE_COLUMNS.spellsOpen,
     timestamps: NODE_COLUMNS.timestamps,
     open: NODE_COLUMNS.open,
     position: NODE_COLUMNS.position,
@@ -487,6 +500,7 @@ function collectRoles(
         end: null,
         timestamp: null,
         spells: null,
+        spellsOpen: null,
         timestamps: null,
         open: null,
         position: null,
@@ -1189,6 +1203,8 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
 
 /**
  * The `<spells>` element of one element: its spells column, plus (1.2) its timestamps as [t, t].
+ * In 1.2 a spell whose spells.open bits mark a bound open writes that bound as `startopen` /
+ * `endopen`; 1.3 has no open bounds, and check() reports the loss.
  * @param roles - the domain's role columns
  * @param row - the element's row
  * @param plan - the plan
@@ -1196,29 +1212,35 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
  * @returns the lines, or an empty string
  */
 function spellsElement(roles: RoleColumns, row: number, plan: ExportPlan, indent: string): string {
-    const pairs: (readonly [number, number])[] = [];
+    const pairs: (readonly [number, number, number])[] = [];
     if (roles.spells !== null && roles.spells.isSet(row)) {
-        for (const pair of listItems(roles.spells, row)) {
+        const open =
+            plan.version === "1.2" && roles.spellsOpen !== null && roles.spellsOpen.isSet(row)
+                ? listItems(roles.spellsOpen, row)
+                : [];
+        listItems(roles.spells, row).forEach((pair, i) => {
             const [s, e] = Array.from(pair as ArrayLike<number>);
-            pairs.push([s, e]);
-        }
+            pairs.push([s, e, (open[i] as number | undefined) ?? 0]);
+        });
     }
     if (plan.version === "1.2" && roles.timestamps !== null && roles.timestamps.isSet(row)) {
         for (const t of listItems(roles.timestamps, row)) {
-            pairs.push([t as number, t as number]);
+            pairs.push([t as number, t as number, 0]);
         }
     }
     if (pairs.length === 0) {
         return "";
     }
     let out = `${indent}<spells>\n`;
-    for (const [s, e] of pairs) {
+    for (const [s, e, open] of pairs) {
         let attrs = "";
         if (Number.isFinite(s)) {
-            attrs += ` start="${escapeXmlAttribute(formatTimeValue(s, plan.timeFormat))}"`;
+            const name = (open & OPEN_START) === 0 ? "start" : "startopen";
+            attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(s, plan.timeFormat))}"`;
         }
         if (Number.isFinite(e)) {
-            attrs += ` end="${escapeXmlAttribute(formatTimeValue(e, plan.timeFormat))}"`;
+            const name = (open & OPEN_END) === 0 ? "end" : "endopen";
+            attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(e, plan.timeFormat))}"`;
         }
         out += `${indent}  <spell${attrs}/>\n`;
     }
@@ -1543,7 +1565,7 @@ function* writeGexf(
     const edgeList = snapshot.edgeList();
     const folding = pairFolding(snapshot, { foldMutual: true });
     const weights = explicitWeights(snapshot);
-    const defaultType: GexfEdgeType = snapshot.directed ? "directed" : "undirected";
+    const defaultType = defaultEdgeType(snapshot);
     let written = 0;
     for (let e = 0; e < snapshot.edgeCount; e++) {
         if (edgeType(snapshot, e, folding) !== null) {
@@ -1618,7 +1640,7 @@ function metaElement(meta: GraphSnapshot["meta"]): string {
  */
 function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
     const { meta } = snapshot;
-    let attrs = ` defaultedgetype="${snapshot.directed ? "directed" : "undirected"}"`;
+    let attrs = ` defaultedgetype="${defaultEdgeType(snapshot)}"`;
     let mode = meta.mode ?? "static";
     if (plan.temporal && mode === "static") {
         mode = "dynamic";
@@ -1647,16 +1669,54 @@ function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
     if (plan.version === "1.3" && plan.timeRepresentation !== null) {
         attrs += ` timerepresentation="${plan.timeRepresentation}"`;
     }
-    const gexfExtra = meta.extra.gexf;
-    if (typeof gexfExtra === "object" && gexfExtra !== null) {
-        for (const key of ["start", "end", "timestamp"]) {
-            const value = (gexfExtra as Record<string, unknown>)[key];
-            if (typeof value === "string") {
-                attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
-            }
+    const timestamp = graphExtraText(snapshot, "timestamp");
+    const header: Record<string, string | null> = {
+        start: graphExtraText(snapshot, "start"),
+        end: graphExtraText(snapshot, "end"),
+        timestamp,
+    };
+    if (plan.version === "1.2" && timestamp !== null) {
+        // GEXF 1.2 has no timestamp: the graph's becomes a closed interval, as an element's does
+        header.start ??= timestamp;
+        header.end ??= timestamp;
+        header.timestamp = null;
+    }
+    for (const [key, value] of Object.entries(header)) {
+        if (value !== null) {
+            attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
         }
     }
     return `  <graph${attrs}>\n`;
+}
+
+/**
+ * The `defaultedgetype` to write: the snapshot's direction, or `mutual` for a directed snapshot
+ * whose source file declared a mutual default (the importer reads that default as directed, with
+ * every untyped edge mutual), so the default survives a round trip.
+ * @param snapshot - the snapshot
+ * @returns the edge type the header declares, and every edge without its own `type` takes
+ */
+function defaultEdgeType(snapshot: GraphSnapshot): GexfEdgeType {
+    if (!snapshot.directed) {
+        return "undirected";
+    }
+    return graphExtraText(snapshot, "defaultedgetype")?.trim().toLowerCase() === "mutual" ? "mutual" : "directed";
+}
+
+/**
+ * A graph header value the GEXF importer recorded in `meta.extra.gexf` (defaultedgetype, start,
+ * end, timestamp).
+ * @param snapshot - the snapshot
+ * @param key - the attribute name
+ * @returns the text, or null when absent
+ */
+function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
+    const gexfExtra = snapshot.meta.extra.gexf;
+    if (typeof gexfExtra !== "object" || gexfExtra === null) {
+        return null;
+    }
+    const value = (gexfExtra as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : null;
 }
 
 /** The GEXF exporter (design section 8.5); `capabilities` describes the default 1.3 output. */

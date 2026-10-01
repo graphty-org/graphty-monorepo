@@ -1,8 +1,16 @@
 import { assert, describe, it } from "vitest";
 
 import { clearRegisteredPalettesForTesting, registerPalette } from "../../../src/catalog/paletteRegistry";
-import { paletteDescriptor } from "../../../src/catalog/palettes";
-import type { Channel, FieldDescriptor, LayerSpec, PaletteDescriptor, Path, RunId, StyleDocument } from "../../../src/catalog/types";
+import type {
+    Channel,
+    FieldDescriptor,
+    LayerSpec,
+    PaletteDescriptor,
+    Path,
+    RunId,
+    StyleDocument,
+} from "../../../src/catalog/types";
+import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import { isGraphtyError } from "../../../src/errors";
 import type { RunRef } from "../../../src/session/results/types";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
@@ -43,6 +51,7 @@ import {
 } from "../../../src/session/styles/index";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
+import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
 
 /** One element's columns, keyed by the path a selector names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -91,7 +100,12 @@ const ELEMENT_BASE: ElementLayerSpec = {
 };
 
 /** One published field, spelled out so a test can say exactly what a run offers. */
-function field(name: string, kind: FieldDescriptor["kind"], type: FieldDescriptor["type"], runId: RunId): FieldDescriptor {
+function field(
+    name: string,
+    kind: FieldDescriptor["kind"],
+    type: FieldDescriptor["type"],
+    runId: RunId,
+): FieldDescriptor {
     return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
 }
 
@@ -319,6 +333,21 @@ async function codeOfRejection(awaitable: PromiseLike<unknown>): Promise<string>
     return "resolved";
 }
 
+/**
+ * What a promise rejects with.
+ * @param awaitable - The promise.
+ * @returns The rejection, or undefined when it resolved.
+ */
+async function rejectionOf(awaitable: PromiseLike<unknown>): Promise<unknown> {
+    try {
+        await awaitable;
+    } catch (error) {
+        return error;
+    }
+
+    return undefined;
+}
+
 /** The code a synchronous read refused with, or what it did instead. */
 function codeOfThrow(read: () => unknown): string {
     try {
@@ -417,12 +446,25 @@ describe("addressing a layer by id", () => {
         assert.strictEqual(renamed.name, "After");
     });
 
-    it("rejects a verb that names a layer the stack does not hold", async () => {
+    it.each<[string, (styles: StylesApi, mine: string) => PromiseLike<unknown>]>([
+        ["remove", (styles) => styles.remove("nothing_1")],
+        ["update", (styles) => styles.update("nothing_1", { name: "x" })],
+        ["move", (styles) => styles.move("nothing_1", null)],
+        ["move before a missing layer", (styles, mine) => styles.move(mine, "nothing_1")],
+        ["add above a missing layer", (styles) => styles.add(layerSpec("Stray"), { above: "nothing_1" })],
+        ["resolveToStatic", (styles) => styles.resolveToStatic("nothing_1", "node.color")],
+    ])("rejects %s naming a layer the stack does not hold as E_UNKNOWN_LAYER", async (_verb, call) => {
         const { styles } = makeStyles();
+        const mine = await styles.add(layerSpec("Mine"));
+        const known = styles.list().map((layer) => layer.id);
+        const error = await rejectionOf(call(styles, mine.id));
 
-        assert.strictEqual(await codeOfRejection(styles.remove("nothing_1")), "E_BAD_COMMAND");
-        assert.strictEqual(await codeOfRejection(styles.update("nothing_1", { name: "x" })), "E_BAD_COMMAND");
-        assert.strictEqual(await codeOfRejection(styles.move("nothing_1", null)), "E_BAD_COMMAND");
+        if (!isGraphtyError(error)) {
+            assert.fail(`expected a GraphtyError, got ${String(error)}`);
+        }
+
+        assert.strictEqual(error.code, "E_UNKNOWN_LAYER");
+        assert.deepStrictEqual(error.details.known, known);
     });
 });
 
@@ -472,8 +514,8 @@ describe("where a layer goes", () => {
     });
 });
 
-describe("the model moves only when the paint has succeeded", () => {
-    it("does not show the layer until the run has resolved", async () => {
+describe("the stack moves at once, and the picture follows it", () => {
+    it("shows the layer as soon as the verb returns, and settles the run once it is painted", async () => {
         const harness = makeStyles();
         let release = (): void => undefined;
         harness.gate = new Promise<void>((resolve) => {
@@ -481,29 +523,35 @@ describe("the model moves only when the paint has succeeded", () => {
         });
 
         const run = harness.styles.add(layerSpec("Pending"));
+        let settled = false;
+        void run.then(() => {
+            settled = true;
+        });
+
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Pending"]);
 
         await flush();
 
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
         assert.strictEqual(harness.requests.length, 1);
+        assert.isFalse(settled, "the run waits for the pass that paints it");
 
         release();
         await run;
 
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Pending"]);
+        assert.isTrue(settled);
     });
 
-    it("leaves the stack exactly as it was when the repaint fails", async () => {
+    it("rejects the run when the repaint fails, and keeps the edit it recorded", async () => {
         const harness = makeStyles();
         harness.failure = new Error("the renderer gave up");
 
         const code = await codeOfRejection(harness.styles.add(layerSpec("Doomed")));
 
         assert.strictEqual(code, "E_INTERNAL");
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Doomed"]);
     });
 
-    it("leaves the stack exactly as it was when the edit is cancelled mid-paint", async () => {
+    it("resolves with the edit applied when it is cancelled after the call", async () => {
         const harness = makeStyles();
         let release = (): void => undefined;
         harness.gate = new Promise<void>((resolve) => {
@@ -514,15 +562,38 @@ describe("the model moves only when the paint has succeeded", () => {
 
         await flush();
         run.cancel("a newer edit replaced this one");
-
-        assert.strictEqual(await codeOfRejection(run), "AbortError");
-
-        // The repaint in this harness ignores its signal, exactly as a careless one would. The
-        // stack must still be untouched: a cancelled edit that committed anyway is the defect.
         release();
+
+        const layer = await run;
+
+        assert.strictEqual(layer.name, "Cancelled");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Cancelled"]);
+    });
+
+    it("writes nothing when its signal is already aborted", async () => {
+        const harness = makeStyles();
+        const controller = new AbortController();
+        controller.abort();
+
+        const code = await codeOfRejection(
+            harness.styles.add(layerSpec("Never"), undefined, { signal: controller.signal }),
+        );
         await flush();
 
+        assert.strictEqual(code, "AbortError");
         assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
+        assert.lengthOf(harness.requests, 0);
+    });
+
+    it("keeps the edit when its signal is aborted after the call", async () => {
+        const harness = makeStyles();
+        const controller = new AbortController();
+
+        const run = harness.styles.add(layerSpec("Kept"), undefined, { signal: controller.signal });
+        controller.abort();
+
+        assert.strictEqual((await run).name, "Kept");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Kept"]);
     });
 
     it("refuses a dry run rather than performing half of one", async () => {
@@ -609,7 +680,9 @@ describe("what the repaint is handed", () => {
     it("reports the paths a new layer reads that nothing answers", async () => {
         const harness = makeStyles();
 
-        await harness.styles.add(layerSpec("Waiting", { selector: { match: "has", path: "results.betweenness.score" } }));
+        await harness.styles.add(
+            layerSpec("Waiting", { selector: { match: "has", path: "results.betweenness.score" } }),
+        );
 
         assert.deepStrictEqual(harness.changes[0]?.unresolvedPaths, ["results.betweenness.score"]);
     });
@@ -800,7 +873,9 @@ describe("checking a layer before it is committed", () => {
 
     it("reports a path nothing answers without calling it an error", () => {
         const { styles } = makeStyles();
-        const result = styles.validate(layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }));
+        const result = styles.validate(
+            layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }),
+        );
 
         assert.isTrue(result.ok);
         assert.deepStrictEqual(result.unresolvedPaths, ["results.pagerank.score"]);
@@ -808,7 +883,9 @@ describe("checking a layer before it is committed", () => {
 
     it("reports no unresolved path when the session cannot say", () => {
         const styles = createStylesApi({ elements: ELEMENTS });
-        const result = styles.validate(layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }));
+        const result = styles.validate(
+            layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }),
+        );
 
         assert.isTrue(result.ok);
         assert.deepStrictEqual(result.unresolvedPaths, []);
@@ -1028,11 +1105,20 @@ describe("highlight(), which is exclusive", () => {
 
     it("paints the element's own highlight colour when the caller names none", async () => {
         const { styles } = makeStyles();
-        const [highlighted] = paletteDescriptor("blue-highlight")?.colors ?? [];
 
         const [nodes] = await styles.highlight({ run: "influencers" });
 
-        assert.strictEqual(nodes?.set?.["node.color"], highlighted);
+        assert.deepStrictEqual(nodes?.set, { "node.color": DEFAULT_HIGHLIGHT.color });
+    });
+
+    it("draws a highlighted edge wider than a default edge, so a route reads as a route", async () => {
+        const { styles } = makeStyles();
+
+        const layers = await styles.highlight({ run: "route" });
+        const edges = layers.find((layer) => layer.target === "edge");
+
+        assert.strictEqual(edges?.set?.["edge.color"], DEFAULT_HIGHLIGHT.color);
+        assert.isAbove(Number(edges?.set?.["edge.width"]), EDGE_CONSTANTS.DEFAULT_LINE_WIDTH);
     });
 
     it("paints only the half the caller's style names a channel for", async () => {
@@ -1103,6 +1189,59 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
     });
 
+    /* Two runs stacked on node colour: each run-made layer is scoped `{match:"has"}` to the
+       elements its run measured, so a cover test that only believed `{match:"everything"}`
+       never reported one run's colours hidden under another's. */
+    describe("a layer above that selects every element this one does", () => {
+        /**
+         * A session whose selector source can enumerate the elements a column holds a value for,
+         * which is what a real session's source does for a run's column.
+         * @returns the harness.
+         */
+        function measuredStyles(): Harness {
+            return makeStyles({
+                elements: {
+                    ...ELEMENTS,
+                    measured: (path: Path) =>
+                        NODES.flatMap((row, index) => (row[path] === undefined || row[path] === null ? [] : [index])),
+                },
+            });
+        }
+
+        it("says the lower block is painted over when the layer above selects all of its elements", async () => {
+            const { styles } = measuredStyles();
+
+            await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+            await styles.add(
+                layerSpec("Route colour", {
+                    selector: { match: "has", path: "results.route.onPath" },
+                    set: { "node.color": "#00ff00" },
+                }),
+            );
+
+            const [lower, upper] = styles.legend();
+
+            assert.include(lower?.departures, 'painted over by "Route colour"');
+            assert.notInclude(upper?.departures ?? [], 'painted over by "By betweenness"');
+        });
+
+        it("says nothing when the layer above selects only some of them", async () => {
+            const { styles } = measuredStyles();
+
+            await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+            await styles.add(
+                layerSpec("Group colour", {
+                    selector: { match: "has", path: "results.louvain.group" },
+                    set: { "node.color": "#00ff00" },
+                }),
+            );
+
+            const [lower] = styles.legend();
+
+            assert.notInclude(lower?.departures ?? [], 'painted over by "Group colour"');
+        });
+    });
+
     it("has nothing to say in a session with nothing prepared to paint from", async () => {
         const styles = createStylesApi({ elements: ELEMENTS, runs: RUN_SOURCE });
         await styles.encode({ run: "betweenness", channel: "node.color" });
@@ -1139,7 +1278,10 @@ describe("the legend, and why one element looks the way it does", () => {
     it("refuses an element this session does not hold", () => {
         const { styles } = makeStyles();
 
-        assert.strictEqual(codeOfThrow(() => styles.explain({ node: "n99" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOfThrow(() => styles.explain({ node: "n99" })),
+            "E_BAD_COMMAND",
+        );
     });
 });
 
@@ -1154,7 +1296,9 @@ describe("resolveToStatic, which makes a rule editable by ending it", () => {
         assert.strictEqual(fixed.id, layer.id);
         assert.isString(fixed.set?.["node.color"]);
         assert.isUndefined(fixed.encode);
-        assert.isTrue(styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color")?.editable);
+        assert.isTrue(
+            styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color")?.editable,
+        );
     });
 
     it("takes a value out of the picture when the caller names no element", async () => {
@@ -1177,10 +1321,7 @@ describe("resolveToStatic, which makes a rule editable by ending it", () => {
         const { styles } = makeStyles();
         const base = styles.list()[0];
 
-        assert.strictEqual(
-            await codeOfRejection(styles.resolveToStatic(base?.id ?? "", "node.color")),
-            "E_PROTECTED",
-        );
+        assert.strictEqual(await codeOfRejection(styles.resolveToStatic(base?.id ?? "", "node.color")), "E_PROTECTED");
     });
 });
 
@@ -1274,7 +1415,10 @@ describe("a style document, out and back in", () => {
         const code = await codeOfRejection(
             styles.applyTemplate({
                 version: 1,
-                layers: [{ name: "Fine", selector: { match: "everything" }, set: { "node.color": "#ffffff" } }, { name: "", selector: { match: "everything" } }],
+                layers: [
+                    { name: "Fine", selector: { match: "everything" }, set: { "node.color": "#ffffff" } },
+                    { name: "", selector: { match: "everything" } },
+                ],
             }),
         );
 
@@ -1388,12 +1532,13 @@ describe("a style document, out and back in", () => {
         assert.strictEqual(await codeOfRejection(styles.applyTemplate(fromDisk)), "E_BAD_COMMAND");
     });
 
-    it("leaves the stack as it was when the paint fails", async () => {
+    it("keeps every layer of the document when the paint fails, and rejects the run", async () => {
         const harness = makeStyles();
         harness.failure = new Error("the renderer gave up");
 
-        await codeOfRejection(harness.styles.applyTemplate(DOCUMENT));
+        const code = await codeOfRejection(harness.styles.applyTemplate(DOCUMENT));
 
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default"]);
+        assert.strictEqual(code, "E_INTERNAL");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", ...DOCUMENT.layers.map((layer) => layer.name)]);
     });
 });

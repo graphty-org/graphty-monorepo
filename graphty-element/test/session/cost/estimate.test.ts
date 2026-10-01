@@ -1,6 +1,7 @@
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../../src/catalog/algorithms";
+import { clearRegisteredAlgorithmsForTesting, publishAlgorithmDescriptor } from "../../../src/catalog/registry";
 import type { AlgorithmDescriptor } from "../../../src/catalog/types";
 import {
     ASSUMED_ITERATION_BOUND,
@@ -102,9 +103,10 @@ describe("estimateCost: the synchronous answer", () => {
     });
 
     it("multiplies the work term by the rate for a linear algorithm", () => {
+        // Degree carries its own model, so the class model is read through k-core.
         const estimate = estimateCost({
-            algorithm: "degree",
-            descriptor: algorithmByKey("degree"),
+            algorithm: "k-core",
+            descriptor: algorithmByKey("k-core"),
             statistics: statistics(),
         });
 
@@ -115,21 +117,34 @@ describe("estimateCost: the synchronous answer", () => {
 
     it("uses the pair term for a heavy algorithm", () => {
         const estimate = estimateCost({
+            algorithm: "girvan-newman",
+            descriptor: algorithmByKey("girvan-newman"),
+            statistics: statistics(),
+        });
+
+        assert.equal(estimate.costClass, "heavy");
+        assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+        assert.include(estimate.basis, "n * m");
+    });
+
+    it("charges betweenness one BFS per source rather than the class' pair term", () => {
+        const estimate = estimateCost({
             algorithm: "betweenness",
             descriptor: algorithmByKey("betweenness"),
             statistics: statistics(),
         });
 
         assert.equal(estimate.costClass, "heavy");
-        assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+        assert.closeTo(estimate.seconds, (1000 * 5000) / (11 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
+        assert.include(estimate.basis, "n(n + m)");
     });
 
-    it("charges closeness one BFS per source rather than betweenness' pair term, and scales with calibration", () => {
+    it("charges closeness one BFS per source rather than the class' pair term, and scales with calibration", () => {
         const input = { algorithm: "closeness", descriptor: algorithmByKey("closeness"), statistics: statistics() };
         const estimate = estimateCost(input);
 
         assert.equal(estimate.costClass, "heavy");
-        assert.closeTo(estimate.seconds, (1000 * 5000) / (3 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
+        assert.closeTo(estimate.seconds, (1000 * 5000) / (24 * DEFAULT_COST_RATES.heavyPairsPerSecond), 1e-12);
         assert.include(estimate.basis, "n(n + m)");
 
         const halfSpeed = Object.fromEntries(
@@ -141,6 +156,19 @@ describe("estimateCost: the synchronous answer", () => {
         });
         assert.closeTo(slow.seconds, 2 * estimate.seconds, 1e-12);
         assert.equal(slow.confidence, "calibrated");
+    });
+
+    it("prices closeness run with its own k option as that share of the exact run", () => {
+        const input = {
+            algorithm: "closeness",
+            descriptor: algorithmByKey("closeness"),
+            statistics: statistics({ nodeCount: 10000, edgeCount: 50000 }),
+        };
+        const exact = estimateCost(input);
+        const sampled = estimateCost({ ...input, params: { k: 100 } });
+        assert.closeTo(sampled.seconds, exact.seconds / 100, 1e-9);
+        assert.include(sampled.basis, "sampled at 100 of 10,000 nodes");
+        assert.equal(estimateCost({ ...input, params: { k: null } }).seconds, exact.seconds);
     });
 
     it("says in words where the number came from", () => {
@@ -170,7 +198,7 @@ describe("estimateCost: the iteration bound comes from the algorithm's own schem
 
         assert.closeTo(
             estimate.seconds,
-            (bound * 5000) / DEFAULT_COST_RATES.iterativeElementsPerSecond,
+            (bound * 5000) / (100 * DEFAULT_COST_RATES.iterativeElementsPerSecond),
             1e-12,
             "the estimate must be the schema's bound times the work, not a copied number",
         );
@@ -291,6 +319,96 @@ describe("estimateCost: the confidence ladder", () => {
         assert.equal(estimate.confidence, "modelled");
         assert.closeTo(estimate.seconds, 5, 1e-12);
         assert.include(estimate.basis, "declared cost model");
+    });
+});
+
+describe("estimateCost: a plugin's cost in work units", () => {
+    afterEach(() => {
+        clearRegisteredAlgorithmsForTesting();
+    });
+
+    /**
+     * Register a plugin descriptor with the cost hooks given.
+     * @param hooks - The registry-side cost hooks
+     * @param costClass - The class the descriptor declares
+     * @returns The descriptor registered
+     */
+    function registerPlugin(
+        hooks: { cost?: (n: number, m: number) => number; costUnits?: (n: number, m: number) => number },
+        costClass: AlgorithmDescriptor["costClass"] = "heavy",
+    ): AlgorithmDescriptor {
+        const d = descriptor({ key: "test", costClass });
+        publishAlgorithmDescriptor({ descriptor: d, namespace: "acme", type: "test", ...hooks });
+        return d;
+    }
+
+    it("is scaled by the calibration's rate and reports calibrated on a probed device", () => {
+        const d = registerPlugin({ costUnits: (n, m) => 3 * n * m });
+        const fast = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+        });
+        const slowRates = { ...DEFAULT_COST_RATES, heavyPairsPerSecond: DEFAULT_COST_RATES.heavyPairsPerSecond / 5 };
+        const slow = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: { rates: slowRates, at: "2026-09-19T00:00:00.000Z", machine: "phone", basis: "probe" },
+        });
+
+        assert.closeTo(fast.seconds, (3 * 1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+        assert.closeTo(slow.seconds, fast.seconds * 5, 1e-12, "a device 5x slower gets an estimate 5x longer");
+        assert.equal(fast.confidence, "calibrated");
+        assert.equal(slow.confidence, "calibrated");
+    });
+
+    it("gives back the measured seconds for a same-size run on this device", () => {
+        const d = registerPlugin({ costUnits: (n, m) => 10 * n * m });
+        const estimate = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+            measurements: logOf(measurement({ algorithm: "test", nodes: 1000, edges: 4000, seconds: 1 })),
+        });
+
+        assert.equal(estimate.confidence, "measured");
+        assert.closeTo(estimate.seconds, 1, 1e-12, "the run and the estimate are measured in the plugin's own units");
+    });
+
+    it("is calibrated for an iterative plugin, since costUnits counts the iterations itself", () => {
+        const d = registerPlugin({ costUnits: (n, m) => 50 * (n + m) }, "iterative");
+        const estimate = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+        });
+
+        assert.equal(estimate.confidence, "calibrated");
+        assert.notInclude(estimate.basis, "no iteration bound is declared");
+    });
+
+    it("wins over a seconds model declared beside it", () => {
+        const d = registerPlugin({ cost: () => 999, costUnits: (n, m) => 3 * n * m });
+        const estimate = estimateCost({ algorithm: "test", descriptor: d, statistics: statistics() });
+
+        assert.closeTo(estimate.seconds, (3 * 1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
+    });
+
+    it("leaves the seconds-returning static cost working, and modelled", () => {
+        const d = registerPlugin({ cost: (n, m) => (n + m) / 1000 });
+        const estimate = estimateCost({
+            algorithm: "test",
+            descriptor: d,
+            statistics: statistics(),
+            calibration: calibration("probe"),
+        });
+
+        assert.closeTo(estimate.seconds, 5, 1e-12);
+        assert.equal(estimate.confidence, "modelled");
     });
 });
 
@@ -527,12 +645,13 @@ describe("estimateCost: the failure it exists to prevent", () => {
 
     it("grows with size rather than flattening, which is what a mis-fit does", () => {
         const sizes = [10000, 20000, 40000, 80000];
-        const seconds = sizes.map((nodeCount) =>
-            estimateCost({
-                algorithm: "betweenness",
-                descriptor: algorithmByKey("betweenness"),
-                statistics: statistics({ nodeCount, edgeCount: nodeCount * 5 }),
-            }).seconds,
+        const seconds = sizes.map(
+            (nodeCount) =>
+                estimateCost({
+                    algorithm: "betweenness",
+                    descriptor: algorithmByKey("betweenness"),
+                    statistics: statistics({ nodeCount, edgeCount: nodeCount * 5 }),
+                }).seconds,
         );
 
         for (let i = 1; i < seconds.length; i++) {

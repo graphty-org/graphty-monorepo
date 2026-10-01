@@ -1,0 +1,6 @@
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<key id="d0" for="node" attr.name="label" attr.type="string"/>
+<graph edgedefault="directed">
+<node id="a"><data key="d0">badchar</data></node>
+</graph>
+</graphml>

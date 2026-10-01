@@ -116,20 +116,18 @@ are doc-tested in CI (section 6.5).
 ### 2.1 From a CDN, no build step
 
 ```html
-<script type="module"
-        src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js"></script>
 
-<graphty-element id="g" sample="karate"
-               layout="force" style="display:block; height:480px"></graphty-element>
+<graphty-element id="g" sample="karate" layout="force" style="display:block; height:480px"></graphty-element>
 
 <script type="module">
-  const g = document.getElementById("g");
-  await g.ready;                                    // engine up, data loaded, first layout done
-  const run = g.run("betweenness");                 // a Run; awaiting it gives the result
-  await run;                                        // pass the RUN to encode, not the result
-  g.encode({ run, channel: "node.color", palette: "viridis", scale: "sqrt" });
-  g.addEventListener("graphty-node-click", (e) => console.log(e.detail.node.id));
-  const png = await g.capture({ format: "png", scale: 2, legend: true });
+    const g = document.getElementById("g");
+    await g.ready; // engine up, data loaded, first layout done
+    const run = g.run("betweenness"); // a Run; awaiting it gives the result
+    await run; // pass the RUN to encode, not the result
+    g.encode({ run, channel: "node.color", palette: "viridis", scale: "sqrt" });
+    g.addEventListener("graphty-node-click", (e) => console.log(e.detail.node.id));
+    const png = await g.capture({ format: "png", scale: 2, legend: true });
 </script>
 ```
 
@@ -155,12 +153,15 @@ requiring the consumer to supply Babylon and Lit.**
 ### 2.2 From npm, with data in memory
 
 ```js
-import "@graphty/graphty-element";                  // defines <graphty-element>
+import "@graphty/graphty-element"; // defines <graphty-element>
 
 const g = document.querySelector("graphty-element");
 g.data = {
-  nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
-  edges: [{ source: "a", target: "b" }, { source: "b", target: "c" }],
+    nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    edges: [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+    ],
 };
 await g.ready;
 const run = g.run("degree");
@@ -194,21 +195,21 @@ has to learn it before their first graph pays for a capability they do not have 
 A stranger learns nouns 1 and 2 to get a graph, 3 through 7 to do analysis, and 8 through 13
 only when they need them.
 
-| # | Noun | What it is | Where it lives |
-|---|---|---|---|
-| 1 | `<graphty-element>` | the custom element: a view with a session of its own | `.` |
-| 2 | `Run` | one execution of one algorithm with one parameter set, addressable by id | `session.runs` |
-| 3 | `Layer` | one declarative styling rule; the stack paints the graph | `session.styles` |
-| 4 | `Scope` | where work happens: visible, selection, a saved set, a predicate | a parameter |
-| 5 | `Selection` | the two selected sets (nodes, edges), shared by every surface | `session.selection` |
-| 6 | `Filter` | the visibility mask; the time window is the same mask | `session.visibility` |
-| 7 | `Command` | the plain-JSON form of any operation; what serialises and replays | `./commands` |
-| 8 | `session` | the headless model: everything about the graph that needs no screen | `./session`, `el.session` |
-| 9 | `session.layout` + `session.positions` | the arrangement and its transport | session |
-| 10 | `view.camera` | where this renderer is looking | view |
-| 11 | `session.capabilities` | what this machine can do, measured, never probed by you | session |
-| 12 | `session.journal` | the record, with inverses, coalescing and replay | session |
-| 13 | `registry` | plugins: algorithms, layouts, formats, scales, palettes, accelerators, commands, mappers, providers | `./extend` |
+| #   | Noun                                   | What it is                                                                                          | Where it lives            |
+| --- | -------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------- |
+| 1   | `<graphty-element>`                    | the custom element: a view with a session of its own                                                | `.`                       |
+| 2   | `Run`                                  | one execution of one algorithm with one parameter set, addressable by id                            | `session.runs`            |
+| 3   | `Layer`                                | one declarative styling rule; the stack paints the graph                                            | `session.styles`          |
+| 4   | `Scope`                                | where work happens: visible, selection, a saved set, a predicate                                    | a parameter               |
+| 5   | `Selection`                            | the two selected sets (nodes, edges), shared by every surface                                       | `session.selection`       |
+| 6   | `Filter`                               | the visibility mask; the time window is the same mask                                               | `session.visibility`      |
+| 7   | `Command`                              | the plain-JSON form of any operation; what serialises and replays                                   | `./commands`              |
+| 8   | `session`                              | the headless model: everything about the graph that needs no screen                                 | `./session`, `el.session` |
+| 9   | `session.layout` + `session.positions` | the arrangement and its transport                                                                   | session                   |
+| 10  | `view.camera`                          | where this renderer is looking                                                                      | view                      |
+| 11  | `session.capabilities`                 | what this machine can do, measured, never probed by you                                             | session                   |
+| 12  | `session.journal`                      | the record, with inverses, coalescing and replay                                                    | session                   |
+| 13  | `registry`                             | plugins: algorithms, layouts, formats, scales, palettes, accelerators, commands, mappers, providers | `./extend`                |
 
 ### 3.2 The shape, in ASCII
 
@@ -271,18 +272,19 @@ Three requirements make it structural rather than stylistic.
    (`graphty-element/src/graphty-element.ts:27-35`). Two views of one dataset is not
    expressible.
 
-   Compare has two modes and the split serves both. **Synchronised** Compare -- the same
-   picture from two camera angles -- is two views assigned the same session. **Divergent**
-   Compare -- the same network with a different time slice, or a different algorithm result, on
-   each side -- is two sessions over one shared immutable data core
-   (`createGraphSession({shareDataWith})`, 4.2), joined by `createComparison` (4.2.4). It is
-   deliberately **not** per-view overrides on one session: a view-owned filter, layer stack or
-   run binding would break the placement rule in section 1.4 and the refusal it drives in
-   section 11, and would make
-   "which picture is this?" unanswerable from the session. Two sessions over one data core
-   costs one extra model and zero extra data copies, and it is why per-side result naming
-   (`[degree.A]` against `[degree.B]` in a formula) falls out for free: each session has its own
-   `results.*` root.
+    Compare has two modes and the split serves both. **Synchronised** Compare -- the same
+    picture from two camera angles -- is two views assigned the same session. **Divergent**
+    Compare -- the same network with a different time slice, or a different algorithm result, on
+    each side -- is two sessions over one shared immutable data core
+    (`createGraphSession({shareDataWith})`, 4.2), joined by `createComparison` (4.2.4). It is
+    deliberately **not** per-view overrides on one session: a view-owned filter, layer stack or
+    run binding would break the placement rule in section 1.4 and the refusal it drives in
+    section 11, and would make
+    "which picture is this?" unanswerable from the session. Two sessions over one data core
+    costs one extra model and zero extra data copies, and it is why per-side result naming
+    (`[degree.A]` against `[degree.B]` in a formula) falls out for free: each session has its own
+    `results.*` root.
+
 2. **Several named graphs open at once.** That is not in 2.0, but it is the next thing asked
    for. If graph identity is "the element", a collection of named graphs is a rewrite. If graph
    identity is "a session", it is `Map<string, GraphSession>` and nothing in this API changes.
@@ -349,14 +351,34 @@ type LayerId = string;
 type NoteId = string;
 type ScopeId = string;
 type JournalId = string;
-type Path = string;            // a JMESPath expression over the result root (section 4.15.1)
-type Query = string;           // a JMESPath predicate; the same dialect everywhere
+type Path = string; // a JMESPath expression over the result root (section 4.15.1)
+type Query = string; // a JMESPath predicate; the same dialect everywhere
 
-type KnownAlgorithm = "degree" | "betweenness" | "closeness" | "pagerank" | "eigenvector"
-                    | "katz" | "hits" | "louvain" | "leiden" | "label-propagation"
-                    | "components" | "shortest-path" | "all-paths" | "max-flow" | "min-cut"
-                    | "k-core" | "clustering-coefficient" | "girvan-newman" | "bfs" | "dfs"
-                    | "kruskal" | "prim" | "bipartite-matching" | "link-prediction";
+type KnownAlgorithm =
+    | "degree"
+    | "betweenness"
+    | "closeness"
+    | "pagerank"
+    | "eigenvector"
+    | "katz"
+    | "hits"
+    | "louvain"
+    | "leiden"
+    | "label-propagation"
+    | "components"
+    | "shortest-path"
+    | "all-paths"
+    | "max-flow"
+    | "min-cut"
+    | "k-core"
+    | "clustering-coefficient"
+    | "girvan-newman"
+    | "bfs"
+    | "dfs"
+    | "kruskal"
+    | "prim"
+    | "bipartite-matching"
+    | "link-prediction";
 // KnownAlgorithm is generated from the built-in catalogue at build time; the list above is
 // the 2.0 built-in set. A plugin name type-checks through the (string & {}) arm below.
 // Four members are NOT registered in 1.10.0 and are implementation work for 2.0, not API
@@ -365,12 +387,23 @@ type KnownAlgorithm = "degree" | "betweenness" | "closeness" | "pagerank" | "eig
 // because the catalogue is generated from what actually ships: if one slips it leaves the
 // union, and catalog.algorithms() stays honest either way.
 type AlgorithmKey = KnownAlgorithm | (string & {});
-type LayoutId = "force" | "force-2d" | "circular" | "radial" | "hierarchical" | "grid"
-              | "shell" | "spectral" | "bipartite" | "layers" | "fixed" | "random"
-              | "planar" | "spiral"
-              | (string & {});
-type FormatId = "json" | "csv" | "graphml" | "gexf" | "gml" | "dot" | "pajek" | "sif" | "cx2"
-              | (string & {});
+type LayoutId =
+    | "force"
+    | "force-2d"
+    | "circular"
+    | "radial"
+    | "hierarchical"
+    | "grid"
+    | "shell"
+    | "spectral"
+    | "bipartite"
+    | "layers"
+    | "fixed"
+    | "random"
+    | "planar"
+    | "spiral"
+    | (string & {});
+type FormatId = "json" | "csv" | "graphml" | "gexf" | "gml" | "dot" | "pajek" | "sif" | "cx2" | (string & {});
 type PaletteId = "viridis" | "plasma" | "okabe-ito" | "blue-orange" | (string & {});
 ```
 
@@ -384,16 +417,16 @@ two.** Eighteen of the twenty-three are unchanged. The 1.10.0 registry keys (`gr
 class's `static type`) do not survive unchanged, and a rename with no table is the same
 silent break as a removal:
 
-| 1.10.0 key | 2.0 key | Note |
-|---|---|---|
-| `degree`, `betweenness`, `closeness`, `pagerank`, `eigenvector`, `katz`, `hits` | unchanged | the keys; the result **field names** change for all of them under the uniform per-shape rule (4.4.3) |
-| `louvain`, `leiden`, `label-propagation`, `girvan-newman` | unchanged | |
-| `bfs`, `dfs`, `kruskal`, `prim`, `bipartite-matching`, `max-flow`, `min-cut` | unchanged | |
-| `dijkstra` (`DijkstraAlgorithm.ts:57`) | `shortest-path` | the engine is a parameter: `{ method: "dijkstra" \| "bellman-ford" \| "floyd-warshall" }`, defaulting by weight sign, exactly as layout names became semantic |
-| `bellman-ford` (`BellmanFordAlgorithm.ts:46`) | `shortest-path` with `{ method: "bellman-ford" }` | negative weights |
-| `floyd-warshall` (`FloydWarshallAlgorithm.ts:13`) | `shortest-path` with `{ method: "floyd-warshall", allPairs: true }` | cost class `cubic`; the all-pairs result is a `fact` |
-| `connected-components` (`ConnectedComponentsAlgorithm.ts:12`) | `components` | |
-| `scc` (`StronglyConnectedComponentsAlgorithm.ts:12`) | `components` with `{ strength: "strong" }` | `"weak"` is the default and is today's `connected-components` |
+| 1.10.0 key                                                                      | 2.0 key                                                             | Note                                                                                                                                                          |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `degree`, `betweenness`, `closeness`, `pagerank`, `eigenvector`, `katz`, `hits` | unchanged                                                           | the keys; the result **field names** change for all of them under the uniform per-shape rule (4.4.3)                                                          |
+| `louvain`, `leiden`, `label-propagation`, `girvan-newman`                       | unchanged                                                           |                                                                                                                                                               |
+| `bfs`, `dfs`, `kruskal`, `prim`, `bipartite-matching`, `max-flow`, `min-cut`    | unchanged                                                           |                                                                                                                                                               |
+| `dijkstra` (`DijkstraAlgorithm.ts:57`)                                          | `shortest-path`                                                     | the engine is a parameter: `{ method: "dijkstra" \| "bellman-ford" \| "floyd-warshall" }`, defaulting by weight sign, exactly as layout names became semantic |
+| `bellman-ford` (`BellmanFordAlgorithm.ts:46`)                                   | `shortest-path` with `{ method: "bellman-ford" }`                   | negative weights                                                                                                                                              |
+| `floyd-warshall` (`FloydWarshallAlgorithm.ts:13`)                               | `shortest-path` with `{ method: "floyd-warshall", allPairs: true }` | cost class `cubic`; the all-pairs result is a `fact`                                                                                                          |
+| `connected-components` (`ConnectedComponentsAlgorithm.ts:12`)                   | `components`                                                        |                                                                                                                                                               |
+| `scc` (`StronglyConnectedComponentsAlgorithm.ts:12`)                            | `components` with `{ strength: "strong" }`                          | `"weak"` is the default and is today's `connected-components`                                                                                                 |
 
 Nothing loses a capability; three keys become a parameter on two keys, and the parameter is
 reported back in the result's `caveats.method`. The migration document carries the same table.
@@ -412,63 +445,70 @@ a consumer can see. Under semantic names it is a catalog edit and a minor versio
 
 ```ts
 interface GraphtyGraphElement extends HTMLElement {
-  // --- the model ---
-  session: GraphSession;                      // assignable; defaults to one of its own (see below)
-  readonly ready: Promise<void>;              // resolves once, after first paint
+    // --- the model ---
+    session: GraphSession; // assignable; defaults to one of its own (see below)
+    readonly ready: Promise<void>; // resolves once, after first paint
 
-  // --- view state: the things two views disagree about ---
-  readonly camera: CameraApi;
-  viewMode: "2d" | "3d" | "vr" | "ar";
-  readonly hover: { node: NodeId | null; edge: EdgeId | null };
-  setHover(target: { node: NodeId } | { edge: EdgeId } | null): void;   // programmatic hover
-  readonly rendered: {
-    nodes: number; edges: number;
-    performanceMode: { active: boolean; reasons: readonly string[];
-                       mode: "auto" | "on" | "off" };   // set via config.performanceMode
-  };
-  interactive: boolean;
-  hoverMode: "off" | "nodes" | "neighbors";
+    // --- view state: the things two views disagree about ---
+    readonly camera: CameraApi;
+    viewMode: "2d" | "3d" | "vr" | "ar";
+    readonly hover: { node: NodeId | null; edge: EdgeId | null };
+    setHover(target: { node: NodeId } | { edge: EdgeId } | null): void; // programmatic hover
+    readonly rendered: {
+        nodes: number;
+        edges: number;
+        performanceMode: { active: boolean; reasons: readonly string[]; mode: "auto" | "on" | "off" }; // set via config.performanceMode
+    };
+    interactive: boolean;
+    hoverMode: "off" | "nodes" | "neighbors";
 
-  // --- view verbs ---
-  capture(options?: CaptureOptions): Promise<CaptureResult>;
-  recordVideo(options: VideoOptions): Run<VideoResult>;
-  report(options: ReportOptions): Run<Blob>;                       // section 4.9
-  evidenceBundle(options?: EvidenceBundleOptions): Run<Blob>;      // section 4.9
-  worldToScreen(p: Position): { x: number; y: number };
-  screenToWorld(p: { x: number; y: number }): Position | null;
-  dispose(): void;
+    // --- view verbs ---
+    capture(options?: CaptureOptions): Promise<CaptureResult>;
+    recordVideo(options: VideoOptions): Run<VideoResult>;
+    report(options: ReportOptions): Run<Blob>; // section 4.9
+    evidenceBundle(options?: EvidenceBundleOptions): Run<Blob>; // section 4.9
+    worldToScreen(p: Position): { x: number; y: number };
+    screenToWorld(p: { x: number; y: number }): Position | null;
+    dispose(): void;
 
-  // --- convenience forwarders, so the first graph needs no session ---
-  run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
-  run<C extends Command>(command: C, options?: RunOptions): Run<ResultOf<C>>;
-  encode(spec: EncodingSpec): Run<Layer>;     // awaiting it gives the Layer
-  select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta>;
-  load(source: Source, plan?: ImportPlan, options?: ImportOptions): Promise<ImportReport>;
-  get(id: NodeId | EdgeId): ElementView | undefined;
-  on<K extends keyof GraphtyEventMap>(type: K, handler: (e: GraphtyEventMap[K]) => void,
-     options?: ListenOptions): () => void;
-  data: GraphData;                            // setter REPLACES; getter returns records
+    // --- convenience forwarders, so the first graph needs no session ---
+    run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
+    run<C extends Command>(command: C, options?: RunOptions): Run<ResultOf<C>>;
+    encode(spec: EncodingSpec): Run<Layer>; // awaiting it gives the Layer
+    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta>;
+    load(source: Source, plan?: ImportPlan, options?: ImportOptions): Promise<ImportReport>;
+    get(id: NodeId | EdgeId): ElementView | undefined;
+    on<K extends keyof GraphtyEventMap>(
+        type: K,
+        handler: (e: GraphtyEventMap[K]) => void,
+        options?: ListenOptions,
+    ): () => void;
+    data: GraphData; // setter REPLACES; getter returns records
 
-  // --- the one unsupported door ---
-  readonly unstable_internals: unknown;       // the Babylon Scene and the managers behind it.
-                                              // Not semver-protected, will change without a
-                                              // major. If you need it, file an issue: that is
-                                              // a missing API.
+    // --- the one unsupported door ---
+    readonly unstable_internals: unknown; // the Babylon Scene and the managers behind it.
+    // Not semver-protected, will change without a
+    // major. If you need it, file an issue: that is
+    // a missing API.
 }
 
 interface ElementView {
-  readonly id: NodeId | EdgeId;
-  readonly kind: "node" | "edge";
-  readonly data: Readonly<Record<string, unknown>>;
-  readonly results: Readonly<Record<RunId, Readonly<Record<string, unknown>>>>;
-  readonly position: Position | null;
-  readonly screenPosition: { x: number; y: number } | null;
-  readonly visible: boolean;
-  readonly selected: boolean;
-  readonly style: ResolvedStyle;
+    readonly id: NodeId | EdgeId;
+    readonly kind: "node" | "edge";
+    readonly data: Readonly<Record<string, unknown>>;
+    readonly results: Readonly<Record<RunId, Readonly<Record<string, unknown>>>>;
+    readonly position: Position | null;
+    readonly screenPosition: { x: number; y: number } | null;
+    readonly visible: boolean;
+    readonly selected: boolean;
+    readonly style: ResolvedStyle;
 }
 
-interface Position { x: number; y: number; z: number }
+interface Position {
+    x: number;
+    y: number;
+    z: number;
+}
 ```
 
 The element forwards eight things -- `ready`, `run`, `encode`, `select`, `load`, `get`, `on`
@@ -521,19 +561,19 @@ is a surprise a third-party host cannot anticipate and cannot diagnose. It becom
 
 #### 4.1.1 Attributes: eleven, strings and booleans only
 
-| attribute | type | default | reflects | notes |
-|---|---|---|---|---|
-| `src` | URL | -- | yes | loads on set; format sniffed unless `format` is given |
-| `sample` | SampleDatasetId | -- | yes | a built-in dataset; the first graph needs no file. Names from `catalog`/`data.samples()` |
-| `format` | FormatId | auto | yes | names from `catalog.formats` |
-| `layout` | LayoutId | `force` | yes | names from `catalog.layouts` |
-| `view-mode` | `2d`/`3d`/`vr`/`ar` | `3d` | yes | replaces `view-mode` **and** `layout-2d` |
-| `theme` | theme name | `default` | yes | names from `catalog.themes` |
-| `filter` | `Query` | -- | yes | the visibility mask, as a predicate |
-| `acceleration` | `auto`/`off`/`required` | `auto` | yes | `required` turns absence into `E_NO_ACCELERATOR` |
-| `interactive` | boolean | present | yes | pointer input on or off |
-| `hover` | `off`/`nodes`/`neighbors` | `nodes` | yes | hover costs; it is opt-out |
-| `url-params` | space-separated flag list | -- | yes | opt in to reading the host page's query string. Absent means the element never reads `window.location` |
+| attribute      | type                      | default   | reflects | notes                                                                                                  |
+| -------------- | ------------------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `src`          | URL                       | --        | yes      | loads on set; format sniffed unless `format` is given                                                  |
+| `sample`       | SampleDatasetId           | --        | yes      | a built-in dataset; the first graph needs no file. Names from `catalog`/`data.samples()`               |
+| `format`       | FormatId                  | auto      | yes      | names from `catalog.formats`                                                                           |
+| `layout`       | LayoutId                  | `force`   | yes      | names from `catalog.layouts`                                                                           |
+| `view-mode`    | `2d`/`3d`/`vr`/`ar`       | `3d`      | yes      | replaces `view-mode` **and** `layout-2d`                                                               |
+| `theme`        | theme name                | `default` | yes      | names from `catalog.themes`                                                                            |
+| `filter`       | `Query`                   | --        | yes      | the visibility mask, as a predicate                                                                    |
+| `acceleration` | `auto`/`off`/`required`   | `auto`    | yes      | `required` turns absence into `E_NO_ACCELERATOR`                                                       |
+| `interactive`  | boolean                   | present   | yes      | pointer input on or off                                                                                |
+| `hover`        | `off`/`nodes`/`neighbors` | `nodes`   | yes      | hover costs; it is opt-out                                                                             |
+| `url-params`   | space-separated flag list | --        | yes      | opt in to reading the host page's query string. Absent means the element never reads `window.location` |
 
 Eleven, and every one of them is a string or a boolean. `src` and `sample` are mutually
 exclusive; setting both is `E_BAD_COMMAND` naming the pair.
@@ -580,22 +620,24 @@ into a ten-second fix.
 #### 4.1.3 Worked example: a status bar with no session
 
 ```html
-<graphty-element id="g" src="/data/network.graphml" layout="force"
-               style="display:block;height:70vh"></graphty-element>
+<graphty-element id="g" src="/data/network.graphml" layout="force" style="display:block;height:70vh"></graphty-element>
 <p id="bar"></p>
 <script type="module">
-  import "@graphty/graphty-element";
-  const g = document.getElementById("g");
-  const bar = document.getElementById("bar");
-  g.on("graphty-load-change", (e) => { bar.textContent = e.detail.summary; });
-  g.on("graphty-run-change", (e) => {
-    const r = e.detail.run;
-    bar.textContent = r.progress.fraction === null
-      ? `${r.label}: working`
-      : `${r.label}: ${Math.round(r.progress.fraction * 100)}%`;
-  });
-  await g.ready;
-  await g.run("components");
+    import "@graphty/graphty-element";
+    const g = document.getElementById("g");
+    const bar = document.getElementById("bar");
+    g.on("graphty-load-change", (e) => {
+        bar.textContent = e.detail.summary;
+    });
+    g.on("graphty-run-change", (e) => {
+        const r = e.detail.run;
+        bar.textContent =
+            r.progress.fraction === null
+                ? `${r.label}: working`
+                : `${r.label}: ${Math.round(r.progress.fraction * 100)}%`;
+    });
+    await g.ready;
+    await g.run("components");
 </script>
 ```
 
@@ -607,40 +649,39 @@ into a ten-second fix.
 import { createGraphSession } from "@graphty/graphty-element/session";
 
 interface GraphSession {
-  readonly data: DataApi;
-  readonly runs: RunsApi;
-  readonly results: ResultsApi;                  // run-result addressing (4.4.2)
-  readonly scope: ScopeApi;
-  readonly selection: SelectionApi;
-  readonly visibility: VisibilityApi;
-  readonly styles: StylesApi;
-  readonly layout: LayoutApi;
-  readonly positions: PositionsApi;
-  readonly notes: NotesApi;                      // notes, and the AnnotationSet document (4.15.3)
-  readonly catalog: CatalogApi;
-  readonly capabilities: Capabilities;
-  readonly config: ConfigDocument;
-  readonly journal: JournalApi;
-  readonly status: Status;                       // O(1) facts, always current
+    readonly data: DataApi;
+    readonly runs: RunsApi;
+    readonly results: ResultsApi; // run-result addressing (4.4.2)
+    readonly scope: ScopeApi;
+    readonly selection: SelectionApi;
+    readonly visibility: VisibilityApi;
+    readonly styles: StylesApi;
+    readonly layout: LayoutApi;
+    readonly positions: PositionsApi;
+    readonly notes: NotesApi; // notes, and the AnnotationSet document (4.15.3)
+    readonly catalog: CatalogApi;
+    readonly capabilities: Capabilities;
+    readonly config: ConfigDocument;
+    readonly journal: JournalApi;
+    readonly status: Status; // O(1) facts, always current
 
-  snapshot(): GraphSnapshot;                     // the typed-array form; `./format` reads it
-  run<C extends Command>(command: C, options?: RunOptions): Run<ResultOf<C>>;
-  plan<C extends Command>(command: C): Promise<Plan>;     // dryRun, exact where it can be
-  estimate<C extends Command>(command: C): CostEstimate;  // SYNCHRONOUS; gates a button
-  on<K extends keyof SessionEventMap>(event: K,
-     handler: (detail: SessionEventMap[K]) => void): () => void;
-  acceleration: "auto" | "off" | "required";
-  setAccelerator(acc: GraphAccelerator | null): void;
-  calibrate(options?: RunOptions): Run<Limits>;
-  fingerprint(): string;
-  dispose(): void;
+    snapshot(): GraphSnapshot; // the typed-array form; `./format` reads it
+    run<C extends Command>(command: C, options?: RunOptions): Run<ResultOf<C>>;
+    plan<C extends Command>(command: C): Promise<Plan>; // dryRun, exact where it can be
+    estimate<C extends Command>(command: C): CostEstimate; // SYNCHRONOUS; gates a button
+    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
+    acceleration: "auto" | "off" | "required";
+    setAccelerator(acc: GraphAccelerator | null): void;
+    calibrate(options?: RunOptions): Run<Limits>;
+    fingerprint(): string;
+    dispose(): void;
 }
 
 function createGraphSession(options?: {
-  registry?: Registry;
-  config?: Partial<ConfigValues>;
-  host?: "main" | "worker";
-  shareDataWith?: GraphSession;   // one immutable data core, two independent models (3.3)
+    registry?: Registry;
+    config?: Partial<ConfigValues>;
+    host?: "main" | "worker";
+    shareDataWith?: GraphSession; // one immutable data core, two independent models (3.3)
 }): GraphSession;
 ```
 
@@ -680,34 +721,39 @@ in a headset.
 
 ```ts
 interface Plan {
-  readonly ok: boolean;
-  readonly blocked?: { code: GraphtyErrorCode; reason: string };
-  readonly cost: CostEstimate;
-  readonly effect: PlanEffect;         // the command's own preview shape
-  readonly caveats: Caveats;
+    readonly ok: boolean;
+    readonly blocked?: { code: GraphtyErrorCode; reason: string };
+    readonly cost: CostEstimate;
+    readonly effect: PlanEffect; // the command's own preview shape
+    readonly caveats: Caveats;
 }
 
 interface CostEstimate {
-  readonly seconds: number;
-  readonly confidence: "measured" | "calibrated" | "modelled" | "unknown";
-  readonly costClass: "instant" | "iterative" | "heavy" | "cubic" | "unbounded";
-  readonly blocksFrame: boolean;
-  readonly cancellable: boolean;
-  readonly available: boolean;
-  readonly reason?: string;            // why not available on this graph
-  readonly basis: string;              // "n=34,m=78, calibrated 2026-09-19 on this device"
+    readonly seconds: number;
+    readonly confidence: "measured" | "calibrated" | "modelled" | "unknown";
+    readonly costClass: "instant" | "iterative" | "heavy" | "cubic" | "unbounded";
+    readonly blocksFrame: boolean;
+    readonly cancellable: boolean;
+    readonly available: boolean;
+    readonly reason?: string; // why not available on this graph
+    readonly basis: string; // "n=34,m=78, calibrated 2026-09-19 on this device"
 }
 
 type PlanEffect =
-  | { kind: "match"; nodes: number; edges: number; exact: boolean; sampled?: number }
-  | { kind: "mutate"; nodesAdded: number; nodesRemoved: number; edgesAdded: number;
-      edgesRemoved: number; attributesChanged: number; byType?: Record<string, number> }
-  | { kind: "write"; fields: readonly FieldDescriptor[] }
-  | { kind: "bytes"; bytes: number; elements: number; exact: boolean;
-      loss: readonly LossNote[] }
-  | { kind: "image"; width: number; height: number; nodesInFrame: number;
-      legendChannels: number; bytes: number }
-  | { kind: "none" };
+    | { kind: "match"; nodes: number; edges: number; exact: boolean; sampled?: number }
+    | {
+          kind: "mutate";
+          nodesAdded: number;
+          nodesRemoved: number;
+          edgesAdded: number;
+          edgesRemoved: number;
+          attributesChanged: number;
+          byType?: Record<string, number>;
+      }
+    | { kind: "write"; fields: readonly FieldDescriptor[] }
+    | { kind: "bytes"; bytes: number; elements: number; exact: boolean; loss: readonly LossNote[] }
+    | { kind: "image"; width: number; height: number; nodesInFrame: number; legendChannels: number; bytes: number }
+    | { kind: "none" };
 ```
 
 `estimate()` is **synchronous** and returns only the cost half, because a UI has to decide how
@@ -729,16 +775,25 @@ better estimate than the element can.
 
 ```ts
 interface Status {
-  readonly phase: "idle" | "loading" | "laying-out" | "running";
-  readonly ready: boolean;
-  readonly counts: { nodes: number; edges: number; visibleNodes: number; visibleEdges: number };
-  readonly loading: { active: boolean; fraction: number | null; loadedNodes: number;
-                      partial: boolean; runnableCostClasses: readonly CostClass[] };
-  readonly graph: GraphStatistics;
-  readonly layout: { id: LayoutId; kind: "live" | "batch";
-                     state: "idle" | "running" | "settled" | "stopped"; step: number };
-  readonly dataset: { fingerprint: string; source?: string; loadedAt?: string };
-  readonly runs: { running: number; queued: number; stale: number };
+    readonly phase: "idle" | "loading" | "laying-out" | "running";
+    readonly ready: boolean;
+    readonly counts: { nodes: number; edges: number; visibleNodes: number; visibleEdges: number };
+    readonly loading: {
+        active: boolean;
+        fraction: number | null;
+        loadedNodes: number;
+        partial: boolean;
+        runnableCostClasses: readonly CostClass[];
+    };
+    readonly graph: GraphStatistics;
+    readonly layout: {
+        id: LayoutId;
+        kind: "live" | "batch";
+        state: "idle" | "running" | "settled" | "stopped";
+        step: number;
+    };
+    readonly dataset: { fingerprint: string; source?: string; loadedAt?: string };
+    readonly runs: { running: number; queued: number; stale: number };
 }
 ```
 
@@ -818,18 +873,19 @@ import { createGraphSession, createComparison } from "@graphty/graphty-element/s
 
 const a = createGraphSession();
 await a.data.import({ url: "network.json" });
-const b = createGraphSession({ shareDataWith: a });   // shares the data core, nothing else
+const b = createGraphSession({ shareDataWith: a }); // shares the data core, nothing else
 
-viewA.session = a;  viewB.session = b;
+viewA.session = a;
+viewB.session = b;
 viewB.camera.linkTo(viewA.camera, { pan: true, zoom: true });
 
 await a.runs.start("louvain", { resolution: 1.0 }, { as: "groups" });
-await b.runs.start("louvain", { resolution: 2.5 }, { as: "groups" });  // same id, other side
+await b.runs.start("louvain", { resolution: 2.5 }, { as: "groups" }); // same id, other side
 await b.visibility.setWindow({ attribute: "data.ts", from: "2026-01", to: "2026-06" });
 
 const cmp = createComparison({ a, b, match: { on: "id" } });
-cmp.onlyIn("a");                       // ids the other side does not show
-await cmp.delta("degree");             // the difference as a computed attribute on both
+cmp.onlyIn("a"); // ids the other side does not show
+await cmp.delta("degree"); // the difference as a computed attribute on both
 
 // Swap views is an assignment, because nothing about the picture lives on the view:
 [viewA.session, viewB.session] = [viewB.session, viewA.session];
@@ -854,10 +910,10 @@ instead of sharing a core:
 ```js
 import { createComparison } from "@graphty/graphty-element/session";
 const cmp = createComparison({ a: sessionA, b: sessionB, match: { on: "id" } });
-cmp.copyPositions("a", "b");     // matched nodes take A's positions
-cmp.settleUnmatched("b");        // a short force pass pinned to matched neighbours
-await cmp.delta("degree");       // writes the difference as a computed attribute on both
-cmp.onlyIn("a");                 // ids present on one side only
+cmp.copyPositions("a", "b"); // matched nodes take A's positions
+cmp.settleUnmatched("b"); // a short force pass pinned to matched neighbours
+await cmp.delta("degree"); // writes the difference as a computed attribute on both
+cmp.onlyIn("a"); // ids present on one side only
 ```
 
 Result namespacing falls out free in **both** cases: each session has its own `results.*` root,
@@ -875,9 +931,20 @@ is no longer bound is **disabled with its reason**, never silently repainted.
 #### 4.3.1 The record shapes, fixed and documented
 
 ```ts
-interface NodeRecord { id: NodeId; [attribute: string]: unknown }
-interface EdgeRecord { id?: EdgeId; source: NodeId; target: NodeId; [attribute: string]: unknown }
-interface GraphData { nodes: readonly NodeRecord[]; edges: readonly EdgeRecord[] }
+interface NodeRecord {
+    id: NodeId;
+    [attribute: string]: unknown;
+}
+interface EdgeRecord {
+    id?: EdgeId;
+    source: NodeId;
+    target: NodeId;
+    [attribute: string]: unknown;
+}
+interface GraphData {
+    nodes: readonly NodeRecord[];
+    edges: readonly EdgeRecord[];
+}
 ```
 
 `source`/`target` are canonical. **Breaking: `Edge.id` becomes an element-assigned counter
@@ -891,77 +958,100 @@ exactly the second major version this design exists to avoid.
 #### 4.3.2 Two-phase load
 
 ```ts
-type Source = string | URL | File | Blob | ReadableStream<Uint8Array> | GraphData
-            | { url: string; headers?: Record<string, string> };
+type Source =
+    | string
+    | URL
+    | File
+    | Blob
+    | ReadableStream<Uint8Array>
+    | GraphData
+    | { url: string; headers?: Record<string, string> };
 
 interface DataApi {
-  inspect(source: Source, o?: { format?: FormatId; signal?: AbortSignal }): Promise<Inspection>;
-  import(source: Source, plan?: ImportPlan, o?: ImportOptions): Promise<ImportReport>;
-  sample(name: SampleDatasetId): Promise<ImportReport>;
-  samples(): readonly SampleDatasetDescriptor[];
+    inspect(source: Source, o?: { format?: FormatId; signal?: AbortSignal }): Promise<Inspection>;
+    import(source: Source, plan?: ImportPlan, o?: ImportOptions): Promise<ImportReport>;
+    sample(name: SampleDatasetId): Promise<ImportReport>;
+    samples(): readonly SampleDatasetDescriptor[];
 }
 
 interface ImportOptions extends RunOptions {
-  mode?: "replace" | "merge";
-  encoding?: string;                  // override the detected text encoding
-  subset?: { fraction?: number; nodes?: number; seed?: number };  // load a random subset
-  resume?: { from: number };          // byte offset; a ranged request where the server allows
-  memoryBudgetBytes?: number;         // defaults to config/Limits.memoryBudgetBytes
+    mode?: "replace" | "merge";
+    encoding?: string; // override the detected text encoding
+    subset?: { fraction?: number; nodes?: number; seed?: number }; // load a random subset
+    resume?: { from: number }; // byte offset; a ranged request where the server allows
+    memoryBudgetBytes?: number; // defaults to config/Limits.memoryBudgetBytes
 }
 
 interface Inspection {
-  readonly format: FormatId;
-  readonly encoding: { name: "utf-8" | "utf-16le" | "utf-16be" | "iso-8859-1" | (string & {});
-                       confidence: number; bom: boolean };   // detected, never guessed silently
-  readonly confidence: number;                          // 0..1
-  readonly alternatives: readonly { format: FormatId; confidence: number }[];
-  readonly columns: readonly ColumnInfo[];
-  readonly endpoints: { resolvedFrom: "declared" | "source/target" | "src/dst" | "from/to" | "none" };
-  readonly plan: ImportPlan;                            // the PROPOSED mapping; edit and return it
-  readonly estimate: { nodes: number; edges: number; exact: boolean; basis: string };
-  readonly sample: { nodes: readonly NodeRecord[]; edges: readonly EdgeRecord[] };
-  readonly issues: readonly ImportIssue[];
-  readonly quality: number;                             // 0..100
+    readonly format: FormatId;
+    readonly encoding: {
+        name: "utf-8" | "utf-16le" | "utf-16be" | "iso-8859-1" | (string & {});
+        confidence: number;
+        bom: boolean;
+    }; // detected, never guessed silently
+    readonly confidence: number; // 0..1
+    readonly alternatives: readonly { format: FormatId; confidence: number }[];
+    readonly columns: readonly ColumnInfo[];
+    readonly endpoints: { resolvedFrom: "declared" | "source/target" | "src/dst" | "from/to" | "none" };
+    readonly plan: ImportPlan; // the PROPOSED mapping; edit and return it
+    readonly estimate: { nodes: number; edges: number; exact: boolean; basis: string };
+    readonly sample: { nodes: readonly NodeRecord[]; edges: readonly EdgeRecord[] };
+    readonly issues: readonly ImportIssue[];
+    readonly quality: number; // 0..100
 }
 
 interface ColumnInfo {
-  name: string; inferredType: AttributeType; completeness: number;
-  uniqueCount?: number; min?: number; max?: number;
-  sampleValues: readonly unknown[];
-  suggestedRole: ColumnRole;
+    name: string;
+    inferredType: AttributeType;
+    completeness: number;
+    uniqueCount?: number;
+    min?: number;
+    max?: number;
+    sampleValues: readonly unknown[];
+    suggestedRole: ColumnRole;
 }
-type ColumnRole = "nodeId" | "source" | "target" | "weight" | "time" | "label"
-                | "attribute" | "ignore";
+type ColumnRole = "nodeId" | "source" | "target" | "weight" | "time" | "label" | "attribute" | "ignore";
 type AttributeType = "string" | "number" | "integer" | "boolean" | "time" | "category" | "mixed";
 
 interface ImportPlan {
-  nodeId: string; edgeSource: string; edgeTarget: string;
-  directed: boolean | "detect";
-  roles: { weight?: string; time?: string; label?: string };
-  columns: Record<string, { include: boolean; type: AttributeType; rename?: string }>;
-  policies: {
-    repeatedEdges: "keep-all" | "keep-first" | "sum-weights" | "drop";
-    unknownEndpoints: "report" | "create" | "drop";
-    selfLoops: "keep" | "drop";
-  };
-  identifierMapper?: string;                            // a registered mapper, section 4.14
+    nodeId: string;
+    edgeSource: string;
+    edgeTarget: string;
+    directed: boolean | "detect";
+    roles: { weight?: string; time?: string; label?: string };
+    columns: Record<string, { include: boolean; type: AttributeType; rename?: string }>;
+    policies: {
+        repeatedEdges: "keep-all" | "keep-first" | "sum-weights" | "drop";
+        unknownEndpoints: "report" | "create" | "drop";
+        selfLoops: "keep" | "drop";
+    };
+    identifierMapper?: string; // a registered mapper, section 4.14
 }
 
 interface ImportIssue {
-  severity: "error" | "warning" | "info";
-  code: string; message: string;
-  line?: number; column?: string; count: number;
-  fix?: { label: string; command: Command };            // Auto-fix is an undoable Command
+    severity: "error" | "warning" | "info";
+    code: string;
+    message: string;
+    line?: number;
+    column?: string;
+    count: number;
+    fix?: { label: string; command: Command }; // Auto-fix is an undoable Command
 }
 
 interface ImportReport {
-  readonly counts: { nodes: number; edges: number; selfLoops: number;
-                     repeatedEdges: number; isolatedNodes: number; unresolvedEndpoints: number };
-  readonly issues: readonly ImportIssue[];
-  readonly quality: number;
-  readonly appliedPlan: ImportPlan;
-  readonly partial: boolean;
-  readonly mutation: MutationReceipt;                   // undoable
+    readonly counts: {
+        nodes: number;
+        edges: number;
+        selfLoops: number;
+        repeatedEdges: number;
+        isolatedNodes: number;
+        unresolvedEndpoints: number;
+    };
+    readonly issues: readonly ImportIssue[];
+    readonly quality: number;
+    readonly appliedPlan: ImportPlan;
+    readonly partial: boolean;
+    readonly mutation: MutationReceipt; // undoable
 }
 ```
 
@@ -982,52 +1072,69 @@ needs a first graph to show; today the only sample lives in the app
 
 ```ts
 interface SampleDatasetDescriptor {
-  id: SampleDatasetId; plainName: string; technicalName: string;
-  description: string; nodes: number; edges: number; directed: boolean;
-  license: string; source: string; tags: readonly string[];
+    id: SampleDatasetId;
+    plainName: string;
+    technicalName: string;
+    description: string;
+    nodes: number;
+    edges: number;
+    directed: boolean;
+    license: string;
+    source: string;
+    tags: readonly string[];
 }
-type SampleDatasetId = "karate" | "les-miserables" | "football" | "dolphins"
-                     | "power-grid" | "cat-social" | (string & {});
+type SampleDatasetId =
+    | "karate"
+    | "les-miserables"
+    | "football"
+    | "dolphins"
+    | "power-grid"
+    | "cat-social"
+    | (string & {});
 ```
 
 #### 4.3.3 Mutation, and inverses that serialise
 
+> **Superseded in part by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md),
+> sections 2 and 4). The element now owns the undo history as well as the inverses:
+> `session.undo()`, `redo()`, `history` and `transaction()`. Inverses are no longer published as
+> commands, because an inverse that holds a previous snapshot or a run result by reference
+> cannot be serialised. The `Mutation` kinds below stand, with `update-rows` added.
+
 ```ts
 type Mutation =
-  | { kind: "add-nodes"; rows: readonly NodeRecord[] }
-  | { kind: "add-edges"; rows: readonly EdgeRecord[] }
-  | { kind: "set-attributes"; scope: Scope; values: Record<string, unknown>;
-      target: "node" | "edge" }
-  | { kind: "remove-nodes"; nodes: readonly NodeId[] }        // removes incident edges
-  | { kind: "remove-edges"; edges: readonly EdgeId[] }
-  | { kind: "merge-nodes"; groups: readonly (readonly NodeId[])[]; into?: "first" | NodeId;
-      policy?: MergePolicy }
-  | { kind: "add-column"; name: string; formula: string }
-  | { kind: "drop-column"; name: string }
-  | { kind: "rename-column"; from: string; to: string }
-  | { kind: "clear" };
+    | { kind: "add-nodes"; rows: readonly NodeRecord[] }
+    | { kind: "add-edges"; rows: readonly EdgeRecord[] }
+    | { kind: "set-attributes"; scope: Scope; values: Record<string, unknown>; target: "node" | "edge" }
+    | { kind: "remove-nodes"; nodes: readonly NodeId[] } // removes incident edges
+    | { kind: "remove-edges"; edges: readonly EdgeId[] }
+    | { kind: "merge-nodes"; groups: readonly (readonly NodeId[])[]; into?: "first" | NodeId; policy?: MergePolicy }
+    | { kind: "add-column"; name: string; formula: string }
+    | { kind: "drop-column"; name: string }
+    | { kind: "rename-column"; from: string; to: string }
+    | { kind: "clear" };
 
 interface MergePolicy {
-  attributes: "keep-first" | "keep-last" | "concatenate" | "sum";
-  edges: "keep-all" | "keep-first" | "sum-weights" | "remove-duplicates";
-  dropSelfLoops: boolean;
+    attributes: "keep-first" | "keep-last" | "concatenate" | "sum";
+    edges: "keep-all" | "keep-first" | "sum-weights" | "remove-duplicates";
+    dropSelfLoops: boolean;
 }
 
 interface MutationReceipt {
-  readonly id: JournalId;
-  readonly at: string;                          // ISO 8601
-  readonly mutation: Mutation;
-  readonly inverse: Command;                    // a Command, not a closure
-  readonly affected: { nodes: number; edges: number; attributes: number };
-  readonly retargeted: readonly (readonly [NodeId, NodeId])[];   // merge survivor map
-  readonly summary: string;                     // one line, ready to render
+    readonly id: JournalId;
+    readonly at: string; // ISO 8601
+    readonly mutation: Mutation;
+    readonly inverse: Command; // a Command, not a closure
+    readonly affected: { nodes: number; edges: number; attributes: number };
+    readonly retargeted: readonly (readonly [NodeId, NodeId])[]; // merge survivor map
+    readonly summary: string; // one line, ready to render
 }
 
 interface DataApi {
-  apply(m: Mutation): Promise<MutationReceipt>;
-  expand(seeds: readonly NodeId[], o?: ExpandOptions): Promise<ExpansionReceipt>;
-  collapse(expansionId: string): Promise<MutationReceipt>;
-  compute(name: string, formula: string, target?: "node" | "edge"): Promise<MutationReceipt>;
+    apply(m: Mutation): Promise<MutationReceipt>;
+    expand(seeds: readonly NodeId[], o?: ExpandOptions): Promise<ExpansionReceipt>;
+    collapse(expansionId: string): Promise<MutationReceipt>;
+    compute(name: string, formula: string, target?: "node" | "edge"): Promise<MutationReceipt>;
 }
 ```
 
@@ -1052,17 +1159,17 @@ anyone does with a graph, and every consumer would otherwise write the traversal
 
 ```ts
 interface ExpandOptions {
-  depth?: 1 | 2 | 3 | 4 | 5;
-  direction?: "in" | "out" | "all";
-  nodeTypes?: readonly string[];
-  edgeTypes?: readonly string[];
-  limit?: number;                    // hard stop; defaults to config.expansionBlock (2000)
-  signal?: AbortSignal;
+    depth?: 1 | 2 | 3 | 4 | 5;
+    direction?: "in" | "out" | "all";
+    nodeTypes?: readonly string[];
+    edgeTypes?: readonly string[];
+    limit?: number; // hard stop; defaults to config.expansionBlock (2000)
+    signal?: AbortSignal;
 }
 interface ExpansionReceipt extends MutationReceipt {
-  readonly expansionId: string;      // pass to collapse()
-  readonly byType: Record<string, number>;
-  readonly truncated: boolean;
+    readonly expansionId: string; // pass to collapse()
+    readonly byType: Record<string, number>;
+    readonly truncated: boolean;
 }
 ```
 
@@ -1115,56 +1222,71 @@ API is a cost; pretending there is one is worse.
 
 ```ts
 interface DataApi {
-  node(id: NodeId): NodeRecord | undefined;                       // O(1)
-  edge(id: EdgeId): EdgeRecord | undefined;                       // O(1)
-  statistics(): GraphStatistics;                                  // O(1), maintained
-  nodeIds(scope?: Scope): Promise<readonly NodeId[]>;
-  edgeIds(scope?: Scope): Promise<readonly EdgeId[]>;
-  neighbors(id: NodeId, o?: NeighborOptions): Promise<NeighborPage>;
-  /** The synchronous, allocation-free form an interaction needs: neighbour highlighting on
-   *  hover cannot await a page of 100. Indices into the session's node order. */
-  neighborIndices(id: NodeId, o?: { direction?: "in" | "out" | "both" }): Uint32Array;
-  attributes(): readonly AttributeDescriptor[];
-  find(query: string, o?: FindOptions): Promise<SearchPage>;
-  match(pattern: Pattern | string, o?: MatchOptions): Run<MatchResult>;
-  fingerprint(): string;
+    node(id: NodeId): NodeRecord | undefined; // O(1)
+    edge(id: EdgeId): EdgeRecord | undefined; // O(1)
+    statistics(): GraphStatistics; // O(1), maintained
+    nodeIds(scope?: Scope): Promise<readonly NodeId[]>;
+    edgeIds(scope?: Scope): Promise<readonly EdgeId[]>;
+    neighbors(id: NodeId, o?: NeighborOptions): Promise<NeighborPage>;
+    /** The synchronous, allocation-free form an interaction needs: neighbour highlighting on
+     *  hover cannot await a page of 100. Indices into the session's node order. */
+    neighborIndices(id: NodeId, o?: { direction?: "in" | "out" | "both" }): Uint32Array;
+    attributes(): readonly AttributeDescriptor[];
+    find(query: string, o?: FindOptions): Promise<SearchPage>;
+    match(pattern: Pattern | string, o?: MatchOptions): Run<MatchResult>;
+    fingerprint(): string;
 }
 
 interface GraphStatistics {
-  nodeCount: number; edgeCount: number; density: number;
-  directedness: "directed" | "undirected" | "mixed" | "unknown";
-  weighted: boolean; selfLoopCount: number; repeatedEdgeCount: number;
-  degreeRange: [number, number];
-  components: { count: number; sizes: readonly number[];        // descending, capped at 1000
-                largestSize: number; isolatedCount: number;
-                truncatedSizes: boolean;
-                componentOf(id: NodeId): number | undefined };
+    nodeCount: number;
+    edgeCount: number;
+    density: number;
+    directedness: "directed" | "undirected" | "mixed" | "unknown";
+    weighted: boolean;
+    selfLoopCount: number;
+    repeatedEdgeCount: number;
+    degreeRange: [number, number];
+    components: {
+        count: number;
+        sizes: readonly number[]; // descending, capped at 1000
+        largestSize: number;
+        isolatedCount: number;
+        truncatedSizes: boolean;
+        componentOf(id: NodeId): number | undefined;
+    };
 }
 
 interface NeighborOptions {
-  direction?: "in" | "out" | "all";
-  edgeTypes?: readonly string[];
-  sort?: "degree" | "weight" | "recency" | "label";
-  limit?: number; offset?: number;                                // paged at 100 by default
+    direction?: "in" | "out" | "all";
+    edgeTypes?: readonly string[];
+    sort?: "degree" | "weight" | "recency" | "label";
+    limit?: number;
+    offset?: number; // paged at 100 by default
 }
 interface NeighborPage {
-  rows: readonly NeighborRow[];
-  total: number;
-  countsByEdgeType: Record<string, number>;
+    rows: readonly NeighborRow[];
+    total: number;
+    countsByEdgeType: Record<string, number>;
 }
 interface NeighborRow {
-  node: NodeId; label: string; edge: EdgeId; edgeType: string | null;
-  direction: "in" | "out"; weight: number | null;
+    node: NodeId;
+    label: string;
+    edge: EdgeId;
+    edgeType: string | null;
+    direction: "in" | "out";
+    weight: number | null;
 }
 
 interface FindOptions {
-  mode?: "substring" | "exact" | "regex" | "attribute";
-  scope?: Scope; limit?: number; attributes?: readonly string[];
+    mode?: "substring" | "exact" | "regex" | "attribute";
+    scope?: Scope;
+    limit?: number;
+    attributes?: readonly string[];
 }
 interface SearchPage {
-  hits: readonly { id: NodeId; kind: "node" | "edge"; label: string;
-                   field: string; score: number }[];
-  total: number; truncated: boolean;
+    hits: readonly { id: NodeId; kind: "node" | "edge"; label: string; field: string; score: number }[];
+    total: number;
+    truncated: boolean;
 }
 ```
 
@@ -1197,21 +1319,29 @@ result.
 
 ```ts
 interface Pattern {
-  nodes: readonly { key: string; where?: Query; type?: string }[];
-  edges: readonly { from: string; to: string; where?: Query; type?: string;
-                    directed?: boolean; minHops?: number; maxHops?: number }[];
-  where?: Query;                       // cross-binding constraints, e.g. host != host2
+    nodes: readonly { key: string; where?: Query; type?: string }[];
+    edges: readonly {
+        from: string;
+        to: string;
+        where?: Query;
+        type?: string;
+        directed?: boolean;
+        minHops?: number;
+        maxHops?: number;
+    }[];
+    where?: Query; // cross-binding constraints, e.g. host != host2
 }
 interface MatchOptions extends RunOptions {
-  scope?: Scope; limit?: number;
-  similarity?: number;                 // 0.8..1.0; 1.0 is exact
-  timeBoxMs?: number;                  // default from config.patternTimeBoxMs (30000)
+    scope?: Scope;
+    limit?: number;
+    similarity?: number; // 0.8..1.0; 1.0 is exact
+    timeBoxMs?: number; // default from config.patternTimeBoxMs (30000)
 }
 interface MatchResult {
-  matches: readonly { bindings: Record<string, NodeId>; score: number }[];
-  total: number;
-  scannedFraction: number;             // 1.0 means the search completed
-  partial: boolean;
+    matches: readonly { bindings: Record<string, NodeId>; score: number }[];
+    total: number;
+    scannedFraction: number; // 1.0 means the search completed
+    partial: boolean;
 }
 ```
 
@@ -1221,32 +1351,35 @@ exported from `./commands` so a consumer can validate before running.
 `./commands` also exports `formatCommand(command, options?): string`, the inverse of the
 builders: it renders any `Command` as the JavaScript line that would produce it
 (`g.run("betweenness", { scope: "visible" })`). That is the one primitive behind "Copy as
-command", "Export as script" and the console transcript, all three of which must emit *the
-same* script text. Without it each consumer writes its own serialiser and the three drift.
+command", "Export as script" and the console transcript, all three of which must emit _the
+same_ script text. Without it each consumer writes its own serialiser and the three drift.
 
 #### 4.3.6 Export
 
 ```ts
 interface DataApi {
-  export(format: FormatId, o?: ExportOptions): Promise<ExportResult>;
-  exportStream(format: FormatId, o?: ExportOptions): ReadableStream<Uint8Array>;
+    export(format: FormatId, o?: ExportOptions): Promise<ExportResult>;
+    exportStream(format: FormatId, o?: ExportOptions): ReadableStream<Uint8Array>;
 }
 
 interface ExportOptions extends RunOptions {
-  scope?: Scope;                                   // default "visible"
-  include?: { positions?: boolean; results?: readonly RunId[] | "all";
-              columns?: readonly string[]; notes?: boolean };
-  precision?: number;                              // decimal places, default 6
-  bom?: boolean;
+    scope?: Scope; // default "visible"
+    include?: { positions?: boolean; results?: readonly RunId[] | "all"; columns?: readonly string[]; notes?: boolean };
+    precision?: number; // decimal places, default 6
+    bom?: boolean;
 }
 interface ExportResult {
-  readonly blob: Blob;
-  stream(): ReadableStream<Uint8Array>;
-  readonly manifest: readonly RunRecord[];         // what produced the columns
-  readonly loss: readonly LossNote[];
-  readonly bytes: number;
+    readonly blob: Blob;
+    stream(): ReadableStream<Uint8Array>;
+    readonly manifest: readonly RunRecord[]; // what produced the columns
+    readonly loss: readonly LossNote[];
+    readonly bytes: number;
 }
-interface LossNote { code: string; message: string; count: number }
+interface LossNote {
+    code: string;
+    message: string;
+    count: number;
+}
 ```
 
 Streaming is the primitive and `blob` is the convenience; export never returns one string.
@@ -1266,18 +1399,23 @@ const look = await g.session.data.inspect(file);
 console.log(look.format, look.confidence, look.endpoints.resolvedFrom);
 // "csv" 0.94 "none"  -> the element could not guess; fix the plan and hand it back
 
-const plan = { ...look.plan, edgeSource: "from_account", edgeTarget: "to_account",
-               roles: { ...look.plan.roles, weight: "amount", time: "ts" } };
+const plan = {
+    ...look.plan,
+    edgeSource: "from_account",
+    edgeTarget: "to_account",
+    roles: { ...look.plan.roles, weight: "amount", time: "ts" },
+};
 
 const report = await g.session.data.import(file, plan, {
-  onProgress: (p) => bar.set(p.fraction),
-  signal: AbortSignal.timeout(60_000),
+    onProgress: (p) => bar.set(p.fraction),
+    signal: AbortSignal.timeout(60_000),
 });
-if (report.issues.some((i) => i.severity === "error")) { show(report.issues); }
+if (report.issues.some((i) => i.severity === "error")) {
+    show(report.issues);
+}
 
 const n = g.get("acct:17");
-const around = await g.session.data.neighbors("acct:17",
-  { direction: "in", sort: "weight", limit: 100 });
+const around = await g.session.data.neighbors("acct:17", { direction: "in", sort: "weight", limit: 100 });
 console.log(n.data.display_name, around.total, around.countsByEdgeType);
 ```
 
@@ -1292,55 +1430,65 @@ type RunStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 type CostClass = CostEstimate["costClass"];
 
 interface Run<T = RunResult> extends PromiseLike<T> {
-  readonly id: RunId;                    // stable, selector-safe, author-assignable
-  readonly label: string;                // "Groups", then "Groups (resolution 1.2)"
-  readonly command: Readonly<Command>;
-  readonly algorithm: AlgorithmKey;
-  readonly params: Readonly<Record<string, unknown>>;
-  readonly scope: ResolvedScope;
-  readonly status: RunStatus;
-  readonly progress: Progress;
-  readonly determinate: boolean;
-  readonly cancellable: boolean;         // distinct from "has been canceled"
-  readonly queuePosition: number | null; // "Queued (2 of 3)" -> 1
-  readonly startedAt: string | null;
-  readonly durationMs: number | null;
-  readonly partial: boolean;             // time-boxed and stopped early; NOT a failure
-  readonly stale: StaleNote | null;
-  readonly engine: { element: string; algorithms: string; layout: string };
-  readonly fields: readonly FieldDescriptor[];
-  readonly shape: ResultShape;
-  readonly caveats: Caveats;
-  readonly result?: T;
-  readonly error?: GraphtyError;
-  readonly record: RunRecord;            // frozen, structured-cloneable snapshot
-  readonly journalId: JournalId | null;  // the entry this command wrote; null until it lands
-  cancel(reason?: string): void;
-  rerun(): Run<T>;                       // SAME id; every bound layer survives
-  suggestEncodings(): readonly EncodingSpec[];
+    readonly id: RunId; // stable, selector-safe, author-assignable
+    readonly label: string; // "Groups", then "Groups (resolution 1.2)"
+    readonly command: Readonly<Command>;
+    readonly algorithm: AlgorithmKey;
+    readonly params: Readonly<Record<string, unknown>>;
+    readonly scope: ResolvedScope;
+    readonly status: RunStatus;
+    readonly progress: Progress;
+    readonly determinate: boolean;
+    readonly cancellable: boolean; // distinct from "has been canceled"
+    readonly queuePosition: number | null; // "Queued (2 of 3)" -> 1
+    readonly startedAt: string | null;
+    readonly durationMs: number | null;
+    readonly partial: boolean; // time-boxed and stopped early; NOT a failure
+    readonly stale: StaleNote | null;
+    readonly engine: { element: string; algorithms: string; layout: string };
+    readonly fields: readonly FieldDescriptor[];
+    readonly shape: ResultShape;
+    readonly caveats: Caveats;
+    readonly result?: T;
+    readonly error?: GraphtyError;
+    readonly record: RunRecord; // frozen, structured-cloneable snapshot
+    readonly journalId: JournalId | null; // the entry this command wrote; null until it lands
+    cancel(reason?: string): void;
+    rerun(): Run<T>; // SAME id; every bound layer survives
+    suggestEncodings(): readonly EncodingSpec[];
 }
 
 interface Progress {
-  readonly phase: string;
-  readonly determinate: boolean;
-  readonly completed: number;
-  readonly total: number | null;
-  readonly fraction: number | null;      // null when indeterminate. Never fabricate a percentage.
-  readonly etaMs: number | null;
-  readonly message?: string;
+    readonly phase: string;
+    readonly determinate: boolean;
+    readonly completed: number;
+    readonly total: number | null;
+    readonly fraction: number | null; // null when indeterminate. Never fabricate a percentage.
+    readonly etaMs: number | null;
+    readonly message?: string;
 }
 
-interface StaleNote { ranOn: number; nowVisible: number; scopeSpec: Scope }
+interface StaleNote {
+    ranOn: number;
+    nowVisible: number;
+    scopeSpec: Scope;
+}
 
 interface Caveats {
-  exact: boolean; sampleSize?: number; seed?: number | null;
-  converged?: boolean; iterations?: number;
-  componentScope?: "all" | "largest";
-  filterScope?: boolean; windowScope?: boolean;
-  direction: "directed" | "undirected" | "as-loaded";
-  weight?: { attribute: string; meaning: "distance" | "strength" } | null;
-  precision: "f32" | "f64";              // the arithmetic that produced these numbers
-  method: string; partialReason?: string; notes: readonly string[];
+    exact: boolean;
+    sampleSize?: number;
+    seed?: number | null;
+    converged?: boolean;
+    iterations?: number;
+    componentScope?: "all" | "largest";
+    filterScope?: boolean;
+    windowScope?: boolean;
+    direction: "directed" | "undirected" | "as-loaded";
+    weight?: { attribute: string; meaning: "distance" | "strength" } | null;
+    precision: "f32" | "f64"; // the arithmetic that produced these numbers
+    method: string;
+    partialReason?: string;
+    notes: readonly string[];
 }
 ```
 
@@ -1373,11 +1521,13 @@ failure.
 
 ```ts
 interface StartOptions extends RunOptions {
-  scope?: Scope; seed?: number; timeBoxMs?: number;
-  as?: RunId;                    // author-assigned id; REQUIRED for anything persisted
-  style?: RunStyle;              // false opts out; { size } also sizes by a node metric
-  exact?: boolean;               // refuse to approximate; above the cap this throws
-  sample?: number;               // sample size for an approximable algorithm
+    scope?: Scope;
+    seed?: number;
+    timeBoxMs?: number;
+    as?: RunId; // author-assigned id; REQUIRED for anything persisted
+    style?: RunStyle; // false opts out; { size } also sizes by a node metric
+    exact?: boolean; // refuse to approximate; above the cap this throws
+    sample?: number; // sample size for an approximable algorithm
 }
 
 // true / omitted: the derived colour suggestion. false: nothing.
@@ -1388,13 +1538,13 @@ interface StartOptions extends RunOptions {
 type RunStyle = boolean | { size?: boolean | readonly [min: number, max: number] };
 
 interface RunsApi {
-  start(algorithm: AlgorithmKey, params?: Record<string, unknown>, o?: StartOptions): Run;
-  batch(specs: readonly RunSpec[], o?: { label?: string } & RunOptions): Run<BatchResult>;
-  get(id: RunId): Run | undefined;
-  list(): readonly Run[];
-  remove(id: RunId): { removedLayers: number; layerIds: readonly LayerId[] };
-  bindings(id: RunId): readonly LayerId[];      // run-to-layer is many-to-many
-  readonly queue: readonly { runId: RunId; index: number; of: number }[];
+    start(algorithm: AlgorithmKey, params?: Record<string, unknown>, o?: StartOptions): Run;
+    batch(specs: readonly RunSpec[], o?: { label?: string } & RunOptions): Run<BatchResult>;
+    get(id: RunId): Run | undefined;
+    list(): readonly Run[];
+    remove(id: RunId): { removedLayers: number; layerIds: readonly LayerId[] };
+    bindings(id: RunId): readonly LayerId[]; // run-to-layer is many-to-many
+    readonly queue: readonly { runId: RunId; index: number; of: number }[];
 }
 ```
 
@@ -1466,11 +1616,10 @@ and every encoding helper takes a `Run`.
 
 ```ts
 interface ResultsApi {
-  path(run: Run | RunResult | RunId, field?: string): Path;   // "results.<runId>.<field>"
-  get(run: Run | RunResult | RunId): RunResult | undefined;
-  has(run: Run | RunResult | RunId, field?: string): boolean;
-  readonly roots: readonly { runId: RunId; label: string;
-                             fields: readonly FieldDescriptor[] }[];
+    path(run: Run | RunResult | RunId, field?: string): Path; // "results.<runId>.<field>"
+    get(run: Run | RunResult | RunId): RunResult | undefined;
+    has(run: Run | RunResult | RunId, field?: string): boolean;
+    readonly roots: readonly { runId: RunId; label: string; fields: readonly FieldDescriptor[] }[];
 }
 ```
 
@@ -1482,9 +1631,8 @@ call.
 **A path going into an expression is quoted first, and the element publishes the quoting.** A
 run id carries its algorithm's name and ten of the twenty-four catalogue algorithms are
 hyphenated -- `shortest-path`, `min-cut`, `bipartite-matching` -- while the selector grammar
-reads a bare hyphen as subtraction. So `` `${results.path(run)} >= \`3\`` `` is not a comparison
-at all on those runs: it parses as one column minus another and the layer is refused outright.
-`quotePath`, exported from `./session` alongside `resultPath`, writes any segment that is not a
+reads a bare hyphen as subtraction. So `` `${results.path(run)} >= \`3\`` ``is not a comparison
+at all on those runs: it parses as one column minus another and the layer is refused outright.`quotePath`, exported from `./session`alongside`resultPath`, writes any segment that is not a
 bare identifier as a quoted name, and is what every expression built outside the element goes
 through:
 
@@ -1508,17 +1656,17 @@ and every export.
 
 ```ts
 type ResultShape =
-  | "node-metric"       // a value per node              -> encoding layer
-  | "edge-metric"       // a value per edge              -> encoding layer
-  | "community"         // a group per node              -> encoding layer
-  | "layered-grouping"  // a level per node              -> encoding layer
-  | "category-table"    // a category + score per node   -> encoding layer + a table
-  | "path"              // an ordered node set           -> highlight layer (exclusive)
-  | "node-set"          // a node set                    -> highlight layer (exclusive)
-  | "edge-set"          // an edge set                   -> highlight layer (exclusive)
-  | "pair-list"         // scored pairs                  -> no layer
-  | "temporal"          // per-step series               -> no layer
-  | "fact";             // scalars and tables            -> no layer
+    | "node-metric" // a value per node              -> encoding layer
+    | "edge-metric" // a value per edge              -> encoding layer
+    | "community" // a group per node              -> encoding layer
+    | "layered-grouping" // a level per node              -> encoding layer
+    | "category-table" // a category + score per node   -> encoding layer + a table
+    | "path" // an ordered node set           -> highlight layer (exclusive)
+    | "node-set" // a node set                    -> highlight layer (exclusive)
+    | "edge-set" // an edge set                   -> highlight layer (exclusive)
+    | "pair-list" // scored pairs                  -> no layer
+    | "temporal" // per-step series               -> no layer
+    | "fact"; // scalars and tables            -> no layer
 ```
 
 Ten, rather than a shorter list, because each shape declares its required fields and its
@@ -1531,17 +1679,17 @@ numbers.
 **Uniform field names per shape.** A result path is guessable without opening the catalogue,
 for every algorithm, forever.
 
-| shape | per-element fields | graph fields |
-|---|---|---|
-| `node-metric` / `edge-metric` | `value`, `rank`, `percentile` | `min`, `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin` |
-| `community` | `group`, `groupSize` | `groupCount`, `modularity`, `sizes` |
-| `layered-grouping` | `level`, `levelSize` | `levelCount`, `sizes` |
-| `category-table` | `category`, `score`, `rank` | `categories` (a table) |
-| `path` | `onPath`, `order` | `length`, `cost`, `hops` |
-| `node-set` / `edge-set` | `in` | `count` plus one headline scalar |
-| `pair-list` | -- | `pairs` |
-| `temporal` | -- | `steps`, `series`, `rates`, `changeThreshold` (a `TemporalResult`, 4.5.3) |
-| `fact` | -- | the declared scalars |
+| shape                         | per-element fields            | graph fields                                                              |
+| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `node-metric` / `edge-metric` | `value`, `rank`, `percentile` | `min`, `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin`  |
+| `community`                   | `group`, `groupSize`          | `groupCount`, `modularity`, `sizes`                                       |
+| `layered-grouping`            | `level`, `levelSize`          | `levelCount`, `sizes`                                                     |
+| `category-table`              | `category`, `score`, `rank`   | `categories` (a table)                                                    |
+| `path`                        | `onPath`, `order`             | `length`, `cost`, `hops`                                                  |
+| `node-set` / `edge-set`       | `in`                          | `count` plus one headline scalar                                          |
+| `pair-list`                   | --                            | `pairs`                                                                   |
+| `temporal`                    | --                            | `steps`, `series`, `rates`, `changeThreshold` (a `TemporalResult`, 4.5.3) |
+| `fact`                        | --                            | the declared scalars                                                      |
 
 **Breaking: betweenness and closeness publish graph-level `min`/`max` like every other
 centrality.** They publish none today, which is the defect
@@ -1552,42 +1700,56 @@ manager. Uniform fields are a lie unless every algorithm fills them.
 
 ```ts
 interface RunResult {
-  readonly runId: RunId;
-  readonly shape: ResultShape;
-  readonly fields: readonly FieldDescriptor[];
-  readonly measured: { nodes: number; edges: number };
-  readonly graph: Readonly<Record<string, unknown>>;      // modularity, groupCount, maxFlow...
-  node(id: NodeId): Readonly<Record<string, unknown>> | undefined;
-  edge(id: EdgeId): Readonly<Record<string, unknown>> | undefined;
-  column(field: string): NumericColumnView;
-  ranking(field: string, limit?: number):
-    readonly { id: NodeId; value: number; rank: number; percentile: number }[];
-  histogram(field: string, o?: { bins?: number; scale?: "linear" | "log" }):
-    readonly { from: number; to: number; count: number }[];
-  summary(): ResultSummary;
-  reading(o?: { locale?: string; audience?: "plain" | "technical" }): string;
+    readonly runId: RunId;
+    readonly shape: ResultShape;
+    readonly fields: readonly FieldDescriptor[];
+    readonly measured: { nodes: number; edges: number };
+    readonly graph: Readonly<Record<string, unknown>>; // modularity, groupCount, maxFlow...
+    node(id: NodeId): Readonly<Record<string, unknown>> | undefined;
+    edge(id: EdgeId): Readonly<Record<string, unknown>> | undefined;
+    column(field: string): NumericColumnView;
+    ranking(field: string, limit?: number): readonly { id: NodeId; value: number; rank: number; percentile: number }[];
+    histogram(
+        field: string,
+        o?: { bins?: number; scale?: "linear" | "log" },
+    ): readonly { from: number; to: number; count: number }[];
+    summary(): ResultSummary;
+    reading(o?: { locale?: string; audience?: "plain" | "technical" }): string;
 }
 
 interface NumericColumnView {
-  readonly length: number;
-  get(i: number): number;
-  readonly min: number; readonly max: number; readonly mean: number; readonly median: number;
+    readonly length: number;
+    get(i: number): number;
+    readonly min: number;
+    readonly max: number;
+    readonly mean: number;
+    readonly median: number;
 }
 
 interface ResultSummary {
-  count: number; measured: number;
-  min: number | null; max: number | null; median: number | null; mean: number | null;
-  tiedAtMin: number; normalization: "max" | "min-max" | "none";
-  top: readonly { id: NodeId; label: string; value: number; rank: number; percentile: number }[];
-  groups?: readonly { group: string | number; size: number }[];
-  caveats: Caveats; durationMs: number;
+    count: number;
+    measured: number;
+    min: number | null;
+    max: number | null;
+    median: number | null;
+    mean: number | null;
+    tiedAtMin: number;
+    normalization: "max" | "min-max" | "none";
+    top: readonly { id: NodeId; label: string; value: number; rank: number; percentile: number }[];
+    groups?: readonly { group: string | number; size: number }[];
+    caveats: Caveats;
+    durationMs: number;
 }
 
 interface FieldDescriptor {
-  name: string; plainName: string; technicalName: string;
-  kind: "node" | "edge" | "graph";
-  type: "number" | "integer" | "boolean" | "string" | "table";
-  unit?: string; normalization?: string; path: Path;
+    name: string;
+    plainName: string;
+    technicalName: string;
+    kind: "node" | "edge" | "graph";
+    type: "number" | "integer" | "boolean" | "string" | "table";
+    unit?: string;
+    normalization?: string;
+    path: Path;
 }
 ```
 
@@ -1611,15 +1773,17 @@ the bands without rewriting the sentence, and the locale is a parameter.
 #### 4.4.5 Auto-apply: one policy, every route
 
 On a run's **first** completion the element applies the derived encoding layer, never again;
-suppressed when a user-authored layer already drives that channel; once per batch, so six runs
-never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
+suppressed when a user-authored layer already drives that channel on every element (a
+`match: "everything"` selector); an authored layer naming only some elements does not suppress it,
+and the derived layer is placed beneath it so the hand-made choice still wins on those elements;
+once per batch, so six runs never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
 `{ size: [min, max] }`) also suggests a `node.size` encoding of a node metric's primary field,
 through the same `encode()` and the same batch coalescing (keyed by channel); it is the one-flag
 form of `encode({ run, channel: "node.size", range })`.
 
 **An explicit `encode()` replaces the derived layer for the same `(runId, channel)` pair**, it
 does not stack on it, and it returns that layer's id. This is the case the suppression rule
-cannot catch, because the stranger's `encode()` call comes *after* the run completed and
+cannot catch, because the stranger's `encode()` call comes _after_ the run completed and
 therefore after auto-apply already fired: without the replacement rule the quickstart in 2.1
 would produce two layers and two legend blocks on `node.color`. The derived layer carries
 `source.by === "element"` with `reason: "default"` and is marked replaceable; the first
@@ -1641,19 +1805,19 @@ const s = document.querySelector("graphty-element").session;
 
 const wanted = ["degree", "betweenness", "closeness", "pagerank"];
 const affordable = wanted.filter((a) => {
-  const e = s.estimate({ op: "algo.run", algorithm: a, scope: "largest-component" });
-  return e.available && e.seconds < 10;           // synchronous: this gates the button
+    const e = s.estimate({ op: "algo.run", algorithm: a, scope: "largest-component" });
+    return e.available && e.seconds < 10; // synchronous: this gates the button
 });
 
-const sweep = s.runs.batch(affordable.map((a) => ({ algorithm: a, as: a,
-                                                    scope: "largest-component" })),
-                           { label: "Node rankings",
-                             onProgress: (p) => bar.set(p.fraction) });
-cancelButton.onclick = () => sweep.cancel("user");   // completed members are KEPT
+const sweep = s.runs.batch(
+    affordable.map((a) => ({ algorithm: a, as: a, scope: "largest-component" })),
+    { label: "Node rankings", onProgress: (p) => bar.set(p.fraction) },
+);
+cancelButton.onclick = () => sweep.cancel("user"); // completed members are KEPT
 
 const result = await sweep;
 for (const run of s.runs.list()) {
-  console.log(run.label, run.result.summary().top.slice(0, 3), run.result.reading());
+    console.log(run.label, run.result.summary().top.slice(0, 3), run.result.reading());
 }
 ```
 
@@ -1665,30 +1829,33 @@ for (const run of s.runs.list()) {
 
 ```ts
 type Scope =
-  | "visible"                                   // the default for every run, layout and export
-  | "graph"
-  | "selection"
-  | "largest-component"
-  | { set: ScopeId }                            // a saved set
-  | { where: Query }                            // a predicate
-  | { nodes: readonly NodeId[] };
+    | "visible" // the default for every run, layout and export
+    | "graph"
+    | "selection"
+    | "largest-component"
+    | { set: ScopeId } // a saved set
+    | { where: Query } // a predicate
+    | { nodes: readonly NodeId[] };
 
 interface ResolvedScope {
-  readonly nodes: ReadonlySet<NodeId>;
-  readonly edges: ReadonlySet<EdgeId>;
-  readonly nodeCount: number; readonly edgeCount: number;
-  readonly digest: string;                      // equal digests mean equal scopes
-  readonly spec: Scope;
-  readonly resolvedAt: string;
+    readonly nodes: ReadonlySet<NodeId>;
+    readonly edges: ReadonlySet<EdgeId>;
+    readonly nodeCount: number;
+    readonly edgeCount: number;
+    readonly digest: string; // equal digests mean equal scopes
+    readonly spec: Scope;
+    readonly resolvedAt: string;
 }
 
 interface ScopeApi {
-  resolve(spec: Scope): Promise<ResolvedScope>;
-  count(spec: Scope, o?: { approximate?: boolean; sample?: number }):
-    Promise<{ nodes: number; edges: number; exact: boolean; sampled?: number }>;
-  save(name: string, spec: Scope): ScopeId;
-  list(): readonly { id: ScopeId; name: string; spec: Scope; bound: boolean }[];
-  remove(id: ScopeId): void;
+    resolve(spec: Scope): Promise<ResolvedScope>;
+    count(
+        spec: Scope,
+        o?: { approximate?: boolean; sample?: number },
+    ): Promise<{ nodes: number; edges: number; exact: boolean; sampled?: number }>;
+    save(name: string, spec: Scope): ScopeId;
+    list(): readonly { id: ScopeId; name: string; spec: Scope; bound: boolean }[];
+    remove(id: ScopeId): void;
 }
 ```
 
@@ -1708,51 +1875,63 @@ changed: computed on 200 of 200, now showing 120" possible with the consumer tra
 type SetOp = "replace" | "add" | "remove" | "toggle" | "intersect";
 
 type SelectionTarget =
-  | { nodes?: readonly NodeId[]; edges?: readonly EdgeId[] }
-  | { where: Query }
-  | { text: string; mode?: FindOptions["mode"] }
-  | { ids: readonly string[] }                              // paste a list
-  | { scope: Scope }
-  | { neighborsOf?: readonly NodeId[]; depth?: 1 | 2 | 3; direction?: "in" | "out" | "all" }
-  | { top: { run: Run | RunResult | RunId; field: string; n: number } }
-  | { above: { run: Run | RunResult | RunId; field: string; threshold: number } }
-  | { edgesBetween: true }
-  | { invert: true };
+    | { nodes?: readonly NodeId[]; edges?: readonly EdgeId[] }
+    | { where: Query }
+    | { text: string; mode?: FindOptions["mode"] }
+    | { ids: readonly string[] } // paste a list
+    | { scope: Scope }
+    | { neighborsOf?: readonly NodeId[]; depth?: 1 | 2 | 3; direction?: "in" | "out" | "all" }
+    | { top: { run: Run | RunResult | RunId; field: string; n: number } }
+    | { above: { run: Run | RunResult | RunId; field: string; threshold: number } }
+    | { edgesBetween: true }
+    | { invert: true };
 
 interface SelectionApi {
-  /** Frozen and IDENTITY-STABLE: the same array object until the contents change, so
-   *  `prev === next` is a valid staleness test and a read costs nothing. Materialised lazily
-   *  from the mask below; a consumer that only needs membership should not touch it. */
-  readonly nodes: readonly NodeId[];
-  readonly edges: readonly EdgeId[];
-  readonly size: number;
-  readonly cap: number;                                     // config.selectionCap, default 5000
-  readonly truncated: boolean;
-  /** The backing representation: O(1) membership, transferable, no allocation per test. */
-  has(id: NodeId | EdgeId): boolean;
-  nodeMask(): Uint8Array;
-  edgeMask(): Uint8Array;
-  apply(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta>;
-  clear(): SelectionDelta;
-  promote(name: string): ScopeId;                           // ephemeral set -> saved Scope
-  statistics(): Promise<SelectionStatistics>;
+    /** Frozen and IDENTITY-STABLE: the same array object until the contents change, so
+     *  `prev === next` is a valid staleness test and a read costs nothing. Materialised lazily
+     *  from the mask below; a consumer that only needs membership should not touch it. */
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+    readonly size: number;
+    readonly cap: number; // config.selectionCap, default 5000
+    readonly truncated: boolean;
+    /** The backing representation: O(1) membership, transferable, no allocation per test. */
+    has(id: NodeId | EdgeId): boolean;
+    nodeMask(): Uint8Array;
+    edgeMask(): Uint8Array;
+    apply(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta>;
+    clear(): SelectionDelta;
+    promote(name: string): ScopeId; // ephemeral set -> saved Scope
+    statistics(): Promise<SelectionStatistics>;
 }
 
 interface SelectionDelta {
-  readonly added: readonly NodeId[]; readonly removed: readonly NodeId[];
-  readonly nodes: number; readonly edges: number;
-  readonly truncated: boolean;
-  readonly unmatched?: readonly string[];                   // from { ids: [...] }
-  readonly unresolvedPaths: readonly Path[];                // see 4.5.4 and 4.15.2
-  readonly cause: "user" | "api" | "command";
+    readonly added: readonly NodeId[];
+    readonly removed: readonly NodeId[];
+    readonly nodes: number;
+    readonly edges: number;
+    readonly truncated: boolean;
+    readonly unmatched?: readonly string[]; // from { ids: [...] }
+    readonly unresolvedPaths: readonly Path[]; // see 4.5.4 and 4.15.2
+    readonly cause: "user" | "api" | "command";
 }
 
 interface SelectionStatistics {
-  nodes: number; edges: number; inducedEdges: number; cutEdges: number;
-  attributes: readonly { path: Path; plainName: string;
-                         mean?: number; median?: number; min?: number; max?: number;
-                         distribution?: readonly { value: string; count: number }[];
-                         graphMean?: number; direction?: "above" | "below" | "equal" }[];
+    nodes: number;
+    edges: number;
+    inducedEdges: number;
+    cutEdges: number;
+    attributes: readonly {
+        path: Path;
+        plainName: string;
+        mean?: number;
+        median?: number;
+        min?: number;
+        max?: number;
+        distribution?: readonly { value: string; count: number }[];
+        graphMean?: number;
+        direction?: "above" | "below" | "equal";
+    }[];
 }
 ```
 
@@ -1773,41 +1952,41 @@ most frequently needed capability in the product. It does not exist in the eleme
 
 ```ts
 interface VisibilityApi {
-  /** The mask IS the visibility model: one byte per element, O(1) to test, transferable to a
-   *  worker, and bounded at the node count however many elements are visible. Hiding 40,000 of
-   *  50,000 nodes writes 50,000 bytes and re-layouts nothing. */
-  nodeMask(): Uint8Array;
-  edgeMask(): Uint8Array;
-  isVisible(id: NodeId | EdgeId): boolean;
-  /** Lazy materialisations of the masks, for a consumer that wants to iterate ids. Frozen and
-   *  identity-stable; not the boundary type, because a set of every visible id is unbounded. */
-  readonly nodes: ReadonlySet<NodeId>;
-  readonly edges: ReadonlySet<EdgeId>;
-  readonly summary: { visibleNodes: number; totalNodes: number;
-                      visibleEdges: number; totalEdges: number };
-  readonly filter: Filter | null;
-  readonly window: TimeWindow | null;
-  set(filter: Filter | null, o?: RunOptions): Run<FilterResult>;
-  setWindow(w: TimeWindow | null, o?: RunOptions): Run<FilterResult>;
-  showContext: boolean;                          // low-alpha point layer for hidden nodes
+    /** The mask IS the visibility model: one byte per element, O(1) to test, transferable to a
+     *  worker, and bounded at the node count however many elements are visible. Hiding 40,000 of
+     *  50,000 nodes writes 50,000 bytes and re-layouts nothing. */
+    nodeMask(): Uint8Array;
+    edgeMask(): Uint8Array;
+    isVisible(id: NodeId | EdgeId): boolean;
+    /** Lazy materialisations of the masks, for a consumer that wants to iterate ids. Frozen and
+     *  identity-stable; not the boundary type, because a set of every visible id is unbounded. */
+    readonly nodes: ReadonlySet<NodeId>;
+    readonly edges: ReadonlySet<EdgeId>;
+    readonly summary: { visibleNodes: number; totalNodes: number; visibleEdges: number; totalEdges: number };
+    readonly filter: Filter | null;
+    readonly window: TimeWindow | null;
+    set(filter: Filter | null, o?: RunOptions): Run<FilterResult>;
+    setWindow(w: TimeWindow | null, o?: RunOptions): Run<FilterResult>;
+    showContext: boolean; // low-alpha point layer for hidden nodes
 }
 
 type Filter =
-  | { kind: "expression"; where: Query }
-  | { kind: "range"; attribute: Path; min?: number; max?: number }
-  | { kind: "categories"; attribute: Path; values: readonly string[] }
-  | { kind: "degree"; min?: number; max?: number; direction?: "in" | "out" | "all" }
-  | { kind: "component"; id: number }
-  | { kind: "neighborhood"; seeds: readonly NodeId[]; depth: number }
-  | { kind: "edges"; where: Query }               // filter edges independently of nodes
-  | { kind: "all"; of: readonly Filter[] }
-  | { kind: "any"; of: readonly Filter[] }
-  | { kind: "not"; of: Filter };
+    | { kind: "expression"; where: Query }
+    | { kind: "range"; attribute: Path; min?: number; max?: number }
+    | { kind: "categories"; attribute: Path; values: readonly string[] }
+    | { kind: "degree"; min?: number; max?: number; direction?: "in" | "out" | "all" }
+    | { kind: "component"; id: number }
+    | { kind: "neighborhood"; seeds: readonly NodeId[]; depth: number }
+    | { kind: "edges"; where: Query } // filter edges independently of nodes
+    | { kind: "all"; of: readonly Filter[] }
+    | { kind: "any"; of: readonly Filter[] }
+    | { kind: "not"; of: Filter };
 
 interface TimeWindow {
-  attribute: Path;
-  from: number | string; to: number | string;
-  step?: number | "hour" | "day" | "week" | "month" | "quarter" | "year";
+    attribute: Path;
+    from: number | string;
+    to: number | string;
+    step?: number | "hour" | "day" | "week" | "month" | "quarter" | "year";
 }
 ```
 
@@ -1821,33 +2000,50 @@ re-layouts, rebuilds or removes data" is a structural fact here rather than a pr
 
 ```ts
 interface VisibilityApi {
-  steps(w: TimeWindow, o?: RunOptions & { track?: readonly AlgorithmKey[] }):
-    Run<TemporalResult>;                                                   // precomputed
-  playback: { play(o?: { speed?: 0.5 | 1 | 2 | 4 }): void; pause(): void;
-              step(n?: number): void; readonly index: number; readonly count: number };
+    steps(w: TimeWindow, o?: RunOptions & { track?: readonly AlgorithmKey[] }): Run<TemporalResult>; // precomputed
+    playback: {
+        play(o?: { speed?: 0.5 | 1 | 2 | 4 }): void;
+        pause(): void;
+        step(n?: number): void;
+        readonly index: number;
+        readonly count: number;
+    };
 }
 interface TimeStepSummary {
-  from: number | string; to: number | string;
-  nodes: number; edges: number; density: number; averageDegree: number;
-  byType: Record<string, number>;
-  top: readonly { id: NodeId; label: string; degree: number }[];
-  largestPartShare: number;
-  tracked: Readonly<Record<AlgorithmKey, number>>;   // one scalar per tracked algorithm
-  arrivals: number; departures: number;              // nodes, against the previous step
-  created: number; dissolved: number;                // edges, against the previous step
+    from: number | string;
+    to: number | string;
+    nodes: number;
+    edges: number;
+    density: number;
+    averageDegree: number;
+    byType: Record<string, number>;
+    top: readonly { id: NodeId; label: string; degree: number }[];
+    largestPartShare: number;
+    tracked: Readonly<Record<AlgorithmKey, number>>; // one scalar per tracked algorithm
+    arrivals: number;
+    departures: number; // nodes, against the previous step
+    created: number;
+    dissolved: number; // edges, against the previous step
 }
-interface TemporalSeries {                           // one per tracked quantity
-  field: string; plainName: string;
-  values: readonly (number | null)[];                // one per step, aligned to steps[]
-  trend: { direction: "rising" | "falling" | "flat"; slope: number; r2: number };
-  changes: readonly { index: number; from: number; to: number; fraction: number }[];
+interface TemporalSeries {
+    // one per tracked quantity
+    field: string;
+    plainName: string;
+    values: readonly (number | null)[]; // one per step, aligned to steps[]
+    trend: { direction: "rising" | "falling" | "flat"; slope: number; r2: number };
+    changes: readonly { index: number; from: number; to: number; fraction: number }[];
 }
-interface TemporalResult {                           // the `temporal` result shape (4.4.3)
-  steps: readonly TimeStepSummary[];
-  series: readonly TemporalSeries[];
-  rates: { arrivalsPerStep: number; departuresPerStep: number;
-           creationsPerStep: number; dissolutionsPerStep: number };
-  changeThreshold: number;                           // config.temporalChangeThreshold, 0.2
+interface TemporalResult {
+    // the `temporal` result shape (4.4.3)
+    steps: readonly TimeStepSummary[];
+    series: readonly TemporalSeries[];
+    rates: {
+        arrivalsPerStep: number;
+        departuresPerStep: number;
+        creationsPerStep: number;
+        dissolutionsPerStep: number;
+    };
+    changeThreshold: number; // config.temporalChangeThreshold, 0.2
 }
 ```
 
@@ -1873,10 +2069,13 @@ go through the queue as one cancellable unit -- which is just `runs.batch`.
 ```js
 const s = el.session;
 
-const f = { kind: "all", of: [
-  { kind: "categories", attribute: "data.type", values: ["host", "service"] },
-  { kind: "degree", min: 3 },
-] };
+const f = {
+    kind: "all",
+    of: [
+        { kind: "categories", attribute: "data.type", values: ["host", "service"] },
+        { kind: "degree", min: 3 },
+    ],
+};
 
 const preview = await s.plan({ op: "visibility.set", filter: f });
 status.textContent = `${preview.effect.nodes} of ${s.status.counts.nodes} would match`;
@@ -1886,9 +2085,11 @@ await s.visibility.set(f, { onProgress: (p) => bar.set(p.fraction) });
 // A run id is opaque unless you name it, so name it, then build the path from the Run.
 const run = s.runs.start("betweenness", {}, { as: "betweenness" });
 await run;
-const p = s.results.path(run, "percentile");        // "results.betweenness.percentile"
+const p = s.results.path(run, "percentile"); // "results.betweenness.percentile"
 const delta = await s.selection.apply({ where: `${p} > \`95\`` }, "replace");
-if (delta.unresolvedPaths.length) { warn(delta.unresolvedPaths); }   // never a silent zero
+if (delta.unresolvedPaths.length) {
+    warn(delta.unresolvedPaths);
+} // never a silent zero
 console.log(await s.selection.statistics());
 ```
 
@@ -1900,59 +2101,63 @@ console.log(await s.selection.statistics());
 
 ```ts
 interface Layer {
-  readonly id: LayerId;                 // element-minted, stable. NEVER an array index.
-  readonly name: string;
-  readonly kind: "base" | "encoding" | "highlight" | "custom";
-  readonly source: LayerSource;         // REQUIRED. every layer names its source.
-  readonly locked: boolean;             // element-owned layers cannot be removed by a consumer
-  readonly enabled: boolean;
-  readonly disabledReason?: string;
-  readonly target: "node" | "edge";
-  readonly selector: Selector;
-  readonly set?: StaticStyle;           // literal values
-  readonly encode?: Encoding;           // declarative attribute -> channel bindings
-  readonly legend?: Legend;             // DERIVED on read, never written
-  userData?: Record<string, unknown>;   // a documented consumer bag that round-trips untouched
+    readonly id: LayerId; // element-minted, stable. NEVER an array index.
+    readonly name: string;
+    readonly kind: "base" | "encoding" | "highlight" | "custom";
+    readonly source: LayerSource; // REQUIRED. every layer names its source.
+    readonly locked: boolean; // element-owned layers cannot be removed by a consumer
+    readonly enabled: boolean;
+    readonly disabledReason?: string;
+    readonly target: "node" | "edge";
+    readonly selector: Selector;
+    readonly set?: StaticStyle; // literal values
+    readonly encode?: Encoding; // declarative attribute -> channel bindings
+    readonly legend?: Legend; // DERIVED on read, never written
+    userData?: Record<string, unknown>; // a documented consumer bag that round-trips untouched
 }
 
 type LayerSource =
-  | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
-  | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
-  | { by: "user" }
-  | { by: "template"; templateId: string }
-  | { by: "plugin"; name: string };
+    | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
+    | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
+    | { by: "user" }
+    | { by: "template"; templateId: string }
+    | { by: "plugin"; name: string };
 
 type Selector =
-  | { match: "expression"; where: Query }    // where must be non-empty; parsed at add time
-  | { match: "has"; path: Path }             // the common case, generated by encode()
-  | { match: "ids"; nodes?: readonly NodeId[]; edges?: readonly EdgeId[] }
-  | { match: "everything" };                 // spelled out, greppable, lintable
+    | { match: "expression"; where: Query } // where must be non-empty; parsed at add time
+    | { match: "has"; path: Path } // the common case, generated by encode()
+    | { match: "ids"; nodes?: readonly NodeId[]; edges?: readonly EdgeId[] }
+    | { match: "everything" }; // spelled out, greppable, lintable
 
 interface StylesApi {
-  list(): readonly Layer[];                  // index 0 is the BOTTOM. Stated once, everywhere.
-  get(id: LayerId): Layer | undefined;
-  validate(spec: LayerSpec): ValidationResult;    // SYNCHRONOUS; gates a form
-  add(spec: LayerSpec, at?: { above?: LayerId; below?: LayerId }): Run<Layer>;
-  update(id: LayerId, patch: Partial<LayerSpec>): Run<Layer>;
-  remove(id: LayerId): Run<void>;
-  move(id: LayerId, before: LayerId | null): Run<void>;
-  removeBySource(pred: (s: LayerSource) => boolean): Run<readonly LayerId[]>;
-  encode(spec: EncodingSpec): Run<Layer>;    // the ONE path an analysis layer takes
-  highlight(spec: HighlightSpec): Run<Layer>;   // exclusive; replaces the previous highlight
-  explain(target: { node: NodeId } | { edge: EdgeId }): StyleExplanation;   // SYNCHRONOUS
-  legend(): readonly LegendBlock[];                                         // SYNCHRONOUS
-  applyTemplate(doc: StyleDocument): Run<{ applied: readonly LayerId[];
-                                           unbound: readonly UnboundLayer[] }>;
-  toDocument(): StyleDocument;                                              // SYNCHRONOUS
-  resolveToStatic(id: LayerId, channel: Channel): Run<Layer>;  // "convert the rule to a value"
+    list(): readonly Layer[]; // index 0 is the BOTTOM. Stated once, everywhere.
+    get(id: LayerId): Layer | undefined;
+    validate(spec: LayerSpec): ValidationResult; // SYNCHRONOUS; gates a form
+    add(spec: LayerSpec, at?: { above?: LayerId; below?: LayerId }): Run<Layer>;
+    update(id: LayerId, patch: Partial<LayerSpec>): Run<Layer>;
+    remove(id: LayerId): Run<void>;
+    move(id: LayerId, before: LayerId | null): Run<void>;
+    removeBySource(pred: (s: LayerSource) => boolean): Run<readonly LayerId[]>;
+    encode(spec: EncodingSpec): Run<Layer>; // the ONE path an analysis layer takes
+    highlight(spec: HighlightSpec): Run<Layer>; // exclusive; replaces the previous highlight
+    explain(target: { node: NodeId } | { edge: EdgeId }): StyleExplanation; // SYNCHRONOUS
+    legend(): readonly LegendBlock[]; // SYNCHRONOUS
+    applyTemplate(doc: StyleDocument): Run<{ applied: readonly LayerId[]; unbound: readonly UnboundLayer[] }>;
+    toDocument(): StyleDocument; // SYNCHRONOUS
+    resolveToStatic(id: LayerId, channel: Channel): Run<Layer>; // "convert the rule to a value"
 }
 
 interface ValidationResult {
-  ok: boolean;
-  errors: readonly { code: GraphtyErrorCode; message: string; path?: string;
-                     position?: number; candidates?: readonly string[] }[];
-  unresolvedPaths: readonly Path[];          // parsed, but nothing in the session answers them
-  // No match count here: counting is O(n) and therefore session.plan()'s job (3.5, 4.2.1).
+    ok: boolean;
+    errors: readonly {
+        code: GraphtyErrorCode;
+        message: string;
+        path?: string;
+        position?: number;
+        candidates?: readonly string[];
+    }[];
+    unresolvedPaths: readonly Path[]; // parsed, but nothing in the session answers them
+    // No match count here: counting is O(n) and therefore session.plan()'s job (3.5, 4.2.1).
 }
 ```
 
@@ -2034,7 +2239,7 @@ not apply the layer. That defect is the entire reason
 
 **Element-owned drawing is not in the layer list.** The selection highlight and its neighbour
 outlines, the hover highlight, the marquee, the drag ghost and the canvas clear colour are drawn
-by construction. The base and selection layers that *are* listed carry
+by construction. The base and selection layers that _are_ listed carry
 `source.by === "element"` and `locked: true`; removing one is `E_PROTECTED`. Today the app
 identifies them **by name** (`graphty/src/components/shell/defaults/nodeMetricStyle.ts:347,358`)
 and its own comment admits that a person who renames their own layer to "default" loses the
@@ -2044,44 +2249,86 @@ suppression.
 
 ```ts
 type Channel =
-  | "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle"
-  | "node.tooltip" | "node.opacity" | "node.outline" | "node.glow" | "node.wireframe"
-  | "node.flat" | "node.marker"
-  | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.curvature"
-  | "edge.arrowHead" | "edge.arrowTail" | "edge.animationSpeed"
-  | "edge.label" | "edge.labelStyle" | "edge.tooltip";
+    | "node.color"
+    | "node.size"
+    | "node.shape"
+    | "node.label"
+    | "node.labelStyle"
+    | "node.tooltip"
+    | "node.opacity"
+    | "node.outline"
+    | "node.glow"
+    | "node.wireframe"
+    | "node.flat"
+    | "node.marker"
+    | "edge.color"
+    | "edge.width"
+    | "edge.opacity"
+    | "edge.style"
+    | "edge.curvature"
+    | "edge.arrowHead"
+    | "edge.arrowTail"
+    | "edge.animationSpeed"
+    | "edge.label"
+    | "edge.labelStyle"
+    | "edge.tooltip";
 
-type EdgeLinePattern = "solid" | "dashed" | "dotted" | "dash-dot" | "dash-dot-dot"
-                     | "long-dash" | "short-dash" | "double" | "wave";   // edge.style values
+type EdgeLinePattern =
+    | "solid"
+    | "dashed"
+    | "dotted"
+    | "dash-dot"
+    | "dash-dot-dot"
+    | "long-dash"
+    | "short-dash"
+    | "double"
+    | "wave"; // edge.style values
 
 type Binding =
-  | { value: ChannelValue }
-  | { by: Path;
-      scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile"
-            | "ordinal" | "passthrough" | (string & {});   // (string & {}) = a registered scale
-      palette?: PaletteId;
-      domain?: [number, number] | "auto";
-      clamp?: [number, number];                            // percentiles, e.g. [2, 98]
-      range?: [number, number];
-      map?: Record<string, string | number>;               // per-value overrides
-      other?: { threshold: number; value: string | number };
-      overflow?: "other" | "shape" | "extend";             // too many groups; see above
-      missing?: "skip" | { value: string | number };       // DEFAULT: "skip"
-      reverse?: boolean; midpoint?: number; bins?: number; exponent?: number };
+    | { value: ChannelValue }
+    | {
+          by: Path;
+          scale?:
+              | "linear"
+              | "log"
+              | "neglog10"
+              | "sqrt"
+              | "pow"
+              | "bins"
+              | "quantile"
+              | "ordinal"
+              | "passthrough"
+              | (string & {}); // (string & {}) = a registered scale
+          palette?: PaletteId;
+          domain?: [number, number] | "auto";
+          clamp?: [number, number]; // percentiles, e.g. [2, 98]
+          range?: [number, number];
+          map?: Record<string, string | number>; // per-value overrides
+          other?: { threshold: number; value: string | number };
+          overflow?: "other" | "shape" | "extend"; // too many groups; see above
+          missing?: "skip" | { value: string | number }; // DEFAULT: "skip"
+          reverse?: boolean;
+          midpoint?: number;
+          bins?: number;
+          exponent?: number;
+      };
 
 type Encoding = Partial<Record<Channel, Binding>>;
 
 interface EncodingSpec {
-  run: Run | RunResult | RunId;         // the Run, the awaited result, or the bare id
-  field?: string;                       // defaults to the shape's primary field
-  channel: Channel;
-  scale?: Binding["scale"]; palette?: PaletteId;
-  domain?: Binding["domain"]; clamp?: Binding["clamp"];
-  range?: Binding["range"];             // a numeric channel's output, e.g. [1, 5] for a size
-  missing?: Binding["missing"]; reverse?: boolean;
-  overflow?: "other" | "shape" | "extend";  // DEFAULT "other" for a categorical colour with no
-                                            // palette named; see the overflow rule above
-  name?: string;
+    run: Run | RunResult | RunId; // the Run, the awaited result, or the bare id
+    field?: string; // defaults to the shape's primary field
+    channel: Channel;
+    scale?: Binding["scale"];
+    palette?: PaletteId;
+    domain?: Binding["domain"];
+    clamp?: Binding["clamp"];
+    range?: Binding["range"]; // a numeric channel's output, e.g. [1, 5] for a size
+    missing?: Binding["missing"];
+    reverse?: boolean;
+    overflow?: "other" | "shape" | "extend"; // DEFAULT "other" for a categorical colour with no
+    // palette named; see the overflow rule above
+    name?: string;
 }
 ```
 
@@ -2134,8 +2381,8 @@ distinct values than `PaletteDescriptor.capacity` follows `Binding.overflow`:
 - `"other"` -- **what `encode()` writes by default** onto a categorical colour binding that names
   no palette. The N largest groups (N = the palette's capacity, 8 for Okabe-Ito) keep its colours
   in palette order, largest first; every remaining group is painted one grey, #505050 (Delta E
-  >= 15 from every Okabe-Ito colour, >= 2:1 on the background -- the light greys fail), and the
-  legend's last row reads "other: K groups".
+    > = 15 from every Okabe-Ito colour, >= 2:1 on the background -- the light greys fail), and the
+    > legend's last row reads "other: K groups".
 - `"shape"` -- node encodings only; refused with `E_BAD_COMMAND` from `encode()` and `E_BAD_LAYER`
   from a hand-written edge layer. Group i is colour i mod N and node shape floor(i / N) from
   icosphere (the default), box, octahedron, cylinder, cone, torus; past N x 6 groups the rest fold
@@ -2163,29 +2410,42 @@ recorded in the layer document so an export explains itself.
 
 ```ts
 interface LegendBlock {
-  channel: Channel; layerId: LayerId; runId?: RunId;
-  kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
-  field: { plainName: string; technicalName: string; path: Path };
-  scale: { kind: string; label: string };              // "Square root", in words
-  domain?: { min: number; max: number; midpoint?: number;
-             clamped?: { from: string; to: string } };
-  palette?: { name: PaletteId; reversed: boolean };
-  swatches: readonly { label: string; value: unknown; color?: string; size?: number;
-                       count?: number }[];             // capped at 12
-  overflow?: { hidden: number };                       // "and 14 more"
-  departures: readonly string[];                       // "clamped at p2/p98",
-                                                       // "not measured (312 nodes)"
+    channel: Channel;
+    layerId: LayerId;
+    runId?: RunId;
+    kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
+    field: { plainName: string; technicalName: string; path: Path };
+    scale: { kind: string; label: string }; // "Square root", in words
+    domain?: { min: number; max: number; midpoint?: number; clamped?: { from: string; to: string } };
+    palette?: { name: PaletteId; reversed: boolean };
+    swatches: readonly { label: string; value: unknown; color?: string; size?: number; count?: number }[]; // capped at 12
+    overflow?: { hidden: number }; // "and 14 more"
+    departures: readonly string[]; // "clamped at p2/p98",
+    // "not measured (312 nodes)"
 }
 
 interface StyleExplanation {
-  merged: ResolvedStyle;
-  contributions: readonly { layerId: LayerId; name: string;
-                            properties: readonly string[]; values: Record<string, unknown> }[];
-  channels: readonly { channel: Channel; layerId: LayerId; mode: "static" | "encoded";
-                       editable: boolean; reason?: string }[];
+    merged: ResolvedStyle;
+    contributions: readonly {
+        layerId: LayerId;
+        name: string;
+        properties: readonly string[];
+        values: Record<string, unknown>;
+    }[];
+    channels: readonly {
+        channel: Channel;
+        layerId: LayerId;
+        mode: "static" | "encoded";
+        editable: boolean;
+        reason?: string;
+    }[];
 }
 
-interface UnboundLayer { layerId: LayerId; reason: string; needs: readonly Path[] }
+interface UnboundLayer {
+    layerId: LayerId;
+    reason: string;
+    needs: readonly Path[];
+}
 ```
 
 `explain()` answers "why is node-5 red?" in one call. It also answers "which channel does this
@@ -2194,7 +2454,7 @@ layer drive, and can a user edit it here", with `editable` and a `reason` -- the
 by prefix-matching output-path strings, and whose header documents the element's internal
 lodash `defaultsDeep` merge order as the reason a calculated channel cannot be an editable
 control. `resolveToStatic(id, channel)` is the paired verb: convert the rule to a fixed value so
-it *becomes* editable.
+it _becomes_ editable.
 
 The legend is derived from the encoding model, never from the canvas, so it exists headlessly,
 in a Node test, and at any export scale. `view.capture({ legend: true })` composes the same
@@ -2226,35 +2486,39 @@ and the receiving element knows what to do with every part of it:
 
 ```ts
 interface GraphtyDocument {
-  readonly kind: "graphty-document";
-  readonly version: 1;
-  readonly createdAt: string;                        // ISO 8601
-  readonly generator?: { name: string; version: string };
-  /** The dataset these members were authored against, when one is known. */
-  readonly fingerprint?: string;
-  readonly data?: { format: FormatId; inline?: string; url?: string };
-  readonly dataPlan?: DataPlan;
-  readonly style?: StyleDocument;
-  readonly recipe?: Recipe;
-  readonly view?: ViewPreset;
-  readonly annotations?: AnnotationSet;
+    readonly kind: "graphty-document";
+    readonly version: 1;
+    readonly createdAt: string; // ISO 8601
+    readonly generator?: { name: string; version: string };
+    /** The dataset these members were authored against, when one is known. */
+    readonly fingerprint?: string;
+    readonly data?: { format: FormatId; inline?: string; url?: string };
+    readonly dataPlan?: DataPlan;
+    readonly style?: StyleDocument;
+    readonly recipe?: Recipe;
+    readonly view?: ViewPreset;
+    readonly annotations?: AnnotationSet;
 }
 
 interface DataApi {
-  openDocument(src: File | Blob | URL | string | GraphtyDocument,
-               o?: RunOptions & { members?: readonly DocumentMember[] }): Run<DocumentReport>;
-  saveDocument(o?: { members?: readonly DocumentMember[]; scope?: Scope;
-                     inlineData?: boolean }): Promise<GraphtyDocument>;
+    openDocument(
+        src: File | Blob | URL | string | GraphtyDocument,
+        o?: RunOptions & { members?: readonly DocumentMember[] },
+    ): Run<DocumentReport>;
+    saveDocument(o?: {
+        members?: readonly DocumentMember[];
+        scope?: Scope;
+        inlineData?: boolean;
+    }): Promise<GraphtyDocument>;
 }
 
 type DocumentMember = "data" | "dataPlan" | "style" | "recipe" | "view" | "annotations";
 
 interface DocumentReport {
-  readonly applied: readonly DocumentMember[];
-  /** Per member, what bound and what did not. A member never fails the whole open. */
-  readonly members: Readonly<Record<DocumentMember, BindingReport | undefined>>;
-  readonly skipped: readonly { member: DocumentMember; reason: string;
-                               code: GraphtyErrorCode }[];
+    readonly applied: readonly DocumentMember[];
+    /** Per member, what bound and what did not. A member never fails the whole open. */
+    readonly members: Readonly<Record<DocumentMember, BindingReport | undefined>>;
+    readonly skipped: readonly { member: DocumentMember; reason: string; code: GraphtyErrorCode }[];
 }
 ```
 
@@ -2283,18 +2547,20 @@ layer is worse than a disabled one.
 #### 4.6.4 Worked example: colour by a metric, then ask why one node is that colour
 
 ```js
-const run = el.run("betweenness");        // a Run. Awaiting it gives the RunResult;
-await run;                                // encode() takes the Run.
-await el.encode({ run, channel: "node.color", palette: "viridis",
-                  scale: "sqrt", clamp: [2, 98] });
+const run = el.run("betweenness"); // a Run. Awaiting it gives the RunResult;
+await run; // encode() takes the Run.
+await el.encode({ run, channel: "node.color", palette: "viridis", scale: "sqrt", clamp: [2, 98] });
 await el.encode({ run, channel: "node.size", scale: "sqrt" });
 
 for (const block of el.session.styles.legend()) {
-  console.log(block.field.plainName, block.scale.label, block.departures);
+    console.log(block.field.plainName, block.scale.label, block.departures);
 }
 
 const why = el.session.styles.explain({ node: "n17" });
-console.log(why.merged["node.color"], why.contributions.map((c) => `${c.name}: ${c.properties}`));
+console.log(
+    why.merged["node.color"],
+    why.contributions.map((c) => `${c.name}: ${c.properties}`),
+);
 ```
 
 ---
@@ -2303,42 +2569,53 @@ console.log(why.merged["node.color"], why.contributions.map((c) => `${c.name}: $
 
 ```ts
 interface LayoutApi {
-  set(id: LayoutId, params?: Record<string, unknown>,
-      o?: { scope?: Scope; start?: "current" | "fresh" | "positions" }): Promise<void>;
-  readonly id: LayoutId;
-  readonly kind: "live" | "batch";
-  readonly state: "idle" | "running" | "paused" | "settled" | "stopped";
-  readonly step: number;
-  readonly dimensions: 2 | 3;                   // session state, NOT the camera projection
-  play(): void; pause(): void; tick(n?: number): void; stop(): void;
-  settle(o?: RunOptions & { maxSteps?: number }): Run<SettleResult>;
-  recommend(): { id: LayoutId; params: Record<string, unknown>; reason: string };
+    set(
+        id: LayoutId,
+        params?: Record<string, unknown>,
+        o?: { scope?: Scope; start?: "current" | "fresh" | "positions" },
+    ): Promise<void>;
+    readonly id: LayoutId;
+    readonly kind: "live" | "batch";
+    readonly state: "idle" | "running" | "paused" | "settled" | "stopped";
+    readonly step: number;
+    readonly dimensions: 2 | 3; // session state, NOT the camera projection
+    play(): void;
+    pause(): void;
+    tick(n?: number): void;
+    stop(): void;
+    settle(o?: RunOptions & { maxSteps?: number }): Run<SettleResult>;
+    recommend(): { id: LayoutId; params: Record<string, unknown>; reason: string };
 }
-interface SettleResult { settled: boolean; steps: number;
-                         reason: "converged" | "max-steps" | "canceled" }
+interface SettleResult {
+    settled: boolean;
+    steps: number;
+    reason: "converged" | "max-steps" | "canceled";
+}
 
 interface PositionsApi {
-  get(id: NodeId): Position | undefined;                        // O(1)
-  set(entries: Iterable<[NodeId, Position]>): Promise<MutationReceipt>;
-  pin(ids: readonly NodeId[]): void;
-  unpin(ids: readonly NodeId[] | "all"): void;
-  /** A mask, not a Set: bounded, transferable, and O(1) to test. */
-  pinnedMask(): Uint8Array;
-  isPinned(id: NodeId): boolean;
-  snapshot(): { order: readonly NodeId[]; xyz: Float32Array };  // stride 3
-  restore(s: { order: readonly NodeId[]; xyz: Float32Array }): Promise<MutationReceipt>;
-  readonly complete: boolean;                                   // every node had a position
+    get(id: NodeId): Position | undefined; // O(1)
+    set(entries: Iterable<[NodeId, Position]>): Promise<MutationReceipt>;
+    pin(ids: readonly NodeId[]): void;
+    unpin(ids: readonly NodeId[] | "all"): void;
+    /** A mask, not a Set: bounded, transferable, and O(1) to test. */
+    pinnedMask(): Uint8Array;
+    isPinned(id: NodeId): boolean;
+    snapshot(): { order: readonly NodeId[]; xyz: Float32Array }; // stride 3
+    restore(s: { order: readonly NodeId[]; xyz: Float32Array }): Promise<MutationReceipt>;
+    readonly complete: boolean; // every node had a position
 
-  /** THE PER-FRAME CHANNEL. Read by reference; never copied per frame. `version` increments
-   *  whenever the contents change, so a renderer can skip a frame with one integer compare.
-   *  The array is owned by the session and is replaced (not mutated in place) when the node
-   *  count changes, which is the only time `order` changes too. */
-  readonly buffer: { readonly order: readonly NodeId[];
-                     readonly xyz: Float32Array;        // stride 3
-                     readonly version: number };
-  /** Typed-array writes for a layout engine or an accelerator. No per-node object allocation. */
-  setRange(startIndex: number, xyz: Float32Array): void;
-  setPacked(indices: Uint32Array, xyz: Float32Array): void;
+    /** THE PER-FRAME CHANNEL. Read by reference; never copied per frame. `version` increments
+     *  whenever the contents change, so a renderer can skip a frame with one integer compare.
+     *  The array is owned by the session and is replaced (not mutated in place) when the node
+     *  count changes, which is the only time `order` changes too. */
+    readonly buffer: {
+        readonly order: readonly NodeId[];
+        readonly xyz: Float32Array; // stride 3
+        readonly version: number;
+    };
+    /** Typed-array writes for a layout engine or an accelerator. No per-node object allocation. */
+    setRange(startIndex: number, xyz: Float32Array): void;
+    setPacked(indices: Uint32Array, xyz: Float32Array): void;
 }
 ```
 
@@ -2381,11 +2658,12 @@ layout ids from memory and notes that the spec's first choice does not exist.
 ```js
 const s = el.session;
 const { id, params, reason } = s.layout.recommend();
-console.log(reason);                         // "94,120 nodes: a live force layout above 50,000"
+console.log(reason); // "94,120 nodes: a live force layout above 50,000"
 await s.layout.set(id, params, { start: "current" });
-const settled = await s.layout.settle({ maxSteps: 1000,
-                                        onProgress: (p) => bar.set(p.fraction) });
-if (!settled.settled) { note(`Stopped after ${settled.steps} steps`); }
+const settled = await s.layout.settle({ maxSteps: 1000, onProgress: (p) => bar.set(p.fraction) });
+if (!settled.settled) {
+    note(`Stopped after ${settled.steps} steps`);
+}
 s.positions.pin(s.selection.nodes);
 ```
 
@@ -2395,18 +2673,20 @@ s.positions.pin(s.selection.nodes);
 
 ```ts
 interface CameraApi {
-  readonly position: Position; readonly target: Position;
-  readonly zoomPercent: number;
-  readonly preset: "current" | "top" | "side" | "front" | "isometric" | (string & {});
-  moveTo(spec: { position?: Position; target?: Position; preset?: CameraApi["preset"] },
-         o?: { animate?: boolean; durationMs?: number }): Promise<void>;
-  fit(scope?: Scope, o?: { padding?: number; animate?: boolean }): Promise<void>;
-  zoomToNodes(ids: readonly NodeId[], o?: { padding?: number; animate?: boolean }): Promise<void>;
-  followNode(id: NodeId | null): void;
-  linkTo(other: CameraApi | null,
-         o?: { pan?: boolean; zoom?: boolean; rotate?: boolean }): () => void;
-  bookmark(): ViewPreset;
-  apply(preset: ViewPreset): Promise<void>;
+    readonly position: Position;
+    readonly target: Position;
+    readonly zoomPercent: number;
+    readonly preset: "current" | "top" | "side" | "front" | "isometric" | (string & {});
+    moveTo(
+        spec: { position?: Position; target?: Position; preset?: CameraApi["preset"] },
+        o?: { animate?: boolean; durationMs?: number },
+    ): Promise<void>;
+    fit(scope?: Scope, o?: { padding?: number; animate?: boolean }): Promise<void>;
+    zoomToNodes(ids: readonly NodeId[], o?: { padding?: number; animate?: boolean }): Promise<void>;
+    followNode(id: NodeId | null): void;
+    linkTo(other: CameraApi | null, o?: { pan?: boolean; zoom?: boolean; rotate?: boolean }): () => void;
+    bookmark(): ViewPreset;
+    apply(preset: ViewPreset): Promise<void>;
 }
 ```
 
@@ -2437,43 +2717,67 @@ Data export is section 4.3.6. This section is the view's half.
 
 ```ts
 interface CaptureOptions {
-  format?: "png" | "jpeg" | "webp" | "svg" | "pdf";
-  scale?: 1 | 2 | 4 | number;
-  maxSide?: number;                          // default config.exportMaxSide (4096)
-  scope?: "viewport" | "graph" | Scope;
-  camera?: CameraApi["preset"];
-  background?: string | "transparent";
-  legend?: boolean;                          // default true
-  markers?: boolean;                         // note markers, in-scene
-  labels?: "as-shown" | "pinned-only" | "none";
-  quality?: number;                          // jpeg/webp, 60..100
-  to?: "blob" | "clipboard";                 // "clipboard" needs capabilities.capture.clipboard
-  signal?: AbortSignal;
+    format?: "png" | "jpeg" | "webp" | "svg" | "pdf";
+    scale?: 1 | 2 | 4 | number;
+    maxSide?: number; // default config.exportMaxSide (4096)
+    scope?: "viewport" | "graph" | Scope;
+    camera?: CameraApi["preset"];
+    background?: string | "transparent";
+    legend?: boolean; // default true
+    markers?: boolean; // note markers, in-scene
+    labels?: "as-shown" | "pinned-only" | "none";
+    quality?: number; // jpeg/webp, 60..100
+    to?: "blob" | "clipboard"; // "clipboard" needs capabilities.capture.clipboard
+    signal?: AbortSignal;
 }
-interface CaptureResult { blob: Blob; width: number; height: number;
-                          format: string; bytes: number; legendBlocks: number }
+interface CaptureResult {
+    blob: Blob;
+    width: number;
+    height: number;
+    format: string;
+    bytes: number;
+    legendBlocks: number;
+}
 
 interface VideoOptions extends RunOptions {
-  durationMs: number;
-  camera: "hold" | "orbit" | { path: readonly ViewPreset[] };
-  format?: "webm" | "mp4";
-  fps?: 30 | 60; scale?: 1 | 2;
+    durationMs: number;
+    camera: "hold" | "orbit" | { path: readonly ViewPreset[] };
+    format?: "webm" | "mp4";
+    fps?: 30 | 60;
+    scale?: 1 | 2;
 }
-interface VideoResult { blob: Blob; durationMs: number; frames: number; format: string }
+interface VideoResult {
+    blob: Blob;
+    durationMs: number;
+    frames: number;
+    format: string;
+}
 
 interface ReportOptions {
-  format: "html" | "markdown" | "pdf";
-  title?: string; description?: string; methodology?: string; findings?: string;
-  sections?: readonly ("statistics" | "degree-distribution" | "rankings" | "communities"
-                     | "image" | "legend" | "methods" | "notes")[];
-  runs?: readonly RunId[] | "all";
-  image?: CaptureOptions;
-  template?: "plain" | "publication" | "brief" | (string & {});
-  css?: string; logo?: Blob;
+    format: "html" | "markdown" | "pdf";
+    title?: string;
+    description?: string;
+    methodology?: string;
+    findings?: string;
+    sections?: readonly (
+        | "statistics"
+        | "degree-distribution"
+        | "rankings"
+        | "communities"
+        | "image"
+        | "legend"
+        | "methods"
+        | "notes"
+    )[];
+    runs?: readonly RunId[] | "all";
+    image?: CaptureOptions;
+    template?: "plain" | "publication" | "brief" | (string & {});
+    css?: string;
+    logo?: Blob;
 }
 interface EvidenceBundleOptions {
-  runs?: readonly RunId[] | "all";
-  include?: readonly ("csv" | "image" | "journal" | "recipe")[];
+    runs?: readonly RunId[] | "all";
+    include?: readonly ("csv" | "image" | "journal" | "recipe")[];
 }
 ```
 
@@ -2497,11 +2801,16 @@ the element has the parameter names, the units and the plain names.
 
 ```js
 const est = await el.session.plan({ op: "view.capture", format: "png", scale: 4 });
-if (est.effect.bytes > 20e6) { warn(`${(est.effect.bytes/1e6).toFixed(0)} MB`); }
+if (est.effect.bytes > 20e6) {
+    warn(`${(est.effect.bytes / 1e6).toFixed(0)} MB`);
+}
 const shot = await el.capture({ format: "png", scale: 4, legend: true, camera: "isometric" });
-const pdf = await el.report({ format: "pdf", title: "Backbone of the payment network",
-                              runs: "all", sections: ["statistics", "rankings", "image",
-                                                      "legend", "methods"] });
+const pdf = await el.report({
+    format: "pdf",
+    title: "Backbone of the payment network",
+    runs: "all",
+    sections: ["statistics", "rankings", "image", "legend", "methods"],
+});
 ```
 
 ---
@@ -2522,11 +2831,11 @@ property.
 two tables below carries a coalescing value, and these three are the ones that would otherwise
 arrive at frame or pointer rate:
 
-| Event | Coalescing | Why |
-| --- | --- | --- |
-| `graphty-camera-change` | one per animation frame, trailing | an orbit emits per frame otherwise; `camera.linkTo` drives the far camera directly and does not re-emit, so two linked views cannot ping-pong |
-| `layout:changed` | one per animation frame, trailing | a live layout ticks every frame; a consumer drawing a progress bar needs the latest value, not every value |
-| `graphty-node-hover` | one per pointer move, and `detail` carries ids, not records | the full attribute record at pointer rate is a copy per move; `data.node(id)` is O(1) for a consumer that wants it |
+| Event                   | Coalescing                                                  | Why                                                                                                                                           |
+| ----------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty-camera-change` | one per animation frame, trailing                           | an orbit emits per frame otherwise; `camera.linkTo` drives the far camera directly and does not re-emit, so two linked views cannot ping-pong |
+| `layout:changed`        | one per animation frame, trailing                           | a live layout ticks every frame; a consumer drawing a progress bar needs the latest value, not every value                                    |
+| `graphty-node-hover`    | one per pointer move, and `detail` carries ids, not records | the full attribute record at pointer rate is a copy per move; `data.node(id)` is O(1) for a consumer that wants it                            |
 
 Run progress is coalesced before it reaches a listener at all: `onProgress` and
 `graphty-run-progress` are capped at ten per second, which is the rate the progress requirement
@@ -2548,7 +2857,7 @@ carries no engine reference. Today the element blanket-forwards roughly fifty un
 internal event names to the DOM with `detail` set to the whole internal event object
 (`graphty-element/src/graphty-element.ts:96-104`), which hands a `Graph` -- and therefore the
 Babylon engine -- to any listener on `document`, and includes `stats-update` once per frame.
-Four *documented* events (`node-click`, `node-hover`, `node-drag-start`, `node-drag-end`) throw
+Four _documented_ events (`node-click`, `node-hover`, `node-drag-start`, `node-drag-end`) throw
 on subscribe, because `EventManager.addListener`'s switch has no case for them and ends in
 `throw new TypeError` (`graphty-element/src/managers/EventManager.ts:450`); `edge-click` and all
 eleven `ai-*` events are declared and never emitted; and `Graph.on()` returns `void`, discarding
@@ -2565,26 +2874,26 @@ All `graphty-` prefixed, kebab-case, `bubbles: true`, `composed: true`, `detail`
 The `detail` of each is spelled out in the reference table rather than named as a type defined
 elsewhere.
 
-| event | detail |
-|---|---|
-| `graphty-ready` | `{}` |
-| `graphty-error` | `{ code, message, source, recoverable, details? }` |
-| `graphty-node-click` | `{ node: NodeRecord; id: NodeId; modifiers: Modifiers; pointer: {x,y}; world: Position \| null; results: Record<RunId, Record<string, unknown>> }` (`NodeClickDetail`, section 12) |
-| `graphty-node-dblclick` | same as node-click |
-| `graphty-node-contextmenu` | same as node-click; the browser menu is suppressed |
-| `graphty-edge-click` / `-dblclick` / `-contextmenu` | `{ edge: EdgeRecord; id: EdgeId; source: NodeId; target: NodeId; modifiers; pointer }` |
-| `graphty-canvas-click` / `-contextmenu` | `{ modifiers; pointer; world: Position \| null }` |
-| `graphty-node-hover` / `graphty-edge-hover` | `{ id: NodeId \| EdgeId \| null; data: Record<string, unknown> \| null }` |
-| `graphty-node-drag-start` / `-drag-end` | `{ id: NodeId; position: Position; pinned: boolean }` |
-| `graphty-marquee-end` | `{ nodes: readonly NodeId[]; edges: readonly EdgeId[] }` |
-| `graphty-camera-change` | `{ position; target; zoomPercent; preset }` |
-| `graphty-view-mode-change` | `{ mode: "2d"\|"3d"\|"vr"\|"ar" }` |
-| `graphty-xr-session-change` | `{ state: "entered"\|"exited"\|"unexpected-end"; mode: "vr"\|"ar" }` |
-| `graphty-performance-change` | `{ active: boolean; reasons: readonly string[] }` |
-| `graphty-selection-change` (mirror) | `SelectionDelta` |
-| `graphty-run-change` (mirror) | `{ run: RunRecord; phase: "queued"\|"start"\|"progress"\|"end" }` |
-| `graphty-load-change` (mirror) | `{ phase; fraction; summary: string; endpoints?: Inspection["endpoints"]; report?: ImportReport }` -- `endpoints` and `report` are present at `phase: "end"`, which is where the report of which endpoint spelling was used lands |
-| `graphty-capabilities-change` (mirror) | `{ capabilities: Capabilities }` -- the same detail as the session's `capabilities:changed` |
+| event                                               | detail                                                                                                                                                                                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty-ready`                                     | `{}`                                                                                                                                                                                                                              |
+| `graphty-error`                                     | `{ code, message, source, recoverable, details? }`                                                                                                                                                                                |
+| `graphty-node-click`                                | `{ node: NodeRecord; id: NodeId; modifiers: Modifiers; pointer: {x,y}; world: Position \| null; results: Record<RunId, Record<string, unknown>> }` (`NodeClickDetail`, section 12)                                                |
+| `graphty-node-dblclick`                             | same as node-click                                                                                                                                                                                                                |
+| `graphty-node-contextmenu`                          | same as node-click; the browser menu is suppressed                                                                                                                                                                                |
+| `graphty-edge-click` / `-dblclick` / `-contextmenu` | `{ edge: EdgeRecord; id: EdgeId; source: NodeId; target: NodeId; modifiers; pointer }`                                                                                                                                            |
+| `graphty-canvas-click` / `-contextmenu`             | `{ modifiers; pointer; world: Position \| null }`                                                                                                                                                                                 |
+| `graphty-node-hover` / `graphty-edge-hover`         | `{ id: NodeId \| EdgeId \| null; data: Record<string, unknown> \| null }`                                                                                                                                                         |
+| `graphty-node-drag-start` / `-drag-end`             | `{ id: NodeId; position: Position; pinned: boolean }`                                                                                                                                                                             |
+| `graphty-marquee-end`                               | `{ nodes: readonly NodeId[]; edges: readonly EdgeId[] }`                                                                                                                                                                          |
+| `graphty-camera-change`                             | `{ position; target; zoomPercent; preset }`                                                                                                                                                                                       |
+| `graphty-view-mode-change`                          | `{ mode: "2d"\|"3d"\|"vr"\|"ar" }`                                                                                                                                                                                                |
+| `graphty-xr-session-change`                         | `{ state: "entered"\|"exited"\|"unexpected-end"; mode: "vr"\|"ar" }`                                                                                                                                                              |
+| `graphty-performance-change`                        | `{ active: boolean; reasons: readonly string[] }`                                                                                                                                                                                 |
+| `graphty-selection-change` (mirror)                 | `SelectionDelta`                                                                                                                                                                                                                  |
+| `graphty-run-change` (mirror)                       | `{ run: RunRecord; phase: "queued"\|"start"\|"progress"\|"end" }`                                                                                                                                                                 |
+| `graphty-load-change` (mirror)                      | `{ phase; fraction; summary: string; endpoints?: Inspection["endpoints"]; report?: ImportReport }` -- `endpoints` and `report` are present at `phase: "end"`, which is where the report of which endpoint spelling was used lands |
+| `graphty-capabilities-change` (mirror)              | `{ capabilities: Capabilities }` -- the same detail as the session's `capabilities:changed`                                                                                                                                       |
 
 The four mirrors -- `graphty-selection-change`, `graphty-run-change`, `graphty-load-change` and
 `graphty-capabilities-change` -- exist so an HTML-only consumer can build a status bar without
@@ -2598,20 +2907,20 @@ a single GPU type.
 
 `session.on(name, handler)` returns an unsubscribe function.
 
-| event | detail |
-|---|---|
-| `ready` / `error` | as above |
-| `data:loading` | `Progress & { phase: "fetch"\|"parse"\|"index" }` |
-| `data:changed` | `MutationReceipt` |
-| `selection:changed` | `SelectionDelta` |
-| `visibility:changed` | `{ visible; total; unresolvedPaths; durationMs; filterKind }` (`FilterResult & { filterKind: string }`, section 12) |
-| `run:changed` | `{ run: RunRecord; phase: "queued"\|"start"\|"progress"\|"end" }` (rate-limited to 10/s) |
-| `styles:changed` | `{ layers: readonly Layer[]; changed: readonly LayerId[] }` -- carries the state |
-| `style:error` | `{ layerId; elementId; code; message }` (deduped per layer per repaint) |
-| `layout:changed` | `{ id; kind; state; step; progress? }` |
-| `journal:appended` | `{ entry: JournalEntry }` |
-| `capabilities:changed` | `{ capabilities: Capabilities }` |
-| `catalog:changed` | `{ kind; added: readonly string[]; removed: readonly string[] }` |
+| event                  | detail                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `ready` / `error`      | as above                                                                                                            |
+| `data:loading`         | `Progress & { phase: "fetch"\|"parse"\|"index" }`                                                                   |
+| `data:changed`         | `MutationReceipt`                                                                                                   |
+| `selection:changed`    | `SelectionDelta`                                                                                                    |
+| `visibility:changed`   | `{ visible; total; unresolvedPaths; durationMs; filterKind }` (`FilterResult & { filterKind: string }`, section 12) |
+| `run:changed`          | `{ run: RunRecord; phase: "queued"\|"start"\|"progress"\|"end" }` (rate-limited to 10/s)                            |
+| `styles:changed`       | `{ layers: readonly Layer[]; changed: readonly LayerId[] }` -- carries the state                                    |
+| `style:error`          | `{ layerId; elementId; code; message }` (deduped per layer per repaint)                                             |
+| `layout:changed`       | `{ id; kind; state; step; progress? }`                                                                              |
+| `journal:appended`     | `{ entry: JournalEntry }`                                                                                           |
+| `capabilities:changed` | `{ capabilities: Capabilities }`                                                                                    |
+| `catalog:changed`      | `{ kind; added: readonly string[]; removed: readonly string[] }`                                                    |
 
 `styles:changed` carries the layer list because today it is a bare notification and the one
 consumer re-reads `element.graph.getLayers()` on every fire
@@ -2622,10 +2931,13 @@ consumer re-reads `element.graph.getLayers()` on every fire
 `on()` takes an options object the DOM listener cannot:
 
 ```ts
-interface ListenOptions { where?: Query; once?: boolean; signal?: AbortSignal }
+interface ListenOptions {
+    where?: Query;
+    once?: boolean;
+    signal?: AbortSignal;
+}
 
-const off = el.on("graphty-node-click", (e) => inspect(e.detail.id),
-                  { where: "data.type == `host`" });
+const off = el.on("graphty-node-click", (e) => inspect(e.detail.id), { where: "data.type == `host`" });
 ```
 
 One selector dialect across styles, filters, scopes, selection and events is a coherence win,
@@ -2637,51 +2949,94 @@ and it means the common case never hand-writes a predicate inside a handler.
 
 #### 4.11.1 The command union
 
+> **Updated by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md), section
+> 10.5). The published union is `SessionCommand`, and `COMMANDS` in
+> `@graphty/graphty-element/commands` lists only the ops that exist, each declared undoable or
+> exempt with a reason. `view.mode` is split into `view.dimension` (undoable) and
+> `view.immersive` (exempt), and the undo work adds `algo.legacy`, `visibility.context`,
+> `scope.save`, `scope.remove`, `positions.pin`, `view.save` and `view.remove`.
+
 ```ts
 type Command =
-  | { op: "data.inspect"; source: Source; format?: FormatId }
-  | { op: "data.import"; source: Source; plan?: ImportPlan; mode?: "replace" | "merge" }
-  | { op: "data.apply"; mutation: Mutation }
-  | { op: "data.expand"; seeds: readonly NodeId[]; depth?: number; direction?: Direction;
-      nodeTypes?: readonly string[]; edgeTypes?: readonly string[]; limit?: number }
-  | { op: "data.collapse"; expansionId: string }
-  | { op: "data.compute"; name: string; formula: string; target?: "node" | "edge" }
-  | { op: "data.export"; format: FormatId; scope?: Scope; include?: ExportOptions["include"] }
-  | { op: "data.sample"; name: SampleDatasetId }
-  | { op: "data.match"; pattern: Pattern | string; similarity?: number; limit?: number }
-  | { op: "algo.run"; algorithm: AlgorithmKey; params?: Record<string, unknown>;
-      scope?: Scope; seed?: number; as?: RunId; style?: RunStyle }
-  | { op: "algo.remove"; runId: RunId }
-  | { op: "style.patch"; add?: readonly LayerSpec[]; update?: Record<LayerId, Partial<LayerSpec>>;
-      remove?: readonly LayerId[]; order?: readonly LayerId[] }
-  | { op: "style.encode"; spec: EncodingSpec }
-  | { op: "style.template"; document: StyleDocument }
-  | { op: "select"; target: SelectionTarget; mode?: SetOp }
-  | { op: "visibility.set"; filter: Filter | null }
-  | { op: "visibility.window"; window: TimeWindow | null }
-  | { op: "visibility.steps"; window: TimeWindow }
-  | { op: "layout.set"; id: LayoutId; params?: Record<string, unknown>; scope?: Scope;
-      start?: "current" | "fresh" | "positions" }
-  | { op: "layout.transport"; action: "play" | "pause" | "step" | "settle" | "stop";
-      steps?: number }
-  | { op: "positions.set"; entries: readonly (readonly [NodeId, Position])[] }
-  | { op: "view.camera"; position?: Position; target?: Position; preset?: string;
-      fit?: Scope; follow?: NodeId | null; animate?: boolean }
-  | { op: "view.mode"; mode: "2d" | "3d" | "vr" | "ar" }
-  | { op: "view.capture"; format?: CaptureOptions["format"]; scale?: number; legend?: boolean;
-      scope?: CaptureOptions["scope"]; camera?: string }
-  | { op: "view.record"; durationMs: number; camera: VideoOptions["camera"] }
-  | { op: "report"; format: ReportOptions["format"]; sections?: ReportOptions["sections"] }
-  | { op: "calibrate" }
-  | { op: "config.set"; values: Partial<ConfigValues> }
-  | { op: "batch"; steps: readonly Command[]; atomic?: boolean; label?: string };
+    | { op: "data.inspect"; source: Source; format?: FormatId }
+    | { op: "data.import"; source: Source; plan?: ImportPlan; mode?: "replace" | "merge" }
+    | { op: "data.apply"; mutation: Mutation }
+    | {
+          op: "data.expand";
+          seeds: readonly NodeId[];
+          depth?: number;
+          direction?: Direction;
+          nodeTypes?: readonly string[];
+          edgeTypes?: readonly string[];
+          limit?: number;
+      }
+    | { op: "data.collapse"; expansionId: string }
+    | { op: "data.compute"; name: string; formula: string; target?: "node" | "edge" }
+    | { op: "data.export"; format: FormatId; scope?: Scope; include?: ExportOptions["include"] }
+    | { op: "data.sample"; name: SampleDatasetId }
+    | { op: "data.match"; pattern: Pattern | string; similarity?: number; limit?: number }
+    | {
+          op: "algo.run";
+          algorithm: AlgorithmKey;
+          params?: Record<string, unknown>;
+          scope?: Scope;
+          seed?: number;
+          as?: RunId;
+          style?: RunStyle;
+      }
+    | { op: "algo.remove"; runId: RunId }
+    | {
+          op: "style.patch";
+          add?: readonly LayerSpec[];
+          update?: Record<LayerId, Partial<LayerSpec>>;
+          remove?: readonly LayerId[];
+          order?: readonly LayerId[];
+      }
+    | { op: "style.encode"; spec: EncodingSpec }
+    | { op: "style.template"; document: StyleDocument }
+    | { op: "select"; target: SelectionTarget; mode?: SetOp }
+    | { op: "visibility.set"; filter: Filter | null }
+    | { op: "visibility.window"; window: TimeWindow | null }
+    | { op: "visibility.steps"; window: TimeWindow }
+    | {
+          op: "layout.set";
+          id: LayoutId;
+          params?: Record<string, unknown>;
+          scope?: Scope;
+          start?: "current" | "fresh" | "positions";
+      }
+    | { op: "layout.transport"; action: "play" | "pause" | "step" | "settle" | "stop"; steps?: number }
+    | { op: "positions.set"; entries: readonly (readonly [NodeId, Position])[] }
+    | {
+          op: "view.camera";
+          position?: Position;
+          target?: Position;
+          preset?: string;
+          fit?: Scope;
+          follow?: NodeId | null;
+          animate?: boolean;
+      }
+    | { op: "view.mode"; mode: "2d" | "3d" | "vr" | "ar" }
+    | {
+          op: "view.capture";
+          format?: CaptureOptions["format"];
+          scale?: number;
+          legend?: boolean;
+          scope?: CaptureOptions["scope"];
+          camera?: string;
+      }
+    | { op: "view.record"; durationMs: number; camera: VideoOptions["camera"] }
+    | { op: "report"; format: ReportOptions["format"]; sections?: ReportOptions["sections"] }
+    | { op: "calibrate" }
+    | { op: "config.set"; values: Partial<ConfigValues> }
+    | { op: "batch"; steps: readonly Command[]; atomic?: boolean; label?: string };
 
 interface RunOptions {
-  signal?: AbortSignal;
-  onProgress?: (p: Progress) => void;
-  queue?: "append" | "replace" | "now";      // default "append"
-  dryRun?: boolean;                          // resolves to a Plan; performs nothing
-  transitionMs?: number;                     // overrides config.transitionMs for this call
+    signal?: AbortSignal;
+    onProgress?: (p: Progress) => void;
+    queue?: "append" | "replace" | "now"; // default "append"
+    dryRun?: boolean; // resolves to a Plan; performs nothing
+    transitionMs?: number; // overrides config.transitionMs for this call
 }
 ```
 
@@ -2697,39 +3052,46 @@ and is refused with `E_UNSUPPORTED` for anything that mutates.
 
 #### 4.11.2 The journal
 
+> **Superseded in part by the undo design** ([`../undo/undo-design.md`](../undo/undo-design.md),
+> sections 2, 5 and 7). Undo does not read `JournalEntry.inverse`: the session keeps its own
+> history of steps (`session.history`), with coalescing and a byte budget. The journal, recipes
+> and replay described here are not built yet and stay as designed, without the `inverse` field.
+
 ```ts
 interface JournalEntry {
-  readonly id: JournalId;
-  readonly at: string;                        // ISO 8601
-  readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view"
-               | "selection" | "config" | "note";
-  readonly command: Command;                  // the canonical, replayable form
-  /** LAZY. Formatting a summary eagerly costs a string per entry, and the entries that arrive
-   *  fastest are the ones nobody reads. Computed on first access and cached. */
-  readonly summary: string;
-  readonly inverse?: Command;                 // absent means not undoable
-  readonly coalesceKey?: string;              // consecutive entries with an equal key merge
-  readonly bytes: number;                     // retained size, including any snapshot inverse
-  readonly durationMs: number;
-  readonly runId?: RunId;
-  readonly engine: { element: string; algorithms: string; layout: string };
+    readonly id: JournalId;
+    readonly at: string; // ISO 8601
+    readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note";
+    readonly command: Command; // the canonical, replayable form
+    /** LAZY. Formatting a summary eagerly costs a string per entry, and the entries that arrive
+     *  fastest are the ones nobody reads. Computed on first access and cached. */
+    readonly summary: string;
+    readonly inverse?: Command; // absent means not undoable
+    readonly coalesceKey?: string; // consecutive entries with an equal key merge
+    readonly bytes: number; // retained size, including any snapshot inverse
+    readonly durationMs: number;
+    readonly runId?: RunId;
+    readonly engine: { element: string; algorithms: string; layout: string };
 }
 
 interface JournalApi {
-  readonly entries: readonly JournalEntry[];
-  get(id: JournalId): JournalEntry | undefined;
-  subscribe(fn: (e: JournalEntry) => void): () => void;
-  replay(entries: readonly JournalEntry[] | readonly Command[],
-         o?: RunOptions & { onData?: (step: Command) => Promise<Source> }):
-    Run<ReplayReport>;
-  export(o?: { kind?: readonly JournalEntry["kind"][] }): Recipe;
-  clear(): void;
-  cap: number;                                // default 1000, auto-pruned oldest-first
+    readonly entries: readonly JournalEntry[];
+    get(id: JournalId): JournalEntry | undefined;
+    subscribe(fn: (e: JournalEntry) => void): () => void;
+    replay(
+        entries: readonly JournalEntry[] | readonly Command[],
+        o?: RunOptions & { onData?: (step: Command) => Promise<Source> },
+    ): Run<ReplayReport>;
+    export(o?: { kind?: readonly JournalEntry["kind"][] }): Recipe;
+    clear(): void;
+    cap: number; // default 1000, auto-pruned oldest-first
 }
 
 interface ReplayReport {
-  steps: readonly { index: number; ok: boolean; reason?: string; command: Command }[];
-  bound: number; unbound: number; partial: boolean;
+    steps: readonly { index: number; ok: boolean; reason?: string; command: Command }[];
+    bound: number;
+    unbound: number;
+    partial: boolean;
 }
 type Recipe = { version: 1; steps: readonly Command[]; engine: JournalEntry["engine"] };
 ```
@@ -2742,29 +3104,29 @@ the `Run` that executed it carries its `journalId`, and `journal.get(id).inverse
 inverse. `MutationReceipt.inverse` (4.3.3) is the same `Command`, surfaced on the receipt
 because the data verbs are the ones a consumer reaches for first.
 
-| Command op | Inverse | Note |
-|---|---|---|
-| `data.import` | `data.apply {kind:"clear"}`, or the pre-import snapshot for `mode:"merge"` | one entry for the whole import |
-| `data.apply` | the paired mutation (`add-nodes` <-> `remove-nodes`, `set-attributes` -> the prior values, `merge-nodes` -> a split carrying `retargeted`, `drop-column` -> `add-column` with the stored values) | on `MutationReceipt.inverse` |
-| `data.expand` | `data.collapse {expansionId}` | on `ExpansionReceipt.inverse` |
-| `data.collapse` | `data.expand` with the recorded seeds and options | |
-| `data.compute` | `data.apply {kind:"drop-column"}` | |
-| `data.sample` | as `data.import` | |
-| `algo.run` | `algo.remove {runId}`, plus removal of any layer auto-apply added | the run's own layers come back with `rerun()` |
-| `algo.remove` | `algo.run` with the recorded command, plus `style.patch` restoring the removed layers | `runs.remove` returns the layer ids for exactly this |
-| `style.patch` | `style.patch` carrying the prior specs and the prior order | one op inverts add, update, remove and reorder together |
-| `style.encode` | `style.patch {remove:[layerId]}`, or the prior spec when it replaced a layer (4.4.5) | |
-| `style.template` | `style.patch` restoring the prior stack from `styles.toDocument()` | |
-| `select` | `select` with the prior two sets | bounded by `config.selectionCap` |
-| `visibility.set` | `visibility.set` with the prior `Filter \| null` | the mask itself is not stored; the filter is |
-| `visibility.window` | `visibility.window` with the prior `TimeWindow \| null` | dragging a slider coalesces (below) |
-| `layout.set` | `layout.set` with the prior id and params, plus `positions.set` restoring the prior arrangement | the positions are the expensive half, so the entry stores a `positions.snapshot()` |
-| `layout.transport` | none | transport is not state; the arrangement it produced is, and that lands as `positions.set` |
-| `positions.set` | `positions.set` with the prior coordinates of exactly the moved nodes | |
-| `config.set` | `config.set` with the prior values | on `MutationReceipt.inverse` |
-| `view.camera`, `view.mode` | the prior camera / mode | view state, journalled as `kind: "view"`, and most consumers exclude it from undo |
-| `data.inspect`, `data.export`, `data.match`, `visibility.steps`, `view.capture`, `view.record`, `report`, `calibrate` | none, and none is needed | they read; they change no state |
-| `batch` | a `batch` of the members' inverses in reverse order | atomic in, atomic out |
+| Command op                                                                                                            | Inverse                                                                                                                                                                                          | Note                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `data.import`                                                                                                         | `data.apply {kind:"clear"}`, or the pre-import snapshot for `mode:"merge"`                                                                                                                       | one entry for the whole import                                                            |
+| `data.apply`                                                                                                          | the paired mutation (`add-nodes` <-> `remove-nodes`, `set-attributes` -> the prior values, `merge-nodes` -> a split carrying `retargeted`, `drop-column` -> `add-column` with the stored values) | on `MutationReceipt.inverse`                                                              |
+| `data.expand`                                                                                                         | `data.collapse {expansionId}`                                                                                                                                                                    | on `ExpansionReceipt.inverse`                                                             |
+| `data.collapse`                                                                                                       | `data.expand` with the recorded seeds and options                                                                                                                                                |                                                                                           |
+| `data.compute`                                                                                                        | `data.apply {kind:"drop-column"}`                                                                                                                                                                |                                                                                           |
+| `data.sample`                                                                                                         | as `data.import`                                                                                                                                                                                 |                                                                                           |
+| `algo.run`                                                                                                            | `algo.remove {runId}`, plus removal of any layer auto-apply added                                                                                                                                | the run's own layers come back with `rerun()`                                             |
+| `algo.remove`                                                                                                         | `algo.run` with the recorded command, plus `style.patch` restoring the removed layers                                                                                                            | `runs.remove` returns the layer ids for exactly this                                      |
+| `style.patch`                                                                                                         | `style.patch` carrying the prior specs and the prior order                                                                                                                                       | one op inverts add, update, remove and reorder together                                   |
+| `style.encode`                                                                                                        | `style.patch {remove:[layerId]}`, or the prior spec when it replaced a layer (4.4.5)                                                                                                             |                                                                                           |
+| `style.template`                                                                                                      | `style.patch` restoring the prior stack from `styles.toDocument()`                                                                                                                               |                                                                                           |
+| `select`                                                                                                              | `select` with the prior two sets                                                                                                                                                                 | bounded by `config.selectionCap`                                                          |
+| `visibility.set`                                                                                                      | `visibility.set` with the prior `Filter \| null`                                                                                                                                                 | the mask itself is not stored; the filter is                                              |
+| `visibility.window`                                                                                                   | `visibility.window` with the prior `TimeWindow \| null`                                                                                                                                          | dragging a slider coalesces (below)                                                       |
+| `layout.set`                                                                                                          | `layout.set` with the prior id and params, plus `positions.set` restoring the prior arrangement                                                                                                  | the positions are the expensive half, so the entry stores a `positions.snapshot()`        |
+| `layout.transport`                                                                                                    | none                                                                                                                                                                                             | transport is not state; the arrangement it produced is, and that lands as `positions.set` |
+| `positions.set`                                                                                                       | `positions.set` with the prior coordinates of exactly the moved nodes                                                                                                                            |                                                                                           |
+| `config.set`                                                                                                          | `config.set` with the prior values                                                                                                                                                               | on `MutationReceipt.inverse`                                                              |
+| `view.camera`, `view.mode`                                                                                            | the prior camera / mode                                                                                                                                                                          | view state, journalled as `kind: "view"`, and most consumers exclude it from undo         |
+| `data.inspect`, `data.export`, `data.match`, `visibility.steps`, `view.capture`, `view.record`, `report`, `calibrate` | none, and none is needed                                                                                                                                                                         | they read; they change no state                                                           |
+| `batch`                                                                                                               | a `batch` of the members' inverses in reverse order                                                                                                                                              | atomic in, atomic out                                                                     |
 
 `coalesceKey` is how a dragged slider stays out of undo's way: consecutive re-runs of the same
 parameter on the same layer coalesce into one history entry while that layer stays selected and
@@ -2778,13 +3140,13 @@ is opened at the gesture's start and closed at its end, so one drag, one orbit o
 sweep is exactly one journal entry regardless of how many commands it emitted. These are
 mandatory rather than advisory:
 
-| Command | Key | Opened / closed |
-| --- | --- | --- |
-| `view.camera` | `camera:<viewId>:<gestureId>` | pointerdown / pointerup, or one entry per programmatic call |
-| `positions.set` | `positions:<gestureId>` | drag start / drag end |
-| `select` | `selection:<gestureId>` | marquee or shift-click run |
-| `visibility.set`, `window.set` | `<kind>:<controlId>` | while the same control keeps focus |
-| `style.patch` | `style:<layerId>:<channel>` | while that binding stays the edit target |
+| Command                        | Key                           | Opened / closed                                             |
+| ------------------------------ | ----------------------------- | ----------------------------------------------------------- |
+| `view.camera`                  | `camera:<viewId>:<gestureId>` | pointerdown / pointerup, or one entry per programmatic call |
+| `positions.set`                | `positions:<gestureId>`       | drag start / drag end                                       |
+| `select`                       | `selection:<gestureId>`       | marquee or shift-click run                                  |
+| `visibility.set`, `window.set` | `<kind>:<controlId>`          | while the same control keeps focus                          |
+| `style.patch`                  | `style:<layerId>:<channel>`   | while that binding stays the edit target                    |
 
 Without this the camera alone writes an entry per frame: an orbit drag at 60 Hz fills a
 1,000-entry journal in under 17 seconds, and every real edit a reader wanted to undo is gone.
@@ -2808,10 +3170,13 @@ format.**
 **Worked example: undo, and a recipe replayed on another file.**
 
 ```js
-const receipt = await s.data.apply({ kind: "merge-nodes",
-  groups: [["acct:18", "acct:19"]], into: "acct:17",
-  policy: { attributes: "keep-first", edges: "sum-weights", dropSelfLoops: true } });
-undoStack.push(receipt.inverse);            // a Command; serialises, replays, exports
+const receipt = await s.data.apply({
+    kind: "merge-nodes",
+    groups: [["acct:18", "acct:19"]],
+    into: "acct:17",
+    policy: { attributes: "keep-first", edges: "sum-weights", dropSelfLoops: true },
+});
+undoStack.push(receipt.inverse); // a Command; serialises, replays, exports
 // later in the session
 await s.run(undoStack.pop());
 
@@ -2825,25 +3190,37 @@ await otherSession.journal.replay(recipe.steps, { onData: () => otherFile });
 
 ```ts
 interface Capabilities {
-  readonly acceleration: {
-    state: "probing" | "active" | "idle" | "unavailable" | "error" | "off";
-    backend?: "webgpu";
-    vendor?: string; architecture?: string; device?: string;
-    reason?: string;                 // "requires a secure context (https or localhost)"
-    code?: "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST" | "E_TOO_LARGE";
-  };
-  readonly workers: { state: "active" | "unavailable"; count: number };
-  readonly xr: { vr: boolean; ar: boolean };
-  readonly capture: { png: boolean; jpeg: boolean; webp: boolean; svg: boolean; pdf: boolean;
-                      video: boolean; clipboard: boolean };
-  readonly calibration: { at: string; machine: string;
-                          basis: "probe" | "defaults" } | null;
-  readonly limits: Readonly<Limits>;
+    readonly acceleration: {
+        state: "probing" | "active" | "idle" | "unavailable" | "error" | "off";
+        backend?: "webgpu";
+        vendor?: string;
+        architecture?: string;
+        device?: string;
+        reason?: string; // "requires a secure context (https or localhost)"
+        code?: "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST" | "E_TOO_LARGE";
+    };
+    readonly workers: { state: "active" | "unavailable"; count: number };
+    readonly xr: { vr: boolean; ar: boolean };
+    readonly capture: {
+        png: boolean;
+        jpeg: boolean;
+        webp: boolean;
+        svg: boolean;
+        pdf: boolean;
+        video: boolean;
+        clipboard: boolean;
+    };
+    readonly calibration: { at: string; machine: string; basis: "probe" | "defaults" } | null;
+    readonly limits: Readonly<Limits>;
 }
 
 interface Limits {
-  largeGraphThreshold: number; renderCeiling: number; memoryBudgetBytes: number;
-  exactComputationCap: number; selectionCap: number; edgesDrawn: number;
+    largeGraphThreshold: number;
+    renderCeiling: number;
+    memoryBudgetBytes: number;
+    exactComputationCap: number;
+    selectionCap: number;
+    edgesDrawn: number;
 }
 ```
 
@@ -2883,31 +3260,53 @@ with a plain name, a technical name, a unit and a range:
 
 ```ts
 interface ConfigDocument {
-  readonly values: Readonly<ConfigValues>;
-  readonly keys: readonly ConfigKeyDescriptor[];    // plain name, technical name, unit, range
-  set(patch: Partial<ConfigValues>): MutationReceipt;
-  reset(keys?: readonly (keyof ConfigValues)[]): MutationReceipt;
-  toDocument(): { version: 1; values: Partial<ConfigValues> };
-  applyDocument(doc: { version: 1; values: Partial<ConfigValues> }):
-    { applied: readonly string[]; rejected: readonly { key: string; reason: string }[] };
+    readonly values: Readonly<ConfigValues>;
+    readonly keys: readonly ConfigKeyDescriptor[]; // plain name, technical name, unit, range
+    set(patch: Partial<ConfigValues>): MutationReceipt;
+    reset(keys?: readonly (keyof ConfigValues)[]): MutationReceipt;
+    toDocument(): { version: 1; values: Partial<ConfigValues> };
+    applyDocument(doc: { version: 1; values: Partial<ConfigValues> }): {
+        applied: readonly string[];
+        rejected: readonly { key: string; reason: string }[];
+    };
 }
 
 interface ConfigValues {
-  largeGraphThreshold: number; renderCeiling: number; exactComputationCap: number;
-  selectionCap: number; edgesDrawn: number; effectsCap: number;
-  labelCap: number; labelCapZoomedOut: number; labelCapHover: number;
-  expansionWarn: number; expansionBlock: number;
-  askLimitSeconds: number; warnLimitSeconds: number;
-  progressiveChunkSize: number; progressiveErrorLimit: number;
-  layoutPreSteps: number; layoutStepMultiplier: number; layoutSettleThreshold: number;
-  patternTimeBoxMs: number; searchDebounceMs: number; searchResultCap: number;
-  hoverEnabled: boolean; tooltipsEnabled: boolean; pinOnDrag: boolean;
-  performanceMode: "auto" | "on" | "off";
-  "acceleration.minNodes": number;      // default 0; see below
-  transitionMs: number; temporalChangeThreshold: number;
-  exportMaxSide: number; journalCap: number; journalBytesCap: number;   // default 64 MB
-  xrTextArcmin: number; xrPanelDistanceM: number; xrSnapTurnDegrees: number;
-  xrFrameFloorHz: number;
+    largeGraphThreshold: number;
+    renderCeiling: number;
+    exactComputationCap: number;
+    selectionCap: number;
+    edgesDrawn: number;
+    effectsCap: number;
+    labelCap: number;
+    labelCapZoomedOut: number;
+    labelCapHover: number;
+    expansionWarn: number;
+    expansionBlock: number;
+    askLimitSeconds: number;
+    warnLimitSeconds: number;
+    progressiveChunkSize: number;
+    progressiveErrorLimit: number;
+    layoutPreSteps: number;
+    layoutStepMultiplier: number;
+    layoutSettleThreshold: number;
+    patternTimeBoxMs: number;
+    searchDebounceMs: number;
+    searchResultCap: number;
+    hoverEnabled: boolean;
+    tooltipsEnabled: boolean;
+    pinOnDrag: boolean;
+    performanceMode: "auto" | "on" | "off";
+    "acceleration.minNodes": number; // default 0; see below
+    transitionMs: number;
+    temporalChangeThreshold: number;
+    exportMaxSide: number;
+    journalCap: number;
+    journalBytesCap: number; // default 64 MB
+    xrTextArcmin: number;
+    xrPanelDistanceM: number;
+    xrSnapTurnDegrees: number;
+    xrFrameFloorHz: number;
 }
 ```
 
@@ -2922,6 +3321,17 @@ whenever one is attached"; raise it when a graph is small enough that uploading 
 than computing it. It is the only threshold that governs acceleration, and it is a different
 number from `largeGraphThreshold`, which decides how much visual detail to draw and has nothing
 to say about where a computation runs.
+
+**Amended 2026-09-21 (phase M6).** `ConfigValues` gains two more layout keys,
+`layoutIterationsPerStep: number` and `layoutMaxInFlight: number`, beside `layoutStepMultiplier`.
+They are how many simulation iterations one layout step submits and how many step batches may be
+outstanding before an accelerated simulation coalesces them; they map one-to-one onto
+`behavior.layout.iterationsPerStep` and `behavior.layout.maxInFlight`, exactly as
+`layoutStepMultiplier` maps onto `behavior.layout.stepMultiplier`, and they land with the
+`ConfigDocument` itself -- the element implements them on `behavior.layout` first, which is where
+the force layouts read them today. `acceleration.minNodes` keeps its one spelling and gains an
+element door, the reflecting attribute `acceleration-min-nodes`. See
+`design/decisions/2026-09-21-acceleration-knobs-and-their-homes.md`.
 
 **The reader's acceleration preference is not in this document.** `acceleration` is an attribute
 and a session property, it is not a `ConfigValues` key, and `toDocument()` therefore does not
@@ -2944,7 +3354,7 @@ is today's behaviour, `"on"` forces reduced detail, `"off"` refuses it, and
 
 ```js
 import "@graphty/graphty-element";
-import "@graphty/graphty-element/webgpu";   // the optional peer; this is all of it
+import "@graphty/graphty-element/webgpu"; // the optional peer; this is all of it
 ```
 
 After that line the element probes for an adapter, requests a context, constructs the
@@ -2957,7 +3367,7 @@ Three rules the design commits to:
 - **GPU errors arrive as codes on a `GraphtyError`**, never as a class. A consumer who did not
   install the peer cannot name `WebGpuGraphError`.
 - **`acceleration = "required"` makes a missing accelerator a loud rejection**
-  (`E_NO_ACCELERATOR`), never a silent CPU fallback, and there is no fallback *inside* a run: if
+  (`E_NO_ACCELERATOR`), never a silent CPU fallback, and there is no fallback _inside_ a run: if
   an accelerated path fails mid-run the run fails with the code. Device loss sets
   `acceleration.state = "error"` with a code, emits `capabilities:changed`, and continues on the
   CPU path **having said so**.
@@ -2971,28 +3381,59 @@ supplies their own.
 
 ```ts
 class GraphtyError extends Error {
-  readonly code: GraphtyErrorCode;
-  readonly source: "data" | "run" | "layout" | "style" | "view" | "acceleration"
-                 | "registry" | "config";
-  readonly recoverable: boolean;
-  readonly details: Readonly<Record<string, unknown>>;
-  readonly target?: { kind: "layer"; id: LayerId } | { kind: "run"; id: RunId }
-                  | { kind: "scope"; id: ScopeId };
-  readonly cause?: unknown;
+    readonly code: GraphtyErrorCode;
+    readonly source: "data" | "run" | "layout" | "style" | "view" | "acceleration" | "registry" | "config";
+    readonly recoverable: boolean;
+    readonly details: Readonly<Record<string, unknown>>;
+    readonly target?: { kind: "layer"; id: LayerId } | { kind: "run"; id: RunId } | { kind: "scope"; id: ScopeId };
+    readonly cause?: unknown;
 }
 
 type GraphtyErrorCode =
-  | "E_BAD_COMMAND" | "E_BAD_QUERY" | "E_BAD_LAYER" | "E_BAD_SELECTOR" | "E_BAD_FORMULA"
-  | "E_SELECTOR_EMPTY" | "E_UNSCOPED_RUN_ENCODING" | "E_UNKNOWN_SCALE" | "E_UNKNOWN_CHANNEL"
-  | "E_UNKNOWN_OPTION" | "E_OPTION_RANGE" | "E_UNKNOWN_ATTRIBUTE"
-  | "E_UNKNOWN_ALGORITHM" | "E_UNKNOWN_LAYOUT" | "E_UNKNOWN_FORMAT"
-  | "E_UNKNOWN_PALETTE" | "E_UNKNOWN_CAMERA" | "E_UNKNOWN_SINK" | "E_UNKNOWN_RUN"
-  | "E_UNSTABLE_RUN_ID" | "E_DUPLICATE_ID" | "E_DUPLICATE_EDGE" | "E_DUPLICATE_PLUGIN" | "E_PROTECTED"
-  | "E_FETCH_FAILED" | "E_PARSE_FAILED" | "E_EDGE_ENDPOINTS_UNRESOLVED" | "E_ID_MISSING"
-  | "E_TOO_LARGE" | "E_OUT_OF_MEMORY" | "E_CAP_EXCEEDED" | "E_SCOPE_EMPTY" | "E_NOT_CONVERGED"
-  | "E_NO_ACCELERATOR" | "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_LOST"
-  | "E_NO_WEBGL"
-  | "E_UNSUPPORTED" | "E_READONLY" | "E_DISPOSED" | "E_INTERNAL";
+    | "E_BAD_COMMAND"
+    | "E_BAD_QUERY"
+    | "E_BAD_LAYER"
+    | "E_BAD_SELECTOR"
+    | "E_BAD_FORMULA"
+    | "E_SELECTOR_EMPTY"
+    | "E_UNSCOPED_RUN_ENCODING"
+    | "E_UNKNOWN_SCALE"
+    | "E_UNKNOWN_CHANNEL"
+    | "E_UNKNOWN_OPTION"
+    | "E_OPTION_RANGE"
+    | "E_UNKNOWN_ATTRIBUTE"
+    | "E_UNKNOWN_ALGORITHM"
+    | "E_UNKNOWN_LAYOUT"
+    | "E_UNKNOWN_FORMAT"
+    | "E_UNKNOWN_PALETTE"
+    | "E_UNKNOWN_CAMERA"
+    | "E_UNKNOWN_SINK"
+    | "E_UNKNOWN_RUN"
+    | "E_UNKNOWN_LAYER"
+    | "E_UNSTABLE_RUN_ID"
+    | "E_DUPLICATE_ID"
+    | "E_DUPLICATE_EDGE"
+    | "E_DUPLICATE_PLUGIN"
+    | "E_PROTECTED"
+    | "E_FETCH_FAILED"
+    | "E_PARSE_FAILED"
+    | "E_EDGE_ENDPOINTS_UNRESOLVED"
+    | "E_ID_MISSING"
+    | "E_TOO_LARGE"
+    | "E_OUT_OF_MEMORY"
+    | "E_CAP_EXCEEDED"
+    | "E_SCOPE_EMPTY"
+    | "E_NOT_CONVERGED"
+    | "E_NO_ACCELERATOR"
+    | "E_NO_WEBGPU"
+    | "E_NO_ADAPTER"
+    | "E_SOFTWARE_ONLY"
+    | "E_DEVICE_LOST"
+    | "E_NO_WEBGL"
+    | "E_UNSUPPORTED"
+    | "E_READONLY"
+    | "E_DISPOSED"
+    | "E_INTERNAL";
 ```
 
 Five rules.
@@ -3027,31 +3468,35 @@ An unknown option returns the valid names in `details`; an out-of-range value re
 One registry, one verb, instance-scopable, plus a markup door.
 
 ```ts
-import { use, createRegistry, defineAlgorithm, defineLayout, defineFormat, defineScale }
-  from "@graphty/graphty-element/extend";
+import {
+    use,
+    createRegistry,
+    defineAlgorithm,
+    defineLayout,
+    defineFormat,
+    defineScale,
+} from "@graphty/graphty-element/extend";
 
 type Plugin =
-  | { kind: "algorithm"; descriptor: AlgorithmDescriptor; run: AlgorithmRun }
-  | { kind: "layout"; descriptor: LayoutDescriptor; create: LayoutFactory }
-  | { kind: "format"; descriptor: FormatDescriptor; importer?: Importer; exporter?: Exporter }
-  | { kind: "scale"; name: string; map: ScaleFn }
-  | { kind: "palette"; descriptor: PaletteDescriptor }
-  | { kind: "accelerator"; factory: AcceleratorFactory }
-  | { kind: "command"; commands: readonly CommandDescriptor[] }
-  | { kind: "identifier-mapper"; descriptor: MapperDescriptor; map: MapperFn }
-  | { kind: "enrichment"; descriptor: ProviderDescriptor; fetch: EnrichmentFn }
-  | { kind: "data-source"; descriptor: SourceDescriptor;
-      fetchNodes?: FetchNodes; fetchEdges?: FetchEdges };
+    | { kind: "algorithm"; descriptor: AlgorithmDescriptor; run: AlgorithmRun }
+    | { kind: "layout"; descriptor: LayoutDescriptor; create: LayoutFactory }
+    | { kind: "format"; descriptor: FormatDescriptor; importer?: Importer; exporter?: Exporter }
+    | { kind: "scale"; name: string; map: ScaleFn }
+    | { kind: "palette"; descriptor: PaletteDescriptor }
+    | { kind: "accelerator"; factory: AcceleratorFactory }
+    | { kind: "command"; commands: readonly CommandDescriptor[] }
+    | { kind: "identifier-mapper"; descriptor: MapperDescriptor; map: MapperFn }
+    | { kind: "enrichment"; descriptor: ProviderDescriptor; fetch: EnrichmentFn }
+    | { kind: "data-source"; descriptor: SourceDescriptor; fetchNodes?: FetchNodes; fetchEdges?: FetchEdges };
 
 interface Registry {
-  use(...plugins: Plugin[]): void;
-  use(plugin: Plugin, o: { strict?: boolean }): void;
-  remove(kind: Plugin["kind"], name: string): boolean;
-  has(kind: Plugin["kind"], name: string): boolean;
-  list(kind?: Plugin["kind"]):
-    readonly { kind: Plugin["kind"]; name: string; version?: string; enabled: boolean }[];
-  enable(kind: Plugin["kind"], name: string, on: boolean): void;
-  load(url: string | URL): Promise<readonly { kind: string; name: string }[]>;
+    use(...plugins: Plugin[]): void;
+    use(plugin: Plugin, o: { strict?: boolean }): void;
+    remove(kind: Plugin["kind"], name: string): boolean;
+    has(kind: Plugin["kind"], name: string): boolean;
+    list(kind?: Plugin["kind"]): readonly { kind: Plugin["kind"]; name: string; version?: string; enabled: boolean }[];
+    enable(kind: Plugin["kind"], name: string, on: boolean): void;
+    load(url: string | URL): Promise<readonly { kind: string; name: string }[]>;
 }
 ```
 
@@ -3067,8 +3512,7 @@ hook later changes the contract for everyone who already wrote a plugin against 
 **The accelerator factory is called with the ceiling it must respect.**
 
 ```ts
-type AcceleratorFactory = (options?: { exactMaxNodes?: number })
-  => Promise<GraphAccelerator | null>;
+type AcceleratorFactory = (options?: { exactMaxNodes?: number }) => Promise<GraphAccelerator | null>;
 ```
 
 `exactMaxNodes` is the largest graph the element will ask this accelerator to compute exactly,
@@ -3089,42 +3533,76 @@ constantly); a different one warns once and wins; `{strict: true}` throws
 `"undefined:undefined"` -- and root `CLAUDE.md` advertises `LayoutRegistry`,
 `DataSourceRegistry` and `AlgorithmRegistry`, none of which exist under those names.
 
+**Amended 2026-09-21 (phase M6).** The `{ kind: "layout" }` plugin and its `LayoutFactory`
+(section 12) are unbuilt, and until they exist the element's layout extension point is what it has
+always been: a class extending the abstract `LayoutEngine`, registered with
+`LayoutEngine.register(cls)` and documented as such in
+`design/graphty-element/extension-points.md`. All seventeen built-in layouts are such classes,
+including the accelerated force layouts phase M6 added, so a third party writing a layout today
+writes a class and moves to a factory when the registry lands. See
+`design/decisions/2026-09-21-m6-bridge-is-a-layout-engine.md`.
+
+That count makes two earlier sentences in this document stale, and they are left standing rather
+than silently corrected, as this document's Review-log convention requires: section 4's breaking
+list says the element "registers sixteen engines today ... and fourteen more" (`:403-405`), and
+section 4.7 says `circular`, `random` and `fixed` "are among the sixteen registered at
+`graphty-element/src/layout/index.ts:19-34`" (`:2326-2327`). Both read seventeen now, registered at
+`src/layout/index.ts:20-36`. Nothing about either sentence's argument changes.
+
 #### 4.14.1 An algorithm plugin
 
 ```ts
 export const triangles = defineAlgorithm({
-  key: "acme:triangles",
-  plainName: "Triangle count", technicalName: "triangles",
-  description: "Counts triangles through each node.",
-  category: "structure",
-  shape: "node-metric",
-  costClass: "iterative",
-  complexity: "O(n * d^2)",
-  cost: (n, m) => (n + m) / 2e7,
-  requires: { directed: false },
-  fields: [{ name: "value", kind: "node", type: "number",
-             plainName: "Triangles", technicalName: "triangles", path: "results.$.value" }],
-  options: [
-    { name: "minDegree", type: "integer", default: 2, min: 0,
-      plainName: "Minimum degree", group: "basic", advanced: false },
-    { name: "chunk", plainName: "Chunk size", type: "integer", default: 4096,
-      internal: true },
-  ],
-  async run({ graph, scope, options, signal, report, yieldNow }): Promise<AlgorithmOutput> {
-    const out = new Float64Array(graph.nodeCount);
-    for (let i = 0; i < graph.nodeCount; i++) {
-      signal.throwIfAborted();
-      out[i] = countTriangles(graph, i);
-      if (i % 1000 === 0) { report({ completed: i, total: graph.nodeCount }); await yieldNow(); }
-    }
-    return { nodes: { value: out } };
-  },
+    key: "acme:triangles",
+    plainName: "Triangle count",
+    technicalName: "triangles",
+    description: "Counts triangles through each node.",
+    category: "structure",
+    shape: "node-metric",
+    costClass: "iterative",
+    complexity: "O(n * d^2)",
+    cost: (n, m) => (n + m) / 2e7,
+    requires: { directed: false },
+    fields: [
+        {
+            name: "value",
+            kind: "node",
+            type: "number",
+            plainName: "Triangles",
+            technicalName: "triangles",
+            path: "results.$.value",
+        },
+    ],
+    options: [
+        {
+            name: "minDegree",
+            type: "integer",
+            default: 2,
+            min: 0,
+            plainName: "Minimum degree",
+            group: "basic",
+            advanced: false,
+        },
+        { name: "chunk", plainName: "Chunk size", type: "integer", default: 4096, internal: true },
+    ],
+    async run({ graph, scope, options, signal, report, yieldNow }): Promise<AlgorithmOutput> {
+        const out = new Float64Array(graph.nodeCount);
+        for (let i = 0; i < graph.nodeCount; i++) {
+            signal.throwIfAborted();
+            out[i] = countTriangles(graph, i);
+            if (i % 1000 === 0) {
+                report({ completed: i, total: graph.nodeCount });
+                await yieldNow();
+            }
+        }
+        return { nodes: { value: out } };
+    },
 });
 
 type AlgorithmOutput = {
-  nodes?: Record<string, ArrayLike<number> | readonly string[]>;
-  edges?: Record<string, ArrayLike<number> | readonly string[]>;
-  graph?: Record<string, number | string | boolean | readonly unknown[]>;
+    nodes?: Record<string, ArrayLike<number> | readonly string[]>;
+    edges?: Record<string, ArrayLike<number> | readonly string[]>;
+    graph?: Record<string, number | string | boolean | readonly unknown[]>;
 };
 ```
 
@@ -3165,47 +3643,57 @@ removed.
 
 ```ts
 interface AttributeDescriptor {
-  path: Path;                       // "data.betweenness_centrality"
-  token: string;                    // "[betweenness_centrality]" for a formula
-  name: string; plainName: string; technicalName: string;
-  kind: "node" | "edge";
-  type: AttributeType;
-  origin: "imported" | "joined" | "computed" | "result";
-  completeness: number;             // 0..1
-  uniqueCount?: number; min?: number; max?: number;
-  sampleValues: readonly unknown[];
-  runId?: RunId;                    // when origin is "result"
+    path: Path; // "data.betweenness_centrality"
+    token: string; // "[betweenness_centrality]" for a formula
+    name: string;
+    plainName: string;
+    technicalName: string;
+    kind: "node" | "edge";
+    type: AttributeType;
+    origin: "imported" | "joined" | "computed" | "result";
+    completeness: number; // 0..1
+    uniqueCount?: number;
+    min?: number;
+    max?: number;
+    sampleValues: readonly unknown[];
+    runId?: RunId; // when origin is "result"
 }
 
 interface CatalogApi {
-  algorithms(): readonly AlgorithmDescriptor[];
-  layouts(): readonly LayoutDescriptor[];
-  formats(): readonly FormatDescriptor[];
-  palettes(): readonly PaletteDescriptor[];
-  scales(): readonly ScaleDescriptor[];
-  themes(): readonly ThemeDescriptor[];
-  functions(): readonly FunctionDescriptor[];
-  timeAttributes(): readonly AttributeDescriptor[];
-  metrics(): readonly MetricAvailability[];
-  applicable(): readonly MetricAvailability[];        // alias, scoped to this graph
-  validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }):
-    QueryValidation;
-  optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope):
-    Promise<readonly OptionDescriptor[]>;      // bounds resolved against THIS graph
+    algorithms(): readonly AlgorithmDescriptor[];
+    layouts(): readonly LayoutDescriptor[];
+    formats(): readonly FormatDescriptor[];
+    palettes(): readonly PaletteDescriptor[];
+    scales(): readonly ScaleDescriptor[];
+    themes(): readonly ThemeDescriptor[];
+    functions(): readonly FunctionDescriptor[];
+    timeAttributes(): readonly AttributeDescriptor[];
+    metrics(): readonly MetricAvailability[];
+    applicable(): readonly MetricAvailability[]; // alias, scoped to this graph
+    validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
+    optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>; // bounds resolved against THIS graph
 }
 
 interface QueryValidation {
-  ok: boolean;
-  error?: { code: GraphtyErrorCode; message: string; position: number };
-  unresolvedPaths: readonly { path: Path; reason: "unknown-run" | "unknown-attribute";
-                              candidates: readonly string[] }[];
+    ok: boolean;
+    error?: { code: GraphtyErrorCode; message: string; position: number };
+    unresolvedPaths: readonly {
+        path: Path;
+        reason: "unknown-run" | "unknown-attribute";
+        candidates: readonly string[];
+    }[];
 }
 
 interface MetricAvailability {
-  key: AlgorithmKey; plainName: string; technicalName: string;
-  available: boolean; reason?: string;
-  costClass: CostClass; estimateSeconds: number;
-  hasRun: boolean; runIds: readonly RunId[];
+    key: AlgorithmKey;
+    plainName: string;
+    technicalName: string;
+    available: boolean;
+    reason?: string;
+    costClass: CostClass;
+    estimateSeconds: number;
+    hasRun: boolean;
+    runIds: readonly RunId[];
 }
 ```
 
@@ -3224,7 +3712,7 @@ parses currently never matches and never says so.
 
 **Validation covers references, not only syntax**, and this is the inverted half of the
 empty-selector defect (8.1): an expression that parses perfectly and names a run id or an
-attribute that does not exist matches *nothing*, silently, which reads exactly like a correct
+attribute that does not exist matches _nothing_, silently, which reads exactly like a correct
 answer of zero. So every place a `Query` or a `Selector` enters the session, the referenced
 paths are resolved against the current run list and `data.attributes()`:
 
@@ -3261,30 +3749,32 @@ is a fact about the graph rather than about a renderer.
 
 ```ts
 interface Note {
-  readonly id: NoteId;
-  readonly target: { node: NodeId } | { edge: EdgeId } | { point: [number, number, number] };
-  text: string;
-  tags: readonly string[];
-  author?: string;
-  readonly createdAt: string;                // ISO 8601
-  readonly updatedAt: string;
-  /** Set when the target left the graph. The note is kept and still listed. */
-  readonly orphaned?: { since: string; lastTarget: string };
-  userData?: Record<string, unknown>;        // round-trips untouched
+    readonly id: NoteId;
+    readonly target: { node: NodeId } | { edge: EdgeId } | { point: [number, number, number] };
+    text: string;
+    tags: readonly string[];
+    author?: string;
+    readonly createdAt: string; // ISO 8601
+    readonly updatedAt: string;
+    /** Set when the target left the graph. The note is kept and still listed. */
+    readonly orphaned?: { since: string; lastTarget: string };
+    userData?: Record<string, unknown>; // round-trips untouched
 }
 
 interface NotesApi {
-  readonly markerChannel: "node.marker";     // a reserved, locked element layer drives it
-  list(o?: { target?: NodeId | EdgeId; tag?: string; orphaned?: boolean }): readonly Note[];
-  get(id: NoteId): Note | undefined;
-  add(spec: Omit<Note, "id" | "createdAt" | "updatedAt">): Run<Note>;
-  update(id: NoteId, patch: Partial<Pick<Note, "text" | "tags" | "author" | "userData">>): Run<Note>;
-  remove(id: NoteId): Run<void>;
-  count(id: NodeId | EdgeId): number;        // the synthetic per-element note count
-  clusterMarkers(o?: { gridPx?: number; above?: number }):
-    readonly { x: number; y: number; count: number; ids: readonly (NodeId | EdgeId)[] }[];
-  toDocument(): AnnotationSet;                                     // SYNCHRONOUS
-  applyDocument(doc: AnnotationSet): Run<BindingReport>;
+    readonly markerChannel: "node.marker"; // a reserved, locked element layer drives it
+    list(o?: { target?: NodeId | EdgeId; tag?: string; orphaned?: boolean }): readonly Note[];
+    get(id: NoteId): Note | undefined;
+    add(spec: Omit<Note, "id" | "createdAt" | "updatedAt">): Run<Note>;
+    update(id: NoteId, patch: Partial<Pick<Note, "text" | "tags" | "author" | "userData">>): Run<Note>;
+    remove(id: NoteId): Run<void>;
+    count(id: NodeId | EdgeId): number; // the synthetic per-element note count
+    clusterMarkers(o?: {
+        gridPx?: number;
+        above?: number;
+    }): readonly { x: number; y: number; count: number; ids: readonly (NodeId | EdgeId)[] }[];
+    toDocument(): AnnotationSet; // SYNCHRONOUS
+    applyDocument(doc: AnnotationSet): Run<BindingReport>;
 }
 ```
 
@@ -3311,16 +3801,16 @@ author identity. `Note.userData` round-trips untouched for whatever else a produ
 ```js
 const s = el.session;
 for (const m of s.catalog.metrics()) {
-  const row = document.createElement("option");
-  row.value = m.key;
-  row.textContent = m.hasRun ? `${m.plainName} (run)` : m.plainName;
-  row.disabled = !m.available;
-  row.title = m.reason ?? `about ${m.estimateSeconds.toFixed(1)} s`;
-  picker.append(row);
+    const row = document.createElement("option");
+    row.value = m.key;
+    row.textContent = m.hasRun ? `${m.plainName} (run)` : m.plainName;
+    row.disabled = !m.available;
+    row.title = m.reason ?? `about ${m.estimateSeconds.toFixed(1)} s`;
+    picker.append(row);
 }
 const algo = s.catalog.algorithms().find((a) => a.key === picker.value);
 for (const opt of algo.options.filter((o) => !o.internal && !o.advanced)) {
-  form.append(controlFor(opt));       // opt is plain JSON: type, default, min, max, values
+    form.append(controlFor(opt)); // opt is plain JSON: type, default, min, max, values
 }
 ```
 
@@ -3331,19 +3821,19 @@ for (const opt of algo.options.filter((o) => !o.internal && !o.advanced)) {
 Every area of section 4 ends with a runnable example, because an example separated from its
 signatures is an example that goes stale. The index:
 
-| Example | Where |
-|---|---|
-| A status bar with no session | 4.1.3 |
-| Compare (two views, one session) and a session in a Node test | 4.2.4 |
-| Inspect, correct the mapping, import, inspect one node's neighbours | 4.3.7 |
-| A cost-gated sweep with a queue and a cancel | 4.4.6 |
-| Filter, count before applying, select the survivors | 4.5.4 |
-| Colour by a metric, then ask why one node is that colour | 4.6.4 |
-| Recommend a layout, settle it, pin the selection | 4.7 |
-| Estimate an export, capture a PNG with a legend, build a report | 4.9 |
-| Undo from a serialisable inverse; replay a recipe on another file | 4.11.2 |
-| Build an options form with no hard-coded list | 4.15.4 |
-| The first graph, from a CDN and from npm | 2.1, 2.2 |
+| Example                                                             | Where    |
+| ------------------------------------------------------------------- | -------- |
+| A status bar with no session                                        | 4.1.3    |
+| Compare (two views, one session) and a session in a Node test       | 4.2.4    |
+| Inspect, correct the mapping, import, inspect one node's neighbours | 4.3.7    |
+| A cost-gated sweep with a queue and a cancel                        | 4.4.6    |
+| Filter, count before applying, select the survivors                 | 4.5.4    |
+| Colour by a metric, then ask why one node is that colour            | 4.6.4    |
+| Recommend a layout, settle it, pin the selection                    | 4.7      |
+| Estimate an export, capture a PNG with a legend, build a report     | 4.9      |
+| Undo from a serialisable inverse; replay a recipe on another file   | 4.11.2   |
+| Build an options form with no hard-coded list                       | 4.15.4   |
+| The first graph, from a CDN and from npm                            | 2.1, 2.2 |
 
 ## 6. Packaging
 
@@ -3351,44 +3841,49 @@ signatures is an example that goes stale. The index:
 
 ```jsonc
 {
-  "name": "@graphty/graphty-element",
-  "version": "2.0.0",
-  "type": "module",
-  "customElements": "./dist/custom-elements.json",
-  "exports": {
-    ".":          { "types": "./dist/index.d.ts",    "import": "./dist/graphty.js" },
-    "./session":  { "types": "./dist/session.d.ts",  "import": "./dist/session.js" },
-    "./schema":   { "types": "./dist/schema.d.ts",   "import": "./dist/schema.js" },
-    "./catalog":  { "types": "./dist/catalog.d.ts",  "import": "./dist/catalog.js" },
-    "./commands": { "types": "./dist/commands.d.ts", "import": "./dist/commands.js" },
-    "./extend":   { "types": "./dist/extend.d.ts",   "import": "./dist/extend.js" },
-    "./format":   { "types": "./dist/format.d.ts",   "import": "./dist/format.js" },
-    "./react":    { "types": "./dist/react.d.ts",    "import": "./dist/react.js" },
-    "./webgpu":   { "types": "./dist/webgpu.d.ts",   "import": "./dist/webgpu.js" },
-    "./io/*":     { "types": "./dist/io/*.d.ts",     "import": "./dist/io/*.js" },
-    "./ai":       { "types": "./dist/ai.d.ts",       "import": "./dist/ai.js" },
-    "./bundle":   "./dist/graphty.bundle.js",
-    "./custom-elements.json": "./dist/custom-elements.json"
-  },
-  "sideEffects": ["./dist/graphty.js", "./dist/graphty.bundle.js", "./dist/webgpu.js",
-                  "./dist/io/*.js", "./dist/compat.js"]
+    "name": "@graphty/graphty-element",
+    "version": "2.0.0",
+    "type": "module",
+    "customElements": "./dist/custom-elements.json",
+    "exports": {
+        ".": { "types": "./dist/index.d.ts", "import": "./dist/graphty.js" },
+        "./session": { "types": "./dist/session.d.ts", "import": "./dist/session.js" },
+        "./schema": { "types": "./dist/schema.d.ts", "import": "./dist/schema.js" },
+        "./catalog": { "types": "./dist/catalog.d.ts", "import": "./dist/catalog.js" },
+        "./commands": { "types": "./dist/commands.d.ts", "import": "./dist/commands.js" },
+        "./extend": { "types": "./dist/extend.d.ts", "import": "./dist/extend.js" },
+        "./format": { "types": "./dist/format.d.ts", "import": "./dist/format.js" },
+        "./react": { "types": "./dist/react.d.ts", "import": "./dist/react.js" },
+        "./webgpu": { "types": "./dist/webgpu.d.ts", "import": "./dist/webgpu.js" },
+        "./io/*": { "types": "./dist/io/*.d.ts", "import": "./dist/io/*.js" },
+        "./ai": { "types": "./dist/ai.d.ts", "import": "./dist/ai.js" },
+        "./bundle": "./dist/graphty.bundle.js",
+        "./custom-elements.json": "./dist/custom-elements.json",
+    },
+    "sideEffects": [
+        "./dist/graphty.js",
+        "./dist/graphty.bundle.js",
+        "./dist/webgpu.js",
+        "./dist/io/*.js",
+        "./dist/compat.js",
+    ],
 }
 ```
 
-| Entry | Babylon | DOM | Node-safe | Side effects | What it is |
-|---|---|---|---|---|---|
-| `.` | yes | yes | no | defines `<graphty-element>`, registers built-ins | the ordinary consumer |
-| `./session` | **no** | **no** | **yes** | none | `createGraphSession`, `createComparison`, the whole model API |
-| `./schema` | **no** | **no** | **yes** | none | `Layer`/`Encoding`/`Theme` types and validators, palettes, `NodeShapes`, `ResultShape`, `defaultNodeStyle` |
-| `./catalog` | **no** | **no** | **yes** | none | descriptors for an options UI without a 3D engine |
-| `./commands` | **no** | **no** | **yes** | none | the `Command` union, typed builders, `parsePattern`, `formatCommand`, the JSON Schema |
-| `./extend` | **no** | **no** | **yes** | none | `use`, `createRegistry`, the ten plugin contracts |
-| `./format` | **no** | **no** | **yes** | none | the narrow graph-format decode vocabulary (section 6.2) |
-| `./react` | yes | yes | no | none | `@lit/react` wrappers, real prop names, typed payloads |
-| `./webgpu` | no | yes | no | registers the accelerator | the entire GPU integration |
-| `./io/*` | **no** | **no** | **yes** | registers one format | lazy per-format registration |
-| `./ai` | no | yes | partial | none | the AI stack, behind optional peers |
-| `./bundle` | inlined | yes | no | defines the tags | the CDN script tag |
+| Entry        | Babylon | DOM    | Node-safe | Side effects                                     | What it is                                                                                                 |
+| ------------ | ------- | ------ | --------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `.`          | yes     | yes    | no        | defines `<graphty-element>`, registers built-ins | the ordinary consumer                                                                                      |
+| `./session`  | **no**  | **no** | **yes**   | none                                             | `createGraphSession`, `createComparison`, the whole model API                                              |
+| `./schema`   | **no**  | **no** | **yes**   | none                                             | `Layer`/`Encoding`/`Theme` types and validators, palettes, `NodeShapes`, `ResultShape`, `defaultNodeStyle` |
+| `./catalog`  | **no**  | **no** | **yes**   | none                                             | descriptors for an options UI without a 3D engine                                                          |
+| `./commands` | **no**  | **no** | **yes**   | none                                             | the `Command` union, typed builders, `parsePattern`, `formatCommand`, the JSON Schema                      |
+| `./extend`   | **no**  | **no** | **yes**   | none                                             | `use`, `createRegistry`, the ten plugin contracts                                                          |
+| `./format`   | **no**  | **no** | **yes**   | none                                             | the narrow graph-format decode vocabulary (section 6.2)                                                    |
+| `./react`    | yes     | yes    | no        | none                                             | `@lit/react` wrappers, real prop names, typed payloads                                                     |
+| `./webgpu`   | no      | yes    | no        | registers the accelerator                        | the entire GPU integration                                                                                 |
+| `./io/*`     | **no**  | **no** | **yes**   | registers one format                             | lazy per-format registration                                                                               |
+| `./ai`       | no      | yes    | partial   | none                                             | the AI stack, behind optional peers                                                                        |
+| `./bundle`   | inlined | yes    | no        | defines the tags                                 | the CDN script tag                                                                                         |
 
 `.` deliberately keeps its side effect: every web component package defines its tag on the
 default import, and a stranger's CDN one-liner depends on it. Splitting that into `/define`
@@ -3417,7 +3912,7 @@ Three rules, each with a failure mode.
    graph-io and webgpu-graph-algorithms already do. Today `graphty-element/vite.config.ts`
    externalises only Babylon, web-llm and Lit, so `@graphty/algorithms` and `@graphty/layout`
    are inlined into a 2.5 MB `dist/graphty.js`; a consumer who also installs
-   `@graphty/algorithms` gets two copies. *Silent failure:* "delegate to a peer" is a fiction
+   `@graphty/algorithms` gets two copies. _Silent failure:_ "delegate to a peer" is a fiction
    until this changes, and a duplicated graph-format means two `.d.ts` identities that do not
    assign to each other.
 2. **The graph-format decode vocabulary lives behind `./format`, and nothing sibling-typed is in
@@ -3425,10 +3920,10 @@ Three rules, each with a failure mode.
    returns: the `GraphSnapshot` type, `isGraphSnapshot`, `INVALID_INDEX`, `NodeMask`/`EdgeMask`
    and the four mask helpers, `expandEdges`, `foldArcs`, `gatherArray`/`scatterArray`/
    `remapArray`, `DerivedGraph`, `AdjacencyView` and the scalar aliases. It re-exports **nothing**
-   of the construction or wire halves. *Silent failure avoided:* re-exporting format types from
+   of the construction or wire halves. _Silent failure avoided:_ re-exporting format types from
    the root barrel means a graph-format major forces a graphty-element major, forever.
 3. **`SNAPSHOT_BRAND` and `FORMAT_VERSION` are never re-exported.** The supported check is
-   `isGraphSnapshot`. *Silent failure:* a consumer stamps the brand on a hand-made object and
+   `isGraphSnapshot`. _Silent failure:_ a consumer stamps the brand on a hand-made object and
    produces a snapshot that passes the check and violates the format's invariants.
 
 Nothing named `Node`, `Edge`, `Graph`, `Position` or `NodeId` is ever flat-re-exported from a
@@ -3443,15 +3938,15 @@ command union and the catalogue -- is published as data by `./commands` and `./c
 
 ### 6.3 Framework interop
 
-| Framework | What you write |
-|---|---|
-| Plain HTML / CDN | one `<script type="module" src=".../bundle">`, then the markup in section 2.1 |
-| React 19 | `import "@graphty/graphty-element"`, then JSX; props matching a property are assigned as properties |
-| React 18 | `import { GraphtyGraph } from "@graphty/graphty-element/react"` for typed `onNodeClick` props |
-| Vue 3 | `app.config.compilerOptions.isCustomElement = (t) => t.startsWith("graphty-")`; `.prop` for rich values |
-| Svelte | nothing |
-| Angular | `CUSTOM_ELEMENTS_SCHEMA` |
-| Solid | nothing |
+| Framework        | What you write                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| Plain HTML / CDN | one `<script type="module" src=".../bundle">`, then the markup in section 2.1                           |
+| React 19         | `import "@graphty/graphty-element"`, then JSX; props matching a property are assigned as properties     |
+| React 18         | `import { GraphtyGraph } from "@graphty/graphty-element/react"` for typed `onNodeClick` props           |
+| Vue 3            | `app.config.compilerOptions.isCustomElement = (t) => t.startsWith("graphty-")`; `.prop` for rich values |
+| Svelte           | nothing                                                                                                 |
+| Angular          | `CUSTOM_ELEMENTS_SCHEMA`                                                                                |
+| Solid            | nothing                                                                                                 |
 
 SSR: `./session` runs in Node; `.` does not. An SSR consumer gets a correctly sized placeholder
 and hydrates client-side, and the frameworks page says so.
@@ -3460,23 +3955,24 @@ and hydrates client-side, and the frameworks page says so.
 
 ```ts
 import "@graphty/graphty-element";
-import type { GraphtyGraphElement, Run, Layer, NodeRecord, Command }
-  from "@graphty/graphty-element";
+import type { GraphtyGraphElement, Run, Layer, NodeRecord, Command } from "@graphty/graphty-element";
 import { createGraphSession } from "@graphty/graphty-element/session";
 import { NodeShapes, palettes, defaultNodeStyle } from "@graphty/graphty-element/schema";
 
 declare global {
-  interface HTMLElementTagNameMap { "graphty-element": GraphtyGraphElement }
-  interface GraphtyEventMap {
-    "graphty-ready": CustomEvent<Record<string, never>>;
-    "graphty-node-click": CustomEvent<NodeClickDetail>;
-    "graphty-selection-change": CustomEvent<SelectionDelta>;
-    // The remaining eighteen follow the same pattern; each detail type is spelled out in
-    // the reference table of 4.10.1 and generated into custom-elements.json at build.
-    "graphty-edge-click": CustomEvent<EdgeClickDetail>;
-    "graphty-run-change": CustomEvent<{ run: RunRecord; phase: string }>;
-  }
-  interface HTMLElementEventMap extends GraphtyEventMap {}
+    interface HTMLElementTagNameMap {
+        "graphty-element": GraphtyGraphElement;
+    }
+    interface GraphtyEventMap {
+        "graphty-ready": CustomEvent<Record<string, never>>;
+        "graphty-node-click": CustomEvent<NodeClickDetail>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        // The remaining eighteen follow the same pattern; each detail type is spelled out in
+        // the reference table of 4.10.1 and generated into custom-elements.json at build.
+        "graphty-edge-click": CustomEvent<EdgeClickDetail>;
+        "graphty-run-change": CustomEvent<{ run: RunRecord; phase: string }>;
+    }
+    interface HTMLElementEventMap extends GraphtyEventMap {}
 }
 ```
 
@@ -3525,14 +4021,14 @@ Six files in the graphty app, 2,665 lines between them, exist only because the e
 offer something. Each row names the file, what it does, the API that makes it unnecessary, and
 what survives.
 
-| File (lines) | What it does | The API that deletes it | Residue |
-|---|---|---|---|
-| `graphty/src/components/shell/analysis/nodeMetrics.ts` (923) | result statistics, ranking, normalization reconstruction, `linearBandPlan`, `logBandPlan`, `METRIC_DISTRIBUTION_MAX_BINS` | `RunResult.summary()`, `.ranking()`, `.histogram()`, `.column()`, `.reading()`, plus uniform `value`/`rank`/`percentile` fields (4.4.3, 4.4.4) and the newly published min/max that betweenness and closeness withheld | none |
-| `graphty/src/components/shell/defaults/nodeMetricStyle.ts` (671) | builds style layers, copies `VIRIDIS_RAMP` (line 176), reimplements `viridisAt` (250), hardcodes `"default"`/`"selection"` layer names (347, 358), writes `handBound` into element metadata (411), parses output paths to find the driven channel | `styles.encode()` writes the layer and the selector; `./schema` exports the palettes without Babylon; `layer.source.by === "element"` and `locked` replace the name match; `layer.userData` is the documented consumer bag; `styles.explain().channels` answers which channel a layer drives | none |
-| `graphty/src/components/shell/analysis/metricCost.ts` (449) | a performance model of the element's own algorithms, with `PAGERANK_ITERATION_BOUND = 100` copied from an element default | `session.estimate()` (synchronous), `session.plan()`, `session.calibrate()`, `catalog.metrics()` carrying `costClass` and `estimateSeconds` | `askLimitSeconds`/`warnLimitSeconds` stay a reader preference, now in `config` |
-| `graphty/src/components/shell/analysis/graphShape.ts` (353) | `edgeEndpoints` two-spelling coercion, an 80-line union-find, a tri-state directedness vote, one O(n+m) shape pass | `data.statistics()` including `components` with its `sizes` distribution (4.3.5); canonical `source`/`target` fixes the endpoint spellings; `data.neighbors()` retires `edgeEndpoints` from the shell | none |
-| `graphty/src/components/shell/analysis/elementBridge.ts` (196) | `REQUIRED_GRAPH_METHODS` duck-typing, five structural mirror interfaces, `readResultPath`, a mandatory `repaintStyles` | `element.ready`; typed `Run.result`/`ElementView.results`; `styles.add()` now repaints, so a forced repaint has no reason to exist; `styles.removeBySource()` | none |
-| `graphty/src/types/graphty-element.d.ts` (73) | re-declares the module because the real types are unreachable | the new exports map, shipped `HTMLElementTagNameMap` and `GraphtyEventMap`, a typed element class | none |
+| File (lines)                                                     | What it does                                                                                                                                                                                                                                      | The API that deletes it                                                                                                                                                                                                                                                                      | Residue                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `graphty/src/components/shell/analysis/nodeMetrics.ts` (923)     | result statistics, ranking, normalization reconstruction, `linearBandPlan`, `logBandPlan`, `METRIC_DISTRIBUTION_MAX_BINS`                                                                                                                         | `RunResult.summary()`, `.ranking()`, `.histogram()`, `.column()`, `.reading()`, plus uniform `value`/`rank`/`percentile` fields (4.4.3, 4.4.4) and the newly published min/max that betweenness and closeness withheld                                                                       | none                                                                           |
+| `graphty/src/components/shell/defaults/nodeMetricStyle.ts` (671) | builds style layers, copies `VIRIDIS_RAMP` (line 176), reimplements `viridisAt` (250), hardcodes `"default"`/`"selection"` layer names (347, 358), writes `handBound` into element metadata (411), parses output paths to find the driven channel | `styles.encode()` writes the layer and the selector; `./schema` exports the palettes without Babylon; `layer.source.by === "element"` and `locked` replace the name match; `layer.userData` is the documented consumer bag; `styles.explain().channels` answers which channel a layer drives | none                                                                           |
+| `graphty/src/components/shell/analysis/metricCost.ts` (449)      | a performance model of the element's own algorithms, with `PAGERANK_ITERATION_BOUND = 100` copied from an element default                                                                                                                         | `session.estimate()` (synchronous), `session.plan()`, `session.calibrate()`, `catalog.metrics()` carrying `costClass` and `estimateSeconds`                                                                                                                                                  | `askLimitSeconds`/`warnLimitSeconds` stay a reader preference, now in `config` |
+| `graphty/src/components/shell/analysis/graphShape.ts` (353)      | `edgeEndpoints` two-spelling coercion, an 80-line union-find, a tri-state directedness vote, one O(n+m) shape pass                                                                                                                                | `data.statistics()` including `components` with its `sizes` distribution (4.3.5); canonical `source`/`target` fixes the endpoint spellings; `data.neighbors()` retires `edgeEndpoints` from the shell                                                                                        | none                                                                           |
+| `graphty/src/components/shell/analysis/elementBridge.ts` (196)   | `REQUIRED_GRAPH_METHODS` duck-typing, five structural mirror interfaces, `readResultPath`, a mandatory `repaintStyles`                                                                                                                            | `element.ready`; typed `Run.result`/`ElementView.results`; `styles.add()` now repaints, so a forced repaint has no reason to exist; `styles.removeBySource()`                                                                                                                                | none                                                                           |
+| `graphty/src/types/graphty-element.d.ts` (73)                    | re-declares the module because the real types are unreachable                                                                                                                                                                                     | the new exports map, shipped `HTMLElementTagNameMap` and `GraphtyEventMap`, a typed element class                                                                                                                                                                                            | none                                                                           |
 
 The wider sweep, briefly: `zodSchemaParser.ts` (249) and `OptionsForm.tsx`'s copy die with the switch to plain JSON option descriptors;
 `algorithmCatalog.ts` (279), `layoutSchemas.ts` (282) and `layoutMetadata.ts` (167) die with
@@ -3635,14 +4131,14 @@ repaint.
 
 **Fixed, and enforced.** This one is a contract rather than an impossibility: an
 implementation can still push a layer and skip the repaint. What changes is that nothing can
-*hide* it. There
+_hide_ it. There
 is exactly one write door, `styles.add/update/remove/move/encode/highlight`, and each is a
 `Run` that resolves only when the repaint has completed -- a repaint that did not happen is an
 unresolved command, not a silently skipped one. There is no public
 `applyStylesToExistingNodes` to compensate with. The enforcement is three post-conditions in
 CI: every write verb's test asserts that the returned `Layer.enabled` is true **and** that the
 affected elements carry the layer's resolved style id; a test adds a layer with a `results.*`
-selector *after* a run has completed and asserts it matches (the exact divergence at
+selector _after_ a run has completed and asserts it matches (the exact divergence at
 `graphty-element/src/Graph.ts:382-400` versus `src/managers/DataManager.ts:85-101`); and a test
 adds a layer with a calculated-free encoding and asserts the node style id changed. The class
 of defect survives only as a test failure.
@@ -3689,204 +4185,204 @@ does it. Everything named here is specified in section 4.
 
 **Getting data in**
 
-- *See what is inside a file before committing to it.* `data.inspect()` reports the detected
+- _See what is inside a file before committing to it._ `data.inspect()` reports the detected
   format and text encoding with a confidence and the alternatives it considered, every column
   with an inferred type, a completeness fraction and sample values, a proposed import plan, a
   size estimate and a quality score.
-- *Correct a mapping the element guessed wrong.* Edit the returned `ImportPlan` -- the id
+- _Correct a mapping the element guessed wrong._ Edit the returned `ImportPlan` -- the id
   column, the endpoint columns, the weight, time and label roles, per-column include, type and
   rename, and the policies for repeated edges, unknown endpoints and self-loops -- and hand it
   to `data.import()`.
-- *Load something large without freezing the page.* `import()` streams, reports progress by
+- _Load something large without freezing the page._ `import()` streams, reports progress by
   node count, yields to the render loop between chunks, honours an `AbortSignal`, and leaves
   the graph interactive with the prefix that has arrived. `ImportOptions` adds a random subset,
   a byte-offset resume and a memory budget.
-- *Find out what the import could not do.* `ImportReport` counts self-loops, repeated edges,
+- _Find out what the import could not do._ `ImportReport` counts self-loops, repeated edges,
   isolated nodes and unresolved endpoints, lists issues with severity, line and column, and
   attaches an undoable `Command` to each issue that has an automatic fix. Edges whose endpoints
   do not resolve are reported rather than dropped, and the element says which pair of endpoint
   column names it ended up using.
-- *Have a graph without having a file.* `data.sample()`, over the built-in datasets listed by
+- _Have a graph without having a file._ `data.sample()`, over the built-in datasets listed by
   `data.samples()`.
-- *Write the graph back out.* `data.export()` and `exportStream()` cover the interchange
+- _Write the graph back out._ `data.export()` and `exportStream()` cover the interchange
   formats through the format registry -- which is also how a plugin adds one -- carrying a
   manifest of the runs that produced each column and a list of what the format could not
   represent.
 
 **Understanding the graph you have**
 
-- *Read the shape of the graph without computing it.* `data.statistics()` is maintained and
+- _Read the shape of the graph without computing it._ `data.statistics()` is maintained and
   O(1): node and edge counts, density, a genuine tri-state directedness, whether it is
   weighted, self-loop and repeated-edge counts, the degree range, and the connected components
   with their size distribution and a per-node lookup.
-- *Look at one node's neighbourhood.* `data.neighbors()` pages, filters by edge type, sorts by
+- _Look at one node's neighbourhood._ `data.neighbors()` pages, filters by edge type, sorts by
   degree, weight, recency or label, and returns counts per edge type.
-- *Find a node by name or id.* `data.find()`, over an index the element builds at load.
-- *Find every place a shape occurs.* `data.match()`, over a subgraph pattern or its one-line
+- _Find a node by name or id._ `data.find()`, over an index the element builds at load.
+- _Find every place a shape occurs._ `data.match()`, over a subgraph pattern or its one-line
   text form, with ranked and approximate matches and a scanned fraction.
-- *Grow the graph outward.* `data.expand()` with depth, direction, type filters and a hard
+- _Grow the graph outward._ `data.expand()` with depth, direction, type filters and a hard
   limit; per-type counts in advance from `plan()`; provenance on everything it added; and
   `data.collapse()` to take it back.
-- *Derive a new number and treat it like any other attribute.* `data.compute(name, formula)`.
-- *Edit the graph and undo the edit.* Every mutation returns a receipt whose `inverse` is
+- _Derive a new number and treat it like any other attribute._ `data.compute(name, formula)`.
+- _Edit the graph and undo the edit._ Every mutation returns a receipt whose `inverse` is
   itself a command.
 
 **Running algorithms**
 
-- *Run an algorithm and get the answer back from the call.* `runs.start()` returns a `Run`;
+- _Run an algorithm and get the answer back from the call._ `runs.start()` returns a `Run`;
   awaiting it gives a `RunResult`.
-- *Watch a long computation, queue it, time-box it, cancel it.* `run.progress` with a phase and
+- _Watch a long computation, queue it, time-box it, cancel it._ `run.progress` with a phase and
   an honest null fraction when it is indeterminate, `run.queuePosition`,
   `StartOptions.timeBoxMs`, `run.cancel()` and `RunOptions.signal`. A run that hits its time box
   resolves with `partial: true` and a reason, because a stopped-early result is data rather than
   a failure.
-- *Know what a computation will cost before starting it.* `session.estimate()` synchronously,
+- _Know what a computation will cost before starting it._ `session.estimate()` synchronously,
   `session.plan()` for the fuller answer, `catalog.metrics()` for a cost class and a predicted
   duration per algorithm, and `session.calibrate()` to measure this machine rather than guess.
-- *Set weight and direction on every algorithm, and see what was used.* `StartOptions` takes
+- _Set weight and direction on every algorithm, and see what was used._ `StartOptions` takes
   them; `Caveats.weight` and `Caveats.direction` report them back.
-- *Run the analysis somewhere other than the main thread.*
+- _Run the analysis somewhere other than the main thread._
   `createGraphSession({ host: "worker" })`, whose interface is identical.
-- *Run several algorithms as one cancellable unit.* `runs.batch()`.
-- *Tell two runs of the same algorithm apart.* Every run has an id and a `label` that gains the
+- _Run several algorithms as one cancellable unit._ `runs.batch()`.
+- _Tell two runs of the same algorithm apart._ Every run has an id and a `label` that gains the
   differing parameter as soon as a sibling exists, and its fields live under `results.<runId>`.
-- *Delete a picture without deleting the result, and delete a result along with everything
-  reading it.* `styles.remove()` and `runs.remove()`, with `runs.bindings()` naming the layers
+- _Delete a picture without deleting the result, and delete a result along with everything
+  reading it._ `styles.remove()` and `runs.remove()`, with `runs.bindings()` naming the layers
   that would go, so a consumer can say "removes 1 style layer" before confirming.
-- *Read a result without writing statistics code.* `summary()`, `ranking()`, `histogram()` and
+- _Read a result without writing statistics code._ `summary()`, `ranking()`, `histogram()` and
   `column()`, over uniform per-shape field names, so `value`, `rank` and `percentile` mean the
   same thing for every metric.
-- *Get a sentence in plain language about what a result means.* `result.reading()`.
-- *Know when a result no longer describes what is on screen.* `run.stale`, derived by comparing
+- _Get a sentence in plain language about what a result means._ `result.reading()`.
+- _Know when a result no longer describes what is on screen._ `run.stale`, derived by comparing
   scope digests, tracked by nobody.
-- *Run it again without breaking whatever is bound to it.* `run.rerun()` keeps the same id, so
+- _Run it again without breaking whatever is bound to it._ `run.rerun()` keeps the same id, so
   every layer reading it survives.
 
 **Choosing what is on screen**
 
-- *Hide things without destroying them, and without rearranging the graph.* `visibility.set()`
+- _Hide things without destroying them, and without rearranging the graph._ `visibility.set()`
   applies a filter as a cancellable run with progress, and filters never trigger a layout.
-- *Look at a time window and move through it.* `visibility.setWindow()` is the same mask;
+- _Look at a time window and move through it._ `visibility.setWindow()` is the same mask;
   `visibility.playback` plays, pauses and steps; and `visibility.steps()` precomputes the
   windows so scrubbing is instant. Given `track`, it also computes a metric per window and
   returns each as a series with a trend direction, an R-squared and the steps where the value
   moved sharply, beside arrival, departure, creation and dissolution rates.
-- *Keep the hidden part visible as context.* `visibility.showContext`.
-- *Select more than one thing, including edges.* Two sets with five set operations, the usual
+- _Keep the hidden part visible as context._ `visibility.showContext`.
+- _Select more than one thing, including edges._ Two sets with five set operations, the usual
   gestures (click, shift, ctrl or cmd, alt, marquee, select all visible, escape), a cap that
   says when it truncated, statistics over the selection and its cut edges, and `promote()` to
   turn a selection into a saved set.
-- *Say where an operation applies.* `Scope` is a parameter on runs, layouts, exports and
+- _Say where an operation applies._ `Scope` is a parameter on runs, layouts, exports and
   counts: the visible graph, the whole graph, the selection, the largest component, a saved
   set, a predicate, or a list of ids.
 
 **Making it look like something**
 
-- *Colour or size by a result in one call.* `styles.encode()` writes the layer and its selector
+- _Colour or size by a result in one call._ `styles.encode()` writes the layer and its selector
   itself, scoped to exactly the elements the run measured.
-- *Get a legend that matches the picture.* `styles.legend()` derives it from the encoding
+- _Get a legend that matches the picture._ `styles.legend()` derives it from the encoding
   model, so it exists with no canvas, in a Node test, and at any export scale.
-- *Ask why one element looks the way it does.* `styles.explain()` returns the merged style, the
+- _Ask why one element looks the way it does._ `styles.explain()` returns the merged style, the
   layer that contributed each property, and, per channel, whether a person can edit it here and
   why not. `styles.resolveToStatic()` converts a rule into a fixed value so it becomes editable.
-- *Address a layer reliably.* Layers carry a stable `LayerId`, never an array index; every
+- _Address a layer reliably._ Layers carry a stable `LayerId`, never an array index; every
   layer names its source; and `styles.removeBySource()` removes a whole category at once.
-- *Carry your own data on a layer.* `layer.userData` round-trips untouched.
-- *Save an appearance and apply it somewhere else.* `styles.toDocument()` and
+- _Carry your own data on a layer._ `layer.userData` round-trips untouched.
+- _Save an appearance and apply it somewhere else._ `styles.toDocument()` and
   `applyTemplate()`, which reports per layer whether it bound, needs a re-run, or is disabled
   and why. Appearance, column roles, view presets and batch commands are four separate
   documents, so importing a style cannot silently rewrite a column mapping or spend compute.
 
 **Arranging it**
 
-- *Ask for an arrangement by what it does, not by which library implements it.* `force`,
+- _Ask for an arrangement by what it does, not by which library implements it._ `force`,
   `radial`, `hierarchical` and the rest; which engine runs underneath is catalogue data.
-- *Drive a live layout.* `play`, `pause`, `tick`, `stop`, and `settle()`, which resolves with
+- _Drive a live layout._ `play`, `pause`, `tick`, `stop`, and `settle()`, which resolves with
   whether it converged -- including with no view at all, in a Node test.
-- *Keep positions a person chose.* `positions.pin()`, pin-on-drag, and layout scoped to the
+- _Keep positions a person chose._ `positions.pin()`, pin-on-drag, and layout scoped to the
   selection so the rest of the graph keeps its coordinates.
-- *Move an arrangement between graphs, or keep one across a reload.* `positions.snapshot()` and
+- _Move an arrangement between graphs, or keep one across a reload._ `positions.snapshot()` and
   `restore()`, a warm start from current positions, and pinned state carried in exports and
   recipes.
-- *Be told when a layout name is wrong.* An unknown name fails with `E_UNKNOWN_LAYOUT` and the
+- _Be told when a layout name is wrong._ An unknown name fails with `E_UNKNOWN_LAYOUT` and the
   list of available names, rather than returning null somewhere inside a queue.
-- *Be told which layout suits this graph.* `layout.recommend()`, with its reason.
+- _Be told which layout suits this graph._ `layout.recommend()`, with its reason.
 
 **Looking at it**
 
-- *Move the camera meaningfully.* Presets, `fit(scope)`, `zoomToNodes()`, `followNode()`, a
+- _Move the camera meaningfully._ Presets, `fit(scope)`, `zoomToNodes()`, `followNode()`, a
   readable zoom percentage, and `bookmark()` / `apply()` for a saved viewpoint.
-- *Keep two views together.* `camera.linkTo()`, with independent pan, zoom and rotate flags.
-- *Know what is actually being drawn.* `view.rendered` gives the drawn node and edge counts and
+- _Keep two views together._ `camera.linkTo()`, with independent pan, zoom and rotate flags.
+- _Know what is actually being drawn._ `view.rendered` gives the drawn node and edge counts and
   reports every detail reduction with its reason, so nothing degrades silently.
-- *Put a graph in a headset.* `viewMode = "vr" | "ar"`, with one event covering entry, exit and
+- _Put a graph in a headset._ `viewMode = "vr" | "ar"`, with one event covering entry, exit and
   an unexpected end.
-- *Place DOM on top of the scene.* `worldToScreen()` and `screenToWorld()`.
-- *Take a picture with its legend in it.* `capture()` at a chosen scale, camera preset,
+- _Place DOM on top of the scene._ `worldToScreen()` and `screenToWorld()`.
+- _Take a picture with its legend in it._ `capture()` at a chosen scale, camera preset,
   background and label policy, composing the same legend blocks into the image; `plan()` first
   gives the pixel size, the byte size and what would be in frame.
-- *Record a clip, write a report, hand over the evidence.* `recordVideo()`; `report()` in HTML,
+- _Record a clip, write a report, hand over the evidence._ `recordVideo()`; `report()` in HTML,
   Markdown or PDF with a generated methods paragraph; and `evidenceBundle()`, a ZIP of the
   CSVs, the image, the journal and the recipe.
 
 **Comparing**
 
-- *Two angles on one picture.* Two views, one session.
-- *Two different pictures of one dataset.* Two sessions over one shared data core, joined by
+- _Two angles on one picture._ Two views, one session.
+- _Two different pictures of one dataset._ Two sessions over one shared data core, joined by
   `createComparison()`, which reports what is only on one side, copies positions across matched
   nodes, settles the unmatched ones, and writes a per-node difference as a computed attribute.
-- *Two datasets side by side.* The same join over two independent sessions.
+- _Two datasets side by side._ The same join over two independent sessions.
 
 **Automating, recording and replaying**
 
-- *Do anything as plain JSON.* Every operation has a command form on one discriminated union;
+- _Do anything as plain JSON._ Every operation has a command form on one discriminated union;
   `session.run(command)` executes it; and the union plus a JSON Schema ships as
   `dist/graphty-commands.json`.
-- *Turn what just happened into something you can keep.* Every state change writes a journal
+- _Turn what just happened into something you can keep._ Every state change writes a journal
   entry carrying its command, a one-line summary and its inverse, with a coalescing key so a
   dragged slider does not flood a history stack.
-- *Do it again on another file.* `journal.export()` gives a recipe; `journal.replay()` runs it
+- _Do it again on another file._ `journal.export()` gives a recipe; `journal.replay()` runs it
   against the same or a different dataset, asking for a source when a step needs one and
   reporting per step what did not bind.
-- *Print the code for what you just did.* `formatCommand()` renders any command as the
+- _Print the code for what you just did._ `formatCommand()` renders any command as the
   JavaScript line that would produce it, so "copy as command", "export as script" and the
   console transcript all emit the same text.
-- *Build a UI with no hard-coded lists.* `catalog.*` returns plain-JSON descriptors for every
+- _Build a UI with no hard-coded lists._ `catalog.*` returns plain-JSON descriptors for every
   algorithm, layout, format, palette, scale, theme, formula function and configuration key,
   each with a plain name, a technical name and an option schema; `catalog.optionsFor()`
   resolves data-dependent bounds against this graph.
-- *Validate an expression before running it.* `catalog.validate()` and `styles.validate()` are
+- _Validate an expression before running it._ `catalog.validate()` and `styles.validate()` are
   synchronous, return a character position for a syntax error, and resolve every referenced run
   id and attribute, so "matched nothing" and "named something that does not exist" stop looking
   identical.
 
 **Extending it**
 
-- *Add an algorithm, a layout, a format, a scale, a palette, a command, an accelerator, an
-  identifier mapper, an enrichment provider or a data source.* One `use()` verb over ten plugin
+- _Add an algorithm, a layout, a format, a scale, a palette, a command, an accelerator, an
+  identifier mapper, an enrichment provider or a data source._ One `use()` verb over ten plugin
   contracts, scopable to a single session, with `list`, `has`, `enable` and `remove`, a defined
   answer for double registration, and `<graphty-plugin src>` plus `registry.load(url)` for
   loading a plugin module by URL at runtime.
 
 **Knowing what this machine can do**
 
-- *Read what is available instead of probing for it.* `session.capabilities` reports
+- _Read what is available instead of probing for it._ `session.capabilities` reports
   acceleration state with a vendor, a device and an error code when it is unavailable, worker
   availability, VR and AR support, which capture formats work, and the measured limits with the
   date and basis of the calibration that produced them.
-- *Tune the element and carry the settings.* The configuration document reads, sets, resets and
+- _Tune the element and carry the settings._ The configuration document reads, sets, resets and
   round-trips more than twenty-five keys, reporting any key it rejected and why.
-- *Turn the GPU on.* One import. No GPU type crosses the package boundary, and a missing
+- _Turn the GPU on._ One import. No GPU type crosses the package boundary, and a missing
   accelerator when acceleration is required is a loud error, never a silent CPU fallback.
 
 **When something goes wrong**
 
-- *Switch on the failure rather than parse it.* Every error carries a stable code, a source, a
+- _Switch on the failure rather than parse it._ Every error carries a stable code, a source, a
   recoverable flag and structured details; a sibling package's error is wrapped, never
   re-exported as a class.
-- *Find the failure where it happened.* A run's failure lands on the run, a layer's on the
+- _Find the failure where it happened._ A run's failure lands on the run, a layer's on the
   layer, and only genuinely global failures reach a session-wide handler.
-- *Call anything before the element is ready.* There is no not-ready error; work queues.
+- _Call anything before the element is ready._ There is no not-ready error; work queues.
 
 Two capabilities in this list are mostly renderer work, and the API is how they become visible:
 bulk style application and mesh instancing surface as `view.rendered`, and the adjacency index
@@ -3914,17 +4410,17 @@ steal a host page's keyboard.
 
 ### 9.3 What is deferred, and until when
 
-| Deferred | Until | Why it is safe to defer |
-|---|---|---|
-| Several named graphs open at once | 2.1 | graph identity is already a session, so a collection is `Map<string, GraphSession>` and no signature changes |
-| Working inside a headset: world-space panels, forearm anchoring, grab-and-scale, ray, pinch and gaze selection, snap turn behind a comfort vignette, AR passthrough framing | 2.1 | no current product workflow depends on it, and the parts that would be expensive to retrofit -- one shared selection set, the session lifecycle and the degradation report -- ship in 2.0, so the rest is additive |
-| Fetching neighbours lazily from a server | 2.1 | the `data-source` plugin kind and its two hooks are declared in 2.0, so the contract does not move |
-| Loading what is in the viewport first | 2.1 | the subset, resume and memory-budget options ship in 2.0, so the progressive-load surface already exists; prioritising by viewport needs the camera, which makes it view work rather than session work, and no signature moves when it lands |
-| Ego-radial and Sugiyama layout engines | 2.0, as implementation rather than API | `defineLayout` already expresses both |
-| Named layer groups and per-group opacity | 2.1 | additive on `Layer`; nothing in the stack model changes |
-| Algorithms beyond the twenty-three wired today | rolling minor releases | `@graphty/algorithms` exports about 130 symbols; `defineAlgorithm` plus a catalogue entry makes each one mechanical, and `catalog.algorithms()` stays honest about what exists |
-| Hosting the model in a worker | whenever the host is ready | the interface is identical either way, and until the host exists asking for one throws with a stated reason |
-| Note content, and the undo stack | not the element's at all | the reasoning is in section 9.2 |
+| Deferred                                                                                                                                                                    | Until                                  | Why it is safe to defer                                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Several named graphs open at once                                                                                                                                           | 2.1                                    | graph identity is already a session, so a collection is `Map<string, GraphSession>` and no signature changes                                                                                                                                 |
+| Working inside a headset: world-space panels, forearm anchoring, grab-and-scale, ray, pinch and gaze selection, snap turn behind a comfort vignette, AR passthrough framing | 2.1                                    | no current product workflow depends on it, and the parts that would be expensive to retrofit -- one shared selection set, the session lifecycle and the degradation report -- ship in 2.0, so the rest is additive                           |
+| Fetching neighbours lazily from a server                                                                                                                                    | 2.1                                    | the `data-source` plugin kind and its two hooks are declared in 2.0, so the contract does not move                                                                                                                                           |
+| Loading what is in the viewport first                                                                                                                                       | 2.1                                    | the subset, resume and memory-budget options ship in 2.0, so the progressive-load surface already exists; prioritising by viewport needs the camera, which makes it view work rather than session work, and no signature moves when it lands |
+| Ego-radial and Sugiyama layout engines                                                                                                                                      | 2.0, as implementation rather than API | `defineLayout` already expresses both                                                                                                                                                                                                        |
+| Named layer groups and per-group opacity                                                                                                                                    | 2.1                                    | additive on `Layer`; nothing in the stack model changes                                                                                                                                                                                      |
+| Algorithms beyond the twenty-three wired today                                                                                                                              | rolling minor releases                 | `@graphty/algorithms` exports about 130 symbols; `defineAlgorithm` plus a catalogue entry makes each one mechanical, and `catalog.algorithms()` stays honest about what exists                                                               |
+| Hosting the model in a worker                                                                                                                                               | whenever the host is ready             | the interface is identical either way, and until the host exists asking for one throws with a stated reason                                                                                                                                  |
+| Note content, and the undo stack                                                                                                                                            | not the element's at all               | the reasoning is in section 9.2                                                                                                                                                                                                              |
 
 ### 9.4 Breaking changes, in one place
 
@@ -3935,55 +4431,55 @@ is needed.
 
 See design/element-api/element-api-migration.md
 
-| # | Change | Introduced in |
-|---|---|---|
-| A self-contained `./bundle` entry; Babylon and Lit stop being required peers | 2.1 |
-| `source`/`target` canonical; aliases resolved and reported; `E_EDGE_ENDPOINTS_UNRESOLVED` | 2.2 |
-| Option schemas cross as plain JSON descriptors, not Zod objects | 3.4 |
-| Layout names become semantic; the engine is catalogue data | 4 preamble |
-| `element.graph`, the eleven manager classes and the ten manager getters are removed | 4.1 |
-| `dispose()` releases everything; the element is re-attachable | 4.1 |
-| The element stops reading `window.location.search` | 4.1 |
-| The five object-valued attributes removed; thirteen of the fifteen attributes go | 4.1.1 |
-| `data-source`/`data-source-config` leave the reserved `data-*` namespace | 4.1.1 |
-| `Edge.id` becomes an element-assigned counter; default edge weight field becomes `weight` | 4.3.1 |
-| Unresolved edge endpoints are reported, never buffered silently | 4.3.2 |
-| Export exists, streams, and goes through the format registry | 4.3.6 |
-| `runAlgorithm(): Promise<void>` -> `runs.start(): Run` | 4.4.1 |
-| `algorithmResults.<ns>.<type>.<field>` -> `results.<runId>.<field>` | 4.4.2 |
-| Betweenness and closeness publish graph-level min/max | 4.4.3 |
-| Selection becomes two sets with set algebra | 4.5.2 |
-| Layers addressed by `LayerId`, not array index | 4.6.1 |
-| Layer mutations validate and repaint, or reject; the write verbs return a `Run` | 4.6.1 |
-| `calculatedStyle` and its `expr` are deleted; encodings are declarative | 4.6.2 |
-| `StyleTemplate` splits into `StyleDocument`, `DataPlan`, `ViewPreset`, `Recipe`, `AnnotationSet` | 4.6.3 |
-| Notes become element-owned and a document; `GraphtyDocument` carries any subset | 4.6.3a |
-| An unknown layout name fails loudly; one layout setter | 4.7 |
-| The event catalogue is replaced: 22 DOM and 13 session events, typed, declared, unsubscribable | 4.10 |
-| Double registration is defined | 4.14 |
-| The algorithm contract takes data and returns results; no render objects, no side effects | 4.14.1 |
-| The exports map becomes a map; `customElements` is declared | 6.1 |
-| Sourcemaps leave the tarball | 6.1 |
-| The AI surface moves to `./ai`; the LLM SDKs become optional peers | 6.2 |
-| Units and spellings settled once (opacity `0..1`, one shape spelling, `effect` singular) | 7 |
-| The seven algorithms' pictures change; PageRank stops writing `style.shape.size` | 8.1 |
-| The built-in W/A/S/D and Q/E bindings and the canvas focus grab are removed | 9.1 |
+| #                                                                                                                                     | Change     | Introduced in |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------- |
+| A self-contained `./bundle` entry; Babylon and Lit stop being required peers                                                          | 2.1        |
+| `source`/`target` canonical; aliases resolved and reported; `E_EDGE_ENDPOINTS_UNRESOLVED`                                             | 2.2        |
+| Option schemas cross as plain JSON descriptors, not Zod objects                                                                       | 3.4        |
+| Layout names become semantic; the engine is catalogue data                                                                            | 4 preamble |
+| `element.graph`, the eleven manager classes and the ten manager getters are removed                                                   | 4.1        |
+| `dispose()` releases everything; the element is re-attachable                                                                         | 4.1        |
+| The element stops reading `window.location.search`                                                                                    | 4.1        |
+| The five object-valued attributes removed; thirteen of the fifteen attributes go                                                      | 4.1.1      |
+| `data-source`/`data-source-config` leave the reserved `data-*` namespace                                                              | 4.1.1      |
+| `Edge.id` becomes an element-assigned counter; default edge weight field becomes `weight`                                             | 4.3.1      |
+| Unresolved edge endpoints are reported, never buffered silently                                                                       | 4.3.2      |
+| Export exists, streams, and goes through the format registry                                                                          | 4.3.6      |
+| `runAlgorithm(): Promise<void>` -> `runs.start(): Run`                                                                                | 4.4.1      |
+| `algorithmResults.<ns>.<type>.<field>` -> `results.<runId>.<field>`                                                                   | 4.4.2      |
+| Betweenness and closeness publish graph-level min/max                                                                                 | 4.4.3      |
+| Selection becomes two sets with set algebra                                                                                           | 4.5.2      |
+| Layers addressed by `LayerId`, not array index                                                                                        | 4.6.1      |
+| Layer mutations validate and repaint, or reject; the write verbs return a `Run`                                                       | 4.6.1      |
+| `calculatedStyle` and its `expr` are deleted; encodings are declarative                                                               | 4.6.2      |
+| `StyleTemplate` splits into `StyleDocument`, `DataPlan`, `ViewPreset`, `Recipe`, `AnnotationSet`                                      | 4.6.3      |
+| Notes become element-owned and a document; `GraphtyDocument` carries any subset                                                       | 4.6.3a     |
+| An unknown layout name fails loudly; one layout setter                                                                                | 4.7        |
+| The event catalogue is replaced: 22 DOM and 13 session events, typed, declared, unsubscribable                                        | 4.10       |
+| Double registration is defined                                                                                                        | 4.14       |
+| The algorithm contract takes data and returns results; no render objects, no side effects                                             | 4.14.1     |
+| The exports map becomes a map; `customElements` is declared                                                                           | 6.1        |
+| Sourcemaps leave the tarball                                                                                                          | 6.1        |
+| The AI surface moves to `./ai`; the LLM SDKs become optional peers                                                                    | 6.2        |
+| Units and spellings settled once (opacity `0..1`, one shape spelling, `effect` singular)                                              | 7          |
+| The seven algorithms' pictures change; PageRank stops writing `style.shape.size`                                                      | 8.1        |
+| The built-in W/A/S/D and Q/E bindings and the canvas focus grab are removed                                                           | 9.1        |
 | Built-in algorithm keys are renamed; `dijkstra`/`bellman-ford`/`floyd-warshall` fold into `shortest-path` and `scc` into `components` | 4 preamble |
 
 ### 9.5 Decisions that could reasonably have gone the other way
 
-| Decision | Why it went this way |
-|---|---|
-| Graph state lives on a model, and only camera-like state lives on the view | It is the only structure in which two synchronised views, several named graphs, worker hosting and headless testing all fall out of one choice rather than four. The cost is a second object a single-view consumer does not need, which is why the element forwards the eight verbs a first graph uses. |
-| Every method is also a command, and every command is also a method | Autocomplete is how a stranger and an agent both discover an API; serialisation is what recipes, history, a console and tool calls need. Generating one from the other costs a build step and buys both. |
-| The JavaScript expression evaluator is deleted rather than sandboxed | Sandboxing would fix the repaint abort but would still leave the element dead under a strict content security policy, and would still leave encodings impossible to diff, derive a legend from, or retarget at another dataset. |
-| Ten result shapes rather than a folded-down handful | Each shape declares its required fields and its primary action, so folding one away deletes declared behaviour to save an enum member. |
-| One `plan()` for previews, plus a separate synchronous `estimate()` | A promise cannot gate a button click, and five different spellings of look-before-you-leap is five things to remember. |
-| Run ids are author-assigned or deterministically derived, never auto-numbered | An id whose value depends on execution order makes a saved recipe or layer bind to something different on replay, and fixing that afterwards breaks everything already persisted. |
-| `Run` is awaitable itself rather than exposing a separate `done` promise | An element driven by clicks, a console and an agent is fire-and-forget most of the time; an awaitable run with an internal no-op rejection handler makes that safe without taking `await` away. |
-| Worker hosting keeps the same interface, with the synchronous half pinned to facts a proxy can mirror | Promising a transparent proxy over synchronous accessors that walk the graph would buy a second major version later. |
-| Sibling package types are quarantined behind `./format` rather than re-exported from the barrel | Re-exporting them ties the element's major version cadence to `@graphty/graph-format`'s, permanently. |
-| No family of configuration elements beyond `<graphty-plugin src>` and the two JSON slots | A tag family would make the reserved-attribute namespace and the parameter namespace of 130 algorithms the same namespace, so the API could only grow by stealing names. |
+| Decision                                                                                              | Why it went this way                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Graph state lives on a model, and only camera-like state lives on the view                            | It is the only structure in which two synchronised views, several named graphs, worker hosting and headless testing all fall out of one choice rather than four. The cost is a second object a single-view consumer does not need, which is why the element forwards the eight verbs a first graph uses. |
+| Every method is also a command, and every command is also a method                                    | Autocomplete is how a stranger and an agent both discover an API; serialisation is what recipes, history, a console and tool calls need. Generating one from the other costs a build step and buys both.                                                                                                 |
+| The JavaScript expression evaluator is deleted rather than sandboxed                                  | Sandboxing would fix the repaint abort but would still leave the element dead under a strict content security policy, and would still leave encodings impossible to diff, derive a legend from, or retarget at another dataset.                                                                          |
+| Ten result shapes rather than a folded-down handful                                                   | Each shape declares its required fields and its primary action, so folding one away deletes declared behaviour to save an enum member.                                                                                                                                                                   |
+| One `plan()` for previews, plus a separate synchronous `estimate()`                                   | A promise cannot gate a button click, and five different spellings of look-before-you-leap is five things to remember.                                                                                                                                                                                   |
+| Run ids are author-assigned or deterministically derived, never auto-numbered                         | An id whose value depends on execution order makes a saved recipe or layer bind to something different on replay, and fixing that afterwards breaks everything already persisted.                                                                                                                        |
+| `Run` is awaitable itself rather than exposing a separate `done` promise                              | An element driven by clicks, a console and an agent is fire-and-forget most of the time; an awaitable run with an internal no-op rejection handler makes that safe without taking `await` away.                                                                                                          |
+| Worker hosting keeps the same interface, with the synchronous half pinned to facts a proxy can mirror | Promising a transparent proxy over synchronous accessors that walk the graph would buy a second major version later.                                                                                                                                                                                     |
+| Sibling package types are quarantined behind `./format` rather than re-exported from the barrel       | Re-exporting them ties the element's major version cadence to `@graphty/graph-format`'s, permanently.                                                                                                                                                                                                    |
+| No family of configuration elements beyond `<graphty-plugin src>` and the two JSON slots              | A tag family would make the reserved-attribute namespace and the parameter namespace of 130 algorithms the same namespace, so the API could only grow by stealing names.                                                                                                                                 |
 
 ---
 
@@ -3994,7 +4490,7 @@ Only decisions a human has to make. Each carries a recommendation.
 **Q1. Does the AI stack leave the package, or move to `./ai`?** It is roughly a third of
 `graphty-element/index.ts` today and brings three `@ai-sdk/*` packages, `ai` and
 `encrypt-storage` as hard runtime dependencies.
-*Recommendation: `./ai`, with those five as optional peers.* It keeps a real product surface
+_Recommendation: `./ai`, with those five as optional peers._ It keeps a real product surface
 reachable while removing an LLM toolchain from the install weight of a graph renderer. What an
 agent actually needs -- `dist/graphty-commands.json` and the catalogue -- ships from
 `./commands` and `./catalog` regardless, so the decision does not gate agent support. A separate
@@ -4003,7 +4499,7 @@ package is the alternative and can be taken later without another element major.
 **Q2. Does a run paint by default?** This design says the element applies a derived encoding
 layer on a run's first completion, suppressed when a user layer drives the channel, once per
 batch, with `{ style: false }` to opt out (4.4.5).
-*Recommendation: yes, by default.* It changes today's behaviour, where the one consumer always
+_Recommendation: yes, by default._ It changes today's behaviour, where the one consumer always
 passes `applySuggestedStyles: false` -- but it passes it because the element's own suggested
 layers are the broken ones (8.1), and this design removes the reason for the refusal. A stranger
 who runs betweenness and sees nothing happen will conclude the run failed.
@@ -4012,23 +4508,23 @@ who runs betweenness and sees nothing happen will conclude the run failed.
 both ways: undo is described as the application's job, the list of things a user expects to
 undo is almost entirely graph state, and only the element can produce an inverse for any of
 it.
-*Recommendation: inverses, the journal and the `coalesceKey` in the element; the stack, its
-depth, its redo rule and its keybinding in the consumer.* The line is drawn where the knowledge
+_Recommendation: inverses, the journal and the `coalesceKey` in the element; the stack, its
+depth, its redo rule and its keybinding in the consumer._ The line is drawn where the knowledge
 is: only the element can know that five style patches touched the same binding; only the product
 can know that the stack is fifty deep and that a new action clears redo. The cost is honest --
 roughly thirty lines of reducer per consumer.
 
 **Q4. Opacity units.** The design settles on `0..1` everywhere, matching the element's current
 internal representation.
-*Recommendation: `0..1`.* Every wrapper UI that has touched this has used `0..100`, so whichever
+_Recommendation: `0..1`._ Every wrapper UI that has touched this has used `0..100`, so whichever
 wins, half of `graphty/src/utils/styleBridge.ts` (918 lines) exists to translate; picking the
 element's own representation means the translation is deleted rather than moved, and a UI that
 wants percent multiplies by 100 in one place.
 
 **Q5. The read shape of `element.data`.** The setter takes records. Should the getter return
 records, or the underlying `GraphSnapshot`?
-*Recommendation: records both ways, with `session.snapshot(): GraphSnapshot` -- declared on
-`GraphSession` in 4.2 -- as the separate, documented door to the snapshot.* An asymmetric property is a surprise; a second method is a sentence in the
+_Recommendation: records both ways, with `session.snapshot(): GraphSnapshot` -- declared on
+`GraphSession` in 4.2 -- as the separate, documented door to the snapshot._ An asymmetric property is a surprise; a second method is a sentence in the
 docs. This also keeps `./format` genuinely optional for a consumer who never touches typed
 arrays.
 
@@ -4036,19 +4532,19 @@ arrays.
 element-assigned counter, the default edge weight field becoming `weight`, and the changed raw
 centrality values for adapters that currently mirror a directed graph are decided work,
 currently scheduled to land after 2.0.
-*Recommendation: land them in this major and name them now.* They are observable through public
+_Recommendation: land them in this major and name them now._ They are observable through public
 events and results, so letting them arrive as "a minor" is exactly the second major version
 this design exists to avoid.
 
 **Q7. Is worker hosting a 2.0 deliverable or a 2.0.x one?** The API is designed so it is not a
 break either way (4.2.3).
-*Recommendation: ship the API in 2.0 and the host when it is ready.* `createGraphSession({host:
+_Recommendation: ship the API in 2.0 and the host when it is ready._ `createGraphSession({host:
 "worker"})` should throw `E_UNSUPPORTED` with a clear reason until the host exists, rather than
 silently running on the main thread -- a silent fallback here is the same defect class as a
 silent CPU fallback in a GPU run.
 
 **Q8. Bundled Babylon, or a peer?** The design bundles it and adds a self-contained CDN entry.
-*Recommendation: bundle it.* "Install three packages and match versions" is friction a
+_Recommendation: bundle it._ "Install three packages and match versions" is friction a
 self-sufficient element should not impose, and the CDN reader cannot install anything at all.
 The known cost is a consumer who already uses Babylon getting two copies; the mitigation is that
 `@babylonjs/core` stays an **optional** peer, so a consumer who declares it gets the externalised
@@ -4063,26 +4559,26 @@ Stated plainly, because a design that hides its gaps is worse than one that name
 1. **It refuses to let the view own graph state.** No per-view selection, filter or layer stack.
    Two views that must show different things are two sessions over one shared data core
    (`shareDataWith`, 4.2), never one session with per-view overrides.
-   *Cost:* a consumer with one view pays for a level of indirection they do not need; every
+   _Cost:_ a consumer with one view pays for a level of indirection they do not need; every
    docs page carries one more sentence; and divergent Compare costs a second model object and a
    `createComparison` join rather than a flag. This is the central bet, and section 2's promise
    -- that the word "session" does not appear before the Compare page -- is how the bet is paid
    for.
 2. **It refuses an `element.graph` escape hatch.** One unsupported door, `unstable_internals`.
-   *Cost:* anything reachable only through a manager must become first-class or be dropped, and
+   _Cost:_ anything reachable only through a manager must become first-class or be dropped, and
    someone will miss `getMeshCache`, `getNodeMesh`, `needsRayUpdate` or `startInputRecording`.
-3. **It refuses arbitrary JS accessors in styling.** *Cost:* some encodings are awkward, and a
+3. **It refuses arbitrary JS accessors in styling.** _Cost:_ some encodings are awkward, and a
    consumer who wanted a lambda writes a registered scale. The alternative is deck.gl's
    `updateTriggers`, which is incidental complexity every user must learn or hit silent
    staleness.
-4. **It refuses to re-export sibling types from the barrel.** *Cost:* a consumer who wants to
+4. **It refuses to re-export sibling types from the barrel.** _Cost:_ a consumer who wants to
    build a snapshot by hand imports `./format` or installs `@graphty/graph-format`.
 5. **It refuses a "make it fast" toggle that degrades silently.** Every degradation is reported
-   with a reason. *Cost:* more state to render, and a consumer who ignores it sees no
+   with a reason. _Cost:_ more state to render, and a consumer who ignores it sees no
    difference.
-6. **It refuses to render on the server.** `./session` runs in Node; `.` does not. *Cost:* SSR
+6. **It refuses to render on the server.** `./session` runs in Node; `.` does not. _Cost:_ SSR
    consumers get a sized placeholder and hydrate client-side, and the frameworks page says so.
-7. **It refuses silent success anywhere a shape is wrong.** *Cost:* code that "worked" against
+7. **It refuses silent success anywhere a shape is wrong.** _Cost:_ code that "worked" against
    1.x because its mistake was swallowed now fails loudly on upgrade. That is the intent, and it
    will still generate migration friction.
 
@@ -4101,283 +4597,460 @@ shapes: the first is re-exported from `./format` and owned by `@graphty/graph-fo
 // --- the exported functions, one per entry point ---------------------------------
 // "./session" also exports createGraphSession, declared once in 4.2 and not repeated here.
 declare function createComparison(o: {
-  a: GraphSession; b: GraphSession;
-  match: { on: "id" } | { on: "attribute"; attribute: string }
-       | { on: "pairs"; pairs: readonly (readonly [NodeId, NodeId])[] };
+    a: GraphSession;
+    b: GraphSession;
+    match:
+        | { on: "id" }
+        | { on: "attribute"; attribute: string }
+        | { on: "pairs"; pairs: readonly (readonly [NodeId, NodeId])[] };
 }): Comparison;
 
 interface Comparison {
-  readonly a: GraphSession; readonly b: GraphSession;
-  readonly matched: number; readonly unmatchedA: number; readonly unmatchedB: number;
-  onlyIn(side: "a" | "b"): readonly NodeId[];
-  copyPositions(from: "a" | "b", to: "a" | "b"): Promise<MutationReceipt>;
-  settleUnmatched(side: "a" | "b", o?: RunOptions & { maxSteps?: number }): Run<SettleResult>;
-  delta(field: Path | AlgorithmKey, o?: { as?: string }): Run<MutationReceipt>;
-  statistics(id: NodeId): { a?: Readonly<Record<string, unknown>>;
-                            b?: Readonly<Record<string, unknown>> };
-  dispose(): void;
+    readonly a: GraphSession;
+    readonly b: GraphSession;
+    readonly matched: number;
+    readonly unmatchedA: number;
+    readonly unmatchedB: number;
+    onlyIn(side: "a" | "b"): readonly NodeId[];
+    copyPositions(from: "a" | "b", to: "a" | "b"): Promise<MutationReceipt>;
+    settleUnmatched(side: "a" | "b", o?: RunOptions & { maxSteps?: number }): Run<SettleResult>;
+    delta(field: Path | AlgorithmKey, o?: { as?: string }): Run<MutationReceipt>;
+    statistics(id: NodeId): { a?: Readonly<Record<string, unknown>>; b?: Readonly<Record<string, unknown>> };
+    dispose(): void;
 }
 
 // "./commands"
-declare function parsePattern(text: string): Pattern;             // throws E_BAD_QUERY
-declare function formatCommand(command: Command,
-                               o?: { style?: "js" | "json"; indent?: number }): string;
+declare function parsePattern(text: string): Pattern; // throws E_BAD_QUERY
+declare function formatCommand(command: Command, o?: { style?: "js" | "json"; indent?: number }): string;
 
 // "./extend"
-declare function use(...plugins: readonly Plugin[]): void;        // the default registry
+declare function use(...plugins: readonly Plugin[]): void; // the default registry
 declare function use(plugin: Plugin, o: { strict?: boolean }): void;
 declare function createRegistry(o?: { inherit?: boolean }): Registry;
-declare function defineAlgorithm(
-  spec: AlgorithmDescriptor & { run: AlgorithmRun }): Plugin & { kind: "algorithm" };
-declare function defineLayout(
-  spec: LayoutDescriptor & { create: LayoutFactory }): Plugin & { kind: "layout" };
+declare function defineAlgorithm(spec: AlgorithmDescriptor & { run: AlgorithmRun }): Plugin & { kind: "algorithm" };
+declare function defineLayout(spec: LayoutDescriptor & { create: LayoutFactory }): Plugin & { kind: "layout" };
 declare function defineFormat(
-  spec: FormatDescriptor & { importer?: Importer; exporter?: Exporter }):
-  Plugin & { kind: "format" };
-declare function defineScale(
-  spec: ScaleDescriptor & { map: ScaleFn }): Plugin & { kind: "scale" };
+    spec: FormatDescriptor & { importer?: Importer; exporter?: Exporter },
+): Plugin & { kind: "format" };
+declare function defineScale(spec: ScaleDescriptor & { map: ScaleFn }): Plugin & { kind: "scale" };
 // Each define* validates its descriptor eagerly and throws E_BAD_COMMAND naming the missing
 // field, so a plugin author learns at import time rather than at first use.
 
 // --- pointer and event payloads -------------------------------------------------
-interface Modifiers { shift: boolean; ctrl: boolean; meta: boolean; alt: boolean;
-                      button: 0 | 1 | 2 }
+interface Modifiers {
+    shift: boolean;
+    ctrl: boolean;
+    meta: boolean;
+    alt: boolean;
+    button: 0 | 1 | 2;
+}
 interface NodeClickDetail {
-  id: NodeId; node: NodeRecord; modifiers: Modifiers;
-  pointer: { x: number; y: number }; world: Position | null;
-  results: Readonly<Record<RunId, Readonly<Record<string, unknown>>>>;
+    id: NodeId;
+    node: NodeRecord;
+    modifiers: Modifiers;
+    pointer: { x: number; y: number };
+    world: Position | null;
+    results: Readonly<Record<RunId, Readonly<Record<string, unknown>>>>;
 }
 interface EdgeClickDetail {
-  id: EdgeId; edge: EdgeRecord; source: NodeId; target: NodeId; modifiers: Modifiers;
-  pointer: { x: number; y: number };
-  results: Readonly<Record<RunId, Readonly<Record<string, unknown>>>>;
+    id: EdgeId;
+    edge: EdgeRecord;
+    source: NodeId;
+    target: NodeId;
+    modifiers: Modifiers;
+    pointer: { x: number; y: number };
+    results: Readonly<Record<RunId, Readonly<Record<string, unknown>>>>;
 }
 type Direction = "in" | "out" | "all";
 
 // --- runs ------------------------------------------------------------------------
-interface RunSpec { algorithm: AlgorithmKey; params?: Record<string, unknown>;
-                    scope?: Scope; seed?: number; as?: RunId; style?: RunStyle }
-interface BatchResult { label: string; total: number; completed: number; partial: boolean;
-                        steps: readonly { index: number; runId?: RunId; ok: boolean;
-                                          reason?: string }[] }
-interface RunRecord {                       // frozen, structured-cloneable
-  id: RunId; label: string; command: Command; algorithm: AlgorithmKey;
-  params: Readonly<Record<string, unknown>>; seed: number | null;
-  scope: { spec: Scope; nodes: number; edges: number; digest: string };
-  status: RunStatus; startedAt: string | null; durationMs: number | null;
-  partial: boolean; stale: StaleNote | null;
-  engine: { element: string; algorithms: string; layout: string };
-  fields: readonly FieldDescriptor[]; shape: ResultShape; caveats: Caveats;
-  summary?: ResultSummary;
+interface RunSpec {
+    algorithm: AlgorithmKey;
+    params?: Record<string, unknown>;
+    scope?: Scope;
+    seed?: number;
+    as?: RunId;
+    style?: RunStyle;
 }
-type ResultOf<C extends Command> =
-  C extends { op: "algo.run" } ? RunResult :
-  C extends { op: "algo.remove" } ? { removedLayers: number; layerIds: readonly LayerId[] } :
-  C extends { op: "data.inspect" } ? Inspection :
-  C extends { op: "data.import" } ? ImportReport :
-  C extends { op: "data.sample" } ? ImportReport :
-  C extends { op: "data.export" } ? ExportResult :
-  C extends { op: "data.apply" | "data.collapse" | "data.compute" } ? MutationReceipt :
-  C extends { op: "data.expand" } ? ExpansionReceipt :
-  C extends { op: "data.match" } ? MatchResult :
-  C extends { op: "style.encode" } ? Layer :
-  C extends { op: "style.patch" } ? readonly LayerId[] :
-  C extends { op: "style.template" } ? { applied: readonly LayerId[];
-                                         unbound: readonly UnboundLayer[] } :
-  C extends { op: "select" } ? SelectionDelta :
-  C extends { op: "visibility.set" | "visibility.window" } ? FilterResult :
-  C extends { op: "visibility.steps" } ? TemporalResult :
-  C extends { op: "layout.set" } ? void :
-  C extends { op: "layout.transport" } ? SettleResult :
-  C extends { op: "positions.set" } ? MutationReceipt :
-  C extends { op: "view.camera" | "view.mode" } ? void :
-  C extends { op: "view.capture" } ? CaptureResult :
-  C extends { op: "view.record" } ? VideoResult :
-  C extends { op: "report" } ? Blob :
-  C extends { op: "calibrate" } ? Limits :
-  C extends { op: "config.set" } ? MutationReceipt :
-  C extends { op: "batch" } ? BatchResult : never;
+interface BatchResult {
+    label: string;
+    total: number;
+    completed: number;
+    partial: boolean;
+    steps: readonly { index: number; runId?: RunId; ok: boolean; reason?: string }[];
+}
+interface RunRecord {
+    // frozen, structured-cloneable
+    id: RunId;
+    label: string;
+    command: Command;
+    algorithm: AlgorithmKey;
+    params: Readonly<Record<string, unknown>>;
+    seed: number | null;
+    scope: { spec: Scope; nodes: number; edges: number; digest: string };
+    status: RunStatus;
+    startedAt: string | null;
+    durationMs: number | null;
+    partial: boolean;
+    stale: StaleNote | null;
+    engine: { element: string; algorithms: string; layout: string };
+    fields: readonly FieldDescriptor[];
+    shape: ResultShape;
+    caveats: Caveats;
+    summary?: ResultSummary;
+}
+type ResultOf<C extends Command> = C extends { op: "algo.run" }
+    ? RunResult
+    : C extends { op: "algo.remove" }
+      ? { removedLayers: number; layerIds: readonly LayerId[] }
+      : C extends { op: "data.inspect" }
+        ? Inspection
+        : C extends { op: "data.import" }
+          ? ImportReport
+          : C extends { op: "data.sample" }
+            ? ImportReport
+            : C extends { op: "data.export" }
+              ? ExportResult
+              : C extends { op: "data.apply" | "data.collapse" | "data.compute" }
+                ? MutationReceipt
+                : C extends { op: "data.expand" }
+                  ? ExpansionReceipt
+                  : C extends { op: "data.match" }
+                    ? MatchResult
+                    : C extends { op: "style.encode" }
+                      ? Layer
+                      : C extends { op: "style.patch" }
+                        ? readonly LayerId[]
+                        : C extends { op: "style.template" }
+                          ? { applied: readonly LayerId[]; unbound: readonly UnboundLayer[] }
+                          : C extends { op: "select" }
+                            ? SelectionDelta
+                            : C extends { op: "visibility.set" | "visibility.window" }
+                              ? FilterResult
+                              : C extends { op: "visibility.steps" }
+                                ? TemporalResult
+                                : C extends { op: "layout.set" }
+                                  ? void
+                                  : C extends { op: "layout.transport" }
+                                    ? SettleResult
+                                    : C extends { op: "positions.set" }
+                                      ? MutationReceipt
+                                      : C extends { op: "view.camera" | "view.mode" }
+                                        ? void
+                                        : C extends { op: "view.capture" }
+                                          ? CaptureResult
+                                          : C extends { op: "view.record" }
+                                            ? VideoResult
+                                            : C extends { op: "report" }
+                                              ? Blob
+                                              : C extends { op: "calibrate" }
+                                                ? Limits
+                                                : C extends { op: "config.set" }
+                                                  ? MutationReceipt
+                                                  : C extends { op: "batch" }
+                                                    ? BatchResult
+                                                    : never;
 // Every arm of the Command union has a result type. `never` as the fallback rather than
 // `unknown` is deliberate: an op added without an arm here fails to type-check at the one
 // call site that matters, `session.run(command)`, instead of silently degrading to `unknown`.
 // The command form is therefore exactly as well typed as the method form, which is what
 // "every method is a command, and every command is a method" (3.4) has to mean to be worth
 // anything.
-interface FilterResult { visible: { nodes: number; edges: number };
-                         total: { nodes: number; edges: number };
-                         unresolvedPaths: readonly Path[]; durationMs: number }
+interface FilterResult {
+    visible: { nodes: number; edges: number };
+    total: { nodes: number; edges: number };
+    unresolvedPaths: readonly Path[];
+    durationMs: number;
+}
 
 // --- styles ----------------------------------------------------------------------
 interface LayerSpec {
-  name: string; target?: "node" | "edge"; kind?: Layer["kind"];
-  selector: Selector; set?: StaticStyle; encode?: Encoding;
-  source?: LayerSource; enabled?: boolean; userData?: Record<string, unknown>;
+    name: string;
+    target?: "node" | "edge";
+    kind?: Layer["kind"];
+    selector: Selector;
+    set?: StaticStyle;
+    encode?: Encoding;
+    source?: LayerSource;
+    enabled?: boolean;
+    userData?: Record<string, unknown>;
 }
-interface HighlightSpec { run: Run | RunResult | RunId; field?: string; name?: string;
-                          set?: StaticStyle }
+interface HighlightSpec {
+    run: Run | RunResult | RunId;
+    field?: string;
+    name?: string;
+    set?: StaticStyle;
+}
 type ChannelValue = string | number | boolean | LabelStyle | Rgba;
 /** Pre-parsed colour. The repaint reads this; the string form is for authoring and export.
  *  Components are 0..255, alpha 0..1. Parsing a hex string per element is a repaint cost the
  *  encoding already knows how to avoid (4.6.1a rule 6). */
 type Rgba = { r: number; g: number; b: number; a: number };
-interface LabelStyle {                      // node.labelStyle / edge.labelStyle
-  font?: string; sizePx?: number; weight?: number | "normal" | "bold";
-  color?: string; background?: string; outline?: string;
-  padding?: number; maxWidth?: number; wrap?: boolean;
+interface LabelStyle {
+    // node.labelStyle / edge.labelStyle
+    font?: string;
+    sizePx?: number;
+    weight?: number | "normal" | "bold";
+    color?: string;
+    background?: string;
+    outline?: string;
+    padding?: number;
+    maxWidth?: number;
+    wrap?: boolean;
 }
 type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 type ResolvedStyle = Readonly<Record<Channel, ChannelValue | undefined>>;
 type Legend = LegendBlock;
-interface StyleDocument { version: 1; layers: readonly LayerSpec[];
-                          palettes?: readonly PaletteDescriptor[] }
-interface ViewPreset { version: 1; mode: "2d" | "3d" | "vr" | "ar";
-                       camera: { position: Position; target: Position; zoomPercent: number };
-                       name?: string; fingerprint?: string }
-interface DataPlan { version: 1;
-                     knownFields: Partial<Record<"nodeId" | "edgeSource" | "edgeTarget"
-                                                 | "nodeLabel" | "edgeWeight" | "time", string>>;
-                     directed?: boolean | "auto"; idCoercion?: "canonical" | "keep";
-                     runOnLoad?: readonly (AlgorithmKey | { algorithm: AlgorithmKey;
-                                            params?: Record<string, unknown>;
-                                            style?: RunStyle; seed?: number; as?: RunId })[];
-                     name?: string; fingerprint?: string }
-interface AnnotationSet { version: 1; notes: readonly Note[];
-                          name?: string; fingerprint?: string }
+interface StyleDocument {
+    version: 1;
+    layers: readonly LayerSpec[];
+    palettes?: readonly PaletteDescriptor[];
+}
+interface ViewPreset {
+    version: 1;
+    mode: "2d" | "3d" | "vr" | "ar";
+    camera: { position: Position; target: Position; zoomPercent: number };
+    name?: string;
+    fingerprint?: string;
+}
+interface DataPlan {
+    version: 1;
+    knownFields: Partial<Record<"nodeId" | "edgeSource" | "edgeTarget" | "nodeLabel" | "edgeWeight" | "time", string>>;
+    directed?: boolean | "auto";
+    idCoercion?: "canonical" | "keep";
+    runOnLoad?: readonly (
+        | AlgorithmKey
+        | { algorithm: AlgorithmKey; params?: Record<string, unknown>; style?: RunStyle; seed?: number; as?: RunId }
+    )[];
+    name?: string;
+    fingerprint?: string;
+}
+interface AnnotationSet {
+    version: 1;
+    notes: readonly Note[];
+    name?: string;
+    fingerprint?: string;
+}
 
 /** What an importable document bound to, per member. Never throws on a partial bind. */
 interface BindingReport {
-  readonly bound: number;
-  readonly disabled: readonly { what: string; reason: string; code: GraphtyErrorCode }[];
-  readonly unresolvedPaths: readonly Path[];
-  /** Present when applying would cost compute the caller has not agreed to yet. */
-  readonly needsRerun?: readonly { what: string; estimateSeconds: number }[];
+    readonly bound: number;
+    readonly disabled: readonly { what: string; reason: string; code: GraphtyErrorCode }[];
+    readonly unresolvedPaths: readonly Path[];
+    /** Present when applying would cost compute the caller has not agreed to yet. */
+    readonly needsRerun?: readonly { what: string; estimateSeconds: number }[];
 }
 
 // --- catalogue descriptors (all plain JSON) --------------------------------------
 interface OptionDescriptor {
-  name: string; plainName: string; technicalName?: string;
-  type: "number" | "integer" | "boolean" | "string" | "enum" | "seed"
-      | "node-id" | "node-set" | "attribute" | "partition" | "ordering";
-  default?: unknown;
-  min?: number | string | OptionBound; max?: number | string | OptionBound; step?: number;
-  values?: readonly { value: string; label: string }[];
-  attributeType?: AttributeType; group?: string;
-  advanced?: boolean; internal?: boolean; description?: string;
+    name: string;
+    plainName: string;
+    technicalName?: string;
+    type:
+        | "number"
+        | "integer"
+        | "boolean"
+        | "string"
+        | "enum"
+        | "seed"
+        | "node-id"
+        | "node-set"
+        | "attribute"
+        | "partition"
+        | "ordering";
+    default?: unknown;
+    min?: number | string | OptionBound;
+    max?: number | string | OptionBound;
+    step?: number;
+    values?: readonly { value: string; label: string }[];
+    attributeType?: AttributeType;
+    group?: string;
+    advanced?: boolean;
+    internal?: boolean;
+    description?: string;
 }
 // A bound that depends on the data, resolved by catalog.optionsFor(key, scope) (4.15.2).
 // The static descriptor stays plain JSON; the reference is a documented string.
-type OptionBound = { from: "graph.nodeCount" | "graph.edgeCount" | "graph.maxDegree"
-                         | "graph.maxCore" | "graph.componentCount" | (string & {}) };
+type OptionBound = {
+    from:
+        | "graph.nodeCount"
+        | "graph.edgeCount"
+        | "graph.maxDegree"
+        | "graph.maxCore"
+        | "graph.componentCount"
+        | (string & {});
+};
 
 interface AlgorithmDescriptor {
-  key: AlgorithmKey; plainName: string; technicalName: string; description: string;
-  category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction"
-          | (string & {});
-  shape: ResultShape; fields: readonly FieldDescriptor[];
-  options: readonly OptionDescriptor[];
-  costClass: CostClass; complexity: string;
-  cost?: (n: number, m: number) => number;
-  approximable?: { method: string; plainName: string;   // used above exactComputationCap
-                   defaultSample: number; seeded: boolean };
-  requires?: { directed?: boolean; weighted?: boolean; accelerator?: boolean;
-               connected?: boolean };
+    key: AlgorithmKey;
+    plainName: string;
+    technicalName: string;
+    description: string;
+    category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
+    shape: ResultShape;
+    fields: readonly FieldDescriptor[];
+    options: readonly OptionDescriptor[];
+    costClass: CostClass;
+    complexity: string;
+    cost?: (n: number, m: number) => number;
+    approximable?: {
+        method: string;
+        plainName: string; // used above exactComputationCap
+        defaultSample: number;
+        seeded: boolean;
+    };
+    requires?: { directed?: boolean; weighted?: boolean; accelerator?: boolean; connected?: boolean };
 }
 interface LayoutDescriptor {
-  id: LayoutId; plainName: string; technicalName: string; description: string;
-  family: string; kind: "live" | "batch"; maxDimensions: 2 | 3;
-  sizeRating: "any" | 10000 | 2000 | 500;
-  structuralInputs: readonly ("node" | "partition" | "ordering")[];
-  options: readonly OptionDescriptor[]; engine: string;   // the implementation name
+    id: LayoutId;
+    plainName: string;
+    technicalName: string;
+    description: string;
+    family: string;
+    kind: "live" | "batch";
+    maxDimensions: 2 | 3;
+    sizeRating: "any" | 10000 | 2000 | 500;
+    structuralInputs: readonly ("node" | "partition" | "ordering")[];
+    options: readonly OptionDescriptor[];
+    engine: string; // the implementation name
 }
-interface FormatDescriptor { id: FormatId; plainName: string; extensions: readonly string[];
-                             mimeTypes: readonly string[]; canImport: boolean;
-                             canExport: boolean; options: readonly OptionDescriptor[] }
-interface PaletteDescriptor { id: PaletteId; plainName: string;
-                              kind: "sequential" | "diverging" | "categorical";
-                              colors: readonly string[]; capacity: number | null;
-                              colorblindSafe: readonly ("deuteranopia" | "protanopia"
-                                                      | "tritanopia")[] }
-interface ScaleDescriptor { name: string; plainName: string;
-                            domainKind: "numeric" | "categorical" | "boolean";
-                            options: readonly OptionDescriptor[] }
-interface ThemeDescriptor { name: string; plainName: string; document: StyleDocument }
-interface FunctionDescriptor { name: string; arity: [number, number]; description: string;
-                               returns: "number" | "boolean" | "string" }
-interface ConfigKeyDescriptor { key: keyof ConfigValues; plainName: string;
-                                technicalName: string; unit?: string;
-                                min?: number; max?: number; default: unknown;
-                                description: string }
-interface CommandDescriptor { op: string; description: string;
-                              parameters: readonly OptionDescriptor[];
-                              examples: readonly Command[] }
-interface MapperDescriptor { name: string; plainName: string; from: string; to: string }
-interface ProviderDescriptor { name: string; plainName: string;
-                               provides: readonly string[] }
-interface SourceDescriptor { name: string; plainName: string; lazy: boolean }
+interface FormatDescriptor {
+    id: FormatId;
+    plainName: string;
+    extensions: readonly string[];
+    mimeTypes: readonly string[];
+    canImport: boolean;
+    canExport: boolean;
+    options: readonly OptionDescriptor[];
+}
+interface PaletteDescriptor {
+    id: PaletteId;
+    plainName: string;
+    kind: "sequential" | "diverging" | "categorical";
+    colors: readonly string[];
+    capacity: number | null;
+    colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
+}
+interface ScaleDescriptor {
+    name: string;
+    plainName: string;
+    domainKind: "numeric" | "categorical" | "boolean";
+    options: readonly OptionDescriptor[];
+}
+interface ThemeDescriptor {
+    name: string;
+    plainName: string;
+    document: StyleDocument;
+}
+interface FunctionDescriptor {
+    name: string;
+    arity: [number, number];
+    description: string;
+    returns: "number" | "boolean" | "string";
+}
+interface ConfigKeyDescriptor {
+    key: keyof ConfigValues;
+    plainName: string;
+    technicalName: string;
+    unit?: string;
+    min?: number;
+    max?: number;
+    default: unknown;
+    description: string;
+}
+interface CommandDescriptor {
+    op: string;
+    description: string;
+    parameters: readonly OptionDescriptor[];
+    examples: readonly Command[];
+}
+interface MapperDescriptor {
+    name: string;
+    plainName: string;
+    from: string;
+    to: string;
+}
+interface ProviderDescriptor {
+    name: string;
+    plainName: string;
+    provides: readonly string[];
+}
+interface SourceDescriptor {
+    name: string;
+    plainName: string;
+    lazy: boolean;
+}
 
 // --- plugin function shapes -------------------------------------------------------
-interface ReadonlyGraphData {                 // the graph-format vocabulary, read-only
-  readonly nodeCount: number; readonly edgeCount: number; readonly directed: boolean;
-  readonly rowPtr: Uint32Array; readonly colIdx: Uint32Array;
-  readonly weights: Float32Array | null;
-  idOf(index: number): NodeId;
-  indexOf(id: NodeId): number;               // INVALID_INDEX when absent
-  column(name: string): ArrayLike<number> | readonly string[] | undefined;
+interface ReadonlyGraphData {
+    // the graph-format vocabulary, read-only
+    readonly nodeCount: number;
+    readonly edgeCount: number;
+    readonly directed: boolean;
+    readonly rowPtr: Uint32Array;
+    readonly colIdx: Uint32Array;
+    readonly weights: Float32Array | null;
+    idOf(index: number): NodeId;
+    indexOf(id: NodeId): number; // INVALID_INDEX when absent
+    column(name: string): ArrayLike<number> | readonly string[] | undefined;
 }
 interface AlgorithmContext {
-  readonly graph: ReadonlyGraphData;
-  readonly scope: { nodes: Uint32Array; edges: Uint32Array };
-  readonly options: Readonly<Record<string, unknown>>;
-  readonly signal: AbortSignal;
-  report(p: { completed: number; total?: number; phase?: string }): void;
-  yieldNow(): Promise<void>;                 // scheduler.yield() where available
+    readonly graph: ReadonlyGraphData;
+    readonly scope: { nodes: Uint32Array; edges: Uint32Array };
+    readonly options: Readonly<Record<string, unknown>>;
+    readonly signal: AbortSignal;
+    report(p: { completed: number; total?: number; phase?: string }): void;
+    yieldNow(): Promise<void>; // scheduler.yield() where available
 }
 type AlgorithmRun = (ctx: AlgorithmContext) => Promise<AlgorithmOutput>;
-type LayoutFactory = (ctx: AlgorithmContext & { positions: Float32Array }) =>
-  { step(n: number): void; readonly settled: boolean; stop(): void };
-type ScaleFn = (value: unknown, ctx: { domain: [number, number]; palette?: PaletteDescriptor })
-  => string | number;
-type Importer = (input: ReadableStream<Uint8Array> | string,
-                 o: { plan: ImportPlan; signal: AbortSignal }) => AsyncIterable<GraphData>;
+type LayoutFactory = (ctx: AlgorithmContext & { positions: Float32Array }) => {
+    step(n: number): void;
+    readonly settled: boolean;
+    stop(): void;
+};
+type ScaleFn = (value: unknown, ctx: { domain: [number, number]; palette?: PaletteDescriptor }) => string | number;
+type Importer = (
+    input: ReadableStream<Uint8Array> | string,
+    o: { plan: ImportPlan; signal: AbortSignal },
+) => AsyncIterable<GraphData>;
 type Exporter = (graph: ReadonlyGraphData, o: ExportOptions) => ReadableStream<Uint8Array>;
 type MapperFn = (ids: readonly string[]) => Promise<Record<string, string>>;
 type EnrichmentFn = (ids: readonly NodeId[]) => Promise<readonly NodeRecord[]>;
 type FetchNodes = (ids: readonly NodeId[]) => Promise<readonly NodeRecord[]>;
-type FetchEdges = (id: NodeId, o: { direction: Direction; limit: number; offset: number })
-  => Promise<{ rows: readonly EdgeRecord[]; total: number }>;
-type AcceleratorFactory = (options?: { exactMaxNodes?: number })
-  => Promise<GraphAccelerator | null>;
+type FetchEdges = (
+    id: NodeId,
+    o: { direction: Direction; limit: number; offset: number },
+) => Promise<{ rows: readonly EdgeRecord[]; total: number }>;
+type AcceleratorFactory = (options?: { exactMaxNodes?: number }) => Promise<GraphAccelerator | null>;
 
 // --- accelerator ------------------------------------------------------------------
 // Named from the CPU packages, never from the GPU package. Every member is optional, so a
 // third party can implement one method; the dispatcher stays internal, so a new accelerated
 // algorithm in a sibling MINOR does not break an implementor.
 interface GraphAccelerator {
-  readonly name: string;
-  readonly backend: "webgpu" | (string & {});
-  readonly device?: { vendor: string; architecture: string; description: string };
-  readonly lost?: Promise<{ reason: string }>;
-  dispose?(): void;
-  [algorithmOrLayout: string]: unknown;
+    readonly name: string;
+    readonly backend: "webgpu" | (string & {});
+    readonly device?: { vendor: string; architecture: string; description: string };
+    readonly lost?: Promise<{ reason: string }>;
+    dispose?(): void;
+    [algorithmOrLayout: string]: unknown;
 }
 
 // --- events -----------------------------------------------------------------------
 interface SessionEventMap {
-  "ready": Record<string, never>;
-  "error": GraphtyError;
-  "data:loading": Progress & { phase: "fetch" | "parse" | "index" };
-  "data:changed": MutationReceipt;
-  "selection:changed": SelectionDelta;
-  "visibility:changed": FilterResult & { filterKind: string };
-  "run:changed": { run: RunRecord; phase: "queued" | "start" | "progress" | "end" };
-  "styles:changed": { layers: readonly Layer[]; changed: readonly LayerId[] };
-  "style:error": { layerId: LayerId; elementId: NodeId | EdgeId; code: GraphtyErrorCode;
-                   message: string };
-  "layout:changed": { id: LayoutId; kind: "live" | "batch"; state: string; step: number;
-                      progress?: Progress };
-  "journal:appended": { entry: JournalEntry };
-  "capabilities:changed": { capabilities: Capabilities };
-  "catalog:changed": { kind: string; added: readonly string[]; removed: readonly string[] };
+    ready: Record<string, never>;
+    error: GraphtyError;
+    "data:loading": Progress & { phase: "fetch" | "parse" | "index" };
+    "data:changed": MutationReceipt;
+    "selection:changed": SelectionDelta;
+    "visibility:changed": FilterResult & { filterKind: string };
+    "run:changed": { run: RunRecord; phase: "queued" | "start" | "progress" | "end" };
+    "styles:changed": { layers: readonly Layer[]; changed: readonly LayerId[] };
+    "style:error": { layerId: LayerId; elementId: NodeId | EdgeId; code: GraphtyErrorCode; message: string };
+    "layout:changed": { id: LayoutId; kind: "live" | "batch"; state: string; step: number; progress?: Progress };
+    "journal:appended": { entry: JournalEntry };
+    "capabilities:changed": { capabilities: Capabilities };
+    "catalog:changed": { kind: string; added: readonly string[]; removed: readonly string[] };
 }
 ```
 

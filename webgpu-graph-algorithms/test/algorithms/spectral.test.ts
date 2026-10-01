@@ -228,6 +228,62 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         }
     });
 
+    it("converging on the last allowed iteration reports converged: a cap at the first converged iteration is converged, one lower is not, for all three", async (t) => {
+        const ctx = await context(t);
+        const { snapshot } = fixture("karate", gpuScale());
+        const legs = [
+            {
+                label: "hits",
+                gpu: (k: number) => hits(ctx, snapshot, { maxIterations: k }),
+                oracle: (k: number) => hitsOracle(snapshot, { ...OPTS, maxIterations: k }),
+            },
+            {
+                label: "eigenvector",
+                gpu: (k: number) => eigenvectorCentrality(ctx, snapshot, { maxIterations: k }),
+                oracle: (k: number) => eigenvectorOracle(snapshot, { ...OPTS, maxIterations: k }),
+            },
+            {
+                label: "katz",
+                gpu: (k: number) => katzCentrality(ctx, snapshot, { maxIterations: k }),
+                oracle: (k: number) => katzOracle(snapshot, { ...OPTS, ...KATZ, maxIterations: k }),
+            },
+        ];
+        try {
+            for (const leg of legs) {
+                // EACH SIDE AT ITS OWN FIRST CONVERGED ITERATION. Where f32 crosses the tolerance depends on the
+                // device's rounding (Katz on karate: 36 on NVIDIA and lavapipe, 35 on Apple Metal, as against the
+                // f64 oracle's 36), and how far the two may drift apart is the "within +-1" case above. What this
+                // case pins is the cap rule, on each side: the cap AT that iteration converges, one lower does not.
+                const full = leg.oracle(OPTS.maxIterations);
+                expect(full.converged, `${leg.label}: the oracle converges`).toBe(true);
+                const first = full.iterations;
+                expect(leg.oracle(first), `${leg.label}: oracle at the cap`).toMatchObject({
+                    iterations: first,
+                    converged: true,
+                });
+                expect(leg.oracle(first - 1).converged, `${leg.label}: oracle one below`).toBe(false);
+
+                const free = await leg.gpu(OPTS.maxIterations);
+                expect(free.converged, `${leg.label}: the GPU converges`).toBe(true);
+                const gpuFirst = free.iterations;
+                const atCap = await leg.gpu(gpuFirst);
+                expect(
+                    { iterations: atCap.iterations, converged: atCap.converged },
+                    `${leg.label}: at the cap`,
+                ).toEqual({ iterations: gpuFirst, converged: true });
+                const below = await leg.gpu(gpuFirst - 1);
+                expect(
+                    { iterations: below.iterations, converged: below.converged },
+                    `${leg.label}: one below the cap`,
+                ).toEqual({ iterations: gpuFirst - 1, converged: false });
+            }
+        } finally {
+            // released even when an expectation throws: the context is shared, and a karate left resident fails
+            // the residency count at the end of the windowed-core case below
+            ctx.release(snapshot);
+        }
+    });
+
     it("the top-10 order is identical on karate and random1k, for all three", async (t) => {
         const ctx = await context(t);
         for (const name of ["karate", "random1k"]) {
@@ -285,6 +341,19 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         expectAllClose(k5.scores, katzOracle(lonely, { ...OPTS, ...KATZ }).scores, PARITY, "lonely katz oracle");
         expect(k5.converged).toBe(true);
         ctx.release(lonely);
+        // edgeless and DIRECTED: the reverse view has no colIdx to bind, and Katz and HITS still run
+        for (const directed of [true, false]) {
+            const edgeless = snapshotOf([], { nodeCount: 3, directed, label: `edgeless-${directed}` });
+            const k3 = await katzCentrality(ctx, edgeless);
+            const kExpected = katzOracle(edgeless, { ...OPTS, ...KATZ });
+            expectAllClose(k3.scores, kExpected.scores, PARITY, `edgeless katz, directed ${directed}`);
+            expect(k3.converged).toBe(kExpected.converged);
+            const h3 = await hits(ctx, edgeless);
+            const hExpected = hitsOracle(edgeless, OPTS);
+            expectAllClose(h3.hubs, hExpected.hubs, PARITY, `edgeless hubs, directed ${directed}`);
+            expectAllClose(h3.authorities, hExpected.authorities, PARITY, `edgeless authorities, directed ${directed}`);
+            ctx.release(edgeless);
+        }
     });
 
     it("two runs are bitwise identical, for all three", async (t) => {

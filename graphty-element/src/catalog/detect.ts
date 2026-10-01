@@ -11,12 +11,17 @@
  *
  * 1. EXTENSION. Every format whose descriptor claims the file's extension, the element's own
  *    first, then registrations in registration order.
- * 2. DISAMBIGUATION. When more than one claims the extension, each claimant's `detect` is asked
- *    in that same order and the first yes wins; if none says yes, the first claimant wins. This
- *    is what makes the `.xml` case -- GraphML against GEXF, told apart by namespace -- something
- *    a plugin can express, instead of a branch hard-coded in a private function.
- * 3. CONTENT. With no extension match, the built-in sniffers are asked in a fixed order (CSV
- *    last, because its pattern is the loosest), then the plugins'.
+ * 2. DISAMBIGUATION. When more than one claims the extension, the claimants whose content check
+ *    says yes come first -- the element's own in graph-io's ranking, then registrations in
+ *    registration order -- and the rest follow; if none says yes, the order of tier 1 stands.
+ *    This is what tells GraphML from GEXF in a `.xml` file, and it is something a plugin can
+ *    express, instead of a branch hard-coded in a private function.
+ * 3. CONTENT. With no extension match, the element's own formats are ranked by graph-io's
+ *    sniffers (the same `sniff` each graph-io importer publishes), then the plugins' are asked.
+ *
+ * THE ELEMENT DOES NOT SNIFF ITS OWN FORMATS. graph-io's importers define what each format is, so
+ * the test of whether bytes are GraphML is the GraphML importer's own; a second set of regular
+ * expressions here would drift from what the importers accept.
  *
  * PLUGIN DETECTORS RUN STRICTLY AFTER EVERY BUILT-IN DETECTOR, so a plugin can only claim a file
  * the element could not already read. A plugin that wants a file the element also claims does so
@@ -27,21 +32,28 @@
  * `detectFormats` returning a ranked list is what ends the disagreement between a detector that
  * answers one format and `formatsForExtension` that answers an array: the ranking is the same
  * order in both, and the single answer is its first entry.
- *
- * ONE KNOWN GAP, NAMED HERE RATHER THAN LEFT TO BE FOUND. `.xml` is claimed by GraphML's
- * descriptor and by nothing else, so a GEXF file saved as `.xml` reaches tier 1 with a single
- * claimant and is answered "graphml" -- where the private function this replaces read the
- * namespace and answered "gexf". Closing it is a one-line change to GEXF's descriptor, which
- * makes both formats claim the extension and lets tier 2 tell them apart by namespace exactly as
- * the order above describes; it also changes what `formatsForExtension(".xml")` answers, which is
- * pinned. This module is not what decides a built-in's extensions, so the change belongs beside
- * that table and its test rather than here.
  */
+
+import {
+    csvImporter,
+    dotImporter,
+    gexfImporter,
+    gmlImporter,
+    type GraphImporter,
+    graphmlImporter,
+    jsonImporter,
+    neo4jImporter,
+    pajekImporter,
+    rankFormats,
+} from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
 import { registeredFormats } from "./formatRegistry";
-import { FORMAT_DESCRIPTORS } from "./formats";
+import { FORMAT_DESCRIPTORS, UNSERVED_FORMAT_IDS } from "./formats";
 import type { FormatId } from "./types";
+
+/** The column separators that make a first line a table rather than prose. */
+const CSV_DELIMITERS = [",", "\t", ";", "|"] as const;
 
 /** What is known about the file: its name, its first bytes, or both. */
 export interface DetectionInput {
@@ -52,41 +64,71 @@ export interface DetectionInput {
 }
 
 /**
- * The element's own content sniffers, in the order they are asked.
+ * The graph-io importers behind the element's built-in formats, in graph-io's registry order,
+ * which is also its tie-break order when two recognise the same bytes equally well.
  *
- * CSV IS LAST because its pattern -- a word, a comma, a word -- matches the first line of a great
- * many files that are not CSV. Ordering is the whole of the policy here; each individual test is
- * as narrow as the format allows.
+ * NEO4J IS THE ELEMENT'S "csv". The element has no separate Neo4j format: its CSV reader takes
+ * neo4j-admin files as a variant. So a neo4j-admin header is answered "csv".
  */
+const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] = [
+    { id: "json", importer: jsonImporter },
+    { id: "graphml", importer: graphmlImporter },
+    { id: "gexf", importer: gexfImporter },
+    { id: "csv", importer: csvImporter },
+    { id: "gml", importer: gmlImporter },
+    { id: "dot", importer: dotImporter },
+    { id: "pajek", importer: pajekImporter },
+    { id: "csv", importer: neo4jImporter },
+];
+
 /**
- * Whether the bytes are an XML document, which only the element's two XML formats may claim.
+ * How sure a graph-io sniffer must be before the element names its format from content alone.
  *
- * GML's sniffer looks for `graph [` ANYWHERE in the sample and CSV's looks for `word , word` at
- * the start of ANY line, and both of those appear inside perfectly ordinary XML that is neither
- * GraphML nor GEXF. The detector this module replaced could not make that mistake: a sample
- * beginning with `<` was answered GraphML, GEXF or nothing at all, and it never reached the
- * plain-text tests. Keeping that answer is what stops an XML document the element cannot read
- * from being handed to the CSV reader, where "I do not recognise this file" would come back as a
- * parse error about a column instead.
- *
- * It guards only the two loose sniffers. JSON, Pajek and DOT anchor their tests to the start of
- * the sample, so a document beginning with `<` cannot reach them anyway.
- * @param sample - The first bytes of the file, trimmed.
- * @returns Whether the sample opens an XML document.
+ * Below this a sniffer is tolerating the bytes, not recognising them: graph-io's GraphML answers
+ * 0.05 for any XML prolog. Answering it would hand a file the element cannot read to a reader
+ * that then reports a parse error instead of "unknown format". CSV has its own test, below.
  */
-function isXmlDocument(sample: string): boolean {
-    return sample.startsWith("<");
+export const MIN_CONTENT_CONFIDENCE = 0.5;
+
+/**
+ * Whether graph-io's CSV answer names a table the element's CSV reader can split.
+ *
+ * graph-io's CSV sniffer is sure only of headers it knows (`source,target`, `id`) and answers 0.3
+ * for any other consistently delimited rows -- which is most real tables, headerless or with
+ * column names of their own (`person,friend`). The element's reader takes those, so any score
+ * counts. But graph-io also splits on spaces, which the element's reader does not, so a line of
+ * prose (`Name of the report`) would be answered "csv"; the first line must hold one of the
+ * reader's own delimiters.
+ * @param content - graph-io's CSV content score.
+ * @param sample - The first bytes of the file, trimmed.
+ * @returns Whether the element should answer "csv".
+ */
+function isReadableTable(content: number, sample: string): boolean {
+    const firstLine = sample.split(/\r?\n|\r/, 1)[0];
+
+    return content > 0 && CSV_DELIMITERS.some((delimiter) => firstLine.includes(delimiter));
 }
 
-const BUILT_IN_DETECTORS: readonly { id: FormatId; detect: (sample: string) => boolean }[] = [
-    { id: "graphml", detect: (sample) => sample.includes('xmlns="http://graphml.graphdrawing.org') },
-    { id: "gexf", detect: (sample) => sample.includes('xmlns="http://gexf.net') },
-    { id: "json", detect: (sample) => sample.startsWith("{") || sample.startsWith("[") },
-    { id: "gml", detect: (sample) => !isXmlDocument(sample) && /graph\s*\[/i.test(sample) },
-    { id: "pajek", detect: (sample) => /^\*vertices/i.test(sample) },
-    { id: "dot", detect: (sample) => /^\s*(strict\s+)?(di)?graph\s+/i.test(sample) },
-    { id: "csv", detect: (sample) => !isXmlDocument(sample) && /^[\w-]+\s*,\s*[\w-]+/m.test(sample) },
-];
+/**
+ * The element's built-in formats that recognise the bytes, best first, as graph-io's sniffers
+ * rank them.
+ * @param sample - The first bytes of the file, trimmed.
+ * @returns The format ids, best first, each once.
+ */
+function sniffBuiltIns(sample: string): FormatId[] {
+    const ids = rankFormats(
+        { head: sample },
+        BUILT_IN_IMPORTERS.map((entry) => entry.importer),
+    )
+        .filter((result) =>
+            result.format === csvImporter.format
+                ? isReadableTable(result.content, sample)
+                : result.content >= MIN_CONTENT_CONFIDENCE,
+        )
+        .map((result) => BUILT_IN_IMPORTERS.find((entry) => entry.importer.format === result.format)?.id);
+
+    return [...new Set(ids.filter((id): id is FormatId => id !== undefined))];
+}
 
 /**
  * Ask one sniffer, treating a throw as a no.
@@ -136,18 +178,14 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
         ];
 
         if (claimants.length > 1 && sample !== "") {
-            const sniffers = new Map<FormatId, (candidate: string) => boolean>([
-                ...BUILT_IN_DETECTORS.map((entry) => [entry.id, entry.detect] as const),
+            // The built-ins in graph-io's ranking, then the plugins that say yes, in claimant order.
+            const confirmed = [
+                ...sniffBuiltIns(sample).filter((id) => claimants.includes(id)),
                 ...registered
-                    .filter((entry) => entry.detect !== undefined)
-                    .map((entry) => [entry.descriptor.id, entry.detect] as [FormatId, (candidate: string) => boolean]),
-            ]);
-
-            const confirmed = claimants.filter((id) => {
-                const detect = sniffers.get(id);
-
-                return detect !== undefined && claims(detect, sample);
-            });
+                    .filter((entry) => claimants.includes(entry.descriptor.id))
+                    .filter((entry) => entry.detect !== undefined && claims(entry.detect, sample))
+                    .map((entry) => entry.descriptor.id),
+            ];
 
             if (confirmed.length > 0) {
                 return Object.freeze([...confirmed, ...claimants.filter((id) => !confirmed.includes(id))]);
@@ -163,12 +201,10 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
         return Object.freeze([]);
     }
 
-    const byContent: FormatId[] = BUILT_IN_DETECTORS.filter((entry) => claims(entry.detect, sample)).map(
-        (entry) => entry.id,
-    );
+    const byContent = sniffBuiltIns(sample);
 
     for (const entry of registered) {
-        const {detect} = entry;
+        const { detect } = entry;
         if (detect !== undefined && claims(detect, sample) && !byContent.includes(entry.descriptor.id)) {
             byContent.push(entry.descriptor.id);
         }
@@ -196,7 +232,10 @@ export function detectFormat(input: DetectionInput): FormatId | null {
  * @returns The ids, the element's own first.
  */
 function knownFormatIds(): readonly FormatId[] {
-    return [...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id), ...registeredFormats().map((entry) => entry.descriptor.id)];
+    return [
+        ...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id),
+        ...registeredFormats().map((entry) => entry.descriptor.id),
+    ];
 }
 
 /**
@@ -211,11 +250,18 @@ function knownFormatIds(): readonly FormatId[] {
  */
 export function unknownFormat(name: string): GraphtyError {
     const available = knownFormatIds();
+    // A deprecated built-in name is still offered by `FormatId`, so it is not unknown: say why it
+    // cannot be read instead.
+    const unserved = UNSERVED_FORMAT_IDS.find((entry) => entry.id === name);
+    const refusal =
+        unserved === undefined
+            ? `no format is named "${name}".`
+            : `the format "${name}" cannot be read: ${unserved.reason}`;
 
     return new GraphtyError({
         code: "E_UNKNOWN_FORMAT",
         message:
-            `no format is named "${name}". The formats this element can read are: ${available.join(", ")}. ` +
+            `${refusal} The formats this element can read are: ${available.join(", ")}. ` +
             "A format of your own is registered with `DataSource.register`.",
         source: "data",
         details: { format: name, available: [...available] },

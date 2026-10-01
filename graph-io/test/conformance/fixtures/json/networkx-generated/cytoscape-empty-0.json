@@ -1,0 +1,39 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 1e+300,
+     "tag": "<tag>",
+     "flag": true,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "rank": 2147483647,
+     "tag": "中文",
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": 31.699936,
+     "tag": "line\nbreak",
+     "flag": true,
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   }
+  ],
+  "edges": []
+ }
+}

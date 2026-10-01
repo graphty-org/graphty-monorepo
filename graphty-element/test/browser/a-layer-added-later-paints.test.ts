@@ -27,15 +27,14 @@
  *   consults, and the TypeError that came back went into a silent catch.
  *
  * All five are `renderable: true` in the channel table and all five were in `UNPAINTED_CHANNELS`
- * -- except `node.glowStrength`, which was kept visible by being declared a `mesh` channel it is
- * not, so that a strength edit would force the rebuild the effects needed. It is an `instance`
- * channel again and this file is what says the rebuild is no longer what carries it.
+ * -- except `node.glowStrength`. It is a `mesh` channel, because a glow's strength is set per
+ * SOURCE mesh (`test/browser/glow-strength-per-style.test.ts` measures two strengths at once).
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { LayerSpec, StaticStyle } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 
 /** Two nodes and the edge between them. */
@@ -88,7 +87,7 @@ describe("a layer written to a graph that is already drawn", () => {
         // Circular rather than a physics layout: a frame read while the nodes are still drifting
         // differs from the one before it for reasons no layer is responsible for.
         await graph.setLayout("circular", { scale: 0.2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // THE PREREQUISITES, which are what each measurement below is a change TO. A cap colour
         // needs a cap, and at the default size a cap is a few dozen pixels -- too near the
@@ -105,7 +104,7 @@ describe("a layer written to a graph that is already drawn", () => {
                 "edge.arrowTailSize": 3,
             },
         });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     }, 60000);
 
     afterAll(() => {
@@ -118,7 +117,7 @@ describe("a layer written to a graph that is already drawn", () => {
      * @returns How many pixels fall in each coarse colour bucket.
      */
     async function frame(): Promise<Uint32Array> {
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         for (let at = 0; at < FRAMES; at++) {
             graph.scene.render();
@@ -214,11 +213,8 @@ describe("a layer written to a graph that is already drawn", () => {
 
     it("changes the frame: a glow's strength, over a graph that is already glowing", async () => {
         // THE GLOW IS ALREADY ON SCREEN BEFORE THE STRENGTH IS WRITTEN, and that is the whole of
-        // what this measures. A layer carrying the glow's colour AND its strength together would
-        // move the mesh key -- a glow colour is what the renderer builds a source mesh from -- and
-        // would therefore be drawn by the rebuild, which is exactly the path that was never
-        // broken. Writing the strength on its own leaves the key where it is, so the only thing
-        // that can carry it to the screen is the branch of `Node.paintFrom` that does NOT rebuild.
+        // what this measures: a strength written by a second layer, on its own, over a glow that
+        // is already drawn, has to reach the screen.
         const glowing = await session.styles.add({
             name: "already glowing",
             target: "node",
@@ -240,47 +236,15 @@ describe("a layer written to a graph that is already drawn", () => {
         const restored = await frame();
 
         await session.styles.remove(glowing.id);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         assert.isAbove(
             moved(before, after),
             PIXEL_CHANGE,
             `A glow's strength was raised on a graph that was already glowing and ` +
-                `${String(moved(before, after))} pixels moved. Its role is \`instance\`, so it must ` +
-                `reach the screen without a source mesh being rebuilt for it.`,
+                `${String(moved(before, after))} pixels moved.`,
         );
 
         assert.isAtMost(moved(before, restored), PIXEL_CHANGE, "the strength could not be taken away again");
-    });
-
-    it("raises a glow's strength without minting a second source mesh for it", async () => {
-        const glow: LayerSpec = {
-            name: "glowing",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.glow": "#ff00ff" },
-        };
-        const added = await session.styles.add(glow);
-
-        await graph.operationQueue.waitForCompletion();
-
-        const meshesWhileGlowing = graph.getStylePainter().meshCount("node");
-
-        await session.styles.update(added.id, { set: { "node.glow": "#ff00ff", "node.glowStrength": 8 } });
-        await graph.operationQueue.waitForCompletion();
-
-        const meshesAfterStrength = graph.getStylePainter().meshCount("node");
-
-        await session.styles.remove(added.id);
-        await graph.operationQueue.waitForCompletion();
-
-        assert.strictEqual(
-            meshesAfterStrength,
-            meshesWhileGlowing,
-            "A glow's strength is a property of the glow LAYER, one per scene, so no two nodes " +
-                "can be drawn at two strengths and a source mesh per strength buys nothing. It " +
-                "used to mint one anyway, because forcing a rebuild was the only way to make a " +
-                "strength edit reach the screen.",
-        );
     });
 });

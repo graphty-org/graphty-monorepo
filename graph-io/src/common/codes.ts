@@ -75,6 +75,15 @@ export const OPTION_IGNORED_CODE = "W_OPTION_IGNORED";
 /** An invalid UTF-8 sequence in the input (fatal). */
 export const INVALID_UTF8_CODE = "E_INVALID_UTF8";
 
+/** Bytes that are not valid in the encoding a BOM, a declaration or the `encoding` option chose (fatal). */
+export const INVALID_ENCODING_CODE = "E_INVALID_ENCODING";
+
+/** Bytes that are not valid UTF-8 (and declare no other encoding) were read as windows-1252. */
+export const ENCODING_FALLBACK_CODE = "W_ENCODING_FALLBACK";
+
+/** The file declares an encoding the platform's TextDecoder does not know; the declaration is ignored. */
+export const UNKNOWN_ENCODING_CODE = "W_UNKNOWN_ENCODING";
+
 /** The sink refused the file's direction (locked or non-empty); the file is read as the sink's. */
 export const DIRECTION_REFUSED_CODE = "W_DIRECTION_REFUSED";
 

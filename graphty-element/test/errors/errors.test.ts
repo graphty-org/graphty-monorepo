@@ -13,7 +13,8 @@ import {
 import { GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
 import * as errors from "../../src/errors/index";
 
-// The codes named by the API design, section 4.13 plus the acceleration state code from 4.12.
+// The codes named by the API design, section 4.13, plus the acceleration state code from 4.12
+// and the transaction code from the undo design (design/undo/undo-design.md section 5.1).
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
@@ -36,6 +37,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
+    "E_UNKNOWN_LAYER",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -45,6 +47,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_PARSE_FAILED",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
+    "E_EMPTY_LOAD",
+    "E_SUPERSEDED",
     "E_TOO_LARGE",
     "E_OUT_OF_MEMORY",
     "E_CAP_EXCEEDED",
@@ -54,11 +58,15 @@ const CODES_FROM_THE_DESIGN = [
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
     "E_SOFTWARE_ONLY",
+    "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
     "E_NO_WEBGL",
     "E_UNSUPPORTED",
     "E_READONLY",
     "E_DISPOSED",
+    "E_EXTENSION_FAILED",
+    "E_TRANSACTION_CLOSED",
+    "E_HELD_BY_TRANSACTION",
     "E_INTERNAL",
 ];
 
@@ -88,6 +96,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CAMERA":
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
+        case "E_UNKNOWN_LAYER":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
@@ -96,11 +105,15 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PROTECTED":
         case "E_READONLY":
         case "E_DISPOSED":
+        case "E_TRANSACTION_CLOSED":
+        case "E_HELD_BY_TRANSACTION":
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":
+        case "E_EMPTY_LOAD":
+        case "E_SUPERSEDED":
             return "import";
         case "E_TOO_LARGE":
         case "E_OUT_OF_MEMORY":
@@ -112,12 +125,15 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_NO_WEBGPU":
         case "E_NO_ADAPTER":
         case "E_SOFTWARE_ONLY":
+        case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
         case "E_NO_WEBGL":
             return "hardware";
         case "E_UNSUPPORTED":
         case "E_INTERNAL":
             return "refused";
+        case "E_EXTENSION_FAILED":
+            return "extension";
         default: {
             const unreachable: never = code;
             return unreachable;
@@ -178,10 +194,10 @@ describe("isGraphtyErrorCode", () => {
 });
 
 describe("ACCELERATION_ERROR_CODES", () => {
-    it("is the five codes capabilities.acceleration can report", () => {
+    it("is the six codes capabilities.acceleration can report", () => {
         assert.deepStrictEqual(
             [...ACCELERATION_ERROR_CODES],
-            ["E_NO_WEBGPU", "E_NO_ADAPTER", "E_SOFTWARE_ONLY", "E_DEVICE_LOST", "E_TOO_LARGE"],
+            ["E_NO_WEBGPU", "E_NO_ADAPTER", "E_SOFTWARE_ONLY", "E_DEVICE_INCORRECT", "E_DEVICE_LOST", "E_TOO_LARGE"],
         );
     });
 

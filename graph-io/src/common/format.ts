@@ -9,14 +9,14 @@
 /**
  * The shortest decimal text that reads back to the same f32 value through Math.fround.
  * @param value - an f32 value (a JS number holding one)
- * @returns the text; "Infinity" / "-Infinity" / "NaN" for the non-finite values, "0" for both zeros
+ * @returns the text; "Infinity" / "-Infinity" / "NaN" for the non-finite values, "-0" for negative zero
  */
 export function formatF32(value: number): string {
     if (!Number.isFinite(value)) {
         return String(value);
     }
     if (value === 0) {
-        return "0";
+        return Object.is(value, -0) ? "-0" : "0";
     }
     for (let digits = 1; digits <= 9; digits++) {
         const text = value.toPrecision(digits);
@@ -29,12 +29,12 @@ export function formatF32(value: number): string {
 
 /**
  * The shortest text of an f64 value: `String(x)`, which is already the shortest round-tripping
- * decimal in JS.
+ * decimal in JS, except for negative zero, which `String()` writes as "0".
  * @param value - the value
- * @returns the text; "Infinity" / "-Infinity" / "NaN" for the non-finite values
+ * @returns the text; "Infinity" / "-Infinity" / "NaN" for the non-finite values, "-0" for negative zero
  */
 export function formatF64(value: number): string {
-    return String(value);
+    return Object.is(value, -0) ? "-0" : String(value);
 }
 
 /**

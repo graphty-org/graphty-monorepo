@@ -32,6 +32,7 @@ import {
     type StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
+import isChromatic from "chromatic/isChromatic";
 import { expect } from "storybook/test";
 
 import type { Graph } from "../src/Graph";
@@ -97,6 +98,8 @@ interface DrawnNode {
     readonly geometryDigest: string;
     /** Whether the source mesh's material is drawn as a wireframe. */
     readonly wireframe: boolean;
+    /** Whether its mesh is enabled: a node the visibility filter hides is disabled, not deleted. */
+    readonly enabled: boolean;
     /** What `mesh.visibility` is, which is where opacity lands. */
     readonly opacity: number;
     /** Half the drawn bounding box's width in world units, which is where size lands. */
@@ -171,7 +174,7 @@ export interface Drawn {
      *
      * TWO RENDERERS DRAW AN EDGE AND THIS HAS TO SEE BOTH. In 3D a solid edge is an instance of a
      * source mesh the element interns per appearance, and Babylon names the instance after the
-     * cache key -- `edge-style-s1|#0072b2|` -- so the name IS the appearance. In 2D there is no
+     * cache key -- `edge-style-s1|#d55e00|` -- so the name IS the appearance. In 2D there is no
      * interning at all: `EdgeMesh.createLineMesh` routes a solid line to
      * `Simple2DLineRenderer.create`, which builds one mesh per edge, names every one of them
      * `line-2d`, and puts the colour in that mesh's own material. Counting names alone therefore
@@ -220,6 +223,25 @@ export async function holds(condition: boolean, complaint: string): Promise<void
 }
 
 /**
+ * The story's `<graphty-element>`, or a failure naming the story when it rendered none.
+ * @param canvasElement - Where the story was rendered.
+ * @param complaint - What to say when there is no element.
+ * @returns The element.
+ */
+export async function renderedElement(canvasElement: HTMLElement, complaint: string): Promise<Graphty> {
+    const element = canvasElement.querySelector("graphty-element");
+
+    await holds(element !== null, complaint);
+
+    // `holds` is async, and an async function cannot be a type assertion, so it cannot narrow.
+    if (element === null) {
+        throw new Error(complaint);
+    }
+
+    return element;
+}
+
+/**
  * Cut a list of offenders down to something a person can read.
  * @param offenders - What went wrong.
  * @returns The list, with a count when it was cut.
@@ -254,9 +276,12 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(() => {
-            resolve("expired");
-        }, Math.max(0, deadline - Date.now()));
+        timer = setTimeout(
+            () => {
+                resolve("expired");
+            },
+            Math.max(0, deadline - Date.now()),
+        );
     });
 
     const outcome = await Promise.race([work.then(() => "done" as const), expired]);
@@ -480,17 +505,23 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     const { graph, session } = live;
     const deadline = Date.now() + SETTLE_BUDGET_MS;
 
+    // Pre-stepping is for Chromatic's repeatable snapshot only. Anywhere else a pre-stepped
+    // layout is already settled on the first frame, and the reader never sees it animate.
+    const preSteps = live.layoutBehavior?.layout?.preSteps ?? 0;
+
+    await holds(
+        isChromatic() || preSteps === 0,
+        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside Chromatic, ` +
+            "so the reader never sees it animate",
+    );
+
     await until(
         () => session.status.counts.nodes > 0,
         deadline,
         `${story}: no graph ever arrived, so the story's data never loaded`,
     );
 
-    await within(
-        graph.operationQueue.waitForCompletion(),
-        deadline,
-        `${story}: the element's operation queue never drained`,
-    );
+    await within(graph.waitForSettled(), deadline, `${story}: the element's operation queue never drained`);
 
     await within(
         session.styles.settled(),
@@ -505,7 +536,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
     const digests = new Map<number, string>();
-    const digestOf = (mesh: { uniqueId: number; getVerticesData: (kind: string) => Float32Array | number[] | null }): string => {
+    const digestOf = (mesh: {
+        uniqueId: number;
+        getVerticesData: (kind: string) => Float32Array | number[] | null;
+    }): string => {
         const seen = digests.get(mesh.uniqueId);
 
         if (seen !== undefined) {
@@ -550,6 +584,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
             geometryDigest: digestOf(source ?? (node.mesh as unknown as Parameters<typeof digestOf>[0])),
             wireframe: source?.material?.wireframe ?? false,
+            enabled: node.mesh.isEnabled(),
             opacity: node.mesh.visibility,
             radius: Number(box.x.toFixed(4)),
             hex: instanceHex(node.mesh),
@@ -571,10 +606,12 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // generated name, so nothing in the scene graph distinguishes them; the edge that owns a
     // caption knows which end it hangs from, and that is the only place the answer exists.
     const captions: DrawnCaption[] = [...graph.getDataManager().edges.values()].flatMap((edge) =>
-        ([
-            ["arrowHead", edge.arrowHeadText],
-            ["arrowTail", edge.arrowTailText],
-        ] as const)
+        (
+            [
+                ["arrowHead", edge.arrowHeadText],
+                ["arrowTail", edge.arrowTailText],
+            ] as const
+        )
             .filter(([, caption]) => caption !== null)
             .map(([end, caption]) => {
                 const read = labelInk(caption?.labelMesh ?? null);
@@ -593,7 +630,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         graph,
         session,
         nodes,
-        edgeIds: [...scope.edges].map((id) => String(id)),
+        edgeIds: [...scope.edges],
         nodeCount: session.status.counts.nodes,
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
@@ -758,6 +795,24 @@ export async function assertDrawnColour(
 }
 
 /**
+ * Exactly the named nodes are drawn; every other node is hidden.
+ * @param scene - What the story drew.
+ * @param expected - The ids of the nodes on screen.
+ */
+export async function assertNodesShown(scene: Drawn, expected: readonly string[]): Promise<void> {
+    const shown = scene.nodes
+        .filter((node) => node.enabled)
+        .map((node) => node.id)
+        .sort();
+    const want = [...expected].sort();
+
+    await holds(
+        shown.join(",") === want.join(","),
+        `${scene.story}: the nodes on screen are ${listed(shown)}, not ${listed(want)}`,
+    );
+}
+
+/**
  * The nodes named in each group are drawn differently from the nodes in every other group.
  *
  * THE ASSERTION THE LAYERED STORIES NEEDED. "Two layers set two colours" is invisible to a check
@@ -823,13 +878,11 @@ export async function assertLabelsDrawn(
     scene: Drawn,
     options: { readonly ids?: readonly string[]; readonly minimumInk?: number } = {},
 ): Promise<void> {
-    const wanted = options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
+    const wanted =
+        options.ids === undefined ? scene.nodes : scene.nodes.filter((node) => options.ids?.includes(node.id));
     const minimumInk = options.minimumInk ?? 1;
 
-    await holds(
-        wanted.length > 0,
-        `${scene.story}: no node of the ones this assertion names is in the graph at all`,
-    );
+    await holds(wanted.length > 0, `${scene.story}: no node of the ones this assertion names is in the graph at all`);
 
     const missing = wanted.filter((node) => !node.hasLabelMesh).map((node) => node.id);
 
@@ -850,7 +903,9 @@ export async function assertLabelsDrawn(
     );
 
     if (options.ids !== undefined) {
-        const extra = scene.nodes.filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh).map((n) => n.id);
+        const extra = scene.nodes
+            .filter((node) => !options.ids?.includes(node.id) && node.hasLabelMesh)
+            .map((n) => n.id);
 
         await holds(
             extra.length === 0,
@@ -1026,33 +1081,38 @@ export async function assertAlgorithmPainted(
     algorithm: string,
     options: { readonly paints?: "node" | "edge" | "either"; readonly atLeast?: number } = {},
 ): Promise<void> {
-    const finished = scene.session.runs.list().filter((run) => run.status === "succeeded");
+    // The runs this address names, as the element resolves it: every suggestion is built from one
+    // finished run of the algorithm, and names that run.
+    const runIds = new Set(
+        scene.graph.getSuggestedStyles(algorithm).map(({ spec: { run } }) => {
+            if (typeof run === "string") {
+                return run;
+            }
+
+            return "runId" in run ? run.runId : run.id;
+        }),
+    );
 
     await holds(
-        finished.length > 0,
-        `${scene.story}: no run in this session succeeded, so the picture is the element's defaults. It holds ` +
-            `[${scene.session.runs
+        runIds.size > 0,
+        `${scene.story}: no run of "${algorithm}" succeeded with anything to draw, so none of the picture is ` +
+            `its. The session holds [${scene.session.runs
                 .list()
                 .map((run) => `${String(run.algorithm)}:${run.status}`)
                 .join(", ")}]`,
     );
 
-    await holds(
-        scene.graph.getSuggestedStyles(algorithm).length > 0,
-        `${scene.story}: "${algorithm}" finished and suggests nothing to draw, so applySuggestedStyles had ` +
-            "nothing to apply and the picture is the element's defaults",
-    );
-
     const fromRun = scene.session.styles
         .list()
-        .filter((layer) => (layer.source as { by?: string } | undefined)?.by === "run");
+        .filter((layer) => layer.source?.by === "run" && runIds.has(layer.source.runId));
 
     await holds(
         fromRun.length > 0,
-        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from a run, so nothing ` +
-            `it computed is being drawn. The stack is [${scene.session.styles
+        `${scene.story}: "${algorithm}" succeeded and no layer in the stack is sourced from its runs ` +
+            `[${[...runIds].join(", ")}], so nothing it computed is being drawn. The stack is ` +
+            `[${scene.session.styles
                 .list()
-                .map((layer) => layer.name)
+                .map((layer) => `${layer.name} (${layer.source?.by === "run" ? layer.source.runId : "not a run"})`)
                 .join(", ")}]`,
     );
 
@@ -1078,8 +1138,9 @@ export async function assertAlgorithmPainted(
     await holds(
         counted >= atLeast,
         `${scene.story}: "${algorithm}" has a layer in the stack and it painted ${String(paintedNodes)} nodes ` +
-            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ` +
-            `${paints === "either" ? "elements" : `${paints}s`}`,
+            `and ${String(paintedEdges)} edges, where the story says it paints at least ${String(atLeast)} ${
+                paints === "either" ? "elements" : `${paints}s`
+            }`,
     );
 }
 /**
@@ -1154,6 +1215,99 @@ export async function assertDistinctPicture(scene: Drawn, family: string, extra 
     );
 
     drawnHere.set(scene.story, digest);
+}
+
+/** Where each family of sibling stories put its nodes, by the story that put them there. */
+const arrangements = new Map<string, Map<string, ReadonlyMap<string, readonly [number, number, number]>>>();
+
+/**
+ * How far apart two arrangements of one graph are, as a number that ignores where the camera is.
+ *
+ * Both clouds are moved to the origin and divided by their own root-mean-square radius, so a
+ * layout that drew the same shape twice as large, or half a screen to the left, reads as the same
+ * shape -- which is what makes this a measure of the ARRANGEMENT rather than of the framing. The
+ * answer is the root-mean-square distance between corresponding nodes afterwards: 0 is the same
+ * shape, and two clouds with nothing to do with each other sit near 1.414.
+ * @param a - One story's nodes, by id.
+ * @param b - The other story's nodes, by id.
+ * @returns The distance, over the ids both stories drew.
+ */
+function arrangementDistance(
+    a: ReadonlyMap<string, readonly [number, number, number]>,
+    b: ReadonlyMap<string, readonly [number, number, number]>,
+): number {
+    const shared = [...a.keys()].filter((id) => b.has(id));
+    if (shared.length === 0) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const normalise = (cloud: ReadonlyMap<string, readonly [number, number, number]>): [number, number, number][] => {
+        const points = shared.map((id) => cloud.get(id) as readonly [number, number, number]);
+        const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
+        const radius =
+            Math.sqrt(
+                points.reduce(
+                    (sum, p) => sum + [0, 1, 2].reduce((d, axis) => d + (p[axis] - centre[axis]) ** 2, 0),
+                    0,
+                ) / points.length,
+            ) || 1;
+
+        return points.map(
+            (p) => [0, 1, 2].map((axis) => (p[axis] - centre[axis]) / radius) as [number, number, number],
+        );
+    };
+
+    const left = normalise(a);
+    const right = normalise(b);
+    const sum = left.reduce(
+        (total, p, i) => total + [0, 1, 2].reduce((d, axis) => d + (p[axis] - right[i][axis]) ** 2, 0),
+        0,
+    );
+
+    return Math.sqrt(sum / shared.length);
+}
+
+/**
+ * No two stories in this family arrange the graph the same way.
+ *
+ * THE COMPANION TO {@link assertDistinctPicture} FOR A FAMILY THAT DIFFERS IN NOTHING ELSE. That
+ * one builds its digest from shape, size, colour and label and deliberately leaves position out,
+ * because a physics layout gives a different picture every run. The accelerated layout stories
+ * are the case it cannot serve: they draw one graph with one styling and two layouts, so the
+ * arrangement is the only thing that differs, and they pin a seed so the arrangement is the same
+ * on every machine and every run. Without this, two stories that promise two layouts and compute
+ * one are invisible -- which is exactly what happened when the fake accelerator translated the
+ * graph instead of laying it out, and both stories drew the seed scatter reframed to fill the
+ * canvas.
+ *
+ * Measured on the 150-node, 250-edge story graph from seed 42: ForceAtlas2 and
+ * Fruchterman-Reingold sit 0.61 apart, the same model from two different seeds sits 1.5 to 1.6
+ * apart, and the translating fake sat at 0. A floor of about a quarter is therefore clear of
+ * anything a real pair of layouts produces and nowhere near the zero that a collapse produces.
+ * @param scene - What the story drew.
+ * @param family - What the sibling set is called.
+ * @param minimum - How far apart the stories promise to be. See the figures above.
+ */
+export async function assertDistinctArrangement(scene: Drawn, family: string, minimum: number): Promise<void> {
+    const cloud = new Map(scene.nodes.map((node) => [node.id, node.position]));
+    const arrangedHere = arrangements.get(family) ?? new Map<string, typeof cloud>();
+
+    arrangements.set(family, arrangedHere);
+
+    const offenders = [...arrangedHere.entries()]
+        .map(([story, other]) => [story, arrangementDistance(cloud, other)] as const)
+        .filter(([, distance]) => distance < minimum);
+
+    await holds(
+        offenders.length === 0,
+        `${scene.story}: arranges the graph the same way as ${listed(
+            offenders.map(([story, distance]) => `"${story}" (${distance.toFixed(3)} apart)`),
+        )} -- the two stories promise different layouts and at least ${String(minimum)} between their ` +
+            "arrangements, and a per-story visual baseline cannot see two siblings that have collapsed onto " +
+            "each other.",
+    );
+
+    arrangedHere.set(scene.story, cloud);
 }
 
 /**
@@ -1564,8 +1718,7 @@ export async function assertBackgroundColour(scene: Drawn, hex: string): Promise
 
     await holds(
         close,
-        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` +
-            `rgb(${drawn_.join(", ")})`,
+        `${scene.story}: asks for a ${hex} background and the scene is cleared to ` + `rgb(${drawn_.join(", ")})`,
     );
 }
 
@@ -1593,8 +1746,9 @@ export async function assertNodesOnACircle(scene: Drawn, tolerance = 0.05): Prom
     await holds(
         mean > 0 && spread / mean <= tolerance,
         `${scene.story}: a circular layout draws every node the same distance from the centre, and these run ` +
-            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${ 
-            mean.toFixed(3)}`,
+            `from ${Math.min(...radii).toFixed(3)} to ${Math.max(...radii).toFixed(3)} around a mean of ${mean.toFixed(
+                3,
+            )}`,
     );
 }
 
@@ -1668,7 +1822,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<vo
     const haloed = scene.graph
         .getNodes()
         .filter((node) => {
-            const {halo} = (node as unknown as { halo?: { isDisposed: () => boolean } | null });
+            const { halo } = node as unknown as { halo?: { isDisposed: () => boolean } | null };
 
             return halo !== undefined && halo !== null && !halo.isDisposed();
         })

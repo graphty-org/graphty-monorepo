@@ -14,15 +14,19 @@ import _ from "lodash";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
 import type { GraphContext } from "./managers/GraphContext";
+import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
+import { dispatcherOf } from "./session/GraphSession";
+import { frozenRecord } from "./session/project/draft";
 
 export type NodeIdType = string | number;
 
@@ -69,6 +73,33 @@ interface NodeOpts {
     pinOnDrag?: boolean;
 }
 
+/** Writes a node's row; see {@link placeNodeRow}. */
+let writeNodeRow: (node: Node, row: number) => void;
+
+/**
+ * Move a node to a row of the current snapshot. Only the data manager calls it, as a node reaches
+ * the builder, leaves it, or is renumbered by a freeze.
+ * @param node - The node.
+ * @param row - Its row, or INVALID_INDEX.
+ */
+export function placeNodeRow(node: Node, row: number): void {
+    writeNodeRow(node, row);
+}
+
+/** Writes an node's record; see {@link adoptNodeRecord}. */
+let writeRecord: (node: Node, record: AdHocData<string | number>) => void;
+
+/**
+ * Hand an node the record the graph now holds for it. Only the data manager calls it, from the
+ * render half of the graph's derivation, when a command, an undo or a redo changed the record;
+ * no entry point exports it, so `node.data` is always the graph's record.
+ * @param node - The node.
+ * @param record - The record.
+ */
+export function adoptNodeRecord(node: Node, record: AdHocData<string | number>): void {
+    writeRecord(node, record);
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
@@ -76,16 +107,44 @@ interface NodeOpts {
 export class Node {
     parentGraph: Graph | GraphContext;
     opts: NodeOpts;
-    id: NodeIdType;
+    readonly id: NodeIdType;
+
+    private row: number = INVALID_INDEX;
+
+    static {
+        writeNodeRow = (node, row) => {
+            node.index = row;
+        };
+        writeRecord = (node, record) => {
+            node.#record = frozenRecord(record);
+        };
+    }
 
     /**
      * This node's index in the element's current GraphSnapshot, assigned at add time as
      * `builder.addNode(id)` and walked through `report.nodeRemap` on a renumbering freeze
      * (graph-format design 14.4 rule 5). INVALID_INDEX until the node reaches the builder.
+     * @returns The row.
      */
-    index: number = INVALID_INDEX;
+    get index(): number {
+        return this.row;
+    }
 
-    data: AdHocData<string | number>;
+    private set index(row: number) {
+        this.row = row;
+    }
+
+    /**
+     * The record this node carries, as the graph holds it: deep-frozen, so a write to it throws. A
+     * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * @returns The record.
+     */
+    get data(): AdHocData<string | number> {
+        return this.#record;
+    }
+
+    /** The record, as the graph last handed it over. */
+    #record: AdHocData<string | number>;
     mesh: AbstractMesh;
     label?: RichTextLabel;
 
@@ -127,6 +186,10 @@ export class Node {
      * and still cost nothing when the label has not moved.
      */
     private drawnLabelText?: string;
+
+    /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
+    private drawnStyle: NodeStyleConfig | null = null;
+    private drawnColor: Rgba | null = null;
 
     /**
      * The resolved label block the label on screen was built from.
@@ -240,7 +303,7 @@ export class Node {
         this.parentGraph = graph;
         this.id = nodeId;
         this.opts = opts;
-        this.data = data;
+        this.#record = frozenRecord(data);
 
         this.meshKey = paint.meshKey;
 
@@ -249,6 +312,8 @@ export class Node {
 
         // create mesh
         const o = paint.style;
+        this.drawnStyle = o;
+        this.drawnColor = paint.color;
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
@@ -424,9 +489,8 @@ export class Node {
      * EFFECTS only on the branch that rebuilds the mesh, so an `instance` channel's edit reached
      * the screen only if some unrelated `mesh` channel happened to change in the same repaint.
      * That is why a glow was drawn when its colour was in the stack before the first frame and
-     * ignored when a layer added it afterwards, and why `node.glowStrength` had been declared a
-     * `mesh` channel: minting a source mesh per strength was the only way to force the rebuild
-     * that made the strength visible.
+     * ignored when a layer added it afterwards. (`node.glowStrength` is a `mesh` channel for a
+     * different reason: a glow's strength is set per SOURCE mesh, like its colour.)
      *
      * So this method is everything the `instance` role promises, and `paintFrom` calls it on BOTH
      * of its branches -- once when it has just rebuilt the mesh, because every one of these lives
@@ -465,7 +529,32 @@ export class Node {
         // which folds opacity into the key string, and by the colour write below. The `content`
         // channels -- the label and its typography -- are compensated for by nothing at all, so
         // they are applied here. See `drawnLabelText` for the defect that reached a consumer.
-        if (meshKey === this.meshKey && !this.mesh.isDisposed()) {
+        // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
+        // the bootstrap paint, whose key is a sentinel no session key ever equals, and the first
+        // style pass then hands it the session's key -- for the same style, whenever no layer
+        // touches the element, which is every element of a plain load. Comparing keys alone
+        // rebuilt every node and edge once: dispose the placeholder mesh, build the same mesh
+        // again. Babylon's dispose is a linear search of the scene's mesh list and of the parent's
+        // children, so that rebuild cost the size of the scene per element and the load grew as
+        // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
+        // deep-equal to the one the current mesh was built from means the same geometry, the same
+        // colour and the same content by construction, so the key is adopted and nothing is
+        // touched.
+        const sameGeometry =
+            meshKey === this.meshKey || (_.isEqual(o, this.drawnStyle) && _.isEqual(color, this.drawnColor));
+
+        if (sameGeometry && !this.mesh.isDisposed()) {
+            this.meshKey = meshKey;
+            this.drawnStyle = o;
+            this.drawnColor = color;
+            // The mesh keeps its geometry and takes the key it is now drawn under: what a reader of
+            // the scene (test/browser/every-element-leaves-the-bootstrap-paint.test.ts) uses to
+            // tell an element the hand-over reached from one it did not.
+            const metadata = this.mesh.metadata as { styleId?: string } | undefined;
+
+            if (metadata !== undefined) {
+                metadata.styleId = meshKey;
+            }
             this.applyInstancePaint(o, color);
             this.syncLabel(o, false);
             this.syncTooltip(o);
@@ -474,6 +563,8 @@ export class Node {
         }
 
         this.meshKey = meshKey;
+        this.drawnStyle = o;
+        this.drawnColor = color;
 
         // Save the current position before disposing the mesh
         // This is critical for style changes when layout is settled,
@@ -631,7 +722,7 @@ export class Node {
      * `removeFromHighlight` call below is what is safe to do: it removes THIS mesh, which for an
      * instanced node the layer never held.
      *
-     * A DISPOSED NODE STILL RECEIVES CALLS, which is why {@link Node.disposed} exists rather than
+     * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
      * this method simply freeing things. `DataManager.clear()` does not notify the layout engine
      * (its own standing TODO), so `UpdateManager` keeps iterating the engine's node and edge
      * lists; and `SelectionManager.selectedNode` holds a Node across a dataset boundary and calls
@@ -939,7 +1030,7 @@ export class Node {
      * @param selection - The configured colour and opacity.
      */
     private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
-        const {material} = overlay;
+        const { material } = overlay;
 
         if (!(material instanceof StandardMaterial)) {
             return;
@@ -1007,8 +1098,15 @@ export class Node {
      * of the element's bit and never a second source of truth. The order is load-bearing: the bit
      * is recorded FIRST, so an engine that calls back into {@link Node.isPinned} while being told
      * sees the pin.
+     *
+     * In a graph with a session the pin is an undoable step: it is recorded in the session's
+     * `pins`, which writes the byte and tells the engine.
      */
     pin(): void {
+        if (this.dispatchPin(true)) {
+            return;
+        }
+
         if (!this.positionsLane?.setPinned(this.index, true)) {
             // A node the graph builder never took has no row to pin, and pinning happens from a
             // pointer gesture, so this says so rather than throwing inside the frame that reports
@@ -1029,8 +1127,27 @@ export class Node {
      * been told about.
      */
     unpin(): void {
+        if (this.dispatchPin(false)) {
+            return;
+        }
+
         this.positionsLane?.setPinned(this.index, false);
         this.tellEngine("unpin");
+    }
+
+    /**
+     * Pin or release this node as a step of its graph's session, when it has one.
+     * @param pinned - Pin, or release.
+     * @returns False when there is no session to dispatch through.
+     */
+    private dispatchPin(pinned: boolean): boolean {
+        const session = this.context.getSession?.();
+        if (session === undefined) {
+            return false;
+        }
+
+        void dispatcherOf(session).dispatchNow({ op: "positions.pin", ids: [this.id], pinned });
+        return true;
     }
 
     /**
@@ -1068,7 +1185,7 @@ export class Node {
      * @returns the array, or undefined for a node built outside a graph
      */
     private get positionsLane(): ElementPositions | undefined {
-        return this.context.getDataManager?.()?.positions;
+        return writableLane(this.context.getDataManager?.());
     }
 
     /**
@@ -1179,7 +1296,11 @@ export class Node {
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
-        return new RichTextLabel(this.mesh.getScene(), labelOptions);
+        const scene = this.mesh.getScene();
+        // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
+        // LabelDeclutter.
+        LabelDeclutter.track(scene, this.context, this);
+        return new RichTextLabel(scene, labelOptions);
     }
 
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
@@ -1223,7 +1344,6 @@ export class Node {
      * @returns The options, with this node's mesh as the thing they attach to.
      */
     private createLabelOptions(labelText: string, labelStyle: NodeStyleConfig["label"] = {}): RichTextLabelOptions {
-
         // Get attach position and offset
         const attachPosition = this.getAttachPosition(labelStyle.location ?? "top");
         const attachOffset = labelStyle.attachOffset ?? this.getDefaultAttachOffset(labelStyle.location ?? "top");

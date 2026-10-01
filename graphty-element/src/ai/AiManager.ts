@@ -11,6 +11,7 @@ import { AiController, type ExecutionResult } from "./AiController";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import { CommandRegistry } from "./commands";
 // Import built-in commands
+import { listAlgorithms, runAlgorithm } from "./commands/AlgorithmCommands";
 import { setCameraPosition, zoomToNodes } from "./commands/CameraCommands";
 import { setDimension, setLayout } from "./commands/LayoutCommands";
 import { setImmersiveMode } from "./commands/ModeCommands";
@@ -139,6 +140,11 @@ export class AiManager {
             commandRegistry: this.commandRegistry,
             graph: this.graph,
             schemaManager: this.schemaManager,
+            // Onto the graph's own event channel, so `addListener` and the element's DOM
+            // forwarder both deliver every AI event.
+            emitEvent: (event) => {
+                graph.eventManager.emitGraphEvent(event.type, { ...event });
+            },
         });
 
         this.initialized = true;
@@ -190,6 +196,10 @@ export class AiManager {
         this.registerCommand(sampleData);
         this.registerCommand(describeProperty);
 
+        // Algorithm commands
+        this.registerCommand(listAlgorithms);
+        this.registerCommand(runAlgorithm);
+
         // Layout commands
         this.registerCommand(setLayout);
         this.registerCommand(setDimension);
@@ -209,6 +219,13 @@ export class AiManager {
 
     /**
      * Register a custom command.
+     *
+     * Each assistant message is one undoable step. A command joins it by writing through
+     * `ctx.tx` (`ctx.tx.styles.add`, `ctx.tx.layout.set`, `ctx.tx.run`): those changes are undone
+     * with the rest of the message, and rolled back if a command throws. A change made through
+     * `ctx.graph` is a step of its own and is not rolled back. A command stops when
+     * `ctx.abortSignal` fires, which happens when the message is cancelled or undone while it is
+     * still going.
      * @param command - The command to register
      */
     registerCommand(command: Parameters<CommandRegistry["register"]>[0]): void {

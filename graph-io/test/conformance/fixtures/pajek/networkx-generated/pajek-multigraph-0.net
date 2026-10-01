@@ -1,0 +1,15 @@
+*vertices 5
+1 0 0.0 0.0 ellipse tag a&b
+2 1 0.0 0.0 ellipse
+3 2 0.0 0.0 ellipse tag café
+4 3 0.0 0.0 ellipse
+5 4 0.0 0.0 ellipse
+*edges
+1 2 9.6621 rel 中文
+1 2 1.6324 rel "two words"
+2 3 10
+2 2 1.0
+3 4 1.0
+3 4 7.8567
+4 5 7.0892 rel "two words"
+5 5 1e-300 rel "two words"

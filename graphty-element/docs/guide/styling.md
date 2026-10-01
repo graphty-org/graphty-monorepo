@@ -61,15 +61,42 @@ if (!verdict.ok) {
 
 ## Selectors
 
-A selector says which elements a layer is about. There are four kinds, and they are spelled out
+A selector says which elements a layer is about. There are six kinds, and they are spelled out
 rather than implied:
 
 ```typescript
 { match: "everything" }                          // every node, or every edge
 { match: "has", path: "results.degree.value" }   // every element that carries a value there
 { match: "ids", nodes: ["alice", "bob"] }        // exactly these
+{ match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
+{ match: "member", of: { set: id } }           // the members of a set, or any other scope
 ```
+
+### A set
+
+`{ match: "member", of: scope }` paints the members of a kept [set](./sets), or of anything else a
+scope names (`"selection"`, `{ define }`). The layer follows its scope: redefine the set, change
+the data a rule set reads, or re-run the run a followed set reads, and the layer repaints the
+elements that joined or left without being touched. A set has no colour of its own -- colouring
+one is this layer. A layer naming a set that was removed keeps painting the members the set's
+kept record names, so removing a set never blanks a layer.
+
+### The top N
+
+`{ match: "top", path, n }` paints the `n` highest elements by one field a run published, such as
+"label the ten best-connected nodes". The path is a run's field, `results.<run>.<field>`: build it
+with `session.results.path(run, field)`. The layer follows the run: it reads the run's values each
+time it paints, so after a re-run the top is taken again from the new values.
+
+**Ties are never split.** Elements with equal values are painted as a group or not at all, and a
+group is painted only when ALL of it fits inside `n`. So a top-10 layer never paints more than
+ten elements, but it can paint fewer -- and it paints none on a graph whose highest value is
+shared by more than ten elements (every node of a ring has the same degree). To find out why, ask
+the run: `result.top(field, n)` returns the same elements, plus `leftOut` (the tie group that did
+not fit) and `reason` (a sentence saying so). A `{ top }` selection target
+(`session.selection.apply({ top: { run, field, n } })`) uses the same rule, so a layer and a
+selection never disagree about which elements are the top `n`.
 
 ### The expression language
 
@@ -89,6 +116,16 @@ Two spelling rules catch everyone once:
   and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A string
   literal takes single quotes: `'server'`.
 
+**An edge's endpoints are `data.source` and `data.target`**, the ids of the nodes it leaves and
+reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
+`data.source == 'A'` selects the edges leaving `A`, and `{ match: "has", path: "data.target" }`
+matches every edge.
+
+The same expression works outside a style layer, and matches the same elements there:
+`session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter
+`{ kind: "expression", where }` (nodes) or `{ kind: "edges", where }` (edges) all evaluate it
+with the same engine.
+
 An algorithm's results are read the same way, under the id of the run that produced them:
 
 ```typescript
@@ -106,47 +143,77 @@ await element.session.styles.add({
 
 A channel is one visual property with one name. These are all of them:
 
-| Node channel      | Takes                                                         |
-| ----------------- | ------------------------------------------------------------- |
-| `node.color`      | any CSS colour                                                |
-| `node.size`       | a number                                                      |
-| `node.shape`      | `sphere`, `box`, `cylinder`, `icosphere`, ...                 |
-| `node.label`      | the words to draw                                             |
-| `node.labelStyle` | `{font, sizePx, weight, color, background, outline, padding, ...}` |
-| `node.tooltip`    | the words to show on hover                                    |
-| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                       |
-| `node.opacity`    | 0 to 1                                                        |
-| `node.outline`    | a colour                                                      |
-| `node.glow`       | a colour                                                      |
-| `node.glowStrength` | a number                                                    |
-| `node.wireframe`  | true or false                                                 |
-| `node.flat`       | true or false                                                 |
+| Node channel        | Takes                                                              |
+| ------------------- | ------------------------------------------------------------------ |
+| `node.color`        | any CSS colour                                                     |
+| `node.size`         | a number                                                           |
+| `node.shape`        | `sphere`, `box`, `cylinder`, `icosphere`, ...                      |
+| `node.label`        | the words to draw                                                  |
+| `node.labelStyle`   | `{font, sizePx, weight, color, background, outline, padding, ...}` |
+| `node.tooltip`      | the words to show on hover                                         |
+| `node.tooltipStyle` | as `node.labelStyle`, for the tooltip                              |
+| `node.opacity`      | 0 to 1                                                             |
+| `node.outline`      | a colour                                                           |
+| `node.glow`         | a colour                                                           |
+| `node.glowStrength` | a number                                                           |
+| `node.wireframe`    | true or false                                                      |
+| `node.flat`         | true or false                                                      |
 
-| Edge channel             | Takes                                        |
-| ------------------------ | -------------------------------------------- |
-| `edge.color`             | any CSS colour                               |
-| `edge.width`             | a number                                     |
-| `edge.opacity`           | 0 to 1                                       |
-| `edge.style`             | `solid`, `dash`, `dot`, `zigzag`, ...        |
-| `edge.patternCount`      | how many dots or dashes to draw, 2 or more   |
-| `edge.curvature`         | true or false (a bezier)                     |
-| `edge.arrowHead`         | `normal`, `inverted`, `diamond`, `none`, ... |
-| `edge.arrowHeadSize`     | a number, 1 being the element's own size     |
-| `edge.arrowHeadColor`    | a colour                                     |
-| `edge.arrowHeadOpacity`  | 0 to 1                                       |
-| `edge.arrowHeadText`     | words drawn beside the head cap              |
-| `edge.arrowHeadTextStyle` | as `node.labelStyle`                        |
-| `edge.arrowTail`         | the same arrows                              |
-| `edge.arrowTailSize`     | a number                                     |
-| `edge.arrowTailColor`    | a colour                                     |
-| `edge.arrowTailOpacity`  | 0 to 1                                       |
-| `edge.arrowTailText`     | words drawn beside the tail cap              |
-| `edge.arrowTailTextStyle` | as `node.labelStyle`                        |
-| `edge.animationSpeed`    | a number                                     |
-| `edge.label`             | the words to draw                            |
-| `edge.labelStyle`        | as `node.labelStyle`                         |
+| Edge channel              | Takes                                                                      |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `edge.color`              | any CSS colour                                                             |
+| `edge.width`              | a number                                                                   |
+| `edge.opacity`            | 0 to 1                                                                     |
+| `edge.style`              | `solid`, `dash`, `dot`, `zigzag`, ...                                      |
+| `edge.patternCount`       | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it) |
+| `edge.curvature`          | true or false (a bezier)                                                   |
+| `edge.arrowHead`          | `normal`, `inverted`, `diamond`, `none`, ...                               |
+| `edge.arrowHeadSize`      | a number, 1 being the element's own size                                   |
+| `edge.arrowHeadColor`     | a colour                                                                   |
+| `edge.arrowHeadOpacity`   | 0 to 1                                                                     |
+| `edge.arrowHeadText`      | words drawn beside the head cap                                            |
+| `edge.arrowHeadTextStyle` | as `node.labelStyle`                                                       |
+| `edge.arrowTail`          | the same arrows                                                            |
+| `edge.arrowTailSize`      | a number                                                                   |
+| `edge.arrowTailColor`     | a colour                                                                   |
+| `edge.arrowTailOpacity`   | 0 to 1                                                                     |
+| `edge.arrowTailText`      | words drawn beside the tail cap                                            |
+| `edge.arrowTailTextStyle` | as `node.labelStyle`                                                       |
+| `edge.animationSpeed`     | a number                                                                   |
+| `edge.label`              | the words to draw                                                          |
+| `edge.labelStyle`         | as `node.labelStyle`                                                       |
 
 Writing `node.label` or `edge.label` is what switches a label on.
+
+The five `...Style` channels merge field by field across layers instead of replacing each other.
+A layer that writes `{ color: "#FF0000" }` over one that wrote `{ sizePx: 24 }` draws a red label
+at 24 px, and each field takes the value from the highest layer that set it.
+
+Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`
+pair. A handful of glow styles costs nothing; a strength encoded from data, with a different value
+on every node, gives up instancing for the glowing nodes.
+
+### Labels that would overlap
+
+By default every label a style asks for is drawn, so labelled nodes that sit close together on
+screen draw their words over each other. Turn on `labels.declutter` in the element's behaviour
+configuration to thin them out:
+
+```javascript
+element.layoutBehavior = { labels: { declutter: true } };
+```
+
+With it on, the element keeps the label of a selected node first, then the label of the node
+with more edges, and hides any label whose words would cover the words of a label it has already
+kept. Only the words count: two labels whose padding or background overlap, but whose text does
+not, are both drawn. A hidden label comes back as soon as its node is clear, for example after
+the camera or the layout moves. Nothing in the style changes when this happens, and setting
+`declutter` back to `false` shows every label again on the next frame.
+
+The element works this out again only when something that decides it changes -- the camera, the
+size of the viewport, a label, a node's position or visibility, the selection or the edges -- so a
+still graph pays almost nothing for it. On a camera that is moving it costs roughly 1 to 1.5 ms a
+frame per thousand labels. A saved configuration carries the setting as `behavior.labels.declutter`.
 
 ### A tooltip on a node
 
@@ -317,10 +384,10 @@ element, and what the layers under it had said before it did.
 
 ## Interactive Examples
 
-- [Node Styles](https://graphty.app/storybook/element/?path=/story/styles-node--default)
-- [Edge Styles](https://graphty.app/storybook/element/?path=/story/styles-edge--default)
-- [Label Styles](https://graphty.app/storybook/element/?path=/story/styles-label--default)
-- [All Node Shapes](https://graphty.app/storybook/element/?path=/story/styles-node--all-node-shapes)
-- [Bezier Edges](https://graphty.app/storybook/element/?path=/story/styles-edge--bezier)
-- [Bidirectional Arrows](https://graphty.app/storybook/element/?path=/story/styles-edge--bidirectional)
-- [Layered Styles](https://graphty.app/storybook/element/?path=/story/styles-layered--two-layer-node-colors)
+- [Node Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--default)
+- [Edge Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--default)
+- [Label Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-label--default)
+- [All Node Shapes](https://graphty.app/storybook/graphty-element/?path=/story/styles-node--all-node-shapes)
+- [Bezier Edges](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bezier)
+- [Bidirectional Arrows](https://graphty.app/storybook/graphty-element/?path=/story/styles-edge--bidirectional)
+- [Layered Styles](https://graphty.app/storybook/graphty-element/?path=/story/styles-layered--two-layer-node-colors)

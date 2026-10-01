@@ -15,6 +15,7 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
 import { Node, NodeIdType } from "./Node";
+import { frozenRecord } from "./session/project/draft";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -78,6 +79,33 @@ interface EdgeOpts {
     metadata?: object;
 }
 
+/** Writes an edge's row; see {@link placeEdgeRow}. */
+let writeEdgeRow: (edge: Edge, row: number) => void;
+
+/**
+ * Move an edge to a row of the current snapshot. Only the data manager calls it, as an edge is
+ * added, removed or renumbered by a compacting freeze.
+ * @param edge - The edge.
+ * @param row - Its logical edge index, or INVALID_INDEX.
+ */
+export function placeEdgeRow(edge: Edge, row: number): void {
+    writeEdgeRow(edge, row);
+}
+
+/** Writes an edge's record; see {@link adoptEdgeRecord}. */
+let writeRecord: (edge: Edge, record: AdHocData) => void;
+
+/**
+ * Hand an edge the record the graph now holds for it. Only the data manager calls it, from the
+ * render half of the graph's derivation, when a command, an undo or a redo changed the record;
+ * no entry point exports it, so `edge.data` is always the graph's record.
+ * @param edge - The edge.
+ * @param record - The record.
+ */
+export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
+    writeRecord(edge, record);
+}
+
 /**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
@@ -85,8 +113,8 @@ interface EdgeOpts {
 export class Edge {
     parentGraph: Graph | GraphContext;
     opts: EdgeOpts;
-    srcId: NodeIdType;
-    dstId: NodeIdType;
+    readonly srcId: NodeIdType;
+    readonly dstId: NodeIdType;
 
     /**
      * This edge's identity: the element-assigned counter the store stamped into its
@@ -106,11 +134,39 @@ export class Edge {
      * Every Edge has one. An edge whose endpoint ids graph-format will not store is REJECTED
      * before a render object is built for it, so there is no such thing as an Edge with no row --
      * which is what makes `index` safe to read without a guard everywhere downstream.
+     * @returns The row.
      */
-    index: number = INVALID_INDEX;
+    get index(): number {
+        return this.row;
+    }
+
+    private set index(row: number) {
+        this.row = row;
+    }
+
+    private row: number = INVALID_INDEX;
+
+    static {
+        writeEdgeRow = (edge, row) => {
+            edge.index = row;
+        };
+        writeRecord = (edge, record) => {
+            edge.#record = frozenRecord(record);
+        };
+    }
     dstNode: Node;
     srcNode: Node;
-    data: AdHocData;
+    /**
+     * The record this edge carries, as the graph holds it: deep-frozen, so a write to it throws. A
+     * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
+     * @returns The record.
+     */
+    get data(): AdHocData {
+        return this.#record;
+    }
+
+    /** The record, as the graph last handed it over. */
+    #record: AdHocData;
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
     arrowMesh: AbstractMesh | null = null;
     arrowTailMesh: AbstractMesh | null = null;
@@ -159,6 +215,9 @@ export class Edge {
      * still cost nothing when the text has not moved.
      */
     private drawnLabelText?: string;
+
+    /** The style the current line and caps were built from; see `paintFrom`. */
+    private drawnStyle: EdgeStyleConfig | null = null;
 
     /**
      * The resolved label block the label on screen was built from.
@@ -220,14 +279,14 @@ export class Edge {
     /**
      * Where this edge sits among the edges sharing its ordered endpoint pair, counting from zero.
      *
-     * Derived on every read from the data manager's edge cache rather than stored, so a removal
-     * cannot leave it stale. Nothing draws with it yet -- two parallel edges still render as two
+     * Derived on every read from the graph store rather than stored, so a removal cannot leave it
+     * stale. Nothing draws with it yet -- two parallel edges still render as two
      * coincident lines -- but a style layer can read it, and the geometry work that eventually
      * separates parallel edges needs exactly this number.
-     * @returns the rank, or -1 for an edge the cache no longer holds
+     * @returns the rank, or -1 for an edge the store no longer holds
      */
     get parallelRank(): number {
-        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).indexOf(this);
+        return this.context.getDataManager().getEdgesBetween(this.srcId, this.dstId).indexOf(this);
     }
 
     /**
@@ -235,7 +294,7 @@ export class Edge {
      * @returns the count
      */
     get parallelCount(): number {
-        return this.context.getDataManager().edgeCache.get(this.srcId, this.dstId).length;
+        return this.context.getDataManager().getEdgesBetween(this.srcId, this.dstId).length;
     }
 
     /**
@@ -267,7 +326,7 @@ export class Edge {
         this.dstId = dstNodeId;
         this.id = edgeIdOf(edgeId);
         this.opts = opts;
-        this.data = data;
+        this.#record = frozenRecord(data);
 
         // make sure both srcNode and dstNode already exist
         const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
@@ -298,6 +357,7 @@ export class Edge {
 
         // create mesh
         const { style } = paint;
+        this.drawnStyle = style;
 
         // create arrow mesh if needed
         this.arrowMesh = EdgeMesh.createArrowHead(
@@ -572,12 +632,28 @@ export class Edge {
         // into -- so an unchanged key means the line, its caps and its colour are all unchanged.
         // The `content` channels are keyed by nothing, so they are applied here. See
         // `drawnLabelText` for the defect that reached a consumer.
-        if (meshKey === this.meshKey && !meshDisposed) {
+        // A DIFFERENT KEY FOR THE SAME STYLE IS NOT A REBUILD. Every element is constructed from
+        // the bootstrap paint, whose key is a sentinel no session key ever equals, and the first
+        // style pass then hands it the session's key -- for the same style, whenever no layer
+        // touches the element, which is every element of a plain load. Comparing keys alone
+        // rebuilt every node and edge once: dispose the placeholder mesh, build the same mesh
+        // again. Babylon's dispose is a linear search of the scene's mesh list and of the parent's
+        // children, so that rebuild cost the size of the scene per element and the load grew as
+        // its square (issue #388: 4,000 nodes took 28 s, 10,000 never finished). A style that is
+        // deep-equal to the one the current mesh was built from means the same geometry, the same
+        // colour and the same content by construction, so the key is adopted and nothing is
+        // touched.
+        const sameGeometry = meshKey === this.meshKey || _.isEqual(style, this.drawnStyle);
+
+        if (sameGeometry && !meshDisposed) {
+            this.meshKey = meshKey;
+            this.drawnStyle = style;
             this.syncContent(style, false);
             return;
         }
 
         this.meshKey = meshKey;
+        this.drawnStyle = style;
 
         // Invalidate position cache to force edge redraw with new style
         this._lastSrcPos = null;
@@ -589,7 +665,10 @@ export class Edge {
             this.mesh.dispose();
         }
 
-        // recreate arrow mesh if needed
+        // recreate arrow mesh if needed. A cap is an instance of its scene's batch, and the batch
+        // owns the material: disposing an instance's material would dispose the material every
+        // other cap in the batch draws with. The batch disposes it with its last instance
+        // (FilledArrowRenderer.instanceOf).
         if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
             this.arrowMesh.dispose();
         }
@@ -779,10 +858,10 @@ export class Edge {
      * cached SOURCE meshes -- and Babylon disposes a source mesh's instances with it. That is why
      * node spheres and 3D solid edge lines vanished on a dataset clear while roughly sixty grey
      * ARROWHEADS stayed on the canvas, in rosettes where the previous dataset's edges had
-     * converged. Arrowheads are deliberately not cached (`EdgeMesh.createArrowHead` carries a
-     * "PERFORMANCE FIX: Create individual meshes for all arrow types" note): they are built bare
-     * against the scene and parented to the `graph-root` TransformNode, which outlives every
-     * dataset, so nothing ever disposed them. The same was true of the patterned-line meshes
+     * converged. Arrowheads are not in the MeshCache (today each is an instance of a per-scene
+     * batch that `FilledArrowRenderer.instanceOf` frees with its last head): they are parented
+     * to the `graph-root` TransformNode, which outlives every dataset, so nothing but this
+     * dispose frees them. The same was true of the patterned-line meshes
      * (dot/dash/star/...), 2D lines, bezier curves and all three RichTextLabels.
      *
      * Every dispose is guarded with `isDisposed()` -- matching the idiom already used in
@@ -791,7 +870,7 @@ export class Edge {
      * (it disposes a per-element ShaderMaterial that Babylon's default flags would leave behind),
      * so it is routed to that rather than to `AbstractMesh.dispose`.
      *
-     * A DISPOSED EDGE STILL RECEIVES CALLS, which is why {@link Edge.disposed} exists: the layout
+     * A DISPOSED EDGE STILL RECEIVES CALLS, which is why {@link Edge.isDisposed} exists: the layout
      * engine keeps its own edge list and `UpdateManager` walks it every frame regardless of what
      * DataManager holds. Calling this twice is safe.
      */
@@ -1127,7 +1206,7 @@ export class Edge {
                         ].includes(arrowType)
                     ) {
                         // Filled arrows use shader-based billboarding via lineDirection uniform
-                        FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                        FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
                     } else if (geometry.needsRotation) {
                         // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
                         // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
@@ -1207,7 +1286,7 @@ export class Edge {
                     ].includes(arrowType)
                 ) {
                     // Filled arrows use shader-based billboarding via lineDirection uniform
-                    FilledArrowRenderer.setLineDirection(this.arrowMesh as Mesh, direction);
+                    FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
                 } else if (geometry.needsRotation) {
                     // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
                     // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
@@ -1278,7 +1357,7 @@ export class Edge {
                             ].includes(tailType)
                         ) {
                             // Filled arrows use shader-based billboarding via lineDirection uniform
-                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh as Mesh, reversedDirection);
+                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh, reversedDirection);
                         } else if (tailGeometry.needsRotation) {
                             // Other arrow types need explicit rotation
                             // Triangle in XY plane with tip at origin, pointing in +X direction
@@ -1590,136 +1669,5 @@ export class Edge {
             offset: placement.attachOffset,
             attachPosition: placement.attachPosition,
         };
-    }
-}
-
-/** The one empty array every miss answers with, so a lookup for an absent pair allocates nothing. */
-const EMPTY_EDGES: readonly Edge[] = Object.freeze([]);
-
-/**
- * Every edge the graph holds, indexed by its ordered endpoint pair.
- *
- * The inner value is an ARRAY, not one edge: two edges between the same ordered pair are two
- * edges. This class used to throw `"Attempting to create duplicate Edge"` on the second one, which
- * is why the data manager carried two separate guards that dropped a repeated record before it
- * could reach here -- and those drops are what pinned `statistics().repeatedEdgeCount` at zero for
- * every multigraph the element has ever loaded.
- *
- * Ask {@link EdgeMap.first} when the question genuinely has one answer, and {@link EdgeMap.get}
- * otherwise. Neither ever returns undefined for the pair itself: an absent pair is an empty array.
- */
-export class EdgeMap {
-    map = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
-
-    /**
-     * Whether any edge runs between the specified source and destination nodes.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns True when at least one edge exists, false otherwise
-     */
-    has(srcId: NodeIdType, dstId: NodeIdType): boolean {
-        return this.get(srcId, dstId).length > 0;
-    }
-
-    /**
-     * Adds an edge to the map, alongside any edges already running between the same pair.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @param e - The edge instance to store
-     */
-    set(srcId: NodeIdType, dstId: NodeIdType, e: Edge): void {
-        let dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            dstMap = new Map();
-            this.map.set(srcId, dstMap);
-        }
-
-        const parallel = dstMap.get(dstId);
-        if (parallel) {
-            parallel.push(e);
-            return;
-        }
-
-        dstMap.set(dstId, [e]);
-    }
-
-    /**
-     * Every edge running from one node to another, in the order they were added.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns The edges, which is an empty array when there are none
-     */
-    get(srcId: NodeIdType, dstId: NodeIdType): readonly Edge[] {
-        return this.map.get(srcId)?.get(dstId) ?? EMPTY_EDGES;
-    }
-
-    /**
-     * The first edge running from one node to another, for a caller whose question has one answer.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @returns The oldest edge between the pair, or undefined when there is none
-     */
-    first(srcId: NodeIdType, dstId: NodeIdType): Edge | undefined {
-        return this.get(srcId, dstId)[0];
-    }
-
-    /**
-     * How many EDGES the map holds, which under parallel edges is more than the number of pairs.
-     * @returns The total count of all edges
-     */
-    get size(): number {
-        let sz = 0;
-        for (const dstMap of this.map.values()) {
-            for (const parallel of dstMap.values()) {
-                sz += parallel.length;
-            }
-        }
-
-        return sz;
-    }
-
-    /**
-     * Removes ONE edge from the map, leaving any other edges between the same pair alone.
-     * @param srcId - The source node ID
-     * @param dstId - The destination node ID
-     * @param e - The edge to remove
-     * @returns True if that edge was removed, false if the map did not hold it
-     */
-    delete(srcId: NodeIdType, dstId: NodeIdType, e: Edge): boolean {
-        const dstMap = this.map.get(srcId);
-        if (!dstMap) {
-            return false;
-        }
-
-        const parallel = dstMap.get(dstId);
-        if (!parallel) {
-            return false;
-        }
-
-        const at = parallel.indexOf(e);
-        if (at === -1) {
-            return false;
-        }
-
-        parallel.splice(at, 1);
-
-        // Clean up empty levels, so `map.size` keeps meaning "pairs with an edge between them"
-        // and an iteration over the map never visits an empty array.
-        if (parallel.length === 0) {
-            dstMap.delete(dstId);
-        }
-
-        if (dstMap.size === 0) {
-            this.map.delete(srcId);
-        }
-
-        return true;
-    }
-
-    /**
-     * Removes all edges from the map.
-     */
-    clear(): void {
-        this.map.clear();
     }
 }

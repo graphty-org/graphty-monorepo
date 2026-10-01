@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="">
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="tag" type="string" />
+      <attribute id="2" title="flag" type="boolean" />
+      <attribute id="3" title="rank" type="long" />
+    </attributes>
+    <nodes>
+      <node id="0" label="0">
+        <viz:color r="105" g="200" b="72" a="1.0" />
+        <viz:size value="8.32" />
+        <viz:position x="-48.799" y="-18.862" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="0.5" />
+          <attvalue for="1" value="café" />
+          <attvalue for="2" value="false" />
+        </attvalues>
+      </node>
+      <node id="1" label="1">
+        <viz:color r="112" g="238" b="113" a="1.0" />
+        <viz:size value="8.21" />
+        <viz:position x="2.381" y="-18.559" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="63.740086" />
+          <attvalue for="3" value="42" />
+          <attvalue for="1" value="a&amp;b" />
+          <attvalue for="2" value="false" />
+        </attvalues>
+      </node>
+      <node id="2" label="2">
+        <viz:color r="176" g="200" b="99" a="1.0" />
+        <viz:size value="9.89" />
+        <viz:position x="-3.873" y="-45.039" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="0.5" />
+          <attvalue for="3" value="1" />
+          <attvalue for="1" value="tab&#09;here" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges />
+  </graph>
+</gexf>

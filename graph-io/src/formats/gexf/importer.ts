@@ -10,9 +10,11 @@
  * forward reference is legal; element lifetimes (`start` / `end` / `timestamp`, `<spells>`, 1.3
  * `timestamps` / `intervals`, 1.2 `startopen` / `endopen` holding the open bound's time) become
  * the temporal role columns; dynamic attribute values go into the temporal extension tables of
- * design section 5.10; the graph header's `mode`, `timeformat`, `timerepresentation` and `idtype`
- * land in the graph meta (`idtype` is informational: Gephi writes `idtype="string"` for every
- * file, so ids follow the `ids` rule, canonical by default).
+ * design section 5.10, and a spell's open bounds go to the spells.open column; the graph header's
+ * `mode`, `timeformat`, `timerepresentation` and `idtype` land in the graph meta, and its
+ * `defaultedgetype`, `start`, `end` and `timestamp` as written in `meta.extra.gexf` (`idtype` is
+ * informational: Gephi writes `idtype="string"` for every file, so ids follow the `ids` rule,
+ * canonical by default).
  *
  * Direction follows design section 8.4: `defaultedgetype` (undirected when absent, per the spec and
  * the `defaultDirected` option) sets the sink's direction once, and every per-edge `type` override,
@@ -74,7 +76,14 @@ import {
 import { ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { parseTimeText, type TemporalValue, type TimeFormat, timeTextCompanion } from "../../common/temporal.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
-import { isWhitespace, localName, tokenizeXml, type XmlHandler, XmlSyntaxError } from "../../common/xml.js";
+import {
+    isWhitespace,
+    localName,
+    tokenizeXml,
+    xmlDeclaredEncoding,
+    type XmlHandler,
+    XmlSyntaxError,
+} from "../../common/xml.js";
 import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
 import {
     EDGE_DECLS,
@@ -129,7 +138,10 @@ export const WEIGHT_IGNORED_CODE = "W_GEXF_WEIGHT_IGNORED";
 export const VIZ_SKIPPED_CODE = "W_GEXF_VIZ_SKIPPED";
 /** Issue code: a 1.2 dynamic viz element (its bounds are dropped, the value kept). */
 export const VIZ_DYNAMIC_CODE = "W_GEXF_VIZ_DYNAMIC_DROPPED";
-/** Issue code: `startopen` / `endopen` on a `<spell>` (the spells column has no open bits). */
+/**
+ * Issue code: `startopen` / `endopen` on a `<spell>` stored closed. No longer recorded: the open
+ * bits of each spell are kept in the spells.open column. Kept so the exported code table is stable.
+ */
 export const SPELL_OPEN_CODE = "W_GEXF_SPELL_OPEN_DROPPED";
 /** Issue code: a viz element with a value that does not parse (the element is skipped). */
 export const VIZ_VALUE_CODE = "W_GEXF_VIZ_VALUE";
@@ -146,6 +158,16 @@ export {
 };
 
 const EDGE_TYPES: ReadonlySet<string> = new Set(["directed", "undirected", "mutual"]);
+
+/**
+ * An edge type as a keyword of {@link EDGE_TYPES}: the schema spells them in lower case, but files
+ * in the wild write `Directed`, and the keyword is read whatever its case or surrounding space.
+ * @param text - a `defaultedgetype` or edge `type` value
+ * @returns the text trimmed and in lower case
+ */
+function edgeTypeKeyword(text: string): string {
+    return text.trim().toLowerCase();
+}
 const ABORT_CHECK_INTERVAL = 64;
 
 /** The XML attributes the importer reads on `<node>`; any other one is reported once. */
@@ -344,6 +366,7 @@ interface DomainColumns {
     readonly end: TemporalColumn;
     readonly timestamp: TemporalColumn;
     readonly spells: LazyColumn;
+    readonly spellsOpen: LazyColumn;
     readonly timestamps: LazyColumn;
     readonly open: LazyColumn;
     readonly color: LazyColumn;
@@ -495,6 +518,9 @@ class GexfReader implements XmlHandler {
 
     private spellPairs: number[][] | null = null;
 
+    /** The open bits of each spell in spellPairs, in the same order. */
+    private spellOpen: number[] = [];
+
     private spellsWhere: IssueLocation | null = null;
 
     private parentIds: NodeId[] | null = null;
@@ -525,6 +551,7 @@ class GexfReader implements XmlHandler {
             end: new TemporalColumn("node", NODE_DECLS.end),
             timestamp: new TemporalColumn("node", NODE_DECLS.timestamp),
             spells: new LazyColumn("node", NODE_DECLS.spells),
+            spellsOpen: new LazyColumn("node", NODE_DECLS.spellsOpen),
             timestamps: new LazyColumn("node", NODE_DECLS.timestamps),
             open: new LazyColumn("node", NODE_DECLS.open),
             color: new LazyColumn("node", NODE_DECLS.color),
@@ -536,6 +563,7 @@ class GexfReader implements XmlHandler {
             end: new TemporalColumn("edge", EDGE_DECLS.end),
             timestamp: new TemporalColumn("edge", EDGE_DECLS.timestamp),
             spells: new LazyColumn("edge", EDGE_DECLS.spells),
+            spellsOpen: new LazyColumn("edge", EDGE_DECLS.spellsOpen),
             timestamps: new LazyColumn("edge", EDGE_DECLS.timestamps),
             open: new LazyColumn("edge", EDGE_DECLS.open),
             color: new LazyColumn("edge", EDGE_DECLS.color),
@@ -794,8 +822,8 @@ class GexfReader implements XmlHandler {
         const edgeType = attrs.get("defaultedgetype");
         if (edgeType === undefined) {
             this.defaultKind = this.options.defaultDirected ? "directed" : "undirected";
-        } else if (EDGE_TYPES.has(edgeType)) {
-            this.defaultKind = edgeType as GexfEdgeType;
+        } else if (EDGE_TYPES.has(edgeTypeKeyword(edgeType))) {
+            this.defaultKind = edgeTypeKeyword(edgeType) as GexfEdgeType;
         } else {
             this.defaultKind = this.options.defaultDirected ? "directed" : "undirected";
             this.warnHeader("defaultedgetype", edgeType, where);
@@ -839,7 +867,7 @@ class GexfReader implements XmlHandler {
             }
         }
         const extra: Record<string, unknown> = {};
-        for (const key of ["start", "end", "timestamp"]) {
+        for (const key of ["defaultedgetype", "start", "end", "timestamp"]) {
             const value = attrs.get(key);
             if (value !== undefined) {
                 extra[key] = value;
@@ -1249,6 +1277,7 @@ class GexfReader implements XmlHandler {
                 return;
             case "spells":
                 this.spellPairs = [];
+                this.spellOpen = [];
                 this.spellsWhere = frame.where;
                 this.ctx.push(Ctx.Spells);
                 return;
@@ -1401,13 +1430,14 @@ class GexfReader implements XmlHandler {
             return;
         }
         let kind: EdgeKind = this.defaultKind;
-        const type = attrs.get("type");
-        if (type !== undefined) {
+        const typeText = attrs.get("type");
+        if (typeText !== undefined) {
+            const type = edgeTypeKeyword(typeText);
             if (!EDGE_TYPES.has(type)) {
                 report.error(
                     "validation-error",
                     EDGE_TYPE_CODE,
-                    `edge type "${type}" is not directed, undirected or mutual`,
+                    `edge type "${typeText}" is not directed, undirected or mutual`,
                     where,
                 );
                 report.counts.skippedEdges++;
@@ -1518,6 +1548,7 @@ class GexfReader implements XmlHandler {
                 return;
             case "spells":
                 this.spellPairs = [];
+                this.spellOpen = [];
                 this.spellsWhere = edge.where;
                 this.ctx.push(Ctx.Spells);
                 return;
@@ -1963,36 +1994,34 @@ class GexfReader implements XmlHandler {
         const where = this.spellsWhere ?? { line };
         try {
             const bounds = this.readBounds(attrs, where);
-            if (bounds.open !== 0) {
-                this.report.warnOnce(
-                    "unsupported",
-                    SPELL_OPEN_CODE,
-                    "startopen / endopen on a <spell> cannot be kept; the spell is stored closed",
-                    where,
-                );
-            }
             this.spellPairs?.push([bounds.start.value, bounds.end.value]);
+            this.spellOpen.push(bounds.open);
         } catch (err) {
             this.report.recordError(err, where);
         }
     }
 
-    /** Close `<spells>`: write the pairs into the open element's spells column. */
+    /**
+     * Close `<spells>`: write the pairs into the open element's spells column, and their open bits
+     * into the spells.open column when any spell has an open bound.
+     */
     private finishSpells(): void {
         const pairs = this.spellPairs;
+        const open = this.spellOpen;
         const where = this.spellsWhere ?? undefined;
         this.spellPairs = null;
+        this.spellOpen = [];
         this.spellsWhere = null;
         if (pairs === null) {
             return;
         }
         try {
-            if (this.edge !== null) {
-                this.edgeColumns.spells.set(this.sink, this.report, this.edge.index, pairs, where);
-            } else {
-                const frame = this.nodeStack[this.nodeStack.length - 1];
-                if (frame.index !== INVALID_INDEX) {
-                    this.nodeColumns.spells.set(this.sink, this.report, frame.index, pairs, where);
+            const columns = this.edge === null ? this.nodeColumns : this.edgeColumns;
+            const { index } = this.edge ?? this.nodeStack[this.nodeStack.length - 1];
+            if (index !== INVALID_INDEX) {
+                columns.spells.set(this.sink, this.report, index, pairs, where);
+                if (open.some((bits) => bits !== 0)) {
+                    columns.spellsOpen.set(this.sink, this.report, index, open, where);
                 }
             }
         } catch (err) {
@@ -2255,13 +2284,21 @@ function parseColor(attrs: ReadonlyMap<string, string>): number[] {
     return [r / 255, g / 255, b / 255, a];
 }
 
+/** A head that starts with markup, after an optional byte-order mark and whitespace. */
+const XML_START = /^\uFEFF?\s*</;
+
 /**
  * Confidence that a document head is GEXF.
  * @param head - the first bytes
- * @returns 1 for a `<gexf` tag, 0.8 for a gexf.net namespace, 0 otherwise
+ * @returns 1 for a `<gexf` tag, 0.8 for a gexf.net namespace, 0 otherwise or when the head does
+ *     not start with markup
  */
 function sniffGexf(head: Uint8Array): number {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(head);
+    // Only a document that starts as markup: a JSON or CSV value may mention a `<gexf>` tag.
+    if (!XML_START.test(text)) {
+        return 0;
+    }
     if (/<(\w+:)?gexf[\s>]/.test(text)) {
         return 1;
     }
@@ -2318,7 +2355,10 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
         reportUnusedOptions(options, report, USED_OPTIONS);
         const reader = new GexfReader(sink, report, resolved, viz);
         try {
-            await tokenizeXml(textChunks(input, report, resolved), reader);
+            await tokenizeXml(
+                textChunks(input, report, { ...resolved, declaredEncoding: xmlDeclaredEncoding }),
+                reader,
+            );
         } catch (err) {
             if (err instanceof XmlSyntaxError) {
                 report.fail(XML_SYNTAX_CODE, err.message, { line: err.line });

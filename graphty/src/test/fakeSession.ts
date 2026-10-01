@@ -29,6 +29,17 @@
  *   stand-in whose listing disagreed with its own estimate would let a board pass over a strip
  *   and a Run button quoting different figures.
  *
+ * - **A load and a clear, one step each.** What a load does is the board's to say (an importer
+ *   that waits for the element's own report); the stand-in records the step.
+ * - **An undo history, one step per verb.** Every style verb and every run the session really
+ *   executes records one step, exactly as the element's dispatcher does, and `undo` and `redo`
+ *   move the position and publish `history:changed`. A run and the encoding it paints are ONE
+ *   step, because they are in the element. Undo moves the position and does not put the
+ *   layers back: a board asserts what the shell reads off the history, never the picture.
+ *   The layout choice and the pins are the exception: undo and redo put them back, and every
+ *   step, undo and redo publishes `project:changed` naming its slices, so a board can check
+ *   that the shell's copies follow the element.
+ *
  * What it does NOT model is anything about drawing: there is no repaint, no canvas and no
  * element. A board that needs those is a browser board against the real element.
  */
@@ -37,11 +48,20 @@ import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import type {
     Channel,
     CostEstimate,
+    DataSourceDescriptor,
+    DataSourceInput,
+    EdgeRecord,
     GraphSession,
     GraphStatistics,
+    HistoryOutcome,
+    HistoryStep,
+    ImportOptions,
     Layer,
     LayerSpec,
     LegendBlock,
+    NodeId,
+    NodeRecord,
+    ProjectSlice,
     RunId,
     RunResult,
     SessionCommand,
@@ -130,6 +150,7 @@ function fakeRunResult(): RunResult {
             suggestedScale: "linear",
             binning: "per-value",
         }),
+        top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
         graph: {},
     } as unknown as RunResult;
 }
@@ -158,6 +179,8 @@ export interface FakeSession {
      * boundary would be measurements of a file nobody is looking at any more.
      */
     readonly forgetRuns: () => void;
+    /** Delivers an event to the shell's listeners, as the element does after an undo or a redo. */
+    readonly publish: (event: string, payload?: unknown) => void;
 }
 
 /** What a caller wants this session to publish, beyond its own tiny default. */
@@ -190,6 +213,20 @@ interface FakeSessionOptions {
      * @returns the statistics.
      */
     readonly statistics?: () => GraphStatistics;
+    /**
+     * What `data.import` does: settle when the element would say the load arrived, or reject
+     * when it would say it did not. A caller that supplies none gets a load that arrives at once.
+     * @param source - the data source the shell named.
+     * @param options - how the load replaces or adds to the graph.
+     * @returns settles once the data is in.
+     */
+    readonly importer?: (source: DataSourceInput, options?: ImportOptions) => Promise<void>;
+    /**
+     * Every node and edge record the graph holds, read fresh on every call, as
+     * `session.data.nodes()` and `edges()` list them. A caller that supplies none holds none.
+     * @returns the records.
+     */
+    readonly records?: () => { readonly nodes: readonly NodeRecord[]; readonly edges: readonly EdgeRecord[] };
 }
 
 /**
@@ -278,8 +315,9 @@ function fakeSeconds(algorithm: string, statistics: GraphStatistics): number {
  * @returns the session and the doors a board asserts through.
  */
 export function createFakeSession(options: FakeSessionOptions = {}): FakeSession {
-    const watchers = new Set<() => void>();
+    const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
+    const pinned = new Set<NodeId>();
     let minted = 0;
 
     /** What the graph a run would measure looks like now. @returns the digest. */
@@ -317,10 +355,178 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         },
     ];
 
-    const publish = (): void => {
-        for (const watcher of watchers) {
-            watcher();
+    const publish = (event = "style:changed", payload?: unknown): void => {
+        for (const watcher of watchers.get(event) ?? []) {
+            watcher(payload);
         }
+    };
+
+    /* What `data.source()` answers. */
+    let loadedFrom: DataSourceDescriptor | null = null;
+    /* The history: every step, oldest first, and how many are applied. */
+    const steps: HistoryStep[] = [];
+    let position = 0;
+    let historyVersion = 0;
+    /* Open transactions. While one is open a verb joins it rather than recording its own step. */
+    let transactions = 0;
+    /* How to take back and put back the steps whose state this stand-in really holds. */
+    const reversible = new Map<string, { readonly undo: () => void; readonly redo: () => void }>();
+
+    const historyMoved = (reason: string): void => {
+        historyVersion += 1;
+        publish("history:changed", { reason });
+    };
+
+    /**
+     * Records one step, dropping every undone step above the position, as a new action does.
+     * @param label - what the History pop-out prints.
+     * @param op - the command the step ran.
+     * @param slices - what it changed.
+     * @param change - how undo and redo take it back and put it back, for state this fake holds.
+     */
+    const record = (
+        label: string,
+        op: SessionCommand["op"],
+        slices: readonly ProjectSlice[],
+        change?: { readonly undo: () => void; readonly redo: () => void },
+    ): void => {
+        publish("project:changed", { slices, cause: "command" });
+
+        if (transactions > 0) {
+            return;
+        }
+
+        const id = `step-${String(steps.length + 1)}`;
+
+        if (change !== undefined) {
+            reversible.set(id, change);
+        }
+
+        steps.splice(position);
+        steps.push(
+            Object.freeze({
+                id: id as HistoryStep["id"],
+                label,
+                at: new Date().toISOString(),
+                ops: [op],
+                slices,
+                bytes: 0,
+                provenance: {},
+            }),
+        );
+        position = steps.length;
+        historyMoved("record");
+    };
+
+    /**
+     * Moves the position by one step.
+     * @param by - -1 to undo, +1 to redo.
+     * @returns what moved.
+     */
+    const walk = (by: -1 | 1): Promise<HistoryOutcome> => {
+        const next = position + by;
+
+        if (next < 0 || next > steps.length) {
+            return Promise.resolve({ kind: "nothing" });
+        }
+
+        const step = steps[by < 0 ? next : position];
+        const change = reversible.get(step.id);
+
+        position = next;
+        change?.[by < 0 ? "undo" : "redo"]();
+        publish("project:changed", { slices: step.slices, cause: by < 0 ? "undo" : "redo" });
+        historyMoved(by < 0 ? "undo" : "redo");
+
+        return Promise.resolve({ kind: by < 0 ? "undone" : "redone", steps: [step] });
+    };
+
+    /* The layout choice, which undo and redo put back. */
+    let layout: {
+        readonly engine: string;
+        readonly options: Readonly<Record<string, unknown>>;
+        readonly dimension: "2d" | "3d";
+    } = { engine: "ngraph", options: {}, dimension: "3d" };
+
+    /**
+     * Chooses a layout as one reversible step.
+     * @param label - the step's label.
+     * @param next - the choice it makes.
+     */
+    const relayout = (label: string, next: typeof layout): void => {
+        const before = layout;
+
+        layout = next;
+        record(label, "layout.set", ["layout"], {
+            undo: () => {
+                layout = before;
+            },
+            redo: () => {
+                layout = next;
+            },
+        });
+    };
+
+    /**
+     * Replaces the pinned set as one reversible step.
+     * @param label - the step's label.
+     * @param next - the nodes pinned afterwards.
+     */
+    const repin = (label: string, next: readonly NodeId[]): void => {
+        const before = [...pinned];
+        const put = (ids: readonly NodeId[]): void => {
+            pinned.clear();
+            ids.forEach((id) => pinned.add(id));
+        };
+
+        put(next);
+        record(label, "positions.pin", ["pins"], {
+            undo: () => {
+                put(before);
+            },
+            redo: () => {
+                put(next);
+            },
+        });
+    };
+
+    const history = {
+        get version() {
+            return historyVersion;
+        },
+        get steps() {
+            return [...steps];
+        },
+        get position() {
+            return position;
+        },
+        pending: [],
+        get nextUndo() {
+            return position === 0 ? null : { kind: "undo", step: steps[position - 1] };
+        },
+        bytes: 0,
+        limitBytes: Number.POSITIVE_INFINITY,
+        limitSteps: Number.POSITIVE_INFINITY,
+        restoreTo: (id: string | null): Promise<HistoryOutcome> => {
+            const at = id === null ? 0 : steps.findIndex((step) => step.id === id) + 1;
+
+            if (at === -1 || at === position) {
+                return Promise.resolve({ kind: "nothing" });
+            }
+
+            const touched = at < position ? steps.slice(at, position) : steps.slice(position, at);
+
+            position = at;
+            historyMoved("restore");
+
+            return Promise.resolve({ kind: "restored", steps: touched });
+        },
+        cancel: () => [],
+        clear: () => {
+            steps.length = 0;
+            position = 0;
+            historyMoved("clear");
+        },
     };
 
     const build = (spec: LayerSpec): Layer => {
@@ -355,13 +561,20 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const handHolds = (): boolean =>
         layers.some(
             (layer) =>
-                layer.source.by === "user" && (layer.set?.[COLOUR] !== undefined || layer.encode?.[COLOUR] !== undefined),
+                layer.source.by === "user" &&
+                (layer.set?.[COLOUR] !== undefined || layer.encode?.[COLOUR] !== undefined),
         );
 
     const styles = {
         list: (): readonly Layer[] => [...layers],
         get: (id: string): Layer | undefined => layers.find((layer) => layer.id === id),
-        add: (spec: LayerSpec): Promise<Layer> => Promise.resolve(seed(spec)),
+        add: (spec: LayerSpec): Promise<Layer> => {
+            const layer = seed(spec);
+
+            record(`Added layer ${spec.name}`, "style.patch", ["styles"]);
+
+            return Promise.resolve(layer);
+        },
         update: (id: string, patch: Partial<LayerSpec>): Promise<Layer> => {
             const at = indexOf(id);
 
@@ -381,6 +594,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             layers[at] = merged as Layer;
             publish();
+            record(`Changed layer ${layers[at].name}`, "style.patch", ["styles"]);
 
             return Promise.resolve(layers[at]);
         },
@@ -391,8 +605,10 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 return Promise.reject(new Error("E_PROTECTED"));
             }
 
-            layers.splice(at, 1);
+            const [removed] = layers.splice(at, 1);
+
             publish();
+            record(`Removed layer ${removed.name}`, "style.patch", ["styles"]);
 
             return Promise.resolve();
         },
@@ -408,6 +624,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             layers.splice(target === -1 ? layers.length : target, 0, moved);
             publish();
+            record(`Moved layer ${moved.name}`, "style.patch", ["styles"]);
 
             return Promise.resolve();
         },
@@ -423,6 +640,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             if (removed.length > 0) {
                 publish();
+                record("Removed layers", "style.patch", ["styles"]);
             }
 
             return Promise.resolve(removed);
@@ -454,6 +672,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             }
 
             publish();
+            record(`Coloured by ${algorithm}`, "style.encode", ["styles"]);
 
             return Promise.resolve(layers[at === -1 ? layers.length - 1 : at]);
         },
@@ -523,8 +742,31 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
     const session = {
         styles,
+        /* What a host reads before the element has spoken; a board that wants another state
+           dispatches the event. */
+        capabilities: { acceleration: { state: "probing" } },
+        /* A load and a clear are one step each, as the element's are; this stand-in holds no
+           records of its own, so what they change is what the board's own importer does. */
         data: {
             statistics: statisticsNow,
+            nodes: () => options.records?.().nodes ?? [],
+            edges: () => options.records?.().edges ?? [],
+            /* Where the graph came from, as the last load named it; history does not move it here. */
+            source: () => loadedFrom,
+            import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
+                await (options.importer?.(source, importOptions) ?? Promise.resolve());
+                loadedFrom = {
+                    ...(source.type === undefined ? {} : { type: source.type }),
+                    ...(source.name === undefined ? {} : { name: source.name }),
+                };
+                record(`Loaded ${source.name ?? source.type ?? "data"}`, "data.import", ["graph"]);
+            },
+            clear: (): Promise<void> => {
+                loadedFrom = null;
+                record("Cleared the graph", "data.apply", ["graph"]);
+
+                return Promise.resolve();
+            },
         },
         catalog: {
             metrics: metricsNow,
@@ -532,14 +774,58 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         /* Nothing this fake holds ever places a node: there is no loader, no layout and no
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
-        positions: { placedCount: 0 },
+        positions: {
+            placedCount: 0,
+            pinned,
+            pin: (ids: readonly NodeId[]): Promise<void> => {
+                repin("Pinned", [...pinned, ...ids]);
+
+                return Promise.resolve();
+            },
+            unpin: (ids: readonly NodeId[]): Promise<void> => {
+                repin(
+                    "Unpinned",
+                    [...pinned].filter((id) => !ids.includes(id)),
+                );
+
+                return Promise.resolve();
+            },
+        },
+        /* The layout choice and 2D or 3D, one step each; this stand-in draws nothing, so they
+           change only what a board reads back. */
+        layout: {
+            get id() {
+                return layout.engine === "ngraph" ? "force" : layout.engine;
+            },
+            get engine() {
+                return layout.engine;
+            },
+            get options() {
+                return layout.options;
+            },
+            get dimension() {
+                return layout.dimension;
+            },
+            /* An engine name is read as the layout it draws, as the element reads one. */
+            set: (id: string, choice?: { readonly options?: Readonly<Record<string, unknown>> }): Promise<void> => {
+                relayout("Changed the layout", { ...layout, engine: id, options: choice?.options ?? {} });
+
+                return Promise.resolve();
+            },
+            setDimension: (dimension: "2d" | "3d"): Promise<void> => {
+                relayout("Changed the dimension", { ...layout, dimension });
+
+                return Promise.resolve();
+            },
+        },
         /* Synchronous, and available, exactly as the element's is: a button has to decide
            how it behaves before the click happens. A board that wants the refused form
            states it through its own session rather than here, because a refusal is a
            sentence the element wrote and this stand-in has none to write. */
         estimate: (command: SessionCommand): CostEstimate => {
             const statistics = statisticsNow();
-            const seconds = fakeSeconds(command.algorithm, statistics);
+            // Only a run costs anything to this stand-in; a style edit is instant.
+            const seconds = command.op === "algo.run" ? fakeSeconds(command.algorithm, statistics) : 0;
 
             return {
                 seconds,
@@ -553,6 +839,30 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         },
         runs: {
             list: (): readonly FakeRun[] => [...runs],
+            /* The run and every layer reading it, as one step. */
+            remove: (id: RunId) => {
+                const at = runs.findIndex((candidate) => candidate.id === id);
+                const layerIds = layers
+                    .filter((layer) => layer.source.by === "run" && layer.source.runId === id)
+                    .map((layer) => layer.id);
+
+                if (at !== -1) {
+                    runs.splice(at, 1);
+                }
+
+                for (const layerId of layerIds) {
+                    layers.splice(
+                        layers.findIndex((layer) => layer.id === layerId),
+                        1,
+                    );
+                }
+
+                record("Removed a result", "algo.remove", ["runs", "styles"]);
+                publish();
+
+                return { removedLayers: layerIds.length, layerIds };
+            },
+            get: (id: RunId): FakeRun | undefined => runs.find((candidate) => candidate.id === id),
             /* `start` is what the shell calls now, so the fake has to be the thing that runs
                the algorithm AND records the run. It resolves on a microtask, as a queued run
                does, and its `style` option decides whether the element paints it.
@@ -583,21 +893,55 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                        painted by the layer that is already reading it. */
                     held.result = resultFor(algorithm);
                     held.scope = scopeNow();
+                    record(`Ran ${algorithm}`, "algo.run", ["runs"]);
 
                     return Object.assign(Promise.resolve(held.result), { id: held.id });
                 }
 
                 const id = finishRun(algorithm, startOptions?.style ?? true);
+
+                record(`Ran ${algorithm}`, "algo.run", ["runs", "styles"]);
+
                 const run = runs.find((candidate) => candidate.id === id);
 
                 return Object.assign(Promise.resolve(run?.result), { id });
             },
         },
-        on: (_event: string, handler: () => void): (() => void) => {
-            watchers.add(handler);
+        history,
+        get canUndo() {
+            return position > 0;
+        },
+        get canRedo() {
+            return position < steps.length;
+        },
+        undo: () => walk(-1),
+        redo: () => walk(1),
+        /* The callback works through this same session with recording held, and everything it
+           did becomes one step once it resolves. */
+        transaction: async <T>(label: string, fn: (tx: GraphSession) => Promise<T> | T): Promise<T> => {
+            transactions += 1;
+
+            let result: T;
+
+            try {
+                result = await fn(session);
+            } finally {
+                transactions -= 1;
+            }
+
+            // A callback that threw is rolled back in the element and records nothing.
+            record(label, "batch", ["graph"]);
+
+            return result;
+        },
+        on: (event: string, handler: (payload?: unknown) => void): (() => void) => {
+            const subscribers = watchers.get(event) ?? new Set();
+
+            subscribers.add(handler);
+            watchers.set(event, subscribers);
 
             return () => {
-                watchers.delete(handler);
+                subscribers.delete(handler);
             };
         },
     } as unknown as GraphSession;
@@ -632,5 +976,6 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         forgetRuns: () => {
             runs.length = 0;
         },
+        publish,
     };
 }

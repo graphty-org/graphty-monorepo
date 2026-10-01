@@ -25,6 +25,11 @@ export default defineConfig({
     // Use /graphty-element/ for GitHub Pages project site deployment
     base: "/graphty-element/",
 
+    // Gate records are repository history, not documentation: they name dev-box hardware, test
+    // commands and open owner decisions, and every .md under docs/ would otherwise become a page
+    // on graphty.app.
+    srcExclude: ["decisions/**"],
+
     vue: {
         template: {
             compilerOptions: {
@@ -39,8 +44,7 @@ export default defineConfig({
         nav: [
             { text: "Guide", link: "/guide/getting-started" },
             { text: "API", link: "/api/" },
-            // Points to Storybook deployed alongside docs at /storybook/
-            { text: "Examples", link: "/storybook/" },
+            { text: "Examples", link: "https://graphty.app/storybook/graphty-element/" },
         ],
 
         sidebar: {
@@ -50,6 +54,7 @@ export default defineConfig({
                     items: [
                         { text: "Getting Started", link: "/guide/getting-started" },
                         { text: "Installation", link: "/guide/installation" },
+                        { text: "Migrating to 3.0", link: "/guide/migrating-to-3" },
                     ],
                 },
                 {
@@ -60,9 +65,13 @@ export default defineConfig({
                         { text: "Styling", link: "/guide/styling" },
                         { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
+                        { text: "Acceleration", link: "/guide/acceleration" },
+                        { text: "Renderer", link: "/guide/renderer" },
                         { text: "Algorithms", link: "/guide/algorithms" },
+                        { text: "Sets", link: "/guide/sets" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Events", link: "/guide/events" },
+                        { text: "Undo & History", link: "/guide/undo" },
                         { text: "Camera", link: "/guide/camera" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },

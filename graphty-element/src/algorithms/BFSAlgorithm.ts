@@ -1,9 +1,10 @@
-import { breadthFirstSearch } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -14,6 +15,7 @@ import {
     type ResultFieldSpec,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { declarationArcOrder } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for BFS algorithm
@@ -55,6 +57,8 @@ interface BFSOptions extends Record<string, unknown> {
 export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
     static namespace = "graphty";
     static type = "bfs";
+    /** Walks the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
 
@@ -108,73 +112,95 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
      * @returns The layered result, or null when there is nothing to walk.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input, in row order: its scope's, or every node of the graph.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
         }
 
-        // Get source from legacy options, schema options, or use first node as default
-        // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
         const targetNode = this._schemaOptions.targetNode ?? undefined;
 
-        // Undirected: the traversal follows an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
+        /* Get source from legacy options, schema options, or use the input's first node. The
+           DEFAULT comes from the input rather than from the render objects, because the input is
+           what the walk is over: a record the scene has not built a mesh for is in it already,
+           a record with an id the graph could not store is not, and a scoped run starts from its
+           scope's first node. The undirected view renumbers edges, never nodes, so the first node
+           is the same one on either route. */
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
 
-        if (!graphData.hasNode(source)) {
-            return null;
-        }
+        /* Undirected: the traversal follows an edge in either direction.
 
-        const levelOf = new Map<number | string, number>();
-        const orderOf = new Map<number | string, number>();
-        let deepest = 0;
-        let targetFound = false;
+           A walk that stops at a target is not one an accelerator answers -- a GPU walk expands
+           whole levels at once -- so the decision says so before any work starts. It also tries
+           each node's neighbours in the order their edges were declared: which nodes it expands
+           before it reaches the target depends on that order, and the element's walks have always
+           used it. A walk with no target keeps row order, which an accelerator can reproduce and
+           which reaches every node on the same level either way. */
+        const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected", {
+            accelerable: targetNode === undefined,
+        });
+        const sourceIndex = this.nodeIndex(snapshot, "source", source);
+        const targetIndex = targetNode === undefined ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
         context.report({ phase: "Walking outwards", total: null });
-        breadthFirstSearch(graphData, source, {
-            targetNode,
-            visitCallback: (node, level) => {
-                levelOf.set(node, level);
-                orderOf.set(node, orderOf.size);
-                deepest = Math.max(deepest, level);
+        const { value, precision } = await run((dispatch, s) =>
+            dispatch.breadthFirstSearch(
+                s,
+                sourceIndex,
+                targetIndex === undefined ? undefined : { target: targetIndex, arcOrder: declarationArcOrder(s) },
+            ),
+        );
 
-                if (targetNode !== undefined && node === targetNode) {
-                    targetFound = true;
-                }
-            },
-        });
+        /* `order` holds the visited rows in visit order, so the position a node was reached in is
+           its place in that array. A walk that stopped at its target discovered some nodes it
+           never expanded; they sit after the target in `order`, and the walk did not reach them in
+           the sense a reader means, so they carry nothing. */
+        const visited = value.order.subarray(0, value.visitedCount);
+        const stop = targetIndex === undefined ? -1 : visited.indexOf(targetIndex);
+        const expanded = stop === -1 ? visited : visited.subarray(0, stop + 1);
+        const orderOf = new Map<number, number>();
+        expanded.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
-            const level = levelOf.get(nodeId);
+            const index = snapshot.ids.indexOf(nodeId);
+            const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 
-            if (level === undefined) {
+            // A node the walk never reached carries nothing at all -- it is not on level 0.
+            if (order === undefined) {
                 return;
             }
 
-            nodes.push({ id: nodeId, values: { level, order: orderOf.get(nodeId) } });
+            nodes.push({ id: nodeId, values: { level: value.depth[index], order } });
         });
 
         const fields: ResultFieldSpec[] = [
             ...LAYERED_GROUPING_FIELD_SPECS,
             { name: "order", kind: "node", type: "integer" },
         ];
+        const notes = [`Walked outwards from ${String(source)}, which is level 0.`];
 
         if (targetNode !== undefined) {
             fields.push({ name: "targetFound", kind: "graph", type: "boolean" });
+            notes.push(
+                stop === -1
+                    ? `The walk never reached ${String(targetNode)}, so it covered everything reachable.`
+                    : `The walk stopped at ${String(targetNode)}.`,
+            );
         }
 
         return {
             shape: "layered-grouping",
             fields,
             nodes,
-            graph: targetNode === undefined ? undefined : { targetFound },
+            ...(targetNode === undefined ? {} : { graph: { targetFound: stop !== -1 } }),
             caveats: declaredCaveats({
                 method: "bfs",
                 direction: "undirected",
                 weight: null,
-                notes: [`Walked outwards from ${String(source)}, which is level 0.`],
+                precision,
+                notes,
             }),
         };
     }

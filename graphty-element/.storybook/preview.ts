@@ -4,6 +4,7 @@ import "../src/data/index";
 import "../src/layout/index";
 
 import { Preview, setCustomElementsManifest } from "@storybook/web-components-vite";
+import isChromatic from "chromatic/isChromatic";
 // @ts-expect-error TS doesn't recognize virtual imports?
 import manifest from "virtual:vite-plugin-cem/custom-elements-manifest";
 
@@ -91,8 +92,9 @@ const preview: Preview = {
                 //
                 // Only when the story has not asked for something else. A story that wants an
                 // unsettled graph -- one demonstrating the layout running, say -- must be able
-                // to have one, so a pre-step count the story set is left alone.
-                if (graphty.layoutBehavior === undefined) {
+                // to have one, so a pre-step count the story set is left alone. Outside Chromatic
+                // nothing is pre-stepped, so the reader watches the layout settle.
+                if (isChromatic() && graphty.layoutBehavior === undefined) {
                     graphty.layoutBehavior = { layout: { preSteps: CHROMATIC_PRE_STEPS } };
                 }
             }
@@ -105,7 +107,10 @@ const preview: Preview = {
         controls: {
             expanded: true,
             matchers: {
-                color: /(background|color)$/i,
+                // Only names that end in "color": the element's own `background` property is a
+                // background config object (a color or a skybox), not a color string, and a story
+                // that wants a color picker for it says so in its argTypes (GraphStyles does).
+                color: /color$/i,
                 date: /Date$/i,
             },
         },

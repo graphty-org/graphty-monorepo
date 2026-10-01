@@ -116,6 +116,34 @@ describe("UniformRing (spec 5.3)", () => {
         });
     });
 
+    it("overruns counts a reserve() that covers a dirty slot (P8-T12): the one reuse that corrupts a submit; a wrap onto flushed slots is not one", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const ring = new UniformRing(ctx.device, ctx.allocator, 8, "test/ring-overruns");
+            expect(ring.overruns).toBe(0);
+            expect(ring.reserve(5)).toBe(0);
+            ring.write(0, FILL_PARAMS, { count: 1, value: 0, mode: 0, pad0: 0 });
+            // 5 + 5 > 8 wraps to 0 while slot 0 is dirty: the record this batch still reads is overwritten
+            expect(ring.reserve(5)).toBe(0);
+            expect(ring.overruns).toBe(1);
+            ring.flush();
+            // a wrap after a flush lands behind a writeBuffer the queue orders after the submitted batch: no overrun
+            expect(ring.reserve(5)).toBe(0);
+            expect(ring.overruns).toBe(1);
+            // a wrap onto slots only an EARLIER batch wrote is no overrun either: slot 5 dirty, the wrap lands on 0..2
+            expect(ring.reserve(3)).toBe(5);
+            ring.write(5, FILL_PARAMS, { count: 1, value: 0, mode: 0, pad0: 0 });
+            expect(ring.reserve(3)).toBe(0);
+            expect(ring.overruns).toBe(1);
+            // but a reservation that reaches the dirty slots WITHOUT wrapping is one: 3..4 then 5..6 covers dirty slot 5
+            expect(ring.reserve(2)).toBe(3);
+            expect(ring.reserve(2)).toBe(5);
+            expect(ring.overruns).toBe(2);
+            await Promise.resolve();
+            ring.destroy();
+        });
+    });
+
     it("binding() is the whole-buffer binding sized by the block; a block wider than a slot is E_INVALID_ARGUMENT", async (t) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {

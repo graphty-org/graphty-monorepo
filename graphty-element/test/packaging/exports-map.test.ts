@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { assert, describe, it } from "vitest";
 
+// Static imports, not `await import()` in a test body: see node-safe-entries.test.ts for why
+// loading an entry point inside a timed test made this file fail on a busy machine (#491).
+import * as catalog from "../../catalog";
+import * as format from "../../format";
+import * as schema from "../../schema";
+
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /** The manifest, as published. */
@@ -31,11 +37,13 @@ const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), 
  */
 const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string }[] = [
     { subpath: ".", source: "index.ts", output: "graphty" },
-    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map((name) => ({
-        subpath: `./${name}`,
-        source: `${name}.ts`,
-        output: name,
-    })),
+    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map(
+        (name) => ({
+            subpath: `./${name}`,
+            source: `${name}.ts`,
+            output: name,
+        }),
+    ),
 ];
 
 /**
@@ -48,14 +56,26 @@ const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string
 const SIDE_EFFECTFUL = ["./dist/graphty.js", "./dist/graphty.bundle.js", "./dist/webgpu.js", "./dist/chunks/*.js"];
 
 /**
- * The source modules that register the built-in layouts, data sources and algorithms.
+ * The source modules that register the built-in layouts, data sources and algorithms, and the
+ * accelerator entry point that registers the WebGPU factory.
  *
  * They are named here for this package's own build, not for a consumer's: a module the build is
  * told is pure can be dropped whole, and dropping one of these produces an element that renders
  * a graph and then knows no layout to arrange it with, no format to read it from and no
  * algorithm to run on it -- with nothing failing anywhere to say so.
+ *
+ * `./webgpu.ts` is here for the same reason and was found the same way: a story that imports it
+ * by source path lost the whole module to the tree-shaker in the built Storybook, and the only
+ * symptom was an element reporting that no accelerator was registered on a machine that has a
+ * GPU. `./dist/webgpu.js` covers a consumer of the published package; this covers every build
+ * made inside this repository -- the stories and the tests that import the entry by path.
  */
-const REGISTRATION_MODULES = ["./src/algorithms/index.ts", "./src/data/index.ts", "./src/layout/index.ts"];
+const REGISTRATION_MODULES = [
+    "./webgpu.ts",
+    "./src/algorithms/index.ts",
+    "./src/data/index.ts",
+    "./src/layout/index.ts",
+];
 
 /**
  * The source of the root entry and the module that defines `<graphty-element>`.
@@ -129,7 +149,7 @@ function viteEntries(): Record<string, string> {
                 continue;
             }
 
-            const {initializer} = declaration;
+            const { initializer } = declaration;
             if (initializer === undefined || !ts.isObjectLiteralExpression(initializer)) {
                 continue;
             }
@@ -146,15 +166,18 @@ function viteEntries(): Record<string, string> {
 }
 
 describe("the exports map", () => {
-    it.each(MODULE_ENTRIES)("$subpath is a real entry point with a source file behind it", ({ subpath, source, output }) => {
-        const conditions = manifest.exports[subpath];
+    it.each(MODULE_ENTRIES)(
+        "$subpath is a real entry point with a source file behind it",
+        ({ subpath, source, output }) => {
+            const conditions = manifest.exports[subpath];
 
-        assert.deepEqual(
-            conditions,
-            { types: `./dist/${output === "graphty" ? "index" : output}.d.ts`, import: `./dist/${output}.js` },
-        );
-        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
-    });
+            assert.deepEqual(conditions, {
+                types: `./dist/${output === "graphty" ? "index" : output}.d.ts`,
+                import: `./dist/${output}.js`,
+            });
+            assert.isTrue(existsSync(resolve(PACKAGE_ROOT, source)));
+        },
+    );
 
     it("publishes ./bundle as one self-contained file, for a page with no installer", () => {
         // The UMD build is gone, and ./bundle is what replaced it. A consumer pasting a script
@@ -163,6 +186,16 @@ describe("the exports map", () => {
         // every dependency. Losing it would silently break the first example in the docs.
         assert.strictEqual(manifest.exports["./bundle"], "./dist/graphty.bundle.js");
         assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts")));
+    });
+
+    it("builds ./bundle from an entry that adds GraphtyLogger, so a page with no build step can switch logging on", () => {
+        // The simple tier's logging example ends with GraphtyLogger.configure({ enabled: true }).
+        // A bundle-only page has no second address to import the logger from.
+        const config = readFileSync(resolve(PACKAGE_ROOT, "vite.bundle.config.ts"), "utf8");
+        assert.match(config, /entry: `\$\{here\}bundle\.ts`/);
+        const entry = readFileSync(resolve(PACKAGE_ROOT, "bundle.ts"), "utf8");
+        assert.include(entry, 'export * from "./index";');
+        assert.include(entry, 'export { GraphtyLogger } from "./logging";');
     });
 
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
@@ -228,41 +261,59 @@ describe("what the package promises about side effects and size", () => {
 });
 
 describe("the sibling packages", () => {
-    it("takes graph-format as a dependency and a peer, so one copy is installed", () => {
+    it("takes graph-format as a regular dependency, not a peer, so installing the element never fails on the consumer's own graph-format", () => {
         assert.strictEqual(manifest.dependencies["@graphty/graph-format"], "workspace:^");
-        assert.isDefined(manifest.peerDependencies["@graphty/graph-format"]);
+        assert.isUndefined(manifest.peerDependencies["@graphty/graph-format"]);
+    });
+
+    it("declares no package as both a dependency and a peer", () => {
+        const peers = Object.keys(manifest.peerDependencies);
+        assert.deepEqual(
+            Object.keys(manifest.dependencies).filter((name) => peers.includes(name)),
+            [],
+        );
+    });
+
+    it("takes graph-io as a dependency, since the element's readers parse through it", () => {
+        assert.strictEqual(manifest.dependencies["@graphty/graph-io"], "workspace:^");
     });
 
     it("takes the GPU package as an optional peer, so a consumer who never wants it never resolves it", () => {
         assert.isDefined(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"]);
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
+        // A workspace reference: pnpm rewrites it on publish to a
+        // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
+        // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
+        // an older range would crash when the element attached an accelerator. The explicit
+        // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
+        // every time the requirement moved.
+        assert.strictEqual(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], "workspace:^");
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {
-        assert.deepEqual(namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)), []);
+        assert.deepEqual(
+            namesReExportedFromSiblings(source).filter((name) => AMBIGUOUS_NAMES.includes(name)),
+            [],
+        );
     });
 });
 
 describe("the ./format entry point", () => {
-    it("carries the decode vocabulary", async () => {
-        const format = await import("../../format");
-
+    it("carries the decode vocabulary", () => {
         assert.strictEqual(typeof format.isGraphSnapshot, "function");
         assert.strictEqual(typeof format.maskToIndices, "function");
         assert.strictEqual(typeof format.expandEdges, "function");
         assert.typeOf(format.INVALID_INDEX, "number");
     });
 
-    it("carries neither the brand nor the format version, so nothing can forge a snapshot", async () => {
-        const format = await import("../../format");
-
+    it("carries neither the brand nor the format version, so nothing can forge a snapshot", () => {
         assert.notInclude(Object.keys(format), "SNAPSHOT_BRAND");
         assert.notInclude(Object.keys(format), "FORMAT_VERSION");
     });
 
-    it("carries nothing of the construction or wire halves", async () => {
-        const exported = Object.keys(await import("../../format"));
+    it("carries nothing of the construction or wire halves", () => {
+        const exported = Object.keys(format);
 
         for (const name of ["GraphBuilder", "AttributeTable", "NodeIdMap", "fromRecords", "fromWire", "fromBytes"]) {
             assert.notInclude(exported, name);
@@ -270,9 +321,32 @@ describe("the ./format entry point", () => {
     });
 });
 
+describe("the ./commands entry point", () => {
+    it("publishes the vocabulary as data that survives JSON, and a guard that reads it", async () => {
+        const commands = await import("../../commands");
+
+        assert.isAbove(Object.keys(commands.COMMANDS).length, 0);
+        assert.deepEqual(JSON.parse(JSON.stringify(commands.COMMANDS)), commands.COMMANDS);
+        assert.isTrue(commands.isSessionCommand({ op: "algo.run", algorithm: "degree" }));
+        assert.isFalse(commands.isSessionCommand({ op: "no.such-op" }));
+        assert.isFalse(commands.isSessionCommand(null));
+        assert.isFalse(commands.isSessionCommand({ op: "toString" }));
+    });
+
+    it("is the vocabulary of the session: every op is undoable or exempt with a reason", async () => {
+        const { COMMANDS } = await import("../../commands");
+
+        for (const [op, meta] of Object.entries(COMMANDS) as [string, { undo: string; reason?: string }][]) {
+            assert.include(["undoable", "exempt"], meta.undo, op);
+            if (meta.undo === "exempt") {
+                assert.isNotEmpty(meta.reason, op);
+            }
+        }
+    });
+});
+
 describe("the data entry points carry data, not objects", () => {
-    it("publishes the catalogue tables, and every one of them survives JSON", async () => {
-        const catalog = await import("../../catalog");
+    it("publishes the catalogue tables, and every one of them survives JSON", () => {
         const tables = [
             catalog.BUILT_IN_ALGORITHMS,
             catalog.LAYOUT_DESCRIPTORS,
@@ -287,11 +361,11 @@ describe("the data entry points carry data, not objects", () => {
         }
     });
 
-    it("publishes the palettes, shapes and style defaults an application would otherwise copy", async () => {
-        const schema = await import("../../schema");
-
+    it("publishes the palettes, shapes and style defaults an application would otherwise copy", () => {
         assert.isAbove(schema.VIRIDIS_COLORS.length, 0);
         assert.isAbove(Object.keys(schema.NodeShapes).length, 0);
+        assert.include(schema.EdgeLineTypes.options, "dash-dot");
+        assert.include(schema.EdgeArrowTypes.options, "open-diamond");
         assert.typeOf(schema.defaultNodeStyle, "object");
         assert.match(schema.MISSING_DATA_COLOR, /^#[0-9a-f]{6}$/i);
     });

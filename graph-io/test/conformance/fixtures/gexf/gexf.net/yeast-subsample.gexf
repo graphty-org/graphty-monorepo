@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://gexf.net/1.3 http://gexf.net/1.3/gexf.xsd"
+    version="1.3">
+    <graph mode="static" defaultedgetype="undirected">
+        <nodes><node id="4941" label="YBR236C"/>
+<node id="4942" label="YOR151C"/>
+<node id="4943" label="YML010W"/>
+<node id="4944" label="YNR016C"/>
+<node id="4945" label="YLR386W"/>
+<node id="4946" label="YDL047W"/>
+<node id="4947" label="YJR064W"/>
+<node id="4948" label="YAR015W"/>
+<node id="4949" label="YNL220W"/>
+<node id="4950" label="YLR359W"/>
+<node id="4951" label="YOR361C"/>
+<node id="4952" label="YMR300C"/>
+<node id="4953" label="YMR235C"/>
+<node id="4954" label="YAL012W"/>
+<node id="4955" label="YGL234W"/>
+<node id="4956" label="YGR061C"/>
+<node id="4957" label="YDR226W"/>
+<node id="4958" label="YJR105W"/>
+<node id="4959" label="YBR059C"/>
+<node id="4960" label="YPR180W"/>
+<node id="4961" label="YLR249W"/>
+<node id="4962" label="YDR390C"/>
+<node id="4963" label="YOL086C"/>
+<node id="4964" label="YLR127C"/>
+<node id="4965" label="YNL172W"/>
+<node id="4966" label="YBL084C"/>
+<node id="4967" label="YHR166C"/>
+<node id="4968" label="YKL022C"/>
+<node id="4969" label="YBR151W"/>
+<node id="4970" label="YBR128C"/>
+<node id="4971" label="YDL185W"/>
+<node id="4972" label="YPL120W"/>
+<node id="4973" label="YKL135C"/>
+<node id="4974" label="YHL019C"/>
+<node id="4975" label="YPL259C"/>
+<node id="4976" label="YLR170C"/>
+<node id="4977" label="YBR084W"/>
+<node id="4978" label="YPR029C"/>
+<node id="4979" label="YPR010C"/>
+<node id="4980" label="YBL037W"/>
+<node id="4981" label="YOL062C"/>
+<node id="4982" label="YJR058C"/>
+<node id="4983" label="YJR005W"/>
+<node id="4984" label="YPL195W"/>
+<node id="4985" label="YBR288C"/>
+<node id="4986" label="YGL019W"/>
+<node id="4987" label="YJL024C"/>
+<node id="4988" label="YGR261C"/>
+<node id="4989" label="YHR174W"/>
+<node id="4990" label="YDR441C"/>
+<node id="4991" label="YBR149W"/>
+<node id="4992" label="YIL062C"/>
+<node id="4993" label="YJR065C"/>
+<node id="4994" label="YNR035C"/>
+<node id="4995" label="YKL013C"/>
+<node id="4996" label="YLR370C"/>
+<node id="4997" label="YDL029W"/>
+<node id="4998" label="YGR240C"/>
+<node id="4999" label="YBR234C"/>
+<node id="5000" label="YHR013C"/>
+<node id="5001" label="YGR090W"/>
+<node id="5002" label="YDL040C"/>
+<node id="5003" label="YHR023W"/>
+<node id="5004" label="YMR116C"/>
+<node id="5005" label="YGR254W"/>
+<node id="5006" label="YDL137W"/>
+<node id="5007" label="YBR164C"/>
+<node id="5008" label="YDR127W"/>
+<node id="5009" label="YPL235W"/>
+<node id="5010" label="YOR136W"/>
+<node id="5011" label="YKL104C"/>
+<node id="5012" label="YMR186W"/>
+<node id="5013" label="YDR427W"/>
+<node id="5014" label="YGR234W"/>
+<node id="5015" label="YGL048C"/>
+<node id="5016" label="YJL008C"/>
+<node id="5017" label="YBR249C"/>
+<node id="5018" label="YNR053C"/>
+<node id="5019" label="YJL115W"/>
+<node id="5020" label="YIL070C"/>
+<node id="5021" label="YGR180C"/>
+<node id="5022" label="YJL026W"/>
+<node id="5023" label="YPL153C"/>
+<node id="5024" label="YJR140C"/>
+<node id="5025" label="YNR007C"/>
+<node id="5026" label="YJR148W"/>
+<node id="5027" label="YHR208W"/>
+<node id="5028" label="YDL070W"/>
+<node id="5029" label="YLR399C"/>
+<node id="5030" label="YBR200W"/>
+<node id="5031" label="YER114C"/>
+<node id="5032" label="YAL041W"/>
+<node id="5033" label="YKR068C"/>
+<node id="5034" label="YLR342W"/>
+<node id="5035" label="YDR407C"/>
+<node id="5036" label="YGR166W"/>
+<node id="5037" label="YOR115C"/>
+<node id="5038" label="YDR472W"/>
+<node id="5039" label="YML077W"/>
+<node id="5040" label="YDR246W"/>
+<node id="5041" label="YDR108W"/>
+<node id="5042" label="YBR254C"/>
+<node id="5043" label="YMR218C"/>
+<node id="5044" label="YJL031C"/>
+<node id="5045" label="YPR176C"/>
+<node id="5046" label="YER016W"/>
+<node id="5047" label="YDR099W"/>
+<node id="5048" label="YNL267W"/>
+<node id="5049" label="YBR001C"/>
+<node id="5050" label="YDR001C"/>
+<node id="5051" label="YER177W"/>
+<node id="5052" label="YAL017W"/>
+<node id="5053" label="YGL252C"/>
+<node id="5054" label="YBL085W"/>
+<node id="5055" label="YAR014C"/>
+<node id="5056" label="YGR285C"/>
+<node id="5057" label="YHR064C"/>
+<node id="5058" label="YER155C"/>
+<node id="5059" label="YKL092C"/>
+<node id="5060" label="YLR074C"/>
+<node id="5061" label="YNL002C"/>
+<node id="5062" label="YPL093W"/>
+<node id="5063" label="YHR197W"/>
+<node id="5064" label="YHR085W"/>
+<node id="5065" label="YNL182C"/>
+<node id="5066" label="YPR016C"/>
+<node id="5067" label="YKL009W"/>
+<node id="5068" label="YLR106C"/>
+<node id="5069" label="YCR072C"/>
+<node id="5070" label="YDR101C"/>
+<node id="5071" label="YNL110C"/>
+<node id="5072" label="YER126C"/>
+<node id="5073" label="YHR052W"/>
+<node id="5074" label="YGR245C"/>
+<node id="5075" label="YKR081C"/>
+<node id="5076" label="YER006W"/>
+<node id="5077" label="YDL051W"/>
+<node id="5078" label="YGR103W"/>
+<node id="5079" label="YKL007W"/>
+<node id="5080" label="YER071C"/>
+<node id="5081" label="YIR003W"/>
+<node id="5082" label="YIL034C"/>
+<node id="5083" label="YPL111W"/>
+<node id="5084" label="YPL160W"/>
+<node id="5085" label="YLR438W"/>
+<node id="5086" label="YPL178W"/>
+<node id="5087" label="YNL189W"/>
+<node id="5088" label="YDR432W"/>
+<node id="5089" label="YIL061C"/>
+<node id="5090" label="YDL087C"/></nodes>
+        <edges><edge id="13188" source="4941" target="4941"/>
+<edge id="13189" source="4941" target="4942"/>
+<edge id="13190" source="4941" target="4943"/>
+<edge id="13203" source="4944" target="4944"/>
+<edge id="13204" source="4944" target="4945"/>
+<edge id="13205" source="4944" target="4946"/>
+<edge id="13206" source="4944" target="4947"/>
+<edge id="13212" source="4945" target="5089"/>
+<edge id="13215" source="4946" target="4946"/>
+<edge id="13216" source="4946" target="4958"/>
+<edge id="13217" source="4946" target="4997"/>
+<edge id="13218" source="4946" target="5022"/>
+<edge id="13219" source="4946" target="5058"/>
+<edge id="13220" source="4946" target="5089"/>
+<edge id="13254" source="4947" target="4997"/>
+<edge id="13267" source="4948" target="4948"/>
+<edge id="13268" source="4949" target="4949"/>
+<edge id="13269" source="4950" target="4950"/>
+<edge id="13270" source="4950" target="4951"/>
+<edge id="13273" source="4951" target="4951"/>
+<edge id="13274" source="4951" target="4996"/>
+<edge id="13275" source="4951" target="5004"/>
+<edge id="13276" source="4951" target="5066"/>
+<edge id="13288" source="4952" target="4952"/>
+<edge id="13289" source="4952" target="4953"/>
+<edge id="13290" source="4952" target="4954"/>
+<edge id="13292" source="4953" target="4953"/>
+<edge id="13293" source="4953" target="5083"/>
+<edge id="13299" source="4954" target="4954"/>
+<edge id="13302" source="4955" target="4955"/>
+<edge id="13309" source="4956" target="4956"/>
+<edge id="13311" source="4957" target="4957"/>
+<edge id="13318" source="4958" target="4958"/>
+<edge id="13321" source="4959" target="4959"/>
+<edge id="13325" source="4960" target="4960"/>
+<edge id="13326" source="4960" target="4961"/>
+<edge id="13327" source="4960" target="4962"/>
+<edge id="13328" source="4960" target="4963"/>
+<edge id="13337" source="4962" target="4962"/>
+<edge id="13356" source="4964" target="4964"/>
+<edge id="13357" source="4964" target="4965"/>
+<edge id="13358" source="4964" target="4966"/>
+<edge id="13359" source="4964" target="4967"/>
+<edge id="13360" source="4964" target="4968"/>
+<edge id="13370" source="4969" target="4969"/>
+<edge id="13371" source="4970" target="4971"/>
+<edge id="13372" source="4970" target="4972"/>
+<edge id="13398" source="4973" target="4973"/>
+<edge id="13399" source="4973" target="4974"/>
+<edge id="13400" source="4973" target="4975"/>
+<edge id="13401" source="4973" target="4976"/>
+<edge id="13402" source="4973" target="4977"/>
+<edge id="13403" source="4973" target="4978"/>
+<edge id="13404" source="4973" target="4979"/>
+<edge id="13405" source="4975" target="4978"/>
+<edge id="13406" source="4975" target="5062"/>
+<edge id="13407" source="4975" target="5066"/>
+<edge id="13408" source="4975" target="5073"/>
+<edge id="13424" source="4977" target="5000"/>
+<edge id="13425" source="4977" target="5056"/>
+<edge id="13436" source="4979" target="5066"/>
+<edge id="13452" source="4980" target="4980"/>
+<edge id="13453" source="4980" target="4981"/>
+<edge id="13454" source="4980" target="4982"/>
+<edge id="13455" source="4980" target="4983"/>
+<edge id="13457" source="4984" target="4984"/>
+<edge id="13458" source="4984" target="4985"/>
+<edge id="13459" source="4984" target="4986"/>
+<edge id="13460" source="4984" target="4987"/>
+<edge id="13461" source="4984" target="4988"/>
+<edge id="13462" source="4985" target="4985"/>
+<edge id="13463" source="4985" target="4988"/>
+<edge id="13465" source="4986" target="5001"/>
+<edge id="13482" source="4988" target="4988"/>
+<edge id="13483" source="4988" target="4989"/>
+<edge id="13491" source="4990" target="4990"/>
+<edge id="13492" source="4991" target="4991"/>
+<edge id="13494" source="4992" target="4992"/>
+<edge id="13495" source="4992" target="4993"/>
+<edge id="13496" source="4992" target="4994"/>
+<edge id="13497" source="4992" target="4995"/>
+<edge id="13498" source="4992" target="4996"/>
+<edge id="13499" source="4992" target="4997"/>
+<edge id="13500" source="4992" target="4999"/>
+<edge id="13501" source="4993" target="4993"/>
+<edge id="13502" source="4993" target="4994"/>
+<edge id="13503" source="4993" target="4995"/>
+<edge id="13504" source="4993" target="4996"/>
+<edge id="13505" source="4993" target="4997"/>
+<edge id="13506" source="4993" target="4999"/>
+<edge id="13507" source="4993" target="5018"/>
+<edge id="13509" source="4994" target="4994"/>
+<edge id="13510" source="4994" target="4995"/>
+<edge id="13511" source="4994" target="4996"/>
+<edge id="13512" source="4994" target="4997"/>
+<edge id="13513" source="4994" target="4999"/>
+<edge id="13516" source="4995" target="4996"/>
+<edge id="13517" source="4995" target="4997"/>
+<edge id="13518" source="4995" target="4999"/>
+<edge id="13519" source="4996" target="4996"/>
+<edge id="13520" source="4996" target="4997"/>
+<edge id="13521" source="4996" target="4998"/>
+<edge id="13522" source="4996" target="4999"/>
+<edge id="13523" source="4997" target="4997"/>
+<edge id="13524" source="4997" target="4999"/>
+<edge id="13525" source="4997" target="5011"/>
+<edge id="13526" source="4997" target="5016"/>
+<edge id="13558" source="4998" target="5008"/>
+<edge id="13577" source="4999" target="4999"/>
+<edge id="13578" source="4999" target="5057"/>
+<edge id="13584" source="5000" target="5001"/>
+<edge id="13585" source="5000" target="5002"/>
+<edge id="13586" source="5000" target="5003"/>
+<edge id="13587" source="5000" target="5004"/>
+<edge id="13588" source="5000" target="5005"/>
+<edge id="13589" source="5001" target="5001"/>
+<edge id="13590" source="5001" target="5004"/>
+<edge id="13591" source="5001" target="5023"/>
+<edge id="13638" source="5002" target="5002"/>
+<edge id="13639" source="5002" target="5004"/>
+<edge id="13642" source="5003" target="5003"/>
+<edge id="13649" source="5004" target="5055"/>
+<edge id="13650" source="5004" target="5056"/>
+<edge id="13665" source="5005" target="5005"/>
+<edge id="13668" source="5006" target="5006"/>
+<edge id="13673" source="5007" target="5007"/>
+<edge id="13674" source="5008" target="5008"/>
+<edge id="13675" source="5008" target="5009"/>
+<edge id="13676" source="5008" target="5010"/>
+<edge id="13677" source="5008" target="5011"/>
+<edge id="13678" source="5008" target="5012"/>
+<edge id="13679" source="5008" target="5013"/>
+<edge id="13680" source="5008" target="5014"/>
+<edge id="13681" source="5008" target="5015"/>
+<edge id="13682" source="5008" target="5016"/>
+<edge id="13691" source="5009" target="5042"/>
+<edge id="13719" source="5011" target="5083"/>
+<edge id="13779" source="5017" target="5017"/>
+<edge id="13782" source="5018" target="5060"/>
+<edge id="13783" source="5018" target="5066"/>
+<edge id="13784" source="5018" target="5072"/>
+<edge id="13785" source="5018" target="5074"/>
+<edge id="13786" source="5018" target="5075"/>
+<edge id="13788" source="5019" target="5019"/>
+<edge id="13789" source="5019" target="5020"/>
+<edge id="13790" source="5019" target="5021"/>
+<edge id="13791" source="5019" target="5022"/>
+<edge id="13792" source="5019" target="5023"/>
+<edge id="13793" source="5019" target="5024"/>
+<edge id="13794" source="5020" target="5060"/>
+<edge id="13795" source="5020" target="5078"/>
+<edge id="13796" source="5020" target="5089"/>
+<edge id="13817" source="5023" target="5087"/>
+<edge id="13835" source="5025" target="5025"/>
+<edge id="13837" source="5026" target="5026"/>
+<edge id="13838" source="5026" target="5027"/>
+<edge id="13841" source="5028" target="5029"/>
+<edge id="13843" source="5030" target="5030"/>
+<edge id="13844" source="5030" target="5031"/>
+<edge id="13845" source="5030" target="5032"/>
+<edge id="13846" source="5031" target="5032"/>
+<edge id="13847" source="5031" target="5051"/>
+<edge id="13848" source="5032" target="5032"/>
+<edge id="13851" source="5033" target="5033"/>
+<edge id="13852" source="5033" target="5034"/>
+<edge id="13853" source="5033" target="5035"/>
+<edge id="13854" source="5033" target="5036"/>
+<edge id="13855" source="5033" target="5037"/>
+<edge id="13856" source="5033" target="5038"/>
+<edge id="13857" source="5033" target="5039"/>
+<edge id="13858" source="5033" target="5040"/>
+<edge id="13859" source="5033" target="5041"/>
+<edge id="13860" source="5033" target="5042"/>
+<edge id="13861" source="5033" target="5043"/>
+<edge id="13862" source="5034" target="5042"/>
+<edge id="13872" source="5035" target="5042"/>
+<edge id="13874" source="5036" target="5042"/>
+<edge id="13875" source="5037" target="5042"/>
+<edge id="13876" source="5038" target="5042"/>
+<edge id="13877" source="5039" target="5042"/>
+<edge id="13878" source="5040" target="5042"/>
+<edge id="13879" source="5041" target="5042"/>
+<edge id="13880" source="5042" target="5042"/>
+<edge id="13881" source="5042" target="5043"/>
+<edge id="13884" source="5044" target="5044"/>
+<edge id="13885" source="5044" target="5045"/>
+<edge id="13886" source="5046" target="5046"/>
+<edge id="13887" source="5047" target="5047"/>
+<edge id="13888" source="5047" target="5048"/>
+<edge id="13889" source="5047" target="5049"/>
+<edge id="13890" source="5047" target="5050"/>
+<edge id="13891" source="5047" target="5051"/>
+<edge id="13892" source="5047" target="5052"/>
+<edge id="13893" source="5047" target="5053"/>
+<edge id="13896" source="5050" target="5051"/>
+<edge id="13911" source="5052" target="5052"/>
+<edge id="13917" source="5054" target="5054"/>
+<edge id="13919" source="5055" target="5055"/>
+<edge id="13920" source="5055" target="5056"/>
+<edge id="13921" source="5055" target="5057"/>
+<edge id="13922" source="5055" target="5058"/>
+<edge id="13925" source="5056" target="5056"/>
+<edge id="13926" source="5056" target="5057"/>
+<edge id="13950" source="5059" target="5059"/>
+<edge id="13951" source="5060" target="5060"/>
+<edge id="13952" source="5060" target="5061"/>
+<edge id="13953" source="5060" target="5062"/>
+<edge id="13954" source="5060" target="5063"/>
+<edge id="13955" source="5060" target="5064"/>
+<edge id="13956" source="5060" target="5065"/>
+<edge id="13957" source="5060" target="5066"/>
+<edge id="13958" source="5060" target="5067"/>
+<edge id="13959" source="5060" target="5068"/>
+<edge id="13960" source="5060" target="5069"/>
+<edge id="13961" source="5060" target="5070"/>
+<edge id="13962" source="5060" target="5071"/>
+<edge id="13963" source="5060" target="5072"/>
+<edge id="13964" source="5060" target="5073"/>
+<edge id="13965" source="5060" target="5074"/>
+<edge id="13966" source="5060" target="5075"/>
+<edge id="13967" source="5060" target="5076"/>
+<edge id="13968" source="5060" target="5077"/>
+<edge id="13969" source="5060" target="5078"/>
+<edge id="13970" source="5060" target="5081"/>
+<edge id="14004" source="5061" target="5066"/>
+<edge id="14005" source="5061" target="5071"/>
+<edge id="14006" source="5061" target="5072"/>
+<edge id="14007" source="5061" target="5074"/>
+<edge id="14008" source="5061" target="5075"/>
+<edge id="14014" source="5062" target="5066"/>
+<edge id="14015" source="5062" target="5071"/>
+<edge id="14016" source="5062" target="5072"/>
+<edge id="14017" source="5062" target="5074"/>
+<edge id="14018" source="5062" target="5075"/>
+<edge id="14029" source="5063" target="5065"/>
+<edge id="14030" source="5063" target="5066"/>
+<edge id="14031" source="5063" target="5069"/>
+<edge id="14032" source="5063" target="5071"/>
+<edge id="14033" source="5063" target="5072"/>
+<edge id="14034" source="5063" target="5074"/>
+<edge id="14035" source="5063" target="5075"/>
+<edge id="14042" source="5065" target="5066"/>
+<edge id="14043" source="5065" target="5069"/>
+<edge id="14044" source="5065" target="5071"/>
+<edge id="14045" source="5065" target="5074"/>
+<edge id="14049" source="5066" target="5066"/>
+<edge id="14050" source="5066" target="5067"/>
+<edge id="14051" source="5066" target="5071"/>
+<edge id="14052" source="5066" target="5072"/>
+<edge id="14053" source="5066" target="5074"/>
+<edge id="14054" source="5066" target="5075"/>
+<edge id="14055" source="5066" target="5077"/>
+<edge id="14056" source="5066" target="5078"/>
+<edge id="14088" source="5067" target="5072"/>
+<edge id="14092" source="5068" target="5068"/>
+<edge id="14093" source="5068" target="5069"/>
+<edge id="14094" source="5068" target="5071"/>
+<edge id="14095" source="5068" target="5074"/>
+<edge id="14102" source="5069" target="5069"/>
+<edge id="14103" source="5069" target="5072"/>
+<edge id="14104" source="5069" target="5074"/>
+<edge id="14105" source="5070" target="5071"/>
+<edge id="14106" source="5070" target="5072"/>
+<edge id="14107" source="5070" target="5074"/>
+<edge id="14108" source="5070" target="5075"/>
+<edge id="14117" source="5071" target="5071"/>
+<edge id="14118" source="5071" target="5072"/>
+<edge id="14119" source="5071" target="5073"/>
+<edge id="14120" source="5071" target="5074"/>
+<edge id="14121" source="5071" target="5075"/>
+<edge id="14122" source="5071" target="5076"/>
+<edge id="14123" source="5071" target="5078"/>
+<edge id="14139" source="5072" target="5072"/>
+<edge id="14140" source="5072" target="5074"/>
+<edge id="14141" source="5072" target="5075"/>
+<edge id="14142" source="5072" target="5076"/>
+<edge id="14148" source="5073" target="5075"/>
+<edge id="14172" source="5074" target="5074"/>
+<edge id="14173" source="5074" target="5075"/>
+<edge id="14174" source="5074" target="5076"/>
+<edge id="14175" source="5074" target="5078"/>
+<edge id="14178" source="5075" target="5076"/>
+<edge id="14179" source="5075" target="5078"/>
+<edge id="14212" source="5076" target="5078"/>
+<edge id="14232" source="5078" target="5087"/>
+<edge id="14259" source="5079" target="5079"/>
+<edge id="14260" source="5079" target="5080"/>
+<edge id="14261" source="5079" target="5081"/>
+<edge id="14262" source="5079" target="5082"/>
+<edge id="14264" source="5082" target="5082"/>
+<edge id="14266" source="5083" target="5083"/>
+<edge id="14267" source="5083" target="5084"/>
+<edge id="14274" source="5085" target="5085"/>
+<edge id="14289" source="5086" target="5086"/>
+<edge id="14290" source="5086" target="5087"/>
+<edge id="14291" source="5086" target="5088"/>
+<edge id="14292" source="5086" target="5089"/>
+<edge id="14293" source="5086" target="5090"/>
+<edge id="14306" source="5087" target="5089"/>
+<edge id="14370" source="5089" target="5089"/>
+<edge id="14371" source="5089" target="5090"/>
+<edge id="14395" source="5090" target="5090"/></edges>
+    </graph>
+</gexf>

@@ -1,0 +1,212 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": -2.25,
+   "rank": 2147483647,
+   "flag": false,
+   "id": 0
+  },
+  {
+   "score": 56.584855,
+   "tag": "😀",
+   "id": 1
+  },
+  {
+   "score": 1e+300,
+   "tag": "café",
+   "id": 2
+  },
+  {
+   "score": 1e-07,
+   "rank": -7,
+   "tag": "plain",
+   "id": 3
+  },
+  {
+   "score": 83.908644,
+   "rank": -2147483648,
+   "tag": "say \"hi\"",
+   "id": 4
+  },
+  {
+   "score": 2.0,
+   "rank": 1,
+   "tag": "plain",
+   "id": 5
+  },
+  {
+   "score": 1e-300,
+   "tag": "say \"hi\"",
+   "id": 6
+  },
+  {
+   "score": 6.805025,
+   "rank": -2147483648,
+   "flag": false,
+   "id": 7
+  },
+  {
+   "score": 0.5,
+   "rank": -2147483648,
+   "tag": "two words",
+   "id": 8
+  },
+  {
+   "score": -43.397376,
+   "flag": true,
+   "id": 9
+  },
+  {
+   "score": -56.040881,
+   "rank": -2147483648,
+   "tag": "a&b",
+   "flag": false,
+   "id": 10
+  },
+  {
+   "score": 82.951029,
+   "rank": 1,
+   "tag": "say \"hi\"",
+   "id": 11
+  }
+ ],
+ "links": [
+  {
+   "weight": 4.8819,
+   "rel": "<tag>",
+   "cap": 798,
+   "source": 0,
+   "target": 11
+  },
+  {
+   "rel": "back\\slash",
+   "source": 0,
+   "target": 2
+  },
+  {
+   "weight": 8.042,
+   "rel": "line\nbreak",
+   "cap": 450,
+   "source": 0,
+   "target": 10
+  },
+  {
+   "weight": 0.2483,
+   "source": 0,
+   "target": 5
+  },
+  {
+   "weight": 8.4088,
+   "rel": "tab\there",
+   "source": 0,
+   "target": 6
+  },
+  {
+   "weight": 8.2091,
+   "cap": 271,
+   "source": 1,
+   "target": 2
+  },
+  {
+   "source": 1,
+   "target": 3
+  },
+  {
+   "rel": "<tag>",
+   "source": 1,
+   "target": 11
+  },
+  {
+   "weight": 0.4572,
+   "rel": "line\nbreak",
+   "source": 1,
+   "target": 8
+  },
+  {
+   "weight": -2.25,
+   "rel": "<tag>",
+   "cap": 561,
+   "source": 1,
+   "target": 9
+  },
+  {
+   "weight": 4.5599,
+   "source": 2,
+   "target": 3
+  },
+  {
+   "weight": 8.2249,
+   "rel": "line\nbreak",
+   "source": 2,
+   "target": 4
+  },
+  {
+   "weight": -0.0,
+   "rel": "a&b",
+   "source": 2,
+   "target": 9
+  },
+  {
+   "weight": 0.0634,
+   "cap": 821,
+   "source": 3,
+   "target": 4
+  },
+  {
+   "weight": 8.0903,
+   "source": 3,
+   "target": 5
+  },
+  {
+   "weight": -2.25,
+   "source": 3,
+   "target": 6
+  },
+  {
+   "weight": 2.9826,
+   "rel": "😀",
+   "source": 4,
+   "target": 5
+  },
+  {
+   "weight": 3.7917,
+   "source": 4,
+   "target": 6
+  },
+  {
+   "weight": 5.0834,
+   "source": 5,
+   "target": 6
+  },
+  {
+   "weight": 3,
+   "source": 5,
+   "target": 9
+  },
+  {
+   "rel": "tab\there",
+   "source": 5,
+   "target": 7
+  },
+  {
+   "rel": " nbsp",
+   "source": 7,
+   "target": 8
+  },
+  {
+   "weight": 5.1869,
+   "rel": "back\\slash",
+   "source": 8,
+   "target": 10
+  },
+  {
+   "weight": -0.0,
+   "cap": 154,
+   "source": 10,
+   "target": 11
+  }
+ ]
+}

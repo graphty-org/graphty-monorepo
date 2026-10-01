@@ -7,12 +7,15 @@ import {
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
     OPTION_IGNORED_CODE,
     SINK_OPTION_CODE,
     SYNTAX_CODE,
+    UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import {
     GRAPHICS_CONFLICT_CODE,
@@ -42,6 +45,8 @@ import {
     REPEATED_KEY_CODE,
     ROLE_TAKEN_CODE,
     SECOND_GRAPH_CODE,
+    STRING_ID_CODE,
+    UNKNOWN_ENTITY_CODE,
 } from "./importer.js";
 
 export { gmlExporter, type GmlExportOptions } from "./exporter.js";
@@ -57,18 +62,26 @@ export const GML_ISSUE = Object.freeze({
     SYNTAX: SYNTAX_CODE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** No `graph [` block (fatal). */
     NO_GRAPH: NO_GRAPH_CODE,
     /** More than one `graph` block (fatal). */
-    SECOND_GRAPH: SECOND_GRAPH_CODE,
+    MULTIPLE_GRAPHS: SECOND_GRAPH_CODE,
     /** A node without an `id`. */
     MISSING_ID: MISSING_ID_CODE,
     /** A node without a `label` under nodeIdFrom "label". */
     MISSING_LABEL: MISSING_LABEL_CODE,
     /** An edge without `source` or `target`. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
-    /** A node id, source or target that is not an integer. */
+    /** A node id, source or target that is neither an integer nor a string. */
     ID_TYPE: ID_TYPE_CODE,
+    /** String node ids, sources or targets (outside the spec's integers), kept under the ids rule; warned once. */
+    STRING_ID: STRING_ID_CODE,
     /** A node id declared twice (later keys overwrite). */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** A structural key repeated in one element. */
@@ -79,6 +92,8 @@ export const GML_ISSUE = Object.freeze({
     FLAG_TYPE: FLAG_TYPE_CODE,
     /** A `directed` / `multigraph` flag outside 0 / 1, or repeated. */
     FLAG_VALUE: FLAG_VALUE_CODE,
+    /** A named entity in a string that no table decodes; kept as written. */
+    UNKNOWN_ENTITY: UNKNOWN_ENTITY_CODE,
     /** An integer beyond 2^53 rounded to f64. */
     PRECISION: PRECISION_CODE,
     /** A column renamed `<name>#<key>` because the sink held the name with another shape. */

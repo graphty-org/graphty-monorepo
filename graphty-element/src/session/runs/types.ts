@@ -16,7 +16,19 @@
  * run was started from, which arrives with the command union.
  */
 
-import type { AlgorithmKey, EdgeId, FieldDescriptor, LayerId, NodeId, ResultShape, RunId, Scope } from "../../catalog/types";
+import type {
+    AlgorithmKey,
+    EdgeId,
+    EdgeReading,
+    FieldDescriptor,
+    LayerId,
+    NodeId,
+    ResultShape,
+    RunId,
+    Scope,
+    ScopeInput,
+    SetId,
+} from "../../catalog/types";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";
@@ -61,14 +73,22 @@ export function isRunId(value: unknown): value is RunId {
  * "canceled" and "failed" are separate because a consumer treats them differently: a cancel is
  * something a person did and needs no apology, a failure is something the consumer has to
  * report. A time-boxed run that stopped early is neither -- it SUCCEEDS with `partial` set.
+ *
+ * "removed" is a finished run that undo has taken out of the project, or that `runs.remove`
+ * took away: its handle reports no result until a redo brings the run back.
  */
-export const RUN_STATUSES = ["queued", "running", "succeeded", "failed", "canceled"] as const;
+export const RUN_STATUSES = ["queued", "running", "succeeded", "failed", "canceled", "removed"] as const;
 
 /** Where a run is in its life. */
 export type RunStatus = (typeof RUN_STATUSES)[number];
 
 /** The statuses a run never leaves once it reaches them. */
-export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = Object.freeze(["succeeded", "failed", "canceled"]);
+export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = Object.freeze([
+    "succeeded",
+    "failed",
+    "canceled",
+    "removed",
+]);
 
 /**
  * Tell whether a value is one of the run statuses.
@@ -89,14 +109,15 @@ export function isTerminalRunStatus(status: RunStatus): boolean {
 }
 
 /**
- * The four moments a watcher is told about.
+ * The moments a watcher is told about: the four of a run's own life, and the two of history.
  *
  * Coarser than {@link RunStatus} on purpose: a status bar draws the same thing for a run that
  * failed and one that was cancelled -- it stops showing progress and reads the record -- so the
  * distinction belongs in the record the notification carries rather than in the notification's
- * own name.
+ * own name. "removed" and "restored" are an undo, a redo or a restore taking a finished run out
+ * of the project and putting it back; nothing was computed for either.
  */
-export const RUN_PHASES = ["queued", "start", "progress", "end"] as const;
+export const RUN_PHASES = ["queued", "start", "progress", "end", "removed", "restored"] as const;
 
 /** Which moment in a run's life a notification is about. */
 export type RunPhase = (typeof RUN_PHASES)[number];
@@ -113,6 +134,13 @@ export interface RunChange {
     readonly run: RunRecord;
     /** Which moment this is. */
     readonly phase: RunPhase;
+    /** What moved it: a command for the run's own life, or an undo, a redo or a restore. */
+    readonly cause: "command" | "undo" | "redo" | "restore" | "rollback";
+    /**
+     * How many times this run id has been executed, so a watcher keyed on the id can tell an old
+     * execution's `end` from a new one's.
+     */
+    readonly generation: number;
 }
 
 /**
@@ -231,15 +259,19 @@ export interface Caveats {
  * meantime.
  */
 export interface ResolvedScope {
-    /** The nodes in scope. */
+    /** The nodes in scope. Lazy: built on the first read, then the same set on every read. */
     readonly nodes: ReadonlySet<NodeId>;
-    /** The edges in scope. */
+    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
     readonly edges: ReadonlySet<EdgeId>;
     /** How many nodes are in scope. */
     readonly nodeCount: number;
     /** How many edges are in scope. */
     readonly edgeCount: number;
-    /** Equal digests mean equal scopes, which is how staleness is derived rather than tracked. */
+    /**
+     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
+     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
+     * on first read.
+     */
     readonly digest: string;
     /** What was asked for, before it was resolved. */
     readonly spec: Scope;
@@ -257,7 +289,22 @@ export interface RunScopeRecord {
     readonly edges: number;
     /** The digest the staleness comparison reads. */
     readonly digest: string;
+    /**
+     * The kept set a `{ set }` scope named, and its revision when the run resolved it, so a reader
+     * can tell whether the set has been redefined since. Absent for every other scope.
+     */
+    readonly set?: {
+        /** The kept set's id. */
+        readonly id: SetId;
+        /** The set's revision when the run resolved it. */
+        readonly revision: string;
+    };
+    /** Which edges came with the scope's nodes. OPEN UNION, as {@link EdgeReading}. */
+    readonly reading?: EdgeReading;
 }
+
+/** What a run records about the set its scope named, beside the resolution. */
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {
@@ -322,8 +369,11 @@ export interface RunOptions {
  * saved document that referenced one would resolve differently against a different session.
  */
 export interface StartOptions extends RunOptions {
-    /** What the run may look at. Defaults to the visible graph. */
-    readonly scope?: Scope;
+    /**
+     * What the run may look at. Defaults to the visible graph. An inline `{ define }` may name
+     * edges by session edge id; the run records their stable form.
+     */
+    readonly scope?: ScopeInput;
     /** The seed for a randomised or sampled method, so a run can be reproduced. */
     readonly seed?: number;
     /**
@@ -345,6 +395,11 @@ export interface StartOptions extends RunOptions {
     readonly exact?: boolean;
     /** Ask for the approximate method at a chosen sample size. */
     readonly sample?: number;
+    /**
+     * Also apply the layers the run suggests, on top of the stack, in the same step as the run,
+     * so one undo takes the run and those layers away together.
+     */
+    readonly applySuggestedStyles?: boolean;
 }
 
 /**
@@ -370,8 +425,8 @@ export interface RunSpec {
     readonly algorithm: AlgorithmKey;
     /** Its parameters. */
     readonly params?: Readonly<Record<string, unknown>>;
-    /** What it may look at. */
-    readonly scope?: Scope;
+    /** What it may look at, as {@link StartOptions.scope}. */
+    readonly scope?: ScopeInput;
     /** The seed for a randomised or sampled method. */
     readonly seed?: number;
     /** The id to give the run. */
@@ -524,10 +579,18 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly shape: ResultShape;
     /** What qualifies the numbers. */
     readonly caveats: Caveats;
-    /** The result, once there is one. Awaiting the run is the other way to get it. */
-    readonly result?: T;
-    /** Why it failed, when it failed. */
-    readonly error?: GraphtyError;
+    /**
+     * The result, once there is one. Awaiting the run is the other way to get it. Undefined
+     * again once undo has taken the run out of the project (`status` "removed"); a redo brings the
+     * same result object back.
+     *
+     * Spelled `?: T | undefined` rather than `?: T` because the implementation answers with a
+     * getter, and under a consumer's `exactOptionalPropertyTypes` a getter that can return
+     * undefined does not satisfy a property that can only be absent or present.
+     */
+    readonly result?: T | undefined;
+    /** Why it failed, when it failed. Optional-or-undefined for the reason {@link Run.result} gives. */
+    readonly error?: GraphtyError | undefined;
     /** The frozen, structured-cloneable snapshot of everything above. */
     readonly record: RunRecord;
     /** The journal entry this run's command wrote, or null until it lands. */
@@ -545,7 +608,8 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      *
      * The new run keeps the SAME id, so every style layer, legend and saved reference bound to
      * it survives. That is what "re-run from a layer" needs, and it is why a binding never
-     * dangles after a re-run.
+     * dangles after a re-run. The last result stays readable until the new one is recorded, and
+     * undoing the re-run puts the previous result back without computing it again.
      * @returns The run, which is this one restarted rather than a second entry.
      */
     rerun(): Run<T>;
@@ -606,10 +670,17 @@ export interface RunRemoval {
 export interface RunsApi {
     /**
      * Start one algorithm.
+     *
+     * The scope is resolved when the call is made, and again when the work starts: a set it names
+     * that is redefined while the run waits in the queue is run over as redefined, and the run
+     * records the revision it used (`record.scope.set.revision`).
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
      * @returns The run, which is awaitable and watchable straight away.
+     * @throws `E_SCOPE_EMPTY` when a scope other than `"graph"` or `"visible"` holds no nodes (a
+     * run that finds it empty only when its work starts fails with the same code);
+     * `E_BAD_COMMAND` for a malformed scope or a set id never issued.
      */
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     /**

@@ -1,10 +1,23 @@
- 
 import { ActionManager, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config/common";
 import { Graph } from "../../src/Graph";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+
+/**
+ * Record every command the graph's session dispatches from here on.
+ * @param graph - The graph.
+ * @returns The commands, as they arrive.
+ */
+function watchDispatches(graph: Graph): Readonly<Record<string, unknown>>[] {
+    const seen: Readonly<Record<string, unknown>>[] = [];
+    dispatcherOf(graph.getSession()).events.dispatched = (command) => {
+        seen.push(command as unknown as Readonly<Record<string, unknown>>);
+    };
+    return seen;
+}
 
 describe("Node Behavior Tests", () => {
     let graph: Graph;
@@ -37,6 +50,8 @@ describe("Node Behavior Tests", () => {
 
         // Simulate drag start
         node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
+        // A drop pins what the pointer PLACED, so the drag moves the node.
+        node.dragHandler?.onDragUpdate(new Vector3(1, 0, 0));
         assert.equal(node.dragging, true);
 
         // Simulate drag end
@@ -56,14 +71,15 @@ describe("Node Behavior Tests", () => {
         assert.isDefined(node);
         assert.isDefined(node.dragHandler);
 
-        // Mock graph methods to avoid errors
-        const setRunningSpy = vi.spyOn(graph, "setRunning").mockImplementation(() => undefined);
         const pinSpy = vi.spyOn(node, "pin").mockImplementation(() => undefined);
+        graph.getLayoutManager().running = false;
 
-        // Test drag start
+        // Test drag start: a stopped (not paused) layout runs again so neighbours respond
         node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
+        // A drop pins what the pointer PLACED, so the drag moves the node.
+        node.dragHandler?.onDragUpdate(new Vector3(1, 0, 0));
         assert.equal(node.dragging, true);
-        assert.isTrue(setRunningSpy.mock.calls.some((call) => call[0]));
+        assert.isTrue(graph.isRunning());
 
         // Test drag end
         node.dragHandler?.onDragEnd();
@@ -71,6 +87,24 @@ describe("Node Behavior Tests", () => {
 
         // Node should call pin() method by default
         assert.equal(pinSpy.mock.calls.length, 1);
+    });
+
+    test("a drag while the consumer has paused the layout leaves it paused", () => {
+        const dataManager = graph.getDataManager();
+        dataManager.addNode({ id: "held", label: "Held" } as unknown as AdHocData);
+        const node = dataManager.getNode("held");
+        assert.isDefined(node);
+        vi.spyOn(node, "pin").mockImplementation(() => undefined);
+
+        graph.setRunning(false);
+
+        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
+        assert.isFalse(graph.isRunning(), "picking a node up does not resume the layout");
+        node.dragHandler?.onDragEnd();
+        assert.isFalse(graph.isRunning(), "and neither does dropping it");
+
+        graph.setRunning(true);
+        assert.isTrue(graph.isRunning());
     });
 
     test("position changed during drag updates layout engine", () => {
@@ -83,11 +117,18 @@ describe("Node Behavior Tests", () => {
 
         // Mock layout manager
         const layoutManager = graph.getLayoutManager();
+        // The add's derivation pass places the newcomer and strict state checks the engine's
+        // edges, both through this stand-in.
         vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
             setNodePosition: vi.fn(),
+            updatePositions: vi.fn(),
+            publishPositions: vi.fn(),
+            edgeProblems: () => [],
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as { setNodePosition: (node: unknown, position: unknown) => void };
+        const spyTarget = mockLayoutEngine as unknown as {
+            setNodePosition: (node: unknown, position: unknown) => void;
+        };
         const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
 
         // Start dragging
@@ -114,11 +155,18 @@ describe("Node Behavior Tests", () => {
 
         // Mock layout manager
         const layoutManager = graph.getLayoutManager();
+        // The add's derivation pass places the newcomer and strict state checks the engine's
+        // edges, both through this stand-in.
         vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
             setNodePosition: vi.fn(),
+            updatePositions: vi.fn(),
+            publishPositions: vi.fn(),
+            edgeProblems: () => [],
         } as any);
         const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as { setNodePosition: (node: unknown, position: unknown) => void };
+        const spyTarget = mockLayoutEngine as unknown as {
+            setNodePosition: (node: unknown, position: unknown) => void;
+        };
         const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
 
         // Simulate position change without dragging (node.dragging should be false)
@@ -152,9 +200,7 @@ describe("Node Behavior Tests", () => {
         const node = dataManager.getNode("test-node-5");
         assert.isDefined(node);
 
-        // Mock dataManager methods
-        const addNodesSpy = vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        const addEdgesSpy = vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
+        const dispatched = watchDispatches(graph);
 
         assert.isDefined(node.mesh.actionManager);
 
@@ -186,9 +232,11 @@ describe("Node Behavior Tests", () => {
         assert.isTrue(nodeIds.has("node3"));
         assert.isFalse(nodeIds.has("test-node-5")); // Should exclude current node
 
-        // Verify data manager methods were called
-        assert.equal(addNodesSpy.mock.calls.length, 1);
-        assert.equal(addEdgesSpy.mock.calls.length, 1);
+        // What was fetched is added as one step
+        assert.deepEqual(
+            dispatched.map((command) => command.op),
+            ["data.expand"],
+        );
     });
 
     test("double-click expansion reads the endpoints a canonical fetchEdges returns", () => {
@@ -215,8 +263,7 @@ describe("Node Behavior Tests", () => {
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);
 
-        const addNodesSpy = vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        const addEdgesSpy = vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
+        const dispatched = watchDispatches(graph);
 
         const { actions } = node.mesh.actionManager ?? { actions: [] };
         const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
@@ -232,13 +279,13 @@ describe("Node Behavior Tests", () => {
 
         const nodeIds = fetchNodes.mock.calls[0][0];
         assert.deepStrictEqual([...nodeIds].sort(), ["node2", "node3"], "the handler found the neighbours to fetch");
-        assert.equal(addNodesSpy.mock.calls.length, 1);
-        assert.equal(addEdgesSpy.mock.calls.length, 1);
 
-        // The spelling the handler resolved is passed on, so `addEdges` reads the same columns
-        // rather than probing the batch a second time and possibly answering differently.
-        assert.deepStrictEqual(addEdgesSpy.mock.calls[0][1], {
-            repeated: "first",
+        // The spelling the handler resolved is passed on, so the edges are read by the same columns
+        // rather than probed a second time and possibly answered differently.
+        assert.lengthOf(dispatched, 1);
+        assert.deepInclude(dispatched[0], {
+            op: "data.expand",
+            seed: "test-node-7",
             source: "source",
             target: "target",
         });

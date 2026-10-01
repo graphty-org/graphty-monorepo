@@ -1,7 +1,6 @@
-import { connectedComponents } from "@graphty/algorithms";
-
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -12,11 +11,13 @@ import {
 } from "./results";
 
 /**
- *
+ * Connected components: the separate pieces of the graph, or of the run's scope.
  */
 export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "connected-components";
+    /** Groups over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the separate pieces of the graph.
@@ -28,28 +29,27 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
      * @returns The community result, or null when there are no nodes to group.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const nodeIds = Array.from(this.graph.getDataManager().nodes.keys());
+        // The nodes of the run's input: its scope's, so a member with no edge in the scope is a
+        // piece of its own.
+        const nodeIds = scopeNodeIds(this.input("undirected"));
 
         if (nodeIds.length === 0) {
             return null;
         }
 
         // Undirected: a component is reached across an edge whichever way the record declared it.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, run } = this.accelerated("connectedComponents", "undirected");
+        const { ids } = snapshot;
 
         context.report({ phase: "Finding pieces", total: null });
-        const components = connectedComponents(graphData);
-
-        const groupOf = new Map<number | string, number>();
-        for (let index = 0; index < components.length; index++) {
-            for (const nodeId of components[index]) {
-                groupOf.set(nodeId, index);
-            }
-        }
+        const { value, precision } = await run((dispatch, s) => dispatch.connectedComponents(s));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: groupOf.get(nodeId) ?? 0 } });
+            // `labels` is one dense label per node row, so the group a node is in is a lookup
+            // rather than a search through a list of components.
+            const index = ids.indexOf(nodeId);
+            nodes.push({ id: nodeId, values: { group: value.labels[index] ?? 0 } });
         });
 
         return {
@@ -60,6 +60,7 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
                 method: "connected-components",
                 direction: "undirected",
                 weight: null,
+                precision,
                 notes: ["Strength: weak. An edge joins its two nodes whichever way it was declared."],
             }),
         };

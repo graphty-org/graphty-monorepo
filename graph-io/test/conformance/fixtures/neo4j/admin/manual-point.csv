@@ -1,0 +1,4 @@
+:ID,name,location:point{crs:WGS-84}
+city01,"Malmö","{latitude:55.6121514, longitude:12.9950357}"
+city02,"London","{y:51.507222, x:-0.1275}"
+city03,"San Mateo","{latitude:37.554167, longitude:-122.313056, height: 100, crs:'WGS-84-3D'}"

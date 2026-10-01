@@ -332,7 +332,9 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
-     * Increments on every topology or weight mutation; column writes and freeze() do not count.
+     * Increments on every change that makes the next freeze() differ (topology, weights, cell and
+     * column writes, declarations, graph values, meta, extension tables, record and graph merges);
+     * freeze() itself does not count.
      * @returns the count
      */
     get mutationCount(): number {
@@ -770,7 +772,8 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
-     * Live edges u -> v (undirected: either orientation), from the incidence lists.
+     * Live edges u -> v (undirected: either orientation), from the incidence lists of whichever
+     * endpoint has fewer (O(min degree)).
      * @param u - source index; E_INDEX_RANGE when out of range
      * @param v - target index; E_INDEX_RANGE when out of range
      * @returns a fresh ascending array of live edge indices
@@ -779,21 +782,7 @@ export class GraphBuilder implements GraphBuilderContract {
         this.check();
         this.checkNodeIndex(u);
         this.checkNodeIndex(v);
-        const { staging } = this;
-        const found: number[] = [];
-        for (let e = staging.firstOut.get(u); e !== INVALID_INDEX; e = staging.nextOut.get(e)) {
-            if (staging.edgeAlive.get(e) && staging.dst.get(e) === v) {
-                found.push(e);
-            }
-        }
-        if (!this.directedValue && u !== v) {
-            for (let e = staging.firstIn.get(u); e !== INVALID_INDEX; e = staging.nextIn.get(e)) {
-                if (staging.edgeAlive.get(e) && staging.src.get(e) === v) {
-                    found.push(e);
-                }
-            }
-        }
-        return Uint32Array.from(found).sort();
+        return this.staging.edgesBetween(u, v, this.directedValue);
     }
 
     // ---------------------------------------------------------------- attributes
@@ -930,6 +919,7 @@ export class GraphBuilder implements GraphBuilderContract {
             buildGraphColumn(name, value, patch);
         }
         this.graphValues.set(name, { decl: patch, value });
+        this.mutated();
     }
 
     /**
@@ -940,6 +930,7 @@ export class GraphBuilder implements GraphBuilderContract {
     setMeta(meta: GraphMetaPatch): void {
         this.check();
         this.metaValue = resolveGraphMeta(this.metaValue, meta);
+        this.mutated();
     }
 
     /**
@@ -967,6 +958,7 @@ export class GraphBuilder implements GraphBuilderContract {
             columns.push(column);
         }
         staging.extensions.push({ name, columns, rowCount: 0 });
+        this.mutated();
         return (staging.extensions.length - 1) as ExtensionHandle;
     }
 
@@ -996,6 +988,7 @@ export class GraphBuilder implements GraphBuilderContract {
             target.columns[i].write(row, checked[i]);
         }
         target.rowCount = row + 1;
+        this.mutated();
         return row;
     }
 
@@ -1180,6 +1173,8 @@ export class GraphBuilder implements GraphBuilderContract {
         for (const [name, table] of snapshot.extensions) {
             this.appendExtension(name, table, refs);
         }
+        // attribute merges onto existing nodes change the next freeze without adding anything
+        this.mutated();
     }
 
     // ---------------------------------------------------------------- output and lifecycle
@@ -1629,6 +1624,7 @@ export class GraphBuilder implements GraphBuilderContract {
             return existing as ColumnHandle;
         }
         const columns = this.columnsOf(domain);
+        this.mutated();
         return this.pushColumn(columns, new StagingColumn(meta, false)) as ColumnHandle;
     }
 
@@ -1882,6 +1878,7 @@ export class GraphBuilder implements GraphBuilderContract {
         if (widened !== null) {
             this.widenings.push({ column: target.meta.name, domain, from: widened.from, to: widened.to });
         }
+        this.mutated();
     }
 
     /**
@@ -1915,6 +1912,7 @@ export class GraphBuilder implements GraphBuilderContract {
         } else {
             this.pushColumn(columns, column);
         }
+        this.mutated();
     }
 
     private extensionOf(handle: ExtensionHandle): ExtensionStaging {

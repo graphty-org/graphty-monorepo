@@ -1,0 +1,12 @@
+% header comment
+*Vertices 3
+  % indented comment in vertices
+1 "a"
+2 "b"
+	% tab comment
+3 "c"
+*Arcs
+1 2 1.5
+% mid comment
+2 3 -0.25
+3 1 1e-3

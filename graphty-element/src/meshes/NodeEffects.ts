@@ -162,13 +162,16 @@ export class NodeEffects {
      * must not pay for it, so the only call site is the `effect.glow` branch of
      * {@link NodeEffects.applyGlowEffect}; the removal branch deliberately does NOT create one.
      *
+     * DISPOSED AGAIN WHEN NOTHING GLOWS, by {@link NodeEffects.syncGlowStrengths}. The inclusion
+     * list alone never says so: `node.glow` is a mesh channel, so a node that stops glowing moves
+     * to another source mesh and the old glowing source stays listed with no instances. The next
+     * glow recreates the layer through this method.
+     *
      * `excludeByDefault: true` is a safety catch, not a tuning knob. Babylon's inclusion list
      * means "only these" when it is non-empty and "no opinion" -- i.e. EVERY mesh in the scene --
-     * when it is empty (ThinGlowLayer.hasMesh). An empty list is not reachable today, because the
-     * layer is only created at the moment a mesh is added to it and membership is keyed by the
-     * shared source mesh (see resolveRenderedMesh), but "the whole graph blooms" is a bad enough
-     * failure to be worth one option: with this set, `_internalShouldRender` returns false while
-     * the list is empty, so an emptied layer renders nothing at all.
+     * when it is empty (ThinGlowLayer.hasMesh). With this set, `_internalShouldRender` returns
+     * false while the list is empty, so an emptied layer renders nothing rather than blooming
+     * the whole graph.
      * @param scene - The Babylon.js scene
      * @returns The glow layer for the scene
      */
@@ -199,6 +202,16 @@ export class NodeEffects {
         scene.metadata.glowLayer = glowLayer;
         scene.metadata.glowColors = glowColors;
 
+        // Strengths are re-shared every frame, not only when a glow is applied: a node that
+        // moves to another source mesh (a strength edit) leaves the old one with no instances,
+        // and no call here tells the layer. The map holds one entry per glowing style.
+        const syncObserver = scene.onBeforeRenderObservable.add(() => {
+            this.syncGlowStrengths(glowLayer, scene);
+        });
+        glowLayer.onDisposeObservable.addOnce(() => {
+            scene.onBeforeRenderObservable.remove(syncObserver);
+        });
+
         return glowLayer;
     }
 
@@ -222,10 +235,9 @@ export class NodeEffects {
      * material. Unfreezing to set `emissiveColor` would make every glowing style pay a material
      * re-bind per frame and would change the node's lit appearance as a side effect.
      *
-     * KNOWN LIMIT, stated rather than hidden: `intensity` is a property of the LAYER, not of a
-     * mesh, so with two glowing styles on screen the last one applied sets the strength for both.
-     * Colour is per style (see {@link NodeEffects.resolveRenderedMesh}). Per-style strength needs
-     * one layer per strength, which costs a full-screen pass each and was not worth it here.
+     * STRENGTH IS PER SOURCE MESH, like colour, through {@link NodeEffects.syncGlowStrengths}.
+     * It used to be written to `glowLayer.intensity`, which belongs to the one layer the scene
+     * shares, so the last glowing style applied set the strength of every glowing node.
      * @param mesh - The mesh to apply the effect to
      * @param effect - The effect configuration from the node style
      */
@@ -238,7 +250,7 @@ export class NodeEffects {
             const colorValue = this.extractColorValue(effect.glow.color);
             const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
             glowColors?.set(renderedMesh.uniqueId, Color3.FromHexString(colorValue ?? DEFAULT_GLOW_COLOR));
-            glowLayer.intensity = effect.glow.strength ?? 1;
+            this.glowStrengths(scene).set(renderedMesh, effect.glow.strength ?? 1);
 
             // Same defence as the outline path: the inclusion list is keyed by uniqueId and the
             // call is cheap, but a mesh in an unexpected state must not take down a repaint.
@@ -255,12 +267,74 @@ export class NodeEffects {
             if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
                 const glowColors = scene.metadata?.glowColors as Map<number, Color3> | undefined;
                 glowColors?.delete(renderedMesh.uniqueId);
+                this.glowStrengths(scene).delete(renderedMesh);
                 try {
                     existingLayer.removeIncludedOnlyMesh(renderedMesh);
                 } catch {
                     // Silently fail - mesh may not be in the layer
                 }
             }
+        }
+    }
+
+    /**
+     * The glow strength each glowing source mesh asked for, kept on scene.metadata beside the
+     * glow colours.
+     * @param scene - The Babylon.js scene
+     * @returns The per-source-mesh strengths
+     */
+    private static glowStrengths(scene: Scene): Map<Mesh, number> {
+        scene.metadata = scene.metadata ?? {};
+        scene.metadata.glowStrengths = scene.metadata.glowStrengths ?? new Map<Mesh, number>();
+
+        return scene.metadata.glowStrengths as Map<Mesh, number>;
+    }
+
+    /**
+     * Draw every glowing source mesh at its own strength, with one layer.
+     *
+     * Babylon multiplies a per-mesh `setEffectIntensity` into the glow colour as the glow map is
+     * drawn, and the layer's `intensity` scales the blurred result. The glow map is an 8-bit
+     * texture, so a per-mesh factor above 1 clamps and a strength of 3 would read the same as 1.
+     * So the layer carries the LARGEST strength on screen and each mesh carries its share of it,
+     * which is never above 1.
+     *
+     * Only source meshes that still draw a node count toward the largest strength. MeshCache
+     * never evicts a source mesh, so a strength that is no longer used (a slider dragged from 100
+     * back to 0.1) leaves a mesh with no instances behind; counted, it would hold the layer at 100
+     * and round the live glow away in the 8-bit map. It keeps its entry, because a node that goes
+     * back to that strength reuses the cached mesh. A disposed mesh is dropped.
+     *
+     * When no glowing source mesh draws a node any more, the layer is disposed: it is a
+     * full-screen post-process that would otherwise render nothing every frame for the life of
+     * the scene. Every node mesh is an instance, so a source with no instances draws nothing.
+     * @param glowLayer - The scene's glow layer
+     * @param scene - The Babylon.js scene
+     */
+    private static syncGlowStrengths(glowLayer: GlowLayer, scene: Scene): void {
+        const strengths = this.glowStrengths(scene);
+        let max = 0;
+        let anyDrawn = false;
+
+        for (const [mesh, strength] of strengths) {
+            if (mesh.isDisposed()) {
+                strengths.delete(mesh);
+            } else if (mesh.instances.length > 0) {
+                anyDrawn = true;
+                max = Math.max(max, strength);
+            }
+        }
+
+        if (!anyDrawn) {
+            this.disposeGlowLayer(scene);
+
+            return;
+        }
+
+        glowLayer.intensity = max;
+
+        for (const [mesh, strength] of strengths) {
+            glowLayer.setEffectIntensity(mesh, max > 0 ? strength / max : 0);
         }
     }
 
@@ -273,8 +347,8 @@ export class NodeEffects {
      * with one outline configuration -- and resolving to it here would take the outline away from
      * every sibling still on screen. That is the same reasoning `Node.dispose` records for glow,
      * and it has the same consequence: for an instanced node this removes nothing, the source is
-     * freed when `MeshCache` is cleared, and the layer's leftover uniqueId is inert because
-     * Babylon's uniqueIds are monotonic per scene and never reused.
+     * freed when `MeshCache` prunes or clears it, and the layer's leftover uniqueId is inert
+     * because Babylon's uniqueIds are monotonic per scene and never reused.
      * @param mesh - The mesh to remove from highlighting
      */
     static removeFromHighlight(mesh: AbstractMesh): void {
@@ -319,15 +393,13 @@ export class NodeEffects {
     }
 
     /**
-     * Dispose the glow layer for a scene, and forget the per-style colours with it.
+     * Dispose the glow layer for a scene, and forget the per-style colours and strengths with it.
      *
      * The colour map is keyed by mesh uniqueId, so it MUST die with the layer: leaving it behind
      * would let a later mesh that happens to reuse a uniqueId inherit a dead style's glow colour.
      *
-     * Sibling of {@link NodeEffects.disposeHighlightLayer} and, like it, currently called from
-     * nowhere in this package -- the scene outlives every dataset, so the layers are reused rather
-     * than rebuilt. It exists so that whoever tears a scene down has one call for each layer this
-     * class can create, instead of discovering the glow layer only by leaking it.
+     * Called by {@link NodeEffects.syncGlowStrengths} once no node glows; the next glow
+     * recreates the layer lazily.
      * @param scene - The Babylon.js scene
      */
     static disposeGlowLayer(scene: Scene): void {
@@ -339,6 +411,7 @@ export class NodeEffects {
         if (scene.metadata) {
             scene.metadata.glowLayer = undefined;
             scene.metadata.glowColors = undefined;
+            scene.metadata.glowStrengths = undefined;
         }
     }
 }

@@ -11,6 +11,7 @@ import {
     gateRun,
     MAX_COLUMN_LENGTH,
     resultBytes,
+    type ScopeCandidate,
 } from "../../../src/session/cost";
 import type { GraphStatistics } from "../../../src/session/types";
 
@@ -68,7 +69,11 @@ function descriptor(over: Partial<AlgorithmDescriptor> = {}): AlgorithmDescripto
 }
 
 /** The error behind a refusal, asserted to be one. */
-function refusal(decision: CostGateDecision): { code: string; details: Readonly<Record<string, unknown>>; message: string } {
+function refusal(decision: CostGateDecision): {
+    code: string;
+    details: Readonly<Record<string, unknown>>;
+    message: string;
+} {
     assert.equal(decision.kind, "refused");
     assert.isTrue(decision.kind === "refused" && isGraphtyError(decision.error));
     if (decision.kind !== "refused") {
@@ -100,8 +105,14 @@ describe("gateRun: at or below the cap", () => {
             statistics: statistics(),
         };
 
-        assert.equal(gateRun(input, { limits: { exactComputationSeconds: 10, runColumnBudgetBytes: 1e9 } }).kind, "exact");
-        assert.equal(gateRun(input, { limits: { exactComputationSeconds: 9.9, runColumnBudgetBytes: 1e9 } }).kind, "refused");
+        assert.equal(
+            gateRun(input, { limits: { exactComputationSeconds: 10, runColumnBudgetBytes: 1e9 } }).kind,
+            "exact",
+        );
+        assert.equal(
+            gateRun(input, { limits: { exactComputationSeconds: 9.9, runColumnBudgetBytes: 1e9 } }).kind,
+            "refused",
+        );
     });
 });
 
@@ -254,6 +265,76 @@ describe("gateRun: above the cap with no approximate method", () => {
         assert.isFalse(scopes[0].exact, "the edge count of a component is scaled, and must not read as counted");
     });
 
+    it("names the kept sets that fit, smallest first, after the largest connected piece", () => {
+        const kept = (id: string, nodes: number): ScopeCandidate => ({
+            scope: { set: id },
+            label: id,
+            nodes,
+            edges: nodes * 5,
+            derivationSeconds: 0.01,
+        });
+        const decision = gateRun(
+            {
+                algorithm: "betweenness",
+                descriptor: algorithmByKey("betweenness"),
+                statistics: statistics({
+                    ...BIG,
+                    components: {
+                        count: 2,
+                        sizes: [3000, 67000],
+                        largestSize: 3000,
+                        isolatedCount: 0,
+                        truncatedSizes: false,
+                        componentOf: () => 0,
+                    },
+                }),
+            },
+            { keptSets: () => [kept("set_whole", 60000), kept("set_mid", 2000), kept("set_small", 500)] },
+        );
+
+        const scopes = refusal(decision).details.scopes as readonly {
+            scope: unknown;
+            label: string;
+            seconds: number;
+            exact: boolean;
+        }[];
+        assert.deepStrictEqual(
+            scopes.map((entry) => entry.scope),
+            ["largest-component", { set: "set_small" }, { set: "set_mid" }],
+            "a set too large to fit is not offered",
+        );
+        assert.isTrue(scopes.every((entry) => entry.seconds <= DEFAULT_EXACT_COMPUTATION_CAP_SECONDS));
+        assert.isTrue(scopes[1].exact, "a kept set is counted, not scaled");
+        assert.strictEqual(scopes[1].label, "set_small");
+    });
+
+    it("offers no scope for an algorithm that computes on the whole graph whatever its scope", () => {
+        const decision = gateRun(
+            {
+                algorithm: "betweenness",
+                descriptor: { ...(algorithmByKey("betweenness") as AlgorithmDescriptor), scopeInput: "none" },
+                statistics: statistics({
+                    ...BIG,
+                    components: {
+                        count: 2,
+                        sizes: [3000, 67000],
+                        largestSize: 3000,
+                        isolatedCount: 0,
+                        truncatedSizes: false,
+                        componentOf: () => 0,
+                    },
+                }),
+            },
+            {
+                keptSets: () => [
+                    { scope: { set: "set_small" }, label: "small", nodes: 500, edges: 2500, derivationSeconds: 0.01 },
+                ],
+            },
+        );
+
+        assert.lengthOf(refusal(decision).details.scopes as readonly unknown[], 0);
+    });
+
     it("offers no scope when the graph is one piece, because there is no smaller one to name", () => {
         const decision = gateRun({
             algorithm: "betweenness",
@@ -310,6 +391,12 @@ describe("gateRun: the structural cases, which are not the cap", () => {
         const decision = gateRun({ algorithm: "acme:nope", statistics: statistics() });
 
         assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
+    });
+
+    it("reports a deprecated built-in name as E_UNSUPPORTED", () => {
+        const decision = gateRun({ algorithm: "all-paths", statistics: statistics() });
+
+        assert.equal(refusal(decision).code, "E_UNSUPPORTED");
     });
 
     it("reports a requirement this graph does not meet as E_UNSUPPORTED", () => {

@@ -131,10 +131,9 @@ describe("what the element can really draw", () => {
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
         assert.isDefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
-        // A glow's strength is drawn, and Babylon keeps the intensity on the glow LAYER, so two
-        // glowing styles on screen share whichever landed last. Said on the channel that has the
-        // limit rather than on its neighbour.
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
+        // A glow's strength is drawn per style (one source mesh per strength), so it carries no
+        // caveat: the old one said two glowing styles shared whichever strength landed last.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.patternCount"].caveat);
     });
 

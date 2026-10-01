@@ -23,7 +23,7 @@
  * painted from. One derivation, in the element, for every algorithm of that shape.
  */
 
-import { type LayerSpec, quotePath, resultPath, type RunId } from "@graphty/graphty-element/session";
+import { type LayerSpec, resultPath, type RunId } from "@graphty/graphty-element/session";
 
 /**
  * The template id every layer the 7.2 defaults add carries.
@@ -74,44 +74,36 @@ export const METRIC_VALUE_FIELD = "value";
  * 19.26:1, and the dark-panel ink this once set read at about 1.1:1 -- the glyph fill vanished
  * and what stayed legible was the alpha fringing round it (2026-09-13).
  *
- * The rule is `value >= cut`. It cannot count, and it cannot split a tie either, so the cut is
- * chosen for it by `labelCutFor` in loadDefaults.ts: inside 7.2's budget where a cut fits, and
- * the highest tie group whole where none does -- which is what gives a near-regular graph labels
- * at all. Everything about HOW MANY nodes end up labelled is decided there.
+ * WHICH NODES is graphty-element's decision, through a `{ match: "top" }` selector over the
+ * run's per-node value: the top `labelCount` nodes by degree, cut only between tie groups. A
+ * group of equal degrees is labelled whole, and only when all of it fits inside the budget, so
+ * the layer never labels more than the budget -- and labels none on a graph whose highest degree
+ * is shared by more nodes than the budget. `RunResult.top` says why when that happens. The shell
+ * used to walk the sorted degrees itself to pick a `value >= cut` threshold; that was graph
+ * computation in the app, and every other consumer would have had to rewrite it.
  *
- * The selector names the degree run, so a node the run never reached carries no value, reads
- * absent and is not painted -- rather than being compared against the cut and labelled because
- * `null >= 0` is true, which is what the expression this replaces had to guard by hand.
- * @param input - the run that measured the degrees, the cut, and the attribute to draw.
- * @param input.degreeRunId - the run whose per-node value the rule reads.
- * @param input.degreeThreshold - the cut from `labelCutFor`; a node is labelled at or above it.
+ * The selector names the degree run, so a node the run never reached carries no value and is
+ * never in the top.
+ * @param input - the run that measured the degrees, the label budget, and the attribute to draw.
+ * @param input.degreeRunId - the run whose per-node value the top is taken over.
+ * @param input.labelCount - the label budget: the most nodes the layer labels.
  * @param input.labelAttribute - the attribute path to draw as the label. Omitted draws the id.
  * @returns the top-degree label layer.
  */
 export function topDegreeLabelLayer(input: {
-    /** The run whose per-node measurement the rule reads. */
+    /** The run whose per-node measurement the top is taken over. */
     readonly degreeRunId: RunId;
-    /** The cut from `labelCutFor`: a node is labelled at or above this degree. */
-    readonly degreeThreshold: number;
+    /** The label budget: the most nodes the layer labels. */
+    readonly labelCount: number;
     /** The attribute path to draw as the label. Omitted draws `data.id`. */
     readonly labelAttribute?: string;
 }): LayerSpec {
-    // Built by the element rather than spelled here, and QUOTED because it is going into an
-    // expression: a run id carries its algorithm's name, and a hyphenated name -- "shortest-path"
-    // -- lexes its hyphen as arithmetic and gets the whole selector refused. Degree has no hyphen,
-    // so writing it by hand worked; the next metric to be wired up this way is where it would
-    // have stopped working, silently.
-    const valuePath = quotePath(resultPath(input.degreeRunId, METRIC_VALUE_FIELD));
-
     return {
         name: "Top degree labels",
         target: "node",
         kind: "custom",
         source: { by: "template", templateId: SHELL_DEFAULTS_TEMPLATE_ID },
-        selector: {
-            match: "expression",
-            where: `${valuePath} >= \`${String(input.degreeThreshold)}\``,
-        },
+        selector: { match: "top", path: resultPath(input.degreeRunId, METRIC_VALUE_FIELD), n: input.labelCount },
         encode: {
             "node.label": {
                 by: input.labelAttribute ?? DEFAULT_LABEL_ATTRIBUTE_PATH,

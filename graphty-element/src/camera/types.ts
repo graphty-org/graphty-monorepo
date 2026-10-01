@@ -59,8 +59,15 @@ export interface CameraState {
     // 3D Camera Properties
     position?: { x: number; y: number; z: number };
     target?: { x: number; y: number; z: number };
+    /**
+     * Orbit angles in Babylon's ArcRotate convention: `alpha` turns around the +y axis starting
+     * from +x, `beta` is measured down from +y (0 looks straight down, PI/2 is level). With
+     * `radius` they place the viewer at target + radius * (cos(alpha) sin(beta), cos(beta),
+     * sin(alpha) sin(beta)). Ignored when the state also gives `position` or `pivotRotation`.
+     */
     alpha?: number;
     beta?: number;
+    /** Distance from `target` for an orbit state given as `alpha` and `beta`. */
     radius?: number;
     fov?: number;
 

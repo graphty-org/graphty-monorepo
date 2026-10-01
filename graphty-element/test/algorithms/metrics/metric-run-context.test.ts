@@ -1,9 +1,10 @@
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
 import { detachedRunContext, METRIC_CHUNK_SIZE, walkInChunks } from "../../../src/algorithms/metrics/context";
 import type { MetricRunContext } from "../../../src/algorithms/metrics/types";
+import { YIELD_BUDGET_MS } from "../../../src/algorithms/results/types";
 import type { RunProgressReport } from "../../../src/session/runs";
 import { createMockGraph } from "../../helpers/mockGraph";
 
@@ -64,23 +65,63 @@ describe("walkInChunks", () => {
         assert.strictEqual(last.total, 2);
     });
 
-    it("gives the frame back between chunks", async () => {
-        const recording = recordingContext();
-        const items = Array.from({ length: METRIC_CHUNK_SIZE * 3 }, (unused, index) => index);
+    /* The two yield tests fake the clock: the yield is priced in TIME, not in chunks (issue
+       #389), because giving the frame back costs the host a whole frame, and a chunk that cost
+       microseconds used to be charged one anyway. */
+    it("gives the frame back between chunks once a frame's worth of work has built up", async () => {
+        vi.useFakeTimers({ toFake: ["performance"] });
+        try {
+            const recording = recordingContext();
+            const items = Array.from({ length: METRIC_CHUNK_SIZE * 3 }, (unused, index) => index);
 
-        await walkInChunks(items, recording.context, "counting", () => undefined);
+            // Every chunk costs a whole budget (charged on its last item, so the fake clock moves
+            // by whole milliseconds), so both boundaries with work still ahead yield.
+            await walkInChunks(items, recording.context, "counting", (unused, index) => {
+                if ((index + 1) % METRIC_CHUNK_SIZE === 0) {
+                    vi.advanceTimersByTime(YIELD_BUDGET_MS);
+                }
+            });
 
-        assert.strictEqual(recording.yields, 2, "two yields between three chunks");
-        assert.isAtLeast(recording.reports.length, 3);
+            assert.strictEqual(recording.yields, 2, "two yields between three chunks");
+            assert.isAtLeast(recording.reports.length, 3);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("does not give the frame back when the chunks cost less than a frame", async () => {
+        vi.useFakeTimers({ toFake: ["performance"] });
+        try {
+            const recording = recordingContext();
+            const items = Array.from({ length: METRIC_CHUNK_SIZE * 3 }, (unused, index) => index);
+
+            await walkInChunks(items, recording.context, "counting", () => undefined);
+
+            assert.strictEqual(recording.yields, 0);
+            assert.isAtLeast(recording.reports.length, 3, "progress is still reported between chunks");
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("does not give the frame back when there is nothing left to do", async () => {
-        const recording = recordingContext();
-        const items = Array.from({ length: METRIC_CHUNK_SIZE }, (unused, index) => index);
+        vi.useFakeTimers({ toFake: ["performance"] });
+        try {
+            const recording = recordingContext();
+            const items = Array.from({ length: METRIC_CHUNK_SIZE }, (unused, index) => index);
 
-        await walkInChunks(items, recording.context, "counting", () => undefined);
+            // The one chunk costs a whole budget, so the only thing keeping the frame is that the
+            // chunk boundary is the end of the list.
+            await walkInChunks(items, recording.context, "counting", (unused, index) => {
+                if (index + 1 === METRIC_CHUNK_SIZE) {
+                    vi.advanceTimersByTime(YIELD_BUDGET_MS);
+                }
+            });
 
-        assert.strictEqual(recording.yields, 0);
+            assert.strictEqual(recording.yields, 0);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("stops when the run is cancelled", async () => {

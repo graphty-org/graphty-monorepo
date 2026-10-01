@@ -47,7 +47,9 @@ import {
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_FALLBACK_CODE,
     ID_MERGED_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
     MULTIPLE_GRAPHS_CODE,
@@ -55,6 +57,7 @@ import {
     ROLE_TAKEN_CODE,
     SINK_OPTION_CODE,
     SYNTAX_CODE,
+    UNKNOWN_ENCODING_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
@@ -92,6 +95,11 @@ export interface DotImportOptions {
      * graph's direction, with a warning; "error" aborts the import as Graphviz does.
      */
     mismatchedEdgeOperator?: "operator" | "header" | "error" | undefined;
+    /**
+     * Map a node's `pos` to a `pos` column with the position role and a trailing `!` to `pin`
+     * (default true); false keeps `pos` as the text the file wrote, like any other attribute.
+     */
+    positions?: boolean | undefined;
 }
 
 /**
@@ -106,6 +114,12 @@ export const DOT_ISSUE = Object.freeze({
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input holds invalid UTF-8 (fatal). */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Subgraphs or braces nested deeper than the parser's limit; fatal. */
     NESTING: "E_DOT_NESTING",
     /** An edge operator contradicting the graph keyword (warning under "operator" / "header"). */
@@ -172,7 +186,11 @@ const CLUSTER_ATTRIBUTE = "cluster";
 const STATEMENTS_PER_ABORT_CHECK = 64;
 const MAX_ANCESTOR_WALK = 4096;
 
-const DOT_HEADER = /^\s*(strict\s+)?(di)?graph\b/i;
+/**
+ * The header keyword, ended by what may follow it in DOT: space, `{`, a quoted ID or a comment.
+ * A `[` after it is GML (`Graph [ ... ]`), which DOT never allows there.
+ */
+const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)(?!\s*\[)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
 const POINT_TEXT =
     /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;
@@ -264,21 +282,173 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const report = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, report, USED_OPTIONS);
         reportSinkOptions(sink, options, report);
-        const text = await readText(input, report, resolved);
-        const parser = new DotParser(text, sink, report, resolved, mismatch);
-        try {
-            parser.parse();
-        } catch (err) {
-            if (err instanceof DotSyntaxError) {
-                report.fail(SYNTAX_CODE, err.message, { line: err.line }, { line: err.line });
-            }
-            throw err;
+        const text = await readText(input, report, { ...resolved, declaredEncoding: dotCharset });
+        const reports = { current: report };
+        const lexer = dotLexer(text, reports);
+        const first = guard(report, () => lexer.next());
+        const trailing = parseGraph(
+            new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
+            report,
+            first,
+        );
+        if (trailing.kind !== "eof") {
+            const skipped = guard(report, () => countGraphs(lexer, trailing));
+            report.warning(
+                "unsupported",
+                MULTIPLE_GRAPHS_CODE,
+                `the input holds ${skipped} more graph(s) after the first; import() reads the first, importAll() reads every one`,
+                { line: trailing.line },
+            );
         }
         // an abort raised during the last few statements (after the last periodic check) still rejects
         throwIfAborted(resolved.signal);
         return report.finish();
     },
+
+    /**
+     * Read every graph of a DOT file (Graphviz renders each one), each into its own sink.
+     * @param input - the text, bytes or stream
+     * @param sinkFor - the sink of the graph with this index, called before its first push
+     * @param options - format-specific and common options
+     * @returns one report per graph; ImportError (E_IMPORT) on a syntax error anywhere
+     */
+    async importAll(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: DotImportOptions & CommonImportOptions,
+    ): Promise<ImportReport[]> {
+        const resolved = resolveImportOptions(options, {
+            ids: "canonical",
+            defaultDirected: true,
+            weightFrom: "weight",
+        });
+        const mismatch = mismatchOption(options?.mismatchedEdgeOperator);
+        const first = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
+        reportUnusedOptions(options, first, USED_OPTIONS);
+        const text = await readText(input, first, { ...resolved, declaredEncoding: dotCharset });
+        const reports = { current: first };
+        const lexer = dotLexer(text, reports);
+        const done: ImportReport[] = [];
+        let token = guard(first, () => lexer.next());
+        do {
+            const report = done.length === 0 ? first : new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
+            reports.current = report;
+            const sink = sinkFor(done.length);
+            reportSinkOptions(sink, options, report);
+            token = parseGraph(
+                new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
+                report,
+                token,
+            );
+            throwIfAborted(resolved.signal);
+            done.push(report.finish());
+        } while (token.kind !== "eof");
+        return done;
+    },
 });
+
+/**
+ * The tokenizer of one input; its badly-delimited-numeral warnings go to the report of the graph
+ * being read.
+ * @param text - the DOT text
+ * @param reports - holds the current graph's report
+ * @param reports.current - the report warnings are recorded in
+ * @returns the tokenizer
+ */
+function dotLexer(text: string, reports: { current: ImportReportBuilder }): DotTokenizer {
+    return new DotTokenizer(text, (numeral, line) => {
+        reports.current.warning(
+            "validation-error",
+            DOT_ISSUE.NUMERAL_AMBIGUITY,
+            `badly delimited number ${JSON.stringify(numeral)} splits into two tokens (Graphviz warns the same)`,
+            { line, element: numeral },
+        );
+    });
+}
+
+/**
+ * Run a step that may throw DotSyntaxError, turning it into the fatal E_SYNTAX issue.
+ * @param report - the report of the graph being read
+ * @param step - the step
+ * @returns the step's result
+ */
+function guard<T>(report: ImportReportBuilder, step: () => T): T {
+    try {
+        return step();
+    } catch (err) {
+        if (err instanceof DotSyntaxError) {
+            report.fail(SYNTAX_CODE, err.message, { line: err.line }, { line: err.line });
+        }
+        throw err;
+    }
+}
+
+/**
+ * Parse one graph.
+ * @param parser - the parser of this graph
+ * @param report - its report
+ * @param first - the graph's first token (already read)
+ * @returns the token after the graph's closing brace
+ */
+function parseGraph(parser: DotParser, report: ImportReportBuilder, first: DotToken): DotToken {
+    return guard(report, () => parser.parse(first));
+}
+
+/**
+ * Count the graphs that follow the first one without reading their statements: each must be
+ * `[strict] (graph | digraph) [ID] { ... }` with balanced braces, as Graphviz requires.
+ * @param lexer - the tokenizer, positioned after `first`
+ * @param first - the first token after the first graph
+ * @returns how many graphs follow; DotSyntaxError on anything else
+ */
+function countGraphs(lexer: DotTokenizer, first: DotToken): number {
+    let count = 0;
+    let token = first;
+    while (token.kind !== "eof") {
+        if (isKeyword(token, "strict")) {
+            token = lexer.next();
+        }
+        if (!isKeyword(token, "graph") && !isKeyword(token, "digraph")) {
+            throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
+        }
+        token = lexer.next();
+        if (token.kind === "id") {
+            token = lexer.next();
+        }
+        if (!isPunct(token, "{")) {
+            throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
+        }
+        for (let depth = 1; depth > 0; ) {
+            token = lexer.next();
+            if (token.kind === "eof") {
+                throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
+            }
+            if (isPunct(token, "{")) {
+                depth++;
+            } else if (isPunct(token, "}")) {
+                depth--;
+            }
+        }
+        count++;
+        token = lexer.next();
+    }
+    return count;
+}
+
+/** A `charset` attribute assignment (Graphviz's declaration of the input encoding). */
+const DOT_CHARSET = /\bcharset\s*=\s*"?([A-Za-z][A-Za-z0-9._-]*)/i;
+
+/**
+ * The encoding a DOT file declares with the graph attribute `charset` (Graphviz reads UTF-8,
+ * Latin1 and Big-5), for the shared byte decoder; Graphviz's spellings `latin-1` and `big-5` are
+ * mapped to the WHATWG labels.
+ * @param head - the start of the file, decoded as windows-1252
+ * @returns the declared label, or null
+ */
+function dotCharset(head: string): string | null {
+    const match = DOT_CHARSET.exec(head);
+    return match === null ? null : match[1].replace(/^(latin|big)-/i, "$1");
+}
 
 /**
  * Resolve the mismatchedEdgeOperator option.
@@ -391,6 +561,7 @@ class DotParser {
     private readonly options: ResolvedImportOptions;
 
     private readonly mismatch: "operator" | "header" | "error";
+    private readonly positions: boolean;
 
     private readonly ids: IdCoercer;
 
@@ -447,42 +618,40 @@ class DotParser {
     private readonly edgeWriters = new Map<string, TextCellWriter>();
 
     /**
-     * Create a parser over one document.
-     * @param text - the DOT text
+     * Create a parser for one graph of a document.
+     * @param lexer - the document's tokenizer, positioned at the graph
      * @param sink - the sink
      * @param report - the report
      * @param options - the resolved common options
      * @param mismatch - the resolved mismatchedEdgeOperator option
+     * @param positions - whether `pos` goes to the position column
      */
     constructor(
-        text: string,
+        lexer: DotTokenizer,
         sink: GraphSink,
         report: ImportReportBuilder,
         options: ResolvedImportOptions,
         mismatch: "operator" | "header" | "error",
+        positions: boolean,
     ) {
-        this.lexer = new DotTokenizer(text, (numeral, line) => {
-            report.warning(
-                "validation-error",
-                DOT_ISSUE.NUMERAL_AMBIGUITY,
-                `badly delimited number ${JSON.stringify(numeral)} splits into two tokens (Graphviz warns the same)`,
-                { line, element: numeral },
-            );
-        });
+        this.lexer = lexer;
         this.sink = sink;
         this.report = report;
         this.options = options;
         this.mismatch = mismatch;
+        this.positions = positions;
         this.ids = new IdCoercer(options.ids);
         this.resolver = new DirectionResolver(sink, report, options.onMixedDirection);
     }
 
     /**
-     * Parse the whole document: `[strict] (graph | digraph) [ID] { stmt_list }`.
+     * Parse one graph: `[strict] (graph | digraph) [ID] { stmt_list }`.
+     * @param first - the graph's first token (already read from the tokenizer)
+     * @returns the token after the closing brace (eof when the document ends there)
      */
-    parse(): void {
+    parse(first: DotToken): DotToken {
         const { lexer } = this;
-        let token = lexer.next();
+        let token = first;
         if (token.kind === "eof") {
             this.report.fail(EMPTY_INPUT_CODE, "the input holds no graph (empty or only comments)", {
                 line: token.line,
@@ -517,15 +686,7 @@ class DotParser {
         });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
-        const trailing = lexer.next();
-        if (trailing.kind !== "eof") {
-            this.report.warning(
-                "unsupported",
-                MULTIPLE_GRAPHS_CODE,
-                `content after the closing brace of the graph (${describeToken(trailing)}) was not read; one graph per input`,
-                { line: trailing.line },
-            );
-        }
+        return lexer.next();
     }
 
     /**
@@ -1271,7 +1432,7 @@ class DotParser {
         try {
             if (name === LABEL_ATTRIBUTE) {
                 this.sink.setNodeValue(this.nodeLabel(), index, value);
-            } else if (name === POS_ATTRIBUTE) {
+            } else if (name === POS_ATTRIBUTE && this.positions) {
                 this.setPosition(index, value, line, element);
             } else {
                 this.textWriter("node", name).write(index, value);

@@ -2,61 +2,8 @@
  * Kamada-Kawai layout algorithm optimization functions
  */
 
-import type { Graph } from "../../types";
-import { getEdgesFromGraph,getNodesFromGraph } from "../../utils/graph";
 import { _lbfgsDirection } from "./lbfgs";
 import { _backtrackingLineSearch } from "./line-search";
-import { DistanceMap } from "./types";
-
-/**
- * Compute all-pairs shortest path distances for the graph
- * @param G - NetworkX graph
- * @param weight - Edge attribute for weight
- * @returns Dictionary of dictionaries of shortest path distances
- */
-export function _computeShortestPathDistances(G: Graph, weight: string): DistanceMap {
-    const distances: DistanceMap = {};
-    const nodes = getNodesFromGraph(G);
-    const edges = getEdgesFromGraph(G);
-
-    // Initialize distances with direct edges
-    for (const node of nodes) {
-        distances[node] = {};
-        distances[node][node] = 0;
-
-        for (const other of nodes) {
-            if (node !== other) {
-                distances[node][other] = Infinity;
-            }
-        }
-    }
-
-    // Add direct edges
-    for (const [source, target] of edges) {
-        // In a real implementation, we would get the weight from the graph
-        // For now, assume weight = 1 or use weight attribute if available
-        let edgeWeight = 1;
-        if (G.getEdgeData) {
-            edgeWeight = G.getEdgeData(source, target, weight) || 1;
-        }
-
-        distances[source][target] = edgeWeight;
-        distances[target][source] = edgeWeight; // Assuming undirected graph
-    }
-
-    // Floyd-Warshall algorithm for all-pairs shortest paths
-    for (const k of nodes) {
-        for (const i of nodes) {
-            for (const j of nodes) {
-                if (distances[i][k] + distances[k][j] < distances[i][j]) {
-                    distances[i][j] = distances[i][k] + distances[k][j];
-                }
-            }
-        }
-    }
-
-    return distances;
-}
 
 /**
  * Solve the Kamada-Kawai layout optimization problem
@@ -70,8 +17,8 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
     const nNodes = positions.length;
     const meanWeight = 1e-3;
 
-    // Convert distances to inverse distances (with protection against division by zero)
-    const invDistMatrix = distMatrix.map((row) => row.map((d) => (d === 0 ? 0 : 1 / (d + 1e-3))));
+    // Inverse distances. networkx adds 1e-3 only on the diagonal, whose pairs never enter the cost.
+    const invDistMatrix = distMatrix.map((row) => row.map((d) => (d === 0 ? 0 : 1 / d)));
 
     // Flatten positions for optimization
     const posVec = positions.flat();
@@ -157,14 +104,15 @@ export function _kamadaKawaiSolve(distMatrix: number[][], positions: number[][],
 }
 
 /**
- * Cost function and gradient for Kamada-Kawai layout algorithm
+ * Cost function and gradient for Kamada-Kawai layout algorithm, as networkx's _kamada_kawai_costfn:
+ * the distance term sums over every ORDERED pair, so each unordered pair below counts twice.
  * @param posVec - Flattened position array
  * @param invDist - Inverse distance matrix
  * @param meanWeight - Weight for centering positions
  * @param dim - Dimension of layout
  * @returns Array with [cost, gradient]
  */
-function _kamadaKawaiCostfn(
+export function _kamadaKawaiCostfn(
     posVec: number[],
     invDist: number[][],
     meanWeight: number,
@@ -200,7 +148,7 @@ function _kamadaKawaiCostfn(
             // Add penalty for difference between actual and ideal distance
             const idealInvDist = invDist[i][j];
             const offset = distance * idealInvDist - 1.0;
-            cost += 0.5 * offset * offset;
+            cost += offset * offset;
         }
     }
 
@@ -227,7 +175,7 @@ function _kamadaKawaiCostfn(
             const offset = distance * idealInvDist - 1.0;
 
             for (let d = 0; d < dim; d++) {
-                const force = idealInvDist * offset * direction[d];
+                const force = 2 * idealInvDist * offset * direction[d];
                 (grad[i * dim + d] as number) += force;
                 (grad[j * dim + d] as number) -= force;
             }

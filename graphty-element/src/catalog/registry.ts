@@ -65,6 +65,14 @@ export interface RegisteredAlgorithm {
      */
     readonly cost?: (n: number, m: number) => number;
     /**
+     * A cost model in work units of the descriptor's cost class, read from `static costUnits`.
+     *
+     * The estimator divides it by this device's rate for that class, so calibration scales it.
+     * Wins over {@link cost} when both are present. `options` are the run's option values, the
+     * declared defaults filled in.
+     */
+    readonly costUnits?: (n: number, m: number, options: Readonly<Record<string, unknown>>) => number;
+    /**
      * The plugin's own version, read from `static version`.
      *
      * A saved run records the versions of the code that produced its numbers, and until this
@@ -127,6 +135,18 @@ export function publishAlgorithmDescriptor(entry: RegisteredAlgorithm, options?:
                 type: entry.type,
                 namespace: entry.namespace,
             },
+        });
+    }
+
+    // `results.<result>.runs` is reserved for naming one run under a result, so a field of that
+    // name would change meaning when it arrives (design/sets 15.3, item 36).
+    const runs = entry.descriptor.fields.find((field) => field.name === "runs");
+    if (runs !== undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `the algorithm "${entry.namespace}:${entry.type}" publishes a field named "runs", which is reserved. Name the field something else.`,
+            source: "registry",
+            details: { kind: "algorithm", field: "descriptor.fields", name: "runs", reason: "reserved-field" },
         });
     }
 

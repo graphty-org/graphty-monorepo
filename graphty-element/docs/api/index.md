@@ -6,7 +6,7 @@ Graphty provides two distinct APIs for different use cases.
 
 <div class="api-cards">
 
-### [Web Component API](/api/web-component)
+### [Web Component API](./web-component)
 
 **Declarative configuration via HTML attributes and element properties.**
 
@@ -27,11 +27,11 @@ Use this API when you want:
 </graphty-element>
 ```
 
-[View Web Component API →](/api/web-component)
+[View Web Component API →](./web-component)
 
 ---
 
-### [JavaScript API](/api/javascript)
+### [JavaScript API](./javascript)
 
 **Programmatic control via the `Graph` class.**
 
@@ -51,7 +51,7 @@ await graph.runAlgorithm("graphty", "degree");
 graph.zoomToFit();
 ```
 
-[View JavaScript API →](/api/javascript)
+[View JavaScript API →](./javascript)
 
 </div>
 
@@ -104,12 +104,13 @@ type Selector =
     | { match: "expression"; where: string }
     | { match: "has"; path: string }
     | { match: "ids"; nodes?: readonly string[]; edges?: readonly string[] }
+    | { match: "top"; path: string; n: number } // the top n by a run field; ties taken whole or not at all
     | { match: "everything" };
 ```
 
 A layer is addressed by the id the element mints for it, never by its index. The full vocabulary
 of channels, the expression language, and what `set` and `encode` each do are in the
-[styling guide](/guide/styling).
+[styling guide](../guide/styling).
 
 ## Generated TypeDoc Reference
 
@@ -117,27 +118,27 @@ For complete type definitions auto-generated from TypeScript source:
 
 **Web Component**
 
-- [Graphty Class](/api/generated/index/classes/Graphty.md)
+- [Graphty Class](./generated/index/classes/Graphty.md)
 
 **JavaScript API**
 
-- [Graph Class](/api/generated/index/classes/Graph.md)
-- [Node Class](/api/generated/index/classes/Node.md)
-- [Edge Class](/api/generated/index/classes/Edge.md)
+- [Graph Class](./generated/index/classes/Graph.md)
+- [Node Class](./generated/index/classes/Node.md)
+- [Edge Class](./generated/index/classes/Edge.md)
 
 **Configuration Types**
 
-- [Config Module](/api/generated/index/)
-- [Managers Module](/api/generated/index/)
+- [Config Module](./generated/index/)
+- [Managers Module](./generated/index/)
 
 **Extension Base Classes**
 
-- [LayoutEngine](/api/generated/index/classes/LayoutEngine.md)
-- [Algorithm](/api/generated/index/classes/Algorithm.md)
-- [DataSource](/api/generated/index/classes/DataSource.md)
+- [LayoutEngine](./generated/index/classes/LayoutEngine.md)
+- [Algorithm](./generated/index/classes/Algorithm.md)
+- [DataSource](./generated/index/classes/DataSource.md)
 
 ## Related Guides
 
-- [Getting Started](/guide/getting-started) - Quick introduction
-- [Web Component Guide](/guide/web-component) - Usage patterns for declarative API
-- [JavaScript API Guide](/guide/javascript-api) - Usage patterns for programmatic API
+- [Getting Started](../guide/getting-started) - Quick introduction
+- [Web Component Guide](../guide/web-component) - Usage patterns for declarative API
+- [JavaScript API Guide](../guide/javascript-api) - Usage patterns for programmatic API

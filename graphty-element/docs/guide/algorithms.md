@@ -45,6 +45,18 @@ grids need more passes; raise the param and run it again:
 await graph.runAlgorithm("graphty", "eigenvector", { algorithmOptions: { maxIterations: 5000 } });
 ```
 
+`closeness` is exact by default: one breadth-first search from every node, which grows with the
+square of the node count. On a big graph, sample it. `k` draws that many source nodes (the same
+ones every time for the same graph), and each node is then scored from its distances to those
+sources only. The result says so: `caveats.exact` is `false` and
+`caveats.sampleSize` is the number of sources run. A sampled score is the reciprocal of the summed
+distance to the sources, unscaled, so the ranking is the estimate; multiply by `k / n` for an
+estimate of the exact score.
+
+```typescript
+await graph.runAlgorithm("graphty", "closeness", { algorithmOptions: { k: 100 } });
+```
+
 ### Community Detection
 
 Find clusters of related nodes:
@@ -68,6 +80,9 @@ Find connected subgraphs:
 | `connected-components` | Find all connected components         |
 | `strongly-connected`   | Strong connectivity (directed graphs) |
 
+On an undirected graph every edge runs both ways, so `strongly-connected` finds the same pieces as
+`connected-components`.
+
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```
@@ -89,11 +104,12 @@ await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
 
 Find optimal paths between nodes:
 
-| Algorithm      | Description                 |
-| -------------- | --------------------------- |
-| `dijkstra`     | Shortest path (weighted)    |
-| `bellman-ford` | Handles negative weights    |
-| `a-star`       | Heuristic-based pathfinding |
+| Algorithm        | Description                 |
+| ---------------- | --------------------------- |
+| `dijkstra`       | Shortest path (weighted)    |
+| `bellman-ford`   | Handles negative weights    |
+| `a-star`         | Heuristic-based pathfinding |
+| `floyd-warshall` | Distance between every pair |
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
@@ -101,6 +117,15 @@ await graph.runAlgorithm("graphty", "dijkstra", {
     target: "node5",
 });
 ```
+
+`floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses
+a run over more than 5,792 nodes with a `GraphtyError` whose code is `E_TOO_LARGE` (the details
+carry `nodeCount` and `limit`) before any of the matrix is allocated; run it over a smaller scope.
+
+When the graph has a negative cycle no distance between two nodes is defined, so `floyd-warshall`
+publishes no node values and no `diameter` or `radius`: the result carries only
+`hasNegativeCycle: true`. It treats every edge as undirected, so a single edge with a negative
+weight is already a negative cycle -- cross it and come back.
 
 ### Spanning Tree
 
@@ -149,6 +174,50 @@ console.log(summary.max, summary.min, summary.top[0].id);
 The same values are published as columns under the run's id, which is what a style layer and a
 filter read: `results.<runId>.value`.
 
+## Running over part of the graph
+
+The `scope` option runs an algorithm over part of the graph -- a kept [set](./sets), the
+selection, or anything else a scope names -- and the run computes over that subgraph alone:
+
+```typescript
+const team = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c", "d"], reading: "induced" });
+
+const run = element.run("pagerank", {}, { scope: { set: team } });
+await run;
+
+console.log(run.caveats.notes); // ["Computed on the induced subgraph of 4 nodes."]
+console.log(run.record.scope.set); // the set's id, and its revision when the run read it
+```
+
+- **Only the scope's elements get values.** A node outside the scope has no value from the run,
+  so it is left out of the ranking, the summary and any layer painting the run.
+- **The caveat says what was computed on**, so the number can be reproduced: the induced subgraph
+  of N nodes, or the N nodes and M edges in scope when the scope lists its edges.
+- **A node option must be inside the scope.** Dijkstra's `source` naming a node outside it is
+  refused with `E_OPTION_RANGE`; with no `source` and `target`, a scoped run takes the scope's
+  first and last nodes.
+- **A registered algorithm that does not read scopes** runs over the whole graph, keeps only the
+  scope's values, and says so: "Computed on the whole graph; values kept for the scope only."
+  `session.catalog.algorithms()` publishes which is which as `scopeInput`.
+
+With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
+
+**A run's id names its result.** The element derives it from the algorithm, whether the run is
+exact or sampled, and the scope -- with `"visible"` and `"selection"` frozen to the filter and the
+selection in force when the run started. So the same call under another filter is another result,
+with its own id, and a layer painting the first result keeps painting what the first run read.
+Parameters and the seed are not part of the id: starting a result again with new ones re-runs that
+result in place, and every layer bound to it repaints from the new values. To keep two parameter
+settings side by side, name them with `as:`.
+
+**This changed in 2.5.** Before, a run recorded its scope but computed over the whole graph, so a
+run scoped to less than the graph -- including a default run while a visibility filter was hiding
+something -- reported values that contradicted its own record. It now computes over its scope, so
+those values differ from 2.4's.
+
+A finished result also offers sets -- one per community, one for a path -- that can be kept or
+used as the next run's scope. See [Sets a result offers](./sets#sets-a-result-offers).
+
 ## Suggested Styles
 
 A run paints itself on its first completion. For a run started with `{style: false}`, or to put a
@@ -158,9 +227,14 @@ picture back after a reader cleared it, ask for the suggestion again:
 await element.run("degree");
 
 element.applySuggestedStyles("degree");
+
+// Only when you need the finished picture, for a screenshot or an export:
+await element.waitForStableFrame();
 ```
 
 This automatically maps algorithm results to visual properties like color and size.
+`applySuggestedStyles` returns `true` or `false` straight away and paints in the background;
+`waitForStableFrame()` settles once the suggested layers are stacked and painted.
 
 ## Custom Styling with Algorithm Results
 
@@ -232,13 +306,13 @@ element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1
 element.runAlgorithmsOnLoad = true;
 ```
 
-| Option      | Meaning                                                               |
-| ----------- | --------------------------------------------------------------------- |
-| `algorithm` | Required. The algorithm, as a name above                              |
-| `params`    | Its parameters, as `run()` takes them                                 |
-| `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }`    |
-| `seed`      | The seed for a randomised method, so the load is reproducible         |
-| `as`        | The run's id, for a saved document or a later `session.runs.get()`    |
+| Option      | Meaning                                                            |
+| ----------- | ------------------------------------------------------------------ |
+| `algorithm` | Required. The algorithm, as a name above                           |
+| `params`    | Its parameters, as `run()` takes them                              |
+| `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }` |
+| `seed`      | The seed for a randomised method, so the load is reproducible      |
+| `as`        | The run's id, for a saved document or a later `session.runs.get()` |
 
 The other `run()` options are not accepted here, because each one answers a question nobody can
 ask before the data arrives: `signal`, `onProgress` and `queue` steer a run someone is watching,
@@ -289,10 +363,10 @@ Create your own algorithms. See [Custom Algorithms](./extending/custom-algorithm
 
 ## Interactive Examples
 
-- [Centrality Algorithms](https://graphty.app/storybook/element/?path=/story/algorithms-centrality--degree)
-- [Community Detection](https://graphty.app/storybook/element/?path=/story/algorithms-community--louvain)
-- [Components](https://graphty.app/storybook/element/?path=/story/algorithms-component--connected)
-- [Shortest Path](https://graphty.app/storybook/element/?path=/story/algorithms-shortestpath--dijkstra)
-- [Traversal](https://graphty.app/storybook/element/?path=/story/algorithms-traversal--bfs)
-- [Spanning Tree](https://graphty.app/storybook/element/?path=/story/algorithms-spanningtree--prim)
-- [Combined Algorithms](https://graphty.app/storybook/element/?path=/story/algorithms-combined--default)
+- [Centrality Algorithms](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-centrality--degree)
+- [Community Detection](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-community--louvain)
+- [Components](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-component--connected-components)
+- [Shortest Path](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-shortest-path--dijkstra)
+- [Traversal](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-traversal--bfs)
+- [Spanning Tree](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-spanning-tree--prim)
+- [Combined Algorithms](https://graphty.app/storybook/graphty-element/?path=/story/algorithms-combined--centrality-vs-community)

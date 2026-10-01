@@ -1,0 +1,8 @@
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+<key id="d0" for="node" attr.name="label" attr.type="string"/>
+<graph id="G" edgedefault="undirected">
+<node id="n0"><data key="d0">café</data></node>
+<node id="n1"><data key="d0">naïve Über</data></node>
+<edge source="n0" target="n1"/>
+</graph>
+</graphml>

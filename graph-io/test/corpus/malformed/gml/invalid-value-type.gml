@@ -1,6 +1,6 @@
 graph [
   node [
-    id "string_instead_of_number"
+    id [ x 1 ]
     label "A"
   ]
   node [

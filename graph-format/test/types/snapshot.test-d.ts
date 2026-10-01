@@ -149,6 +149,8 @@ expectTypeOf(snapshot.byteLength()).toBeNumber();
 expectTypeOf(snapshot.byteLength({ views: true, columns: undefined })).toBeNumber();
 expectTypeOf(snapshot.contentHash()).toBeString();
 expectTypeOf(snapshot.transferables()).toEqualTypeOf<ArrayBuffer[]>();
+expectTypeOf(snapshot.seal).parameters.toEqualTypeOf<[]>();
+expectTypeOf(snapshot.seal).returns.toBeVoid();
 expectTypeOf(snapshot.toWire()).toEqualTypeOf<WireSnapshot>();
 expectTypeOf(snapshot.toWire({ transfer: true, includeViews: ["reverse"] })).toEqualTypeOf<WireSnapshot>();
 expectTypeOf(snapshot.toBytes()).toEqualTypeOf<U8>();

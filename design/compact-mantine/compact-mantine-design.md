@@ -16,7 +16,7 @@ This document outlines the design for extracting the Mantine theme and custom co
 6. [API Design](#6-api-design)
 7. [Build & Distribution](#7-build--distribution)
 8. [Migration Plan](#8-migration-plan)
-9. [Open Questions](#9-open-questions)
+9. [Decisions](#9-decisions)
 
 ---
 

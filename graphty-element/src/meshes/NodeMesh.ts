@@ -10,6 +10,7 @@ import {
     StandardMaterial,
 } from "@babylonjs/core";
 
+import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
@@ -37,6 +38,9 @@ type ShapeCreator = (size: number, scene?: Scene) => Mesh;
  * and is ample for a node-sized mesh; raising it multiplies the ceiling described on
  * MAX_GRADIENT_TEXTURES_PER_SCENE by the square of the change.
  */
+/** The smallest size a node mesh is built at; a size of 0 draws this, never hidden. */
+const MIN_NODE_SIZE = 1e-3;
+
 const GRADIENT_TEXTURE_SIZE = 128;
 
 /**
@@ -89,7 +93,9 @@ interface GradientColor {
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Static factory class for node mesh creation
 export class NodeMesh {
-    private static shapeCreators = new Map<string, ShapeCreator>();
+    // Shared with every other copy of graphty-element on the page, so a shape registered through
+    // one reaches them all; each copy still builds its own built-ins with its own Babylon.js.
+    private static shapeCreators = new SharedImplementationMap<ShapeCreator>("shape");
 
     static {
         NodeMesh.registerShapeCreator("box", (size) => NodeMesh.createBox(size));
@@ -233,7 +239,10 @@ export class NodeMesh {
             throw new TypeError(`unknown shape: ${createOptions.shape.type}`);
         }
 
-        const size = createOptions.shape.size ?? options.size;
+        // Babylon's MeshBuilder reads a size of 0 as "not set" and draws a 1-unit mesh, so a node
+        // of size 0 used to draw larger than a node of size 0.01. Flooring here keeps size 0 the
+        // smallest visible node for every shape creator, built-in or registered (#117).
+        const size = Math.max(createOptions.shape.size ?? options.size, MIN_NODE_SIZE);
         return creator(size, scene);
     }
 
@@ -416,8 +425,8 @@ export class NodeMesh {
      *      provenance is invisible here, but unbounded allocation is not.
      *
      * The cache is a WeakMap keyed by scene, so the entries die with the scene and never leak
-     * across scenes or across tests. `MeshCache.clear()` disposes meshes only -- not materials and
-     * not textures -- so a cached texture stays valid across a 2D/3D switch.
+     * across scenes or across tests. `MeshCache` disposes a source mesh's material but never its
+     * textures, so a cached texture stays valid across a 2D/3D switch.
      * @param gradient - The normalised gradient to paint
      * @param scene - Babylon.js scene that will own the texture
      * @returns The shared texture, or undefined if one cannot or should not be allocated

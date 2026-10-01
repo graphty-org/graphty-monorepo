@@ -195,6 +195,18 @@ describe("gexfExporter: the 1.3 dynamic document", () => {
 });
 
 describe("gexfExporter: the 1.2 document", () => {
+    it("writes a 1.3 graph timestamp as a closed interval (1.2 has no timestamp)", async () => {
+        const snapshot = await imported(
+            '<gexf xmlns="http://gexf.net/1.3" version="1.3"><graph defaultedgetype="directed" timeformat="integer" timestamp="2007">' +
+                '<nodes><node id="a"/></nodes><edges/></graph></gexf>',
+        );
+        expect(noteCodes(gexfExporter.check(snapshot, { version: "1.2" }))).toContain(GEXF_LOSS.TIMESTAMP_AS_INTERVAL);
+        const text = await gexfExporter.exportToString(snapshot, { version: "1.2" });
+        expect(text).toContain('start="2007" end="2007"');
+        expect(text).not.toContain("timestamp=");
+        expect(await gexfExporter.exportToString(snapshot)).toContain('timestamp="2007"');
+    });
+
     it("round-trips exactly as 1.2 and reports open intervals as 1.3", async () => {
         const snapshot = await imported(OPEN_1_2);
         expect(gexfExporter.check(snapshot, { version: "1.2" })).toEqual([
@@ -204,15 +216,20 @@ describe("gexfExporter: the 1.2 document", () => {
         // GEXF 1.2 open bounds carry the bound's time (dynamics.xsd: startopen / endopen are time-type)
         expect(text).toContain('<node id="1" label="one" startopen="1" end="5">');
         expect(text).toContain('<attvalue for="2" value="3" start="1" endopen="2"/>');
-        expect(text).toContain('<edge id="1" source="2" target="1" start="3" endopen="4"/>');
-        expect(text).toContain('<edge id="0" source="1" target="2" type="mutual" weight="0.1"/>');
+        // the mutual default is written back, so the mutual edge needs no type and the directed one does
+        expect(text).toContain('defaultedgetype="mutual"');
+        expect(text).toContain('<edge id="1" source="2" target="1" type="directed" start="3" endopen="4"/>');
+        expect(text).toContain('<edge id="0" source="1" target="2" weight="0.1"/>');
+        expect(text).toContain('<spell startopen="1" end="2"/>');
         expect(text).toContain('timeformat="integer"');
         const notes = gexfExporter.check(snapshot);
-        expect(noteCodes(notes).sort()).toEqual([LOSS.OPEN_INTERVAL, LOSS.OPEN_INTERVAL, LOSS.OPEN_INTERVAL].sort());
-        expect(notes.map((n) => n.column).sort()).toEqual(["open", "open", "temporal:node:level"]);
+        expect(noteCodes(notes).sort()).toEqual(
+            [LOSS.OPEN_INTERVAL, LOSS.OPEN_INTERVAL, LOSS.OPEN_INTERVAL, LOSS.OPEN_INTERVAL].sort(),
+        );
+        expect(notes.map((n) => n.column).sort()).toEqual(["open", "open", "spells.open", "temporal:node:level"]);
         const result = await roundTrip(snapshot, gexfExporter, gexfImporter);
         expect(result.text).not.toContain("startopen");
-        expect(compareSnapshots(snapshot, result.snapshot, { ignoreColumns: ["open"] })).toEqual([]);
+        expect(compareSnapshots(snapshot, result.snapshot, { ignoreColumns: ["open", "spells.open"] })).toEqual([]);
     });
 });
 

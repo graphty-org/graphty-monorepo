@@ -11,11 +11,11 @@ import {
     type SelectionAttributeStatistics,
     type SelectionCause,
     type SelectionDelta,
+    type SelectionOp,
     type SelectionOwner,
     type SelectionSources,
     type SelectionStatistics,
     SET_OPS,
-    type SetOp,
 } from "../../../src/session/selection/index";
 import type { SessionRecordSource } from "../../../src/session/types";
 import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
@@ -186,7 +186,10 @@ describe("the five set operations", () => {
         const selection = selectionOf(harness);
 
         assert.deepStrictEqual([...SET_OPS], ["replace", "add", "remove", "toggle", "intersect"]);
-        assert.strictEqual(codeOf(() => selection.applyNow({ nodes: ["a"] }, "union" as SetOp)), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => selection.applyNow({ nodes: ["a"] }, "union" as SelectionOp)),
+            "E_BAD_COMMAND",
+        );
         harness.session.dispose();
     });
 });
@@ -210,7 +213,10 @@ describe("the delta every mutation answers with", () => {
         const harness = line();
         const selection = selectionOf(harness);
 
-        const delta = selection.applyNow({ nodes: ["b"], edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")] });
+        const delta = selection.applyNow({
+            nodes: ["b"],
+            edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+        });
 
         assert.deepStrictEqual([...delta.added], ["b", edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")]);
         harness.session.dispose();
@@ -337,7 +343,10 @@ describe("membership testing", () => {
                 return harness.store.getSnapshot();
             },
         });
-        selection.applyNow({ nodes: ["a"], edges: [edgeBetween(harness, "a", "b")] });
+        // Looked up once: edgeBetween reads a whole snapshot from the session and scans its edges,
+        // so calling it inside the loop would make this test time that helper, not membership.
+        const ab = edgeBetween(harness, "a", "b");
+        selection.applyNow({ nodes: ["a"], edges: [ab] });
         const materialised = selection.nodes;
         const reads = snapshotReads;
 
@@ -345,7 +354,7 @@ describe("membership testing", () => {
             selection.has("a");
             selection.has("nobody");
             selection.has(7);
-            selection.has(edgeBetween(harness, "a", "b"));
+            selection.has(ab);
         }
 
         assert.strictEqual(snapshotReads, reads, "membership never went back to the store");
@@ -358,7 +367,10 @@ describe("membership testing", () => {
         const selection = selectionOf(harness);
         selection.applyNow({ nodes: ["a"] });
 
-        assert.isFalse(selection.has(edgeBetween(harness, "a", "b")), "no edge is selected, so no edge can be a member");
+        assert.isFalse(
+            selection.has(edgeBetween(harness, "a", "b")),
+            "no edge is selected, so no edge can be a member",
+        );
         assert.isFalse(selection.has(1), "a number is never an edge id, so the edge half is not asked");
         harness.session.dispose();
     });
@@ -406,7 +418,13 @@ describe("the masks the model is built on", () => {
         // moment the mask bits move. The second harness is that graph: "a" gone, so "b" sits at 0
         // where it used to sit at 1, which is exactly what the remap below says.
         const before = line();
-        const after = harnessOf([{ id: "b" }, { id: "c" }, { id: "d" }], [{ src: "b", dst: "c" }, { src: "c", dst: "d" }]);
+        const after = harnessOf(
+            [{ id: "b" }, { id: "c" }, { id: "d" }],
+            [
+                { src: "b", dst: "c" },
+                { src: "c", dst: "d" },
+            ],
+        );
         let frozen = false;
         const selection = createSelectionApi({
             snapshot: () => (frozen ? after.store.getSnapshot() : before.store.getSnapshot()),
@@ -475,8 +493,14 @@ describe("the cap", () => {
         const first = selectionOf(harness, { cap: () => 3 });
         const second = selectionOf(harness, { cap: () => 3 });
 
-        first.applyNow({ nodes: ["a", "b", "c"], edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")] });
-        second.applyNow({ nodes: ["c", "b", "a"], edges: [edgeBetween(harness, "b", "c"), edgeBetween(harness, "a", "b")] });
+        first.applyNow({
+            nodes: ["a", "b", "c"],
+            edges: [edgeBetween(harness, "a", "b"), edgeBetween(harness, "b", "c")],
+        });
+        second.applyNow({
+            nodes: ["c", "b", "a"],
+            edges: [edgeBetween(harness, "b", "c"), edgeBetween(harness, "a", "b")],
+        });
 
         assert.deepStrictEqual([...first.nodes], ["a", "b", "c"]);
         assert.deepStrictEqual([...first.edges], [], "the cap was reached before the edge half");
@@ -503,8 +527,14 @@ describe("the cap", () => {
         selection.applyNow({ nodes: ["a"] });
         cap = 2.5;
 
-        assert.strictEqual(codeOf(() => selection.cap), "E_OPTION_RANGE");
-        assert.strictEqual(codeOf(() => selection.applyNow({ nodes: ["d"] })), "E_OPTION_RANGE");
+        assert.strictEqual(
+            codeOf(() => selection.cap),
+            "E_OPTION_RANGE",
+        );
+        assert.strictEqual(
+            codeOf(() => selection.applyNow({ nodes: ["d"] })),
+            "E_OPTION_RANGE",
+        );
         assert.deepStrictEqual([...selection.nodes], ["a"], "the selection is what it was before the refusal");
         harness.session.dispose();
     });
@@ -611,6 +641,17 @@ describe("keeping a selection under a name", () => {
 
         assert.strictEqual(id, "set_core-hosts");
         assert.deepStrictEqual([...scope.resolveNow({ set: id }).nodes].sort(), ["a", "b"]);
+        const definition = scope.sets.get(id)?.definition;
+        assert.strictEqual(
+            definition?.kind === "fixed" ? definition.edges?.length : undefined,
+            1,
+            "the selected edge is kept",
+        );
+        assert.strictEqual(
+            definition?.kind === "fixed" ? definition.reading : undefined,
+            "induced",
+            "nodes were selected",
+        );
         harness.session.dispose();
     });
 
@@ -621,8 +662,21 @@ describe("keeping a selection under a name", () => {
         const without = selectionOf(harness);
         without.applyNow({ nodes: ["a"] });
 
-        assert.strictEqual(codeOf(() => withScopes.promote("empty")), "E_SCOPE_EMPTY");
-        assert.strictEqual(codeOf(() => without.promote("nowhere")), "E_UNSUPPORTED");
+        assert.strictEqual(
+            codeOf(() => withScopes.promote("empty")),
+            "E_SCOPE_EMPTY",
+        );
+        assert.strictEqual(
+            codeOf(() => without.promote("nowhere")),
+            "E_UNSUPPORTED",
+        );
+
+        // Edges alone are something: they are kept, listed, with their endpoints.
+        withScopes.applyNow({ edges: [edgeBetween(harness, "a", "b")] });
+        const id = withScopes.promote("edges");
+        const kept = scope.sets.get(id)?.definition;
+        assert.strictEqual(kept?.kind === "fixed" ? kept.reading : undefined, "listed");
+        assert.deepStrictEqual([...scope.resolveNow({ set: id }).nodes].sort(), ["a", "b"]);
         harness.session.dispose();
     });
 });
@@ -640,7 +694,11 @@ describe("what a scope reads off the selection", () => {
         const resolved = scope.resolveNow("selection");
 
         assert.deepStrictEqual([...resolved.nodes].sort(), ["a", "b"]);
-        assert.deepStrictEqual([...resolved.edges], [edgeBetween(harness, "a", "b")], "a scope's edges are induced from its nodes");
+        assert.deepStrictEqual(
+            [...resolved.edges],
+            [edgeBetween(harness, "a", "b")],
+            "a scope's edges are induced from its nodes",
+        );
 
         selection.applyNow({ nodes: ["c"] }, "add");
 

@@ -10,36 +10,35 @@
 #
 # WHY THIS SCRIPT EXISTS, and why it does not use `git commit -m`.
 #
-# .husky/prepare-commit-msg is:
+# .husky/prepare-commit-msg runs Commitizen's INTERACTIVE wizard whenever a terminal
+# is available (with no terminal it does nothing, and commitlint in commit-msg still
+# checks the message). Run from a terminal, a scripted `git commit` would hand control
+# to that wizard, which can replace the message it was given. So this script commits
+# with core.hooksPath pointed at a temporary directory holding a copy of
+# .husky/commit-msg and NOTHING else: commitlint still validates every message, and
+# prepare-commit-msg is not there to run. The directory is removed in an EXIT trap.
+# (.husky has no pre-commit hook; if one is added, it has to be copied in here too or
+# it will be skipped.)
 #
-#     exec < /dev/tty && npx cz --hook || true
-#
-# That is Commitizen's INTERACTIVE prompt. A scripted `git commit -m "..."` hands
-# control to the wizard, which either replaces the message it was given or hangs
-# waiting for an answer nobody is watching -- so the commit never lands. The fix,
-# taken from tmp/commit-hardening.sh, is to commit with core.hooksPath pointed at a
-# temporary directory holding a copy of .husky/commit-msg and NOTHING else:
-# commitlint still validates every message, and prepare-commit-msg is not there to
-# run. The directory is removed in an EXIT trap. (.husky currently has no pre-commit
-# hook; if one is added, it has to be copied in here too or it will be skipped.)
+# Every commit is GPG-signed. The script refuses to run unless commit.gpgsign is true,
+# and it never disables signing.
 #
 # It does NOT push. Pushing stays a separate, deliberate step -- and the pre-push
 # hook (.husky/pre-push -> pnpm run prepush:fast -> tools/prepush.sh) runs the
 # validation then.
 #
-# The plan below is tailored to one specific change set: the P4 phase of the
-# WebGPU work (the grid pyramid and the degree tiers, branch feat/gpu-p4,
-# eighteen commits). It is data, not machinery -- STEPS, SUBJECTS, PATHS and
-# one body_* function each. Re-point it at the next change set rather than
-# reusing the messages, and read the diff before you write a message, not a
-# summary of it.
+# The plan below is tailored to one specific change set, the last one landed with
+# it. It is data, not machinery -- STEPS, SUBJECTS, PATHS and one body_* function
+# each. Re-point it at the next change set rather than reusing the messages, and
+# read the diff before you write a message, not a summary of it. A plan that no
+# longer fits the tree fails loudly: a run in which every step is skipped exits 1,
+# and so does a run that leaves changed files no step claims (unless
+# --allow-leftovers is given). Both checks apply to --dry-run too.
 #
 # The repository releases with semantic-release, so every subject has to be a
-# conventional commit: <type>(<scope>): <subject>, where type is one of
-# feat / fix / perf / refactor / docs / test / build / ci / chore / style / revert
-# and scope comes from commitlint.config.js's scope-enum. Subjects, scopes and body
-# line lengths are all checked here, before anything is staged, rather than being
-# discovered by a commit-msg failure halfway through the run.
+# conventional commit. Every rendered message is run through commitlint -- the same
+# tool and config the commit-msg hook uses -- before anything is staged, rather than
+# being discovered by a commit-msg failure halfway through the run.
 
 set -euo pipefail
 
@@ -56,6 +55,7 @@ cd "$REPO_ROOT"
 
 DRY_RUN=0
 CHECK=0
+ALLOW_LEFTOVERS=0
 
 usage() {
     cat <<'USAGE'
@@ -70,14 +70,17 @@ commit-changes.sh -- land the working tree as a sequence of conventional commits
                                        this first, every time.
   ./tools/commit-changes.sh             Make the commits. One signing passphrase
                                        prompt per commit; no Commitizen wizard.
-  ./tools/commit-changes.sh --check     Run `pnpm run prepush:fast` first and abort
-                                       if it fails. Slow (minutes), thorough.
+  ./tools/commit-changes.sh --allow-leftovers
+                                       Do not fail when changed files are left that
+                                       no step claims.
   ./tools/commit-changes.sh --help      This text.
 
-Options: -n/--dry-run, -c/--check, -h/--help.
+Options: -n/--dry-run, -c/--check, --allow-leftovers, -h/--help.
 
 A commit whose paths have nothing left to commit is skipped with a note, so a
-re-run after an interruption picks up where it stopped. Nothing is pushed.
+re-run after an interruption picks up where it stopped. A run in which EVERY step
+is skipped means the plan is stale, and exits 1. Changed files that no step claims
+also exit 1, unless --allow-leftovers is given. Nothing is pushed.
 USAGE
 }
 
@@ -89,6 +92,10 @@ while [ $# -gt 0 ]; do
             ;;
         -c|--check)
             CHECK=1
+            shift
+            ;;
+        --allow-leftovers)
+            ALLOW_LEFTOVERS=1
             shift
             ;;
         -h|--help)
@@ -764,6 +771,12 @@ if ! [ -f .husky/commit-msg ]; then
     exit 1
 fi
 
+if [ "$(git config --get commit.gpgsign)" != "true" ]; then
+    echo "commit-changes: commit.gpgsign is not true. Every commit here is signed, and" >&2
+    echo "this script never disables signing. Set it: git config commit.gpgsign true" >&2
+    exit 1
+fi
+
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 # ---------------------------------------------------------------------------
@@ -794,16 +807,6 @@ fi
 # Validation, in full, before a single file is staged.
 # ---------------------------------------------------------------------------
 
-# The types semantic-release and commitlint's conventional preset accept.
-CONVENTIONAL_TYPES='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'
-# Kept in step with commitlint.config.js's scope-enum, which is enforced at level 2:
-# a scope outside this list is rejected by the commit-msg hook, mid-run.
-VALID_SCOPES="graph-format graph-io webgpu-graph-algorithms algorithms layout graphty-element
-              compact-mantine remote-logger graphty gpu-3d-force-layout deps release ci docs tools workspace"
-# commitlint's body-max-line-length, from @commitlint/config-conventional.
-BODY_MAX_LINE=100
-SUBJECT_MAX=100
-
 # Renders one step's message -- subject, blank line, body -- to $WORK_DIR/<step>.msg.
 # The rendered file is what `git commit -F -` later reads, so what is validated here
 # is byte for byte what commitlint sees.
@@ -816,68 +819,21 @@ render_message() {
     } > "$WORK_DIR/$step.msg"
 }
 
+# commitlint itself, with the repository's config, so this check is exactly what the
+# commit-msg hook enforces.
 validate_step() {
     local step="$1"
-    local subject="${SUBJECTS[$step]}"
-    local ok=0
-
-    if ! printf '%s' "$subject" | grep -Eq "^($CONVENTIONAL_TYPES)(\([a-z0-9._-]+\))?!?: .+"; then
-        echo "commit-changes: [$step] subject is not a conventional commit." >&2
-        echo "  got:      $subject" >&2
-        echo "  expected: <type>(<scope>): <subject>" >&2
-        echo "  types:    ${CONVENTIONAL_TYPES//|/ }" >&2
-        ok=1
+    if ! pnpm exec commitlint < "$WORK_DIR/$step.msg" >&2; then
+        echo "commit-changes: [$step] message fails commitlint (above)." >&2
+        return 1
     fi
-
-    case "$subject" in
-        *.)
-            echo "commit-changes: [$step] subject ends in a full stop; commitlint refuses one." >&2
-            ok=1
-            ;;
-    esac
-
-    if [ "${#subject}" -gt "$SUBJECT_MAX" ]; then
-        echo "commit-changes: [$step] subject is ${#subject} characters; the limit is $SUBJECT_MAX." >&2
-        ok=1
-    fi
-
-    # The scope, when there is one, has to be in commitlint's enum.
-    local scope
-    scope="$(printf '%s' "$subject" | sed -n 's/^[a-z]*(\([^)]*\)).*/\1/p')"
-    if [ -n "$scope" ]; then
-        local found=0 candidate
-        for candidate in $VALID_SCOPES; do
-            if [ "$scope" = "$candidate" ]; then
-                found=1
-                break
-            fi
-        done
-        if [ "$found" = "0" ]; then
-            echo "commit-changes: [$step] scope '$scope' is not in commitlint.config.js's scope-enum." >&2
-            echo "  allowed: $(echo "$VALID_SCOPES" | tr -s ' \n' ' ')" >&2
-            ok=1
-        fi
-    fi
-
-    # Body lines, which commitlint caps as well. A long line there fails the commit
-    # after the files are staged, which is the worst moment to find out.
-    local line_no=0 line
-    while IFS= read -r line; do
-        line_no=$((line_no + 1))
-        if [ "${#line}" -gt "$BODY_MAX_LINE" ]; then
-            echo "commit-changes: [$step] message line $line_no is ${#line} characters (limit $BODY_MAX_LINE):" >&2
-            echo "  $line" >&2
-            ok=1
-        fi
-    done < "$WORK_DIR/$step.msg"
-
-    return "$ok"
 }
 
 VALIDATION_FAILED=0
 for step in "${STEPS[@]}"; do
-    if [ -z "${SUBJECTS[$step]:-}" ] || [ -z "${PATHS[$step]:-}" ]; then
-        echo "commit-changes: [$step] has no subject or no paths. Fix the plan." >&2
+    if [ -z "${SUBJECTS[$step]:-}" ] || [ -z "${PATHS[$step]:-}" ] ||
+       ! declare -F "body_${step//-/_}" >/dev/null; then
+        echo "commit-changes: [$step] has no subject, no paths or no body_ function. Fix the plan." >&2
         VALIDATION_FAILED=1
         continue
     fi
@@ -935,6 +891,7 @@ claimed_by_plan() {
     return 1
 }
 
+LEFTOVERS=0
 report_leftovers() {
     local leftovers=()
     local line path
@@ -957,6 +914,7 @@ report_leftovers() {
         fi
     done < <(git status --porcelain -uall)
 
+    LEFTOVERS="${#leftovers[@]}"
     if [ "${#leftovers[@]}" != "0" ]; then
         echo "Changed files no commit in this plan claims (${#leftovers[@]}):"
         printf '  %s\n' "${leftovers[@]}"
@@ -966,20 +924,6 @@ report_leftovers() {
         echo
     fi
 }
-
-# ---------------------------------------------------------------------------
-# Optional full validation, before anything is committed.
-# ---------------------------------------------------------------------------
-
-if [ "$CHECK" = "1" ]; then
-    echo "Running prepush:fast before committing (lint, build and the fast tests)..."
-    if ! pnpm run prepush:fast; then
-        echo >&2
-        echo "commit-changes: prepush:fast failed. Nothing staged, nothing committed." >&2
-        exit 1
-    fi
-    echo
-fi
 
 # ---------------------------------------------------------------------------
 # The run.
@@ -1037,6 +981,7 @@ for step in "${STEPS[@]}"; do
         echo "  Message:"
         sed 's/^/  | /' "$WORK_DIR/$step.msg"
         echo
+        MADE=$((MADE + 1))
         continue
     fi
 
@@ -1065,10 +1010,22 @@ echo
 
 report_leftovers
 
+STALE=0
+if [ "$MADE" = "0" ]; then
+    echo "commit-changes: every step was skipped -- the plan in this script is stale;" >&2
+    echo "re-point STEPS/SUBJECTS/PATHS at this change set." >&2
+    STALE=1
+fi
+if [ "$LEFTOVERS" != "0" ] && [ "$ALLOW_LEFTOVERS" = "0" ]; then
+    echo "commit-changes: $LEFTOVERS changed file(s) are claimed by no step (listed above)." >&2
+    echo "Add them to the plan, or pass --allow-leftovers to leave them uncommitted." >&2
+    STALE=1
+fi
+
 if [ "$DRY_RUN" = "1" ]; then
     echo "Dry run. Nothing was staged and nothing was committed; the index is untouched."
     echo "To make these commits: ./tools/commit-changes.sh"
-    exit 0
+    exit "$STALE"
 fi
 
 echo "Made $MADE commit(s) on '$BRANCH'; skipped $SKIPPED."
@@ -1080,3 +1037,4 @@ echo "  git push origin $BRANCH"
 echo
 echo "The pre-push hook runs tools/prepush.sh -- lint, knip, build and the fast tests"
 echo "across every package, not just the ones touched here. Expect a few minutes."
+exit "$STALE"

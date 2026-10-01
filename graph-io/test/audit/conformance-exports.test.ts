@@ -70,6 +70,7 @@ interface DesignCommonImportOptions {
     errorLimit?: number | undefined;
     signal?: AbortSignal | undefined;
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    encoding?: string | undefined;
 }
 interface DesignGraphImporter<Opts = unknown> {
     readonly format: string;
@@ -77,6 +78,11 @@ interface DesignGraphImporter<Opts = unknown> {
     readonly mimeTypes: readonly string[];
     sniff?(head: Uint8Array): number;
     import(input: ImportInput, sink: GraphSink, options?: Opts & CommonImportOptions): Promise<ImportReport>;
+    importAll?(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: Opts & CommonImportOptions,
+    ): Promise<ImportReport[]>;
 }
 interface DesignExportCapabilities {
     readonly mixedDirection: boolean;

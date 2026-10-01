@@ -38,7 +38,9 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
+import { maskTest, type U32 } from "@graphty/graph-format";
+
+import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 
 // ---------------------------------------------------------------------------------------------
@@ -112,6 +114,56 @@ export interface SelectorSource {
      * @returns The id at that row.
      */
     readonly edgeIdOf?: (index: number) => EdgeId;
+    /**
+     * The dense indices that carry a value for one column, ascending, when the source can list
+     * them without a walk over every element. A session answers it for a run's column.
+     *
+     * Absent, or answering undefined, nothing asks the question another way: the legend then
+     * reports a layer as painted over only by a layer that selects everything.
+     * @param path - The column path.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @returns The indices, or undefined when the column cannot be enumerated.
+     */
+    readonly measured?: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
+    /**
+     * The lowest value in the top `n` of one run column, cut only between tie groups (see
+     * `RunResult.top`), or undefined when nothing is taken or the column is not a ranked run
+     * field for this kind of element. Absent, a `{match:"top"}` selector is refused.
+     *
+     * Asked once per element, so it must answer from something already computed: a session
+     * reads it off the run's result, which keeps the answer per field and `n`.
+     * @param path - The column path, `results.<run>.<field>`.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param n - The most elements the top may hold.
+     * @returns The cut, or undefined.
+     */
+    readonly topCut?: (path: Path, target: SelectorTarget, n: number) => number | undefined;
+    /**
+     * The live membership of one scope, which a `{match:"member"}` selector tests by index.
+     * Absent, a `{match:"member"}` selector is refused.
+     *
+     * Asked once, when the layer is compiled; what comes back is read per element and follows the
+     * scope as it changes, so the compiled layer never has to be compiled again.
+     * @param scope - The scope, already checked.
+     * @returns Its live membership.
+     */
+    readonly scope?: (scope: Scope) => LiveScope;
+}
+
+/** The live membership of one scope, as a `{match:"member"}` selector reads it. */
+export interface LiveScope {
+    /**
+     * The members of one half, as a bitmap over the snapshot the session holds now.
+     * @param target - Nodes or edges.
+     * @returns The bitmap, or null when the scope paints nothing (detached, or it cannot be
+     *     evaluated).
+     */
+    bits(target: SelectorTarget): U32 | null;
+    /**
+     * Why the scope paints nothing, when it cannot be resolved.
+     * @returns The reason in a sentence, or undefined when it resolves.
+     */
+    problem(): string | undefined;
 }
 
 /**
@@ -176,7 +228,7 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids";
+    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -197,6 +249,11 @@ export interface CompiledSelector {
      * for and leaves the reference check to whoever holds one.
      */
     readonly paths: readonly Path[];
+    /**
+     * Why a `{match:"member"}` selector paints nothing, when its scope cannot be resolved (a
+     * removed set, a cycle). Absent for every other kind.
+     */
+    readonly problem?: () => string | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -248,7 +305,7 @@ function isTruthy(value: unknown): boolean {
  * @param right - The other.
  * @returns Whether JMESPath considers them equal.
  */
-function deepEquals(left: unknown, right: unknown): boolean {
+export function deepEquals(left: unknown, right: unknown): boolean {
     if (left === right) {
         return true;
     }
@@ -449,12 +506,9 @@ function decodeQuotedName(where: Query, at: number, quoted: string): string {
         // Falls through to the one refusal below, so both failures read the same way.
     }
 
-    throw badSelector(
-        `A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`,
-        where,
-        at,
-        { name: quoted },
-    );
+    throw badSelector(`A quoted attribute name follows JSON's rules for a string, and ${quoted} does not`, where, at, {
+        name: quoted,
+    });
 }
 
 /**
@@ -481,7 +535,9 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (character === "|" && where.charAt(at + 1) !== "|") {
-            throw badSelector("A selector does not support pipe expressions", where, at, { construct: "pipe expressions" });
+            throw badSelector("A selector does not support pipe expressions", where, at, {
+                construct: "pipe expressions",
+            });
         }
 
         if (character === "&" && where.charAt(at + 1) !== "&") {
@@ -499,7 +555,12 @@ function tokenize(where: Query): readonly Token[] {
 
         if (character === "`") {
             const close = findClose(where, at, "`");
-            tokens.push({ kind: "literal", text: "", value: decodeJsonLiteral(where, at, where.slice(at + 1, close)), at });
+            tokens.push({
+                kind: "literal",
+                text: "",
+                value: decodeJsonLiteral(where, at, where.slice(at + 1, close)),
+                at,
+            });
             at = close + 1;
             continue;
         }
@@ -530,12 +591,9 @@ function tokenize(where: Query): readonly Token[] {
         }
 
         if (/[0-9-]/.test(character)) {
-            throw badSelector(
-                "A number in a selector goes between backticks, so write `5` rather than 5",
-                where,
-                at,
-                { character },
-            );
+            throw badSelector("A number in a selector goes between backticks, so write `5` rather than 5", where, at, {
+                character,
+            });
         }
 
         throw badSelector(`${JSON.stringify(character)} is not something a selector can contain`, where, at, {
@@ -585,7 +643,12 @@ const COMPARATORS: Readonly<Record<string, CompareOperator | undefined>> = Objec
 /** One node of a parsed selector expression. */
 type ExpressionNode =
     | { readonly kind: "and"; readonly left: ExpressionNode; readonly right: ExpressionNode }
-    | { readonly kind: "compare"; readonly operator: CompareOperator; readonly left: ExpressionNode; readonly right: ExpressionNode }
+    | {
+          readonly kind: "compare";
+          readonly operator: CompareOperator;
+          readonly left: ExpressionNode;
+          readonly right: ExpressionNode;
+      }
     | { readonly kind: "group"; readonly inner: ExpressionNode }
     | { readonly kind: "literal"; readonly value: unknown }
     | { readonly kind: "not"; readonly operand: ExpressionNode }
@@ -1144,6 +1207,47 @@ export function idsPredicate(columns: ElementColumns, ids: ReadonlySet<EdgeId | 
     }
 
     return (index): boolean => ids.has(idOf(index));
+}
+
+/**
+ * The predicate for `{match:"top"}`: the element's value is at or above the top's cut.
+ *
+ * The cut is asked for per element rather than settled here, because a run that finishes or
+ * re-runs after the layer was added publishes a new ranking, and a cut captured now would go on
+ * painting the old top.
+ * @param columns - Where to read values.
+ * @param path - The column path.
+ * @param cutOf - The lowest value in the top, or undefined when nothing is in it.
+ * @returns The test.
+ */
+export function topPredicate(columns: ElementColumns, path: Path, cutOf: () => number | undefined): ElementPredicate {
+    const { value } = columns;
+
+    return (index): boolean => {
+        const cut = cutOf();
+        if (cut === undefined) {
+            return false;
+        }
+
+        const read = value(index, path);
+
+        return typeof read === "number" && Number.isFinite(read) && read >= cut;
+    };
+}
+
+/**
+ * The predicate for `{match:"member"}`: one bit test by index against the scope's live bitmap,
+ * read per element so the layer follows the scope without being compiled again.
+ * @param live - The scope's live membership.
+ * @param target - Which half the layer paints.
+ * @returns The test.
+ */
+export function scopePredicate(live: LiveScope, target: SelectorTarget): ElementPredicate {
+    return (index): boolean => {
+        const bits = live.bits(target);
+
+        return bits !== null && maskTest(bits, index);
+    };
 }
 
 /**

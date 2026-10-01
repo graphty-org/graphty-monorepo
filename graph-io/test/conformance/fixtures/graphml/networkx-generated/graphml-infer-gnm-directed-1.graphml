@@ -1,0 +1,130 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d6" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d5" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d4" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d3" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d2" for="node" attr.name="tag" attr.type="string" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="node" attr.name="score" attr.type="double" />
+  <graph edgedefault="directed">
+    <node id="0">
+      <data key="d0">-88.870989</data>
+      <data key="d1">2147483647</data>
+      <data key="d2">café</data>
+    </node>
+    <node id="1">
+      <data key="d2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="2">
+      <data key="d0">0.5</data>
+      <data key="d1">-2147483648</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="3">
+      <data key="d0">1e+300</data>
+      <data key="d1">-7</data>
+      <data key="d2">café</data>
+    </node>
+    <node id="4">
+      <data key="d0">0.5</data>
+      <data key="d1">2147483647</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="5">
+      <data key="d0">1e-07</data>
+      <data key="d1">-7</data>
+    </node>
+    <node id="6">
+      <data key="d0">69.070927</data>
+      <data key="d1">42</data>
+      <data key="d2">two words</data>
+    </node>
+    <node id="7">
+      <data key="d0">3.141592653589793</data>
+      <data key="d1">42</data>
+      <data key="d2">&lt;tag&gt;</data>
+      <data key="d3">True</data>
+    </node>
+    <node id="8">
+      <data key="d0">-54.430697</data>
+      <data key="d2">tab	here</data>
+      <data key="d3">False</data>
+    </node>
+    <node id="9">
+      <data key="d0">-13.521403</data>
+      <data key="d1">1</data>
+      <data key="d2">two words</data>
+    </node>
+    <edge source="0" target="1">
+      <data key="d4">中文</data>
+    </edge>
+    <edge source="1" target="9">
+      <data key="d4">中文</data>
+      <data key="d5">501</data>
+    </edge>
+    <edge source="2" target="7">
+      <data key="d5">102</data>
+    </edge>
+    <edge source="2" target="4">
+      <data key="d6">8.7423</data>
+    </edge>
+    <edge source="2" target="0">
+      <data key="d6">1</data>
+    </edge>
+    <edge source="3" target="4">
+      <data key="d6">1e-300</data>
+      <data key="d5">40</data>
+    </edge>
+    <edge source="4" target="8">
+      <data key="d6">1</data>
+    </edge>
+    <edge source="4" target="1">
+      <data key="d6">0.5</data>
+    </edge>
+    <edge source="5" target="8">
+      <data key="d6">1</data>
+      <data key="d4">it's</data>
+    </edge>
+    <edge source="5" target="3">
+      <data key="d6">-2.25</data>
+      <data key="d5">316</data>
+    </edge>
+    <edge source="5" target="1">
+      <data key="d6">0.9533</data>
+      <data key="d4">中文</data>
+    </edge>
+    <edge source="6" target="9">
+      <data key="d4">plain</data>
+      <data key="d5">378</data>
+    </edge>
+    <edge source="6" target="5">
+      <data key="d6">7.2592</data>
+      <data key="d4">tab	here</data>
+      <data key="d5">207</data>
+    </edge>
+    <edge source="6" target="8">
+      <data key="d6">3.9624</data>
+      <data key="d5">72</data>
+    </edge>
+    <edge source="7" target="9">
+      <data key="d6">5.027</data>
+      <data key="d4">café</data>
+    </edge>
+    <edge source="8" target="9">
+      <data key="d6">1e-300</data>
+      <data key="d4">two words</data>
+      <data key="d5">83</data>
+    </edge>
+    <edge source="8" target="0">
+      <data key="d6">10</data>
+      <data key="d4">café</data>
+      <data key="d5">851</data>
+    </edge>
+    <edge source="9" target="3">
+      <data key="d6">7.8348</data>
+      <data key="d4">中文</data>
+    </edge>
+  </graph>
+</graphml>

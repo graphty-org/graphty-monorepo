@@ -1,0 +1,27 @@
+{
+ "directed": false,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 8.483434,
+   "rank": -2147483648,
+   "tag": "<tag>",
+   "flag": true,
+   "id": 0
+  },
+  {
+   "score": -86.964226,
+   "rank": 2147483647,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "flag": false,
+   "id": 1
+  },
+  {
+   "rank": 2147483647,
+   "tag": "tab\there",
+   "id": 2
+  }
+ ],
+ "links": []
+}

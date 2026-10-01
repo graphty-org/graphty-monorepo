@@ -1,3 +1,4 @@
+import type { NodeMask } from "@graphty/graph-format";
 import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
@@ -6,7 +7,7 @@ import { z } from "zod/v4";
 import { defineOptions, type OptionsSchema } from "../config";
 import type { Edge } from "../Edge";
 import type { Node } from "../Node";
-import { EdgePosition, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 
 /**
  * Zod-based options schema for NGraph Force Layout
@@ -86,6 +87,8 @@ export class NGraphEngine extends LayoutEngine {
     static type = "ngraph";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
+    /** Accepts a scope: a held node is a pinned body in ngraph's own simulation. */
+    static override scoped = true;
     ngraph: NGraph;
     ngraphLayout: NGraphLayout<NGraph>;
 
@@ -102,6 +105,8 @@ export class NGraphEngine extends LayoutEngine {
     _settled = true;
     _stepCount = 0;
     _lastMoves: number[] = [];
+    /** Places each new node when `seed` is set; null leaves placement to ngraph. */
+    private seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
 
     /**
      * Create an NGraph layout engine
@@ -109,7 +114,11 @@ export class NGraphEngine extends LayoutEngine {
      */
     constructor(config: object = {}) {
         super();
-        this.ngraph = createGraph();
+        // A multigraph: each element edge is its own ngraph link. ngraph's default names a link by
+        // its endpoints' strings, so two parallel edges -- or `"1" -> 1` beside `1 -> 1` -- came
+        // back as ONE shared link, and removing either took the other's spring with it: its
+        // position was then undefined and redrawing it threw.
+        this.ngraph = createGraph({ multigraph: true });
 
         // Cast config to a more specific type for property access
         const typedConfig = config as Record<string, unknown>;
@@ -144,9 +153,11 @@ export class NGraphEngine extends LayoutEngine {
             ngraphConfig.timeStep = typedConfig.timeStep;
         }
 
-        // Add random number generator with seed if provided
-        if (typedConfig.seed !== undefined && typeof typedConfig.seed === "number") {
-            ngraphConfig.random = random(typedConfig.seed);
+        // ngraph.forcelayout never reads a generator from its settings: it seeds its own with a
+        // hard-coded 42, so every seed used to give the same picture. A seeded layout therefore
+        // places each node itself, from this generator, before the simulation moves it.
+        if (typeof typedConfig.seed === "number") {
+            this.seededPlacement = { rng: random(typedConfig.seed), dim: ngraphConfig.dimensions as number };
         }
 
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
@@ -227,6 +238,24 @@ export class NGraphEngine extends LayoutEngine {
     addNode(n: Node): void {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
+        if (this.seededPlacement) {
+            // THE RULE NGRAPH ITSELF USES for a node with no placed neighbour -- within half a
+            // spring length of the origin -- only drawn from the seed. A wider start is a graph
+            // that flies in from far away: a box of ten spring lengths took a 20-node graph four
+            // times as long to settle, and was drawn a few pixels wide while it did.
+            const { rng, dim } = this.seededPlacement;
+            const { springLength } = this.ngraphLayout.simulator.settings;
+            const coord = (): number => (rng.nextDouble() - 0.5) * springLength;
+            const x = coord();
+            const y = coord();
+            this.ngraphLayout.setNodePosition(n.id, x, y, dim === 3 ? coord() : 0);
+        }
+
+        // A node that arrived after a scoped layout started is not one of its members.
+        if (this.isHeld(n.index)) {
+            this.ngraphLayout.pinNode(ngraphNode, true);
+        }
+
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
@@ -274,7 +303,7 @@ export class NGraphEngine extends LayoutEngine {
      * @param n - The node to set position for
      * @param newPos - The new position coordinates
      */
-    setNodePosition(n: Node, newPos: Position): void {
+    protected setNodePosition(n: Node, newPos: Position): void {
         const ngraphNode = this._getMappedNode(n);
         const currPos = this.ngraphLayout.getNodePosition(ngraphNode.id);
         currPos.x = newPos.x;
@@ -330,7 +359,7 @@ export class NGraphEngine extends LayoutEngine {
      * Pin a node to its current position
      * @param n - The node to pin
      */
-    pin(n: Node): void {
+    protected pin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
         this.ngraphLayout.pinNode(ngraphNode, true);
     }
@@ -339,9 +368,23 @@ export class NGraphEngine extends LayoutEngine {
      * Unpin a node to allow it to move freely
      * @param n - The node to unpin
      */
-    unpin(n: Node): void {
+    protected unpin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
-        this.ngraphLayout.pinNode(ngraphNode, false);
+        // A node a scoped layout is holding stays pinned: the hold is not the reader's pin to lift.
+        this.ngraphLayout.pinNode(ngraphNode, this.isHeld(n.index));
+    }
+
+    /**
+     * Holds the nodes a scoped layout may not move, as pinned bodies. A node that is no longer
+     * held is released unless the reader pinned it.
+     * @param mask - One bit per row to hold, or null to hold nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        for (const [node, ngraphNode] of this.nodeMapping) {
+            this.ngraphLayout.pinNode(ngraphNode, this.isHeld(node.index) || node.isPinned());
+        }
     }
 
     /**
@@ -382,6 +425,29 @@ export class NGraphEngine extends LayoutEngine {
         this.ngraph.removeLink(link);
         this.edgeMapping.delete(e);
         this._settled = false;
+    }
+
+    /**
+     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge its own link, which ngraph
+     * still holds.
+     * @param drawn - The edges the element draws.
+     * @returns One sentence per problem.
+     */
+    protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
+        const problems = heldEdgeProblems(this.edgeMapping.keys(), drawn);
+        const links = new Set<NGraphLink>();
+        for (const [edge, link] of this.edgeMapping) {
+            if (links.has(link)) {
+                problems.push(`edge ${edge.id} shares a link with another edge`);
+            }
+
+            links.add(link);
+            if (this.ngraph.getLinkById(link.id) !== link) {
+                problems.push(`edge ${edge.id} maps to a link its graph no longer holds`);
+            }
+        }
+
+        return problems;
     }
 
     private _getMappedNode(n: Node): NGraphNode {

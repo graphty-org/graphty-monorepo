@@ -52,7 +52,7 @@
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { type Frame, readFrame } from "../helpers/paint-assertions";
 
 /** How wide the canvas is. */
@@ -63,6 +63,16 @@ const HEIGHT = 360;
 
 /** One node, because this is a question about one node's surface. */
 const NODES = [{ id: "one" }];
+
+/**
+ * Ask for the opening view before `init()`, where `init()` reads it from the `layout` slice.
+ * @param graph - The graph, not yet initialised.
+ * @param settings - The view mode.
+ * @param settings.viewMode - "2d" or "3d".
+ */
+function openIn(graph: Graph, settings: { viewMode: "2d" | "3d" }): void {
+    void graph.setViewMode(settings.viewMode);
+}
 
 /**
  * The node's colour: an orange whose channels are far apart and whose brightest channel has room
@@ -166,7 +176,7 @@ async function mountOneNode(viewMode: "2d" | "3d"): Promise<{ container: HTMLEle
 
     // The opening view mode, written where `init()` reads it, rather than a switch afterwards:
     // there is nothing on screen yet to switch.
-    graph.styles.config.graph.viewMode = viewMode;
+    openIn(graph, { viewMode });
     await graph.init();
     await graph.addNodes(NODES);
 
@@ -179,7 +189,7 @@ async function mountOneNode(viewMode: "2d" | "3d"): Promise<{ container: HTMLEle
         selector: { match: "everything" },
         set: { "node.color": COLOR },
     });
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 
     return { container, graph };
 }

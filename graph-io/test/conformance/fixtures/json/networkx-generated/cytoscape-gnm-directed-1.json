@@ -1,0 +1,248 @@
+{
+ "data": [],
+ "directed": true,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 1e+300,
+     "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "flag": false,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "tag": "say \"hi\"",
+     "flag": true,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": 91.840082,
+     "rank": -7,
+     "flag": false,
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": -0.0,
+     "tag": "a&b",
+     "flag": false,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 2.0,
+     "rank": -7,
+     "tag": "it's",
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "score": -0.862229,
+     "rank": 2147483647,
+     "tag": "plain",
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   },
+   {
+    "data": {
+     "score": -29.925024,
+     "rank": -2147483648,
+     "tag": "tab\there",
+     "id": "6",
+     "value": 6,
+     "name": "6"
+    }
+   },
+   {
+    "data": {
+     "score": 47.594144,
+     "rank": 2147483647,
+     "id": "7",
+     "value": 7,
+     "name": "7"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "rank": -7,
+     "tag": "two words",
+     "flag": true,
+     "id": "8",
+     "value": 8,
+     "name": "8"
+    }
+   },
+   {
+    "data": {
+     "score": 85.224698,
+     "rank": 42,
+     "tag": " nbsp",
+     "flag": true,
+     "id": "9",
+     "value": 9,
+     "name": "9"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "source": 0,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "cap": 341,
+     "source": 1,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "tab\there",
+     "source": 2,
+     "target": 7
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "rel": "a&b",
+     "source": 2,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "rel": "中文",
+     "cap": 382,
+     "source": 2,
+     "target": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "source": 3,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 3,
+     "source": 4,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "weight": 10,
+     "rel": "it's",
+     "source": 4,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "rel": "<tag>",
+     "source": 5,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "weight": 0.5,
+     "source": 5,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 1,
+     "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "cap": 580,
+     "source": 5,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "cap": 254,
+     "source": 6,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 8.3577,
+     "source": 6,
+     "target": 5
+    }
+   },
+   {
+    "data": {
+     "weight": 7.5553,
+     "source": 6,
+     "target": 8
+    }
+   },
+   {
+    "data": {
+     "rel": "中文",
+     "cap": 151,
+     "source": 7,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": 0.7693,
+     "cap": 744,
+     "source": 8,
+     "target": 9
+    }
+   },
+   {
+    "data": {
+     "weight": -0.0,
+     "source": 8,
+     "target": 0
+    }
+   },
+   {
+    "data": {
+     "weight": 7.0488,
+     "cap": 12,
+     "source": 9,
+     "target": 3
+    }
+   }
+  ]
+ }
+}

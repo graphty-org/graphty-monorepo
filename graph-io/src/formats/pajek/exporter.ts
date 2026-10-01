@@ -20,14 +20,17 @@ import { capabilities, checkCapabilities, LOSS, type SanitizedIds, sanitizeIds }
 import { formatDecimal, formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { resolveExportOptions } from "../../common/options.js";
+import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
+    encodeCharacterReferences,
     formatIntervals,
     isParameterKey,
     LABEL_COLUMN,
     ORIGINAL_ID_KEY,
+    POSITION_COLUMN,
     RELATION_COLUMN,
     SHAPE_COLUMN,
     SHAPES,
@@ -74,13 +77,15 @@ export const PAJEK_LOSS = Object.freeze({
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
     /** Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical". */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
+    /** Parameter text that looks like a number or a boolean reads back as one (parameters are untyped, design 5.1). */
+    TEXT_INFERRED: LOSS.TEXT_INFERRED,
 });
 
 /** The roles Pajek has a slot for beyond the structural, position and temporal ones. */
 const SLOT_ROLES: ReadonlySet<string> = new Set(["label"]);
 
 /** The names the importer gives the slot columns, for the name-change notes. */
-const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "label" });
+const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ label: "label", position: POSITION_COLUMN });
 
 /** The roles the exporter handles structurally rather than as parameters. */
 const STRUCTURAL_ROLES: ReadonlySet<string> = new Set([
@@ -101,6 +106,7 @@ const CHECKED_ROLES: ReadonlySet<string> = new Set([
     "parent",
     "parents",
     "open",
+    "spellsOpen",
 ]);
 
 /** Roles the generic checker lets through under temporal "spells" that Pajek cannot write. */
@@ -400,7 +406,7 @@ function cellText(column: Column, row: number): string {
 
 /**
  * Count the cells of a plan that cannot be written (text with a quote or line break, non-finite
- * f64) and add the notes.
+ * f64) or read back typed (parameter text that looks like a number or a boolean) and add the notes.
  * @param planned - the plan
  * @param domain - node or edge
  * @param notes - the note list
@@ -413,6 +419,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
         const { name } = column.meta;
         let badText = 0;
         let nonFinite = 0;
+        let typed = 0;
         for (let r = 0; r < column.length; r++) {
             if (!column.isSet(r)) {
                 continue;
@@ -427,8 +434,11 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
                     nonFinite++;
                 }
             } else if (column.dtype === "string" || column.dtype === "dict") {
-                if (!isPajekLabel(column.value(r) as string)) {
+                const text = column.value(r) as string;
+                if (!isPajekLabel(text)) {
                     badText++;
+                } else if (slot === "param" && inferTextDtype(text) !== "string") {
+                    typed++;
                 }
             }
         }
@@ -439,6 +449,16 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
                     `${badText} value(s) of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
                     name,
                     badText,
+                ),
+            );
+        }
+        if (typed > 0) {
+            notes.push(
+                note(
+                    PAJEK_LOSS.TEXT_INFERRED,
+                    `${typed} value(s) of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
+                    name,
+                    typed,
                 ),
             );
         }
@@ -754,7 +774,8 @@ function* writeVertices(
         const label = labelOf(labels, ids, i, parts.length > 0);
         let line = String(i + 1);
         if (label !== null) {
-            line += ` ${quotePajekLabel(label)}`;
+            // the importer decodes `&#dddd;` in labels, so a literal one is written with `&#38;`
+            line += ` ${quotePajekLabel(encodeCharacterReferences(label))}`;
         }
         if (parts.length > 0) {
             line += ` ${parts.join(" ")}`;

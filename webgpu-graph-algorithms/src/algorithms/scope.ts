@@ -11,12 +11,14 @@ import { type GpuContext } from "../context.js";
 import { UniformRing } from "../kernel/uniform-ring.js";
 import { type ReduceScope } from "../primitives/reduce.js";
 
-/** A ReduceScope over a context plus the two lifecycle calls an algorithm makes: flush() before submit, dispose() in its finally. */
+/** A ReduceScope over a context plus the two lifecycle calls an algorithm makes: flush() before submit, dispose() in its finally. (The `indirect()` lease it once added for the frontier's args buffer went with that buffer, 2026-09-25.) */
 export interface AlgorithmScope extends ReduceScope {
     /** queue.writeBuffer of the params slots written since the last flush (called before the batch is submitted). */
     flush(): void;
     /** Destroys the ring and releases every scratch buffer of the lease; idempotent. */
     dispose(): void;
+    /** The ring's `overruns` so far: reservations that wrapped over a record the batch being recorded still reads (0 on a correctly sized ring; P8-T12). */
+    ringOverruns(): number;
 }
 
 /**
@@ -48,5 +50,6 @@ export function algorithmScope(ctx: GpuContext, label: string, slots: number): A
             ring.destroy();
             lease.release();
         },
+        ringOverruns: () => ring.overruns,
     };
 }

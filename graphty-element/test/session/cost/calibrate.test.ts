@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import {
@@ -90,10 +90,20 @@ describe("calibrateCost: measuring this machine", () => {
     });
 
     it("stays inside its budget", async () => {
-        const started = Date.now();
-        await calibrateCost({ budgetMs: 45 });
+        // A clock that advances 1 ms on every read, so the budget runs out after a known number
+        // of reads whatever the runner's speed. Each workload gets a third of 3 ms: one start
+        // read, one pass, one read that finds the share spent -- six reads for the three.
+        let clock = 0;
+        const reads = vi.spyOn(performance, "now").mockImplementation(() => clock++);
 
-        assert.isBelow(Date.now() - started, 1500, "the probe must not become the slow thing it exists to warn about");
+        try {
+            const calibration = await calibrateCost({ budgetMs: 3 });
+
+            assert.equal(reads.mock.calls.length, 6, "the probe must not become the slow thing it exists to warn about");
+            assert.equal(calibration.basis, "defaults", "a share spent before the clock's resolution yields no rate");
+        } finally {
+            reads.mockRestore();
+        }
     });
 
     it("degrades an estimate to modelled when it could not measure", async () => {

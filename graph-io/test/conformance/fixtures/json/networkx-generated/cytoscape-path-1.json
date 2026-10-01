@@ -1,0 +1,110 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 123456789.125,
+     "rank": -2147483648,
+     "tag": "plain",
+     "flag": false,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 3.141592653589793,
+     "rank": 42,
+     "tag": "two words",
+     "flag": true,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "tag": "say \"hi\"",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "rank": 42,
+     "tag": "two words",
+     "flag": true,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 55.480407,
+     "rank": 2147483647,
+     "tag": "中文",
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   },
+   {
+    "data": {
+     "score": 0.5,
+     "tag": "say \"hi\"",
+     "flag": false,
+     "id": "5",
+     "value": 5,
+     "name": "5"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 2.7288,
+     "source": 0,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "source": 1,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": 9.6656,
+     "source": 2,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 1e+300,
+     "cap": 579,
+     "source": 3,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 3,
+     "source": 4,
+     "target": 5
+    }
+   }
+  ]
+ }
+}

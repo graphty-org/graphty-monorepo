@@ -1,0 +1,3 @@
+:ID,names:string[],nums:int[],flags:boolean[],:LABEL
+a,x;y;z,1;2;3,true;false,L
+b,single,42,true,L

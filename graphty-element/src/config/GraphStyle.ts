@@ -53,7 +53,7 @@ const GraphSelectionStyle = z.strictObject({
     opacity: z.number().min(0).max(1).default(0.4),
 });
 
-/** What a selected node looks like, as it parses. See {@link GraphSelectionStyle}. */
+/** What a selected node looks like, as it parses. See {@link GraphSelectionStyleOpts}. */
 export type GraphSelectionStyleConfig = z.infer<typeof GraphSelectionStyle>;
 
 /** What a caller may say about the selection highlight: every field optional. */
@@ -87,7 +87,11 @@ export const GraphStyle = z.strictObject({
     addDefaultStyle: z.boolean().default(true),
     background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     selection: GraphSelectionStyle.optional(),
-    startingCameraDistance: z.number().default(30), // TODO: replace with "zoomToFit: z.boolean()"
+    /**
+     * How far the camera starts from the graph, in scene units. Set, it places the camera and
+     * turns off the element's automatic zoom-to-fit; unset, the graph is framed to fit.
+     */
+    startingCameraDistance: z.number().optional(),
     layout: z.string().optional(), // No default - let Graph constructor set the default
     layoutOptions: z.looseObject({}).optional(),
     /**

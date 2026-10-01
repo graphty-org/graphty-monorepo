@@ -112,6 +112,9 @@ export const queryGraph: GraphCommand = {
     },
 };
 
+/** How many node ids findNodes returns when the caller passes no limit. */
+const DEFAULT_FIND_NODES_LIMIT = 50;
+
 /**
  * Command to find nodes matching criteria.
  * Searches nodes by data properties using simple selectors.
@@ -119,14 +122,14 @@ export const queryGraph: GraphCommand = {
 export const findNodes: GraphCommand = {
     name: "findNodes",
     description:
-        "Find nodes in the graph that match specific criteria. Returns matching node IDs and counts. Note: selectors search within node data directly, so use 'type' not 'data.type'.",
+        "Find nodes in the graph that match specific criteria. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Note: selectors search within node data directly, so use 'type' not 'data.type'.",
     parameters: z.object({
         selector: z
             .string()
             .describe(
                 "Simple selector to match nodes (e.g., 'type == \"server\"'). Search is performed on node data directly, so use property names like 'type' not 'data.type'.",
             ),
-        limit: z.number().optional().describe("Maximum number of results to return"),
+        limit: z.number().optional().describe("Maximum number of node IDs to return (default 50)"),
     }),
     examples: [
         { input: "Find all server nodes", params: { selector: "type == 'server'" } },
@@ -193,18 +196,21 @@ export const findNodes: GraphCommand = {
                 });
             }
 
-            // Apply limit
-            if (limit !== undefined && limit > 0) {
-                matchingNodes = matchingNodes.slice(0, limit);
-            }
-
-            const nodeIds = matchingNodes.map((n) => String(n.id));
+            const total = matchingNodes.length;
+            const nodeIds = matchingNodes
+                .slice(0, limit !== undefined && limit > 0 ? limit : DEFAULT_FIND_NODES_LIMIT)
+                .map((n) => String(n.id));
+            const returned = nodeIds.length;
+            const truncated = total > returned;
 
             return Promise.resolve({
                 success: true,
-                message: `Found ${nodeIds.length} matching node${nodeIds.length !== 1 ? "s" : ""}.`,
+                message: `Found ${total} matching node${total !== 1 ? "s" : ""}${truncated ? ` (showing ${returned})` : ""}.`,
                 data: {
-                    count: nodeIds.length,
+                    total,
+                    returned,
+                    count: returned,
+                    truncated,
                     nodeIds,
                 },
                 affectedNodes: nodeIds,

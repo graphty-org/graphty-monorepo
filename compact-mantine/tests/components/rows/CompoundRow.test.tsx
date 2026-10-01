@@ -2,7 +2,7 @@ import { MantineProvider } from "@mantine/core";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
@@ -40,7 +40,7 @@ function colourAndOpacity(): React.ComponentProps<typeof CompoundRow>["segments"
     ];
 }
 
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<(...args: unknown[]) => void>;
 
 beforeEach(() => {
     warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -175,10 +175,7 @@ describe("CompoundRow", () => {
             const { container } = renderRow(
                 <CompoundRow
                     label="Node opacity and falloff"
-                    segments={[
-                        { glyph: "opacity", value: "100", unit: "%", grow: true },
-                        { value: "0.5" },
-                    ]}
+                    segments={[{ glyph: "opacity", value: "100", unit: "%", grow: true }, { value: "0.5" }]}
                 />,
             );
 
@@ -261,7 +258,10 @@ describe("CompoundRow", () => {
             renderRow(
                 <CompoundRow
                     label="Node opacity and colour"
-                    segments={[{ value: "100", unit: "%" }, { value: "4A7EE8", grow: true }]}
+                    segments={[
+                        { value: "100", unit: "%" },
+                        { value: "4A7EE8", grow: true },
+                    ]}
                 />,
             );
 
@@ -401,7 +401,10 @@ describe("CompoundRow", () => {
             renderRow(
                 <CompoundRow
                     label="Node colour and opacity"
-                    segments={[{ value: swatch(), grow: true }, { value: "100", unit: "%" }]}
+                    segments={[
+                        { value: swatch(), grow: true },
+                        { value: "100", unit: "%" },
+                    ]}
                 />,
             );
 
@@ -486,9 +489,7 @@ describe("CompoundRow", () => {
         it("hands the pointer event to the caller", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(
-                <CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />,
-            );
+            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
 
             await user.click(screen.getByTestId("compound-row-box"));
 
@@ -501,9 +502,7 @@ describe("CompoundRow", () => {
         it("reports the modifier keys, so a caller can extend a selection", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(
-                <CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />,
-            );
+            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
 
             await user.keyboard("{Shift>}");
             await user.click(screen.getByTestId("compound-row-box"));
@@ -517,9 +516,7 @@ describe("CompoundRow", () => {
         it("lets the caller work out which value was clicked", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(
-                <CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />,
-            );
+            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
 
             const [, opacity] = screen.getAllByTestId("compound-segment-value");
             await user.click(opacity);
@@ -532,9 +529,7 @@ describe("CompoundRow", () => {
         it("activates on Enter", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(
-                <CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />,
-            );
+            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
 
             await user.tab();
             expect(screen.getByTestId("compound-row-box")).toHaveFocus();
@@ -546,9 +541,7 @@ describe("CompoundRow", () => {
         it("activates on Space", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(
-                <CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />,
-            );
+            renderRow(<CompoundRow label="Node colour and opacity" segments={colourAndOpacity()} onClick={onClick} />);
 
             await user.tab();
             await user.keyboard(" ");
@@ -609,9 +602,7 @@ describe("CompoundRow", () => {
         });
 
         it("becomes a live region as soon as the caller declares the row asynchronous", () => {
-            renderRow(
-                <CompoundRow label="Graph size, nodes and edges" segments={colourAndOpacity()} busy={false} />,
-            );
+            renderRow(<CompoundRow label="Graph size, nodes and edges" segments={colourAndOpacity()} busy={false} />);
 
             // The region has to exist before the values change, or the change
             // is announced by nothing at all.
@@ -884,7 +875,9 @@ describe("CompoundRow", () => {
             );
 
             expect(warn).toHaveBeenCalledTimes(1);
-            expect(String(warn.mock.calls[0]?.[0])).toContain("was given 0 segments that set grow, and exactly one should");
+            expect(String(warn.mock.calls[0]?.[0])).toContain(
+                "was given 0 segments that set grow, and exactly one should",
+            );
         });
 
         it("warns when every segment claims to be the main value", () => {
@@ -899,7 +892,9 @@ describe("CompoundRow", () => {
             );
 
             expect(warn).toHaveBeenCalledTimes(1);
-            expect(String(warn.mock.calls[0]?.[0])).toContain("was given 2 segments that set grow, and exactly one should");
+            expect(String(warn.mock.calls[0]?.[0])).toContain(
+                "was given 2 segments that set grow, and exactly one should",
+            );
         });
 
         it("names the offending row in the warning", () => {

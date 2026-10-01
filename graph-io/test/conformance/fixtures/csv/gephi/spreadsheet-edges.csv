@@ -1,0 +1,4 @@
+Source,Target,Type,Id,Label,Weight
+a,b,Directed,e1,first,2
+b,c,Undirected,e2,second,3
+c,a,,e3,third,

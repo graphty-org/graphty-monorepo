@@ -166,6 +166,8 @@ export interface GraphSummaryProps {
     readonly degreeAxisMin: string;
     /** The value at the end of the histogram's axis. */
     readonly degreeAxisMax: string;
+    /** Whether graphty-element laid the bars out on a log scale, which the histogram's label then says. */
+    readonly degreeLogScale?: boolean;
     /** The Schema section's content. */
     readonly schema: GraphSummarySchema;
     /** The Attributes section's content. */
@@ -335,6 +337,7 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
         degreeBins,
         degreeAxisMin,
         degreeAxisMax,
+        degreeLogScale = false,
         schema,
         attributes,
         caseNoteCount,
@@ -496,7 +499,7 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
                     ))}
 
                     <HistogramRow
-                        label="Links per node"
+                        label={degreeLogScale ? "Links per node (log scale)" : "Links per node"}
                         bins={[...degreeBins]}
                         minLabel={degreeAxisMin}
                         maxLabel={degreeAxisMax}

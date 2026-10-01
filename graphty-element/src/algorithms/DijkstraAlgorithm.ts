@@ -1,10 +1,12 @@
-import { dijkstra, dijkstraPath } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { SimplifyPolicy } from "./input/derivedInputs";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -14,7 +16,6 @@ import {
     PATH_FIELD_SPECS,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Dijkstra algorithm
@@ -38,7 +39,8 @@ const dijkstraOptionsSchema = defineOptions({
         schema: z.boolean().default(true),
         meta: {
             label: "Bidirectional Search",
-            description: "Use bidirectional search optimization for faster point-to-point queries",
+            description:
+                "Accepted and ignored: the shortest-path search relaxes outwards from the source in one direction, and the route it finds is the same one either way",
             advanced: true,
         },
     },
@@ -52,7 +54,7 @@ interface DijkstraOptions extends Record<string, unknown> {
     source: number | string | null;
     /** Destination node for shortest path (defaults to last node if not provided) */
     target: number | string | null;
-    /** Use bidirectional search optimization for point-to-point queries */
+    /** Accepted and ignored; see the option's description. */
     bidirectional: boolean;
 }
 
@@ -60,11 +62,15 @@ interface DijkstraOptions extends Record<string, unknown> {
  * Dijkstra's algorithm for finding shortest paths
  *
  * Computes shortest paths from a source node to all other nodes using
- * non-negative edge weights. Supports bidirectional search optimization.
+ * non-negative edge weights.
  */
 export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     static namespace = "graphty";
     static type = "dijkstra";
+    /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
+    /** A route takes the cheapest of a group of parallel edges, not their sum. */
+    static parallelEdges: SimplifyPolicy = "min";
 
     static zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
 
@@ -90,7 +96,8 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
             type: "boolean",
             default: true,
             label: "Bidirectional Search",
-            description: "Use bidirectional search optimization for faster point-to-point queries",
+            description:
+                "Accepted and ignored: the shortest-path search relaxes outwards from the source in one direction, and the route it finds is the same one either way",
             advanced: true,
         },
     };
@@ -124,56 +131,82 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
      * @returns The route, or null when there are no nodes to search.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes and edges of the run's input: its scope's, or the whole graph's.
+        const input = this.input("undirected");
+        const nodeIds = scopeNodeIds(input);
 
         if (nodeIds.length === 0) {
             return null;
         }
 
-        // Get source and target from legacy options, schema options, or use defaults
-        // Legacy configure() takes precedence for backward compatibility
-        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? nodeIds[0];
-        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? nodeIds[nodeIds.length - 1];
-        const { bidirectional } = this._schemaOptions;
-
         // Undirected: a shortest path may cross an edge in either direction.
-        const graphData = this.algorithmGraph("undirected");
+        const { snapshot, edgeRemap, run } = this.accelerated("sssp", "undirected");
+
+        /* Get source and target from legacy options, schema options, or use the input's first and
+           last node -- the scope's, for a scoped run. The DEFAULTS come from the snapshot rather
+           than from the render objects, because the snapshot is what the search runs over. */
+        const { ids } = snapshot;
+        const source = this.legacyOptions?.source ?? this._schemaOptions.source ?? ids.idOf(0);
+        const target = this.legacyOptions?.target ?? this._schemaOptions.target ?? ids.idOf(snapshot.nodeCount - 1);
+        const sourceIndex = this.nodeIndex(snapshot, "source", source);
+        const targetIndex = this.nodeIndex(snapshot, "target", target);
 
         context.report({ phase: "Searching for the route", total: null });
-        const route = dijkstraPath(graphData, source, target, { bidirectional });
-        const path = route?.path ?? [];
+        const { value, precision } = await run((dispatch, s) => dispatch.sssp(s, sourceIndex));
 
-        context.report({ phase: "Measuring distances", total: null });
-        const distances = dijkstra(graphData, source);
-
-        const orderOf = new Map<number | string, number>();
-        path.forEach((nodeId, position) => orderOf.set(nodeId, position));
+        /* ONE search answers both questions this run publishes. The distances come straight out of
+           it, and the route is walked back from the target through the predecessor arcs -- which
+           the dispatcher attaches to an accelerator's bare result too, so there is one loop here
+           whichever path ran. */
+        const path = value.pathTo(targetIndex);
+        const routeEdges = new Set<number>(value.pathEdges(targetIndex));
+        const orderOf = new Map<number, number>();
+        path.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
-            const order = orderOf.get(nodeId);
+            const index = ids.indexOf(nodeId);
+            const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 
             nodes.push({
                 id: nodeId,
                 values: {
                     onPath: order !== undefined,
                     order,
-                    distance: distances.get(nodeId)?.distance ?? Infinity,
+                    distance: index === INVALID_INDEX ? Infinity : value.dist[index],
                 },
             });
         });
 
-        const routeEdges = this.getPathEdges(path);
-        const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", Array.from(dataManager.edges.values()), (edge) => {
-            // The pair keys are how an @graphty/algorithms route is matched back onto element
-            // edges; the id PUBLISHED is the element's own, because a pair cannot name one of two
-            // parallel edges and a style layer has to be able to.
-            const key = edgePairKey(edge.srcId, edge.dstId);
-            const reversed = edgePairKey(edge.dstId, edge.srcId);
+        /* The route names edges of the UNDIRECTED, simplified view, so each of the element's own
+           edges is mapped onto that space. A merged route edge stands for every parallel edge
+           between its pair, and the walk took ONE of them: the cheapest, the lowest row on a tie.
+           Only that edge is on the route, so a path set made from the run names one edge per step
+           (design/sets 4.4). A reciprocal pair read undirected is one step taken over both
+           directions, so the cheapest edge of EACH direction is on it. */
+        const scoped = scopeEdges(input);
+        const { src, weights } = input.graph.edgeList();
+        const taken = new Map<string, { row: number; weight: number }>();
+        for (const edge of scoped) {
+            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
+            if (!routeEdges.has(merged)) {
+                continue;
+            }
 
-            edges.push({ id: edge.id, values: { onPath: routeEdges.has(key) || routeEdges.has(reversed) } });
+            // A declared undirected edge has no direction to tell apart: one key per merged edge.
+            const key = input.graph.directed ? `${String(merged)}>${String(src[edge.row])}` : String(merged);
+            const weight = weights === null ? 1 : weights[edge.row];
+            const best = taken.get(key);
+            if (best === undefined || weight < best.weight) {
+                taken.set(key, { row: edge.row, weight });
+            }
+        }
+
+        const onRoute = new Set([...taken.values()].map((entry) => entry.row));
+        const edges: ResultElementValues<EdgeId>[] = [];
+        await forEachChunked(context, "Marking the route", scoped, (edge) => {
+            // The id PUBLISHED is the element's own, which a style layer can name.
+            edges.push({ id: edge.id, values: { onPath: onRoute.has(edge.row) } });
         });
 
         return {
@@ -183,34 +216,20 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
             edges,
             graph: {
                 length: path.length,
-                cost: route?.distance ?? 0,
+                cost: path.length === 0 ? 0 : value.dist[targetIndex],
                 hops: Math.max(path.length - 1, 0),
             },
             caveats: declaredCaveats({
                 method: "dijkstra",
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
+                precision,
                 notes:
-                    route === null
+                    path.length === 0
                         ? [`No route runs from ${String(source)} to ${String(target)}.`]
                         : [`Route from ${String(source)} to ${String(target)}.`],
             }),
         };
-    }
-
-    /**
-     * Get set of edge keys that are part of the path
-     * @param path - Array of node IDs representing the path
-     * @returns Set of edge keys in "srcId:dstId" format
-     */
-    private getPathEdges(path: (number | string)[]): Set<string> {
-        const edges = new Set<string>();
-
-        for (let i = 0; i < path.length - 1; i++) {
-            edges.add(edgePairKey(path[i], path[i + 1]));
-        }
-
-        return edges;
     }
 }
 

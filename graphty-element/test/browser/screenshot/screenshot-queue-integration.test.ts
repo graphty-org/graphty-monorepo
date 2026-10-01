@@ -1,6 +1,6 @@
 import { afterEach, assert, test } from "vitest";
 
-import type { Graph } from "../../../src/Graph";
+import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -55,7 +55,7 @@ test("concurrent screenshot and operations complete successfully", async () => {
         });
 
     // Queue another operation (use style-apply to avoid layout triggers)
-    const operationPromise = graph.operationQueue.queueOperationAsync("style-apply", () => {
+    const operationPromise = operationQueueOf(graph).queueOperationAsync("style-apply", () => {
         operationCompleted = true;
     });
 
@@ -72,7 +72,7 @@ test("screenshots wait for queued operations when waitForOperations is true", as
     let operationCompleted = false;
 
     // Queue a long operation first (use style-apply to avoid triggering layout-update)
-    const operationPromise = graph.operationQueue.queueOperationAsync("style-apply", async () => {
+    const operationPromise = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
         await new Promise((resolve) => {
             setTimeout(resolve, 200);
         });
@@ -97,25 +97,27 @@ test("screenshots wait for queued operations when waitForOperations is true", as
 test("screenshots can proceed immediately when waitForOperations is false", async () => {
     graph = await createTestGraphWithData();
 
-    // Queue a long operation (use style-apply to avoid triggering layout-update)
-    // Use 3000ms to create clear separation from expected screenshot time
-    void graph.operationQueue.queueOperationAsync("style-apply", async () => {
-        await new Promise((resolve) => {
-            setTimeout(resolve, 3000);
-        });
+    // Queue an operation that stays pending until the test releases it (use style-apply to
+    // avoid triggering layout-update)
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    let operationDone = false;
+    const operation = operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
+        await gate;
+        operationDone = true;
     });
 
-    // Screenshot with waitForOperations: false should not wait
-    const startTime = Date.now();
+    // Screenshot with waitForOperations: false should not wait for it
     await graph.captureScreenshot({
         timing: { waitForSettle: false, waitForOperations: false },
     });
-    const elapsed = Date.now() - startTime;
 
-    // Should complete much faster than the 3000ms operation time
-    // Allow generous threshold (2000ms) for CI variability - the key assertion is that
-    // we don't wait for the full operation to complete
-    assert.ok(elapsed < 2000, `Screenshot should complete quickly, took ${elapsed}ms`);
+    assert.isFalse(operationDone, "Screenshot should complete while the operation is still pending");
+
+    release();
+    await operation;
 });
 
 test("operation queue continues after screenshot completes", async () => {
@@ -129,7 +131,7 @@ test("operation queue continues after screenshot completes", async () => {
     });
 
     // Queue an operation after screenshot
-    await graph.operationQueue.queueOperationAsync("data-add", () => {
+    await operationQueueOf(graph).queueOperationAsync("data-add", () => {
         operationExecuted = true;
     });
 

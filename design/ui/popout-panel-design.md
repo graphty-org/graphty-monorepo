@@ -1242,7 +1242,7 @@ The following are explicitly NOT part of this design:
 - [Zag.js Floating Panel Documentation](https://zagjs.com/components/react/floating-panel)
 - [Zag.js GitHub Repository](https://github.com/chakra-ui/zag)
 - [Ark UI Popover Documentation](https://ark-ui.com/docs/components/popover)
-- [Mantine Components](https://mantine.dev/core/getting-started/)
+- [Mantine Components](https://mantine.dev/getting-started/)
 - [react-draggable npm](https://www.npmjs.com/package/react-draggable)
 
 ### 12.3 Library Comparison and Issues

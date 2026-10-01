@@ -4,20 +4,15 @@
  * Demonstrates Kamada-Kawai layout in 3D using path-length cost-function optimization.
  * Shows animation from random initial positions to final optimized 3D positions.
  *
- * IMPORTANT: This story uses the actual kamadaKawaiLayout implementation
+ * IMPORTANT: This story uses the actual kamadaKawai implementation
  * from @graphty/layout with dim=3 to demonstrate real package behavior.
  */
 
-import { kamadaKawaiLayout } from "@graphty/layout";
+import { kamadaKawai, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandom3DPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandom3DPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     cleanup3DScene,
     create3DControls,
@@ -50,21 +45,13 @@ function createKamadaKawai3DStory(args: KamadaKawai3DArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random 3D positions
     const randomPositions = generateRandom3DPositions(generatedGraph, 200, seed);
 
     // Compute final Kamada-Kawai 3D layout using actual algorithm with dim=3
-    const finalPositions = kamadaKawaiLayout(
-        layoutGraph,
-        null, // dist - shortest path distances (auto-computed)
-        null, // pos - initial positions
-        "weight", // weight attribute
-        scale, // scale
-        [0, 0, 0], // center (3D)
-        3, // dim = 3 for 3D layout
-    );
+    const finalPositions = toPositionMap(kamadaKawai(snapshot, { scale, center: [0, 0, 0], dim: 3 }), snapshot.ids);
 
     // Create main container
     const container = create3DStoryContainer();
@@ -105,7 +92,10 @@ function createKamadaKawai3DStory(args: KamadaKawai3DArgs): HTMLElement {
 
         // Animate to final positions
         update3DPositions(scene3D, generatedGraph, finalPositions, 200, 1000, () => {
-            update3DStatus(statusPanel, "Kamada-Kawai 3D layout applied! Nodes positioned using path-length optimization in 3D space.");
+            update3DStatus(
+                statusPanel,
+                "Kamada-Kawai 3D layout applied! Nodes positioned using path-length optimization in 3D space.",
+            );
         });
     }
 
@@ -157,15 +147,7 @@ const meta: Meta<KamadaKawai3DArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         scale: {
@@ -192,7 +174,7 @@ type Story = StoryObj<KamadaKawai3DArgs>;
 /**
  * Kamada-Kawai 3D layout story - path-length optimization algorithm in 3D.
  *
- * This story uses the actual `kamadaKawaiLayout()` function from @graphty/layout with dim=3.
+ * This story uses the actual `kamadaKawai()` function from @graphty/layout with dim=3.
  * The play function animates from random 3D positions to the optimized arrangement.
  */
 export const KamadaKawai3D: Story = {

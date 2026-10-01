@@ -1,16 +1,24 @@
 /**
  * The public barrel's VALUE list, pinned (contract 3.15, 5.5): P0's errors / constants / isSoftwareAdapter, P1's
  * GpuContext and degree, P3's layout factory, accelerator, default tables and seeder, P5's two layout factories and
- * their default tables, P4's calibrateLayout; each value is the same object
+ * their default tables, P4's calibrateLayout, P7's six algorithms, P8's four traversals; each value is the same object
  * its module exports; no default export; the entries and the internal surface never reach the root.
  * Types are pinned by test/types/public-api.test-d.ts under the strict-consumer compile.
  */
 
 import { createAccelerator } from "../src/accelerator.js";
+import { allPairsShortestPath } from "../src/algorithms/all-pairs.js";
+import { bellmanFord } from "../src/algorithms/bellman-ford.js";
+import { betweennessCentrality, edgeBetweennessCentrality } from "../src/algorithms/betweenness.js";
+import { breadthFirstSearch } from "../src/algorithms/bfs.js";
+import { closenessCentrality } from "../src/algorithms/closeness.js";
 import { connectedComponents } from "../src/algorithms/components.js";
 import { degree } from "../src/algorithms/degree.js";
+import { labelPropagation } from "../src/algorithms/label-propagation.js";
 import { pageRank, personalizedPageRank } from "../src/algorithms/pagerank.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../src/algorithms/spectral.js";
+import { sssp } from "../src/algorithms/sssp.js";
+import { triangleCount } from "../src/algorithms/triangles.js";
 import * as constants from "../src/constants.js";
 import { GpuContext } from "../src/context.js";
 import * as acquire from "../src/device/acquire.js";
@@ -63,6 +71,19 @@ const VALUE_EXPORTS = [
     "eigenvectorCentrality",
     "katzCentrality",
     "connectedComponents",
+    // P8: the frontier family (spec 3.3 lines 807-810, 8.4; P8-T13 PD-16)
+    "breadthFirstSearch",
+    "sssp",
+    "bellmanFord",
+    "closenessCentrality",
+    // betweenness (spec 3.3 lines 811-812, 8.4)
+    "betweennessCentrality",
+    "edgeBetweennessCentrality",
+    // all-pairs shortest paths (design 3.3 line 813, 8.7)
+    "allPairsShortestPath",
+    // P11: structure and community (design 3.3 lines 806-807, 8.5, 8.6)
+    "triangleCount",
+    "labelPropagation",
     // the device self-check (the capability record a caller reads before committing work to a device)
     "verifyDevice",
 ];
@@ -114,10 +135,29 @@ const NEVER_EXPORTED = [
     "spmvPull",
     "assertDeviceComputes", // the guard the entry points await; callers read verifyDevice instead
     "checkScanWords",
+    // the P8 tuning entry points (PD-26) and the ring arithmetic, @internal seams the tests reach by file
+    "bfsWithTuning",
+    "ssspWithTuning",
+    "bellmanFordWithTuning",
+    "closenessWithTuning",
+    // the betweenness tuning entry points and the planner, @internal seams the tests reach by file
+    "betweennessWithTuning",
+    "edgeBetweennessWithTuning",
+    "planBatchSize",
+    "bfsRingSlots",
+    // the all-pairs tuning entry and its ceiling arithmetic, @internal seams the tests reach by file
+    "allPairsWithTuning",
+    "allPairsCeiling",
+    // the P11 seams and internals the tests reach by file
+    "triangleCountWithSearch",
+    "buildSimpleSymmetric",
+    "prepareCooToCsr",
+    "prepareGroupByKeyRow",
+    "planGroupRows",
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {
-    it("exports exactly the P3 + P4 + P5 + P7 value list and no default export", () => {
+    it("exports exactly the P3 + P4 + P5 + P7 + P8 value list and no default export", () => {
         expect(Object.keys(api).sort()).toEqual([...VALUE_EXPORTS].sort());
         expect((api as Record<string, unknown>).default).toBeUndefined();
     });
@@ -151,6 +191,15 @@ describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () 
         expect(api.eigenvectorCentrality).toBe(eigenvectorCentrality);
         expect(api.katzCentrality).toBe(katzCentrality);
         expect(api.connectedComponents).toBe(connectedComponents);
+        expect(api.breadthFirstSearch).toBe(breadthFirstSearch);
+        expect(api.sssp).toBe(sssp);
+        expect(api.bellmanFord).toBe(bellmanFord);
+        expect(api.closenessCentrality).toBe(closenessCentrality);
+        expect(api.betweennessCentrality).toBe(betweennessCentrality);
+        expect(api.edgeBetweennessCentrality).toBe(edgeBetweennessCentrality);
+        expect(api.allPairsShortestPath).toBe(allPairsShortestPath);
+        expect(api.triangleCount).toBe(triangleCount);
+        expect(api.labelPropagation).toBe(labelPropagation);
         expect(api.calibrateLayout).toBe(calibrateLayout);
         expect(api.verifyDevice).toBe(verifyDevice);
         expect(typeof api.WebGpuGraphError).toBe("function");

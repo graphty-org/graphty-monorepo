@@ -19,9 +19,10 @@ import {
 
 /**
  * What an importer reads (design section 8.4): whole text, whole bytes, a byte stream (a browser
- * `File.stream()`, a fetch body) or an async iterable of text or byte chunks. Bytes are decoded as
- * UTF-8 with `fatal: true`, so an invalid sequence is a parse-error and never a silent U+FFFD that
- * could alias two ids.
+ * `File.stream()`, a fetch body) or an async iterable of text or byte chunks. Bytes are decoded
+ * strictly in the encoding the `encoding` option, a byte order mark or the file's own declaration
+ * names, else as UTF-8 (undeclared bytes that are not UTF-8 are read as windows-1252 with a
+ * warning), so an invalid sequence is a parse-error and never a silent U+FFFD that could alias two ids.
  */
 export type ImportInput = string | Uint8Array | ReadableStream<Uint8Array> | AsyncIterable<string | Uint8Array>;
 
@@ -65,6 +66,13 @@ export interface CommonImportOptions {
     signal?: AbortSignal | undefined;
     /** Progress in bytes; `bytesTotal` is known for in-memory input only. */
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    /**
+     * The character encoding of byte input (a WHATWG label such as "utf-8", "windows-1252",
+     * "iso-8859-1", "utf-16le"); overrides the byte order mark and any encoding the file declares.
+     * Absent: a BOM decides, else the declaration (XML prolog, DOT `charset`), else UTF-8, and
+     * bytes that are not valid UTF-8 are read as windows-1252 with a warning. Ignored for text input.
+     */
+    encoding?: string | undefined;
 }
 
 /**
@@ -94,6 +102,21 @@ export interface GraphImporter<Opts = unknown> {
      * @returns the import report
      */
     import(input: ImportInput, sink: GraphSink, options?: Opts & CommonImportOptions): Promise<ImportReport>;
+    /**
+     * Read every graph of an input that can hold several (a DOT file with several graphs, a
+     * Pajek project with several networks, a JGF `graphs` array), each into its own sink. An
+     * importer without this method reads one graph per input. `import()` reads the first graph
+     * and warns how many it skipped.
+     * @param input - the text, bytes or stream to read
+     * @param sinkFor - called once per graph, in document order, before that graph's first push
+     * @param options - format-specific and common options
+     * @returns one report per graph, in document order
+     */
+    importAll?(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: Opts & CommonImportOptions,
+    ): Promise<ImportReport[]>;
 }
 
 /**

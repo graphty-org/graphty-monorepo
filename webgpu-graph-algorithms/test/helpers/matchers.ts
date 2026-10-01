@@ -3,9 +3,15 @@
  * closeness with the worst index in the failure message, TRUE bitwise equality of typed arrays (the bytes, so -0 / 0
  * and NaN payloads count), the floored per-node relative error of spec 11.4 over stride-3 vectors, and a plain
  * maximum relative error with an absolute floor.
+ *
+ * `expect` is IMPORTED rather than taken from the globals this package's own vitest config
+ * provides, so that a suite in another package can reuse these -- graphty-element's browser
+ * project holds its simulation bridge to `test/oracle/fruchterman-reingold.ts` with
+ * `flooredRelError`, and it does not turn globals on.
  */
 
 import { type TypedArrayData } from "@graphty/graph-format";
+import { expect } from "vitest";
 
 /**
  * Relative and absolute tolerance: |a - e| <= abs + rel * |e|. Exported by contract 5.2 for the kernel and layout

@@ -1,0 +1,124 @@
+{
+ "directed": true,
+ "multigraph": true,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 123456789.125,
+   "rank": -2147483648,
+   "id": 0
+  },
+  {
+   "score": -2.25,
+   "rank": 1,
+   "tag": "a&b",
+   "id": 1
+  },
+  {
+   "score": 32.940699,
+   "rank": 42,
+   "tag": "<tag>",
+   "flag": true,
+   "id": 2
+  },
+  {
+   "score": 43.063511,
+   "rank": 1,
+   "tag": "😀",
+   "id": 3
+  },
+  {
+   "score": 14.805906,
+   "rank": 0,
+   "tag": "café",
+   "flag": true,
+   "id": 4
+  },
+  {
+   "score": 2.0,
+   "tag": "中文",
+   "id": 5
+  }
+ ],
+ "links": [
+  {
+   "weight": 3.6572,
+   "cap": 39,
+   "source": 0,
+   "target": 5,
+   "key": 0
+  },
+  {
+   "weight": 3,
+   "rel": "two words",
+   "source": 0,
+   "target": 4,
+   "key": 0
+  },
+  {
+   "weight": 1e-300,
+   "rel": "plain",
+   "cap": 215,
+   "source": 0,
+   "target": 1,
+   "key": 0
+  },
+  {
+   "rel": " nbsp",
+   "source": 0,
+   "target": 1,
+   "key": 1
+  },
+  {
+   "source": 1,
+   "target": 5,
+   "key": 0
+  },
+  {
+   "weight": 3,
+   "cap": 219,
+   "source": 1,
+   "target": 3,
+   "key": 0
+  },
+  {
+   "weight": 2.0538,
+   "source": 1,
+   "target": 0,
+   "key": 0
+  },
+  {
+   "weight": -0.0,
+   "rel": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": 2,
+   "target": 3,
+   "key": 0
+  },
+  {
+   "weight": 0.5,
+   "cap": 400,
+   "source": 2,
+   "target": 2,
+   "key": 0
+  },
+  {
+   "weight": 9.5756,
+   "source": 3,
+   "target": 1,
+   "key": 0
+  },
+  {
+   "weight": 3.9835,
+   "rel": "中文",
+   "source": 3,
+   "target": 0,
+   "key": 0
+  },
+  {
+   "rel": "😀",
+   "source": 5,
+   "target": 0,
+   "key": 0
+  }
+ ]
+}

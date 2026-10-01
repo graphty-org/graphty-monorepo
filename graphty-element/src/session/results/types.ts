@@ -64,6 +64,39 @@ export function resultPath(runId: RunId, field?: string): Path {
 }
 
 /**
+ * The name a grouping result gives one of its groups, from its place in the size order.
+ *
+ * The summary and the legend both print this, so one group is called the same thing in the list
+ * of groups and in the key to the colours -- rather than "Group 1" in one and its raw id "0" in the
+ * other.
+ * @param rank - The group's 1-based place, largest group first.
+ * @returns The name, such as "Group 1".
+ */
+export function groupName(rank: number): string {
+    return `Group ${String(rank)}`;
+}
+
+/**
+ * Order two keys of equally large groups, so they come back in the same order every time.
+ *
+ * Keys that are both numbers, or the canonical spelling of one, compare as numbers, so group 2
+ * comes before group 10 whether the key arrived as a number or as the string a category column
+ * turns it into. Anything else compares as text.
+ * @param left - One key.
+ * @param right - The other.
+ * @returns The usual negative, zero or positive ordering.
+ */
+export function compareGroupKeys(left: string | number, right: string | number): number {
+    const a = Number(left);
+    const b = Number(right);
+    if (Number.isFinite(a) && Number.isFinite(b) && String(a) === String(left) && String(b) === String(right)) {
+        return a - b;
+    }
+
+    return String(left).localeCompare(String(right));
+}
+
+/**
  * Replace the run-id placeholder in a catalogue descriptor's static path with a real run id.
  * @param path - The path as a descriptor declares it, such as "results.$.value".
  * @param runId - The run to bind it to.
@@ -615,6 +648,28 @@ export interface RankingEntry {
     readonly percentile: number;
 }
 
+/**
+ * The top of a ranking, cut only between tie groups.
+ *
+ * THE TIE POLICY: a group of elements that share a value is taken whole or not at all, and it is
+ * taken only when the whole group fits inside the limit. With ranks that share a place (1, 2, 2,
+ * 4), a group of size `s` at rank `r` is in exactly when `r + s - 1 <= n`. So the top never holds
+ * more than `n` elements and never splits a tie by an arbitrary order -- and it can hold FEWER
+ * than `n`, or none at all on a graph whose top value is shared by more than `n` elements.
+ * {@link TopRanking.leftOut} and {@link TopRanking.reason} say when that happened.
+ */
+export interface TopRanking {
+    /** The elements taken, best first: whole tie groups only, never more than the limit. */
+    readonly entries: readonly RankingEntry[];
+    /**
+     * The tie group that stopped the top short: the first group that did not fit, with its
+     * value and its size. Null when nothing was left out on account of a tie.
+     */
+    readonly leftOut: { readonly value: number; readonly count: number } | null;
+    /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
+    readonly reason: string | null;
+}
+
 /** One bar of a histogram. */
 export interface HistogramBin {
     /** The lowest value the bin holds, inclusive. */
@@ -705,6 +760,11 @@ export interface SummaryGroup {
     readonly group: string | number;
     /** How many elements are in it. */
     readonly size: number;
+    /**
+     * What to call it, such as "Group 1", for a result that partitions into groups. The legend
+     * of a colour encoding over the same groups labels its swatches with the same names.
+     */
+    readonly name?: string;
 }
 
 /**
@@ -791,6 +851,15 @@ export interface RunResult {
      * @returns The entries, best first.
      */
     ranking(field: string, limit?: number): readonly RankingEntry[];
+    /**
+     * The top `n` elements on one field, cut only between tie groups. See {@link TopRanking}
+     * for the tie policy. A `{ match: "top" }` style selector and a `{ top }` selection target
+     * both read this, so the two can never disagree about which elements are the top `n`.
+     * @param field - The field to rank on.
+     * @param n - The most elements the top may hold.
+     * @returns The elements taken, and the tie group left out when there was one.
+     */
+    top(field: string, n: number): TopRanking;
     /**
      * The distribution of one numeric field.
      * @param field - The field to bin.

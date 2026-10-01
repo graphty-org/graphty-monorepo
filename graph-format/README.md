@@ -192,6 +192,25 @@ them.
 | `relabel(perm)`                        | permuted       | same       | `perm[newIndex] = oldIndex`                                                      |
 | `withColumns(nodes?, edges?)`          | same           | same       | shares the core, clones the column set                                           |
 
+## Sealing
+
+A snapshot's column set is a mutable side table (invariant I17): anyone holding the snapshot can
+`set()`, `remove()` or `rename()` a column. An owner that hands a snapshot to code it does not
+trust attaches its own columns first and then calls `snapshot.seal()`:
+
+```typescript
+snapshot.nodes.set("position", positions, { components: 3 });
+snapshot.seal();
+snapshot.nodes.value("label", 0); // reads work as before
+snapshot.nodes.remove("position"); // throws GraphFormatError E_FROZEN
+```
+
+Sealing covers `nodes`, `edges`, `graph` and every extension table. It freezes which columns exist,
+not what they hold: typed arrays cannot be frozen, and a column declared `mutable` can still be
+written through `mutableData()`. Sealing belongs to the table object, so a derived graph that shares
+a table sees it sealed too. `withColumns()` on a sealed snapshot returns writable node, edge and
+graph tables. `seal()` is idempotent and cannot be undone.
+
 ## GPU Contract
 
 `snapshot.arena` describes one `ArrayBuffer` holding the core arrays at 256-byte-aligned offsets

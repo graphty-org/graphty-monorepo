@@ -32,6 +32,7 @@ describe("resolveImportOptions (design 8.4 defaults)", () => {
             errorLimit: DEFAULT_ERROR_LIMIT,
             signal: null,
             onProgress: null,
+            encoding: null,
         });
         expect(DEFAULT_ERROR_LIMIT).toBe(100);
         expect(Object.isFrozen(o)).toBe(true);
@@ -71,6 +72,7 @@ describe("resolveImportOptions (design 8.4 defaults)", () => {
                 errorLimit: 5,
                 signal,
                 onProgress,
+                encoding: "Latin1",
             },
             TEXT_DEFAULTS,
         );
@@ -90,7 +92,15 @@ describe("resolveImportOptions (design 8.4 defaults)", () => {
             errorLimit: 5,
             signal,
             onProgress,
+            encoding: "windows-1252",
         });
+    });
+
+    it("accepts an encoding label TextDecoder knows and refuses any other", () => {
+        expect(resolveImportOptions({ encoding: "UTF-16LE" }, TEXT_DEFAULTS).encoding).toBe("utf-16le");
+        for (const encoding of ["no-such-encoding", 42]) {
+            expect(() => resolveImportOptions({ encoding } as never, TEXT_DEFAULTS)).toThrow(/option encoding/);
+        }
     });
 
     it("treats an explicit undefined as absent", () => {

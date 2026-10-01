@@ -5,13 +5,13 @@
 
 export interface GraphMetadata {
     generationAlgorithm: string;
-    parameters: Record<string, any>;
+    parameters: Record<string, unknown>;
 }
 
 export interface GraphImpl {
     vertices: number[];
     edges: Array<[number, number, number?]>; // [from, to, weight?]
-    adjacencyList: Record<number, number[]>;
+    adjacencyList: Record<number, number[]> | Map<number, Set<number>>;
     metadata: GraphMetadata;
     directed: boolean;
     weighted: boolean;

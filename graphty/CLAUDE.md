@@ -7,6 +7,7 @@ This file provides guidance to Claude Code when working with the @graphty/grapht
 graphty is a React application that wraps `<graphty-element>` with a full-featured UI for graph visualization. It provides controls for styling, layout configuration, data viewing, and AI-powered graph manipulation.
 
 **Key Technologies:**
+
 - **React 19** with TypeScript
 - **Mantine** UI framework
 - **graphty-element** Web Component for graph rendering
@@ -70,6 +71,7 @@ npm run ready:commit     # Build, lint, and test
 ## UI Framework
 
 This project uses **Mantine** for all UI components. When building new UI:
+
 - Use Mantine components (Button, Modal, TextInput, etc.)
 - Follow Mantine theming conventions in `src/theme.ts`
 - Use Mantine hooks for common patterns
@@ -77,24 +79,46 @@ This project uses **Mantine** for all UI components. When building new UI:
 ## Mobile Development
 
 When testing from mobile devices:
+
 - **Always include eruda** in the UI for console access
 - eruda is already integrated - ensure it remains available
 
 ## Component Patterns
 
 ### Sidebar Controls
+
 Controls in `src/components/sidebar/controls/` are reusable across different panels
 and are shared with the app shell's Style panel:
+
 - `StyleColorInput` - Color picker with label
 - `StyleNumberInput` - Number input with constraints
 - `StyleSelect` - Dropdown selection
 - `ControlSection` - Collapsible section wrapper
 
 ### graphty-element Integration
+
 The `Graphty.tsx` component wraps `<graphty-element>`:
+
 - Passes configuration via attributes
 - Handles events from the Web Component
 - Manages React state for UI controls
+
+Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is the whole GPU integration. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`Graphty.tsx`), remembers it under `graphty.shell.acceleration.v1` (`shell/defaults/accelerationSettings.ts`), and renders `capabilities.acceleration` as the status bar's acceleration chip from the `graphty-capabilities-change` event (`AppShell.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
+
+### Changing the graph, and undo
+
+Every change to what a project file saves goes through the element's session: `session.*`
+verbs, or `tx.*` inside `session.transaction(label, fn)` so that one gesture is one undo step.
+The element records each change and owns the history; the app never keeps its own.
+
+- Never change the graph through a renderer-side member of the element (`element.addNodes`,
+  `element.layout = ...`, a manager, `element.graph`), even though those also record a step.
+  The `graphty/no-element-mutation` lint rule (`eslint-rules/no-element-mutation.js`) reports
+  them. It reads `graphty-element/build/doors.json`, which the element's build writes, so build
+  graphty-element before linting the app.
+- Undo, Redo and the History list read the element's history through
+  `src/components/shell/topbar/useSessionHistory.ts` and call `session.undo()`, `session.redo()`
+  and `session.history.restoreTo()`.
 
 ## Testing
 
@@ -114,6 +138,7 @@ The `Graphty.tsx` component wraps `<graphty-element>`:
 ## graphty-element Feedback
 
 If you encounter bugs or API difficulties with graphty-element while working on this app:
+
 - Document the issue clearly
 - Report it so the graphty-element package can be improved
 - The graphty-element API should be intuitive and easy to use

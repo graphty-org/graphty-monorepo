@@ -172,6 +172,13 @@ export class TwoDCameraController {
 
         this.camera.position.x = centerX;
         this.camera.position.y = centerY;
+
+        // Put the camera behind the box and let the far plane reach past it. Babylon's
+        // default 10000 clips a layout that settles tens of thousands of units deep.
+        const depth = max.z - min.z;
+        this.camera.position.z = min.z - Math.max(10, depth);
+        this.camera.maxZ = Math.max(10000, depth + Math.abs(this.camera.position.z) * 2);
+
         this.updateOrtho(orthoSize * 1.1); // Small padding for visual comfort
     }
 }

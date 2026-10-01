@@ -35,9 +35,6 @@ export default defineConfig({
     description: "Modular graph visualization ecosystem",
     base: "/docs/",
 
-    // Ignore dead links during build
-    ignoreDeadLinks: true,
-
     vue: {
         template: {
             compilerOptions: {
@@ -54,7 +51,8 @@ export default defineConfig({
                 items: [
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
-                    { text: "layout", link: "/layout/" },
+                    { text: "layout", link: "/layout/api/generated/" },
+                    { text: "visual-review", link: "/visual-review/" },
                 ],
             },
         ],
@@ -66,13 +64,14 @@ export default defineConfig({
                     items: [
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
-                        { text: "layout", link: "/layout/" },
+                        { text: "layout", link: "/layout/api/generated/" },
+                        { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
                 {
                     text: "Quick Links",
                     items: [
-                        { text: "graphty-element Storybook", link: "https://graphty.app/storybook/element/" },
+                        { text: "graphty-element Storybook", link: "https://graphty.app/storybook/graphty-element/" },
                         { text: "algorithms Storybook", link: "https://graphty.app/storybook/algorithms/" },
                         { text: "layout Storybook", link: "https://graphty.app/storybook/layout/" },
                         { text: "GitHub", link: "https://github.com/graphty-org/graphty-monorepo" },
@@ -86,6 +85,7 @@ export default defineConfig({
                         { text: "Overview", link: "/graphty-element/" },
                         { text: "Getting Started", link: "/graphty-element/guide/getting-started" },
                         { text: "Installation", link: "/graphty-element/guide/installation" },
+                        { text: "Migrating to 3.0", link: "/graphty-element/guide/migrating-to-3" },
                     ],
                 },
                 {
@@ -96,9 +96,11 @@ export default defineConfig({
                         { text: "Styling", link: "/graphty-element/guide/styling" },
                         { text: "Style Helpers & Palettes", link: "/graphty-element/guide/style-helpers" },
                         { text: "Layouts", link: "/graphty-element/guide/layouts" },
+                        { text: "Acceleration", link: "/graphty-element/guide/acceleration" },
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
+                        { text: "Undo & History", link: "/graphty-element/guide/undo" },
                         { text: "Camera", link: "/graphty-element/guide/camera" },
                         { text: "Screenshots & Video", link: "/graphty-element/guide/screenshots" },
                         { text: "VR/AR", link: "/graphty-element/guide/vr-ar" },
@@ -139,6 +141,7 @@ export default defineConfig({
                     text: "Core Concepts",
                     items: [
                         { text: "Graph Data Structure", link: "/algorithms/guide/graph" },
+                        { text: "Migrating to 3.0", link: "/algorithms/guide/migrating-to-3" },
                         { text: "Traversal Algorithms", link: "/algorithms/guide/traversal" },
                         { text: "Shortest Path", link: "/algorithms/guide/shortest-path" },
                         { text: "Centrality", link: "/algorithms/guide/centrality" },
@@ -156,9 +159,7 @@ export default defineConfig({
                 },
                 {
                     text: "API",
-                    items: [
-                        { text: "Overview", link: "/algorithms/api/" },
-                    ],
+                    items: [{ text: "Overview", link: "/algorithms/api/" }],
                 },
                 {
                     text: "Generated TypeDoc",
@@ -166,42 +167,12 @@ export default defineConfig({
                     items: algorithmsTypedoc,
                 },
             ],
+            // layout has no guide pages yet (there is no layout/docs/): its section is the
+            // generated TypeDoc reference alone.
             "/layout/": [
                 {
-                    text: "Introduction",
-                    items: [
-                        { text: "Overview", link: "/layout/" },
-                        { text: "Getting Started", link: "/layout/guide/getting-started" },
-                        { text: "Installation", link: "/layout/guide/installation" },
-                    ],
-                },
-                {
-                    text: "Layouts",
-                    items: [
-                        { text: "Force-Directed", link: "/layout/guide/force-directed" },
-                        { text: "Geometric", link: "/layout/guide/geometric" },
-                        { text: "Hierarchical", link: "/layout/guide/hierarchical" },
-                        { text: "Spectral", link: "/layout/guide/spectral" },
-                    ],
-                },
-                {
-                    text: "Advanced",
-                    items: [
-                        { text: "3D Layouts", link: "/layout/guide/3d-layouts" },
-                        { text: "Graph Generators", link: "/layout/guide/generators" },
-                        { text: "Layout Helpers", link: "/layout/guide/helpers" },
-                    ],
-                },
-                {
                     text: "API",
-                    items: [
-                        { text: "Overview", link: "/layout/api/" },
-                    ],
-                },
-                {
-                    text: "Generated TypeDoc",
-                    collapsed: true,
-                    items: layoutTypedoc,
+                    items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
                 },
             ],
         },

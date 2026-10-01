@@ -1,163 +1,64 @@
 /**
  * Build GitHub Pages Script
  *
- * Creates a static site for GitHub Pages that:
- * - Builds a self-contained examples/layout.js (the same entry as dist/layout.js, with
- *   @graphty/graph-format inlined so the raw browser modules of the examples can load it)
- * - Transforms example HTML files to work without Vite
- * - Creates a gh-pages directory ready for deployment
+ * The HTML examples that graphty.app/layout/examples/ served called the positional layouts that
+ * layout 2.0.0 removed; the Storybook replaces them. This writes gh-pages/ with a redirect page at
+ * every URL the examples had, each pointing at the story that shows the same layout, so old links
+ * keep working.
  */
 
-import { build } from "vite";
+import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs/promises";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ghPagesDir = path.resolve(__dirname, "../gh-pages");
 
-async function ensureDirectoryExists(dir) {
-    try {
-        await fs.mkdir(dir, { recursive: true });
-    } catch (error) {
-        // Directory already exists
-    }
-}
+/** Every page the examples had, and the story that replaces it (null: the Storybook's front page). */
+const REDIRECTS = {
+    "index.html": null,
+    "3d-forceatlas2.html": "layout3d--force-atlas-2-3-d",
+    "3d-kamada-kawai.html": "layout3d--kamada-kawai-3-d",
+    "3d-spherical-layout.html": "layout3d--spherical",
+    "3d-spring.html": "layout3d--spring-3-d",
+    "arf-layout.html": "layout2d--arf",
+    "bfs-layout.html": "layout2d--bfs",
+    "bipartite-layout.html": "layout2d--bipartite",
+    "circular-layout.html": "layout2d--circular",
+    "forceatlas2-layout.html": "layout2d--force-atlas-2",
+    "kamada-kawai-layout.html": "layout2d--kamada-kawai",
+    "multipartite-layout.html": "layout2d--multipartite",
+    "planar-layout.html": "layout2d--planar",
+    "random-layout.html": "layout2d--random",
+    "shell-layout.html": "layout2d--shell",
+    "spectral-layout.html": "layout2d--spectral",
+    "spiral-layout.html": "layout2d--spiral",
+    "spring-layout.html": "layout2d--spring",
+};
 
-async function processExampleHtml(htmlPath, outputPath) {
-    let content = await fs.readFile(htmlPath, "utf-8");
-
-    // Replace the import path to use the bundled layout.js
-    // Change: from "../dist/layout.js"
-    // To: from "./layout.js"
-    content = content.replace(/from\s+["']\.\.\/dist\/layout\.js["']/g, 'from "./layout.js"');
-
-    // Also update debug messages that reference the old path
-    content = content.replace(/["']\.\.\/dist\/layout\.js["']/g, '"./layout.js"');
-
-    await fs.writeFile(outputPath, content);
-}
-
-async function buildGitHubPages() {
-    const rootDir = path.resolve(__dirname, "..");
-    const examplesDir = path.join(rootDir, "examples-legacy");
-    const distDir = path.join(rootDir, "dist");
-    const ghPagesDir = path.join(rootDir, "gh-pages");
-
-    try {
-        console.log("Building GitHub Pages site...");
-
-        // 1. Clean and create gh-pages directory
-        await fs.rm(ghPagesDir, { recursive: true, force: true });
-        await ensureDirectoryExists(ghPagesDir);
-
-        // Create examples subdirectory
-        const ghPagesExamplesDir = path.join(ghPagesDir, "examples");
-        await ensureDirectoryExists(ghPagesExamplesDir);
-
-        // 2. Ensure dist/layout.js exists
-        const layoutJsPath = path.join(distDir, "layout.js");
-        try {
-            await fs.access(layoutJsPath);
-        } catch {
-            console.error('dist/layout.js not found. Please run "npm run build:bundle" first.');
-            process.exit(1);
-        }
-
-        // 3. Build a self-contained gh-pages/examples/layout.js. dist/layout.js leaves
-        //    @graphty/graph-format external (scripts/build-bundle.js), and the example pages load
-        //    layout.js as a raw browser module, where a bare "@graphty/graph-format" specifier
-        //    cannot resolve; this second lib build inlines the dependency for the examples only.
-        await build({
-            configFile: false,
-            build: {
-                lib: {
-                    entry: path.resolve(__dirname, "../src/index.ts"),
-                    name: "GraphLayout",
-                    formats: ["es"],
-                    fileName: () => "layout.js",
-                },
-                outDir: ghPagesExamplesDir,
-                emptyOutDir: false,
-                rollupOptions: { external: [], output: { preserveModules: false, inlineDynamicImports: true } },
-                minify: false,
-                sourcemap: false,
-            },
-        });
-        console.log("Built the self-contained examples/layout.js");
-
-        // 4. Copy and process example HTML files
-        const files = await fs.readdir(examplesDir);
-        for (const file of files) {
-            if (file.endsWith(".html")) {
-                const inputPath = path.join(examplesDir, file);
-                const outputPath = path.join(ghPagesExamplesDir, file);
-                await processExampleHtml(inputPath, outputPath);
-                console.log(`Processed ${file}`);
-            } else if (file.endsWith(".js")) {
-                // Process and copy helper JS files
-                const inputPath = path.join(examplesDir, file);
-                let content = await fs.readFile(inputPath, "utf-8");
-
-                // Replace the import path to use the bundled layout.js
-                content = content.replace(/from\s+["']\.\.\/dist\/layout\.js["']/g, 'from "./layout.js"');
-
-                await fs.writeFile(path.join(ghPagesExamplesDir, file), content);
-                console.log(`Processed ${file}`);
-            }
-        }
-
-        // 5. Create a redirect index.html at the root
-        const redirectHtml = `<!DOCTYPE html>
-<html>
+function redirectPage(target) {
+    return `<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=examples/index.html">
-    <title>Redirecting to examples...</title>
+<meta charset="utf-8">
+<title>The layout examples have moved</title>
+<link rel="canonical" href="${target}">
+<meta http-equiv="refresh" content="0; url=${target}">
 </head>
 <body>
-    <p>Redirecting to <a href="examples/index.html">examples</a>...</p>
+<p>The layout examples are now stories in the <a href="${target}">layout Storybook</a>.</p>
 </body>
-</html>`;
-        await fs.writeFile(path.join(ghPagesDir, "index.html"), redirectHtml);
-        console.log("Created redirect index.html");
-
-        // 6. Create a .nojekyll file to prevent GitHub Pages from processing files
-        await fs.writeFile(path.join(ghPagesDir, ".nojekyll"), "");
-
-        // 7. Create a simple deployment instruction file
-        const deployInstructions = `# GitHub Pages Deployment
-
-This directory contains the built static site for GitHub Pages.
-
-## To deploy:
-
-1. Make sure you're on the main branch and everything is committed
-2. Run: \`npm run build:gh-pages\`
-3. Deploy the gh-pages directory to GitHub Pages
-
-### Option 1: Using gh-pages npm package
-\`\`\`bash
-npx gh-pages -d gh-pages
-\`\`\`
-
-### Option 2: Manual deployment
-\`\`\`bash
-git subtree push --prefix gh-pages origin gh-pages
-\`\`\`
-
-### Option 3: GitHub Actions
-Configure GitHub Actions to deploy the gh-pages directory on push to main.
+</html>
 `;
-
-        await fs.writeFile(path.join(ghPagesDir, "DEPLOY.md"), deployInstructions);
-
-        console.log("\nSuccessfully built GitHub Pages site in gh-pages/");
-        console.log("See gh-pages/DEPLOY.md for deployment instructions");
-    } catch (error) {
-        console.error("Error building GitHub Pages site:", error);
-        process.exit(1);
-    }
 }
 
-buildGitHubPages();
+await fs.rm(ghPagesDir, { recursive: true, force: true });
+await fs.mkdir(path.join(ghPagesDir, "examples"), { recursive: true });
+for (const [page, story] of Object.entries(REDIRECTS)) {
+    const target = story === null ? "/storybook/layout/" : `/storybook/layout/?path=/story/${story}`;
+    await fs.writeFile(path.join(ghPagesDir, "examples", page), redirectPage(target));
+}
+await fs.writeFile(path.join(ghPagesDir, "index.html"), redirectPage("/storybook/layout/"));
+// keep GitHub Pages from running the site through Jekyll
+await fs.writeFile(path.join(ghPagesDir, ".nojekyll"), "");
+console.log(`Wrote ${Object.keys(REDIRECTS).length + 1} redirect pages to gh-pages/`);

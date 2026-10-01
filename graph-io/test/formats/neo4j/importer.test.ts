@@ -14,6 +14,7 @@ import { SINK_OPTION_CODE } from "../../../src/common/options.js";
 import {
     COLUMN_COUNT_CODE,
     DUPLICATE_NODE_CODE,
+    ENDPOINT_SPACE_CODE,
     HEADER_CODE,
     HEADER_OPTION_CODE,
     ID_MERGED_CODE,
@@ -25,6 +26,7 @@ import {
     MISSING_ID_CODE,
     neo4jImporter,
     type Neo4jImportOptions,
+    ORIGINAL_ID_COLUMN,
     ROLE_TAKEN_CODE,
     TYPE_COLUMN,
 } from "../../../src/formats/neo4j/importer.js";
@@ -158,10 +160,51 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(personId.valueAt(3)).toBe("p1");
         });
 
-        it("reports an id declared in two id spaces and skips the later row", async () => {
-            const text = ":ID(A),name\n1,a\n:ID(B),name\n1,b\n2,c\n";
+        it("keeps the same id in two id spaces apart as Space:id, the original id and space kept as columns", async () => {
+            const products = ":ID(Product),name\n1,chai\n2,chang\n3,syrup\n";
+            const categories = ":ID(Category),name\n1,beverages\n2,condiments\n3,produce\n";
+            const rels =
+                ":START_ID(Product),:END_ID(Category),:TYPE\n1,1,PART_OF\n2,1,PART_OF\n3,2,PART_OF\n" +
+                ":START_ID(Category),:END_ID(Category)\n1,3\n";
+            const { snapshot, report } = await importText(products, { nodes: categories, relationships: rels });
+            expect(report.issues).toEqual([]);
+            expect(snapshot.nodeCount).toBe(6);
+            expect(snapshot.ids.toArray()).toEqual([
+                "Product:1",
+                "Product:2",
+                "Product:3",
+                "Category:1",
+                "Category:2",
+                "Category:3",
+            ]);
+            const original = snapshot.nodes.requireTyped(ORIGINAL_ID_COLUMN, "string");
+            expect(original.meta.role).toBeNull();
+            expect([0, 1, 2, 3, 4, 5].map((i) => original.valueAt(i))).toEqual(["1", "2", "3", "1", "2", "3"]);
+            expect([0, 3].map((i) => snapshot.nodes.value(ID_SPACE_COLUMN, i))).toEqual(["Product", "Category"]);
+            expect([0, 3].map((i) => snapshot.nodes.value("name", i))).toEqual(["chai", "beverages"]);
+            const list = snapshot.edgeList();
+            const pairs = Array.from(list.src, (u, e) => [snapshot.ids.idOf(u), snapshot.ids.idOf(list.dst[e])]);
+            expect(pairs).toEqual([
+                ["Product:1", "Category:1"],
+                ["Product:2", "Category:1"],
+                ["Product:3", "Category:2"],
+                ["Category:1", "Category:3"],
+            ]);
+        });
+
+        it("resolves an endpoint only inside its declared id space", async () => {
+            const text = ":ID(P),name\n1,alice\n:ID(C),name\n2,acme\n:START_ID(P),:END_ID(C),:TYPE\n1,1,WORKS\n";
+            const added = await importText(text, undefined, { addMissingNodes: true });
+            expect(added.snapshot.ids.toArray()).toEqual(["P:1", "C:2", "C:1"]);
+            const refused = await importText(text, undefined, { addMissingNodes: false });
+            expect(refused.snapshot.edgeCount).toBe(0);
+            expect(refused.report.counts.skippedEdges).toBe(1);
+        });
+
+        it("reports a spaced id that equals an unspaced id's text and skips the later row", async () => {
+            const text = ":ID,name\nA:1,a\n:ID(A),name\n1,b\n2,c\n";
             const { snapshot, report } = await importText(text);
-            expect(snapshot.nodeCount).toBe(2);
+            expect(snapshot.ids.toArray()).toEqual(["A:1", "A:2"]);
             expect(snapshot.nodes.value("name", 0)).toBe("a");
             expect(report.counts.skippedNodes).toBe(1);
             expect(report.issues).toHaveLength(1);
@@ -172,6 +215,34 @@ describe("neo4jImporter (design 8.4)", () => {
                 line: 4,
                 element: "1",
             });
+        });
+
+        it("reports a spaced endpoint that names an unspaced node and skips the row", async () => {
+            const text = ":ID,name\nP:1,alice\n:ID(C),name\n2,acme\n:START_ID(P),:END_ID(C),:TYPE\n1,2,WORKS\n";
+            for (const addMissingNodes of [true, false]) {
+                const { snapshot, report } = await importText(text, undefined, { addMissingNodes });
+                expect(snapshot.nodeCount).toBe(2);
+                expect(snapshot.edgeCount).toBe(0);
+                expect(report.counts.skippedEdges).toBe(1);
+                expect(report.issues).toHaveLength(1);
+                expect(report.issues[0]).toMatchObject({
+                    category: "missing-value",
+                    severity: "error",
+                    code: ENDPOINT_SPACE_CODE,
+                    line: 6,
+                    element: "1->2",
+                });
+            }
+        });
+
+        it("resolves relationship endpoints inside their declared id spaces", async () => {
+            const text = ":ID(P),name\n1,alice\n:ID(C),name\n2,acme\n:START_ID(P),:END_ID(C),:TYPE\n1,2,WORKS\n";
+            const { snapshot, report } = await importText(text);
+            expect(report.issues).toEqual([]);
+            expect(snapshot.edgeCount).toBe(1);
+            const list = snapshot.edgeList();
+            expect(snapshot.nodes.value("name", list.src[0])).toBe("alice");
+            expect(snapshot.nodes.value("name", list.dst[0])).toBe("acme");
         });
 
         it("warns on a duplicate node and lets the later properties win", async () => {
@@ -188,12 +259,12 @@ describe("neo4jImporter (design 8.4)", () => {
         });
 
         it("detects duplicates and collisions beyond the first thousand nodes", async () => {
-            const rows = Array.from({ length: 1100 }, (_, i) => `n${i}`);
-            const text = `:ID(A)\n${rows.join("\n")}\nn1050\n:ID(B)\nn1099\nfresh\n`;
+            const rows = Array.from({ length: 1100 }, (_, i) => `B:n${i}`);
+            const text = `:ID\n${rows.join("\n")}\nB:n1050\n:ID(B)\nn1099\nfresh\n`;
             const { snapshot, report } = await importText(text);
             expect(snapshot.nodeCount).toBe(1101);
             expect(report.issues.map((i) => [i.code, i.element])).toEqual([
-                [DUPLICATE_NODE_CODE, "n1050"],
+                [DUPLICATE_NODE_CODE, "B:n1050"],
                 [ID_SPACE_COLLISION_CODE, "n1099"],
             ]);
         });
@@ -732,7 +803,9 @@ describe("neo4jImporter (design 8.4)", () => {
         });
 
         it("aborts on invalid UTF-8", async () => {
-            const err = await importError(new Uint8Array([0x3a, 0x49, 0x44, 0x0a, 0xff, 0xfe, 0x0a]));
+            const err = await importError(new Uint8Array([0x3a, 0x49, 0x44, 0x0a, 0xff, 0xfe, 0x0a]), {
+                encoding: "utf-8",
+            });
             expect(err.report.issues[0].code).toBe(INVALID_UTF8_CODE);
         });
     });
@@ -744,7 +817,15 @@ describe("neo4jImporter (design 8.4)", () => {
             const { snapshot, report } = await importText(nodes, { relationships: rels });
             expect(snapshot.nodeCount).toBe(7);
             expect(snapshot.edgeCount).toBe(6);
-            expect(snapshot.ids.toArray()).toEqual(["m1", "m2", "m3", "p1", "p2", "p3", "p4"]);
+            expect(snapshot.ids.toArray()).toEqual([
+                "Movie:m1",
+                "Movie:m2",
+                "Movie:m3",
+                "Person:p1",
+                "Person:p2",
+                "Person:p3",
+                "Person:p4",
+            ]);
             expect(report.counts).toMatchObject({ nodes: 7, edges: 6 });
             const roles = snapshot.edges.requireTyped("roles", "list");
             expect([...roles.sliceOf(3)]).toEqual(["Zachry", "Dr. Henry Goose"]);

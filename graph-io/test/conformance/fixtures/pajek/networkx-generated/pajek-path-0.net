@@ -1,0 +1,13 @@
+*vertices 6
+1 0 0.0 0.0 ellipse tag semi;colon
+2 1 0.0 0.0 ellipse tag plain
+3 2 0.0 0.0 ellipse
+4 3 0.0 0.0 ellipse
+5 4 0.0 0.0 ellipse tag semi;colon
+6 5 0.0 0.0 ellipse tag plain
+*edges
+1 2 1.0
+2 3 0.5
+3 4 10 rel plain
+4 5 1.0 rel a&b
+5 6 1e-300 rel a&b

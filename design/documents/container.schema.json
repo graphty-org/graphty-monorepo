@@ -1,0 +1,143 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-document/v1.json",
+    "title": "graphty document, version 1",
+    "description": "The one JSON file every graphty document is (container.md). Normative for what a writer produces. A member whose kind and version this schema knows is checked against that kind's own schema; a member of any other kind or version is checked only for its kind and version, so a file carrying a member of a later kind or version is still a valid version 1 document. A new value inside a version 1 member (a channel, a shape, an import option) is valid against the copy of this schema of a release that knows it (container.md, 'Versions' rule 2). A reader follows container.md for what fails.",
+    "type": "object",
+    "required": ["kind", "version", "members"],
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "For editors only. A reader never fetches it and never makes validity depend on it."
+        },
+        "kind": {
+            "const": "graphty-document",
+            "description": "The fixed value that identifies a graphty document."
+        },
+        "version": {
+            "const": 1
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "generator": {
+            "$ref": "#/$defs/generator"
+        },
+        "requires": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+            },
+            "description": "Member kinds a reader must know to read this file at all. A reader that does not know one, or that skips a member of one for any reason, refuses the whole file (container.md, 'Reading a file' rule 8)."
+        },
+        "members": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+                "$ref": "#/$defs/member"
+            }
+        },
+        "extensions": {
+            "$ref": "#/$defs/extensions"
+        }
+    },
+    "$defs": {
+        "generator": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                },
+                "version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                }
+            },
+            "description": "The software that wrote the file, for example graphty-element and its version."
+        },
+        "extensions": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            },
+            "description": "Data for other software, under reverse-domain names (org.example.tool). The name graphty and names starting graphty. are reserved for graphty-element; version 1 defines none. A reader keeps what it does not understand and never interprets it."
+        },
+        "member": {
+            "type": "object",
+            "required": ["kind", "version"],
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^graphty-[a-z0-9]+(-[a-z0-9]+)*$|^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$",
+                    "description": "A member kind. Kinds starting graphty- are reserved for graphty-element; any other kind is a reverse-domain name (org.example.notes). A reader skips a kind it does not know, however it is spelled."
+                },
+                "version": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-style"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-style/v1.json"
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-recipe"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-recipe/v1.json"
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-data"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        }
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-data/v1.json"
+                    }
+                }
+            ]
+        }
+    }
+}

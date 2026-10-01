@@ -1,0 +1,133 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "rank": 1,
+     "flag": false,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": -23.463456,
+     "rank": 42,
+     "tag": "café",
+     "flag": true,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": -17.311446,
+     "rank": -2147483648,
+     "tag": " nbsp",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "tag": "tab\there",
+     "flag": false,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 84.413969,
+     "rank": -7,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "source": 0,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "weight": 1e-300,
+     "rel": "line\nbreak",
+     "cap": 554,
+     "source": 0,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": 5.1754,
+     "cap": 702,
+     "source": 0,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 9.9063,
+     "rel": " nbsp",
+     "source": 0,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 1e+300,
+     "rel": "two words",
+     "cap": 523,
+     "source": 1,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": -2.25,
+     "source": 1,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 6.6175,
+     "source": 1,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 7.6502,
+     "source": 2,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "cap": 51,
+     "source": 2,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "source": 3,
+     "target": 4
+    }
+   }
+  ]
+ }
+}

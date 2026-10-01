@@ -134,13 +134,14 @@ function painterOf(style: ResolvedStyle): StylePainter {
     const painter = new StylePainter();
     const stub: Pick<
         ElementPaint,
-        "styleOf" | "meshKeyOf" | "meshCount" | "lastPainted" | "onPainted" | "problems"
+        "styleOf" | "meshKeyOf" | "meshCount" | "lastPainted" | "onPainted" | "painting" | "problems"
     > = {
         styleOf: () => style,
         meshKeyOf: () => 1,
         meshCount: () => 1,
         lastPainted: () => [],
         onPainted: () => () => undefined,
+        painting: () => false,
         problems: () => [],
     };
 

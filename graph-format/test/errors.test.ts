@@ -33,6 +33,7 @@ const ALL_CODES: readonly GraphFormatErrorCode[] = [
     "E_UNSUPPORTED_VERSION",
     "E_DETACHED",
     "E_BUILDER_DISPOSED",
+    "E_FROZEN",
     "E_UNSUPPORTED",
     "E_IMPORT",
 ];
@@ -86,9 +87,9 @@ describe("GraphFormatError", () => {
         expect(err.details.remap).toBe(remap);
     });
 
-    it("accepts every one of the 29 codes of design section 11.2", () => {
-        expect(ALL_CODES).toHaveLength(29);
-        expect(new Set(ALL_CODES).size).toBe(29);
+    it("accepts every one of the 30 codes of design section 11.2", () => {
+        expect(ALL_CODES).toHaveLength(30);
+        expect(new Set(ALL_CODES).size).toBe(30);
         for (const code of ALL_CODES) {
             const err = new GraphFormatError(code, `message for ${code}`);
             expect(err.code).toBe(code);

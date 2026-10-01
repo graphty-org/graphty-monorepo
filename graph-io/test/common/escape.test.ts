@@ -90,6 +90,10 @@ describe("DOT ids", () => {
         // written as \\" the scanner reads a pair and the closing quote
         expect(isWritableDotText('a\\"b')).toBe(false);
         expect(isWritableDotText('a\\b"c')).toBe(true);
+        // a backslash before a line break is a line continuation: both vanish on reading
+        expect(isWritableDotText("a\\\nb")).toBe(false);
+        expect(isWritableDotText("a\\\r\nb")).toBe(false);
+        expect(isWritableDotText("a\nb")).toBe(true);
     });
 });
 

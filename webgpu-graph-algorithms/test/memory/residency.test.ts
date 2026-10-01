@@ -692,16 +692,14 @@ describe("GraphResidency: the upload contract (spec 11.3, gpu-upload.test.ts lin
         });
     });
 
-    it("view(): the P11 names and packViews on a one-array view are E_UNSUPPORTED, an empty snapshot is E_INVALID_ARGUMENT; core() of arcCount 0 binds rowPtr only", async (t: TestContext) => {
+    it("view(): mate and packViews on a one-array view are E_UNSUPPORTED, an empty snapshot is E_INVALID_ARGUMENT; core() of arcCount 0 binds rowPtr only", async (t: TestContext) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {
             const s = snapshotOf(KARATE_EDGES);
-            for (const name of ["coo", "mate"] as const) {
-                const err = caught(() => ctx.residency.view(s, name));
-                expect(err.code).toBe("E_UNSUPPORTED");
-                expect(err.details.feature).toBe(`view:${name}`);
-                expect(err.details.option).toBeUndefined();
-            }
+            const err0 = caught(() => ctx.residency.view(s, "mate"));
+            expect(err0.code).toBe("E_UNSUPPORTED");
+            expect(err0.details.feature).toBe("view:mate");
+            expect(err0.details.option).toBeUndefined();
             const packed = caught(() => ctx.residency.view(s, "outDegree", { packViews: true }));
             expect(packed.code).toBe("E_UNSUPPORTED");
             expect(packed.details.option).toBe("packViews");
@@ -1014,14 +1012,39 @@ describe("the P7 views (spec 4.3 lines 1180-1190)", () => {
         });
     });
 
-    it("coo and mate are still E_UNSUPPORTED (P11)", async (t) => {
+    it("an edgeless snapshot's directed reverse view and edgeList view bind no empty array, packed or not (spec 5.6)", async (t) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            const s = snapshotOf([], { nodeCount: 3, directed: true, label: "edgeless-directed" });
+            for (const packViews of [false, true]) {
+                const reverse = ctx.residency.view(s, "reverse", { packViews });
+                expect(Object.keys(reverse.bindings), `reverse, packViews ${packViews}`).toEqual(["rowPtr"]);
+                expect(reverse.bindings.rowPtr.size).toBe(4 * 4);
+                const edgeList = ctx.residency.view(s, "edgeList", { packViews });
+                expect(Object.keys(edgeList.bindings), `edgeList, packViews ${packViews}`).toEqual([]);
+                expect(edgeList.scalars.edgeCount).toEqual([0]);
+            }
+            ctx.release(s);
+            await ctx.allocator.check();
+        });
+    });
+
+    it("coo uploads the per-arc sources once (P11), an arc-less snapshot binds nothing, mate stays E_UNSUPPORTED", async (t) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {
             const { snapshot } = fixture("karate");
-            for (const name of ["coo", "mate"] as const) {
-                expect(() => ctx.residency.view(snapshot, name)).toThrow(/not uploaded/);
-            }
+            const coo = ctx.residency.view(snapshot, "coo");
+            expect(coo.view).toBe("coo");
+            expect(coo.bindings.src.size).toBe(4 * snapshot.arcCount);
+            expect(Array.from(await readU32(ctx, coo.bindings.src.buffer, snapshot.arcCount))).toEqual(
+                Array.from(snapshot.coo().src),
+            );
+            expect(ctx.residency.view(snapshot, "coo").bindings.src.buffer).toBe(coo.bindings.src.buffer);
+            expect(() => ctx.residency.view(snapshot, "mate")).toThrow(/not uploaded/);
+            const bare = snapshotOf([], { nodeCount: 3 });
+            expect(Object.keys(ctx.residency.view(bare, "coo").bindings)).toEqual([]);
             ctx.release(snapshot);
+            ctx.release(bare);
             await ctx.allocator.check();
         });
     });

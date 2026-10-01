@@ -1,7 +1,9 @@
 import type { Scene } from "@babylonjs/core";
 
+import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
@@ -39,6 +41,13 @@ export interface GraphContext {
      * Get the DataManager for node/edge operations
      */
     getDataManager(): DataManager;
+
+    /**
+     * Get the session whose state this graph draws, when there is one: what a node's own doors
+     * dispatch through.
+     * @returns The session, or undefined for a context built without one.
+     */
+    getSession?(): GraphSession;
 
     /**
      * Get the LayoutManager for layout operations
@@ -81,7 +90,8 @@ export interface GraphContext {
     isRunning(): boolean;
 
     /**
-     * Set the running state
+     * Play or pause the layout on a consumer's behalf. A pause holds until `setRunning(true)`;
+     * the element's own restarts write `getLayoutManager().running`, which the pause refuses.
      */
     setRunning(running: boolean): void;
 
@@ -109,6 +119,12 @@ export interface GraphContext {
      * @since 1.5.0
      */
     getEventManager?(): EventManager | undefined;
+
+    /**
+     * The acceleration controller the graph owns; absent on a context built without a graph.
+     * @since 2.0.0
+     */
+    getAcceleration?(): AccelerationController;
 }
 
 /**
@@ -280,6 +296,6 @@ export class DefaultGraphContext implements GraphContext {
      * @param running - Whether layout should be running
      */
     setRunning(running: boolean): void {
-        this.layoutManager.running = running;
+        this.layoutManager.setPaused(!running);
     }
 }

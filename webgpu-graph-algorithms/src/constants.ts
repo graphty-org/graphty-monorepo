@@ -130,6 +130,13 @@ export const FA2_DISTANCE_FLOOR = 0.01;
 export const FA2_DISTANCE_FLOOR_SQ = 0.0001;
 /** The coincident threshold `d^2 < 1e-8` of spec 7.2. */
 export const FA2_COINCIDENT_SQ = 1e-8;
+/**
+ * The most WG-node tiles one K3 (`fa2-repulsion-exact`) dispatch sums per invocation (issue #87). llvmpipe runs at
+ * most 65,535 loop iterations per shader invocation, counted over every loop together, and then quietly breaks
+ * out of each loop; one tile costs WG + 2 of them (258 at WG 256), so a single pass lost every node past
+ * j = 65,027. 128 tiles is 33,024 iterations, half the budget; a larger exact run records ceil(tiles / 128) passes.
+ */
+export const EXACT_TILES_PER_PASS = 128;
 /** Bits of Fa2Params.flags (contract 4.4). */
 export const FA2_FLAG_FIRST = 1;
 /** Fa2Params.flags bit: the Fruchterman-Reingold temperature is the adaptive one in the state block, not the uniform's (the `cooling: "adaptive"` option). */
@@ -202,6 +209,34 @@ export const SE_DEFAULTS: Readonly<{
     iterationsPerStep: 1,
     maxInFlight: 2,
 });
+/**
+ * The absolute settle floor of the shared settle rule (spec 7.17; issue #97): an iteration counts toward `settled` only
+ * when its mean displacement is at most `settleThreshold x rmsRadius` AND at most this fraction of the model's length
+ * unit -- `springLength` for spring-electrical (scaled by node count, see SETTLE_FLOOR_REFERENCE_NODES), `k` for
+ * Fruchterman-Reingold. The relative rule alone reported a spring
+ * layout settled while it still grew (6 % over 1,000 iterations at 10k nodes). ForceAtlas2 writes
+ * `SETTLE_FLOOR_UNBOUNDED` instead: it does not drift after settling, and its per-iteration jitter grows with n, so any
+ * fixed floor only delays or blocks its stop. The values are measured:
+ * design/decisions/2026-09-24-settle-rule-has-an-absolute-floor.md.
+ */
+export const SETTLE_FLOOR_FRACTION: Readonly<{ springElectrical: number; fruchtermanReingold: number }> = Object.freeze(
+    {
+        springElectrical: 3e-3,
+        fruchtermanReingold: 2e-3,
+    },
+);
+/**
+ * The node count at which the spring-electrical floor is exactly `SETTLE_FLOOR_FRACTION.springElectrical x
+ * springLength`; at `n` nodes it is that times `(SETTLE_FLOOR_REFERENCE_NODES / n)^(1/4)`. A spring layout's rms radius
+ * grows about as n^(1/4) in springLengths (3.4 at 150 nodes, 6.4 at 2,000, 10.4 at 10,000), so the relative half of the
+ * rule loosens with size while the floor tightens with it: on a small graph the floor sits above the relative threshold
+ * and the relative rule decides alone, as before issue #97; on a large one the floor binds, which is where the relative
+ * rule let an expanding layout stop. A fixed floor bound the 150-node story graph too, where the grid tier's jitter sits
+ * at the relative threshold, and nearly doubled its settle (427 -> 829 iterations on the RTX 4070 SUPER).
+ */
+export const SETTLE_FLOOR_REFERENCE_NODES = 2000;
+/** The settle floor that never binds: the largest finite f32, 0x1.fffffep+127 (ForceAtlas2's `settleFloor`, issue #97). */
+export const SETTLE_FLOOR_UNBOUNDED = 2 ** 128 - 2 ** 104;
 /** The smallest finest grid side `G` (spec 7.7 geometry table: `clamp(nextPow2(2 n^(1/dim)), 8, gridMax)`; P4 PD-9). */
 export const GRID_MIN_SIDE = 8;
 /** The coarsest pyramid level's side (spec 7.7: "levels (coarsest 4 per axis)", `levels = log2(G / 4) + 1`). */
@@ -214,3 +249,66 @@ export const GRID_EXTENT_FLOOR = 1e-6;
 export const GRID_BBOX_MARGIN = 1.01;
 /** The key width the grid always sorts with (P4 PD-5): three 8-bit passes cover the 19-bit 2D keys at G = 512 and the 22-bit 3D keys at G = 128, and an odd pass count leaves `sortedIdx` in the scratch pair. */
 export const GRID_SORT_BITS = 24;
+/** Design 8.4 (P8 PD-7): traversal levels recorded per submit -- one four-byte readback per 32 BFS levels, SSSP rounds or closeness levels. */
+export const MAX_LEVELS_PER_SUBMIT = 32;
+/** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */
+export const FUSED_FRONTIER_MAX = 4096;
+/** Design 8.4 (P8 PD-21): Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking; alpha is derived from the graph, so it has no constant. */
+export const BEAMER_BETA = 24;
+/** Design 8.4 (P8 PD-22): the near-far split `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree`, computed on the host from the weight vector the run uses. */
+export const SSSP_DELTA_FACTOR = 32;
+/** The bit pattern of +Infinity, the unreached sentinel of `dist` (P8 PD-9); interpolated into the prelude as `F32_INF_BITS` so no body types the literal. */
+export const F32_INF_BITS = 0x7f800000;
+/** Design 8.4 "k planned from maxBufferSize and a 25% budget": the share of `maxBufferSize` one betweenness source batch may hold. WebGPU exposes no device memory size, so this is a fraction of the largest buffer, not a memory measurement. */
+export const BC_BATCH_BUDGET_FRACTION = 0.25;
+/** Design 10.1's betweenness column: the most sources one betweenness batch runs together. */
+export const BC_MAX_BATCH = 64;
+/** Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)`. The design names the rule and no value; 2 is unmeasured and a benchmark run re-fixes it. */
+export const BC_EDGE_PARALLEL_GAMMA = 2;
+/** Backward-pass levels recorded per submit: each level is one dispatch with its own parameter record, so this bounds the uniform ring. */
+export const BC_BACKWARD_LEVELS_PER_SUBMIT = 64;
+/**
+ * Design 8.7: all-pairs shortest paths is a blocked Floyd-Warshall over `APSP_TILE x APSP_TILE` tiles. One tile of
+ * f32 is 4 KiB of workgroup memory and a workgroup stages at most two (8 KiB), inside the 16 KiB
+ * `maxComputeWorkgroupStorageSize` every WebGPU device reports. Interpolated into the prelude as `APSP_TILE`.
+ */
+export const APSP_TILE = 32;
+/**
+ * The blocked sweep records `3 x ceil(n / APSP_TILE)` dispatches (543 at the 5,792-node ceiling of a 128 MiB binding,
+ * 2,175 at a 2 GiB binding's 23,170, 3,072 at a 4 GiB binding's 32,767); above this many the driver splits the sweep
+ * into further submits. No binding offered today reaches it, so every sweep is one submit; the cap only stops a
+ * device with a binding above 4 GiB (`maxStorageBufferBindingSize` is a GPUSize64) from building one unbounded
+ * command buffer.
+ */
+export const APSP_MAX_DISPATCHES_PER_SUBMIT = 4096;
+/**
+ * Label propagation (design 8.6): passes recorded per submit, with ONE readback of the per-pass changed counts at the
+ * end of the submit. A readback costs about 2 ms in Chromium whatever it carries, so at one readback per pass a
+ * 10,000-node call spends more on synchronisation than the CPU spends on the whole algorithm
+ * (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md: 101 passes x 2 ms, 0.79x); eight passes per
+ * submit is the floor that decision sets. Even, so every submit holds as many descending as ascending passes of the
+ * alternating direction rule.
+ */
+export const LABEL_PROP_PASSES_PER_SUBMIT = 8;
+/**
+ * Boruvka's minimum spanning tree (design 8.5): rounds recorded per submit, with one readback of the counters block
+ * per submit. Each readback is a device-to-host synchronisation that costs about 2 ms in Chromium, and at one per
+ * round the syncs are 61 % of the 100,000-node call; four rounds per submit amortise them over O(log n) rounds, moving
+ * the Chromium crossover from 6,000 to 4,600 nodes (design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md).
+ * Declared ahead of the minimum-spanning-tree driver, which reads it when it lands.
+ */
+export const BORUVKA_ROUNDS_PER_SUBMIT = 4;
+/** The per-row group-by-key (design 8.6): a row of at most this many arcs is grouped by one thread in registers; a longer row by a workgroup over a global open-addressing region. */
+export const GROUP_ROW_THREAD_MAX = 32;
+/** The largest row the thread tier accepts when a caller forces the tier: its pairwise scan is about d^2 / 2 loop steps, and llvmpipe stops every loop of an invocation after 65,535 steps in total. */
+export const GROUP_ROW_THREAD_LIMIT = 128;
+/**
+ * The most parallel arcs the simple symmetric graph build merges into one weighted arc. The merge sums each run of
+ * parallel arcs in one invocation, and llvmpipe stops every loop of an invocation after 65,535 steps in total and
+ * then quietly returns a short sum; a weighted build whose pair repeats more often is refused on every adapter.
+ */
+export const PARALLEL_MERGE_LIMIT = 65_000;
+/** The per-row group-by-key (design 8.6): the global open-addressing region of a workgroup-tier row holds this many slots per arc. */
+export const GROUP_HASH_LOAD_FACTOR = 2;
+/** Triangle counting (design 8.5): intersect two oriented rows by merge, but binary-search each element of the shorter row into the longer when their lengths differ by more than this factor. */
+export const TRIANGLE_BINARY_SEARCH_RATIO = 32;

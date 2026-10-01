@@ -23,10 +23,13 @@
  * it; this one invoked it from 27 scripts and relied on hoisting.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
+import { hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -50,6 +53,131 @@ const XR_BROWSER_TESTS = [
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 /**
+ * The package's published names, resolved to its own source. The docs' examples
+ * (docs/examples/) import `@graphty/graphty-element/extend` and `/logging` exactly as a reader
+ * copies them, and the tests that run those examples must run the code under test, not a stale
+ * dist/.
+ */
+const OWN_ENTRY_POINTS = {
+    "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts"),
+    "@graphty/graphty-element/logging": path.resolve(dirname, "logging.ts"),
+};
+
+/**
+ * The Chromium flag sets that expose WebGPU to the `browser` project.
+ *
+ * Copied from `webgpu-graph-algorithms/vitest.config.ts`, where they are the measured answer to
+ * "which switches make headless Chromium hand back an adapter": `nvidia` reaches the card through
+ * ANGLE's Vulkan backend, `swiftshader` names the software adapter explicitly because the two
+ * ANGLE switches alone left `requestAdapter()` null on one host, and `metal` and `warp` are the
+ * macOS and Windows legs of the host-matrix workflow.
+ *
+ * This table must know EVERY value any workflow puts in GRAPHTY_BROWSER_GPU, whether or not that
+ * job runs the element's tests. `.github/workflows/hosts.yml` sets the variable for the whole job
+ * -- `metal` on macOS, `warp` on Windows -- and Nx loads every project's config to build its
+ * project graph, so an unknown value threw here and took down `nx run-many -t build` for two
+ * packages that have nothing to do with this one (pull request #21, run 35966670855: "failed to
+ * load config from ...graphty-element/vitest.config.ts", then "Failed to process project graph",
+ * on macOS and Windows only). `test/config/vitest-config-loads-with-ci-gpu-values.test.ts` loads
+ * this file under each of those values so the next one is caught on Linux.
+ *
+ * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
+ * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
+ * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
+ */
+const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
+    nvidia: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"],
+    swiftshader: [
+        "--enable-unsafe-webgpu",
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--use-webgpu-adapter=swiftshader",
+    ],
+    // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
+    // device with the blocklist ignored, SwiftShader otherwise.
+    metal: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist", "--use-angle=metal"],
+    // The host matrix on Windows: Dawn's D3D12 backend on WARP, Microsoft's software rasterizer.
+    // An ANGLE override hides WARP even in the full Chromium build, so this set names none.
+    warp: ["--enable-unsafe-webgpu", "--ignore-gpu-blocklist"],
+};
+
+/**
+ * Flag sets that need a Playwright channel rather than its default headless shell.
+ *
+ * Measured in `webgpu-graph-algorithms/vitest.config.ts`: on windows-latest the headless shell
+ * hands back no adapter under the `warp` flags, and the full Chromium build is the only one that
+ * grants WARP. Without this the `browser` project would launch, see no WebGPU, and fail
+ * `test/browser/webgpu-layout.test.ts` -- which runs whenever the variable is set at all.
+ */
+const BROWSER_GPU_CHANNEL: Readonly<Record<string, string>> = { warp: "chromium" };
+
+/** Which flag set was asked for, or "" for none -- also what the test file reads to skip itself. */
+const browserGpu = process.env.GRAPHTY_BROWSER_GPU ?? "";
+
+/**
+ * The environment of the Chromium child.
+ *
+ * On a workstation whose NVIDIA userspace is not where Chromium looks, headless Chromium finds
+ * the card only with an extracted libEGL tree ahead of it on LD_LIBRARY_PATH.
+ * GRAPHTY_EGL_LIB_DIR names that tree; unset, Playwright inherits the environment untouched.
+ * @returns The environment map for `launchOptions.env`, or undefined to inherit.
+ */
+function browserLaunchEnv(): Record<string, string> | undefined {
+    const eglDir = process.env.GRAPHTY_EGL_LIB_DIR;
+    if (eglDir === undefined || eglDir === "") {
+        return undefined;
+    }
+
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+            env[key] = value;
+        }
+    }
+
+    env.LD_LIBRARY_PATH = [eglDir, process.env.LD_LIBRARY_PATH]
+        .filter((value) => value !== undefined && value !== "")
+        .join(":");
+
+    return env;
+}
+
+/** One Playwright Chromium entry for a browser project's `instances`. */
+interface ChromiumInstance {
+    /** The browser to launch. */
+    browser: "chromium";
+    /** The provider carrying Playwright's launch options: the switches, the build and the environment. */
+    provider?: ReturnType<typeof playwright>;
+}
+
+/**
+ * The `browser` project's Chromium instance, with the requested flag set when there is one.
+ * @returns The single instance entry.
+ */
+function browserInstance(): ChromiumInstance {
+    if (browserGpu === "") {
+        return { browser: "chromium" };
+    }
+
+    const args = BROWSER_GPU_FLAGS[browserGpu];
+    if (args === undefined) {
+        // A typo would otherwise launch Chromium with no flags while the test file still believes
+        // it is on a GPU lane, and the suite would die on "an accelerator to attach" naming
+        // nothing. Say which value was not understood instead.
+        throw new Error(
+            `GRAPHTY_BROWSER_GPU="${browserGpu}" names no flag set; use ${Object.keys(BROWSER_GPU_FLAGS).join(" or ")}, or leave it unset to run without WebGPU`,
+        );
+    }
+
+    return {
+        browser: "chromium",
+        provider: playwright({
+            launchOptions: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+        }),
+    };
+}
+
+/**
  * Where a failing browser test's screenshot goes.
  *
  * Vitest saves a PNG for every browser-mode failure, and its default place for one is a
@@ -66,21 +194,52 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
  */
 const FAILURE_SCREENSHOT_DIR = path.resolve(dirname, "tmp/vitest-screenshots");
 
+/**
+ * Append a `bench-browser` timing row to `benchmarks/results/browser-<host>.jsonl`. Every other
+ * console line is left to the reporter.
+ * @param log - one console line from a test
+ * @returns undefined, so the line is still printed
+ */
+function appendBenchRow(log: string): undefined {
+    const prefix = "bench-row ";
+    if (log.startsWith(prefix)) {
+        const dir = path.resolve(dirname, "benchmarks/results");
+        mkdirSync(dir, { recursive: true });
+        appendFileSync(path.join(dir, `browser-${hostname()}.jsonl`), `${log.slice(prefix.length).trim()}\n`);
+    }
+
+    return undefined;
+}
+
 export default defineConfig({
     test: {
+        onConsoleLog: appendBenchRow,
+        // Vitest 4 also copies each failure screenshot into an attachments directory, by default
+        // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
+        attachmentsDir: path.resolve(dirname, "tmp/vitest-attachments"),
         projects: [
             {
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
-                    // with: npx vitest run --project=bench
+                    // with: npx vitest run --project=bench.
+                    //
+                    // What keeps them uninstrumented is that no coverage script names this
+                    // project -- every one of them lists --project=default --project=mesh. A
+                    // `coverage: { enabled: false }` used to sit here saying so, but coverage is a
+                    // root-only option: vitest ignored it at run time and its types rejected it.
                     name: "bench",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
-                    coverage: { enabled: false },
+                    // One file at a time: a benchmark timed beside another measures the other.
+                    fileParallelism: false,
+                    // A browser benchmark needs a page, which this project has not got: it runs in
+                    // "browser-bench" below.
+                    exclude: ["test/browser/**", "**/node_modules/**"],
                 },
             },
             {
+                resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
                     setupFiles: ["./test/setup.ts"],
@@ -197,6 +356,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
@@ -222,6 +382,9 @@ export default defineConfig({
                         "test/browser/style-layer-ordering.test.ts",
                         "test/browser/first-paint-after-load.test.ts",
                         "test/browser/story-contract.test.ts",
+                        // Every story Chromatic snapshots is seeded, pre-stepped and settled. It
+                        // imports every story module, which is why it is here and not in "default".
+                        "test/browser/story-determinism.test.ts",
                         // Proves a channel the table calls renderable really changes the picture,
                         // which the table-reads-the-table check in
                         // test/session/styles/channels.test.ts cannot: that one asserts the table
@@ -235,6 +398,12 @@ export default defineConfig({
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
                         "test/browser/lit-node-is-shaded-not-flooded.test.ts",
+                        // The two history twins every undo phase grows: each door of the element,
+                        // Graph and managers called with a spy on the dispatcher, and every
+                        // renderer round-trip fixture checked against a scene digest. They lay
+                        // out in one pass, so they stay inside this lane's budget.
+                        "test/browser/doors.test.ts",
+                        "test/browser/history-round-trip.test.ts",
                     ],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -247,15 +416,15 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent route.fulfill errors
+                    // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent route.fulfill errors
-                        // when browser contexts are garbage collected during parallel execution
-                        fileParallelism: false,
                     },
                 },
             },
@@ -264,6 +433,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 // WebXR, in its own project so the pre-push gate can run it without the rest of the
@@ -276,20 +446,54 @@ export default defineConfig({
                     name: "xr",
                     setupFiles: ["./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        fileParallelism: false,
                     },
                 },
             },
             {
+                // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
+                // reason "bench" is kept out of "default": nothing here runs under coverage, which
+                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
+                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // sets timing rows' project below, which never runs in CI.
+                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                test: {
+                    name: "browser-bench",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/browser/**/*.bench.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
+                        // before each timed step so the step is not charged for a collection that
+                        // the steps before it made due. Its header has the numbers.
+                        provider: playwright({ launchOptions: { args: ["--js-flags=--expose-gc"] } }),
+                        instances: [{ browser: "chromium" }],
+                    },
+                },
+            },
+            {
+                // The env vars that cross into the page. The first is which flag set the run asked for.
+                // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
+                // Vite copies every matching variable out of the process environment -- and
+                // test/browser/webgpu-layout.test.ts skips itself when it is absent, so the five
+                // CI shards never try to use a WebGPU that is not there. GRAPHTY_FC_ carries a
+                // property test's reproduction seed and path (test/helpers/fc-params.ts).
+                // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
+                // baseline instead of checking against it.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
                 optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
                     setupFiles: ["./test/setup.ts"],
@@ -314,16 +518,8 @@ export default defineConfig({
                         "test/interactions/**/*.test.ts",
                         // So do the WebXR tests: see the "xr" project
                         ...XR_BROWSER_TESTS,
-                        // Tests using Node.js-only libraries (pngjs).
-                        //
-                        // This file therefore runs in NO project: "default" excludes all of
-                        // test/browser/**, "browser" excludes it by name here, and it is not in
-                        // "contract". It is not a gap somebody should close by adding it somewhere --
-                        // it drives its own Playwright Chromium against STORYBOOK_URL, which defaults
-                        // to https://localhost:6006, so it needs a Storybook dev server that neither
-                        // this gate nor CI runs. It is a script wearing a test's file extension.
-                        // Either it gets a home that starts that server, or it should be deleted.
-                        "test/browser/dash-spacing-measurement.test.ts",
+                        // And the timing benchmarks: see "browser-bench"
+                        "test/browser/**/*.bench.test.ts",
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -334,15 +530,38 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent route.fulfill errors
+                    // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
+                // the element's store, a DataManager or a run, which the Node runner in benchmarks/
+                // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
+                // no other project includes. Run with: npx vitest run --project=bench-browser, and
+                // GRAPHTY_BENCH_SCALE=large for the 1M and 10M rows. A row is a console line starting
+                // "bench-row ", appended to benchmarks/results/browser-<host>.jsonl by the root
+                // onConsoleLog below (vitest reads that hook from the root config only).
+                envPrefix: ["VITE_", "GRAPHTY_BENCH_SCALE"],
+                test: {
+                    name: "bench-browser",
+                    include: ["test/bench-browser/**/*.bench-browser.ts"],
+                    testTimeout: 0,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent route.fulfill errors
-                        // when browser contexts are garbage collected during parallel execution
-                        fileParallelism: false,
                     },
                 },
             },
@@ -363,14 +582,14 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent race conditions and flaky tests
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent race conditions and flaky tests
-                        fileParallelism: false,
                     },
                     // Interaction tests load complex scenes and may need longer timeout
                     testTimeout: 30000,
@@ -391,6 +610,7 @@ export default defineConfig({
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
                     },
                 },
                 test: {
@@ -406,15 +626,15 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
+                    // Disable file parallelism to prevent route.fulfill errors
+                    // when browser contexts are garbage collected during parallel execution
+                    fileParallelism: false,
                     browser: {
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: "playwright",
+                        provider: playwright(),
                         instances: [{ browser: "chromium" }],
-                        // Disable file parallelism to prevent route.fulfill errors
-                        // when browser contexts are garbage collected during parallel execution
-                        fileParallelism: false,
                     },
                     setupFiles: [".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
@@ -431,6 +651,7 @@ export default defineConfig({
             {
                 test: {
                     name: "llm-regression",
+                    setupFiles: ["./test/ai/llm-regression/setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -448,16 +669,11 @@ export default defineConfig({
                     hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",
-                    poolOptions: {
-                        forks: {
-                            singleFork: true,
-                        },
-                    },
+                    fileParallelism: false,
                 },
             },
         ],
         coverage: {
-            all: true,
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             // Allow override via COVERAGE_DIR env var for sharded coverage runs
@@ -468,6 +684,9 @@ export default defineConfig({
                 "**/*.test.ts",
                 "**/*.spec.ts",
                 "**/types/**",
+                // Test doubles, not product code: measuring them against the package's thresholds
+                // would demand coverage of branches only a future test is meant to reach.
+                "src/testing/**",
             ],
         },
         // dangerouslyIgnoreUnhandledErrors: true,

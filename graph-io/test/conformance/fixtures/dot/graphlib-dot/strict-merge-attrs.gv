@@ -1,0 +1,1 @@
+strict digraph { a -> b [x=1 z=3]; a -> b [y=2 z=4] }

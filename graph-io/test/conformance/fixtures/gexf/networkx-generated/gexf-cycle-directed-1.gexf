@@ -1,0 +1,126 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="directed" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="rel" type="string" />
+      <attribute id="5" title="cap" type="long" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="rank" type="long" />
+      <attribute id="2" title="tag" type="string" />
+      <attribute id="3" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="0" label="0">
+        <viz:color r="210" g="62" b="166" a="1.0" />
+        <viz:size value="3.15" />
+        <viz:position x="-9.95" y="11.748" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="1" value="-2147483648" />
+          <attvalue for="2" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </node>
+      <node id="1" label="1">
+        <viz:color r="51" g="82" b="249" a="1.0" />
+        <viz:size value="9.25" />
+        <viz:position x="-49.159" y="-0.656" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-2.25" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="中文" />
+        </attvalues>
+      </node>
+      <node id="2" label="2">
+        <viz:color r="94" g="20" b="185" a="1.0" />
+        <viz:size value="1.93" />
+        <viz:position x="2.829" y="10.031" z="0.0" />
+        <attvalues>
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="3" label="3">
+        <viz:color r="4" g="46" b="200" a="1.0" />
+        <viz:size value="6.88" />
+        <viz:position x="30.222" y="-7.436" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="32.314809" />
+          <attvalue for="1" value="0" />
+          <attvalue for="2" value="say &quot;hi&quot;" />
+        </attvalues>
+      </node>
+      <node id="4" label="4">
+        <viz:color r="254" g="233" b="141" a="1.0" />
+        <viz:size value="8.13" />
+        <viz:position x="-1.295" y="19.67" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="5" label="5">
+        <viz:color r="11" g="230" b="249" a="1.0" />
+        <viz:size value="3.28" />
+        <viz:position x="23.593" y="29.246" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-40.793269" />
+        </attvalues>
+      </node>
+      <node id="6" label="6">
+        <viz:color r="93" g="224" b="172" a="1.0" />
+        <viz:size value="8.24" />
+        <viz:position x="-14.999" y="21.712" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e-300" />
+          <attvalue for="1" value="2147483647" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="0" target="1" id="0" weight="6.6195">
+        <attvalues>
+          <attvalue for="4" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="2" id="1" weight="9.3933">
+        <attvalues>
+          <attvalue for="4" value="two words" />
+          <attvalue for="5" value="532" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="3" id="2" weight="1e+300">
+        <attvalues>
+          <attvalue for="4" value="two words" />
+          <attvalue for="5" value="871" />
+        </attvalues>
+      </edge>
+      <edge source="3" target="4" id="3" weight="-2.25">
+        <attvalues>
+          <attvalue for="4" value="say &quot;hi&quot;" />
+          <attvalue for="5" value="520" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="5" id="4" weight="9.0927">
+        <attvalues>
+          <attvalue for="5" value="207" />
+        </attvalues>
+      </edge>
+      <edge source="5" target="6" id="5" weight="10">
+        <attvalues>
+          <attvalue for="4" value="say &quot;hi&quot;" />
+          <attvalue for="5" value="176" />
+        </attvalues>
+      </edge>
+      <edge source="6" target="0" id="6" weight="-0.0">
+        <attvalues>
+          <attvalue for="4" value="中文" />
+          <attvalue for="5" value="81" />
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

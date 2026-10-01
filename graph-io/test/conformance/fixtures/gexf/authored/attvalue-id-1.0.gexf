@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://www.gephi.org/gexf">
+<graph type="static">
+<attributes class="node" type="static">
+<attribute id="0" title="kind" type="string"/>
+</attributes>
+<nodes>
+<node id="1" label="x"><attvalues><attvalue id="0" value="disease"/></attvalues></node>
+<node id="2" label="y"><attvalues><attvalue id="0" value="gene"/></attvalues></node>
+</nodes>
+<edges>
+<edge id="0" source="1" target="2"/>
+</edges>
+</graph>
+</gexf>

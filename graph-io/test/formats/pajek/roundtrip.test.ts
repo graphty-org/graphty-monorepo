@@ -414,3 +414,23 @@ describe("pajek round trips: sanitizeIds mangle keeps the original ids (design 8
         }
     });
 });
+
+describe("pajek round trips: character references and bracket labels", () => {
+    it("a label holding &#dddd; text or starting with [ comes back as written", async () => {
+        const first = await fromPajek('*Vertices 3\n1 "a&#65;b"\n2 "[x"\n3 "[1-2]"\n*Arcs\n1 2\n');
+        expect(first.nodes.require("label").value(0)).toBe("aAb");
+        const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        const label = builder.declareNodeColumn({ name: "label", dtype: "string", nullable: true, role: "label" });
+        for (const [id, text] of [
+            [1, "a&#65;b"],
+            [2, "[x"],
+            [3, "[1-2]"],
+        ] as const) {
+            builder.setNodeValue(label, builder.addNode(id), text);
+        }
+        builder.addEdge(1, 2);
+        const { snapshot, text } = await roundTrip(builder.freeze(), pajekExporter, pajekImporter);
+        expect(text).toContain('1 a&#38;#65;b\n2 "[x"\n3 "[1-2]"\n');
+        expect([0, 1, 2].map((i) => snapshot.nodes.require("label").value(i))).toEqual(["a&#65;b", "[x", "[1-2]"]);
+    });
+});

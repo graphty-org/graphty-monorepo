@@ -150,7 +150,7 @@ function rowHolds(positions: F32, write: PositionWrite): boolean {
 /**
  * The element's bridge (spec 7.19): one synchronous step(k) per tick, .catch attached once per DISTINCT promise,
  * ticks separated by a macrotask so readbacks land; never awaits step().
- * @param sim - the simulation under test (a ForceSimulation: its @internal counters are read structurally)
+ * @param sim - the simulation under test (a ForceSimulation: its internal counters are read structurally)
  * @param positions - the owner's stride-3 scene array the simulation writes back into
  * @param options - ticks, iterations per step, maxInFlight, the optional pause, the scheduled writes and the hook
  * @returns the report of the run

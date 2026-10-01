@@ -16,23 +16,50 @@
 import type { DerivedGraph, GraphSnapshot, NodeId } from "@graphty/graph-format";
 import type { z } from "zod/v4";
 
-import type { AccelerationCapabilities, AccelerationPolicy } from "../acceleration";
+import type {
+    AccelerationCapabilities,
+    AccelerationPolicy,
+    AccelerationStatus,
+    GraphAccelerator,
+} from "../acceleration";
 // EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
 // that makes `const id: EdgeId = record.id` type-check. This entry point used to publish two
 // different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
-import type { AlgorithmKey, AttributeDescriptor, CatalogApi, EdgeId, RunId, Scope } from "../catalog/types";
+import type { CameraState } from "../camera/types";
+import type {
+    AlgorithmKey,
+    AttributeDescriptor,
+    CatalogApi,
+    DeprecatedCatalogMethod,
+    EdgeId,
+    LayoutId,
+    RunId,
+    Scope,
+    SetId,
+} from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
-import type { ElementPositions } from "../data/positions";
+import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { ImportReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
-import type { Plan, SessionCommand } from "./planning";
+import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ResultsApi } from "./results";
-import type { Caveats, EngineVersions, Run, RunChange, RunExecutor, RunOptions, RunQueue, RunsApi } from "./runs";
+import type {
+    Caveats,
+    EngineVersions,
+    Run,
+    RunChange,
+    RunExecutor,
+    RunOptions,
+    RunQueue,
+    RunRemoval,
+    RunsApi,
+} from "./runs";
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner } from "./selection";
+import type { SetChange, SetsApi } from "./sets/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -228,13 +255,13 @@ export interface SessionGraphStore {
      * @returns the derived graph
      */
     undirected(snapshot: GraphSnapshot): DerivedGraph;
-    /** The element-owned node coordinates, indexed by dense node index. */
-    readonly positions: ElementPositions;
+    /** The element-owned node coordinates, indexed by dense node index, read-only. */
+    readonly positions: ReadonlyElementPositions;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
      * THE HONEST ANSWER to "did the file that loaded this graph place its nodes", which
-     * {@link ElementPositions.placedCount} cannot give: the position array is written by the
+     * {@link ReadonlyElementPositions.placedCount} cannot give: the position array is written by the
      * importer AND by every running layout, so a moment after a file with no coordinates loads,
      * every node carries a position because the layout put it there. This counts the importer's
      * own seed column, which nothing but the importer writes.
@@ -292,16 +319,20 @@ export interface SessionRecordSource {
  * Reading the graph.
  *
  * Every verb here is synchronous, because every verb here is either an O(1) lookup or a walk
- * whose answer is cached against the snapshot it was computed from. The verbs that must walk the
- * graph on every call -- id listings over a scope, neighbour pages, search -- are asynchronous by
+ * whose answer is cached against the snapshot it was computed from, except {@link nodes} and
+ * {@link edges}, which list every record and walk the graph to do it. The verbs that walk a part
+ * of the graph -- id listings over a scope, neighbour pages, search -- are asynchronous by
  * construction and are not part of this surface yet.
  */
 export interface SessionDataApi {
-    /** The store this session reads, whether it built it or was handed one. */
+    /** The store this session reads, read-only: its snapshot is the one {@link snapshot} returns. */
     readonly store: SessionGraphStore;
     /**
-     * The current snapshot.
-     * @returns the immutable graph-format snapshot
+     * The current snapshot. Its structure, id map and attribute columns are the graph's own,
+     * shared rather than copied; its `position` and `graphty.pinned` columns are copies taken
+     * now, because the graph's own are written by the layout every frame and a write into them
+     * would place nodes without a step. Place and pin through `session.positions`.
+     * @returns the sealed graph-format snapshot
      */
     snapshot(): GraphSnapshot;
     /**
@@ -323,6 +354,18 @@ export interface SessionDataApi {
      */
     edge(id: EdgeId): EdgeRecord | undefined;
     /**
+     * Every node, in the graph's order: the records {@link node} reads one at a time. Walks the
+     * whole graph on every call, so read it when the graph changes, not every frame.
+     * @returns the records, deep-frozen
+     */
+    nodes(): readonly NodeRecord[];
+    /**
+     * Every edge, in the graph's order: the records {@link edge} reads one at a time. Walks the
+     * whole graph on every call, so read it when the graph changes, not every frame.
+     * @returns the records, deep-frozen
+     */
+    edges(): readonly EdgeRecord[];
+    /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.
      *
@@ -331,6 +374,13 @@ export interface SessionDataApi {
      * @returns the report, or null when nothing has been loaded into this graph
      */
     lastImport(): ImportReport | null;
+    /**
+     * Where the graph was loaded from: the format, the name the reader knows the data by, the
+     * URL, and the file's size. It follows undo and redo like the graph does, so a top bar that
+     * names the dataset reads it again after either.
+     * @returns the source, or null when the graph was not loaded by an import, or was cleared
+     */
+    source(): DataSourceDescriptor | null;
     /**
      * Every attribute the graph's records carry, with its type, how complete it is and a few
      * sample values. Walked once per snapshot and cached.
@@ -348,6 +398,125 @@ export interface SessionDataApi {
      * @returns the fingerprint
      */
     fingerprint(): string;
+    /**
+     * Add node records, as one undoable step. A record's id is read through
+     * `data.knownFields.nodeIdPath`; a record whose id the graph already holds is skipped.
+     * @param records - The records.
+     * @returns Settles once the nodes are in the graph and drawn.
+     */
+    addNodes(records: readonly NodeRecordInput[]): Promise<void>;
+    /**
+     * Add edge records, as one undoable step. Endpoints are read through the configured edge id
+     * paths, the repeated-edge policy applies, and each edge is given an id.
+     * @param records - The records.
+     * @returns Settles once the edges are in the graph and drawn.
+     */
+    addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
+    /**
+     * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
+     * id the graph does not hold is skipped.
+     * @param rows - The new values, per node.
+     * @returns Settles once the change is drawn.
+     */
+    updateNodes(rows: readonly RowUpdate<NodeId>[]): Promise<void>;
+    /**
+     * Change some attributes of existing edges, as one undoable step.
+     * @param rows - The new values, per edge id.
+     * @returns Settles once the change is drawn.
+     */
+    updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
+    /**
+     * Remove nodes, and every edge attached to one, as one undoable step. Undo puts them back at
+     * the rows they held, with their records, weights and edge ids.
+     * @param ids - The node ids; one the graph does not hold is skipped.
+     * @returns Settles once they are gone from the graph and the picture.
+     */
+    removeNodes(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Remove edges, as one undoable step.
+     * @param ids - The element-assigned edge ids; one the graph does not hold is skipped.
+     * @returns Settles once they are gone from the graph and the picture.
+     */
+    removeEdges(ids: readonly EdgeId[]): Promise<void>;
+    /**
+     * Remove every node, edge, record and graph-level value, as one undoable step.
+     * @returns Settles once the graph and the picture are empty.
+     */
+    clear(): Promise<void>;
+    /**
+     * Load a file, a URL or inline text through a registered data source, as one undoable step.
+     * It waits its turn behind loads and layouts already asked for. What was loaded, and from
+     * where, is kept: `lastImport()` and `source()` report it, and undo and redo never read the
+     * source again.
+     *
+     * Without a `type`, the format is detected the way `loadFromUrl` and `loadFromFile` detect
+     * it: from the file name or the URL's extension, then from the first bytes, fetching the URL
+     * once when its name says nothing. A format nothing recognises rejects with
+     * `E_UNKNOWN_FORMAT`, naming the formats this element reads.
+     * @param source - The data source's name, or none to detect it, and its options: inline
+     *     `data`, a `url` or a `file`.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
+     *     load fails.
+     */
+    import(source: DataSourceInput, options?: ImportOptions): Promise<void>;
+}
+
+/**
+ * A source to import: the pair the element takes as `dataSource` and `dataSourceConfig`. `type`
+ * is a registered data source ("json", "csv", "graphml", ...), and `config` its options: inline
+ * `data`, a `url` or a `file`, and what the source reads besides.
+ */
+export interface DataSourceInput {
+    /** The data source's name; detected from the file name, the URL or the content when absent. */
+    readonly type?: string;
+    /** Its options. */
+    readonly config: Readonly<Record<string, unknown>>;
+    /**
+     * What the reader calls the data, kept with the graph for `data.source()`. The file's name,
+     * or the last part of the URL, when absent.
+     */
+    readonly name?: string;
+}
+
+/**
+ * Where a graph was loaded from, as the graph keeps it: never the inline text or the file itself,
+ * which the loaded rows already hold.
+ */
+export interface DataSourceDescriptor {
+    /** The data source that read it: the format named, or the one detected. */
+    readonly type?: string;
+    /** What the reader calls the data. */
+    readonly name?: string;
+    /** The file's size in bytes, when a file was read. */
+    readonly size?: number;
+    /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
+    readonly config?: Readonly<Record<string, unknown>>;
+}
+
+/** How an import treats the graph already there. */
+export interface ImportOptions {
+    /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
+    readonly mode?: "replace" | "merge";
+    /**
+     * `"recommended"` also chooses a layout for what was loaded, from its shape and its
+     * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
+     */
+    readonly layout?: "recommended" | "keep";
+}
+
+/** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
+export type NodeRecordInput = Readonly<Record<string, unknown>>;
+
+/** An edge record to add: its endpoints are read through the edge id paths; its id is assigned. */
+export type EdgeRecordInput = Readonly<Record<string, unknown>>;
+
+/** New values for some attributes of one existing row; keys not named are left as they are. */
+export interface RowUpdate<Id> {
+    /** The row's id. */
+    readonly id: Id;
+    /** The new values. */
+    readonly values: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -366,20 +535,75 @@ export interface SessionDataApi {
  * been run. A consumer wanting only the metrics that CAN run filters on `available`; both lists
  * come off one call rather than two that could disagree.
  *
- * The rest of the graph-dependent half of {@link CatalogApi} -- what an option's bounds resolve to
- * over a scope, whether an expression references anything real -- is still absent rather than
- * stubbed, because the query engine it reads does not exist yet. A consumer discovers that gap by
- * autocomplete finding nothing, not by a call that throws.
+ * The rest of {@link CatalogApi} -- the methods named in `DeprecatedCatalogMethod` -- is absent
+ * rather than stubbed, and deprecated on `CatalogApi` itself. A consumer discovers that gap by
+ * autocomplete finding nothing, not by a call that throws. This type is derived from that list,
+ * so implementing one of them means deleting its name there and nothing here.
  */
-export type SessionCatalogApi = Pick<
-    CatalogApi,
-    "algorithms" | "cameras" | "formats" | "layouts" | "logSinks" | "metrics" | "palettes" | "scales"
->;
+export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
-/** The configuration a session carries. */
-export interface SessionConfig {
-    /** The data configuration: id paths, weight paths, position scale, direction, id coercion. */
+/**
+ * The project settings: the ones a project file saves, every one of them undoable.
+ *
+ * `data` is the element's data configuration in its own shape: the on-load `algorithms`, the
+ * `directed` policy, and `knownFields` with every known field (`nodeIdPath`, `nodeLabelPath`,
+ * `nodeWeightPath`, `nodeTimePath`, `edgeSrcIdPath`, `edgeDstIdPath`, `edgeIdPath`,
+ * `repeatedEdges`, `edgeWeightPath`, `edgeTimePath`, `positionScale`, `idCoercion`). A setting
+ * nobody has set reads as its default.
+ */
+export interface ProjectConfig {
     readonly data: SessionDataConfig;
+    /** Whether the algorithms in `data.algorithms` run once data has loaded. */
+    readonly runAlgorithmsOnLoad: boolean;
+    /** What the graph is drawn against: a colour or a skybox. */
+    readonly background: GraphBackgroundConfig;
+    /** What a selected node's halo looks like. */
+    readonly selectionStyle: GraphSelectionStyleConfig;
+    /**
+     * The layout-behaviour settings a project file saves. The rest of the element's
+     * `layoutBehavior` (label declutter, pin on drag, throughput tuning) is a preference of the
+     * view and not a project setting.
+     */
+    readonly layoutBehavior: {
+        /** Simulation steps run before the first frame is drawn. */
+        readonly preSteps: number;
+        /** Simulation steps per frame. */
+        readonly stepMultiplier: number;
+        /** The movement below which a simulation counts as settled. */
+        readonly minDelta: number;
+    };
+}
+
+/**
+ * A partial {@link ProjectConfig}, nested: `{ data: { knownFields: { nodeIdPath: "key" } } }`.
+ * Plain objects are merged key by key; `data.algorithms`, `background` and `selectionStyle` are
+ * replaced whole. Setting a key to `undefined` returns it to its default.
+ */
+export interface ProjectConfigPatch {
+    readonly data?: {
+        readonly algorithms?: SessionDataConfig["algorithms"];
+        readonly directed?: SessionDataConfig["directed"];
+        readonly knownFields?: Partial<SessionDataConfig["knownFields"]>;
+    };
+    readonly runAlgorithmsOnLoad?: boolean;
+    readonly background?: GraphBackgroundConfig;
+    readonly selectionStyle?: GraphSelectionStyleInput;
+    readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+}
+
+/**
+ * The session's settings as they are now: every project setting, read live, and the
+ * acceleration policy, which is a preference about this machine and not saved in a project.
+ */
+export interface SessionConfig extends ProjectConfig {
+    /**
+     * Change project settings. One step, which undo takes back.
+     * @param values - The settings to change.
+     * @returns Settles once the step is recorded and the picture has caught up.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when a key is not a project
+     *     setting or a value is one its setting refuses; nothing is changed then.
+     */
+    set(values: ProjectConfigPatch): Promise<void>;
     /** What the consumer asked of the hardware. */
     readonly acceleration: {
         /** Use an accelerator when one is available, never look, or refuse to run without one. */
@@ -433,7 +657,371 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
+    /** Every acceleration transition; the document is the one `capabilities` returns. */
+    "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
+    /**
+     * The history changed: a step was recorded, merged, undone, redone, restored, evicted or
+     * cleared, or the pending work (and so what the next undo will do) changed. Fires
+     * synchronously after `project:changed`. Read `session.history` for the new state; its
+     * `version` has moved.
+     */
+    "history:changed": {
+        readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
+    };
+    /**
+     * Project state changed: the slices written and what wrote them. Fires synchronously, as
+     * soon as the state has changed and before the picture has caught up; the per-domain events
+     * (`style:changed` and the rest) follow once it has.
+     */
+    "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
+    /**
+     * A kept set was created, renamed, redefined or removed: one event per set a write touched,
+     * after the write committed. A write that was refused publishes nothing.
+     *
+     * Membership has no event: a set's members follow the data lazily, so a panel showing counts
+     * re-reads them on the events it already watches and on this one.
+     */
+    "set:changed": SetChange;
 }
+
+/**
+ * The parts of a project. Everything a project file saves lives in one of these, and a change
+ * to any of them is undoable; nothing outside them (camera, hover, the selection, a run still
+ * computing) is.
+ */
+export type ProjectSlice =
+    | "graph"
+    | "config"
+    | "layout"
+    | "pins"
+    | "arrangement"
+    | "runs"
+    | "styles"
+    | "visibility"
+    | "sets"
+    | "views";
+
+/** What moved project state: a command, a history move, or a failed command being reverted. */
+export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
+
+/** The id of one step in `session.history.steps`. */
+export type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
+
+/** The id of one item in `session.history.pending`. */
+export type PendingId = string & { readonly __brand: "PendingId" };
+
+/** One undoable step: everything one command, gesture or transaction changed. Frozen. */
+export interface HistoryStep {
+    /** Stable for the life of the step. */
+    readonly id: HistoryStepId;
+    /** What a history list shows, such as "Changed colour of Hubs". */
+    readonly label: string;
+    /** ISO 8601 of the last commit or merge into the step. */
+    readonly at: string;
+    /** The ops of the commands in the step, in the order they ran. Payloads are not kept for display. */
+    readonly ops: readonly SessionCommand["op"][];
+    /** The slices the step changed. */
+    readonly slices: readonly ProjectSlice[];
+    /** What the step retains on the side of the cursor it is on. */
+    readonly bytes: number;
+    /** Where the step came from, such as `{ via: "assistant" }`. */
+    readonly provenance: Readonly<Record<string, string>>;
+}
+
+/** Undoable work dispatched and not yet recorded: queued, waiting, or an open transaction. Frozen. */
+export interface PendingStep {
+    /** Pass it to `history.cancel`. */
+    readonly id: PendingId;
+    /** The label the step will have. */
+    readonly label: string;
+    /** ISO 8601 of the dispatch. */
+    readonly since: string;
+    /** The runs this work is waiting on. */
+    readonly runIds: readonly RunId[];
+}
+
+/** What an undo, a redo or a restore did. */
+export type HistoryOutcome =
+    | { readonly kind: "undone" | "redone" | "restored"; readonly steps: readonly HistoryStep[] }
+    | { readonly kind: "cancelled"; readonly pending: readonly PendingStep[] }
+    | { readonly kind: "nothing" };
+
+/**
+ * The session's undo history. `steps`, `pending` and `nextUndo` are frozen values, the identical
+ * objects between changes; `version` moves on every `history:changed`, so a React host can
+ * subscribe with `useSyncExternalStore(subscribe, () => session.history.version)`.
+ */
+export interface SessionHistory {
+    /** Bumped on every `history:changed`. */
+    readonly version: number;
+    /** Oldest first; `steps[position..]` have been undone and can be redone. */
+    readonly steps: readonly HistoryStep[];
+    /** How many steps are applied. */
+    readonly position: number;
+    /** Undoable work dispatched and not yet recorded, oldest first. */
+    readonly pending: readonly PendingStep[];
+    /** What the next `undo()` will do: cancel pending work, undo a step, or nothing (null). */
+    readonly nextUndo:
+        | { readonly kind: "cancel"; readonly pending: readonly PendingStep[] }
+        | { readonly kind: "undo"; readonly step: HistoryStep }
+        | null;
+    /** What every step retains, in bytes. */
+    readonly bytes: number;
+    /**
+     * The byte budget. Default 256 MiB. When a record goes past it, or past `limitSteps`, the
+     * oldest steps (then the farthest redo steps) are dropped until the history is within 90% of
+     * both budgets, so the work of dropping is spread over many records. Lowering a budget below
+     * what the history holds trims it the same way at once.
+     */
+    limitBytes: number;
+    /**
+     * The step budget. Default 1000. Going past it trims the history to 90% of it, rounded down,
+     * as `limitBytes` describes: with a budget of 10, the eleventh step leaves 9.
+     */
+    limitSteps: number;
+    /**
+     * Move to the state just after a step, or to the baseline with `null`, as the equivalent run
+     * of undos or redos. Resolves once the picture matches the state.
+     * @param step - The step, or null for the state before every step.
+     * @returns What was done.
+     */
+    restoreTo(step: HistoryStepId | null): Promise<HistoryOutcome>;
+    /**
+     * Cancel a pending item, and every later-dispatched item that depends on what it writes.
+     * @param pending - The item.
+     * @returns Every item cancelled; empty when the id is not pending.
+     */
+    cancel(pending: PendingId): readonly PendingStep[];
+    /** Drop every step, cancelling pending work: the current state becomes the baseline. */
+    clear(): void;
+}
+
+/** Stamped on the step a transaction records. */
+export interface TransactionOptions {
+    /** Where the step came from, such as `{ via: "assistant" }`. Shown in `HistoryStep.provenance`. */
+    readonly provenance?: Readonly<Record<string, string>>;
+}
+
+/**
+ * The session a transaction's callback works through: every verb of the session, and what it
+ * dispatches joins the transaction's step. It cannot undo, redo, read the history or dispose.
+ */
+export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | "dispose">;
+
+/**
+ * What `execute` returns, per op. No entry is wrapped in a promise, because a promise resolved
+ * with a `Run` would adopt it and yield the result instead of the handle.
+ */
+export interface CommandOutcomeMap {
+    /** The run's handle; awaiting it yields the result. */
+    "algo.run": Run;
+    /** Settles once the plugin has run and everything it wrote is recorded as one step. */
+    "algo.legacy": Promise<void>;
+    /** What went with the run, once the removal is recorded. */
+    "algo.remove": Promise<RunRemoval>;
+    /** Settles once every member is recorded as one step and the pass that draws it has run. */
+    batch: Promise<void>;
+    /** Settles once the change is recorded and the pass that draws it has run. */
+    "data.apply": Promise<void>;
+    /** Settles once the last chunk is recorded and the pass that draws it has run. */
+    "data.import": Promise<void>;
+    /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
+    "data.expand": Promise<void>;
+    /** Settles once the edit is recorded and the pass that repaints it has run. */
+    "style.patch": Promise<void>;
+    /** Settles once the edit is recorded and the pass that repaints it has run. */
+    "style.encode": Promise<void>;
+    /** Settles once the edit is recorded and the pass that repaints it has run. */
+    "style.template": Promise<void>;
+    /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
+    "visibility.set": Promise<void>;
+    /** Settles once the window is recorded and the pass that evaluates the masks has run. */
+    "visibility.window": Promise<void>;
+    /** Settles once the flag is recorded and the pass that follows it has run. */
+    "visibility.context": Promise<void>;
+    /** The new set's id, once it is recorded. */
+    "set.create": Promise<SetId>;
+    /** Settles once the rename is recorded. */
+    "set.rename": Promise<void>;
+    /** Settles once the redefinition is recorded. */
+    "set.redefine": Promise<void>;
+    /** Settles once the member edit is recorded. */
+    "set.members": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "set.remove": Promise<void>;
+    /** Settles once the restore is recorded. */
+    "set.restore": Promise<void>;
+    /** Settles once the views are recorded. */
+    "view.save": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "view.remove": Promise<void>;
+    /** Settles once the camera has arrived. */
+    "view.camera": Promise<void>;
+    /** Settles once the settings are recorded and the picture has caught up. */
+    "config.set": Promise<void>;
+    /** Settles once the coordinates are recorded and the layout has taken them. */
+    "positions.set": Promise<void>;
+    /** Settles once the pins are recorded and the layout has taken them. */
+    "positions.pin": Promise<void>;
+    /** Settles once the choice is recorded and the layout has spent its pre-steps. */
+    "layout.set": Promise<void>;
+    /** Settles once the scope is recorded. */
+    "layout.scope": Promise<void>;
+    /** Settles once the switch is recorded and the layout has been rebuilt for it. */
+    "view.dimension": Promise<void>;
+    /** Settles once the layout has started or stopped moving. */
+    "layout.transport": Promise<void>;
+    /** Settles once the device session has started or ended. */
+    "view.immersive": Promise<void>;
+}
+
+/** One node's coordinates for `positions.set`, in scene units. */
+export interface PositionEntry {
+    readonly id: NodeId;
+    readonly x: number;
+    readonly y: number;
+    /** Defaults to 0. */
+    readonly z?: number;
+}
+
+/**
+ * The node coordinates, read by dense node index: a row no layout has placed reads as unplaced
+ * rather than as the origin.
+ *
+ * Read-only. A consumer places and pins nodes through `session.positions.set`, `pin` and `unpin`,
+ * which are undoable steps; the array a layout writes every frame is the element's own.
+ */
+export interface ReadonlyElementPositions {
+    /** Rows the coordinates can hold without growing. */
+    readonly capacity: number;
+    /** Rows in use: the node count of the current snapshot. */
+    readonly count: number;
+    /** Rows in use that hold a coordinate. */
+    readonly placedCount: number;
+    /** Rows in use that are pinned. */
+    readonly pinnedCount: number;
+    /** Moves whenever coordinates are written on purpose, so a reader can tell they changed. */
+    readonly generation: number;
+    /**
+     * Whether a row holds a coordinate.
+     * @param index - The dense node index.
+     * @returns False for an unplaced row or one past the rows in use.
+     */
+    isPlaced(index: number): boolean;
+    /**
+     * Whether a row is pinned.
+     * @param index - The dense node index.
+     * @returns False for an unpinned row or one past the rows in use.
+     */
+    isPinned(index: number): boolean;
+    /**
+     * Read a row's coordinates into an object the caller owns.
+     * @param index - The dense node index.
+     * @param out - Receives x, y and z in scene units; NaN for an unplaced row.
+     * @param out.x - Receives x.
+     * @param out.y - Receives y.
+     * @param out.z - Receives z.
+     */
+    read(index: number, out: { x: number; y: number; z: number }): void;
+}
+
+/**
+ * Placing and pinning nodes, as undoable steps, beside the read-only coordinates.
+ *
+ * Coordinates a running layout writes are not steps: where the layout comes to rest is recorded
+ * into the step before it, so undo and redo restore where the nodes were without running the
+ * layout again.
+ */
+export interface SessionPositions extends ReadonlyElementPositions {
+    /** The pinned node ids: the nodes no layout moves. */
+    readonly pinned: ReadonlySet<NodeId>;
+    /**
+     * Place nodes. One step; calls made one after another within the coalescing window are one.
+     * @param entries - The nodes and where to put them.
+     * @returns Settles once the step is recorded and the layout has taken the coordinates.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a node the graph does not
+     *     hold or a coordinate that is not a finite number; nothing is placed then.
+     */
+    set(entries: readonly PositionEntry[]): Promise<void>;
+    /**
+     * Pin nodes where they are. One step. A node the graph does not hold is skipped.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the layout has taken the pins.
+     */
+    pin(ids: readonly NodeId[]): Promise<void>;
+    /**
+     * Release pinned nodes, so the layout arranges them again. One step.
+     * @param ids - The nodes.
+     * @returns Settles once the step is recorded and the layout has taken the change.
+     */
+    unpin(ids: readonly NodeId[]): Promise<void>;
+}
+
+/**
+ * Which layout draws the graph, and in how many dimensions: the project's `layout` slice.
+ *
+ * Choosing a layout and switching between 2D and 3D are undoable steps, and undo puts back the
+ * engine that was chosen with its own options, not the catalogue's default. Until one is chosen
+ * it reads the element's default, the `force` layout drawn by `ngraph` in 3D.
+ */
+export interface SessionLayout {
+    /** The catalogue id, such as `"force"`. */
+    readonly id: LayoutId;
+    /** The engine that draws it, such as `"d3"`. */
+    readonly engine: string;
+    /** The options it was chosen with. */
+    readonly options: Readonly<Record<string, unknown>>;
+    /** Whether the graph is drawn in two dimensions or three. */
+    readonly dimension: "2d" | "3d";
+    /**
+     * Choose the layout. One step.
+     * @param id - The catalogue id; a registered engine name is read as the id it serves.
+     * @param options - The engine, when not the catalogue's default for `id`, and its options.
+     * @param options.engine - The engine that draws it, such as `"d3"`.
+     * @param options.options - The engine's options.
+     * @returns Settles once the step is recorded and the layout has taken its pre-steps.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_LAYOUT`, `E_UNKNOWN_OPTION` or
+     *     `E_OPTION_RANGE` when the renderer cannot build it; nothing is changed then.
+     */
+    set(
+        id: LayoutId,
+        options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
+    ): Promise<void>;
+    /**
+     * Draw in 2D or 3D. One step; nothing is recorded when the graph is drawn so already.
+     * @param dimension - Which.
+     * @returns Settles once the step is recorded and the layout has been rebuilt for it.
+     */
+    setDimension(dimension: "2d" | "3d"): Promise<void>;
+}
+
+/**
+ * The saved camera views, read as a map from name to camera state.
+ *
+ * A saved view is a fixed position, not a rule: it does not recompute itself for a different
+ * graph the way a camera view does, which is why a name a camera view answers to is refused.
+ */
+export interface SessionViews extends ReadonlyMap<string, CameraState> {
+    /**
+     * Keep camera states under names, replacing any view already saved under one. One step.
+     * @param views - The names and the camera states.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view answers to
+     *     a name, or `E_BAD_COMMAND` for an empty name; nothing is saved then.
+     */
+    save(views: readonly { readonly name: string; readonly camera: CameraState }[]): Promise<void>;
+    /**
+     * Forget saved views. One step.
+     * @param names - The names.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when a name is not saved;
+     *     nothing is removed then.
+     */
+    remove(names: readonly string[]): Promise<void>;
+}
+
+/** What `execute` returns for one command. */
+export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]];
 
 /**
  * A painting the element started for itself, and why it did not land.
@@ -472,6 +1060,15 @@ export interface GraphSession {
      */
     readonly scope: ScopeApi;
     /**
+     * The kept sets: named collections of nodes and edges -- groups, kept selections, communities
+     * and paths -- that anything taking a scope can name as `{ set: id }`.
+     *
+     * A set is fixed (a member list), a rule (a query or rule tree that follows the data) or a
+     * path (an ordered walk). Reading and counting one goes through `scope.resolve({ set: id })`
+     * and `scope.count({ set: id })`; every change is published as `set:changed`.
+     */
+    readonly sets: SetsApi;
+    /**
      * What is selected: two sets, five set operations, one selection for the whole session.
      *
      * Every surface reads and writes this one -- the canvas, a data table, an inspector, a
@@ -501,14 +1098,22 @@ export interface GraphSession {
      */
     readonly styles: StylesApi;
     /**
-     * The element-owned node coordinates: a stride-3 Float32Array indexed by dense node index,
-     * where a row no layout has placed reads NaN rather than the origin.
-     *
-     * The typed placement verbs of the design's positions API -- pinning, snapshot and restore,
-     * per-id reads -- arrive with the layout work. This is the array itself, which is what a
-     * layout, a drag and a GPU readback all write into.
+     * The saved camera views, by name: camera states kept under a name of the consumer's
+     * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
-    readonly positions: ElementPositions;
+    readonly views: SessionViews;
+    /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
+    readonly layout: SessionLayout;
+    /**
+     * The element-owned node coordinates, read by dense node index, where a row no layout has
+     * placed reads as unplaced rather than at the origin, with the verbs that place and pin nodes
+     * as undoable steps.
+     *
+     * Place and pin through `set`, `pin` and `unpin`; the coordinates themselves are read-only
+     * here, because a layout, a drag and a GPU readback write them and a write made there is not a
+     * step.
+     */
+    readonly positions: SessionPositions;
     /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
@@ -522,13 +1127,32 @@ export interface GraphSession {
     readonly status: SessionStatus;
     /** Everything the element can offer, as data. */
     readonly catalog: SessionCatalogApi;
-    /** The configuration this session was built with. */
+    /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
     /** What this machine can do, measured rather than guessed at by the consumer. */
     readonly capabilities: AccelerationCapabilities;
     /**
-     * The current snapshot, by reference: nothing is copied.
-     * @returns the immutable graph-format snapshot
+     * What the consumer asks of the hardware: use an accelerator when there is one, never look,
+     * or refuse to run without one.
+     *
+     * Settable, and the set applies at once: the next piece of accelerated work is planned under
+     * the new policy, and `capabilities:changed` reports where that left the hardware.
+     */
+    acceleration: AccelerationPolicy;
+    /**
+     * Attach an accelerator the caller built, or detach the current one with `null`.
+     *
+     * For tests and third parties. An injected accelerator is never replaced by a probed one and
+     * is not disposed by the session -- whoever built it owns its lifetime.
+     * @param accelerator - The accelerator to attach, or null to detach.
+     */
+    setAccelerator(accelerator: GraphAccelerator | null): void;
+    /**
+     * The current snapshot. Its structure, id map and attribute columns are the graph's own,
+     * shared rather than copied; its `position` and `graphty.pinned` columns are copies taken
+     * now, because the graph's own are written by the layout every frame and a write into them
+     * would place nodes without a step. Place and pin through `session.positions`.
+     * @returns the sealed graph-format snapshot
      */
     snapshot(): GraphSnapshot;
     /**
@@ -545,7 +1169,48 @@ export interface GraphSession {
      * @param options - The signal, the progress handler and how the call joins the queue.
      * @returns The run, awaitable and watchable straight away.
      */
-    run(command: SessionCommand, options?: RunOptions): Run;
+    run(command: AlgorithmRunCommand, options?: RunOptions): Run;
+    /**
+     * Do any command in the vocabulary (`COMMANDS` in `@graphty/graphty-element/commands`).
+     *
+     * Returns the op's outcome directly, not wrapped in a promise; every outcome is itself
+     * awaitable (a `Run` for `algo.run`), so `await session.execute(...)` waits for the command,
+     * and a caller that wants the run handle keeps the returned value without awaiting it.
+     * @param command - The command.
+     * @returns Its outcome.
+     */
+    execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
+    /**
+     * Undo the last step, or cancel pending undoable work dispatched after it instead. Never
+     * waits for pending work. Resolves once the picture matches the state.
+     * @returns What was done; `{ kind: "nothing" }` when there was nothing to undo.
+     */
+    undo(): Promise<HistoryOutcome>;
+    /**
+     * Redo the last undone step. Resolves once the picture matches the state.
+     * @returns What was done; `{ kind: "nothing" }` when there was nothing to redo.
+     */
+    redo(): Promise<HistoryOutcome>;
+    /** Whether `undo()` would do something: undo a step or cancel pending work. */
+    readonly canUndo: boolean;
+    /** Whether `redo()` would do something. */
+    readonly canRedo: boolean;
+    /** The steps, the cursor, the pending work and the budget. */
+    readonly history: SessionHistory;
+    /**
+     * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
+     * the transaction, to roll all of it back. A transaction that changed nothing records
+     * nothing.
+     * @param label - The step's label.
+     * @param fn - The body; `signal` fires when the transaction is aborted.
+     * @param options - Provenance stamped on the step.
+     * @returns What `fn` returned, once the step is recorded and the picture has caught up.
+     */
+    transaction<T>(
+        label: string,
+        fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>,
+        options?: TransactionOptions,
+    ): Promise<T>;
     /**
      * What one command would cost, answered synchronously.
      *
@@ -610,26 +1275,18 @@ export interface ElementSession extends GraphSession {
     readonly paint: ElementPaint;
 }
 
-/** What {@link createGraphSession} accepts. */
+/**
+ * What {@link createGraphSession} accepts.
+ *
+ * The session is the only writer of its graph and its settings, which is what makes every change
+ * undoable: hand data in through `session.data.import`, `addNodes` and `addEdges`, and settings
+ * through `session.config.set`.
+ */
 export interface CreateGraphSessionOptions {
-    /**
-     * The store to read. When absent the session builds one of its own and disposes it with
-     * itself.
-     */
-    readonly store?: SessionGraphStore;
-    /** Where to read the attributes a record arrived with. Absent means the graph has none. */
-    readonly records?: SessionRecordSource;
     /** The configuration. Every part not given takes the element's own default. */
     readonly config?: {
-        /**
-         * The data configuration, or a function that reads it.
-         *
-         * Hand in a FUNCTION when the host REPLACES its configuration object rather than mutating
-         * it -- applying a new style template to the element does exactly that -- or the session
-         * would go on answering from the configuration that was in force when it was built, and
-         * would report a graph as undirected after it had been told otherwise.
-         */
-        readonly data?: SessionDataConfig | (() => SessionDataConfig);
+        /** The data configuration the session starts from; change it later with `config.set`. */
+        readonly data?: SessionDataConfig;
         /** The acceleration policy and threshold. */
         readonly acceleration?: {
             /** Use an accelerator when available, never look, or refuse to run without one. */
@@ -695,6 +1352,22 @@ export interface AccelerationControllerLike {
     readonly policy: AccelerationPolicy;
     /** The node count at or above which accelerated work uses the accelerator. */
     readonly minNodes: number;
+    /**
+     * Changes what the consumer asks of the hardware.
+     * @param policy - The new policy.
+     */
+    setPolicy(policy: AccelerationPolicy): void;
+    /**
+     * Attaches an accelerator the caller built, or detaches the current one with `null`.
+     * @param accelerator - The accelerator, or null to detach.
+     */
+    setAccelerator(accelerator: GraphAccelerator | null): void;
+    /**
+     * Watches every transition.
+     * @param listener - Called with the new status.
+     * @returns A function that stops the subscription.
+     */
+    onChange(listener: (status: AccelerationStatus) => void): () => void;
     /** Releases the hardware. */
     dispose(): void;
 }

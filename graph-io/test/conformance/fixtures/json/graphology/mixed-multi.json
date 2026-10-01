@@ -1,0 +1,55 @@
+{
+  "attributes": {
+    "name": "demo"
+  },
+  "options": {
+    "type": "mixed",
+    "multi": true,
+    "allowSelfLoops": true
+  },
+  "nodes": [
+    {
+      "key": "x",
+      "attributes": {
+        "label": "X",
+        "x": 1,
+        "y": 2
+      }
+    },
+    {
+      "key": "y",
+      "attributes": {
+        "label": "Y"
+      }
+    },
+    {
+      "key": "z"
+    }
+  ],
+  "edges": [
+    {
+      "key": "e1",
+      "source": "x",
+      "target": "y",
+      "attributes": {
+        "weight": 2.5
+      }
+    },
+    {
+      "key": "e2",
+      "source": "x",
+      "target": "y"
+    },
+    {
+      "key": "e3",
+      "source": "y",
+      "target": "z",
+      "undirected": true
+    },
+    {
+      "key": "e4",
+      "source": "z",
+      "target": "z"
+    }
+  ]
+}

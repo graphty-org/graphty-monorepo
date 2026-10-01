@@ -1,19 +1,35 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import { LitElement } from "lit";
+import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
-import { set as setDeep } from "lodash";
 
-import { AccelerationController, type AccelerationPolicy, type AccelerationStatus } from "./acceleration";
-import type { AlgorithmKey, Scope } from "./catalog/types";
+import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
+import { layoutIdForEngine } from "./catalog/layouts";
+import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
+import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
-import { Graph } from "./Graph";
+import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
+import {
+    describeSource,
+    type ImportSource,
+    replaceEdgesCommand,
+    replaceNodesCommand,
+    SOURCE_VALUE,
+} from "./session/commands/data";
+import type { BatchCommand } from "./session/commands/index";
+import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
+import { recordsInRowOrder } from "./session/data";
+import { dispatcherOf } from "./session/GraphSession";
+import type { GraphSlice } from "./session/project/state";
 import type { Run, RunChange, StartOptions } from "./session/runs";
-import type { SelectionDelta, SelectionTarget, SetOp } from "./session/selection";
+import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { DefaultPalettes } from "./session/styles";
+import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
 /**
@@ -27,19 +43,63 @@ import type { VisibilityChange } from "./session/visibility";
  */
 const RUN_PROGRESS_INTERVAL_MS = 100;
 
+/** The queued coalesce key of the `dataSource` / `dataSourceConfig` pair: one tick, one load. */
+const ELEMENT_SOURCE = "element-source";
+
+/**
+ * The queued coalesce key of the `layout` / `layoutConfig` pair: two assignments in one tick are
+ * one `layout.set`, one build and one step.
+ */
+const ELEMENT_LAYOUT = "element-layout";
+
+/**
+ * The properties that take an object or an array, and so cannot survive being written as an
+ * attribute. React 19 writes a prop as an attribute when the element is not yet defined at commit
+ * time, which turns `nodeData={[...]}` into `nodedata="[object Object]"`.
+ */
+const RICH_PROPERTIES = [
+    "nodeData",
+    "edgeData",
+    "dataSourceConfig",
+    "layoutConfig",
+    "layoutScope",
+    "layoutBehavior",
+    "selectionStyle",
+    "algorithmsOnLoad",
+    "background",
+    "xr",
+] as const;
+
 /**
  * Graphty creates a graph
  */
 export class Graphty extends LitElement {
+    /**
+     * The host is a block that fills its parent's width. Its height is the parent's when the
+     * parent has a definite height, the element's own when the page sets one, and otherwise half
+     * its width: `aspect-ratio` only applies while the used height is `auto`, so a bare tag keeps
+     * the 2:1 canvas it always had. Every rule here can be overridden from the page.
+     */
+    static styles = css`
+        :host {
+            display: block;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            aspect-ratio: 2 / 1;
+        }
+    `;
+
     #graph: Graph;
     #element: Element;
     #resizeObserver: ResizeObserver | null = null;
-    #accelerationPolicy: AccelerationPolicy = "auto";
-    #acceleration: AccelerationController | null = null;
+    #capabilitiesMirrored = false;
     #unwatchRuns: (() => void) | null = null;
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
+    #unwatchHistory: (() => void) | null = null;
     #runProgressAt = new Map<string, number>();
+    #reportedStrayAttributes = false;
 
     /**
      * Creates a new Graphty element instance.
@@ -48,9 +108,10 @@ export class Graphty extends LitElement {
         super();
 
         this.#element = document.createElement("div");
-        // Ensure the container div fills the graphty-element
-        // position: relative is needed for absolute positioning of XR UI overlay
-        this.#element.setAttribute("style", "width: 100%; height: 100%; display: block; position: relative;");
+        // The container fills the host exactly. It is absolutely positioned so its size comes from
+        // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
+        // anchors the absolutely positioned XR UI overlay.
+        this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
         this.#graph = new Graph(this.#element);
     }
 
@@ -130,8 +191,31 @@ export class Graphty extends LitElement {
      * </script>
      * ```
      */
-    select(target: SelectionTarget, op?: SetOp): Promise<SelectionDelta> {
+    select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta> {
         return this.#graph.select(target, op);
+    }
+
+    /**
+     * Choose the palette a colour binding uses when it names none, one per palette kind.
+     *
+     * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
+     * layer is written, so a saved document always names a concrete palette: call it before
+     * loading data or adding layers. A later call warns and names the layers that keep the
+     * previous default, or with `reapply: true` repaints them with the new one.
+     * @param palettes - A palette id per kind: `categorical`, `sequential` and `diverging`.
+     * @param options - How a late call treats the layers already written.
+     * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @since 2.7.0
+     * @example
+     * ```ts
+     * import { definePalette } from "@graphty/graphty-element/extend";
+     *
+     * definePalette({ id: "acme-brand", kind: "categorical", colors: ["#0B1D51", "#1B7F79"] });
+     * element.setDefaultPalettes({ categorical: "acme-brand" });
+     * ```
+     */
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
+        this.session.styles.setDefaultPalettes(palettes, options);
     }
 
     /**
@@ -209,11 +293,66 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Mirror one history change onto the DOM, so an Undo button beside the tag can follow it.
+     *
+     * The detail is the cursor and what the next undo and redo would do, all plain values; a
+     * history panel reads `session.history` for the steps themselves.
+     * @param reason - Why the history changed.
+     */
+    #mirrorHistoryChange(reason: SessionEventMap["history:changed"]["reason"]): void {
+        const session = this.#graph.getSession();
+        const { history } = session;
+        this.dispatchEvent(
+            new CustomEvent("graphty-history-change", {
+                detail: {
+                    reason,
+                    version: history.version,
+                    position: history.position,
+                    steps: history.steps.length,
+                    canUndo: session.canUndo,
+                    canRedo: session.canRedo,
+                },
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    /**
+     * Reports rich props that reached the element as "[object Object]" attributes.
+     *
+     * React 19 sets a custom-element prop as a property only when the element is already defined;
+     * otherwise it writes `String(value)` as an attribute and never retries. When this module is
+     * loaded lazily, `nodeData={[...]}` arrives as `nodedata="[object Object]"` and the graph comes
+     * up empty. The value is gone, so the element cannot recover it, but it can say why.
+     */
+    #reportStrayObjectAttributes(): void {
+        if (this.#reportedStrayAttributes) {
+            return;
+        }
+
+        this.#reportedStrayAttributes = true;
+        for (const name of RICH_PROPERTIES) {
+            // HTML attribute names are case-insensitive, so this also finds `nodedata`.
+            if (this.getAttribute(name) === "[object Object]") {
+                console.error(
+                    `<graphty-element> received ${name} as the attribute ${name.toLowerCase()}="[object Object]", ` +
+                        "so the value was lost. This happens when a framework renders the tag before " +
+                        "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
+                        'customElements.whenDefined("graphty-element"). See ' +
+                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                );
+            }
+        }
+    }
+
+    /**
      * Called when the element is added to the DOM. Sets up the graph container and resize observer.
      */
     connectedCallback(): void {
         super.connectedCallback();
         this.renderRoot.appendChild(this.#element);
+        this.#reportStrayObjectAttributes();
 
         // Watch for container size changes and resize the canvas accordingly
         this.#resizeObserver = new ResizeObserver(() => {
@@ -233,7 +372,15 @@ export class Graphty extends LitElement {
 
         // Look for an accelerator. Nothing is registered unless the consumer imported
         // "@graphty/graphty-element/webgpu", in which case this probes, attaches and reports.
-        void this.#ensureAcceleration().start();
+        //
+        // A Graph is built once, in this element's constructor, and never rebuilt, so an element
+        // that has been disconnected is a shut-down element: its controller was disposed with the
+        // rest of the graph and re-attaching probes nothing.
+        const controller = this.#ensureAcceleration();
+
+        if (!controller.disposed) {
+            void controller.start();
+        }
 
         // Mirror every run onto the DOM, whoever started it. A run started from a console, an
         // agent or a panel has no `onProgress` this element could have attached, so the session's
@@ -253,6 +400,13 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
+            if (reason === "undo" || reason === "redo" || reason === "restore") {
+                this.#loadedPair = undefined;
+            }
+
+            this.#mirrorHistoryChange(reason);
+        });
     }
 
     /**
@@ -260,6 +414,8 @@ export class Graphty extends LitElement {
      * @param changedProperties - Map of changed property names to their previous values
      */
     firstUpdated(changedProperties: Map<string, unknown>): void {
+        // What the page declared is in: data assigned from here on is the reader's, and undoable.
+        this.#settingUp = false;
         super.firstUpdated(changedProperties);
 
         this.asyncFirstUpdated().catch((e: unknown) => {
@@ -351,61 +507,93 @@ export class Graphty extends LitElement {
             this.#resizeObserver = null;
         }
 
-        // Release the accelerator's device with the rest of the element's resources. A
-        // re-attached element builds a fresh controller and probes again.
-        this.#acceleration?.dispose();
-        this.#acceleration = null;
-
         this.#unwatchRuns?.();
         this.#unwatchRuns = null;
         this.#unwatchSelection?.();
         this.#unwatchSelection = null;
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
+        this.#unwatchHistory?.();
+        this.#unwatchHistory = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
     }
 
     // Private backing fields for reactive properties
-    #nodeData?: Record<string, unknown>[];
-    #edgeData?: Record<string, unknown>[];
-    #dataSource?: string;
-    #dataSourceConfig?: Record<string, unknown>;
-    #nodeIdPath?: string;
-    #edgeSrcIdPath?: string;
-    #edgeDstIdPath?: string;
-    #edgeIdPath?: string;
-    #repeatedEdges?: DuplicatePolicy;
-    #nodeLabelPath?: string;
-    #edgeWeightPath?: string;
-    #positionScale?: number;
-    #directed?: boolean | "auto";
-    #layout?: string;
-    #layoutConfig?: Record<string, unknown>;
-    #viewMode?: ViewMode;
-    #background?: GraphBackgroundConfig;
     #startingCameraDistance?: number;
-
-    #layoutBehavior?: GraphBehaviorConfig;
-
-    #selectionStyle?: GraphSelectionStyleInput;
-
-    #algorithmsOnLoad?: readonly AlgorithmOnLoad[];
-    #runAlgorithmsOnLoad?: boolean;
     #xr?: PartialXRConfig;
+
+    /**
+     * A project setting: the value as it was set on this element, or the value in effect when it
+     * has not been set. The project settings live in the session's `config` slice, so undo and redo
+     * move what these properties read. Assigning a setting its default records no step and leaves
+     * the key unset, so the value in effect is what makes that assignment read back.
+     * @param path - The setting's key, such as `data.knownFields.nodeIdPath`.
+     * @returns The value as it was set, else the value in effect (undefined for a setting whose
+     *     default is null, such as the edge endpoint paths).
+     */
+    #setting(path: string): unknown {
+        const session = this.#graph.getSession();
+        const { config } = dispatcherOf(session).state;
+        if (config.has(path)) {
+            return config.get(path);
+        }
+
+        // A setting whose default is null, such as the edge endpoint paths, reads as undefined.
+        return (
+            path
+                .split(".")
+                .reduce<unknown>(
+                    (at, name) => (at as Readonly<Record<string, unknown>> | undefined)?.[name],
+                    session.config,
+                ) ?? undefined
+        );
+    }
+
+    /**
+     * Change project settings as one step, reporting a refusal rather than throwing it: these
+     * setters are reached from `attributeChangedCallback`, where a throw escapes as an unhandled
+     * rejection that reaches nobody.
+     * @param name - The property, for the report and for Lit.
+     * @param oldValue - What the property read before, for Lit.
+     * @param values - The settings.
+     */
+    #setSetting(name: string, oldValue: unknown, values: ProjectConfigPatch): void {
+        this.#graph
+            .getSession()
+            .config.set(values)
+            .catch((error: unknown) => {
+                console.error(`<graphty-element>: ${name} was refused. Keeping the one already set.`, error);
+            });
+        this.requestUpdate(name, oldValue);
+    }
+
+    /**
+     * Set one known field of the data configuration. Null, empty or undefined returns it to its
+     * default.
+     * @param name - The field, which is also the property's name.
+     * @param value - The value.
+     */
+    #setKnownField(name: string, value: string | number | null | undefined): void {
+        const oldValue = this.#setting(`data.knownFields.${name}`);
+        this.#setSetting(name, oldValue, {
+            data: { knownFields: { [name]: value === null || value === "" ? undefined : value } },
+        });
+    }
 
     /**
      * Array of node data objects to visualize.
      * @remarks
-     * Setting this property replaces all existing nodes. For incremental
-     * updates, use the `graph.addNodes()` method instead.
+     * Setting this property REPLACES all existing nodes: a node whose id is
+     * not in the new array is removed, with the edges attached to it. For
+     * incremental updates, use the `addNodes()` method instead.
      *
      * Each node object should have an ID field (default: "id"). Additional
      * properties can be used in style selectors and accessed via `node.data`.
      * @since 1.0.0
      * @see {@link edgeData} for edge data
-     * @see {@link https://graphty.app/storybook/element/?path=/story/graphty--default | Basic Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/graphty--graphty | Basic Examples}
      * @example HTML attribute (JSON string)
      * ```html
      * <graphty-element
@@ -465,20 +653,18 @@ export class Graphty extends LitElement {
         },
     })
     get nodeData(): Record<string, unknown>[] | undefined {
-        return this.#nodeData;
+        const records = this.#records("node");
+        return records.length === 0 ? undefined : (records as Record<string, unknown>[]);
     }
     /**
-     * Sets the node data array. Triggers addition of nodes to the graph.
+     * Replaces the graph's nodes with these, as one undoable step: a node the array names again
+     * keeps its row and its edges, and one it no longer names goes, with its edges.
      */
     set nodeData(value: Record<string, unknown>[] | undefined) {
-        const oldValue = this.#nodeData;
-        this.#nodeData = value;
-
-        // Forward to Graph method (which queues operation)
+        const oldValue = this.nodeData;
         if (value && Array.isArray(value)) {
-            this.#graph.addNodes(value).catch((error: unknown) => {
-                this.#reportLoadFailure(error);
-            });
+            const { nodeIdPath } = this.#graph.getStyles().config.data.knownFields;
+            this.#replaceData((state, setup) => replaceNodesCommand([...state.nodes.keys()], value, nodeIdPath, setup));
         }
 
         this.requestUpdate("nodeData", oldValue);
@@ -554,21 +740,19 @@ export class Graphty extends LitElement {
         },
     })
     get edgeData(): Record<string, unknown>[] | undefined {
-        return this.#edgeData;
+        const records = this.#records("edge");
+        return records.length === 0 ? undefined : (records as Record<string, unknown>[]);
     }
     /**
-     * Sets the edge data array. Triggers addition of edges to the graph.
+     * Replaces the graph's edges with these, as one undoable step.
      */
     set edgeData(value: Record<string, unknown>[] | undefined) {
-        const oldValue = this.#edgeData;
-        this.#edgeData = value;
+        const oldValue = this.edgeData;
 
         // REPLACE, not append. Two edges between one pair are now two edges, so an additive
         // setter would double every edge each time a host re-assigned the property.
         if (value && Array.isArray(value)) {
-            this.#graph.setEdges(value).catch((error: unknown) => {
-                this.#reportLoadFailure(error);
-            });
+            this.#replaceData((state, setup) => replaceEdgesCommand([...state.edges.keys()], value, {}, setup));
         }
 
         this.requestUpdate("edgeData", oldValue);
@@ -581,17 +765,17 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "data-source" })
     get dataSource(): string | undefined {
-        return this.#dataSource;
+        return this.#source().type;
     }
     /**
-     * Sets the data source type. Initializes data loading when combined with dataSourceConfig.
+     * Sets the data source type. Loads the graph from it, replacing what the graph held, once the
+     * configuration is set too.
      */
     set dataSource(value: string | undefined) {
-        const oldValue = this.#dataSource;
-        this.#dataSource = value;
-
-        // Try to initialize data source if both dataSource and dataSourceConfig are set
-        this.#tryInitializeDataSource();
+        const oldValue = this.dataSource;
+        if (typeof value === "string" && value !== "") {
+            this.#importSource({ type: value, config: this.#source().config ?? this.#assigned.config });
+        }
 
         this.requestUpdate("dataSource", oldValue);
     }
@@ -603,47 +787,157 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "data-source-config" })
     get dataSourceConfig(): Record<string, unknown> | undefined {
-        return this.#dataSourceConfig;
+        const { config } = this.#source();
+        // Reported without the inline text or the file: the graph keeps where it came from, not
+        // a second copy of what it holds.
+        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
     }
     /**
-     * Sets the data source configuration. Initializes data loading when combined with dataSource.
+     * Sets the data source configuration. Loads the graph from it, replacing what the graph
+     * held, once the type is set too.
      */
     set dataSourceConfig(value: Record<string, unknown> | undefined) {
-        const oldValue = this.#dataSourceConfig;
-        this.#dataSourceConfig = value;
-
-        // Try to initialize data source if both dataSource and dataSourceConfig are set
-        this.#tryInitializeDataSource();
+        const oldValue = this.dataSourceConfig;
+        if (value !== undefined && value !== null) {
+            this.#importSource({ type: this.#source().type ?? this.#assigned.type, config: value });
+        }
 
         this.requestUpdate("dataSourceConfig", oldValue);
     }
 
     /**
-     * Removes every node and edge, and lets a later data source load.
-     *
-     * The guard below is per LOAD, not per element lifetime. Latching it for the
-     * element's whole life refused every dataset after the first: a second
-     * `dataSource` / `dataSourceConfig` assignment set both properties and started no
-     * load, so a host that loaded a second file saw the element report the new source
-     * while the old graph stayed on screen. Clearing the data is the statement that the
-     * previous load is over, so it is where the guard resets.
-     *
-     * The two properties are reset with it, and deliberately through the private fields
-     * rather than the setters: a setter would call `#tryInitializeDataSource` again, and
-     * leaving the old pair in place would let the next half-assignment load the NEW
-     * source against the OLD config.
+     * Removes every node and edge, as one undoable step. The data source goes with them, so the
+     * next `dataSource` / `dataSourceConfig` assignment loads afresh. A load still in flight is
+     * abandoned: it rejects with `E_SUPERSEDED` and adds nothing.
      */
     clearData(): void {
-        const oldDataSource = this.#dataSource;
-        const oldDataSourceConfig = this.#dataSourceConfig;
+        const oldDataSource = this.dataSource;
+        const oldDataSourceConfig = this.dataSourceConfig;
 
-        this.#graph.getDataManager().clear();
-        this.#dataSourceInitialized = false;
-        this.#dataSource = undefined;
-        this.#dataSourceConfig = undefined;
+        this.#graph.clearData();
+        this.#loadedPair = undefined;
+        this.#assigned = {};
 
         this.requestUpdate("dataSource", oldDataSource);
         this.requestUpdate("dataSourceConfig", oldDataSourceConfig);
+    }
+
+    /** Until the first update: what is assigned now was declared by the page, and is baseline. */
+    #settingUp = true;
+
+    /**
+     * The pair the last pair load started with. The same type and the same config object (`===`)
+     * again start no load. Forgotten by `clearData` and by a history call, which move the source.
+     */
+    #loadedPair: { type: string; config: Record<string, unknown> } | undefined;
+
+    /**
+     * The pair as last assigned, whether or not its load arrived: the half a later assignment
+     * pairs with when a failed load left the graph without a source.
+     */
+    #assigned: ImportSource = {};
+
+    /** The records `nodeData` and `edgeData` last read, for the graph they were read from. */
+    #rowRecords: { token: number; node?: readonly unknown[]; edge?: readonly unknown[] } | null = null;
+
+    /**
+     * The graph's records in row order, built once per graph.
+     * @param target - Nodes or edges.
+     * @returns The records.
+     */
+    #records(target: "node" | "edge"): readonly unknown[] {
+        const session = this.#graph.getSession();
+        const { graph } = dispatcherOf(session).state;
+        if (this.#rowRecords?.token !== graph.token) {
+            this.#rowRecords = { token: graph.token };
+        }
+
+        this.#rowRecords[target] ??= recordsInRowOrder(graph, session.snapshot(), target);
+        return this.#rowRecords[target];
+    }
+
+    /**
+     * The data source as assigned: the import waiting its turn, or the one the graph was loaded
+     * from.
+     * @returns The source; empty when neither is set.
+     */
+    #source(): ImportSource {
+        const dispatcher = dispatcherOf(this.#graph.getSession());
+        const pending = dispatcher.pendingCommand(ELEMENT_SOURCE) as { source: ImportSource } | undefined;
+        return pending?.source ?? (dispatcher.state.graph.values.get(SOURCE_VALUE) as ImportSource | undefined) ?? {};
+    }
+
+    /**
+     * Load from the pair as it now stands, replacing the graph. Two assignments in one tick
+     * coalesce into one load and one step while the first waits its turn.
+     * @param source - The pair.
+     */
+    #importSource(source: ImportSource): void {
+        const { type, config } = source;
+        this.#assigned = source;
+        if (type !== undefined && config !== undefined) {
+            // The pair already loaded, assigned again by a host that re-renders: no load.
+            const last = this.#loadedPair;
+            if (last?.type === type && last.config === config) {
+                return;
+            }
+
+            const pair = { type, config };
+            this.#loadedPair = pair;
+            loadSourcePair(this.#graph, type, config, {
+                coalesce: ELEMENT_SOURCE,
+                setup: this.#settingUp,
+            }).catch(() => {
+                // A failed pair was not loaded, so assigning it again retries it. The load
+                // reported the failure on the data-loading channel before it rejected.
+                if (this.#loadedPair === pair) {
+                    this.#loadedPair = undefined;
+                }
+            });
+            return;
+        }
+
+        void dispatcherOf(this.#graph.getSession())
+            .dispatch({
+                op: "data.import",
+                source: {
+                    ...(source.type === undefined ? {} : { type: source.type }),
+                    ...(source.config === undefined ? {} : { config: source.config }),
+                },
+                mode: "replace",
+                coalesce: ELEMENT_SOURCE,
+                ...(this.#settingUp ? { setup: true } : {}),
+            })
+            // A failed load is published on the data-loading channel by the load itself, before
+            // it rejects; a caller who wants the throw calls `loadFromUrl` and awaits it.
+            .catch(() => undefined);
+    }
+
+    /**
+     * Replace nodes or edges as one step: now, once the graph is up, so the getter reads the new
+     * records as soon as the assignment returns; before that, on the operation queue's turn, after
+     * the layout the graph starts with, which the new nodes join.
+     * @param build - The step, built from the graph as it stands when it runs.
+     */
+    #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand): void {
+        const setup = this.#settingUp;
+        const dispatcher = dispatcherOf(this.#graph.getSession());
+        const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
+        // Before the graph is up, the step is built once the queue reaches this turn, and
+        // dispatched after it: its members take turns of their own, which they could not while
+        // this one held the queue.
+        const done = this.#graph.initialized
+            ? dispatch()
+            : operationQueueOf(this.#graph)
+                  .queueOperationAsync("data-add", (context) => {
+                      if (context.signal.aborted) {
+                          throw new Error("Operation cancelled");
+                      }
+                  })
+                  .then(dispatch);
+        done.catch((error: unknown) => {
+            this.#reportLoadFailure(error);
+        });
     }
 
     /**
@@ -671,52 +965,20 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Helper method to initialize data source only when both properties are set
-     */
-    #dataSourceInitialized = false;
-    #tryInitializeDataSource(): void {
-        // Only initialize once per load -- see `clearData` -- and only if both
-        // dataSource and dataSourceConfig are set. Both setters call this, so the guard
-        // is what stops one assignment of the pair from starting two loads.
-        if (!this.#dataSourceInitialized && this.#dataSource && this.#dataSourceConfig) {
-            this.#dataSourceInitialized = true;
-            // A load started by an attribute or a property assignment hands the caller no promise,
-            // so a rejection here reaches the page as an UNHANDLED rejection: it trips the host's
-            // global error handler, and a Vite dev server puts its error overlay over the whole
-            // application, for a file the element has already reported through its own channel.
-            // That became reachable the moment a file naming no endpoint column started failing
-            // instead of quietly loading zero edges, which is the point of this release.
-            //
-            // The failure is not swallowed. `addDataFromSource` emits `data-loading-error`
-            // carrying the coded error and a `graph-error` beside it, and logs the whole thing,
-            // all before it throws; those are the channels the declarative path publishes on. A
-            // caller who wants the promise calls `element.addDataFromSource` and gets the throw.
-            this.#graph.addDataFromSource(this.#dataSource, this.#dataSourceConfig).catch(() => undefined);
-        }
-    }
-
-    /**
      * A jmespath string that can be used to select the unique node identifier
      * for each node. Defaults to "id", as in `{id: 42}` is the identifier of
      * the node.
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "node-id-path" })
     get nodeIdPath(): string | undefined {
-        return this.#nodeIdPath;
+        return this.#setting("data.knownFields.nodeIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for node ID extraction. Updates graph configuration.
      */
     set nodeIdPath(value: string | undefined) {
-        const oldValue = this.#nodeIdPath;
-        this.#nodeIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.nodeIdPath", value);
-        }
-
-        this.requestUpdate("nodeIdPath", oldValue);
+        this.#setKnownField("nodeIdPath", value);
     }
 
     /**
@@ -727,24 +989,17 @@ export class Graphty extends LitElement {
      * then `from`/`to`, deciding once per batch of edge records. Setting this settles the question
      * and turns the probe off, and a record that does not answer it is then a rejected record
      * rather than a reason to guess again.
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-src-id-path" })
     get edgeSrcIdPath(): string | undefined {
-        return this.#edgeSrcIdPath;
+        return this.#setting("data.knownFields.edgeSrcIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for edge source ID extraction. Updates graph configuration.
      */
     set edgeSrcIdPath(value: string | undefined) {
-        const oldValue = this.#edgeSrcIdPath;
-        this.#edgeSrcIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeSrcIdPath", value);
-        }
-
-        this.requestUpdate("edgeSrcIdPath", oldValue);
+        this.#setKnownField("edgeSrcIdPath", value);
     }
 
     /**
@@ -752,24 +1007,17 @@ export class Graphty extends LitElement {
      * jmespath that describes where to find the destination node identifier for this edge.
      *
      * Unset by default, which means PROBE; see {@link edgeSrcIdPath}.
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-dst-id-path" })
     get edgeDstIdPath(): string | undefined {
-        return this.#edgeDstIdPath;
+        return this.#setting("data.knownFields.edgeDstIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for edge destination ID extraction. Updates graph configuration.
      */
     set edgeDstIdPath(value: string | undefined) {
-        const oldValue = this.#edgeDstIdPath;
-        this.#edgeDstIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeDstIdPath", value);
-        }
-
-        this.requestUpdate("edgeDstIdPath", oldValue);
+        this.#setKnownField("edgeDstIdPath", value);
     }
 
     /**
@@ -787,24 +1035,17 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element edge-id-path="edgeId"></graphty-element>
      * ```
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-id-path" })
     get edgeIdPath(): string | undefined {
-        return this.#edgeIdPath;
+        return this.#setting("data.knownFields.edgeIdPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for edge identity. Updates graph configuration.
      */
     set edgeIdPath(value: string | undefined) {
-        const oldValue = this.#edgeIdPath;
-        this.#edgeIdPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeIdPath", value);
-        }
-
-        this.requestUpdate("edgeIdPath", oldValue);
+        this.#setKnownField("edgeIdPath", value);
     }
 
     /**
@@ -823,36 +1064,28 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element repeated-edges="sum"></graphty-element>
      * ```
-     * @returns The policy, or undefined when none has been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "repeated-edges" })
     get repeatedEdges(): DuplicatePolicy | undefined {
-        return this.#repeatedEdges;
+        return this.#setting("data.knownFields.repeatedEdges") as DuplicatePolicy | undefined;
     }
     /**
      * Sets the repeat policy. Updates graph configuration.
      */
     set repeatedEdges(value: DuplicatePolicy | undefined) {
-        const oldValue = this.#repeatedEdges;
-
-        if (value !== undefined && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
+        if (value !== undefined && value !== null && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
             console.error(
                 `<graphty-element>: repeated-edges must be one of ` +
                     `${REPEATED_EDGE_POLICIES.join(", ")}, not "${value}". ` +
-                    `Keeping "${oldValue ?? "keep"}". ` +
+                    `Keeping "${this.repeatedEdges ?? "keep"}". ` +
                     "See https://graphty.app/docs/graphty-element/attributes#repeated-edges",
             );
 
             return;
         }
 
-        this.#repeatedEdges = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.repeatedEdges", value);
-        }
-
-        this.requestUpdate("repeatedEdges", oldValue);
+        this.#setKnownField("repeatedEdges", value);
     }
 
     /**
@@ -866,24 +1099,17 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element node-label-path="name"></graphty-element>
      * ```
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "node-label-path" })
     get nodeLabelPath(): string | undefined {
-        return this.#nodeLabelPath;
+        return this.#setting("data.knownFields.nodeLabelPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for a node's display name. Updates graph configuration.
      */
     set nodeLabelPath(value: string | undefined) {
-        const oldValue = this.#nodeLabelPath;
-        this.#nodeLabelPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.nodeLabelPath", value);
-        }
-
-        this.requestUpdate("nodeLabelPath", oldValue);
+        this.#setKnownField("nodeLabelPath", value);
     }
 
     /**
@@ -897,24 +1123,17 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element edge-weight-path="cost"></graphty-element>
      * ```
-     * @returns JMESPath string or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "edge-weight-path" })
     get edgeWeightPath(): string | undefined {
-        return this.#edgeWeightPath;
+        return this.#setting("data.knownFields.edgeWeightPath") as string | undefined;
     }
     /**
      * Sets the JMESPath for an edge's weight. Updates graph configuration.
      */
     set edgeWeightPath(value: string | undefined) {
-        const oldValue = this.#edgeWeightPath;
-        this.#edgeWeightPath = value;
-
-        if (value) {
-            setDeep(this.#graph.styles.config, "data.knownFields.edgeWeightPath", value);
-        }
-
-        this.requestUpdate("edgeWeightPath", oldValue);
+        this.#setKnownField("edgeWeightPath", value);
     }
 
     /**
@@ -934,35 +1153,27 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element position-scale="0.01"></graphty-element>
      * ```
-     * @returns The multiplier, or undefined when none has been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "position-scale", type: Number })
     get positionScale(): number | undefined {
-        return this.#positionScale;
+        return this.#setting("data.knownFields.positionScale") as number | undefined;
     }
     /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */
     set positionScale(value: number | undefined) {
-        const oldValue = this.#positionScale;
-
-        if (value !== undefined && !(Number.isFinite(value) && value > 0)) {
+        if (value !== undefined && value !== null && !(Number.isFinite(value) && value > 0)) {
             console.error(
                 `<graphty-element>: position-scale must be a number greater than zero, not "${String(value)}". ` +
-                    `Keeping ${String(oldValue ?? 1)}. ` +
+                    `Keeping ${String(this.positionScale ?? 1)}. ` +
                     "See https://graphty.app/docs/graphty-element/attributes#position-scale",
             );
 
             return;
         }
 
-        this.#positionScale = value;
-
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "data.knownFields.positionScale", value);
-        }
-
-        this.requestUpdate("positionScale", oldValue);
+        this.#setKnownField("positionScale", value);
     }
 
     /**
@@ -978,7 +1189,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element directed="true"></graphty-element>
      * ```
-     * @returns The setting, or undefined when none has been set on this element
+     * @returns The value set on this element, else the value in effect ("auto" by default)
      */
     @property({
         attribute: "directed",
@@ -1017,15 +1228,15 @@ export class Graphty extends LitElement {
         },
     })
     get directed(): boolean | "auto" | undefined {
-        return this.#directed;
+        return this.#setting("data.directed") as boolean | "auto" | undefined;
     }
     /**
      * Sets whether the graph is read as directed. Updates graph configuration.
      */
     set directed(value: boolean | "auto" | undefined) {
-        const oldValue = this.#directed;
+        const oldValue = this.directed;
 
-        if (value !== undefined && value !== "auto" && typeof value !== "boolean") {
+        if (value !== undefined && value !== null && value !== "auto" && typeof value !== "boolean") {
             console.error(
                 `<graphty-element>: directed must be true, false or "auto", not "${String(value)}". ` +
                     `Keeping "${String(oldValue ?? "auto")}". ` +
@@ -1035,13 +1246,13 @@ export class Graphty extends LitElement {
             return;
         }
 
-        this.#directed = value;
-
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "data.directed", value);
+        // Undefined is also what the attribute converter hands over for a value it refused, so
+        // it keeps the setting in place rather than returning it to "auto".
+        if (value === undefined || value === null) {
+            return;
         }
 
-        this.requestUpdate("directed", oldValue);
+        this.#setSetting("directed", oldValue, { data: { directed: value } });
     }
 
     /**
@@ -1057,7 +1268,7 @@ export class Graphty extends LitElement {
      * - `fixed`: Pre-defined positions from node data
      * @since 1.0.0
      * @see {@link layoutConfig} for layout-specific options
-     * @see {@link https://graphty.app/storybook/element/?path=/story/layout--default | Layout Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular | Layout Examples}
      * @example
      * ```typescript
      * // Set force-directed layout
@@ -1071,20 +1282,21 @@ export class Graphty extends LitElement {
      */
     @property()
     get layout(): string | undefined {
-        return this.#layout;
+        return this.#layoutPair().engine;
     }
     /**
-     * Sets the layout algorithm. Triggers layout recalculation with merged config.
+     * Sets the layout algorithm: one undoable step, which undo takes back to the layout, the
+     * engine and the options before it. Assigned with `layoutConfig` in the same tick, the two are
+     * one step.
      */
     set layout(value: string | undefined) {
-        const oldValue = this.#layout;
-        this.#layout = value;
+        const oldValue = this.layout;
 
-        // Forward to Graph method (which queues operation)
         if (value) {
-            const templateLayoutOptions = this.#graph.styles.config.graph.layoutOptions ?? {};
-            const mergedConfig = { ...templateLayoutOptions, ...(this.#layoutConfig ?? {}) };
-            void this.#graph.setLayout(value, mergedConfig);
+            // The options go with the layout they were set for: those still waiting beside it, or
+            // those it is drawn with already when the same layout is assigned again.
+            const pair = this.#layoutPair();
+            this.#setLayoutPair(value, pair.pending || pair.engine === value ? pair.options : {});
         }
 
         this.requestUpdate("layout", oldValue);
@@ -1097,23 +1309,118 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutConfig;
+        return this.#layoutPair().options as Record<string, unknown>;
     }
     /**
-     * Sets layout-specific configuration. Updates active layout if one is set.
+     * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.
      */
     set layoutConfig(value: Record<string, unknown> | undefined) {
-        const oldValue = this.#layoutConfig;
-        this.#layoutConfig = value;
+        const oldValue = this.layoutConfig;
+        this.#setLayoutPair(this.#layoutPair().engine ?? DEFAULT_LAYOUT.engine, value ?? {});
+        this.requestUpdate("layoutConfig", oldValue);
+    }
 
-        // If layout is already set, update it with new config
-        if (this.#layout) {
-            const templateLayoutOptions = this.#graph.styles.config.graph.layoutOptions ?? {};
-            const mergedConfig = { ...templateLayoutOptions, ...(value ?? {}) };
-            void this.#graph.setLayout(this.#layout, mergedConfig);
+    /**
+     * The layout as assigned: the choice waiting its turn, or the one the graph is drawn with.
+     * @returns The engine and its options, and whether they are still waiting.
+     */
+    #layoutPair(): { engine?: string; options: Readonly<Record<string, unknown>>; pending: boolean } {
+        const dispatcher = dispatcherOf(this.#graph.getSession());
+        const waiting = dispatcher.pendingCommand(ELEMENT_LAYOUT) as LayoutSetCommand | undefined;
+        if (waiting !== undefined) {
+            return { engine: waiting.engine, options: waiting.options ?? {}, pending: true };
         }
 
-        this.requestUpdate("layoutConfig", oldValue);
+        const choice = dispatcher.state.layout;
+        return { engine: choice?.engine, options: choice?.options ?? {}, pending: false };
+    }
+
+    /**
+     * Choose a layout from the property pair, as one step. The engine name maps to the catalogue
+     * id it serves, and the slice keeps the engine itself.
+     * @param engine - The engine name.
+     * @param options - Its options.
+     */
+    #setLayoutPair(engine: string, options: Readonly<Record<string, unknown>>): void {
+        void dispatcherOf(this.#graph.getSession())
+            .dispatch({
+                op: "layout.set",
+                id: layoutIdForEngine(engine) ?? engine,
+                engine,
+                options: { ...options },
+                coalesce: ELEMENT_LAYOUT,
+                ...(this.#settingUp ? { setup: true } : {}),
+            })
+            // A layout that cannot be built is reported on the error event by the layout itself.
+            .catch(() => undefined);
+    }
+
+    /**
+     * What the layout runs over: a set, a query, a list of nodes -- any scope.
+     * @remarks
+     * The scope's nodes move and every other node is held where it is. The members are the ones
+     * the scope had when the layout started, so a later click, filter change or attribute edit
+     * does not move what the layout holds, and a node added afterwards is held too.
+     *
+     * CARRIED across `layout` and `layoutConfig` changes, so changing one force setting never
+     * un-scopes the layout. Setting it restarts the running layout. Only a live simulation --
+     * whose catalogue entry reads `scoped: true` -- lays out a scope; under any other layout, or
+     * when the set it names is removed, the scope is inactive and the whole graph is laid out.
+     * Nothing here throws: a value that is not a scope is reported and dropped.
+     *
+     * Reads `undefined` when layouts run over the whole graph, never `"graph"`.
+     * @since 2.5.0
+     * @example JavaScript property
+     * ```typescript
+     * const id = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c"], reading: "induced" });
+     * element.layout = "ngraph";
+     * element.layoutScope = { set: id };
+     * ```
+     * @example HTML attribute (JSON)
+     * ```html
+     * <graphty-element layout="ngraph" layout-scope='{"nodes":["a","b","c"]}'></graphty-element>
+     * ```
+     * @returns The scope, or undefined for the whole graph
+     */
+    @property({
+        attribute: "layout-scope",
+        // JSON, because a scope is an object or a keyword and Lit's default converter hands the
+        // setter the attribute's raw text.
+        converter: {
+            fromAttribute: (value: string | null): ScopeInput | undefined => {
+                if (value === null) {
+                    return undefined;
+                }
+
+                try {
+                    return JSON.parse(value) as ScopeInput;
+                } catch {
+                    console.error(
+                        `<graphty-element>: the layout-scope attribute must be JSON, such as '"graph"' or ` +
+                            `'{"set":"s1"}', not "${value}". Laying out the whole graph.`,
+                    );
+
+                    return undefined;
+                }
+            },
+            toAttribute: (value: Scope | undefined): string | null =>
+                value === undefined ? null : JSON.stringify(value),
+        },
+    })
+    get layoutScope(): Scope | undefined {
+        return this.#graph.getLayoutScope();
+    }
+    /**
+     * Sets what the layout runs over, and restarts the running layout over it. A value that is
+     * not a scope is reported and dropped, never thrown: this setter is reached from
+     * `attributeChangedCallback`, where a throw would reach nobody.
+     */
+    set layoutScope(value: ScopeInput | undefined) {
+        const oldValue = this.#graph.getLayoutScope();
+        void this.#graph.setLayoutScope(value).catch((error: unknown) => {
+            console.error("<graphty-element>: the layout scope was refused. Keeping the one already set.", error);
+        });
+        this.requestUpdate("layoutScope", oldValue);
     }
 
     /**
@@ -1126,19 +1433,23 @@ export class Graphty extends LitElement {
      * unstepped force layout is a graph in mid-flight, and how far it has flown depends on when
      * the picture was taken. `layout.stepMultiplier`, `layout.minDelta` and
      * `layout.zoomStepInterval` pace the rest of it, and `node.pinOnDrag` decides whether a node
-     * a reader drags stays where they put it.
+     * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
+     * label whose words would be drawn over another label's, keeping a selected node's label
+     * first and then the label of the node with more edges; it takes effect on the next frame.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
      * @example
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
+     * element.layoutBehavior = { labels: { declutter: true } };
      * ```
-     * @returns The behaviour settings, or undefined when none have been set on this element
+     * @returns The view preferences set on this element, with the pacing settings saved in the
+     *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
      */
     @property({ attribute: false })
     get layoutBehavior(): GraphBehaviorConfig | undefined {
-        return this.#layoutBehavior;
+        return this.#graph.getLayoutBehavior();
     }
     /**
      * Sets how the element drives the layout.
@@ -1147,7 +1458,7 @@ export class Graphty extends LitElement {
      * as `background` and `acceleration`.
      */
     set layoutBehavior(value: GraphBehaviorConfig | undefined) {
-        const oldValue = this.#layoutBehavior;
+        const oldValue = this.layoutBehavior;
 
         if (value !== undefined) {
             try {
@@ -1162,7 +1473,6 @@ export class Graphty extends LitElement {
             }
         }
 
-        this.#layoutBehavior = value;
         this.requestUpdate("layoutBehavior", oldValue);
     }
 
@@ -1184,17 +1494,17 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.selectionStyle = { color: "#00BCD4", scale: 1.8 };
      * ```
-     * @returns The highlight settings, or undefined when none have been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: false })
     get selectionStyle(): GraphSelectionStyleInput | undefined {
-        return this.#selectionStyle;
+        return this.#setting("selectionStyle") as GraphSelectionStyleInput | undefined;
     }
     /**
      * Sets what a selected node looks like.
      */
     set selectionStyle(value: GraphSelectionStyleInput | undefined) {
-        const oldValue = this.#selectionStyle;
+        const oldValue = this.selectionStyle;
 
         if (value !== undefined) {
             try {
@@ -1209,7 +1519,6 @@ export class Graphty extends LitElement {
             }
         }
 
-        this.#selectionStyle = value;
         this.requestUpdate("selectionStyle", oldValue);
     }
 
@@ -1236,22 +1545,24 @@ export class Graphty extends LitElement {
      * element.algorithmsOnLoad = ["degree", { algorithm: "pagerank", style: { size: [1, 5] } }];
      * element.runAlgorithmsOnLoad = true;
      * ```
-     * @returns The entries, or undefined when none have been set on this element
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: false })
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined {
-        return this.#algorithmsOnLoad;
+        return this.#setting("data.algorithms") as readonly AlgorithmOnLoad[] | undefined;
     }
     /**
      * Sets which algorithms run once data has finished loading.
      * @throws A `GraphtyError` coded `E_BAD_COMMAND` naming the first malformed entry.
      */
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined) {
-        const parsed = value === undefined ? undefined : parseAlgorithmsOnLoad(value);
-        const oldValue = this.#algorithmsOnLoad;
-        this.#algorithmsOnLoad = value;
-        this.#graph.styles.config.data.algorithms = parsed;
-        this.requestUpdate("algorithmsOnLoad", oldValue);
+        if (value !== undefined) {
+            parseAlgorithmsOnLoad(value);
+        }
+
+        this.#setSetting("algorithmsOnLoad", this.algorithmsOnLoad, {
+            data: { algorithms: value as AlgorithmOnLoad[] | undefined },
+        });
     }
 
     /**
@@ -1264,7 +1575,7 @@ export class Graphty extends LitElement {
      *
      * VR and AR modes require WebXR support in the browser.
      * @since 1.0.0
-     * @see {@link https://graphty.app/storybook/element/?path=/story/viewmode--default | View Mode Examples}
+     * @see {@link https://graphty.app/storybook/graphty-element/?path=/story/viewmode--switch-view-modes | View Mode Examples}
      * @example
      * ```typescript
      * element.viewMode = "2d";  // Switch to 2D orthographic view
@@ -1275,18 +1586,17 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "view-mode" })
     get viewMode(): ViewMode | undefined {
-        return this.#viewMode;
+        return this.#graph.getViewMode();
     }
     /**
-     * Sets the view mode. Switches camera and rendering mode accordingly.
+     * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
+     * not a step, and from 2D it switches to 3D first in the same step.
      */
     set viewMode(value: ViewMode | undefined) {
-        const oldValue = this.#viewMode;
-        this.#viewMode = value;
+        const oldValue = this.viewMode;
 
-        // Forward to Graph method (which handles all mode switching logic)
         if (value !== undefined) {
-            void this.#graph.setViewMode(value);
+            void this.#graph.setViewMode(value).catch(() => undefined);
         }
 
         this.requestUpdate("viewMode", oldValue);
@@ -1302,11 +1612,12 @@ export class Graphty extends LitElement {
     @property({ attribute: "layout-2d" })
     get layout2d(): boolean | undefined {
         // Return true if viewMode is "2d", false if "3d", undefined otherwise
-        if (this.#viewMode === "2d") {
+        const mode = this.viewMode;
+        if (mode === "2d") {
             return true;
         }
 
-        if (this.#viewMode === "3d") {
+        if (mode === "3d") {
             return false;
         }
 
@@ -1344,7 +1655,7 @@ export class Graphty extends LitElement {
      * ```html
      * <graphty-element background='{"backgroundType":"color","color":"black"}'></graphty-element>
      * ```
-     * @returns The background, or undefined when none has been set on this element
+     * @returns The background set on this element, else the one in effect
      */
     @property({
         /*
@@ -1377,7 +1688,7 @@ export class Graphty extends LitElement {
         },
     })
     get background(): GraphBackgroundConfig | undefined {
-        return this.#background;
+        return this.#setting("background") as GraphBackgroundConfig | undefined;
     }
     /**
      * Sets the graph background. Applies it to the scene immediately.
@@ -1388,32 +1699,29 @@ export class Graphty extends LitElement {
      * element that never rendered. A wrong colour in markup must not take the graph down.
      */
     set background(value: GraphBackgroundConfig | undefined) {
-        const oldValue = this.#background;
+        const oldValue = this.background;
 
         if (value !== undefined) {
             try {
                 this.#graph.setBackground(value);
             } catch (error: unknown) {
-                console.error(
-                    "<graphty-element>: the background was refused. Keeping the one already set.",
-                    error,
-                );
+                console.error("<graphty-element>: the background was refused. Keeping the one already set.", error);
 
                 return;
             }
         }
 
-        this.#background = value;
         this.requestUpdate("background", oldValue);
     }
 
     /**
-     * How far the camera starts from the graph.
+     * How far the camera starts from the graph, in scene units.
      * @remarks
-     * It is carried in the element's configuration document. NOTHING READS IT YET -- no camera
-     * is placed from it today, and that was true before this property existed; the property
-     * makes the setting reachable again rather than newly effective. A graph that has settled is
-     * framed by `zoomToFit()`.
+     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
+     * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
+     * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
+     * running graph moves the camera.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -1430,12 +1738,20 @@ export class Graphty extends LitElement {
      */
     set startingCameraDistance(value: number | undefined) {
         const oldValue = this.#startingCameraDistance;
-        this.#startingCameraDistance = value;
 
-        if (value !== undefined) {
-            setDeep(this.#graph.styles.config, "graph.startingCameraDistance", value);
+        try {
+            // A removed attribute arrives as null, and means "no distance": frame to fit again.
+            this.#graph.setStartingCameraDistance(value ?? undefined);
+        } catch (error: unknown) {
+            console.error(
+                "<graphty-element>: the starting camera distance was refused. Keeping the one already set.",
+                error,
+            );
+
+            return;
         }
 
+        this.#startingCameraDistance = value;
         this.requestUpdate("startingCameraDistance", oldValue);
     }
 
@@ -1445,24 +1761,45 @@ export class Graphty extends LitElement {
      * A boolean attribute: its presence turns it on, as `hidden` does. It was read as a string,
      * so `<graphty-element run-algorithms-on-load>` handed the setter "" -- which is false -- and
      * the documented HTML form ran nothing.
-     * @returns Boolean flag or undefined if not set
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
      */
     @property({ attribute: "run-algorithms-on-load", type: Boolean })
     get runAlgorithmsOnLoad(): boolean | undefined {
-        return this.#runAlgorithmsOnLoad;
+        return this.#setting("runAlgorithmsOnLoad") as boolean | undefined;
     }
     /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     set runAlgorithmsOnLoad(value: boolean | undefined) {
-        const oldValue = this.#runAlgorithmsOnLoad;
-        this.#runAlgorithmsOnLoad = value;
+        this.#setSetting("runAlgorithmsOnLoad", this.runAlgorithmsOnLoad, { runAlgorithmsOnLoad: value ?? undefined });
+    }
 
-        if (value !== undefined) {
-            this.#graph.runAlgorithmsOnLoad = value;
-        }
+    #historyKeys = true;
 
-        this.requestUpdate("runAlgorithmsOnLoad", oldValue);
+    /**
+     * Whether the element handles the undo keys itself: Ctrl+Z (Cmd+Z on macOS) undoes one step
+     * and Ctrl+Shift+Z or Ctrl+Y redoes it, while the graph's canvas has keyboard focus. On by
+     * default. A handled key has its default prevented, so a host page binding the same keys
+     * skips a keydown whose `defaultPrevented` is set; or turns this off with
+     * `history-keys="false"` and calls `session.undo()` itself.
+     * @returns Whether the undo keys are handled.
+     * @since 3.0.0
+     */
+    @property({
+        attribute: "history-keys",
+        converter: { fromAttribute: (value: string | null) => value !== "false" },
+    })
+    get historyKeys(): boolean {
+        return this.#historyKeys;
+    }
+    /**
+     * Turns the element's own undo keys on or off.
+     */
+    set historyKeys(value: boolean) {
+        const oldValue = this.#historyKeys;
+        this.#historyKeys = value;
+        this.#graph.input.updateConfig({ historyKeys: value });
+        this.requestUpdate("historyKeys", oldValue);
     }
 
     #enableDetailedProfiling?: boolean;
@@ -1859,12 +2196,59 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Save current camera state as a named preset.
-     * Available from Phase 5 onwards.
-     * @param name - Name for the preset
+     * Move the camera one step nearer or further, the way a Zoom in or Zoom out button does.
+     * One step is a factor of 1.25 on the 3D camera's distance or the 2D camera's zoom. Not an
+     * undoable step: the camera is view state.
+     * @param direction - `"in"` to approach, `"out"` to withdraw.
+     * @param options - Animation options
+     * @returns Promise that resolves when the camera has moved
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await element.zoomStep("out");
+     * ```
      */
-    saveCameraPreset(name: string): void {
-        this.#graph.saveCameraPreset(name);
+    async zoomStep(
+        direction: "in" | "out",
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.zoomStep(direction, options);
+    }
+
+    /**
+     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * the camera does not move. Not an undoable step: the camera is view state.
+     * @param options - Animation options
+     * @returns Promise that resolves when the camera has moved
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * await element.session.selection.apply({ nodes: ["n1"] });
+     * await element.zoomToSelection();
+     * ```
+     */
+    async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+        return this.#graph.zoomToSelection(options);
+    }
+
+    /**
+     * Save the current camera state as a named preset. One undoable step.
+     * @param name - Name for the preset
+     * @param camera - The camera state to save instead of where the camera is now
+     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
+     */
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
+        this.#graph.saveCameraPreset(name, camera);
+    }
+
+    /**
+     * Forget a preset saved with `saveCameraPreset` or `importCameraPresets`. One undoable step.
+     * @param name - The name it was saved under
+     * @returns Settles once the step is recorded; rejects with `E_BAD_COMMAND` when nothing is
+     *   saved under the name
+     */
+    removeCameraPreset(name: string): Promise<void> {
+        return this.#graph.removeCameraPreset(name);
     }
 
     /**
@@ -1900,8 +2284,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Import user-defined presets from JSON
-     * Available from Phase 5 onwards
+     * Import user-defined presets from JSON, as one undoable step
      * @param presets - Record of preset names to their state
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
@@ -2007,7 +2390,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Remove nodes from the graph.
+     * Remove nodes from the graph, and every edge attached to one, as one undoable step.
      * @param nodeIds - Array of node IDs to remove
      * @param options - Queue options for operation ordering
      * @returns Promise that resolves when nodes are removed
@@ -2025,7 +2408,21 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Update node data.
+     * Remove edges from the graph, as one undoable step.
+     * @param edgeIds - The element-assigned edge ids
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves when the edges are removed
+     * @example
+     * ```typescript
+     * await element.removeEdges(['0', '3']);
+     * ```
+     */
+    async removeEdges(edgeIds: string[], options?: import("./utils/queue-migration").QueueableOptions): Promise<void> {
+        return this.#graph.removeEdges(edgeIds, options);
+    }
+
+    /**
+     * Update node data, as one undoable step.
      * @param updates - Array of update objects with id and properties to update
      * @param options - Queue options for operation ordering
      * @returns Promise that resolves when nodes are updated
@@ -2045,18 +2442,43 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Update edge data, as one undoable step. Keys not named are kept; an id the graph does not
+     * hold is skipped.
+     * @param updates - The edge id and the new values of each edge
+     * @param options - Queue options for operation ordering
+     * @returns Promise that resolves when the edges are updated
+     * @example
+     * ```typescript
+     * await element.updateEdges([{ id: "0", label: "knows" }]);
+     * ```
+     */
+    async updateEdges(
+        updates: { id: string; [key: string]: unknown }[],
+        options?: import("./utils/queue-migration").QueueableOptions,
+    ): Promise<void> {
+        return this.#graph.updateEdges(updates, options);
+    }
+
+    /**
      * Add data from a data source.
+     *
+     * Every load has an id: the promise resolves to it, and every load event about this load
+     * (`data-loading-progress`, `data-loading-complete`, `data-loading-error`, `data-loaded`)
+     * carries it as `loadId`. A source with no nodes and no edges rejects with `E_EMPTY_LOAD`.
      * @param type - Data source type (e.g., "json", "csv", "graphml")
      * @param opts - Data source configuration options
-     * @returns Promise that resolves when data is loaded
+     * @param options - How to load
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty source rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }` when data is loaded
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
+     * const { loadId } = await element.addDataFromSource('json', { url: 'https://example.com/data.json' });
      * ```
      */
-    async addDataFromSource(type: string, opts?: object): Promise<void> {
-        return this.#graph.addDataFromSource(type, opts ?? {});
+    async addDataFromSource(type: string, opts?: object, options?: { replace?: boolean }): Promise<{ loadId: number }> {
+        return this.#graph.addDataFromSource(type, opts ?? {}, options);
     }
 
     /**
@@ -2068,7 +2490,9 @@ export class Graphty extends LitElement {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @returns Promise that resolves when data is loaded
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty file rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
      * ```typescript
@@ -2082,8 +2506,9 @@ export class Graphty extends LitElement {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
     }
 
@@ -2096,7 +2521,9 @@ export class Graphty extends LitElement {
      * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @returns Promise that resolves when data is loaded
+     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
+     *     a malformed or empty file rejects and leaves the current graph untouched
+     * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
      * ```typescript
@@ -2112,9 +2539,31 @@ export class Graphty extends LitElement {
             nodeIdPath?: string;
             edgeSource?: string;
             edgeTarget?: string;
+            replace?: boolean;
         },
-    ): Promise<void> {
+    ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
+    }
+
+    /**
+     * Write the graph in a file format: data, current positions, algorithm results and the drawn
+     * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
+     * the format could not hold.
+     * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
+     *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
+     * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
+     *     admin-import file
+     * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * const result = await element.exportGraph("graphml");
+     * for (const note of result.lossNotes) console.warn(note.message);
+     * download(await result.text());
+     * ```
+     */
+    async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
+        return this.#graph.exportGraph(format, options);
     }
 
     /**
@@ -2132,9 +2581,7 @@ export class Graphty extends LitElement {
      * ```
      */
     pin(ids: (string | number) | readonly (string | number)[]): void {
-        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
-            this.#graph.getNode(id)?.pin();
-        }
+        this.#pin(ids, true);
     }
 
     /**
@@ -2143,9 +2590,20 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      */
     unpin(ids: (string | number) | readonly (string | number)[]): void {
-        for (const id of Array.isArray(ids) ? ids : [ids as string | number]) {
-            this.#graph.getNode(id)?.unpin();
-        }
+        this.#pin(ids, false);
+    }
+
+    /**
+     * Pin or release the nodes that answer to these ids, in either spelling, as one step. An id
+     * nothing answers to is skipped, as it always has been.
+     * @param ids - One node id, or several.
+     * @param pinned - Pin, or release.
+     */
+    #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
+        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).map(
+            (id) => this.#graph.getNode(id)?.id ?? id,
+        );
+        void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
     }
 
     /**
@@ -2361,6 +2819,10 @@ export class Graphty extends LitElement {
      * result shape derives. This is the verb for a run started with `{ style: false }`, or for
      * putting a picture back after a reader cleared it. Applying twice replaces the layer bound
      * to that run and channel rather than stacking a second one on it.
+     *
+     * It starts the style edits and returns at once. To wait for the picture -- for a
+     * screenshot, an export or a test -- await `waitForStableFrame()` after the call: it
+     * settles only once every suggested layer is added, stacked in the order named and painted.
      * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True if anything was applied, false when no finished run of that algorithm has
@@ -2370,6 +2832,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * await element.run('degree', undefined, { style: false });
      * element.applySuggestedStyles('degree');
+     * await element.waitForStableFrame();
      * ```
      */
     applySuggestedStyles(algorithmKey: string | string[]): boolean {
@@ -2399,21 +2862,27 @@ export class Graphty extends LitElement {
 
     /**
      * Set the layout algorithm.
-     * @param type - Layout algorithm name
+     *
+     * Takes a layout id from `catalog.layouts()` (such as `"force"`), which runs that layout's
+     * default engine, or a registered engine name (such as `"ngraph"`).
+     * @param type - Layout id or engine name
      * @param opts - Layout-specific options
-     * @param options - Queue options
+     * @param options - Queue options, and `scope`: what the layout runs over. A live simulation
+     *   moves the scope's nodes and holds the rest; absent keeps the scope already set, and
+     *   `"graph"` clears it. See {@link Graphty.layoutScope}.
      * @returns Promise that resolves when layout is initialized
      * @since 1.5.0
      * @example
      * ```typescript
      * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
      */
     async setLayout(
         type: string,
         opts?: object,
-        options?: import("./utils/queue-migration").QueueableOptions,
+        options?: import("./utils/queue-migration").SetLayoutOptions,
     ): Promise<void> {
         return this.#graph.setLayout(type, opts ?? {}, options);
     }
@@ -2493,21 +2962,27 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Execute multiple operations as a batch.
-     * @param fn - Function containing batch operations
-     * @returns Promise that resolves when batch completes
+     * Make several changes one undoable step.
+     *
+     * `fn` receives `tx`, the session as seen from inside the step: what it does through `tx` is
+     * recorded as one step once `fn` settles, and a throw rolls all of it back. A call on the
+     * element itself while `fn` runs is a step of its own, and logs a warning naming the `tx`
+     * verb to use instead. The same as `session.transaction`, with a default label.
+     * @param fn - The changes, made through `tx`.
+     * @param label - The step's label in the history.
+     * @returns Once the step is recorded and drawn.
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.batchOperations(async () => {
-     *   await element.addNodes(nodes);
-     *   await element.addEdges(edges);
-     *   await element.setLayout('circular');
+     * await element.batchOperations(async (tx) => {
+     *   await tx.data.addNodes(nodes);
+     *   await tx.data.addEdges(edges);
+     *   await tx.layout.set("circular");
      * });
      * ```
      */
-    async batchOperations(fn: () => Promise<void> | void): Promise<void> {
-        return this.#graph.batchOperations(fn);
+    async batchOperations(fn: (tx: TransactionScope) => Promise<void> | void, label?: string): Promise<void> {
+        return this.#graph.batchOperations(fn, label);
     }
 
     // ============================================================================
@@ -2661,7 +3136,7 @@ export class Graphty extends LitElement {
     async applyCameraView(
         id: string,
         options?: {
-            scope?: Scope;
+            scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
@@ -2714,6 +3189,32 @@ export class Graphty extends LitElement {
      */
     isRunning(): boolean {
         return this.#graph.isRunning();
+    }
+
+    /**
+     * Play or pause the layout.
+     *
+     * `setRunning(true)` on a layout that has already settled restarts it, so "play" is
+     * something the reader can see; `setRunning(false)` stops the per-frame stepping and nothing
+     * else -- work already handed to an accelerator lands, the scene keeps rendering, and the
+     * camera, picking and styling stay live. There is no event for this: `isRunning()` reports
+     * the state and `graph-settled` reports the arrangement coming to rest.
+     *
+     * A pause holds until `setRunning(true)`. Loading more nodes, a freeze, an accelerator
+     * attaching, setting another layout and dragging a node all still happen -- new nodes are
+     * placed and a dragged node moves -- but none of them resumes the layout. To tell a paused,
+     * half-finished arrangement from a converged one, read `getLayoutManager().isPaused` and
+     * `isSettled`.
+     * @param running - True to run the layout, false to pause it.
+     * @since 2.0.0
+     * @example
+     * ```typescript
+     * element.setRunning(false); // pause
+     * element.setRunning(true); // play again, from where it stopped
+     * ```
+     */
+    setRunning(running: boolean): void {
+        this.#graph.setRunning(running);
     }
 
     // ============================================================================
@@ -2884,10 +3385,14 @@ export class Graphty extends LitElement {
     // ============================================================================
 
     /**
-     * Set the camera mode.
+     * Activate the camera of the current view mode: `"orbit"` in 3D, `"2d"` in 2D.
+     * @remarks
+     * A camera from the other view mode is refused; change view mode with `viewMode` or
+     * `setViewMode`, which switches the camera with it.
      * @param mode - Camera mode key
      * @param options - Queue options
      * @returns Promise that resolves when camera mode is set
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when the camera belongs to another view mode
      * @since 1.5.0
      */
     async setCameraMode(
@@ -3152,7 +3657,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "acceleration", reflect: true })
     get acceleration(): AccelerationPolicy {
-        return this.#accelerationPolicy;
+        return this.#graph.acceleration.policy;
     }
     /**
      * Sets the acceleration policy and applies it immediately.
@@ -3168,46 +3673,171 @@ export class Graphty extends LitElement {
      * healthy.
      */
     set acceleration(value: AccelerationPolicy) {
-        if (value !== "auto" && value !== "off" && value !== "required") {
+        const oldValue = this.#graph.acceleration.policy;
+
+        if (!isAccelerationPolicy(value)) {
             console.error(
                 `<graphty-element>: acceleration must be "auto", "off" or "required", not ` +
-                    `"${String(value)}". Keeping "${this.#accelerationPolicy}". ` +
-                    "See https://graphty.app/docs/graphty-element/attributes#acceleration",
+                    `"${String(value)}". Keeping "${oldValue}". ` +
+                    "See https://graphty.app/docs/graphty-element/guide/acceleration",
             );
             return;
         }
 
-        const oldValue = this.#accelerationPolicy;
-        this.#accelerationPolicy = value;
-        this.#acceleration?.setPolicy(value);
+        // Written through the session, and read back off the one controller behind both, so the
+        // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
+        this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
     }
 
     /**
-     * The acceleration controller for this element, built on first use.
+     * Which renderer draws the graph: `"webgl"` (the default), `"webgpu"`, or `"auto"` for WebGPU
+     * where the browser has it.
+     *
+     * Read once, when the element is first drawn; set it in markup or before the element is
+     * connected. Where WebGPU is asked for and the browser cannot open it, the graph is drawn
+     * with WebGL and {@link rendererStatus} says why -- the choice is made before the first
+     * frame, never by switching mid-run.
+     * @remarks
+     * WebGL stays the default because WebXR has no WebGPU binding in any shipping browser: under
+     * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
+     * else differs and the measured frame times.
+     * @returns What the consumer asked for. `"webgl"` unless it was set.
+     * @since 3.1.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element renderer="auto"></graphty-element>
+     * ```
+     */
+    @property({ attribute: "renderer", reflect: true })
+    get renderer(): RendererRequest {
+        return this.#graph.rendererRequest;
+    }
+    /**
+     * Sets the renderer the element opens when it is first drawn.
+     *
+     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
+     * `attributeChangedCallback`, and a throw there would leave the element unrendered.
+     */
+    set renderer(value: RendererRequest) {
+        const oldValue = this.#graph.rendererRequest;
+
+        try {
+            this.#graph.setRenderer(value);
+        } catch (error) {
+            console.error(
+                `<graphty-element>: ${error instanceof Error ? error.message : String(error)}. Keeping "${oldValue}".`,
+            );
+            return;
+        }
+
+        this.requestUpdate("renderer", oldValue);
+    }
+
+    /**
+     * Which renderer is drawing, and why when it is not the one asked for.
+     *
+     * `active` is `"webgl"` or `"webgpu"`; `reason` is set only when WebGPU was asked for and
+     * WebGL is drawing instead (no `navigator.gpu`, or no adapter or device could be opened).
+     * Null until the element has initialised its renderer, which it does once connected; the
+     * `render-initialized` event fires after.
+     * @returns The status, or null before the renderer has been chosen.
+     * @since 3.1.0
+     * @example
+     * ```typescript
+     * await element.updateComplete;
+     * const { active, reason } = element.rendererStatus ?? {};
+     * ```
+     */
+    get rendererStatus(): RendererStatus | null {
+        return this.#graph.rendererStatus;
+    }
+
+    /**
+     * The node count at or above which accelerated work uses the accelerator.
+     *
+     * Below it the element takes the CPU path even with an accelerator attached, and
+     * `capabilities.acceleration.state` reads `"idle"`. Unset, layouts use the accelerator
+     * whenever there is one and each algorithm keeps a built-in floor measured on one card (see
+     * the acceleration guide). Any value you set, including 0, replaces those floors for every
+     * layout and algorithm; set it when you have measured the machine your graphs are drawn on.
+     * @since 2.0.0
+     * @example
+     * ```html
+     * <graphty-element acceleration-min-nodes="5000"></graphty-element>
+     * ```
+     * @returns The threshold in force.
+     */
+    @property({ attribute: "acceleration-min-nodes", type: Number, reflect: true })
+    get accelerationMinNodes(): number {
+        return this.#graph.acceleration.minNodes;
+    }
+    /**
+     * Sets the threshold and applies it immediately.
+     *
+     * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
+     * previous threshold in force, for the reason the `acceleration` setter states: Lit drives
+     * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
+     * @param value - The node count at or above which accelerated work uses the accelerator.
+     */
+    set accelerationMinNodes(value: number) {
+        const oldValue = this.#graph.acceleration.minNodes;
+
+        try {
+            this.#graph.acceleration.setMinNodes(value);
+        } catch (error: unknown) {
+            // NaN is the one case the markup reads better than the value: Lit's `type: Number`
+            // converter runs before this setter, so `acceleration-min-nodes="many"` arrives here
+            // as NaN and an author told `not "NaN"` would have to work out which of their
+            // attributes that was. Every other bad value names itself, including a property write
+            // that never went near the attribute.
+            const written = Number.isNaN(value)
+                ? (this.getAttribute("acceleration-min-nodes") ?? "NaN")
+                : String(value);
+
+            console.error(
+                `<graphty-element>: acceleration-min-nodes must be a whole number of 0 or more, ` +
+                    `not "${written}". Keeping ${String(oldValue)}. ` +
+                    "See https://graphty.app/docs/graphty-element/guide/acceleration",
+                error,
+            );
+            return;
+        }
+
+        this.requestUpdate("accelerationMinNodes", oldValue);
+    }
+
+    /**
+     * The acceleration controller, which is the Graph's -- the element does not build one.
      *
      * Every transition it publishes is mirrored as a `graphty-capabilities-change` DOM event,
      * so a page with a tag and six lines of script can show whether the GPU is in use, say why
      * it is not, and update itself when a device is lost -- without importing a module or
-     * naming a single GPU type.
+     * naming a single GPU type. The mirror carries the controller's own capability document, the
+     * same object `element.session.capabilities` returns, so the two channels cannot disagree.
      * @returns The controller.
      */
     #ensureAcceleration(): AccelerationController {
-        if (this.#acceleration === null) {
-            const controller = new AccelerationController({ policy: this.#accelerationPolicy });
-            controller.onChange((status: AccelerationStatus) => {
+        const controller = this.#graph.acceleration;
+
+        if (!this.#capabilitiesMirrored) {
+            controller.onChange(() => {
+                // The status carries the policy, so a policy written through
+                // `element.session.acceleration` lands here too, and the attribute reflects it.
+                this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: { acceleration: status } },
+                        detail: { capabilities: controller.capabilities },
                         bubbles: true,
                         composed: true,
                     }),
                 );
             });
-            this.#acceleration = controller;
+            this.#capabilitiesMirrored = true;
         }
 
-        return this.#acceleration;
+        return controller;
     }
 }
 

@@ -1,0 +1,169 @@
+{
+ "directed": true,
+ "multigraph": false,
+ "graph": {},
+ "nodes": [
+  {
+   "score": 123456789.125,
+   "rank": 1,
+   "flag": false,
+   "id": 0
+  },
+  {
+   "score": -39.666056,
+   "rank": -7,
+   "id": 1
+  },
+  {
+   "score": 2.0,
+   "rank": 0,
+   "tag": "back\\slash",
+   "flag": true,
+   "id": 2
+  },
+  {
+   "score": 1e-300,
+   "rank": -2147483648,
+   "tag": "back\\slash",
+   "flag": false,
+   "id": 3
+  },
+  {
+   "rank": 1,
+   "id": 4
+  },
+  {
+   "score": -47.379735,
+   "rank": 1,
+   "tag": "plain",
+   "flag": true,
+   "id": 5
+  },
+  {
+   "score": 1e-300,
+   "rank": 0,
+   "tag": "say \"hi\"",
+   "id": 6
+  },
+  {
+   "rank": -7,
+   "tag": "say \"hi\"",
+   "flag": false,
+   "id": 7
+  },
+  {
+   "score": -77.083218,
+   "rank": 2147483647,
+   "tag": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "id": 8
+  },
+  {
+   "score": 123456789.125,
+   "rank": 2147483647,
+   "flag": true,
+   "id": 9
+  }
+ ],
+ "links": [
+  {
+   "weight": 8.1249,
+   "rel": "中文",
+   "source": 0,
+   "target": 1
+  },
+  {
+   "weight": 1,
+   "rel": "<tag>",
+   "cap": 166,
+   "source": 1,
+   "target": 9
+  },
+  {
+   "weight": 1e-300,
+   "rel": "<tag>",
+   "cap": 188,
+   "source": 2,
+   "target": 7
+  },
+  {
+   "source": 2,
+   "target": 4
+  },
+  {
+   "weight": 9.2155,
+   "rel": "中文",
+   "source": 2,
+   "target": 0
+  },
+  {
+   "weight": 6.462,
+   "source": 3,
+   "target": 4
+  },
+  {
+   "weight": 3.7069,
+   "rel": "back\\slash",
+   "source": 4,
+   "target": 8
+  },
+  {
+   "rel": "<tag>",
+   "source": 4,
+   "target": 1
+  },
+  {
+   "weight": 0.4204,
+   "source": 5,
+   "target": 8
+  },
+  {
+   "weight": 3,
+   "source": 5,
+   "target": 3
+  },
+  {
+   "rel": "😀",
+   "source": 5,
+   "target": 1
+  },
+  {
+   "weight": 1.0965,
+   "rel": "tab\there",
+   "source": 6,
+   "target": 9
+  },
+  {
+   "weight": 1e-300,
+   "source": 6,
+   "target": 5
+  },
+  {
+   "weight": 0.5,
+   "source": 6,
+   "target": 8
+  },
+  {
+   "weight": 1.4548,
+   "cap": 639,
+   "source": 7,
+   "target": 9
+  },
+  {
+   "weight": 1e+300,
+   "cap": 943,
+   "source": 8,
+   "target": 9
+  },
+  {
+   "cap": 457,
+   "source": 8,
+   "target": 0
+  },
+  {
+   "weight": 8.7616,
+   "rel": "plain",
+   "source": 9,
+   "target": 3
+  }
+ ]
+}

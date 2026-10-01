@@ -275,6 +275,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "useActualColorScheme",
     "useDirection",
     "usePanelLabels",
+    "usePopoutManager",
     "usePopoutRegion",
 
     // Constants

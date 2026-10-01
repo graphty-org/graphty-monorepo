@@ -17,6 +17,8 @@
  * Node-safe entry points.
  */
 
+import type { AlgorithmAccelerator } from "@graphty/algorithms";
+
 import type { AccelerationErrorCode } from "../errors";
 
 /**
@@ -54,6 +56,25 @@ export type AccelerationState = "probing" | "active" | "idle" | "unavailable" | 
  */
 export type AccelerationPolicy = "auto" | "off" | "required";
 
+/** The three values, in the order a control offers them. */
+export const ACCELERATION_POLICIES: readonly AccelerationPolicy[] = ["auto", "off", "required"];
+
+/** What the element does when nothing was asked: `auto`. */
+export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy = "auto";
+
+/**
+ * Whether a value is one of the three acceleration policies.
+ *
+ * A host that offers the choice gets the value back from storage, a query string or a change
+ * handler, where it is an unknown string. This is the check the element itself runs on the
+ * `acceleration` attribute, so a host cannot accept a value the element would refuse.
+ * @param value - Anything at all.
+ * @returns True when `value` is `"auto"`, `"off"` or `"required"`.
+ */
+export function isAccelerationPolicy(value: unknown): value is AccelerationPolicy {
+    return typeof value === "string" && (ACCELERATION_POLICIES as readonly string[]).includes(value);
+}
+
 /**
  * The arithmetic that produced a set of numbers.
  *
@@ -81,13 +102,21 @@ export const DEFAULT_ACCELERATOR_PRECISION: AccelerationPrecision = "f32";
  *
  * Three plain strings, so a status chip can render "NVIDIA, ampere" without importing a GPU
  * type or parsing a renderer string.
+ *
+ * This side is ALWAYS PRESENT, MAY BE EMPTY: an accelerator fills in what its driver told it and
+ * `""` for what it did not, so an implementer never has to choose between `""` and `undefined`.
+ * {@link AccelerationStatus}, what a consumer reads, is the opposite -- a field is there only
+ * when the backend reported one -- and `AccelerationController` is the single place that
+ * converts between the two, dropping every empty string on the way out. Keep it that way: a
+ * browser masks the device and the description for an ordinary origin, so empty is the common
+ * case and a consumer must never be handed `""` to render.
  */
 export interface AcceleratorDeviceInfo {
-    /** The hardware vendor, as the driver reports it: `"nvidia"`, `"apple"`, `"intel"`. */
+    /** The hardware vendor, as the driver reports it: `"nvidia"`, `"apple"`, `""` when unknown. */
     readonly vendor: string;
     /** The device family, as the driver reports it: `"ampere"`, `"rdna-3"`, `""` when unknown. */
     readonly architecture: string;
-    /** A human-readable description of the device. May be empty; never undefined. */
+    /** A human-readable description of the device, `""` when unknown. Never undefined. */
     readonly description: string;
 }
 
@@ -121,9 +150,42 @@ export interface GraphAccelerator {
     readonly lost?: Promise<{ reason: string }>;
     /** The arithmetic this accelerator computes in. Absent means {@link DEFAULT_ACCELERATOR_PRECISION}. */
     readonly precision?: AccelerationPrecision;
+    /**
+     * Proves this accelerator computes correctly, before any of the element's work is planned
+     * onto it.
+     *
+     * Hardware that answers is not the same thing as hardware that answers correctly. The
+     * software renderer that ships with Windows miscomputes shaders that pass a value across a
+     * workgroup barrier: it builds, it runs, it returns plausible numbers, and every prefix sum,
+     * sort and grid layout over one of them is wrong. Nothing errors. A backend that can tell
+     * the difference implements this; one that cannot omits it, and the element attaches it on
+     * the strength of the probe as before.
+     *
+     * Resolve when the hardware is trustworthy. Reject with a `GraphtyError` carrying
+     * `E_DEVICE_INCORRECT` when it is not, and the element reports acceleration unavailable with
+     * that code and runs the CPU path -- the same place a missing adapter reaches, because a
+     * device that lies is no more usable than a device that is not there.
+     *
+     * The element calls it once, on an accelerator it built from a registered factory, before
+     * attaching it. An accelerator handed over already built through `setAccelerator` is not
+     * asked -- the element did not construct it and does not own its lifetime, and whoever did
+     * both vouched for it by handing it over.
+     *
+     * It is NOT a way to report a failure part-way through a run: work that has already started
+     * on the accelerator and then fails is that work's failure and throws.
+     * @returns Resolves when the accelerator is fit to be given work.
+     */
+    verify?(): Promise<void>;
     /** Releases the hardware resources. Called by the element when it detaches this accelerator. */
     dispose?(): void;
-    /** An accelerated algorithm or layout, looked up by name and feature-tested before use. */
+    /**
+     * An accelerated algorithm or layout, looked up by name and feature-tested before use.
+     *
+     * `release(snapshot)` is one of these rather than a declared member: an accelerator that keeps
+     * device buffers for a snapshot implements it, and the element calls it when that snapshot
+     * stops being the graph, while an accelerator with no residency to free simply has no such
+     * member. Both are feature-tested the same way, so neither has to pretend to be the other.
+     */
     [algorithmOrLayout: string]: unknown;
 }
 
@@ -138,6 +200,14 @@ export interface AcceleratorFactoryOptions {
      * that does not care ignores the parameter.
      */
     readonly exactMaxNodes?: number;
+    /**
+     * Whether a software adapter (SwiftShader, llvmpipe) is acceptable.
+     *
+     * Under `"auto"` it is not: a software rasteriser is slower than the element's own CPU
+     * path, and attaching it would make the graph slower while reporting "active". Under
+     * `"required"` it is: the consumer said "no CPU path", and a software device is a device.
+     */
+    readonly acceptSoftware?: boolean;
 }
 
 /**
@@ -166,15 +236,29 @@ export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promis
  * renders. It is plain, frozen, serialisable data: no GPU objects, no promises, no classes.
  */
 export interface AccelerationStatus {
+    /**
+     * The policy in force: what the consumer asked for, however they asked -- the `acceleration`
+     * attribute, the property, or `session.acceleration`. A change of policy publishes a new
+     * status even when the state does not move.
+     * @since 2.3.0
+     */
+    readonly policy: AccelerationPolicy;
     /** The one-word state. */
     readonly state: AccelerationState;
     /** The attached accelerator's backend, when one is attached. */
     readonly backend?: "webgpu" | (string & {});
-    /** The hardware vendor, when the backend reported one. */
+    /**
+     * The hardware vendor, when the backend reported one. Absent otherwise, never `""`.
+     *
+     * The three device facts arrive from an accelerator as {@link AcceleratorDeviceInfo}, where
+     * they are always present and an unknown one is `""`. They are published here the other way
+     * round, so a consumer can test one with `??` or `!== undefined` and never render an empty
+     * string. `AccelerationController` is what converts.
+     */
     readonly vendor?: string;
-    /** The device family, when the backend reported one. */
+    /** The device family, when the backend reported one. Absent otherwise, never `""`. */
     readonly architecture?: string;
-    /** The device description, when the backend reported one. */
+    /** The device description, when the backend reported one. Absent otherwise, never `""`. */
     readonly device?: string;
     /** Why acceleration is unavailable or has stopped, in a sentence a person can read. */
     readonly reason?: string;
@@ -296,6 +380,152 @@ export const ACCELERATION_MIN_NODES_KEY = "acceleration.minNodes";
  *
  * Raise it when a graph is small enough that uploading it costs more than computing it. There
  * is no defensible non-zero default, because the crossover has to be measured on the machine
- * the graph is drawn on.
+ * the graph is drawn on -- and this zero is a measurement, not a guess. On the dev box
+ * (RTX 4070 SUPER, headless Chromium, 2026-09-22) the accelerated layout's frame time was at or
+ * below the CPU simulation's at every size measured, starting with the smallest: 50.0 against
+ * 50.0 ms at 500 nodes, 116.7 against 116.7 at 1,000 and 183.3 against 216.6 at 2,000, three runs
+ * of sixty working frames per arm, all at average degree 10. A fourth size, 5,000 nodes, read
+ * 466.6 against 566.7 -- but from ONE run of five frames, so read it as indicative and not as what
+ * the default rests on. The crossover is therefore below the smallest graph worth accelerating,
+ * and the default stays 0.
+ *
+ * `scripts/measure-min-nodes.mjs` is the measurement, protocol in its header; the table and what
+ * it does not cover are in section 3 of `graphty-element/docs/decisions/G6.md` IN THE REPOSITORY,
+ * which is not part of the published documentation site.
  */
 export const ACCELERATION_MIN_NODES_DEFAULT = 0;
+
+/**
+ * Where and when the per-capability floors below were measured, as the plan's reason quotes it.
+ */
+export const ACCELERATION_MIN_NODES_MEASUREMENT = "RTX 4070 SUPER, headless Chromium, 2026-09-30";
+
+/**
+ * The node count below which the element declines the accelerator for one capability, when the
+ * consumer has not set {@link ACCELERATION_MIN_NODES_KEY} themselves.
+ *
+ * {@link ACCELERATION_MIN_NODES_DEFAULT} is 0 because it was measured for the forceatlas2
+ * LAYOUT, whose accelerated frame was never slower than the CPU's at any size. An algorithm is a
+ * different shape of work: the whole run is one call, and on the device that call costs several
+ * submit round trips whatever the size -- a readback in Chromium is about 2 ms -- so below some
+ * node count the CPU port has finished before the device has started. One number cannot serve
+ * both, which is why the layout default stays 0 and each algorithm capability the adapters route
+ * carries its own floor here.
+ *
+ * MEASURED 2026-09-30 AGAINST THE ALGORITHMS 3.0 CPU PORTS, which are much faster than the code
+ * the earlier floors were set against. Headless Chromium on the RTX 4070 SUPER (ANGLE's Vulkan
+ * backend; no software rasteriser), both arms through `@graphty/algorithms`' dispatcher with the
+ * element's own options -- `accelerated(null)` for the CPU port, `accelerated(accelerator)` for
+ * the device -- so each arm includes what the element's run includes on that path. Seeded random
+ * graphs of n nodes and ten edges a node up to the element's 100,000-edge limit, and ten a node
+ * past it; arms interleaved with the order flipped every round, one discarded pass of each first,
+ * medians of 15 rounds (9 above 20,000 nodes, 5 where one CPU pass took over a second), the graph
+ * resident on the device. Three sweeps, at one-minute load averages between 3.4 and 12.6 on 32
+ * threads, with other sessions' browser tests sharing the machine and the card; a CPU median moved
+ * by up to 2x between sweeps while the interleaved ratio mostly held.
+ *
+ * A floor is the smallest measured node count from which the device's median beat the CPU port's
+ * at EVERY measured size, graph shape and sweep at or above it, counting only graphs the element
+ * can hold (at most 100,000 edges up to 50,000 nodes). So a capability that wins at 10,000 nodes
+ * and loses at 50,000 nodes with 100,000 edges is floored above 50,000. The shapes measured are
+ * few: uniform random graphs for every capability, and for Katz also a sparse random graph (one
+ * edge a node) and a 200-wide grid. A graph unlike those can cross over somewhere else.
+ *
+ * The timings are of a graph already on the device. The first run on a freshly loaded graph also
+ * pays the upload, and several of the 100,000-node floors below do not hold for that first run
+ * (connected components took 19.7 ms against the CPU's 14.3 at 100,000 nodes when it had to upload).
+ * Every one of those floors is above the render ceiling, so today no run the element makes is
+ * affected. The full tables are in
+ * `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, section "The element's floors
+ * re-measured against the 3.0 ports (2026-09-30)".
+ *
+ * WHAT THE ELEMENT CAN HOLD BOUNDS WHAT IS ROUTED. `DEFAULT_LIMITS.renderCeiling` is 50,000 nodes
+ * and `DEFAULT_LIMITS.edgesDrawn` is 100,000 edges, and a load past either is refused with
+ * `E_TOO_LARGE`. The floors of 100,000 below are the smallest measured size past that ceiling at
+ * which the device won in every sweep (on ten edges a node); the crossover lies between 50,000 and
+ * 100,000. Those capabilities are not routed to the device at any size the element holds today,
+ * and a raised ceiling (issue #419), `acceleration.minNodes` or `acceleration="required"` is what
+ * puts them there.
+ *
+ * Two things the table does not cover. It is one card and one browser: a slower CPU or a slower
+ * device moves the crossover, and a consumer who has measured their own machine sets
+ * `acceleration.minNodes`, which replaces every floor here with their number. And a run the
+ * dispatcher answers on the CPU port whatever is attached -- a personalized PageRank, a seeded
+ * label propagation, a Katz `alpha` whose series may diverge on that graph -- never reaches the
+ * floor. Under `acceleration="required"` the floors do not apply: `"required"` is what a benchmark
+ * runs under, and a benchmark of the small end of the curve has to reach the device.
+ */
+/**
+ * The capabilities a floor can name: the seam's algorithm members, by their exact names.
+ *
+ * Typed against the seam rather than as a string so that a member renamed on one side and not
+ * the other is a compile error here, not a floor that silently stops applying and sends that
+ * capability back to the GPU at every size.
+ */
+export type FlooredCapability = Exclude<keyof AlgorithmAccelerator, "kind" | "release">;
+
+export const ACCELERATION_MIN_NODES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> = Object.freeze(
+    {
+        // All-pairs shortest paths: 0.88x to 1.30x at 256 nodes, 1.19x to 1.90x from 300, 3.8x at
+        // the 5,792-node bound. The run refuses a larger graph anyway.
+        allPairsShortestPath: 300,
+        // Exact: 0.95x to 1.07x at 300, 1.38x to 1.46x at 400, 3.3x to 3.6x at 1,000. A run also
+        // has to clear ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY, because its cost follows the
+        // number of sources, not the node count.
+        betweennessCentrality: 400,
+        // Exact and 100 sampled sources: sampled 0.96x at 3,000, both 1.3x to 1.7x at 4,000. A run
+        // also has to clear ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY. The closeness
+        // adapter never sends an exact run above 30,000 nodes (see
+        // EXACT_CLOSENESS_MAX_ACCELERATED_NODES). Was 5,800.
+        closenessCentrality: 4_000,
+        // 0.56x to 0.86x at 5,000, 1.04x to 1.55x at 10,000, 2x at 20,000. Was 50,000.
+        pageRank: 10_000,
+        // 0.59x to 0.78x at 10,000, 1.10x at 15,000, 1.7x to 2.7x at 20,000 to 50,000. Unchanged.
+        hits: 15_000,
+        // The dispatcher sends Katz to the device only where the series provably converges and the
+        // in-degrees are uneven: at the default alpha, sparse and bounded-degree graphs. On one
+        // edge a node: 0.6x at 20,000, 1.2x to 1.4x at 50,000, 2.3x at 100,000. On a 200-wide grid
+        // (two edges a node): 0.5x to 0.8x at 50,000, 1.4x at 100,000, 2.2x at 200,000. Was 28,000.
+        katzCentrality: 100_000,
+        // Loses at every size the element holds (0.74x at best, at 20,000); 1.4x to 1.6x at
+        // 50,000 nodes on ten edges a node, 1.2x to 1.9x above. Was 28,000.
+        eigenvectorCentrality: 100_000,
+        // Above the render ceiling: 0.25x to 0.74x at 50,000 nodes, 1.0x to 1.6x at 100,000. Was 141,000.
+        breadthFirstSearch: 100_000,
+        // Above the render ceiling: 0.74x to 1.47x at 50,000 nodes, 1.8x to 2.7x at 100,000. Was 107,000.
+        sssp: 100_000,
+        // Above the render ceiling: 0.29x to 0.55x at 50,000 nodes with 100,000 edges, 1.6x to 3.9x at
+        // 100,000. Was 132,000.
+        connectedComponents: 100_000,
+        // Wins by at most 2 ms inside the render ceiling and loses at 50,000 nodes with 100,000
+        // edges (0.81x to 0.92x); 2.6x to 4.3x at 100,000 nodes.
+        triangleCount: 100_000,
+        // Wins 1.1x to 2.8x at 5,000 to 20,000 nodes and loses at 50,000 nodes with 100,000 edges
+        // (0.51x to 0.59x, where the CPU port converged in 10 passes); 3x to 4x at 100,000.
+        labelPropagation: 100_000,
+    },
+);
+
+/**
+ * For a run that searches from a set of sources, the smallest (sources x edges) at which the
+ * device beat the CPU port. Applies on top of {@link ACCELERATION_MIN_NODES_BY_CAPABILITY}: a run
+ * must clear both.
+ *
+ * A node count alone cannot floor a sampled run. The device's cost of a sampled betweenness or
+ * closeness is a few milliseconds almost whatever the size, while the CPU port's grows with the
+ * number of sources times the number of edges -- so with ten sources the device loses at sizes
+ * where with a hundred it wins by 2x. An exact run counts every node as a source.
+ *
+ * Measured 2026-09-30, RTX 4070 SUPER, headless Chromium, the same method as the node floors:
+ * uniform random graphs of 400 to 50,000 nodes at ten edges a node up to 100,000 edges, with 1, 3,
+ * 10, 30 and 100 sources, two sweeps at load averages 4.3 to 6.1. Betweenness: every run of
+ * 500,000 or more won (1.5x to 9x). At 300,000 to 400,000 it lost on 400 and 1,000 nodes (0.86x
+ * to 0.90x) and won from 10,000 (1.0x to 1.6x); below 300,000 it lost everywhere. Closeness: on
+ * 4,000 nodes or more, every run of 1,000,000 or more won (1.2x to 7x), and every run below it
+ * lost except three sources on 50,000 nodes (1.0x to 1.25x).
+ */
+export const ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY: Readonly<Partial<Record<FlooredCapability, number>>> =
+    Object.freeze({
+        betweennessCentrality: 500_000,
+        closenessCentrality: 1_000_000,
+    });

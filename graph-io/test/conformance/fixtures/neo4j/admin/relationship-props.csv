@@ -1,0 +1,9 @@
+:ID
+1
+2
+3
+:START_ID,:END_ID,:TYPE,weight:double,since:int
+1,2,R,2.5,1999
+2,3,S,0.25,2001
+3,1,R,,
+1,2,R,4,2020

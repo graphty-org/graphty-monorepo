@@ -186,7 +186,7 @@ describe("Graphty API Parity", () => {
         });
 
         describe("Lifecycle Methods", () => {
-            const lifecycleMethods = ["shutdown", "isRunning"];
+            const lifecycleMethods = ["shutdown", "isRunning", "setRunning"];
 
             for (const method of lifecycleMethods) {
                 it(`has ${method} method`, () => {

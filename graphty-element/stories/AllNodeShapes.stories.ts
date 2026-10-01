@@ -97,7 +97,6 @@ export const AllNodeShapes: Story = {
     args: {
         setup: storySetup({
             viewMode: "3d",
-            startingCameraDistance: 30,
             node: { "node.color": "#5A67D8" },
             layers: generateLayers(),
         }),

@@ -1,9 +1,10 @@
 /**
- * @file What a style layer paints: the four selector kinds, and the one call that turns one into
- * the closure a repaint runs.
+ * @file What a style layer paints: the selector kinds, and the one call that turns one into the
+ * closure a repaint runs.
  *
- * FOUR KINDS, AND THE SPLIT IS THE POINT. Only `{match:"expression"}` reaches an evaluator.
- * `{match:"has"}` is a column presence test, `{match:"ids"}` is a set membership test, and
+ * THE SPLIT IS THE POINT. Only `{match:"expression"}` reaches an evaluator.
+ * `{match:"has"}` is a column presence test, `{match:"ids"}` is a set membership test,
+ * `{match:"member"}` is one bit test against a scope's live bitmap, and
  * `{match:"everything"}` is no test at all. Measured on this machine, the presence test costs
  * 7.3 ns per element against 1,322 ns for a `jmespath.search()` call, so the kind a layer is
  * written in is a performance decision and not only an ergonomic one. That is why `encode()`
@@ -31,16 +32,19 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { EdgeId, NodeId, Path, Query } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { parseScope } from "../../catalog/sets/parse";
+import type { EdgeId, NodeId, Path, Query, Scope } from "../../catalog/types";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
     hasPredicate,
     idsPredicate,
+    scopePredicate,
     type SelectorSource,
     type SelectorTarget,
+    topPredicate,
 } from "./predicate";
 
 // ---------------------------------------------------------------------------------------------
@@ -52,6 +56,8 @@ import {
  *
  * Read the file's opening note before adding a kind: the union is small because each member is a
  * different COST, not a different spelling of the same question.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
  */
 export type Selector =
     /** Every element the layer's target names. The only universal match, and it is written out. */
@@ -71,13 +77,28 @@ export type Selector =
      * reading of "these elements" when there are none and is safe: it paints nothing rather than
      * everything.
      */
-    | { readonly match: "ids"; readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeId[] };
+    | { readonly match: "ids"; readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeId[] }
+    /**
+     * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
+     * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
+     * So a layer never paints more than `n` elements, and paints none on a graph whose highest
+     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason.
+     */
+    | { readonly match: "top"; readonly path: Path; readonly n: number }
+    /**
+     * The members of a scope, usually a kept set. One bit test per element against the scope's
+     * live bitmap, which follows the set; a scope that cannot be resolved paints nothing.
+     */
+    | { readonly match: "member"; readonly of: Scope };
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member"] as const;
+
+/** The prefix of the only paths a top selector ranks: a run's published fields. */
+const RESULT_PATH_PREFIX = "results.";
 
 // ---------------------------------------------------------------------------------------------
 // Refusals
@@ -204,6 +225,34 @@ function assertSelector(selector: Selector): void {
             assertIdList(selector.edges, "edges");
 
             return;
+        case "top":
+            if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
+                throw badShape(
+                    'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
+                    { path: selector.path },
+                );
+            }
+
+            if (!Number.isInteger(selector.n) || selector.n < 0) {
+                throw badShape('A "top" selector\'s n is a whole number of elements.', { n: selector.n });
+            }
+
+            return;
+        case "member":
+            try {
+                parseScope(selector.of);
+            } catch (error) {
+                if (!isGraphtyError(error)) {
+                    throw error;
+                }
+
+                throw badShape(`A "member" selector names a scope: ${error.message}`, {
+                    of: selector.of,
+                    reason: error.details,
+                });
+            }
+
+            return;
         default:
             throw badShape(`"${String(kind)}" is not a selector kind.`, { match: kind, kinds: SELECTOR_KINDS });
     }
@@ -225,13 +274,10 @@ function assertSelector(selector: Selector): void {
  * @returns The compiled selector: its test, and the columns that test reads.
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the selector's shape or its
  *     expression is wrong, `E_SELECTOR_EMPTY` when a selector is empty, and `E_UNSUPPORTED`
- *     when an `ids` selector is offered to a session that cannot say which id sits at which row.
+ *     when an `ids` selector is offered to a session that cannot say which id sits at which row,
+ *     or a `top` selector to one that cannot rank a run's column.
  */
-export function compileSelector(
-    selector: Selector,
-    target: SelectorTarget,
-    source: SelectorSource,
-): CompiledSelector {
+export function compileSelector(selector: Selector, target: SelectorTarget, source: SelectorSource): CompiledSelector {
     assertSelector(selector);
 
     const columns = columnsFor(source, target);
@@ -240,12 +286,58 @@ export function compileSelector(
         case "everything":
             return { match: "everything", target, test: null, paths: EMPTY_PATHS };
         case "has":
-            return { match: "has", target, test: hasPredicate(columns, selector.path), paths: Object.freeze([selector.path]) };
+            return {
+                match: "has",
+                target,
+                test: hasPredicate(columns, selector.path),
+                paths: Object.freeze([selector.path]),
+            };
         case "ids": {
             const named = target === "node" ? selector.nodes : selector.edges;
             const ids = new Set<EdgeId | NodeId>(named ?? []);
 
             return { match: "ids", target, test: idsPredicate(columns, ids), paths: EMPTY_PATHS };
+        }
+        case "top": {
+            const { topCut } = source;
+            const { path, n } = selector;
+
+            if (topCut === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: 'This session cannot evaluate a "top" selector, because it cannot rank a run\'s column.',
+                    source: "style",
+                    details: { match: "top" },
+                });
+            }
+
+            return {
+                match: "top",
+                target,
+                test: topPredicate(columns, path, () => topCut(path, target, n)),
+                paths: Object.freeze([path]),
+            };
+        }
+        case "member": {
+            if (source.scope === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message:
+                        'This session cannot evaluate a "member" selector, because it holds no sets to resolve one against.',
+                    source: "style",
+                    details: { match: "member" },
+                });
+            }
+
+            const live = source.scope(parseScope(selector.of));
+
+            return {
+                match: "member",
+                target,
+                test: scopePredicate(live, target),
+                paths: EMPTY_PATHS,
+                problem: () => live.problem(),
+            };
         }
         default: {
             const { paths, test } = compileExpressionPredicate(selector.where, columns);

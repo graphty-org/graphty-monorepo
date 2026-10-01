@@ -155,7 +155,7 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
     const { mode = "3d", pinOnDrag = true, layout = "ngraph", nodes = [], edges = [] } = options;
 
     // Use real WebGL engine for interaction tests - NullEngine doesn't support picking
-    const graph = await createTestGraph({ useRealEngine: true });
+    const graph = await createTestGraph();
 
     // Configure the graph, one setting at a time
     graph.setBackground({ backgroundType: "color", color: "#2D2D2D" });
@@ -256,7 +256,8 @@ export function getSceneScale(graph: Graph): number {
         // Default ortho range is approximately 20 units
         return 20 / state.orthoRange;
     } else if (state.mode === "3d" && state.radius !== undefined) {
-        // Default radius is 30 (startingCameraDistance)
+        // 30 is a fixed reference distance, not the camera's default: an unset
+        // startingCameraDistance frames the graph to fit, so the start depends on the graph
         return 30 / state.radius;
     }
 

@@ -25,31 +25,33 @@ The `<graphty-element>` Web Component provides a declarative way to add graph vi
 
 All configuration is done through HTML attributes or their corresponding JavaScript properties:
 
-| Property                 | Attribute                  | Type                           | Default     | Description                    |
-| ------------------------ | -------------------------- | ------------------------------ | ----------- | ------------------------------ |
-| `nodeData`               | `node-data`                | `Array<object>`                | `[]`        | Array of node objects          |
-| `edgeData`               | `edge-data`                | `Array<object>`                | `[]`        | Array of edge objects          |
-| `layout`                 | `layout`                   | `string`                       | `'ngraph'`  | Layout algorithm name          |
-| `layoutConfig`           | `layout-config`            | `object`                       | `{}`        | Layout algorithm options       |
-| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | `'3d'`      | Rendering mode                 |
-| `background`             | `background`               | `object`                       | whitesmoke  | A colour, or a skybox image    |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                       | `30`        | How far the camera starts out  |
-| `dataSource`             | `data-source`              | `string`                       | `undefined` | Data source type               |
-| `dataSourceConfig`       | `data-source-config`       | `object`                       | `{}`        | Data source configuration      |
-| `nodeIdPath`             | `node-id-path`             | `string`                       | `'id'`      | Path to node ID in data        |
-| `edgeSrcIdPath`          | `edge-src-id-path`         | `string`                       | unset       | Path to source ID in edge data; unset means probe |
-| `edgeDstIdPath`          | `edge-dst-id-path`         | `string`                       | unset       | Path to target ID in edge data; unset means probe |
-| `edgeIdPath`             | `edge-id-path`             | `string`                       | unset       | Path to an edge's own identifier, for data that carries one |
-| `repeatedEdges`          | `repeated-edges`           | `'keep' \| 'first' \| 'last' \| 'sum' \| 'min' \| 'max' \| 'error'` | `'keep'` | What a second edge between one pair does |
-| `nodeLabelPath`          | `node-label-path`          | `string`                       | unset       | Path to what to CALL a node, as distinct from its id |
-| `edgeWeightPath`         | `edge-weight-path`         | `string`                       | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads |
-| `positionScale`          | `position-scale`           | `number`                       | `1`         | Multiplier from a record's own coordinates into scene units |
-| `directed`               | `directed`                 | `boolean \| 'auto'`            | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide |
-| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }` | gold halo   | What a selected node looks like |
-| `layoutBehavior`         | property only              | `object`                       | `{}`        | How the element drives the layout, and the two on-demand expansion functions |
-| `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`      | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads)) |
-| `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                      | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence |
-| `debug`                  | `debug`                    | `boolean`                      | `false`     | Enable debug overlay           |
+| Property                 | Attribute                  | Type                                                                | Default     | Description                                                                                                                                                            |
+| ------------------------ | -------------------------- | ------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nodeData`               | `node-data`                | `Array<object>`                                                     | `[]`        | Array of node objects; assigning replaces the nodes                                                                                                                    |
+| `edgeData`               | `edge-data`                | `Array<object>`                                                     | `[]`        | Array of edge objects; assigning replaces the edges                                                                                                                    |
+| `layout`                 | `layout`                   | `string`                                                            | `'ngraph'`  | Layout algorithm name                                                                                                                                                  |
+| `layoutConfig`           | `layout-config`            | `object`                                                            | `{}`        | Layout algorithm options                                                                                                                                               |
+| `layoutScope`            | `layout-scope`             | scope (JSON)                                                        | unset       | Lay out only these nodes and hold the rest still, such as `{"set":"set_team"}`; unset means the whole graph (see [Layouts](./layouts#laying-out-part-of-the-graph))    |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                         |
+| `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                            |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                          |
+| `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
+| `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
+| `nodeIdPath`             | `node-id-path`             | `string`                                                            | `'id'`      | Path to node ID in data                                                                                                                                                |
+| `edgeSrcIdPath`          | `edge-src-id-path`         | `string`                                                            | unset       | Path to source ID in edge data; unset means probe                                                                                                                      |
+| `edgeDstIdPath`          | `edge-dst-id-path`         | `string`                                                            | unset       | Path to target ID in edge data; unset means probe                                                                                                                      |
+| `edgeIdPath`             | `edge-id-path`             | `string`                                                            | unset       | Path to an edge's own identifier, for data that carries one                                                                                                            |
+| `repeatedEdges`          | `repeated-edges`           | `'keep' \| 'first' \| 'last' \| 'sum' \| 'min' \| 'max' \| 'error'` | `'keep'`    | What a second edge between one pair does                                                                                                                               |
+| `nodeLabelPath`          | `node-label-path`          | `string`                                                            | unset       | Path to what to CALL a node, as distinct from its id                                                                                                                   |
+| `edgeWeightPath`         | `edge-weight-path`         | `string`                                                            | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads                                                                                                         |
+| `positionScale`          | `position-scale`           | `number`                                                            | `1`         | Multiplier from a record's own coordinates into scene units                                                                                                            |
+| `directed`               | `directed`                 | `boolean \| 'auto'`                                                 | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide                                                                                                     |
+| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | gold halo   | What a selected node looks like                                                                                                                                        |
+| `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                               |
+| `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))      |
+| `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                   |
+| `debug`                  | `debug`                    | `boolean`                                                           | `false`     | Enable debug overlay                                                                                                                                                   |
+| `historyKeys`            | `history-keys`             | `boolean`                                                           | `true`      | Whether Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the focused canvas undo and redo; `history-keys="false"` turns them off (see [Undo and History](./undo#keyboard-shortcuts)) |
 
 ### How the element finds an edge's endpoints
 
@@ -131,6 +133,16 @@ element.layoutBehavior = {
 
 `preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
 its default of `0` leaves the engine to decide when it has finished.
+
+### Overlapping labels
+
+`layoutBehavior.labels.declutter` hides a node label whose words would be drawn over another
+label's. It is off by default, so every label a style asks for is drawn; see
+[Labels that would overlap](./styling#labels-that-would-overlap).
+
+```javascript
+element.layoutBehavior = { labels: { declutter: true } };
+```
 
 ## Basic Usage
 
@@ -289,7 +301,7 @@ await document.querySelector("#graph").session.styles.add({
 });
 ```
 
-See the [styling guide](/guide/styling) for selectors, channels and the rest of the vocabulary.
+See the [styling guide](./styling) for selectors, channels and the rest of the vocabulary.
 
 ## View Modes
 
@@ -308,12 +320,12 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 ## CSS Styling
 
-The component **must have dimensions** to render. Set via CSS:
+The element is a block that fills its container's width. Its height is 2:1 -- half its width --
+unless you give it a height or place it in a parent that has one, in which case it fills that
+parent. Size it with ordinary CSS:
 
 ```css
 graphty-element {
-    display: block;
-    width: 100%;
     height: 500px;
 }
 ```
@@ -321,7 +333,7 @@ graphty-element {
 Or inline styles:
 
 ```html
-<graphty-element style="display: block; width: 800px; height: 600px;"> </graphty-element>
+<graphty-element style="width: 800px; height: 600px;"> </graphty-element>
 ```
 
 ## Events
@@ -351,6 +363,7 @@ Common events:
 - `node-click` - Node was clicked
 - `node-hover` - Mouse entered a node
 - `selection-changed` - Selected node changed
+- `graphty-history-change` - A step was recorded, undone or redone; the detail carries `canUndo` and `canRedo`
 
 See [Events](./events) for the complete event reference.
 
@@ -365,11 +378,15 @@ function GraphComponent({ nodes, edges, layout = "ngraph" }) {
             node-data={JSON.stringify(nodes)}
             edge-data={JSON.stringify(edges)}
             layout={layout}
-            style={{ width: "100%", height: "500px", display: "block" }}
+            style={{ height: "500px" }}
         />
     );
 }
 ```
+
+If the element module is loaded lazily, make sure it is defined before React renders the tag;
+otherwise React writes object props as `"[object Object]"` attributes. See
+[Loading the element lazily](./installation#loading-the-element-lazily).
 
 ### Vue
 
@@ -438,6 +455,12 @@ element.dataSource = "url";
 element.dataSourceConfig = { url: "https://example.com/graph.json" };
 ```
 
+Assigning the pair again, with or without `clearData()` first, loads the new source. The first
+load adds to the graph; a later one replaces it once the new source has parsed, so a bad file
+leaves the current graph on screen and reports `data-loading-error`. Every event about a load
+carries its `loadId`. To await a load instead, call `loadFromUrl`, `loadFromFile` or
+`addDataFromSource`, which resolve to `{ loadId }` and take a `replace` option.
+
 See [Data Sources](./data-sources) for available data source types.
 
 ## Direct Methods on the Web Component
@@ -465,6 +488,22 @@ const allNodes = element.getNodes();
 const nodeCount = element.getNodeCount();
 ```
 
+### Undo and Redo
+
+```javascript
+// Every change a project saves is one step
+await element.session.undo();
+await element.session.redo();
+
+// Several changes as one step: call them through tx
+await element.batchOperations(async (tx) => {
+    await tx.data.addNodes([{ id: "d" }]);
+    await tx.data.addEdges([{ source: "c", target: "d" }]);
+});
+```
+
+See [Undo and History](./undo).
+
 ### Selection and Layout
 
 ```javascript
@@ -490,8 +529,9 @@ const state = element.getCameraState();
 element.setCameraPosition({ x: 0, y: 0, z: 100 });
 element.setCameraTarget({ x: 0, y: 0, z: 0 });
 
-// Camera mode
-await element.setCameraMode("arc-rotate", { target: { x: 0, y: 0, z: 0 } });
+// Camera mode: each view mode has one camera ("orbit" in 3D, "2d" in 2D), and a camera
+// from the other mode is refused. Change view mode with viewMode / setViewMode instead.
+await element.setCameraMode("orbit");
 const controller = element.getCameraController();
 ```
 
@@ -573,6 +613,6 @@ See the **[JavaScript API Guide](./javascript-api)** for the complete `Graph` cl
 
 ## Interactive Examples
 
-- [Default Graph](https://graphty.app/storybook/element/?path=/story/graphty--graphty) - Basic configuration
-- [View Modes](https://graphty.app/storybook/element/?path=/story/viewmode--switch-view-modes) - 2D/3D switching
-- [Layouts](https://graphty.app/storybook/element/?path=/story/layout-3d--circular) - Different layout algorithms
+- [Default Graph](https://graphty.app/storybook/graphty-element/?path=/story/graphty--graphty) - Basic configuration
+- [View Modes](https://graphty.app/storybook/graphty-element/?path=/story/viewmode--switch-view-modes) - 2D/3D switching
+- [Layouts](https://graphty.app/storybook/graphty-element/?path=/story/layout-3d--circular) - Different layout algorithms

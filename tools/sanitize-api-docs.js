@@ -6,12 +6,12 @@
 import { readdir, readFile, writeFile, access } from "fs/promises";
 import { join, extname } from "path";
 
-// Process all package API docs
-const API_DIRS = [
-    "./docs/graphty-element/api/generated",
-    "./docs/algorithms/api/generated",
-    "./docs/layout/api/generated",
-];
+// The directories to process: the ones named on the command line (a package's own docs build
+// passes its docs/api/generated), else every package's API docs in the unified site
+const API_DIRS =
+    process.argv.length > 2
+        ? process.argv.slice(2)
+        : ["./docs/graphty-element/api/generated", "./docs/algorithms/api/generated", "./docs/layout/api/generated"];
 
 async function processFile(filePath) {
     const content = await readFile(filePath, "utf-8");

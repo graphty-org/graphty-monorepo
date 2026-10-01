@@ -31,7 +31,8 @@ import { PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
 import React from "react";
 
 import { CANVAS_TOOLBAR_Z_INDEX, LEGEND_MIN_HEIGHT, LEGEND_WIDTH, OVERLAY_INSET } from "../constants";
-import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE, LEGEND_BLOCK_ORDER, type LegendChannelId, OVERLAY_REFLOW_TRANSITION_MS } from "./canvasLayout";
+import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE, type LegendChannelId, OVERLAY_REFLOW_TRANSITION_MS } from "./canvasLayout";
+import { capLegendCategories, orderLegendChannels } from "./legendChannels";
 
 /**
  * One end of a quantitative domain: MIN, MIDPOINT or MAX. The middle stop carries the
@@ -79,8 +80,11 @@ export interface LegendOtherRow {
     readonly label: string;
     /** The coverage footer, e.g. "3,388 groups, 43% of nodes", drawn parenthesised. */
     readonly coverage: string;
-    /** The ink the canvas paints the remainder. */
-    readonly color: string;
+    /**
+     * The inks the canvas paints the remainder, one per distinct colour among the categories
+     * the row rolls up. The chip draws one slice for each; a single colour is a plain disc.
+     */
+    readonly colors: readonly string[];
     /** Opens the groups table. */
     readonly onClick?: () => void;
 }
@@ -140,26 +144,6 @@ export interface LegendProps {
 
 const LEGEND_LABEL = "Legend";
 
-/**
- * Puts the encoded channels into the legend's fixed block order and drops anything
- * that is not one of the five channels. A channel with no encoding never reaches here.
- * @param channels - the encoded channels, in any order.
- * @returns the channels in the order Color, Size, Outline, Edge width, Arrow.
- */
-export function orderLegendChannels(channels: readonly LegendChannel[]): readonly LegendChannel[] {
-    return LEGEND_BLOCK_ORDER.flatMap((id) => channels.filter((channel) => channel.channel === id));
-}
-
-/**
- * Applies the canvas's own categorical cap: the five largest categories, and the Other
- * row that follows carries the coverage footer for everything else.
- * @param categories - the categories the encoding model supplies, largest first.
- * @returns at most five of them.
- */
-export function capLegendCategories(categories: readonly LegendCategory[]): readonly LegendCategory[] {
-    return categories.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS);
-}
-
 function ChannelHeading(props: { readonly channel: LegendChannel }): React.JSX.Element {
     const { channel } = props;
 
@@ -179,29 +163,51 @@ function ChannelHeading(props: { readonly channel: LegendChannel }): React.JSX.E
     );
 }
 
+/**
+ * A legend chip: a disc for one colour, equal pie slices for several, nothing for none.
+ * @param props - the chip's inputs.
+ * @param props.colors - the colours, in drawing order.
+ * @returns the chip's svg.
+ */
+function Chip(props: { readonly colors: readonly string[] }): React.JSX.Element {
+    const { colors } = props;
+    const radius = CANVAS_METRICS.LEGEND_SWATCH / 2;
+    const point = (turn: number): string =>
+        `${String(radius + radius * Math.sin(turn * 2 * Math.PI))} ${String(radius - radius * Math.cos(turn * 2 * Math.PI))}`;
+
+    return (
+        <svg
+            aria-hidden="true"
+            width={CANVAS_METRICS.LEGEND_SWATCH}
+            height={CANVAS_METRICS.LEGEND_SWATCH}
+            viewBox={`0 0 ${String(CANVAS_METRICS.LEGEND_SWATCH)} ${String(CANVAS_METRICS.LEGEND_SWATCH)}`}
+            style={{ flex: "0 0 auto" }}
+        >
+            {colors.length === 1 ? (
+                <circle cx={radius} cy={radius} r={radius} fill={colors[0]} />
+            ) : (
+                colors.map((color, index) => (
+                    <path
+                        key={color}
+                        fill={color}
+                        d={`M ${String(radius)} ${String(radius)} L ${point(index / colors.length)} A ${String(radius)} ${String(radius)} 0 0 1 ${point((index + 1) / colors.length)} Z`}
+                    />
+                ))
+            )}
+        </svg>
+    );
+}
+
 function CategoryRow(props: {
-    readonly color: string;
+    readonly colors: readonly string[];
     readonly onClick?: () => void;
     readonly title?: string;
     readonly children: React.ReactNode;
 }): React.JSX.Element {
-    const { children, color, onClick, title } = props;
+    const { children, colors, onClick, title } = props;
     const content = (
         <>
-            <svg
-                aria-hidden="true"
-                width={CANVAS_METRICS.LEGEND_SWATCH}
-                height={CANVAS_METRICS.LEGEND_SWATCH}
-                viewBox={`0 0 ${String(CANVAS_METRICS.LEGEND_SWATCH)} ${String(CANVAS_METRICS.LEGEND_SWATCH)}`}
-                style={{ flex: "0 0 auto" }}
-            >
-                <circle
-                    cx={CANVAS_METRICS.LEGEND_SWATCH / 2}
-                    cy={CANVAS_METRICS.LEGEND_SWATCH / 2}
-                    r={CANVAS_METRICS.LEGEND_SWATCH / 2}
-                    fill={color}
-                />
-            </svg>
+            <Chip colors={colors} />
             <span
                 style={{
                     flex: "1 1 auto",
@@ -380,14 +386,14 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
                                     style={{ display: "flex", flexDirection: "column", gap: CANVAS_SPACE.TIGHT }}
                                 >
                                     {capLegendCategories(channel.categories).map((category) => (
-                                        <CategoryRow key={category.id} color={category.color}>
+                                        <CategoryRow key={category.id} colors={[category.color]}>
                                             {category.label}
                                         </CategoryRow>
                                     ))}
 
                                     {channel.other === undefined ? null : (
                                         <CategoryRow
-                                            color={channel.other.color}
+                                            colors={channel.other.colors}
                                             onClick={channel.other.onClick}
                                             title="Open the groups table"
                                         >

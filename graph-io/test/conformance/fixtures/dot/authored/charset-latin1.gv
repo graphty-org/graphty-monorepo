@@ -1,0 +1,4 @@
+digraph {
+  charset=latin1
+  "café" -> "naïve"
+}

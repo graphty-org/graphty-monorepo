@@ -1,9 +1,10 @@
 import { expandEdges, GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { dijkstra as legacyDijkstra } from "../../../src/algorithms/shortest-path/dijkstra.js";
-import { Graph } from "../../../src/core/graph.js";
-import { dijkstra } from "../../../src/indexed/dijkstra.js";
+import { PathWalkError } from "../../../src/errors.js";
+import { dijkstra, walkPredArcs, walkPredEdges } from "../../../src/indexed/dijkstra.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 // a = 0, b = 1, c = 2, d = 3 (insertion order, invariant I14); z = 4 when isolated.
@@ -103,7 +104,7 @@ describe("indexed.dijkstra", () => {
             graph.addEdge("c", "b", 2);
             const s = checksummedSnapshot(graph);
             const r = dijkstra(s, 0);
-            const legacy = legacyDijkstra(graph, "a");
+            const legacy = legacyResult() as Map<NodeId, ShortestPathResult>;
             for (let i = 0; i < s.nodeCount; i++) {
                 const expected = legacy.get(s.ids.idOf(i))?.distance;
                 if (expected === undefined || !Number.isFinite(expected)) {
@@ -114,5 +115,45 @@ describe("indexed.dijkstra", () => {
             }
             s.validate({ checksum: true });
         }
+    });
+});
+
+describe("predecessor walk on a corrupted predArc (an accelerator's result is not trusted)", () => {
+    // a -> b -> c -> d: arc 0 is a->b, arc 1 is b->c, arc 2 is c->d.
+    function path(): ReturnType<typeof checksummedSnapshot> {
+        const g = new Graph({ directed: true });
+        g.addEdge("a", "b");
+        g.addEdge("b", "c");
+        g.addEdge("c", "d");
+        return checksummedSnapshot(g);
+    }
+    const INV = INVALID_INDEX;
+    const cases: [string, number[], "cycle" | "gap"][] = [
+        // d <- c (arc 2), c <- b (arc 1), b <- c (arc 2 has source c): b and c point at each other
+        ["a 2-cycle", [INV, 2, 1, 2], "cycle"],
+        ["an INVALID_INDEX before the source", [INV, 0, INV, 2], "gap"],
+        ["an arc index past arcCount", [INV, 0, 99, 2], "gap"],
+    ];
+    for (const [label, pred, reason] of cases) {
+        for (const walk of [walkPredArcs, walkPredEdges]) {
+            it(`${walk.name} throws PathWalkError on ${label}`, () => {
+                const s = path();
+                let caught: unknown;
+                try {
+                    walk(s, Uint32Array.from(pred), 0, 3);
+                } catch (e) {
+                    caught = e;
+                }
+                expect(caught).toBeInstanceOf(PathWalkError);
+                expect(caught).toMatchObject({ source: 0, target: 3, reason });
+            });
+        }
+    }
+
+    it("still walks a well-formed predArc", () => {
+        const s = path();
+        const pred = Uint32Array.from([INV, 0, 1, 2]);
+        expect([...walkPredArcs(s, pred, 0, 3)]).toEqual([0, 1, 2, 3]);
+        expect(walkPredEdges(s, pred, 0, 3)).toHaveLength(3);
     });
 });

@@ -75,7 +75,9 @@
  * legitimately slower for good -- a deliberate trade, a new runner image, a driver change -- a person must DELETE
  * from benchmarks/results/<class>.json the sessions that hold the superseded faster numbers, in a reviewed commit
  * that says which change made the new cost correct. Deleting a session to quiet a red row is the failure this
- * rule exists to stop; re-measure on a quiet card first (append procedure: docs/decisions/G3.md appendix A). Some
+ * rule exists to stop; re-measure on a quiet card first (append procedure: `pnpm run bench:append <out file>
+ * <results file>`, scripts/bench-append-session.js, which refuses a software session, a session missing a group and
+ * a date already in the file; docs/decisions/G3.md and G4.md appendix A are the history of that script). Some
  * sessions of benchmarks/results/gpu-linux-t4.json are NOT free to delete: the Tesla T4 run of 2026-09-22 and the
  * ones before it are the fixture test/benchmarks.test.ts compares to prove this gate still catches the PageRank
  * regression, and it names them by date. Deleting them is deleting that proof.
@@ -94,12 +96,21 @@
  * series; a quiet card with a resident desktop compositor has a flat series (max - min = 0) and passes, while a process
  * that allocates during the sample lifts the maximum above the minimum and skips the comparison.
  *
+ * Targets (issue #277): benchmarks/results/targets.json holds the absolute targets of the T-table, keyed by the same
+ * `group/name`; the last column of the table says met / missed / recorded per row (scripts/bench-targets.js has the
+ * rules). A miss fails the run, as a regression does, when the runner class is one of the target's gating classes (the
+ * Tesla T4 of the GPU lane), the minimum confirms it, and the class has no recorded known miss for that target. It is
+ * judged against the targets whatever the baseline says, so a target missed since the first session cannot hide in
+ * its own baseline. Rules 1 and 2 still come first: nothing is judged on a run that did not happen or a busy card.
+ *
  * Options: --threshold <factor> (default 1.35), --class <name> (overrides the report's runnerClass). Rows are matched by
  * `group/name`; a group name never contains a slash, so the key is unambiguous even when a benchmark name does.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+import { judgeTarget, readTargets } from "./bench-targets.js";
 
 /** The regression factor of rule 4, derived from benchmarks/results/gpu-linux-t4.json (see the header). */
 const DEFAULT_THRESHOLD = 1.35;
@@ -247,20 +258,17 @@ function roseEnough(r, baseline, floorMs) {
  * @param {string} status - REGRESSION / noisy / too small / ok / new (no baseline)
  * @param {{ group: string, name: string, medianMs: number, minMs?: number }} r - the current result
  * @param {{ medianMs: number, minMs?: number } | null} baseline - the baseline row, or null
+ * @param {string} target - the target column: "<T-id> <met | missed | recorded ...>", or "" without a target
  * @returns {string} the row
  */
-function row(status, r, baseline) {
-    const ratio =
-        baseline === null || baseline.medianMs === 0 ? "" : `x${(r.medianMs / baseline.medianMs).toFixed(2)}`;
+function row(status, r, baseline, target) {
+    const ratio = baseline === null || baseline.medianMs === 0 ? "" : `x${(r.medianMs / baseline.medianMs).toFixed(2)}`;
     const base = baseline === null ? "-" : `${baseline.medianMs.toFixed(3)} ms`;
     const minRatio =
-        baseline === null ||
-        typeof baseline.minMs !== "number" ||
-        baseline.minMs === 0 ||
-        typeof r.minMs !== "number"
+        baseline === null || typeof baseline.minMs !== "number" || baseline.minMs === 0 || typeof r.minMs !== "number"
             ? ""
             : `x${(r.minMs / baseline.minMs).toFixed(2)}`;
-    return `${status.padEnd(18)} ${`${r.group}/${r.name}`.padEnd(70)} ${`${r.medianMs.toFixed(3)} ms`.padStart(14)} ${base.padStart(14)} ${ratio.padStart(8)} ${minRatio.padStart(10)}`;
+    return `${status.padEnd(18)} ${`${r.group}/${r.name}`.padEnd(70)} ${`${r.medianMs.toFixed(3)} ms`.padStart(14)} ${base.padStart(14)} ${ratio.padStart(8)} ${minRatio.padStart(10)} ${target}`.trimEnd();
 }
 
 /**
@@ -290,6 +298,43 @@ function main() {
         console.log(`SKIPPED: GPU not quiet (${reason}); the medians of this run are not compared (T-13)`);
         return 0;
     }
+    const targets = readTargets(resolve("benchmarks/results", "targets.json"));
+    /** @type {string[]} */
+    const missed = [];
+    /**
+     * The target column of a row, recording a gating miss.
+     * @param {{ group: string, name: string, medianMs: number, minMs?: number }} r - the current result
+     * @returns {string} the column
+     */
+    const targetOf = (r) => {
+        const key = `${r.group}/${r.name}`;
+        const judged = judgeTarget(targets[key], r, cls);
+        if (judged === null) {
+            return "";
+        }
+        if (judged.fails) {
+            missed.push(
+                `${targets[key].id} ${key}: ${r.medianMs.toFixed(3)} ms against ${String(targets[key].target)} ms`,
+            );
+        }
+        return `${targets[key].id} ${judged.status}`;
+    };
+    /**
+     * The exit code of the target check, printing the misses that fail it.
+     * @returns {number} 1 when a gating target missed, else 0
+     */
+    const targetVerdict = () => {
+        if (missed.length === 0) {
+            return 0;
+        }
+        console.log(
+            `${String(missed.length)} target(s) missed on gating runner class ${cls} (benchmarks/results/targets.json):`,
+        );
+        for (const m of missed) {
+            console.log(`  ${m}`);
+        }
+        return 1;
+    };
     const baseline = pinnedBaseline(resolve("benchmarks/results", `${cls}.json`));
     if (baseline !== null) {
         console.log(
@@ -297,14 +342,14 @@ function main() {
         );
     }
     console.log(
-        `${"status".padEnd(18)} ${"benchmark".padEnd(70)} ${"median".padStart(14)} ${"baseline".padStart(14)} ${"ratio".padStart(8)} ${"min ratio".padStart(10)}`,
+        `${"status".padEnd(18)} ${"benchmark".padEnd(70)} ${"median".padStart(14)} ${"baseline".padStart(14)} ${"ratio".padStart(8)} ${"min ratio".padStart(10)} target`,
     );
     if (baseline === null) {
         for (const r of current.results) {
-            console.log(row("new (no baseline)", r, null));
+            console.log(row("new (no baseline)", r, null, targetOf(r)));
         }
         console.log(`no baseline benchmarks/results/${cls}.json: every result is new`);
-        return 0;
+        return targetVerdict();
     }
     let regressions = 0;
     let noisy = 0;
@@ -312,33 +357,34 @@ function main() {
     for (const r of current.results) {
         const base = baseline.rows.get(`${r.group}/${r.name}`);
         if (base === undefined) {
-            console.log(row("new (no baseline)", r, null));
+            console.log(row("new (no baseline)", r, null, targetOf(r)));
             continue;
         }
         if (r.medianMs <= threshold * base.medianMs) {
-            console.log(row("ok", r, base));
+            console.log(row("ok", r, base, targetOf(r)));
             continue;
         }
         // The median rose. The floor decides: interference inflates a median, it cannot lower a minimum.
         if (typeof r.minMs === "number" && typeof base.minMs === "number" && r.minMs <= threshold * base.minMs) {
             noisy += 1;
-            console.log(row("noisy", r, base));
+            console.log(row("noisy", r, base, targetOf(r)));
             continue;
         }
         // Both stand above the factor. On a sub-millisecond row that can still be a tenth of a millisecond of
         // clock drop, so the rise must also be large enough to measure.
         if (!roseEnough(r, base, FLOOR_MS)) {
             tooSmall += 1;
-            console.log(row("too small", r, base));
+            console.log(row("too small", r, base, targetOf(r)));
             continue;
         }
         regressions += 1;
-        console.log(row("REGRESSION", r, base));
+        console.log(row("REGRESSION", r, base, targetOf(r)));
     }
     if (regressions > 0) {
         console.log(
             `${String(regressions)} regression(s): a median AND a minimum above ${String(threshold)}x the best of the ${String(baseline.sessions)} session(s) of class ${cls}, by at least ${String(FLOOR_MS)} ms`,
         );
+        targetVerdict();
         return 1;
     }
     if (tooSmall > 0) {
@@ -354,7 +400,7 @@ function main() {
     console.log(
         `no regression above ${String(threshold)}x and ${String(FLOOR_MS)} ms over the best baseline of class ${cls}`,
     );
-    return 0;
+    return targetVerdict();
 }
 
 try {

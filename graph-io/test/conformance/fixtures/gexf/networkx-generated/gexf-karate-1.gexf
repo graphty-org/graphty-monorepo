@@ -1,0 +1,674 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns:viz="http://www.gexf.net/1.2draft/viz" xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2026-09-23">
+    <creator>NetworkX 3.1</creator>
+  </meta>
+  <graph defaultedgetype="undirected" mode="static" name="Zachary's Karate Club">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="cap" type="long" />
+      <attribute id="5" title="rel" type="string" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="score" type="double" />
+      <attribute id="1" title="rank" type="long" />
+      <attribute id="2" title="tag" type="string" />
+      <attribute id="3" title="flag" type="boolean" />
+    </attributes>
+    <nodes>
+      <node id="0" label="0">
+        <viz:color r="1" g="186" b="94" a="1.0" />
+        <viz:size value="7.27" />
+        <viz:position x="-15.132" y="-36.786" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-0.0" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="say &quot;hi&quot;" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="1" label="1">
+        <viz:color r="205" g="128" b="170" a="1.0" />
+        <viz:size value="8.36" />
+        <viz:position x="48.871" y="2.991" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="93.581845" />
+          <attvalue for="1" value="42" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="2" label="2">
+        <viz:color r="201" g="105" b="242" a="1.0" />
+        <viz:size value="6.84" />
+        <viz:position x="-37.878" y="-27.0" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-74.079846" />
+          <attvalue for="1" value="-2147483648" />
+          <attvalue for="2" value="plain" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="3" label="3">
+        <viz:color r="15" g="156" b="1" a="1.0" />
+        <viz:size value="8.79" />
+        <viz:position x="7.655" y="-45.146" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="2" value="two words" />
+        </attvalues>
+      </node>
+      <node id="4" label="4">
+        <viz:color r="39" g="239" b="216" a="1.0" />
+        <viz:size value="1.01" />
+        <viz:position x="-45.783" y="-27.679" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e-300" />
+          <attvalue for="1" value="0" />
+          <attvalue for="2" value="tab&#09;here" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="5" label="5">
+        <viz:color r="203" g="130" b="73" a="1.0" />
+        <viz:size value="1.04" />
+        <viz:position x="-23.694" y="-24.293" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-2.25" />
+          <attvalue for="2" value="plain" />
+        </attvalues>
+      </node>
+      <node id="6" label="6">
+        <viz:color r="176" g="61" b="237" a="1.0" />
+        <viz:size value="6.96" />
+        <viz:position x="-3.644" y="-16.076" z="0.0" />
+        <attvalues>
+          <attvalue for="2" value="plain" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="7" label="7">
+        <viz:color r="85" g="206" b="16" a="1.0" />
+        <viz:size value="4.58" />
+        <viz:position x="45.074" y="-26.882" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-3.148647" />
+          <attvalue for="1" value="0" />
+          <attvalue for="2" value="it's" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="8" label="8">
+        <viz:color r="27" g="192" b="134" a="1.0" />
+        <viz:size value="9.74" />
+        <viz:position x="-36.81" y="-39.209" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="0.5" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="tab&#09;here" />
+        </attvalues>
+      </node>
+      <node id="9" label="9">
+        <viz:color r="188" g="252" b="90" a="1.0" />
+        <viz:size value="3.11" />
+        <viz:position x="-44.302" y="19.702" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="18.767154" />
+          <attvalue for="2" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </node>
+      <node id="10" label="10">
+        <viz:color r="93" g="181" b="48" a="1.0" />
+        <viz:size value="8.18" />
+        <viz:position x="-16.402" y="1.564" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="2.0" />
+          <attvalue for="1" value="42" />
+          <attvalue for="2" value="plain" />
+        </attvalues>
+      </node>
+      <node id="11" label="11">
+        <viz:color r="43" g="188" b="230" a="1.0" />
+        <viz:size value="2.45" />
+        <viz:position x="-37.473" y="48.278" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-20.647514" />
+          <attvalue for="2" value="plain" />
+        </attvalues>
+      </node>
+      <node id="12" label="12">
+        <viz:color r="97" g="88" b="76" a="1.0" />
+        <viz:size value="3.78" />
+        <viz:position x="45.969" y="36.717" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="3.141592653589793" />
+          <attvalue for="1" value="2147483647" />
+        </attvalues>
+      </node>
+      <node id="13" label="13">
+        <viz:color r="152" g="238" b="37" a="1.0" />
+        <viz:size value="3.73" />
+        <viz:position x="-40.042" y="49.061" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="42" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="14" label="14">
+        <viz:color r="62" g="213" b="111" a="1.0" />
+        <viz:size value="4.32" />
+        <viz:position x="-4.859" y="-44.398" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-30.772055" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="15" label="15">
+        <viz:color r="222" g="94" b="112" a="1.0" />
+        <viz:size value="4.8" />
+        <viz:position x="-33.993" y="43.307" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-57.087457" />
+          <attvalue for="2" value="中文" />
+        </attvalues>
+      </node>
+      <node id="16" label="16">
+        <viz:color r="21" g="241" b="197" a="1.0" />
+        <viz:size value="8.19" />
+        <viz:position x="39.594" y="11.762" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-39.470153" />
+        </attvalues>
+      </node>
+      <node id="17" label="17">
+        <viz:color r="37" g="165" b="22" a="1.0" />
+        <viz:size value="5.89" />
+        <viz:position x="17.38" y="-12.866" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-0.0" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="a&amp;b" />
+        </attvalues>
+      </node>
+      <node id="18" label="18">
+        <viz:color r="147" g="73" b="134" a="1.0" />
+        <viz:size value="3.09" />
+        <viz:position x="19.586" y="32.58" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="say &quot;hi&quot;" />
+        </attvalues>
+      </node>
+      <node id="19" label="19">
+        <viz:color r="199" g="161" b="68" a="1.0" />
+        <viz:size value="3.71" />
+        <viz:position x="19.419" y="-0.712" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e+300" />
+          <attvalue for="1" value="42" />
+        </attvalues>
+      </node>
+      <node id="20" label="20">
+        <viz:color r="242" g="198" b="225" a="1.0" />
+        <viz:size value="2.0" />
+        <viz:position x="-8.412" y="-22.217" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="17.390677" />
+          <attvalue for="1" value="1" />
+        </attvalues>
+      </node>
+      <node id="21" label="21">
+        <viz:color r="146" g="107" b="78" a="1.0" />
+        <viz:size value="9.57" />
+        <viz:position x="-48.446" y="41.31" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="42" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="22" label="22">
+        <viz:color r="252" g="83" b="166" a="1.0" />
+        <viz:size value="9.6" />
+        <viz:position x="28.836" y="45.269" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="98.451609" />
+          <attvalue for="2" value="tab&#09;here" />
+          <attvalue for="3" value="false" />
+        </attvalues>
+      </node>
+      <node id="23" label="23">
+        <viz:color r="99" g="123" b="64" a="1.0" />
+        <viz:size value="2.74" />
+        <viz:position x="-43.974" y="6.431" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="3.141592653589793" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="two words" />
+        </attvalues>
+      </node>
+      <node id="24" label="24">
+        <viz:color r="24" g="0" b="195" a="1.0" />
+        <viz:size value="6.82" />
+        <viz:position x="22.709" y="26.651" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-47.480657" />
+          <attvalue for="1" value="-2147483648" />
+        </attvalues>
+      </node>
+      <node id="25" label="25">
+        <viz:color r="243" g="43" b="27" a="1.0" />
+        <viz:size value="3.44" />
+        <viz:position x="26.108" y="30.362" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-2.25" />
+          <attvalue for="2" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </node>
+      <node id="26" label="26">
+        <viz:color r="111" g="234" b="202" a="1.0" />
+        <viz:size value="4.1" />
+        <viz:position x="14.35" y="-48.399" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="29.993127" />
+          <attvalue for="1" value="1" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="27" label="27">
+        <viz:color r="106" g="118" b="82" a="1.0" />
+        <viz:size value="8.74" />
+        <viz:position x="-9.883" y="16.568" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-59.03657" />
+          <attvalue for="1" value="-2147483648" />
+          <attvalue for="2" value="café" />
+        </attvalues>
+      </node>
+      <node id="28" label="28">
+        <viz:color r="72" g="179" b="28" a="1.0" />
+        <viz:size value="5.04" />
+        <viz:position x="-34.614" y="17.242" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="-88.15006" />
+          <attvalue for="1" value="42" />
+          <attvalue for="2" value="two words" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="29" label="29">
+        <viz:color r="196" g="59" b="27" a="1.0" />
+        <viz:size value="4.4" />
+        <viz:position x="-39.316" y="-19.314" z="0.0" />
+        <attvalues>
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="a&amp;b" />
+        </attvalues>
+      </node>
+      <node id="30" label="30">
+        <viz:color r="139" g="224" b="13" a="1.0" />
+        <viz:size value="9.75" />
+        <viz:position x="-4.912" y="-36.266" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="21.076911" />
+          <attvalue for="1" value="2147483647" />
+          <attvalue for="2" value="tab&#09;here" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="31" label="31">
+        <viz:color r="32" g="5" b="84" a="1.0" />
+        <viz:size value="3.09" />
+        <viz:position x="42.504" y="9.215" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="60.952802" />
+          <attvalue for="1" value="-7" />
+          <attvalue for="2" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </node>
+      <node id="32" label="32">
+        <viz:color r="6" g="69" b="102" a="1.0" />
+        <viz:size value="1.42" />
+        <viz:position x="13.374" y="49.171" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="86.684276" />
+          <attvalue for="1" value="-2147483648" />
+          <attvalue for="2" value="it's" />
+          <attvalue for="3" value="true" />
+        </attvalues>
+      </node>
+      <node id="33" label="33">
+        <viz:color r="87" g="235" b="28" a="1.0" />
+        <viz:size value="2.93" />
+        <viz:position x="-22.923" y="-4.132" z="0.0" />
+        <attvalues>
+          <attvalue for="0" value="1e-07" />
+          <attvalue for="1" value="-2147483648" />
+          <attvalue for="2" value="café" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="0" target="1" id="0" weight="4.1712">
+        <attvalues>
+          <attvalue for="4" value="478" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="2" id="1" weight="1e-300">
+        <attvalues>
+          <attvalue for="5" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="3" id="2">
+        <attvalues>
+          <attvalue for="5" value="tab&#09;here" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="4" id="3">
+        <attvalues>
+          <attvalue for="5" value="plain" />
+          <attvalue for="4" value="120" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="5" id="4" weight="-0.0">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+          <attvalue for="4" value="636" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="6" id="5" weight="-2.25">
+        <attvalues>
+          <attvalue for="5" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <attvalue for="4" value="667" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="7" id="6">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+          <attvalue for="4" value="910" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="8" id="7" weight="1e+300">
+        <attvalues>
+          <attvalue for="4" value="744" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="10" id="8" weight="7.112">
+        <attvalues>
+          <attvalue for="5" value="&lt;tag&gt;" />
+          <attvalue for="4" value="235" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="11" id="9" weight="9.1723" />
+      <edge source="0" target="12" id="10" weight="8.3103" />
+      <edge source="0" target="13" id="11" weight="1">
+        <attvalues>
+          <attvalue for="5" value="tab&#09;here" />
+          <attvalue for="4" value="543" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="17" id="12" weight="1e+300">
+        <attvalues>
+          <attvalue for="4" value="119" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="19" id="13" weight="-2.25">
+        <attvalues>
+          <attvalue for="5" value="it's" />
+          <attvalue for="4" value="763" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="21" id="14" weight="9.0297">
+        <attvalues>
+          <attvalue for="5" value="plain" />
+        </attvalues>
+      </edge>
+      <edge source="0" target="31" id="15" weight="1e+300">
+        <attvalues>
+          <attvalue for="5" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="2" id="16" weight="10">
+        <attvalues>
+          <attvalue for="4" value="469" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="3" id="17" weight="0.0205">
+        <attvalues>
+          <attvalue for="5" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <attvalue for="4" value="103" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="7" id="18">
+        <attvalues>
+          <attvalue for="4" value="329" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="13" id="19" weight="10">
+        <attvalues>
+          <attvalue for="4" value="414" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="17" id="20" weight="1" />
+      <edge source="1" target="19" id="21" weight="9.1812">
+        <attvalues>
+          <attvalue for="4" value="191" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="21" id="22" weight="3">
+        <attvalues>
+          <attvalue for="4" value="75" />
+        </attvalues>
+      </edge>
+      <edge source="1" target="30" id="23" weight="10" />
+      <edge source="2" target="3" id="24" weight="1e+300" />
+      <edge source="2" target="7" id="25">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="8" id="26" weight="1e+300">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="9" id="27" weight="3">
+        <attvalues>
+          <attvalue for="4" value="517" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="13" id="28" weight="1" />
+      <edge source="2" target="27" id="29" weight="3">
+        <attvalues>
+          <attvalue for="5" value="café" />
+        </attvalues>
+      </edge>
+      <edge source="2" target="28" id="30" weight="1e+300" />
+      <edge source="2" target="32" id="31">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+          <attvalue for="4" value="154" />
+        </attvalues>
+      </edge>
+      <edge source="3" target="7" id="32" />
+      <edge source="3" target="12" id="33">
+        <attvalues>
+          <attvalue for="5" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="3" target="13" id="34">
+        <attvalues>
+          <attvalue for="5" value="say &quot;hi&quot;" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="6" id="35" weight="3">
+        <attvalues>
+          <attvalue for="5" value="&lt;tag&gt;" />
+          <attvalue for="4" value="367" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="10" id="36">
+        <attvalues>
+          <attvalue for="4" value="83" />
+        </attvalues>
+      </edge>
+      <edge source="5" target="6" id="37" weight="-0.0">
+        <attvalues>
+          <attvalue for="5" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="5" target="10" id="38" weight="5.3849">
+        <attvalues>
+          <attvalue for="5" value="café" />
+          <attvalue for="4" value="974" />
+        </attvalues>
+      </edge>
+      <edge source="5" target="16" id="39" weight="1">
+        <attvalues>
+          <attvalue for="4" value="387" />
+        </attvalues>
+      </edge>
+      <edge source="6" target="16" id="40" weight="0.6895">
+        <attvalues>
+          <attvalue for="4" value="484" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="30" id="41" weight="9.1761">
+        <attvalues>
+          <attvalue for="5" value="say &quot;hi&quot;" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="32" id="42" weight="8.1423">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="33" id="43" weight="-0.0">
+        <attvalues>
+          <attvalue for="5" value="it's" />
+          <attvalue for="4" value="185" />
+        </attvalues>
+      </edge>
+      <edge source="9" target="33" id="44" weight="3">
+        <attvalues>
+          <attvalue for="4" value="277" />
+        </attvalues>
+      </edge>
+      <edge source="13" target="33" id="45" weight="5.9556" />
+      <edge source="14" target="32" id="46" weight="1.565">
+        <attvalues>
+          <attvalue for="5" value="中文" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="33" id="47" weight="10">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+          <attvalue for="4" value="81" />
+        </attvalues>
+      </edge>
+      <edge source="15" target="32" id="48" weight="8.2234" />
+      <edge source="15" target="33" id="49" />
+      <edge source="18" target="32" id="50" weight="1.6133">
+        <attvalues>
+          <attvalue for="5" value="it's" />
+        </attvalues>
+      </edge>
+      <edge source="18" target="33" id="51" weight="3.9251">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+          <attvalue for="4" value="553" />
+        </attvalues>
+      </edge>
+      <edge source="19" target="33" id="52" weight="1e-300">
+        <attvalues>
+          <attvalue for="4" value="379" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="32" id="53" weight="1">
+        <attvalues>
+          <attvalue for="5" value="two words" />
+          <attvalue for="4" value="499" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="33" id="54" weight="5.61">
+        <attvalues>
+          <attvalue for="4" value="370" />
+        </attvalues>
+      </edge>
+      <edge source="22" target="32" id="55" weight="0.1807">
+        <attvalues>
+          <attvalue for="5" value="tab&#09;here" />
+        </attvalues>
+      </edge>
+      <edge source="22" target="33" id="56" weight="-2.25">
+        <attvalues>
+          <attvalue for="5" value="a&amp;b" />
+          <attvalue for="4" value="669" />
+        </attvalues>
+      </edge>
+      <edge source="23" target="25" id="57" weight="4.295">
+        <attvalues>
+          <attvalue for="4" value="933" />
+        </attvalues>
+      </edge>
+      <edge source="23" target="27" id="58" weight="4.6504">
+        <attvalues>
+          <attvalue for="5" value="&lt;tag&gt;" />
+        </attvalues>
+      </edge>
+      <edge source="23" target="29" id="59" weight="-0.0">
+        <attvalues>
+          <attvalue for="4" value="831" />
+        </attvalues>
+      </edge>
+      <edge source="23" target="32" id="60" weight="1" />
+      <edge source="23" target="33" id="61">
+        <attvalues>
+          <attvalue for="4" value="693" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="25" id="62">
+        <attvalues>
+          <attvalue for="4" value="477" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="27" id="63" weight="8.2604" />
+      <edge source="24" target="31" id="64" weight="-2.25">
+        <attvalues>
+          <attvalue for="4" value="115" />
+        </attvalues>
+      </edge>
+      <edge source="25" target="31" id="65" />
+      <edge source="26" target="29" id="66">
+        <attvalues>
+          <attvalue for="5" value="say &quot;hi&quot;" />
+          <attvalue for="4" value="334" />
+        </attvalues>
+      </edge>
+      <edge source="26" target="33" id="67" />
+      <edge source="27" target="33" id="68" />
+      <edge source="28" target="31" id="69" weight="0.5" />
+      <edge source="28" target="33" id="70" weight="10">
+        <attvalues>
+          <attvalue for="4" value="901" />
+        </attvalues>
+      </edge>
+      <edge source="29" target="32" id="71" weight="1" />
+      <edge source="29" target="33" id="72" weight="8.0464" />
+      <edge source="30" target="32" id="73" weight="10" />
+      <edge source="30" target="33" id="74" weight="0.5">
+        <attvalues>
+          <attvalue for="5" value="a&amp;b" />
+        </attvalues>
+      </edge>
+      <edge source="31" target="32" id="75">
+        <attvalues>
+          <attvalue for="5" value="plain" />
+        </attvalues>
+      </edge>
+      <edge source="31" target="33" id="76" weight="-2.25">
+        <attvalues>
+          <attvalue for="5" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+        </attvalues>
+      </edge>
+      <edge source="32" target="33" id="77" />
+    </edges>
+  </graph>
+</gexf>

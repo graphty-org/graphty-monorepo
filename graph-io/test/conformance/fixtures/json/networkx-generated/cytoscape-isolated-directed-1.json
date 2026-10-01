@@ -1,0 +1,51 @@
+{
+ "data": [],
+ "directed": true,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 7.04542,
+     "rank": 42,
+     "tag": "it's",
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 3.141592653589793,
+     "tag": "back\\slash",
+     "flag": false,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "rank": -2147483648,
+     "tag": "a&b",
+     "flag": false,
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "score": -2.25,
+     "rank": 42,
+     "tag": "say \"hi\"",
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   }
+  ],
+  "edges": []
+ }
+}

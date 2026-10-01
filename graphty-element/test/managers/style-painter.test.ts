@@ -184,9 +184,25 @@ describe("StylePainter bootstrap paint", () => {
         const paint = bootstrapEdgePaint();
 
         // The element's own default edge colour, as the schema normalises it: `defaultEdgeStyle`
-        // writes the CSS name `darkgrey` and parsing turns every colour into hex.
-        assert.strictEqual(paint.style.line?.color, "#A9A9A9");
+        // writes the CSS name `darkgrey` and parsing turns every colour into hex -- and then as the
+        // SESSION spells it, lowercase, because `Edge.paintFrom` decides whether the first pass has
+        // to rebuild an edge by comparing the two styles, and `#A9A9A9` against `#a9a9a9` rebuilt
+        // every edge of every load once at the size of the scene each (issue #388).
+        assert.strictEqual(paint.style.line?.color, "#a9a9a9");
         assert.strictEqual(defaultEdgeStyle.line?.color, "darkgrey", "which is the same colour, unparsed");
+    });
+
+    it("is deep-equal to what a pass hands an edge no layer touched, so the first pass rebuilds nothing", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        // The key differs by design (the bootstrap's is reserved); the STYLE must not, because a
+        // style that differs in any spelling is a placeholder mesh disposed and built again for
+        // every edge of a load, and Babylon's dispose costs the size of the scene.
+        const painted = held.painter.edgePaint(0);
+
+        assert.isNotNull(painted);
+        assert.deepStrictEqual(painted?.style, bootstrapEdgePaint().style);
     });
 
     it("reserves a mesh key the session's interner can never mint", async () => {

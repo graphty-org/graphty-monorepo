@@ -22,8 +22,8 @@ React application providing a user-friendly interface for graph visualization an
 ### @graphty/graphty-element
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty/)
-[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/element/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty-element/)
+[![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/graphty-element/)
 
 A Web Component for 3D/2D graph visualization built with Lit and Babylon.js. Provides interactive graph visualizations with multiple layout algorithms, rich styling options, and support for large datasets through mesh instancing and GPU acceleration.
 
@@ -34,7 +34,7 @@ A Web Component for 3D/2D graph visualization built with Lit and Babylon.js. Pro
 ### @graphty/layout
 
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
-[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/api/generated/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/layout/)
 
 TypeScript library for positioning nodes in graphs. A port of layout algorithms from Python's NetworkX library, supporting force-directed layouts (Spring, ForceAtlas2, Kamada-Kawai), geometric layouts (Circular, Shell, Spiral), and specialized layouts (Bipartite, Multipartite, Planar).
@@ -49,7 +49,7 @@ TypeScript library for positioning nodes in graphs. A port of layout algorithms 
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/algorithms/)
 
-Comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
+Comprehensive TypeScript graph algorithms library with 60+ algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
 
 [View package](./algorithms)
 
@@ -85,6 +85,16 @@ WebGPU-accelerated graph algorithms and force-directed layouts over the graph-fo
 
 ---
 
+### @graphty/graph-samples
+
+[![npm version](https://img.shields.io/npm/v/@graphty/graph-samples.svg)](https://www.npmjs.com/package/@graphty/graph-samples)
+
+Graphs to try things on, as typed arrays the graph-format snapshot loads in one call: seeded random-graph generators (Erdos-Renyi, Barabasi-Albert with Holme-Kim triads, Watts-Strogatz, stochastic block models, random bipartite, trees and layered DAGs) that give the same graph for the same seed on every platform, the classic deterministic families, and classic small datasets with their ground truth (karate club, Florentine families, Davis Southern Women, Les Miserables, college football, political books, dolphins), one subpath each.
+
+[View package](./graph-samples)
+
+---
+
 ### @graphty/remote-logger
 
 [![npm version](https://img.shields.io/npm/v/@graphty/remote-logger.svg)](https://www.npmjs.com/package/@graphty/remote-logger)
@@ -92,6 +102,16 @@ WebGPU-accelerated graph algorithms and force-directed layouts over the graph-fo
 Remote logging client and server for browser debugging. Provides a lightweight browser client for sending logs to a terminal-based server, with batching, retry logic, and session tracking. Includes a floating UI widget for capturing and exporting console output.
 
 [View package](./remote-logger)
+
+---
+
+### @graphty/visual-review
+
+[![npm version](https://img.shields.io/npm/v/@graphty/visual-review.svg)](https://www.npmjs.com/package/@graphty/visual-review)
+
+Visual regression review for any Storybook, with nothing hosted: GitHub Actions screenshots every story, baselines live in git (Git LFS), and you accept or reject each change in a page served from your own machine, while a required check keeps unreviewed changes from merging. `npx visual-review init` sets a repository up. [Documentation](https://graphty.app/docs/visual-review/).
+
+[View package](./visual-review)
 
 ---
 

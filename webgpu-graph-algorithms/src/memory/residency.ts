@@ -393,7 +393,8 @@ export class GraphResidency {
     /**
      * Uploads (or finds) a view: outDegree / inDegree / degreeOrder / reverseDegreeOrder upload one array each;
      * reverse and edgeList (P7) upload their arrays perArray, never into the arena, and are memoised per record so
-     * a second call uploads nothing (spec 4.3). coo and mate -> E_UNSUPPORTED until P11. packViews concatenates a
+     * a second call uploads nothing (spec 4.3). coo uploads its per-arc `src` (P11; the rest aliases the core); mate ->
+     * E_UNSUPPORTED. packViews concatenates a
      * reverse or edgeList view into ONE buffer at STORAGE_ALIGN offsets; on any other view `true` is E_UNSUPPORTED
      * { option: "packViews" }.
      * @param s - the snapshot
@@ -465,10 +466,20 @@ export class GraphResidency {
                 break;
             }
             case "coo":
+                // dst, arcToEdge and weights alias the core's colIdx / arcToEdge / weights (graph-format design 7.2):
+                // only the per-arc source is new, and a kernel binds the rest from core()
+                this.assertNotReleased(s);
+                this.assertNonEmpty(s);
+                if (s.arcCount === 0) {
+                    return Object.freeze({ view: name, bindings: Object.freeze({}), scalars: Object.freeze({}) });
+                }
+                array = s.coo().src;
+                bindingName = "src";
+                break;
             case "mate":
-                throw new WebGpuGraphError("E_UNSUPPORTED", `the ${name} view is not uploaded before P11`, {
-                    feature: `view:${name}`,
-                    hint: "outDegree, inDegree, degreeOrder, reverseDegreeOrder, reverse and edgeList are uploaded",
+                throw new WebGpuGraphError("E_UNSUPPORTED", "the mate view is not uploaded: no kernel reads it", {
+                    feature: "view:mate",
+                    hint: "outDegree, inDegree, degreeOrder, reverseDegreeOrder, coo, reverse and edgeList are uploaded",
                 });
             default:
                 throw invalid("name", name, "a view name");
@@ -579,7 +590,9 @@ export class GraphResidency {
     }
 
     /**
-     * One resident per array (spec 4.3: views upload in perArray mode, never into the arena).
+     * One resident per array (spec 4.3: views upload in perArray mode, never into the arena). An empty array (the
+     * colIdx of an edgeless directed reverse view, the src / dst of an edgeless edgeList) is skipped: spec 5.6 never
+     * uploads a zero-length array, and Kernel.bind rejects a zero-size binding, so it is absent as in core().
      * @param record - the owning record
      * @param arrays - the named arrays
      * @param label - the buffer label prefix
@@ -592,6 +605,9 @@ export class GraphResidency {
     ): Readonly<Record<string, Binding>> {
         const bindings: Record<string, Binding> = {};
         for (const [name, array] of arrays) {
+            if (array.byteLength === 0) {
+                continue;
+            }
             const resident = this.upload(record, array, array, `${label}:${name}`);
             bindings[name] = { buffer: resident.buffer, offset: 0, size: resident.byteLength, window: null };
         }
@@ -606,19 +622,24 @@ export class GraphResidency {
      * lengths, so keying the packed buffer on `rev.rowPtr` would make the packed and the unpacked view of one
      * snapshot collide -- whichever was built second would get the other's buffer. The record still owns the
      * resident, so release(s) destroys it with the rest. Offsets are STORAGE_ALIGN-aligned because Kernel.bind
-     * rejects any other offset synchronously (E_INVALID_ARGUMENT { argument: "offset" }).
+     * rejects any other offset synchronously (E_INVALID_ARGUMENT { argument: "offset" }). Empty arrays are left
+     * out as in separateArrays; when nothing is left, nothing is uploaded.
      * @param record - the owning record
-     * @param arrays - the named arrays, in buffer order
+     * @param all - the named arrays, in buffer order
      * @param key - the marker object the resident is keyed on
      * @param label - the buffer label
      * @returns the bindings by name, all into the one buffer
      */
     private packArrays(
         record: ResidencyRecord,
-        arrays: readonly (readonly [string, TypedArrayData])[],
+        all: readonly (readonly [string, TypedArrayData])[],
         key: object,
         label: string,
     ): Readonly<Record<string, Binding>> {
+        const arrays = all.filter(([, array]) => array.byteLength > 0);
+        if (arrays.length === 0) {
+            return Object.freeze({});
+        }
         const offsets: number[] = [];
         let total = 0;
         for (const [, array] of arrays) {

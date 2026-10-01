@@ -13,6 +13,9 @@ import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
+// Running an algorithm needs the element's run machinery, so the runs themselves -- options,
+// routes, summaries and refused options -- are covered against a real graph in
+// test/browser/ai/commands-e2e.test.ts.
 describe("AlgorithmCommands", () => {
     let graph: Graph;
     let context: CommandContext;
@@ -23,32 +26,6 @@ describe("AlgorithmCommands", () => {
     });
 
     describe("runAlgorithm", () => {
-        it("runs degree algorithm", async () => {
-            const result = await runAlgorithm.execute(
-                graph,
-                {
-                    namespace: "graphty",
-                    type: "degree",
-                },
-                context,
-            );
-            assert.strictEqual(result.success, true);
-            assert.ok(result.message.includes("degree"));
-        });
-
-        it("runs pagerank algorithm", async () => {
-            const result = await runAlgorithm.execute(
-                graph,
-                {
-                    namespace: "graphty",
-                    type: "pagerank",
-                },
-                context,
-            );
-            assert.strictEqual(result.success, true);
-            assert.ok(result.message.includes("pagerank"));
-        });
-
         it("handles unknown namespace", async () => {
             const result = await runAlgorithm.execute(
                 graph,
@@ -73,6 +50,16 @@ describe("AlgorithmCommands", () => {
             );
             assert.strictEqual(result.success, false);
             assert.ok(result.message.includes("not found") || result.message.includes("unknown"));
+        });
+
+        it("refuses options that are not an object", async () => {
+            const result = await runAlgorithm.execute(
+                graph,
+                { namespace: "graphty", type: "degree", options: "fast" },
+                context,
+            );
+            assert.strictEqual(result.success, false);
+            assert.include(result.message, "options");
         });
 
         it("has correct metadata", () => {

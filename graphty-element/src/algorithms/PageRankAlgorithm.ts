@@ -1,4 +1,4 @@
-import { type NodeId as AlgorithmNodeId, pageRank } from "@graphty/algorithms";
+import { type F64, type GraphSnapshot, INVALID_INDEX, type NodeId as AlgorithmNodeId } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
@@ -6,6 +6,7 @@ import { defineOptions, type InferOptions, parseOptions } from "../config";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
 import { MetricAlgorithm } from "./metrics/MetricAlgorithm";
@@ -55,7 +56,7 @@ const pageRankOptionsSchema = defineOptions({
         schema: z.boolean().default(true),
         meta: {
             label: "Use Delta Optimization",
-            description: "Use delta-based optimization for faster convergence on large graphs",
+            description: "Accepted and ignored: every run is a plain power iteration",
             advanced: true,
         },
     },
@@ -86,15 +87,20 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 });
 
 /**
- * The graph size above which `@graphty/algorithms` switches to its delta method.
- *
- * Mirroring the implementation's own rule is the only way the element can say honestly which
- * method produced a number: the package chooses between the two internally and returns no sign of
- * which it took. The rule lives at `algorithms/src/algorithms/centrality/pagerank.ts:110`, and
- * this constant goes away when that function reports its own method, iteration count and
- * convergence instead of returning `converged: true` as a constant at `:147`.
+ * One value per node of a snapshot, read out of a Map the caller keyed by node id.
+ * @param snapshot - The graph the values are for.
+ * @param values - The caller's Map.
+ * @param fill - What a node the Map does not name gets.
+ * @returns The values, in node index order.
  */
-const DELTA_METHOD_NODE_THRESHOLD = 100;
+function perNode(snapshot: GraphSnapshot, values: ReadonlyMap<AlgorithmNodeId, number>, fill: number): F64 {
+    const out = new Float64Array(snapshot.nodeCount);
+    for (let index = 0; index < out.length; index++) {
+        out[index] = values.get(snapshot.ids.idOf(index)) ?? fill;
+    }
+
+    return out;
+}
 
 /**
  * PageRank: the influence that flows into a node from the nodes that point at it.
@@ -106,6 +112,8 @@ const DELTA_METHOD_NODE_THRESHOLD = 100;
 export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     static namespace = "graphty";
     static type = "pagerank";
+    /** Ranks over the run's scope: the node list and the graph both come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -159,7 +167,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             type: "boolean",
             default: true,
             label: "Use Delta Optimization",
-            description: "Use delta-based optimization for faster convergence on large graphs",
+            description: "Accepted and ignored: every run is a plain power iteration",
             advanced: true,
         },
         // Note: initialRanks and personalization are Map types - programmatic only, not in schema
@@ -171,6 +179,15 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     private zodOptions: PageRankSchemaOptions;
 
     /**
+     * The two Map-valued options, kept from what the caller passed.
+     *
+     * NEITHER SCHEMA CARRIES THEM -- a Map is not a value a form or a saved document can hold --
+     * and `resolveOptions` returns only the keys its schema declares, so reading them back off the
+     * resolved options found nothing and a personalized run quietly ran an unpersonalized one.
+     */
+    private readonly programmaticOptions: Pick<PageRankOptions, "initialRanks" | "personalization">;
+
+    /**
      * Creates a new PageRank algorithm instance
      * @param g - The graph to run the algorithm on
      * @param options - Optional configuration options
@@ -179,6 +196,10 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         super(g, options);
         // Use new Zod-based validation for schema options
         this.zodOptions = parseOptions(pageRankOptionsSchema, options ?? {});
+        this.programmaticOptions = {
+            initialRanks: options?.initialRanks ?? null,
+            personalization: options?.personalization ?? null,
+        };
     }
 
     /**
@@ -197,18 +218,24 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
-        const { dampingFactor, maxIterations, tolerance, weight, useDelta } = this.zodOptions;
-        // Map types are programmatic-only (not in schema) - accessed from legacy options
-        const initialRanks = this._schemaOptions.initialRanks ?? undefined;
-        const personalization = this._schemaOptions.personalization ?? undefined;
+        const { dampingFactor, maxIterations, tolerance, weight } = this.zodOptions;
+        // Map types are programmatic-only (not in schema) - kept from the constructor's arguments
+        const initialRanks = this.programmaticOptions.initialRanks ?? undefined;
+        const personalization = this.programmaticOptions.personalization ?? undefined;
 
-        // Directed: rank flows along out-edges, so the declared direction is the whole model.
-        const graphData = this.algorithmGraph("directed");
-        // The delta method does not report how many passes it took or whether it converged: it
-        // returns `iterations: maxIterations` with the comment "For now, assume we used all
-        // iterations" and `converged: true` as a constant. So which method ran decides whether
-        // this run can answer those two questions at all.
-        const delta = useDelta && graphData.nodeCount > DELTA_METHOD_NODE_THRESHOLD;
+        /* The declared orientation: rank flows along out-edges, so the declared direction is the
+           whole model. On an undirected graph every edge carries rank both ways.
+
+           Only the plain run -- directed, from the uniform start, teleporting anywhere -- is one an
+           accelerator answers. A personalization vector or a set of initial ranks changes what the
+           numbers mean, and those runs, and the undirected one, iterate as the element's PageRank
+           always has: until no single rank moves by the tolerance. The plain run stops on the
+           summed change, as the accelerator does, so the two routes of it agree. */
+        const declared = this.input("declared").graph;
+        const plain = declared.directed && initialRanks === undefined && personalization === undefined;
+        // Every run asks as "pageRank": `accelerable` marks the ones no accelerator answers, so
+        // under acceleration="required" a personalized run refuses exactly as the others do.
+        const { snapshot, run } = this.accelerated("pageRank", "directed", { accelerable: plain });
 
         context.report({
             phase: "iterating",
@@ -216,23 +243,32 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             total: nodeIds.length,
             message: `Power iteration, up to ${String(maxIterations)} passes.`,
         });
-        // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
-        // The element's own half -- reading the ranks back out -- is chunked below.
-        const result = pageRank(graphData, {
-            dampingFactor,
-            maxIterations,
-            tolerance,
-            weight: weight ?? undefined,
-            useDelta,
-            initialRanks,
-            personalization,
+
+        const { value, precision } = await run((dispatch, s) => {
+            const options = {
+                dampingFactor,
+                maxIterations,
+                tolerance,
+                // ONE weight column, so naming an attribute is the same request as asking for a
+                // weighted run: the snapshot carries the weight the element resolved.
+                weighted: weight !== null,
+                ...(plain ? {} : { convergenceNorm: "max" as const }),
+                ...(initialRanks === undefined ? {} : { initialRanks: perNode(s, initialRanks, 1 / s.nodeCount) }),
+            };
+
+            return personalization === undefined
+                ? dispatch.pageRank(s, options)
+                : dispatch.personalizedPageRank(s, perNode(s, personalization, 0), options);
         });
+
         context.signal.throwIfAborted();
 
-        const nodes: ResultElementValues[] = [];
+        const { ids } = snapshot;
+        const measured: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading ranks", (nodeId) => {
-            const rank = result.ranks[String(nodeId)];
-            nodes.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });
+            const index = ids.indexOf(nodeId);
+            const rank = index === INVALID_INDEX ? undefined : value.scores[index];
+            measured.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });
         });
 
         const notes = [
@@ -240,10 +276,28 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             "The ranks sum to 1 across the graph.",
         ];
 
-        if (delta) {
+        if (!snapshot.directed) {
+            notes.push("The graph is undirected, so every edge carries rank both ways.");
+        }
+
+        if (personalization !== undefined) {
+            /* An entry naming a node outside this run's graph -- outside a scope, say -- has no
+               node to land on, so it is left out and the rest share the jump. When nothing is
+               left, the port jumps anywhere, as an unpersonalized run does, and the notes say
+               that rather than claiming a personalization that never applied. */
+            const outside = [...personalization.keys()].filter((id) => ids.indexOf(id) === INVALID_INDEX).length;
+            const applies = perNode(snapshot, personalization, 0).some((share) => share > 0);
             notes.push(
-                "The delta method ran, and it reports neither how many passes it took nor whether it converged, so this run cannot say.",
+                applies
+                    ? "The random jump lands on the personalization vector's nodes, in proportion to their values."
+                    : "No personalization entry gives a node of this graph a positive share, so the random jump lands on any node.",
             );
+
+            if (outside > 0) {
+                notes.push(
+                    `${String(outside)} personalization ${outside === 1 ? "entry names a node" : "entries name nodes"} outside this graph, left out of the random jump.`,
+                );
+            }
         }
 
         if (weight === null) {
@@ -251,18 +305,17 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         }
 
         return {
-            nodes,
+            nodes: measured,
             // Raw ranks, published as they were computed.
             normalization: "none",
             caveats: {
                 exact: true,
-                direction: "directed",
+                direction: snapshot.directed ? "directed" : "undirected",
                 weight: weight === null ? null : { attribute: weight, meaning: "strength" },
-                precision: "f64",
-                method: delta ? "delta-pagerank" : "power-iteration",
-                // Present only when the method that ran measured them. Absent is the honest
-                // answer where it did not; a hard-coded `true` was the defect this replaces.
-                ...(delta ? {} : { converged: result.converged, iterations: result.iterations }),
+                precision,
+                method: "power-iteration",
+                converged: value.converged,
+                iterations: value.iterations,
                 notes,
             },
         };

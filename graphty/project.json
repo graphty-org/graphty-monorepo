@@ -37,10 +37,16 @@
         },
         "lint": {
             "executor": "nx:run-commands",
+            "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.js",
+                { "dependentTasksOutputFiles": "**/doors.json", "transitive": true }
+            ],
             "options": {
-                "command": "eslint && tsc --noEmit",
+                "command": "eslint && tsc --noEmit && tsc --noEmit -p eslint-rules",
                 "cwd": "graphty"
-            }
+            },
+            "dependsOn": ["^build"]
         },
         "dev": {
             "executor": "nx:run-commands",

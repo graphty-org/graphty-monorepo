@@ -3,15 +3,16 @@ import "../../src/algorithms/index";
 import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
+import { AccelerationController, AcceleratorRegistry } from "../../src/acceleration";
 import { algorithmByKey } from "../../src/catalog/algorithms";
 import { GraphStore } from "../../src/data/GraphStore";
-import { ingestEdge, ingestNode } from "../../src/data/ingest";
 import { isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { AlgorithmManager } from "../../src/managers/AlgorithmManager";
 import type { EventManager } from "../../src/managers/EventManager";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { createScopeApi } from "../../src/session/scope";
+import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node as the element's data manager holds it: a record the projection writes onto. */
 interface MockNode {
@@ -93,7 +94,12 @@ function mockGraph(nodeIds: readonly string[], edges: readonly (readonly [string
             repaints += 1;
         },
     };
-    const graph = { getDataManager: () => dataManager } as unknown as Graph;
+    const graph = {
+        getDataManager: () => dataManager,
+        // The controller an algorithm with an accelerated implementation asks before it runs.
+        // Its own registry, so nothing another test registered reaches this one.
+        acceleration: new AccelerationController({ policy: "auto", minNodes: 0, registry: new AcceleratorRegistry() }),
+    } as unknown as Graph;
     const events = { emitGraphError: () => undefined, emitGraphEvent: () => undefined } as unknown as EventManager;
 
     return {
@@ -138,7 +144,13 @@ describe("the run executor", () => {
     it("returns a result, and the elements it measured are drawn again", async () => {
         // The result is the source of truth and the only place a value lives: the 1.10
         // `algorithmResults` projection beside it went with the style layers that selected on it.
-        const graph = mockGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+        const graph = mockGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
 
         const outcome: RunOutcome = await graph.manager.execute(
             context(graph, "degree", {}, "degree"),
@@ -159,7 +171,13 @@ describe("the run executor", () => {
     });
 
     it("fills the ranking, the range and the summary nobody computed by hand", async () => {
-        const graph = mockGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+        const graph = mockGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
 
         const outcome = await graph.manager.execute(context(graph, "degree"), algorithmByKey("degree"));
         const summary = outcome.result.summary();
@@ -172,7 +190,13 @@ describe("the run executor", () => {
     });
 
     it("runs a declared algorithm too, publishing its own shape", async () => {
-        const graph = mockGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]);
+        const graph = mockGraph(
+            ["a", "b", "c"],
+            [
+                ["a", "b"],
+                ["b", "c"],
+            ],
+        );
 
         const outcome = await graph.manager.execute(
             context(graph, "components", {}, "pieces"),

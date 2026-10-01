@@ -158,6 +158,11 @@ describe("design section 11.2 / 11.3: every core error code is reachable through
             b.dispose();
             b.addNode("a");
         },
+        E_FROZEN: () => {
+            const s = directedFixture();
+            s.seal();
+            s.nodes.set("f", new Float32Array(3));
+        },
         E_UNSUPPORTED: () => {
             const wire = directedFixture().toWire();
             fromWire({ manifest: { ...wire.manifest, nodeColumns: [unknownDtypeColumn()] }, buffers: wire.buffers });
@@ -664,17 +669,17 @@ describe("design sections 6.5 / 6.6: builder semantics", () => {
         expect(r2.snapshot.ids.toArray()).toEqual(["a"]);
     });
 
-    it("column writes do not bump mutationCount; topology and weight mutations do; freeze does not", () => {
+    it("column writes, topology and weight mutations bump mutationCount; freeze does not", () => {
         const b = new GraphBuilder({ directed: true });
         const e = b.addEdge("a", "b", 1);
         const afterAdd = b.mutationCount;
         b.declareNodeColumn({ name: "x", dtype: "f32" });
         b.setNodeValue("x", 0, 1);
-        expect(b.mutationCount).toBe(afterAdd);
+        expect(b.mutationCount).toBe(afterAdd + 2);
         b.setEdgeWeight(e, 2);
-        expect(b.mutationCount).toBe(afterAdd + 1);
+        expect(b.mutationCount).toBe(afterAdd + 3);
         b.freeze();
-        expect(b.mutationCount).toBe(afterAdd + 1);
+        expect(b.mutationCount).toBe(afterAdd + 3);
         expect(b.dirty).toBe(false);
     });
 

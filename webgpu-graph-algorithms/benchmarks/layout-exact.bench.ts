@@ -42,7 +42,7 @@ import { createForceAtlas2 } from "../src/layouts/forceatlas2.js";
 import { type ForceAtlas2Stats, type GpuLayoutSimulation, type GpuLayoutTuning } from "../src/types/layout.js";
 import { type ForceAtlas2Options } from "../src/types/options.js";
 import { randomEdges, snapshotOf } from "./datasets.js";
-import { bench, type BenchResult } from "./harness.js";
+import { bench, type BenchResult, recordSamples } from "./harness.js";
 
 /** The group name of every row this file produces (the key of benchmarks/run.ts GROUPS). */
 export const LAYOUT_EXACT_GROUP = "layout-exact";
@@ -239,6 +239,7 @@ export function reportedRow(
             );
         }
     }
+    recordSamples(group, name, measured);
     const medianMs = median(measured);
     return {
         group,

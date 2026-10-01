@@ -1,0 +1,1740 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.1draft"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://gexf.net/1.1draft http://gexf.net/1.1draft/gexf.xsd"
+    version="1.1">
+    <graph mode="static" defaultedgetype="undirected">
+        <attributes class="node" mode="static">
+            <attribute id="0" title="label" type="string"/>
+            <attribute id="1" title="country" type="string"/>
+            <attribute id="10" title="tag_gender" type="string"/>
+            <attribute id="11" title="tag_governance" type="string"/>
+            <attribute id="12" title="tag_health" type="string"/>
+            <attribute id="13" title="tag_info" type="string"/>
+            <attribute id="14" title="tag_internat" type="string"/>
+            <attribute id="15" title="tag_nano" type="string"/>
+            <attribute id="16" title="tag_people" type="string"/>
+            <attribute id="17" title="tag_reg" type="string"/>
+            <attribute id="18" title="tag_research" type="string"/>
+            <attribute id="19" title="tag_scienceedu" type="string"/>
+            <attribute id="2" title="actor_type" type="string"/>
+            <attribute id="20" title="tag_secur" type="string"/>
+            <attribute id="21" title="tag_socioeco" type="string"/>
+            <attribute id="22" title="tag_space" type="string"/>
+            <attribute id="23" title="tag_transport" type="string"/>
+            <attribute id="3" title="tag_agri" type="string"/>
+            <attribute id="4" title="tag_biotech" type="string"/>
+            <attribute id="5" title="tag_business" type="string"/>
+            <attribute id="6" title="tag_comm" type="string"/>
+            <attribute id="7" title="tag_energy" type="string"/>
+            <attribute id="8" title="tag_environment" type="string"/>
+            <attribute id="9" title="tag_food" type="string"/>
+        </attributes>
+        <nodes><node id="10" label="Astronomical Institute">
+                <attvalues>
+                    <attvalue for="0" value="Astronomical Institute"/>
+                    <attvalue for="1" value="Czech Republic"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1002" label="CCSTI La Turbine Rhône-Alpes ">
+                <attvalues>
+                    <attvalue for="0" value="CCSTI La Turbine Rhône-Alpes "/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1003" label="Laurea University of Applied Sciences ">
+                <attvalues>
+                    <attvalue for="0" value="Laurea University of Applied Sciences "/>
+                    <attvalue for="1" value="Finland"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1004" label="European Association for Education Law and Policy">
+                <attvalues>
+                    <attvalue for="0" value="European Association for Education Law and Policy"/>
+                    <attvalue for="1" value="International"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="International"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1006" label="Les petits débrouillards">
+                <attvalues>
+                    <attvalue for="0" value="Les petits débrouillards"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="NGO-CSO"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1007" label="Les P'tits Débrouillards">
+                <attvalues>
+                    <attvalue for="0" value="Les P'tits Débrouillards"/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Network of organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1008" label="Le Vaisseau - La science en s'amusant -67 Strasbourg ">
+                <attvalues>
+                    <attvalue for="0" value="Le Vaisseau - La science en s'amusant -67 Strasbourg "/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="101" label="NewtonApple">
+                <attvalues>
+                    <attvalue for="0" value="NewtonApple"/>
+                    <attvalue for="1" value="Italy"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="personal websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1012" label="Accademia Nazionale dei Lincei">
+                <attvalues>
+                    <attvalue for="0" value="Accademia Nazionale dei Lincei"/>
+                    <attvalue for="1" value="Italy"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Policy makers and governmental organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1013" label="Laboratorio  de Instrumentalização de Particulas">
+                <attvalues>
+                    <attvalue for="0" value="Laboratorio  de Instrumentalização de Particulas"/>
+                    <attvalue for="1" value="Portugal"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="1"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1015" label="State Nature Conservation Centre">
+                <attvalues>
+                    <attvalue for="0" value="State Nature Conservation Centre"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Policy makers and governmental organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1017" label="Network of Life learning centres">
+                <attvalues>
+                    <attvalue for="0" value="Network of Life learning centres"/>
+                    <attvalue for="1" value="Italy"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="1"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="network of organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="1"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1018" label="University of Bologna-Life learning centre">
+                <attvalues>
+                    <attvalue for="0" value="University of Bologna-Life learning centre"/>
+                    <attvalue for="1" value="Italy"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="1"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="1"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1019" label="Ligue for Human Rights">
+                <attvalues>
+                    <attvalue for="0" value="Ligue for Human Rights"/>
+                    <attvalue for="1" value="Czech Republic"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="NGO-CSO"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1020" label="Laboratório Nacional de Engenharia Civil ">
+                <attvalues>
+                    <attvalue for="0" value="Laboratório Nacional de Engenharia Civil "/>
+                    <attvalue for="1" value="Portugal"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1021" label="Nature Pages">
+                <attvalues>
+                    <attvalue for="0" value="Nature Pages"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1022" label="Estonian Nature">
+                <attvalues>
+                    <attvalue for="0" value="Estonian Nature"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1023" label="Loodusesõber">
+                <attvalues>
+                    <attvalue for="0" value="Loodusesõber"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1024" label="Naturetours">
+                <attvalues>
+                    <attvalue for="0" value="Naturetours"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1025" label="Sounds of Nature">
+                <attvalues>
+                    <attvalue for="0" value="Sounds of Nature"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1026" label="Lilli Nature Centre">
+                <attvalues>
+                    <attvalue for="0" value="Lilli Nature Centre"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1027" label="Museum of Natural History">
+                <attvalues>
+                    <attvalue for="0" value="Museum of Natural History"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="103" label="Leo Apostel">
+                <attvalues>
+                    <attvalue for="0" value="Leo Apostel"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1030" label="Lappeenranta University of Technology">
+                <attvalues>
+                    <attvalue for="0" value="Lappeenranta University of Technology"/>
+                    <attvalue for="1" value="Finland"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1031" label="European mink Conservation News Blog">
+                <attvalues>
+                    <attvalue for="0" value="European mink Conservation News Blog"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1032" label="Maaleht">
+                <attvalues>
+                    <attvalue for="0" value="Maaleht"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="1"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1033" label="Estonian Mining Society">
+                <attvalues>
+                    <attvalue for="0" value="Estonian Mining Society"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="NGO-CSO"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1034" label="Magyar Hírlap">
+                <attvalues>
+                    <attvalue for="0" value="Magyar Hírlap"/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1035" label="Government’s portal">
+                <attvalues>
+                    <attvalue for="0" value="Government’s portal"/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1036" label="Hungarian Pedagogy">
+                <attvalues>
+                    <attvalue for="0" value="Hungarian Pedagogy"/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1037" label="Espace Pierre Mendès France - CCSTI de Poitiers">
+                <attvalues>
+                    <attvalue for="0" value="Espace Pierre Mendès France - CCSTI de Poitiers"/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1039" label="Musée Aquarium de Nancy">
+                <attvalues>
+                    <attvalue for="0" value="Musée Aquarium de Nancy"/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="1"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="104" label="Pärnu Nature Centre">
+                <attvalues>
+                    <attvalue for="0" value="Pärnu Nature Centre"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1040" label="Musée de zoologie Nancy">
+                <attvalues>
+                    <attvalue for="0" value="Musée de zoologie Nancy"/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="1"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1041" label="La Maison de la Science">
+                <attvalues>
+                    <attvalue for="0" value="La Maison de la Science"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1042" label="Matenadaran, Institute-Museum of Ancient Manuscripts ">
+                <attvalues>
+                    <attvalue for="0" value="Matenadaran, Institute-Museum of Ancient Manuscripts "/>
+                    <attvalue for="1" value="Armenia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1043" label="Museo del calcolo">
+                <attvalues>
+                    <attvalue for="0" value="Museo del calcolo"/>
+                    <attvalue for="1" value="Italy"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="1"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1044" label="Institute of Mathematics and Informatics - BAS">
+                <attvalues>
+                    <attvalue for="0" value="Institute of Mathematics and Informatics - BAS"/>
+                    <attvalue for="1" value="Bulgaria"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="1"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1045" label="Matsalu National Park">
+                <attvalues>
+                    <attvalue for="0" value="Matsalu National Park"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1046" label="Hungarian Science">
+                <attvalues>
+                    <attvalue for="0" value="Hungarian Science"/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1048" label="Millennium Challenge Account-Armenia">
+                <attvalues>
+                    <attvalue for="0" value="Millennium Challenge Account-Armenia"/>
+                    <attvalue for="1" value="Armenia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Policy makers and governmental organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="1"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1049" label="Ministério da Ciência, Tecnologia e Ensino Superior">
+                <attvalues>
+                    <attvalue for="0" value="Ministério da Ciência, Tecnologia e Ensino Superior"/>
+                    <attvalue for="1" value="Portugal"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Policy makers and governmental organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="105" label="Blog Lorenz Demey">
+                <attvalues>
+                    <attvalue for="0" value="Blog Lorenz Demey"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Personal websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1050" label="Institute of Mechanics">
+                <attvalues>
+                    <attvalue for="0" value="Institute of Mechanics"/>
+                    <attvalue for="1" value="Armenia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="1"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1054" label="Faculty of Medicine">
+                <attvalues>
+                    <attvalue for="0" value="Faculty of Medicine"/>
+                    <attvalue for="1" value="Montenegro"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="1"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1055" label="Median Market Research Co.">
+                <attvalues>
+                    <attvalue for="0" value="Median Market Research Co."/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Companies"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1056" label="Médiaterre">
+                <attvalues>
+                    <attvalue for="0" value="Médiaterre"/>
+                    <attvalue for="1" value="France"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1059" label="Media Club">
+                <attvalues>
+                    <attvalue for="0" value="Media Club"/>
+                    <attvalue for="1" value="Montenegro"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="106" label="Leuven R&amp;D">
+                <attvalues>
+                    <attvalue for="0" value="Leuven R&amp;D"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="1"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1061" label="MEH – Prime Minister’ Office">
+                <attvalues>
+                    <attvalue for="0" value="MEH – Prime Minister’ Office"/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Policy makers and governmental organizations"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1062" label="Melting Pot">
+                <attvalues>
+                    <attvalue for="0" value="Melting Pot"/>
+                    <attvalue for="1" value="Italy"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Media"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="1"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1063" label="Estonian Maritime Museum">
+                <attvalues>
+                    <attvalue for="0" value="Estonian Maritime Museum"/>
+                    <attvalue for="1" value="Estonia"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Science centres and museums"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1064" label="Metafro Infosys">
+                <attvalues>
+                    <attvalue for="0" value="Metafro Infosys"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="1"/>
+                    <attvalue for="14" value="1"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Portal or other independent Websites"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1065" label="Royal Meteorological Institute">
+                <attvalues>
+                    <attvalue for="0" value="Royal Meteorological Institute"/>
+                    <attvalue for="1" value="Belgium"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1066" label="Republican Weather Bureau">
+                <attvalues>
+                    <attvalue for="0" value="Republican Weather Bureau"/>
+                    <attvalue for="1" value="Montenegro"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Advisory bodies"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1067" label="Finnish Forest Research Institute ">
+                <attvalues>
+                    <attvalue for="0" value="Finnish Forest Research Institute "/>
+                    <attvalue for="1" value="Finland"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Research centers"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1069" label="Helsinki Metropolia University of Applied Sciences ">
+                <attvalues>
+                    <attvalue for="0" value="Helsinki Metropolia University of Applied Sciences "/>
+                    <attvalue for="1" value="Finland"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1070" label="Faculty of Mechanical Engineering">
+                <attvalues>
+                    <attvalue for="0" value="Faculty of Mechanical Engineering"/>
+                    <attvalue for="1" value="Montenegro"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="1"/>
+                    <attvalue for="2" value="Universities and secondary schools"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="1"/>
+                    <attvalue for="7" value="1"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1071" label="International Forum for Women">
+                <attvalues>
+                    <attvalue for="0" value="International Forum for Women"/>
+                    <attvalue for="1" value="Poland"/>
+                    <attvalue for="10" value="1"/>
+                    <attvalue for="11" value="1"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="0"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="NGO-CSO"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="1"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="0"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node>
+<node id="1072" label="Invention and Research Centre Ltd.">
+                <attvalues>
+                    <attvalue for="0" value="Invention and Research Centre Ltd."/>
+                    <attvalue for="1" value="Hungary"/>
+                    <attvalue for="10" value="0"/>
+                    <attvalue for="11" value="0"/>
+                    <attvalue for="12" value="0"/>
+                    <attvalue for="13" value="0"/>
+                    <attvalue for="14" value="0"/>
+                    <attvalue for="15" value="1"/>
+                    <attvalue for="16" value="0"/>
+                    <attvalue for="17" value="0"/>
+                    <attvalue for="18" value="0"/>
+                    <attvalue for="19" value="0"/>
+                    <attvalue for="2" value="Companies"/>
+                    <attvalue for="20" value="0"/>
+                    <attvalue for="21" value="0"/>
+                    <attvalue for="22" value="0"/>
+                    <attvalue for="23" value="0"/>
+                    <attvalue for="3" value="0"/>
+                    <attvalue for="4" value="0"/>
+                    <attvalue for="5" value="0"/>
+                    <attvalue for="6" value="0"/>
+                    <attvalue for="7" value="0"/>
+                    <attvalue for="8" value="1"/>
+                    <attvalue for="9" value="0"/>
+                </attvalues>
+            </node></nodes>
+        <edges><edge id="4097" source="1007" target="1006"/>
+<edge id="4108" source="1013" target="1020"/>
+<edge id="4118" source="1015" target="1045"/>
+<edge id="4125" source="1017" target="1018"/>
+<edge id="4129" source="1020" target="1049"/>
+<edge id="4183" source="1021" target="1015"/>
+<edge id="4201" source="1021" target="1022"/>
+<edge id="4151" source="1021" target="1023"/>
+<edge id="4180" source="1021" target="1024"/>
+<edge id="4197" source="1021" target="1025"/>
+<edge id="4166" source="1021" target="1027"/>
+<edge id="4179" source="1021" target="1031"/>
+<edge id="4167" source="1021" target="104"/>
+<edge id="4193" source="1021" target="1045"/>
+<edge id="4209" source="1024" target="1032"/>
+<edge id="4231" source="1030" target="1067"/>
+<edge id="4240" source="1035" target="1061"/>
+<edge id="4248" source="1039" target="1040"/>
+<edge id="332" source="104" target="1025"/>
+<edge id="337" source="104" target="1027"/>
+<edge id="4249" source="1040" target="1039"/>
+<edge id="4288" source="1045" target="1015"/>
+<edge id="4294" source="1046" target="1035"/>
+<edge id="4307" source="1055" target="1034"/>
+<edge id="4306" source="1055" target="1061"/>
+<edge id="4323" source="1061" target="1035"/></edges>
+    </graph>
+</gexf>

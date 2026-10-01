@@ -8,7 +8,7 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
-import type { Graph } from "../Graph.js";
+import { type Graph, operationQueueOf } from "../Graph.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
@@ -79,7 +79,7 @@ export class ScreenshotCapture {
             // Store the result in a variable and return it after the queue completes
             let result: ScreenshotResult | null = null;
 
-            await this.graph.operationQueue.queueOperationAsync(
+            await operationQueueOf(this.graph).queueOperationAsync(
                 "render-update",
                 async () => {
                     result = await this.doScreenshotCapture(options);
@@ -111,7 +111,6 @@ export class ScreenshotCapture {
         // Check engine configuration
         const gl = (this.engine as Engine)._gl;
 
-         
         if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
             throw new ScreenshotError(
                 "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
@@ -335,7 +334,12 @@ export class ScreenshotCapture {
             return Promise.resolve();
         }
 
-        if (layoutManager.isSettled) {
+        // NOT MOVING is what a capture waits for, which is not the same as settled: a layout the
+        // consumer paused part-way is still, and never emits `graph-settled`, so waiting for it to
+        // converge would time out on every capture of a paused graph.
+        const atRest = (): boolean => !layoutManager.running || layoutManager.isSettled;
+
+        if (atRest()) {
             return Promise.resolve();
         }
 
@@ -366,7 +370,7 @@ export class ScreenshotCapture {
             }, SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
 
             const handler = (): void => {
-                if (!completed && layoutManager.isSettled) {
+                if (!completed && atRest()) {
                     completed = true;
                     cleanup();
                     resolve();
@@ -376,8 +380,8 @@ export class ScreenshotCapture {
             listenerId = this.graph.eventManager.addListener("graph-settled", handler);
 
             // Check immediately in case it's already settled
-             
-            if (!completed && layoutManager.isSettled) {
+
+            if (!completed && atRest()) {
                 completed = true;
                 cleanup();
                 resolve();

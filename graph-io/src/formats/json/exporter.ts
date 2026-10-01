@@ -22,7 +22,7 @@ import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX, type 
 
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
-import { formatF32 } from "../../common/format.js";
+import { formatF32, formatF64 } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -124,7 +124,15 @@ const STRUCTURAL_ROLES: ReadonlySet<string> = new Set([
 ]);
 
 /** The roles no JSON dialect can carry; skipped (checkCapabilities reports them). */
-const TEMPORAL_ROLES: ReadonlySet<string> = new Set(["start", "end", "timestamp", "timestamps", "spells", "open"]);
+const TEMPORAL_ROLES: ReadonlySet<string> = new Set([
+    "start",
+    "end",
+    "timestamp",
+    "timestamps",
+    "spells",
+    "open",
+    "spellsOpen",
+]);
 
 /** The dialects whose attributes live in a nested dict (data / metadata / attributes). */
 const NESTED_DIALECTS: ReadonlySet<JsonDialect> = new Set(["jgf", "cytoscape", "graphology"]);
@@ -280,10 +288,26 @@ function numberText(value: number, f32: boolean, nonfinite: Counter): string {
         nonfinite.count++;
         return "null";
     }
-    if (f32) {
-        return formatF32(value);
+    // -0 is a JSON number too ("-0"); JSON.parse reads it back as -0
+    return exponentIfUnsafe(f32 ? formatF32(value) : formatF64(value));
+}
+
+/**
+ * An integer text beyond 2^53 in exponent form (`100000000000000000000` -> `1e+20`, the same
+ * digits): the importer reads an integer literal that large as its exact digits (a string), so
+ * a number must not be written as one.
+ * @param text - the shortest decimal text of a finite number
+ * @returns the text, or its exponent form for an integer literal of 16 or more digits
+ */
+function exponentIfUnsafe(text: string): string {
+    const match = /^(-?)([0-9]{16,})$/.exec(text);
+    if (match === null || Number.isSafeInteger(Number(text))) {
+        return text;
     }
-    return Object.is(value, -0) ? "0" : String(value);
+    const [, sign, digits] = match;
+    const mantissa = digits.replace(/0+$/, "");
+    const fraction = mantissa.length > 1 ? `.${mantissa.slice(1)}` : "";
+    return `${sign}${mantissa[0]}${fraction}e+${digits.length - 1}`;
 }
 
 /**
@@ -314,6 +338,8 @@ function valueText(value: unknown, f32: boolean, nonfinite: Counter): string {
         const items = Array.from(value as ArrayLike<unknown>, (item) => valueText(item, f32, nonfinite));
         return `[${items.join(",")}]`;
     }
+    // ponytail: numbers nested in a json object are written by JSON.stringify, so an integral one
+    // beyond 2^53 re-imports as its digit text; walk the object here if that ever matters
     const text = JSON.stringify(value);
     return text === undefined ? "null" : text;
 }
@@ -335,7 +361,7 @@ function cellText(column: Column, row: number, ids: GraphSnapshot["ids"], nonfin
         case "u32":
             if (column.meta.refersTo === "node" && column.meta.components === 1) {
                 const index = column.data[row];
-                return index === INVALID_INDEX ? "null" : JSON.stringify(ids.idOf(index));
+                return index === INVALID_INDEX ? "null" : idText(ids.idOf(index));
             }
             return valueText(column.value(row), false, nonfinite);
         case "f32":
@@ -776,7 +802,7 @@ function planSlot(ctx: PlanContext, column: Column, domain: Domain): ColumnPlan 
  * What the importer's inference (design section 5.1: JSON numbers are i32 when integral, else
  * f64; strings are strings; arrays and objects are json) changes about a written attribute
  * column beyond what checkCapabilities() already reported for its dtype: an f64 column whose set
- * values are all integers reads back as i32.
+ * finite values are all integers reads back as i32 (its non-finite values are written as null).
  * @param ctx - the plan context
  * @param column - the column
  * @param domain - its domain
@@ -787,10 +813,18 @@ function inferenceNotes(ctx: PlanContext, column: Column, domain: Domain, setRow
         return;
     }
     const { data } = column;
+    let finite = 0;
     for (let r = 0; r < column.length; r++) {
-        if (column.isSet(r) && !Number.isInteger(data[r])) {
-            return;
+        // a non-finite value is written as null and reads back unset, so it does not keep the column f64
+        if (column.isSet(r) && Number.isFinite(data[r])) {
+            if (!Number.isInteger(data[r])) {
+                return;
+            }
+            finite++;
         }
+    }
+    if (finite === 0) {
+        return;
     }
     ctx.note(
         LOSS.INTEGRAL_F64,
@@ -830,7 +864,8 @@ function planWeights(ctx: PlanContext, edges: readonly ColumnPlan[]): (e: number
         if (!weights.isExplicit(e)) {
             return null;
         }
-        return Number.isFinite(weights.value(e)) ? weights.text(e) : "null";
+        const text = Number.isFinite(weights.value(e)) ? weights.text(e) : "null";
+        return text === null ? null : exponentIfUnsafe(text);
     };
 }
 
@@ -1084,7 +1119,10 @@ function anySet(plans: readonly ColumnPlan[], row: number, slots: ReadonlySet<Sl
  * @returns the text
  */
 function idText(id: NodeId): string {
-    return typeof id === "number" && Object.is(id, -0) ? "0" : JSON.stringify(id);
+    if (typeof id === "number") {
+        return Object.is(id, -0) ? "0" : exponentIfUnsafe(String(id));
+    }
+    return JSON.stringify(id);
 }
 
 /**

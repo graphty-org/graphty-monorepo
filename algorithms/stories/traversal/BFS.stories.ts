@@ -8,15 +8,13 @@
  * from @graphty/algorithms to demonstrate real package behavior.
  */
 
-import { breadthFirstSearch, Graph } from "@graphty/algorithms";
+import { breadthFirstSearch } from "@graphty/algorithms";
+import { INVALID_INDEX } from "@graphty/graph-format";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    type GeneratedGraph,
-    generateGraph,
-    type GraphType,
-} from "../utils/graph-generators.js";
+import { type GeneratedGraph, generateGraph, type GraphType } from "../utils/graph-generators.js";
+import { toSnapshot } from "../utils/snapshot.js";
 import {
     createAnimationControls,
     createDataStructurePanel,
@@ -43,23 +41,6 @@ interface BFSArgs {
 }
 
 /**
- * Convert GeneratedGraph to @graphty/algorithms Graph.
- */
-function toAlgorithmGraph(generatedGraph: GeneratedGraph): Graph {
-    const graph = new Graph({ directed: false });
-
-    for (const node of generatedGraph.nodes) {
-        graph.addNode(node.id);
-    }
-
-    for (const edge of generatedGraph.edges) {
-        graph.addEdge(edge.source, edge.target);
-    }
-
-    return graph;
-}
-
-/**
  * Captured step during BFS traversal.
  */
 interface CapturedStep {
@@ -75,29 +56,23 @@ function runBFSAndCaptureSteps(
     generatedGraph: GeneratedGraph,
     startNode: number,
 ): { steps: CapturedStep[]; tree: Map<number | string, number | string | null> } {
-    const graph = toAlgorithmGraph(generatedGraph);
+    const graph = toSnapshot(generatedGraph);
     const capturedSteps: CapturedStep[] = [];
 
-    // Run the actual BFS algorithm with visitCallback to capture each step
-    const result = breadthFirstSearch(graph, startNode, {
-        visitCallback: (node, level) => {
-            capturedSteps.push({
-                node: node as number,
-                level,
-                parent: null, // Will be filled from tree
-            });
-        },
-    });
-
-    // Fill in parent information from the tree
-    for (const step of capturedSteps) {
-        const parent = result.tree?.get(step.node);
-        step.parent = parent === null || parent === undefined ? null : (parent as number);
+    // Run the actual BFS algorithm and capture each visited node, in visit order
+    const walk = breadthFirstSearch(graph, graph.ids.requireIndex(startNode));
+    const tree = new Map<number, number | null>();
+    for (let k = 0; k < walk.visitedCount; k++) {
+        const i = walk.order[k];
+        const parent = walk.parent[i] === INVALID_INDEX ? null : Number(graph.ids.idOf(walk.parent[i]));
+        const node = Number(graph.ids.idOf(i));
+        tree.set(node, parent);
+        capturedSteps.push({ node, level: walk.depth[i], parent });
     }
 
     return {
         steps: capturedSteps,
-        tree: result.tree ?? new Map(),
+        tree,
     };
 }
 
@@ -105,10 +80,7 @@ function runBFSAndCaptureSteps(
  * Convert captured BFS steps to animation steps.
  * Simulates queue state based on BFS level-order traversal.
  */
-function convertToAnimationSteps(
-    capturedSteps: CapturedStep[],
-    generatedGraph: GeneratedGraph,
-): TraversalStep[] {
+function convertToAnimationSteps(capturedSteps: CapturedStep[], generatedGraph: GeneratedGraph): TraversalStep[] {
     const animationSteps: TraversalStep[] = [];
 
     // Build adjacency list for neighbor lookup

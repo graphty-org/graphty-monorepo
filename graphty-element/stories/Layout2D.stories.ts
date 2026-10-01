@@ -342,7 +342,14 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        setup: storySetup({ viewMode: "2d" }),
+        /*
+         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * before the first frame is drawn, off the frame clock. Everywhere else the layout
+         * animates, one iteration per rendered frame. The picture is the same either way:
+         * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
+         * clock ran it.
+         */
+        setup: storySetup({ viewMode: "2d", preSteps: 50 }),
         layout: "spring",
         layoutConfig: { dim: 2 },
         springK: null,
@@ -449,7 +456,13 @@ export const KamadaKawai: Story = {
  */
 export const ForceAtlas2: Story = {
     args: {
-        setup: storySetup({ viewMode: "2d" }),
+        /*
+         * `preSteps` MATCHES `fa2MaxIter` BELOW, so under Chromatic the 100 iterations run before
+         * the first frame is drawn, off the frame clock. Everywhere else the layout animates, one
+         * iteration per rendered frame. The picture is the same either way, because ForceAtlas2 is
+         * deterministic under `seed` and stops at `maxIter` whichever clock ran it.
+         */
+        setup: storySetup({ viewMode: "2d", preSteps: 100 }),
         layout: "forceatlas2",
         // Named outright, the way Circular, Random, Spring and Kamada-Kawai name it. The element
         // does derive a layout's dimensionality from `viewMode` -- `LayoutManager.setLayout`
@@ -608,12 +621,11 @@ export const Bfs: Story = {
 
         // A breadth-first layout draws one COLUMN per level from the starting node, so the nodes
         // stand in bands rather than anywhere flat and distinct would satisfy. The bands run
-        // along x, not y: `bfsLayout` hands its layers to `multipartiteLayout`, whose default
-        // alignment -- "vertical", meaning each layer is drawn as a vertical line -- puts the
-        // layer index on x and spreads the layer's members along y. Bipartite and Multipartite
-        // below read the same axis for the same reason. Five bands because this data is five
-        // levels deep from node 0: {0}, {1,2,3,5,19}, {14,4,6,11,17,7,8}, {9,12,16,10,13,18},
-        // {15}.
+        // along x, not y: `bfsLayout` lays its layers out as `multipartiteLayout` does, and the
+        // default alignment -- "vertical", meaning each layer is drawn as a vertical line -- puts
+        // the layer index on x and spreads the layer's members along y. Bipartite and
+        // Multipartite below read the same axis for the same reason. Five bands because this data
+        // is five levels deep from node 0.
         await assertNodeBands(scene, 0, 5);
         await assertDistinctPicture(scene, "Layout/2D");
     },

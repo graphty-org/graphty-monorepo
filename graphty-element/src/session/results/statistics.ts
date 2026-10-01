@@ -27,7 +27,15 @@
 
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { Histogram, HistogramBin, HistogramOptions, Normalization, NumericColumnView, RankingEntry } from "./types";
+import type {
+    Histogram,
+    HistogramBin,
+    HistogramOptions,
+    Normalization,
+    NumericColumnView,
+    RankingEntry,
+    TopRanking,
+} from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // The bounds
@@ -274,11 +282,7 @@ export function analyzeColumn(column: NumericColumnSource): AnalyzedColumn {
  * @param normalization - The rule the metric declares.
  * @returns The scaled value, which is the raw value when the rule is "none".
  */
-export function normalizeValue(
-    value: number,
-    statistics: ColumnStatistics,
-    normalization: Normalization,
-): number {
+export function normalizeValue(value: number, statistics: ColumnStatistics, normalization: Normalization): number {
     if (normalization === "none") {
         return value;
     }
@@ -325,45 +329,129 @@ export interface RankableEntry {
  * @returns The ranking, best first. Entries with no finite value are left out.
  */
 export function rankEntries(entries: readonly RankableEntry[]): readonly RankingEntry[] {
-    const ranked = entries
-        .filter((entry) => Number.isFinite(entry.value))
-        .map((entry) => ({ entry, label: String(entry.id) }));
+    const valueAt = (position: number): number => entries[position].value;
+    const idAt = (position: number): NodeId => entries[position].id;
+    const order = rankOrder(entries.length, valueAt, idAt);
 
-    ranked.sort((left, right) => {
-        if (left.entry.value !== right.entry.value) {
-            return right.entry.value - left.entry.value;
+    return rankedPrefix(order, order.length, valueAt, idAt);
+}
+
+/**
+ * The order {@link rankEntries} ranks in, as positions: best first, ties in printed-id order,
+ * elements with no finite value left out. Four bytes per ranked element, so a result can keep one
+ * per field instead of an object per element.
+ * @param length - How many positions there are.
+ * @param valueAt - The value at a position.
+ * @param idAt - The id at a position.
+ * @returns The ranked positions, best first.
+ */
+export function rankOrder(
+    length: number,
+    valueAt: (position: number) => number,
+    idAt: (position: number) => NodeId,
+): Uint32Array {
+    const positions: number[] = [];
+    for (let position = 0; position < length; position++) {
+        if (Number.isFinite(valueAt(position))) {
+            positions.push(position);
+        }
+    }
+
+    // Printed once per element rather than once per comparison.
+    const labels: string[] = [];
+    for (const position of positions) {
+        labels[position] = String(idAt(position));
+    }
+
+    positions.sort((left, right) => {
+        const a = valueAt(left);
+        const b = valueAt(right);
+        if (a !== b) {
+            return b - a;
         }
 
-        if (left.label === right.label) {
+        const leftLabel = labels[left];
+        const rightLabel = labels[right];
+        if (leftLabel === rightLabel) {
             return 0;
         }
 
-        return left.label < right.label ? -1 : 1;
+        return leftLabel < rightLabel ? -1 : 1;
     });
 
-    const measured = ranked.length;
+    return Uint32Array.from(positions);
+}
+
+/**
+ * The first entries of a ranking, built from its order. Ties share a rank: the next distinct
+ * value takes the rank its place implies, so ranks run 1, 2, 2, 4.
+ * @param order - The ranked positions, from {@link rankOrder}.
+ * @param count - How many entries to build, at most `order.length`.
+ * @param valueAt - The value at a position.
+ * @param idAt - The id at a position.
+ * @returns The entries, best first, frozen.
+ */
+export function rankedPrefix(
+    order: Uint32Array,
+    count: number,
+    valueAt: (position: number) => number,
+    idAt: (position: number) => NodeId,
+): readonly RankingEntry[] {
+    const measured = order.length;
     const result: RankingEntry[] = [];
     let rank = 0;
     let previous = Number.NaN;
 
-    for (let index = 0; index < measured; index++) {
-        const { entry } = ranked[index];
-        if (entry.value !== previous) {
+    for (let index = 0; index < Math.min(count, measured); index++) {
+        const value = valueAt(order[index]);
+        if (value !== previous) {
             rank = index + 1;
-            previous = entry.value;
+            previous = value;
         }
 
         result.push(
-            Object.freeze({
-                id: entry.id,
-                value: entry.value,
-                rank,
-                percentile: (measured - rank + 1) / measured,
-            }),
+            Object.freeze({ id: idAt(order[index]), value, rank, percentile: (measured - rank + 1) / measured }),
         );
     }
 
     return Object.freeze(result);
+}
+
+/**
+ * The top `n` of a ranking, cut only between tie groups. See {@link TopRanking} for the policy.
+ * @param ranking - The ranking, best first, with tied entries sharing a rank.
+ * @param n - The most entries the top may hold, a whole number.
+ * @returns The entries taken, and the group that did not fit when one did not.
+ */
+export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRanking {
+    let taken = Math.min(n, ranking.length);
+
+    // Walk the cut back while it falls inside a tie group: taking one of the group means taking
+    // all of it, and all of it is more than n.
+    while (taken > 0 && taken < ranking.length && ranking[taken].rank === ranking[taken - 1].rank) {
+        taken--;
+    }
+
+    if (taken === ranking.length || taken === n) {
+        return Object.freeze({ entries: ranking.slice(0, taken), leftOut: null, reason: null });
+    }
+
+    const { value } = ranking[taken];
+    let end = taken;
+    while (end < ranking.length && ranking[end].value === value) {
+        end++;
+    }
+
+    const count = end - taken;
+    const reason =
+        `${String(count)} tie at ${String(value)}, and taking them would make ${String(taken + count)}, ` +
+        `more than the ${String(n)} asked for, so ${taken === 0 ? "none are" : `only the top ${String(taken)} are`} taken.`;
+
+    return Object.freeze({
+        entries: ranking.slice(0, taken),
+        leftOut: Object.freeze({ value, count }),
+        reason,
+    });
 }
 
 // ---------------------------------------------------------------------------------------------

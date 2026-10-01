@@ -7,6 +7,7 @@
  * override set is a distinct pipeline and the subgroup twin is selected by the device's features (spec 5.1, D16).
  */
 
+import { EXACT_TILES_PER_PASS } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type DispatchPlan, plan1d } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
@@ -33,6 +34,33 @@ export interface RepulsionExactOverrides {
     readonly SWING_MODE: 0 | 1;
     readonly STRONG_GRAVITY: boolean;
     readonly GRAVITY_CENTER: 0 | 1;
+}
+
+/**
+ * Records K3 over `n` nodes as ceil(tiles / EXACT_TILES_PER_PASS) dispatches (issue #87: llvmpipe's per-invocation
+ * loop budget), pass p with p + 1 z slices of which only the last works (the kernel reads the pass from
+ * `num_workgroups.z`). One pass up to 32,768 nodes at WG 256. Every model's exact tier records K3 through here.
+ * ponytail: pass p also launches p idle slices, sum p over P passes; negligible against the O(n^2) pass work (31
+ * passes at 1M nodes); a per-pass uniform removes them if they ever show in a profile.
+ * @param kernel - the compiled `fa2-repulsion-exact`
+ * @param pass - the open compute pass
+ * @param bound - the kernel's bound groups
+ * @param plan - plan1d(n) of the kernel
+ * @param n - the node count
+ * @param paramsOffset - the dynamic offset of the Fa2Params slot
+ */
+export function recordExactRepulsion(
+    kernel: Kernel,
+    pass: GPUComputePassEncoder,
+    bound: BoundKernel,
+    plan: DispatchPlan,
+    n: number,
+    paramsOffset: number,
+): void {
+    const passes = Math.max(1, Math.ceil(Math.ceil(n / kernel.workgroupSize) / EXACT_TILES_PER_PASS));
+    for (let z = 1; z <= passes; z++) {
+        kernel.dispatch(pass, bound, { ...plan, z }, [paramsOffset]);
+    }
 }
 
 /** K3 (tiled all-pairs repulsion + gravity + the swing / traction epilogue) followed by K4 (the one-workgroup speed finalize) (spec 7.6, 7.10). */
@@ -148,7 +176,7 @@ export class RepulsionExact {
     recordRepulsion(pass: GPUComputePassEncoder, n: number, paramsOffset: number): void {
         const bound = this.bound(this.boundRepulsion, "recordRepulsion");
         const plan = plan1d(n, this.repulsion.workgroupSize, this.caps);
-        this.repulsion.dispatch(pass, bound, plan, [paramsOffset]);
+        recordExactRepulsion(this.repulsion, pass, bound, plan, n, paramsOffset);
     }
 
     /**

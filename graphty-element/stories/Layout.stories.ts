@@ -3,7 +3,6 @@ import "../src/layout/index.ts"; // Ensure all layouts are registered
 import "../src/data/index.ts"; // Ensure all data sources are registered
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 
 import { Graphty } from "../src/graphty-element";
 import {
@@ -273,7 +272,7 @@ export const D3: Story = {
         setup: storySetup({
             viewMode: "3d",
             // D3 physics-based layout needs preSteps for Chromatic
-            preSteps: isChromatic() ? 15000 : 200,
+            preSteps: 15000,
         }),
         layout: "d3",
         layoutConfig: {
@@ -356,7 +355,14 @@ export const Random: Story = {
 
 export const Spring: Story = {
     args: {
-        setup: storySetup({ viewMode: "3d" }),
+        /*
+         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * before the first frame is drawn, off the frame clock. Everywhere else the layout
+         * animates, one iteration per rendered frame. The picture is the same either way:
+         * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
+         * clock ran it.
+         */
+        setup: storySetup({ viewMode: "3d", preSteps: 50 }),
         layout: "spring",
         layoutConfig: { dim: 3 },
         springK: 1,
@@ -418,7 +424,16 @@ export const ForceAtlas2: Story = {
         dataSourceConfig: {
             data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
         },
-        setup: storySetup({ viewMode: "3d" }),
+        /*
+         * `preSteps` MATCHES `maxIter` BELOW, so under Chromatic the 500 iterations run before the
+         * first frame. Everywhere else the layout animates, and a simulation computes
+         * `stepMultiplier` iterations per RENDERED frame -- one, by default -- so 500 iterations
+         * would be 500 frames: measured at 33 frames a second in the Storybook test browser, 15.1
+         * seconds, past the 15 the wait for a final frame allows. Ten a frame is 50 frames. The
+         * picture is the same either way -- ForceAtlas2 is deterministic under `seed` and stops at
+         * `maxIter` whichever clock ran it. ForceAtlas2Weighted spreads these args and inherits it.
+         */
+        setup: storySetup({ viewMode: "3d", preSteps: 500, stepMultiplier: 10 }),
         layout: "forceatlas2",
         layoutConfig: {
             dim: 3,

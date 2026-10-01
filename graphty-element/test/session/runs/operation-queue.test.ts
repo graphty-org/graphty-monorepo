@@ -120,8 +120,8 @@ describe("runs over the element's own operation queue", () => {
             return { result: stubResult(context.runId) };
         });
 
-        const first = runs.start("k-core", { k: 1 });
-        const second = runs.start("k-core", { k: 2 });
+        const first = runs.start("k-core", { k: 1 }, { as: "k1" });
+        const second = runs.start("k-core", { k: 2 }, { as: "k2" });
 
         await queueManager.waitForCompletion();
         await first;
@@ -140,14 +140,17 @@ describe("runs over the element's own operation queue", () => {
         });
 
         queueManager.pause();
-        const first = runs.start("k-core", { k: 1 });
-        const second = runs.start("k-core", { k: 2 });
+        const first = runs.start("k-core", { k: 1 }, { as: "k1" });
+        const second = runs.start("k-core", { k: 2 }, { as: "k2" });
         await settle(1);
 
         first.cancel("no longer wanted");
 
         assert.strictEqual(first.status, "canceled");
-        assert.deepStrictEqual(runs.queue.map((entry) => entry.runId), [second.id]);
+        assert.deepStrictEqual(
+            runs.queue.map((entry) => entry.runId),
+            [second.id],
+        );
 
         queueManager.resume();
         await queueManager.waitForCompletion();
@@ -173,8 +176,8 @@ describe("runs over the element's own operation queue", () => {
             return Promise.resolve({ result: stubResult(context.runId) });
         });
 
-        const failing = runs.start("k-core", { k: 1 });
-        const following = runs.start("k-core", { k: 2 });
+        const failing = runs.start("k-core", { k: 1 }, { as: "k1" });
+        const following = runs.start("k-core", { k: 2 }, { as: "k2" });
 
         await queueManager.waitForCompletion();
         await following;

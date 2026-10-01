@@ -1,4 +1,5 @@
 import { ActionRow, FieldRow, InfoCircle, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import type { Scope } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, Menu, Pill, Switch } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -10,14 +11,15 @@ import { COMING_GROUP_SENTENCE, ComingTag, PanelRows, PanelSection, SectionAddBu
  * (Rule 6), so it is a token inside the search box rather than a row above it.
  *
  * Named in {@link ExplorePanelProps.scope}, so the caller that owns the scope can name its two
- * values.
+ * values. They are graphty-element's own scope names, so the caller hands the value to the
+ * element's selection as it is.
  * @public
  */
-export type ExploreSearchScope = "all" | "visible";
+export type ExploreSearchScope = Extract<Scope, "graph" | "visible">;
 
 /** The two scope names, in the words spec 03 section 2.2 prints. */
 const SCOPE_LABELS: Readonly<Record<ExploreSearchScope, string>> = {
-    all: "All",
+    graph: "All",
     visible: "Visible nodes",
 };
 
@@ -132,6 +134,11 @@ export interface ExplorePanelProps {
     /** Scope change. */
     readonly onScopeChange?: (scope: ExploreSearchScope) => void;
     /**
+     * Why the element refused the query, in its own words, such as an expression that does not
+     * parse. Drawn under the field; nothing is drawn while the query is accepted.
+     */
+    readonly searchError?: string;
+    /**
      * The scope `Select all visible` will act on, e.g. "20 nodes". Floor item 4:
      * the row states what it acts on before it acts, so the count is resident.
      */
@@ -186,6 +193,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
         onQueryChange,
         scope,
         onScopeChange,
+        searchError,
         visibleScopeLabel,
         onSelectAllVisible,
         filterChips = [],
@@ -216,7 +224,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
         unmounted on a panel switch -- and a supplied value still wins here.
     */
     const [ownQuery, setOwnQuery] = useState("");
-    const [ownScope, setOwnScope] = useState<ExploreSearchScope>("all");
+    const [ownScope, setOwnScope] = useState<ExploreSearchScope>("graph");
     const shownQuery = query ?? ownQuery;
     const shownScope = scope ?? ownScope;
 
@@ -319,11 +327,11 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                             <Menu.Dropdown>
                                 <Menu.Item
                                     onClick={() => {
-                                        setOwnScope("all");
-                                        onScopeChange?.("all");
+                                        setOwnScope("graph");
+                                        onScopeChange?.("graph");
                                     }}
                                 >
-                                    {SCOPE_LABELS.all}
+                                    {SCOPE_LABELS.graph}
                                 </Menu.Item>
                                 <Menu.Item
                                     onClick={() => {
@@ -337,6 +345,15 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                         </Menu>
                     </Box>
                 </FieldRow>
+                {searchError === undefined ? null : (
+                    <Box
+                        role="alert"
+                        data-testid="explore-search-error"
+                        style={{ color: "var(--mantine-color-error)", fontSize: "var(--mantine-font-size-xs)" }}
+                    >
+                        {searchError}
+                    </Box>
+                )}
 
                 {/* Zero chips is not a row: a strip whose content is "nothing
                     here" is not rendered (spec 04 section 5.2). */}

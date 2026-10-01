@@ -683,7 +683,8 @@ export const SHELL_KEY_BINDINGS: readonly ShellKeyBinding[] = [
         action: "Toggle minimap",
         scope: "global",
         owner: "dispatcher",
-        shipped: true,
+        shipped: false,
+        note: "NOT SHIPPED: the minimap waits on graphty-element publishing node positions and camera changes (#293).",
         preventDefault: false,
     },
     {

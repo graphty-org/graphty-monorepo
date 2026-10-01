@@ -21,7 +21,7 @@
  * (the importer's detection on the parsed document is authoritative, design section 8.2).
  */
 
-import { type JsonDialect, sniffJsonDialect } from "./formats/json/dialect.js";
+import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect.js";
 import { type GraphImporter } from "./types.js";
 
 /** The format names of the eight built-in importers and exporters. */
@@ -69,7 +69,7 @@ export interface SniffResult {
     /** Whether the MIME type is one the importer claims. */
     readonly mimeType: boolean;
     /** For the JSON format: the dialect the head suggests, or null when unknown; always null for other formats. */
-    readonly dialect: JsonDialect | null;
+    readonly dialect: JsonImportDialect | null;
 }
 
 /**
@@ -98,13 +98,18 @@ export function normalizeMimeType(mimeType: string): string {
 
 /**
  * The head as bytes for the importers' sniff functions: at most SNIFF_HEAD_BYTES, a string
- * encoded as UTF-8.
+ * encoded as UTF-8, a UTF-16 head with a byte order mark transcoded to UTF-8.
  * @param head - the head as given
  * @returns the bytes
  */
 export function headBytes(head: Uint8Array | string): Uint8Array {
     if (typeof head === "string") {
         return new TextEncoder().encode(head.slice(0, SNIFF_HEAD_BYTES)).subarray(0, SNIFF_HEAD_BYTES);
+    }
+    if (head.byteLength >= 2 && ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff))) {
+        // UTF-16 with a BOM (Excel's "Unicode text"): the sniffers read UTF-8, so transcode the head
+        const encoding = head[0] === 0xff ? "utf-16le" : "utf-16be";
+        return headBytes(new TextDecoder(encoding).decode(head.subarray(0, SNIFF_HEAD_BYTES)));
     }
     return head.byteLength > SNIFF_HEAD_BYTES ? head.subarray(0, SNIFF_HEAD_BYTES) : head;
 }
@@ -173,7 +178,7 @@ export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter
  * @param head - the first bytes or characters of the document
  * @returns the dialect, or null when the head is not a JSON graph document
  */
-export function sniffJsonDialectHead(head: Uint8Array | string): JsonDialect | null {
+export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDialect | null {
     const text = typeof head === "string" ? head : new TextDecoder("utf-8", { fatal: false }).decode(head);
     const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
     const trimmed = body.trimStart();

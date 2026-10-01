@@ -7,7 +7,8 @@
 
 Importers and exporters for the [@graphty/graph-format](https://www.npmjs.com/package/@graphty/graph-format)
 snapshot: GEXF, GraphML, GML, DOT (Graphviz), Pajek NET, CSV / TSV, JSON (NetworkX node-link, d3,
-JSON Graph Format, Cytoscape, graphology, vis.js) and Neo4j (`neo4j-admin import` CSV).
+JSON Graph Format, Cytoscape, graphology, vis.js; NetworkX adjacency_data and tree_data are read
+only) and Neo4j (`neo4j-admin import` CSV).
 
 Every importer streams its input into a `GraphSink` (a `GraphBuilder` or your own sink) one scalar at
 a time and reports what it could not represent instead of dropping it; every exporter says what it
@@ -75,8 +76,27 @@ for await (const chunk of csvExporter.export(snapshot, { dialect: "gephi" })) {
 ```
 
 Inputs may be a `string`, a `Uint8Array`, a `ReadableStream<Uint8Array>` (a `File.stream()`, a fetch
-body) or an async iterable of text or byte chunks. Bytes are decoded as UTF-8 with `fatal: true`, so
-an invalid sequence is a `parse-error`, never a silent U+FFFD.
+body) or an async iterable of text or byte chunks. Bytes are decoded by one shared layer, whatever
+the format. The encoding is, in order: the `encoding` option (any WHATWG label, such as
+`"windows-1252"` or `"utf-16le"`); a byte order mark (UTF-8, UTF-16LE, UTF-16BE); the encoding the
+file declares (the XML prolog of GEXF and GraphML, DOT's `charset` attribute); else UTF-8. Decoding
+is strict, never a silent U+FFFD. Undeclared bytes that are not UTF-8 are read as windows-1252 with
+the warning `W_ENCODING_FALLBACK` (Excel, Pajek and older tools write it); invalid UTF-8 after valid
+non-ASCII UTF-8, or binary data, is the `parse-error` `E_INVALID_UTF8`.
+
+Some files hold several graphs: a DOT file with several `graph { }` blocks, a Pajek project (`.paj`)
+with several networks, a GML file with several `graph [ ]` blocks, a JGF document with a `graphs`
+array. `importGraph()` (and each importer's `import()`) reads the first and records the warning
+`W_MULTIPLE_GRAPHS`, which says how many it skipped. `importAllGraphs()` (and `importer.importAll()`
+where a format can hold several) returns every graph, each frozen on its own:
+
+```ts
+import { importAllGraphs } from "@graphty/graph-io";
+
+for (const { snapshot, report } of await importAllGraphs(bytes, { filename: "project.paj" })) {
+    console.log(snapshot.meta.name, snapshot.nodeCount, report.warningCount);
+}
+```
 
 ### Common import options
 
@@ -95,6 +115,7 @@ an invalid sequence is a `parse-error`, never a silent U+FFFD.
 | `hyperedges`                  | `"skip"`                                                              | GraphML / JGF hyperedges: `"error"`, `"skip"` with a report entry, `"star"` or `"clique"`.                                                                                  |
 | `errorLimit`                  | `100`                                                                 | Recoverable errors tolerated before the importer throws `ImportError` with the partial report.                                                                              |
 | `signal`, `onProgress`        |                                                                       | Cancellation (rejects with the signal's reason) and byte progress (`bytesTotal` known for in-memory input).                                                                 |
+| `encoding`                    | detected                                                              | The encoding of byte input; overrides the byte order mark and the file's declaration. Ignored for text input.                                                               |
 
 On a caller's builder the builder-policy options (`addMissingNodes`, `duplicateEdges`, `selfLoops`,
 `weightDtype`) are read from the sink; an explicit request the sink does not honour is reported once
@@ -152,8 +173,15 @@ losses and format rules, in addition to the table:
   its dictionary (`W_OPTIONS_GAINED`); text with a character XML 1.0 forbids is refused
   (`E_XML_ILLEGAL_CHAR`, `export()` throws).
 - **GraphML**: parsed by the shared streaming XML tokenizer (no whole-document tree). `key for="all"`
-  is declared in the node, edge and graph tables; yFiles trees are kept as `json` columns (structure
-  preserved, not byte-exact); any other `json` column is written as JSON text and reads back as
+  is declared in the node, edge and graph tables; a key's `name` / `type` are read when `attr.name`
+  / `attr.type` are absent; yFiles trees are kept as `json` columns (structure preserved, not
+  byte-exact), and a `y:ShapeNode` / `y:PolyLineEdge` in them is also read into `yfiles.*` columns
+  (node `yfiles.position` with the position role, `yfiles.width`, `yfiles.height`, `yfiles.color`,
+  `yfiles.borderColor`, `yfiles.borderWidth`, `yfiles.label` with the label role, `yfiles.shape`;
+  edge `yfiles.color`, `yfiles.width`, `yfiles.directed` (the target arrow, not topology),
+  `yfiles.targetArrow`, `yfiles.sourceArrow`), which the exporter never writes because the tree
+  holds them (an edited value, such as a layout's new position, is reported by `check()` as
+  `W_GRAPHML_YFILES_GRAPHICS_STALE` and lost); any other `json` column is written as JSON text and reads back as
   string (`W_JSON_UNSUPPORTED`). Ids outside NMTOKEN need `sanitizeIds: "mangle"` (restored on
   re-import). A label role column is written as the key titled `label` (the importer's label slot;
   `W_COLUMN_NAME_CHANGED` when it was named otherwise); edge ids and ports are the XML attributes
@@ -163,19 +191,28 @@ losses and format rules, in addition to the table:
 - **GML**: NetworkX conventions (`_networkx_list_start`, `#` comments, `+INF` / `-INF` / `NAN`);
   `real` columns are written with a decimal point so the dtype survives; `graphics [ x y z ]` maps
   to the position role; records map to `json` and `check()` reports `W_GML_RECORD_NUMBER_TYPE` for
-  numbers inside them (GML cannot keep int versus real inside a record). Node ids must be integers
-  (`sanitizeIds: "mangle"` renumbers and keeps the original in `graphty_originalId`); column names
-  outside `[A-Za-z][0-9A-Za-z_]*` are refused or mangled (`sanitizeKeys`).
+  numbers inside them (GML cannot keep int versus real inside a record). The spec's node ids are
+  integers; a string id is imported under the `ids` rule with one `W_GML_STRING_ID` per file, and
+  the exporter writes integers only (`sanitizeIds: "mangle"` renumbers and keeps the original in `graphty_originalId`); column names
+  outside `[A-Za-z][0-9A-Za-z_]*` are refused or mangled (`sanitizeKeys`). A `directed` or
+  `multigraph` flag written as a quoted integer (`directed "1"`) is read as that integer with a
+  `W_GML_FLAG_VALUE` warning. The `directed` key's value as the file wrote it is kept in
+  `meta.extra.gml.directed` (absent when the file has no `directed` key), so a reader can tell
+  `directed 0` from a file that relies on the specification's default.
 - **DOT**: a Graphviz-faithful parser (grammar violations are fatal, as in Graphviz); clusters are
   container nodes with the `parent` role; ports are kept; HTML strings keep their brackets; `pos`
-  maps to the position role. Mixed direction is folded per `onMixedDirection`; a text with a
-  backslash before a quote or at its end cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
+  maps to the position role (and a trailing `!` to `pin`) unless `positions: false` keeps it as the
+  text the file wrote, like any other attribute. Mixed direction is folded per `onMixedDirection`; a text with a
+  backslash before a quote or a line break, or at its end, cannot be written (`E_DOT_TRAILING_BACKSLASH`: Graphviz's
   scanner consumes backslash pairs, so such a text has no quoted spelling).
 - **Pajek**: `*Vertices N` bounds the id space (ids 1..N; a 0-based file is detected and reported;
   a count the sink cannot reserve is fatal); `*Arcs` / `*Edges` sections give per-section
   direction; time intervals map to the spells role; vertex / line parameters are plain columns read
   through the 5.1 text grammar (`2.0` stays f64, lexical forms of a string column are kept); a
-  `.paj` project file's `*Partition` / `*Vector` sections are skipped with an issue. Nodes are
+  `.paj` project file's `*Partition` / `*Vector` objects become the node columns `partition` (i32)
+  and `vector` (f64) (a second one `partition#2`, ...; their Pajek names in
+  `meta.extra.pajek.objects`), and other project sections (`*Events`, ...) are skipped with a
+  warning; a two-mode `*Vertices N N1` reads its `*Matrix` as N1 rows of N - N1 columns. Nodes are
   always written 1..N (`W_ID_RENUMBERED`: the id text is kept as the label of a node without a
   label value, a node with one loses its id; `W_PAJEK_LABEL_GAINED` when a line's parameters force
   a label); `sanitizeIds: "mangle"` also writes every renumbered vertex's original id as a
@@ -192,6 +229,18 @@ losses and format rules, in addition to the table:
   (`W_CSV_DIRECTION_DROPPED`). Untyped cells follow the 5.1 text grammar per column (`2.0` stays
   f64, `1e5` and `-0` keep their spelling in a string column). An edge table cannot carry an
   isolated node or the node order (`W_CSV_ISOLATED_NODES`, `W_CSV_NODE_ORDER`; write the node table).
+  `table: "adjacency"` reads (and writes) an adjacency table: each row is a node followed by its
+  neighbours, `neighbour:weight` giving the edge's weight when the text after the last colon is a
+  number, and a row holding only its node adding an isolated node. It is never sniffed: nothing in
+  its rows tells it from an edge list. The exported table keeps ids, the node order, isolated nodes,
+  the edge order and explicit weights (a neighbour id holding a colon is written `id:` when it has no
+  weight, and a cell holding a space, tab, `;` or `|` is quoted so the delimiter sniff still finds
+  the comma); it holds no direction and no columns (`W_CSV_DIRECTION_DROPPED`, `W_CSV_EDGE_COLUMNS`).
+  An empty adjacency table is the empty graph. Column options and `rowNumberIds` are refused with it
+  (`E_UNSUPPORTED`). A node table without an id column is refused (`E_CSV_NO_ID_COLUMN`) unless
+  `rowNumberIds: true`, which makes each data row's 0-based number its id, coerced by `ids` like any
+  other id cell. The option applies to the node table only -- the `nodes` input when one is given,
+  else the input itself -- and makes its first row a header even under `header: "auto"`.
 - **JSON**: the dialect is sniffed from the document (`dialect` forces it); the importer records the
   shape under `meta.extra.json` so a re-export keeps it (a d3 document is written back bare, a
   graphology one with only the options it declared). JSON declares no types: the capability table
@@ -200,10 +249,23 @@ losses and format rules, in addition to the table:
   dialect has no slot for. Edge ids exist in JGF, Cytoscape, graphology and vis only; positions in
   Cytoscape only. A repeated node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped
   with `E_DUPLICATE_EDGE_ID`; an out-of-range d3 index link is `E_BAD_INDEX`. Non-finite numbers
-  are written as `null` and reported.
+  are written as `null` and reported. NetworkX `adjacency_data` (`nodes` plus an `adjacency` list
+  per node; an undirected file lists each edge from both ends and it is read once) and `tree_data`
+  (nested `id` / `children`, read as a directed tree) are read but not written: a re-export writes
+  node-link. The bare `NaN`, `Infinity` and `-Infinity` that Python's json module writes are read as
+  numbers (`W_JSON_NONSTANDARD_NUMBER`), and an integer literal beyond 2^53 keeps its exact digits as
+  a string (`W_JSON_BIG_INTEGER`), so two large ids never round to one; the exporter writes an
+  integral number that large in exponent form (`1e+20`) so it re-imports as a number. `nodesPath`
+  and `edgesPath` point at node and edge arrays nested anywhere in the document as dotted key paths
+  (`{ nodesPath: "data.nodes", edgesPath: "data.relationships" }`) for the node-link, d3, vis and
+  graphology dialects; the object holding the nodes supplies the graph flags, and a path that names
+  nothing is an `E_MISSING_SECTION` issue, not an abort.
 - **Neo4j**: `neo4j-admin import` headers (`:ID`, `:LABEL`, `:START_ID`, `:END_ID`, `:TYPE`, typed
   properties, id spaces, arrays); one file may hold several sections; a `weight` property becomes
-  THE weight; a quoted empty `:ID` is the id `""`. Everything is directed (an undirected snapshot,
+  THE weight; a quoted empty `:ID` is the id `""`. A node of an id space (`:ID(Product)`) is stored
+  under the string id `Product:1`, with its id text in the `originalId` column and its space in
+  `idSpace`, so the same id in two spaces stays two nodes; `:START_ID(Space)` / `:END_ID(Space)`
+  resolve inside their space, and the exporter writes the id text back. Everything is directed (an undirected snapshot,
   or the folded pairs of a mixed one under `onMixedDirection: "directed"` / `"undirected"`, is
   written with a `W_NEO4J_UNDIRECTED_AS_DIRECTED` note); `.text` companions keep the source text of
   temporal values whose canonical form differs; a dict column reads back as string and a position
@@ -240,17 +302,19 @@ Issue categories are `parse-error`, `missing-value`, `validation-error`, `unsupp
 (`GEXF_ISSUE`, `GRAPHML_ISSUE`, `GML_ISSUE`, `DOT_ISSUE`, `PAJEK_ISSUE`, `CSV_ISSUE`,
 `JSON_ISSUE`, `NEO4J_ISSUE`) and shared across formats (`SINK_OPTION_CODE`, `ID_MERGED_CODE`,
 `DIRECTION_REFUSED_CODE`, `DIRECTION_FORCED_CODE`, `RENAMED_CODE`, `PRECISION_CODE`,
-`INVALID_UTF8_CODE`, `PARSE_ERROR_CODE`). The builder throws on the first hard error; the importer
+`INVALID_UTF8_CODE`, `INVALID_ENCODING_CODE`, `ENCODING_FALLBACK_CODE`, `UNKNOWN_ENCODING_CODE`,
+`PARSE_ERROR_CODE`). The builder throws on the first hard error; the importer
 catches it per element, records an issue, skips the element and continues until `errorLimit`, then
 throws `ImportError` (`code === "E_IMPORT"`) carrying the partial report. An input that cannot be
-read at all (invalid UTF-8, malformed XML, no recognisable format) is an `ImportError` at once.
+read at all (bytes invalid in the chosen encoding, malformed XML, no recognisable format) is an
+`ImportError` at once.
 
 ## Writing a plugin
 
 `GraphImporter` and `GraphExporter` (design section 12.4) are plain objects; the helpers every
 built-in format is built on are exported for third-party plugins: `ImportReportBuilder` (issues,
-error limit, `warnOnce`, `ImportError`), `textChunks` / `readText` / `LineReader` (streaming UTF-8
-input with cancellation and progress), `tokenizeXml` / `XmlTokenizer` (the streaming XML tokenizer
+error limit, `warnOnce`, `ImportError`), `textChunks` / `readText` / `LineReader` (streaming
+input decoded by the shared encoding rules, with cancellation and progress), `tokenizeXml` / `XmlTokenizer` (the streaming XML tokenizer
 behind GEXF and GraphML), `resolveImportOptions` / `resolveExportOptions` / `reportSinkOptions` /
 `reportUnusedOptions`, `DirectionResolver` (the mixed-direction rules of section 8.4) and
 `pairFolding` (its inverse for exporters), `IdCoercer`, `parseTextCell` and `TextCellWriter` (the

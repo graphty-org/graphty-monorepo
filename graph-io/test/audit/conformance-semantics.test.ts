@@ -494,7 +494,10 @@ describe("design 8.6: ImportReport counts, error limit and ImportError", () => {
 
     it("a fatal parse error aborts at once with a parse-error issue (invalid UTF-8, malformed JSON)", async () => {
         const utf8 = await importError(() =>
-            importGraph(new Uint8Array([0x61, 0x2c, 0x62, 0x0a, 0xff, 0xfe, 0x2c, 0x63]), { format: "csv" }),
+            importGraph(new Uint8Array([0x61, 0x2c, 0x62, 0x0a, 0xff, 0xfe, 0x2c, 0x63]), {
+                format: "csv",
+                encoding: "utf-8",
+            }),
         );
         expect(utf8.report.issues.map((i) => [i.category, i.code])).toEqual([["parse-error", "E_INVALID_UTF8"]]);
         const json = await importError(() => importGraph("{not json", { format: "json" }));

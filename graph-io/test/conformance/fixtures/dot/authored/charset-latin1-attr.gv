@@ -1,0 +1,5 @@
+digraph {
+  graph [charset="ISO-8859-1"]
+  a [label="Zürich"]
+  a -> b
+}

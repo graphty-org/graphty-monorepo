@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!DOCTYPE gexf [
+<!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<gexf xmlns="http://gexf.net/1.3" version="1.3">
+<graph><nodes><node id="a" label="&xxe;"/></nodes></graph>
+</gexf>

@@ -180,9 +180,29 @@ describe("metric results", () => {
             assert.isNumber(caveats.iterations);
         });
 
-        it("pagerank says nothing about convergence when the delta method ran", async () => {
-            // The delta method reports `iterations: maxIterations` and `converged: true` whatever
-            // happened, so a run that took it cannot answer either question.
+        it("a personalized pagerank over a large graph reports the convergence it measured", async () => {
+            // Over 100 nodes, where the reference implementation once switched to its delta
+            // method. Every route now runs one power iteration, and says so.
+            const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
+            const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
+            const graph = await createMockGraph({ nodes, edges });
+            const personalization = new Map(nodes.map((node) => [node.id, 1 / nodes.length]));
+            const algorithm = new PageRankAlgorithm(graph, { personalization });
+            await algorithm.run();
+
+            const { result } = algorithm;
+            assert.isDefined(result);
+
+            const { caveats } = result.summary();
+            assert.strictEqual(caveats.method, "power-iteration");
+            assert.isTrue(caveats.converged);
+            assert.isNumber(caveats.iterations);
+            assert.isBelow(caveats.iterations ?? Infinity, 100);
+        });
+
+        it("pagerank over a large graph is a power iteration that measures its convergence", async () => {
+            /* `useDelta` is on by default and is ignored: a run of any size is a power iteration,
+               so both figures are measurements, and no note talks about a delta method. */
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
             const graph = await createMockGraph({ nodes, edges });
@@ -193,9 +213,13 @@ describe("metric results", () => {
             assert.isDefined(result);
 
             const { caveats } = result.summary();
-            assert.strictEqual(caveats.method, "delta-pagerank");
-            assert.isUndefined(caveats.converged);
-            assert.isUndefined(caveats.iterations);
+            assert.strictEqual(caveats.method, "power-iteration");
+            assert.isBoolean(caveats.converged);
+            assert.isNumber(caveats.iterations);
+            assert.isFalse(
+                caveats.notes.some((note) => note.includes("delta")),
+                caveats.notes.join(" | "),
+            );
         });
 
         it("eigenvector says it converged, because an unconverged run fails instead", async () => {
@@ -203,14 +227,18 @@ describe("metric results", () => {
             assert.isTrue(result.summary().caveats.converged);
         });
 
-        it("the other iterative metrics do not claim to have converged", async () => {
-            for (const make of [
-                (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g),
-                (g: Graph): MetricAlgorithm => new HITSAlgorithm(g),
-            ]) {
-                const result = await runMetric(make);
-                assert.isUndefined(result.summary().caveats.converged);
-            }
+        it("katz and hits report whether they converged, and in how many passes", async () => {
+            // HITS settles on this graph well inside its cap.
+            const hitsCaveats = (await runMetric((g) => new HITSAlgorithm(g))).summary().caveats;
+            assert.isTrue(hitsCaveats.converged);
+            assert.isBelow(hitsCaveats.iterations ?? Infinity, 100);
+
+            // Katz at its default alpha of 0.1 does NOT: the graph's largest eigenvalue is at least
+            // 10, so the attenuated sums grow every pass. The run says so rather than saying nothing.
+            const katzCaveats = (await runMetric((g) => new KatzCentralityAlgorithm(g))).summary().caveats;
+            assert.isFalse(katzCaveats.converged);
+            assert.strictEqual(katzCaveats.iterations, 100);
+            assert.isTrue(katzCaveats.notes.some((note) => note.includes("without reaching the tolerance")));
         });
 
         it("every metric names its method, its direction and its precision", async () => {
@@ -261,7 +289,11 @@ describe("metric results", () => {
             assert.isDefined(record);
             assert.isNumber(record.hub);
             assert.isNumber(record.authority);
-            assert.approximately(record.value as number, ((record.hub as number) + (record.authority as number)) / 2, 1e-12);
+            assert.approximately(
+                record.value as number,
+                ((record.hub as number) + (record.authority as number)) / 2,
+                1e-12,
+            );
         });
 
         it("degree publishes the two directions beside their total", async () => {
@@ -311,7 +343,11 @@ describe("what the top-ranked elements are called", () => {
             ["n3", { id: "n3", data: { name: "Tiny" } }],
         ]);
         const graph = await createMockGraph({
-            nodes: [{ id: "n1", name: "Mr Whiskers" }, { id: "n2", name: "Chonky Boy" }, { id: "n3", name: "Tiny" }],
+            nodes: [
+                { id: "n1", name: "Mr Whiskers" },
+                { id: "n2", name: "Chonky Boy" },
+                { id: "n3", name: "Tiny" },
+            ],
             edges: [
                 { srcId: "n1", dstId: "n2" },
                 { srcId: "n2", dstId: "n3" },

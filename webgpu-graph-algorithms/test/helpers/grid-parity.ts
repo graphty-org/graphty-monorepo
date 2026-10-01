@@ -57,7 +57,7 @@ import {
 } from "./fa2-parity.js";
 import { fixture } from "./graphs.js";
 import { fieldRelError, flooredRelError } from "./matchers.js";
-import { noiseFloorFor } from "./noise-floor.js";
+import { noiseFloorFor, sampleStrided } from "./noise-floor.js";
 import { type CheckReport, ratioOf } from "./sabotage.js";
 
 // ---------------------------------------------------------------- options and tunings
@@ -96,9 +96,9 @@ export const NEAR_MAX_SAMPLING = 8;
 const WRITE = process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 /** The one-cell fixtures that take an anchor node inside the layout (the module comment). */
 const ONE_CELL_FIXTURES: readonly string[] = Object.freeze(["hubcell", "onecell1k", "onecell1025"]);
-/** Every 4th node of a per-node noise fixture (the unscaled random20k: 5,000 nodes, 15,000 values per file). */
-const NODE_STRIDE = 4;
-/** At most this many cells of every pyramid level in the pyramid noise fixture (every level contributes; the coarse levels whole). */
+/** Every 5th node of a per-node noise fixture (the unscaled random20k: 4,000 nodes, 12,000 values per file); odd, so every lane residue is sampled (issue #267). */
+const NODE_STRIDE = 5;
+/** About this many cells of every pyramid level in the pyramid noise fixture (the stride rounded up to odd; every level contributes; the coarse levels whole). */
 const PYRAMID_LEVEL_SAMPLES = 1024;
 
 /** The anchor's coordinate on every axis (the module comment). */
@@ -126,6 +126,35 @@ export function gridFixture(
         start[3 * last + 2] = ANCHOR;
     }
     return { snapshot: f.snapshot, start };
+}
+
+/**
+ * Issue #90's scene: a uniform core in [-h, h)^dim and two groups of 50 outliers centred at x = +100 and x = -100,
+ * beyond the grid's extent (6 x the rms radius) on opposite sides. The core nodes come first. The core's half-width h
+ * (5 in 2D, 15 in 3D) spreads it over enough finest cells that none holds more than the default nearMax (64) nodes,
+ * so the near field is exact and the comparison sees the far field alone.
+ * @param dim - 2 or 3
+ * @returns the core size and the stride-3 scene positions
+ */
+export function opposingOutliers(dim: 2 | 3): { readonly core: number; readonly start: F32 } {
+    let seed = 12345;
+    const rnd = (): number => {
+        seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+        return seed / 2 ** 32;
+    };
+    const core = dim === 2 ? 2000 : 1500;
+    const half = dim === 2 ? 5 : 15;
+    const per = 50;
+    const start = new Float32Array(3 * (core + 2 * per));
+    for (let i = 0; i < core + 2 * per; i++) {
+        const inCore = i < core;
+        const side = i < core + per ? 100 : -100;
+        for (let a = 0; a < dim; a++) {
+            const offset = a === 0 && !inCore ? side : 0;
+            start[3 * i + a] = offset + (inCore ? half * (2 * rnd() - 1) : rnd() - 0.5);
+        }
+    }
+    return { core, start };
 }
 
 // ---------------------------------------------------------------- the state header
@@ -255,7 +284,17 @@ export interface GridNoiseFixtureName {
  * floor covers more than one geometry): `k1Isolated`, the K1 grid block on the UNSCALED isolated fixture in 2D,
  * whose first grid iteration throws the layout to a radius near 200 and makes the f32 fold of `sum |p - c|^2`
  * (K5's partials, folded by K1 into the rmsRadius the extent is taken from) 3e-6 from the f64 fold on the RTX
- * 4070 SUPER where random20k's is 9e-8 (measured at P4-T11; 9e-8 on lavapipe for both).
+ * 4070 SUPER where random20k's is 9e-8 (measured at P4-T11; 9e-8 on lavapipe for both). And `positionsClumpy`, the
+ * K5 positions on the UNSCALED clumpy100 fixture in 2D: its 100 blobs of sigma 0.02 put far-field centroids within
+ * the 0.01 distance floor of their nodes (issue #89), where random20k's uniform scatter barely reaches it. The floor
+ * trims those near-singular terms, the total left over is a sum of moderate terms that partly cancel, and the
+ * floored per-node error of the positions after K5 reads 2.2e-5 on the RTX 4070 SUPER and 2.5e-5 on Apple Metal
+ * where random20k's reads 2.4e-6 -- the same rounding on a worse-conditioned total, not a kernel defect (without
+ * the floor clumpy100 reads 1.5e-5, as it did before #89). And `exactRmsSe` / `exactP99Se`, the exact-vs-grid
+ * repulsion of the SPRING-ELECTRICAL model (LAW 2) on the UNSCALED random20k in 2D, written by grid-law.test.ts:
+ * grid-law.test.ts and the LAW sabotage rows hold that model to grid-exact.rms / grid-exact.p99 too, and its RMS
+ * reads 2.5e-2 on the RTX 4070 SUPER where the ForceAtlas2 member reads 2.4e-3, so a floor from ForceAtlas2 alone
+ * derived a tolerance the spring model does not meet.
  */
 export const GRID_NOISE_FIXTURES: Readonly<
     Record<
@@ -263,6 +302,7 @@ export const GRID_NOISE_FIXTURES: Readonly<
         | "farField"
         | "nearField"
         | "positions"
+        | "positionsClumpy"
         | "k1"
         | "k1Isolated"
         | "downsample"
@@ -272,6 +312,8 @@ export const GRID_NOISE_FIXTURES: Readonly<
         | "tiersSpmv"
         | "exactRms"
         | "exactP99"
+        | "exactRmsSe"
+        | "exactP99Se"
         | "expansion"
         | "distributional"
         | "unbiased",
@@ -282,6 +324,7 @@ export const GRID_NOISE_FIXTURES: Readonly<
     farField: { kernel: "grid-far-field", fixture: "random20k-far" },
     nearField: { kernel: "grid-near-field", fixture: "random20k-near" },
     positions: { kernel: "fa2-integrate", fixture: "random20k-K5-grid" },
+    positionsClumpy: { kernel: "fa2-integrate", fixture: "clumpy100-K5-grid" },
     k1: { kernel: "fa2-stats-finalize", fixture: "random20k-K1-grid" },
     k1Isolated: { kernel: "fa2-stats-finalize", fixture: "isolated-K1-grid" },
     downsample: { kernel: "grid-downsample", fixture: "random20k-L1" },
@@ -291,6 +334,8 @@ export const GRID_NOISE_FIXTURES: Readonly<
     tiersSpmv: { kernel: "spmv-pull", fixture: "hub10k-tiers" },
     exactRms: { kernel: "grid-exact", fixture: "random20k-rms" },
     exactP99: { kernel: "grid-exact", fixture: "random20k-p99" },
+    exactRmsSe: { kernel: "grid-exact", fixture: "se-random20k-rms" },
+    exactP99Se: { kernel: "grid-exact", fixture: "se-random20k-p99" },
     expansion: { kernel: "grid-expansion", fixture: "random20k-spread200" },
     distributional: { kernel: "grid-distributional", fixture: "random20k-metrics200" },
     unbiased: { kernel: "grid-unbiased", fixture: `hubcell-mean${UNBIASED_SEEDS}` },
@@ -386,22 +431,14 @@ export function gridTolerance(id: string): { readonly value: number; readonly ba
 // ---------------------------------------------------------------- the noise fixture samples
 
 /**
- * Every NODE_STRIDE-th node's three lanes of a stride-3 array (the per-node noise fixtures of the unscaled
+ * Every NODE_STRIDE-th node's three values of a stride-3 array (the per-node noise fixtures of the unscaled
  * random20k; the same nodes on every adapter and in the reference, so the floored metric's floor is the same).
  * @param values - stride-3 values
  * @param n - the node count
  * @returns the sampled stride-3 values
  */
 export function sampleNodes(values: ArrayLike<number>, n: number): F64 {
-    const count = Math.ceil(n / NODE_STRIDE);
-    const out = new Float64Array(3 * count);
-    for (let k = 0; k < count; k++) {
-        const i = k * NODE_STRIDE;
-        out[3 * k] = values[3 * i];
-        out[3 * k + 1] = values[3 * i + 1];
-        out[3 * k + 2] = values[3 * i + 2];
-    }
-    return out;
+    return Float64Array.from(sampleStrided(values, NODE_STRIDE, 3, n));
 }
 
 /**
@@ -416,7 +453,9 @@ export function samplePyramid(xyz: ArrayLike<number>, spec: GridSpec): F64 {
     for (let level = 0; level < spec.levels; level++) {
         const base = spec.levelOffsets[level];
         const count = (level + 1 < spec.levels ? spec.levelOffsets[level + 1] : spec.pyramidCells) - base;
-        const stride = Math.max(1, Math.ceil(count / PYRAMID_LEVEL_SAMPLES));
+        // odd, like every noise fixture stride, so a sampled level reaches every lane residue (issue #267)
+        const even = Math.max(1, Math.ceil(count / PYRAMID_LEVEL_SAMPLES));
+        const stride = even % 2 === 0 ? even + 1 : even;
         for (let c = 0; c < count; c += stride) {
             out.push(xyz[3 * (base + c)], xyz[3 * (base + c) + 1], xyz[3 * (base + c) + 2]);
         }
@@ -696,7 +735,7 @@ export async function captureGridStages(
                     frame.invCellSize,
                     frame.eps,
                     build.outside,
-                    Math.max(build.maxOccupancy, build.outside),
+                    oraclePyramid.maxOccupancy,
                 ],
             ),
         },

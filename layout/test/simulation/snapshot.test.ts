@@ -53,7 +53,7 @@ function edgeWeights(s: GraphSnapshot): number[] {
 }
 
 describe("toLayoutSnapshot", () => {
-    it("walks a duck-typed graph once: ids in nodes() order, both arcs per edge, no weights", () => {
+    it("walks a duck-typed graph: ids in nodes() order, both arcs per edge, no weights", () => {
         const G = triangle();
         const s = toLayoutSnapshot(G);
         assert.ok(isGraphSnapshot(s));
@@ -63,11 +63,20 @@ describe("toLayoutSnapshot", () => {
         assert.deepEqual([s.ids.idOf(0), s.ids.idOf(1), s.ids.idOf(2)], G.nodes());
         assert.equal(s.weights, null);
     });
-    it("returns the cached snapshot for the same duck-typed object", () => {
-        const G = triangle();
-        const first = toLayoutSnapshot(G);
-        assert.equal(toLayoutSnapshot(G), first);
-        assert.notEqual(toLayoutSnapshot(triangle()), first, "a different object is walked on its own");
+    it("walks a duck-typed graph again on every call, so a node added between calls is present", () => {
+        const nodes: Node[] = ["a", "b", "c"];
+        const G: Graph = { nodes: () => [...nodes], edges: () => [["a", "b"]] };
+        assert.equal(toLayoutSnapshot(G).nodeCount, 3);
+        nodes.push("d");
+        const s = toLayoutSnapshot(G);
+        assert.equal(s.nodeCount, 4);
+        assert.equal(s.ids.idOf(3), "d");
+    });
+    it("walks a node list again on every call, so a node pushed onto it is present", () => {
+        const nodes: Node[] = ["x", "y"];
+        assert.equal(toLayoutSnapshot(nodes).nodeCount, 2);
+        nodes.push("z");
+        assert.equal(toLayoutSnapshot(nodes).nodeCount, 3);
     });
     it("reads weights through getEdgeData when weightAttr is given", () => {
         const s = toLayoutSnapshot(weightedTriangle(), "w");
@@ -79,7 +88,7 @@ describe("toLayoutSnapshot", () => {
         assert.equal(toLayoutSnapshot(weightedTriangle()).weights, null);
         assert.equal(toLayoutSnapshot(weightedTriangle(), null).weights, null);
     });
-    it("keys the cache by (object, weightAttr): the same duck object laid out unweighted and then through w", () => {
+    it("reads the same duck object unweighted and then through w as two different graphs", () => {
         const G = weightedTriangle();
         const unweighted = toLayoutSnapshot(G);
         const weighted = toLayoutSnapshot(G, "w");
@@ -87,8 +96,7 @@ describe("toLayoutSnapshot", () => {
         assert.equal(unweighted.weights, null);
         assert.notEqual(weighted.weights, null, "the second is weighted");
         assert.deepEqual(edgeWeights(weighted), [2, 3, 4]);
-        assert.equal(toLayoutSnapshot(G, "w"), weighted, "a repeat call through w returns the cached second");
-        assert.equal(toLayoutSnapshot(G), unweighted, "and the unweighted one stays cached beside it");
+        assert.equal(toLayoutSnapshot(G).weights, null, "a later unweighted call is unweighted again");
     });
     it("leaves an edge unweighted when getEdgeData returns null", () => {
         const allNull = toLayoutSnapshot(legacyTriangle({ "a|b": null, "b|c": null, "c|a": null }), "w");
@@ -114,7 +122,6 @@ describe("toLayoutSnapshot", () => {
         assert.equal(s.nodeCount, 3);
         assert.equal(s.arcCount, 0);
         assert.deepEqual([s.ids.idOf(0), s.ids.idOf(1), s.ids.idOf(2)], nodes);
-        assert.equal(toLayoutSnapshot(nodes), s, "cached per list object");
     });
     it("derives one undirected snapshot from a directed one and reuses it", () => {
         const directed = directedPath();

@@ -26,10 +26,11 @@
 
 import "../../src/algorithms";
 
+import type { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Channel } from "../../src/catalog/types";
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import type { ElementSession } from "../../src/session";
 
 /** How many communities the graph is built out of. */
@@ -77,7 +78,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         session = graph.getSession() as ElementSession;
 
         // FINISHED IN A FIXED ORDER, AND THAT IS THE POINT. Each is awaited, so PageRank
@@ -86,7 +87,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
         // them is the order of the two names passed to applySuggestedStyles.
         await graph.run("pagerank");
         await graph.run("louvain");
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
     });
 
@@ -119,7 +120,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
             graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]),
             "neither finished run had anything to paint",
         );
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
 
         assert.strictEqual(
@@ -131,12 +132,85 @@ describe("the last algorithm named in applySuggestedStyles", () => {
         );
     });
 
+    /**
+     * Hold every reordering move back before it reaches the queue, so the queue is certainly
+     * idle before the moves arrive. A wait that holds only because of when microtasks happen to
+     * run then fails, and one that waits for the moves themselves does not.
+     * @param ms - How long to hold each move.
+     */
+    const holdMoves = (ms: number): void => {
+        const { styles } = session;
+        const move = styles.move.bind(styles);
+
+        (styles as { move: (...args: Parameters<typeof styles.move>) => PromiseLike<void> }).move = async (...args) => {
+            await new Promise((resolve) => setTimeout(resolve, ms));
+
+            return move(...args);
+        };
+    };
+
+    it("is on top once waitForSettled alone has settled, however late the reorder is queued", async () => {
+        holdMoves(300);
+
+        assert.isTrue(graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]));
+        await graph.waitForSettled();
+
+        assert.strictEqual(
+            paintingColour(NODES[0].id),
+            "pagerank",
+            "waitForSettled returned before the reordering moves had run",
+        );
+    });
+
+    it("is on top and painted once waitForStableFrame alone has settled", async () => {
+        // No queue drain and no `styles.settled()`: waitForStableFrame is the documented wait.
+        holdMoves(0);
+
+        assert.isTrue(graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]));
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(paintingColour(NODES[0].id), "pagerank", "the reorder had not happened yet");
+
+        const byAlgorithm = new Map<string, unknown>();
+
+        for (const entry of session.styles.explain({ node: NODES[0].id }).contributions) {
+            const source = session.styles.list().find((layer) => layer.id === entry.layerId)?.source;
+
+            if (source?.by === "run") {
+                byAlgorithm.set(source.algorithm, entry.values[COLOR]);
+            }
+        }
+
+        /** A painted colour, as the channel stores it: 0-255 components. */
+        type Rgba = { r: number; g: number; b: number };
+        const wanted = byAlgorithm.get("pagerank") as Rgba | undefined;
+        const other = byAlgorithm.get("louvain") as Rgba | undefined;
+
+        assert.isDefined(wanted, "PageRank painted no colour on the node");
+        assert.isDefined(other, "Louvain painted no colour on the node");
+        assert.notDeepEqual(wanted, other, "the two pictures agree on this node, so it proves nothing");
+
+        const node = graph.getNode(NODES[0].id);
+        assert.isDefined(node);
+        const drawn = (node.mesh as InstancedMesh).instancedBuffers.color as Rgba | undefined;
+        assert.isDefined(drawn, "the node's mesh carries no colour");
+
+        for (const component of ["r", "g", "b"] as const) {
+            assert.approximately(
+                drawn[component],
+                wanted[component] / 255,
+                0.01,
+                `the mesh is not drawn in PageRank's colour: ${JSON.stringify(drawn)} against ${JSON.stringify(wanted)}`,
+            );
+        }
+    });
+
     it("loses the channel when it is named first", async () => {
         assert.isTrue(
             graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]),
             "neither finished run had anything to paint",
         );
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
 
         assert.strictEqual(
@@ -150,7 +224,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
     it("leaves one layer per run behind, however many times it is called", async () => {
         graph.applySuggestedStyles(["graphty:pagerank", "graphty:louvain"]);
         graph.applySuggestedStyles(["graphty:louvain", "graphty:pagerank"]);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         await session.styles.settled();
 
         const fromRuns = session.styles.list().filter((layer) => layer.source.by === "run");

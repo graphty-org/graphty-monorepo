@@ -255,23 +255,30 @@ describe("OrbitCameraController.zoomToBoundingBox Regression Tests", () => {
             assert.isFinite(controller.cameraDistance);
         });
 
-        test("respects maxZoomDistance config", () => {
+        test("fits a scene larger than maxZoomDistance rather than clamping to it", () => {
             const customConfig: OrbitConfig = {
                 ...defaultConfig,
                 maxZoomDistance: 100,
             };
             const customController = new OrbitCameraController(canvas, scene, customConfig);
 
-            // Very large scene that would normally require more than 100 distance
+            // Very large scene that needs far more than 100 distance. maxZoomDistance is the
+            // interactive zoom-out ceiling, not a framing limit: clamping the fit to it would
+            // put the camera inside the graph.
             const min = new Vector3(-10000, -10000, -10000);
             const max = new Vector3(10000, 10000, 10000);
 
             customController.zoomToBoundingBox(min, max);
 
-            assert.isAtMost(
+            assert.isAbove(
                 customController.cameraDistance,
                 100,
-                "Camera distance should be clamped to maxZoomDistance",
+                "Camera distance should fit the box, not stop at maxZoomDistance",
+            );
+            assert.isAbove(
+                customController.camera.maxZ,
+                customController.cameraDistance,
+                "Far plane should reach past the camera distance",
             );
         });
 

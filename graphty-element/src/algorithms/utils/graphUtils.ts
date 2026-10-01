@@ -1,150 +1,137 @@
 /**
- * @file Utility functions for building graph data structures from graphty-element Graph
+ * @file Helpers the adapters share: matching an `@graphty/algorithms` answer back onto an edge,
+ * refusing a node option that names no node, and the neighbour order a walk tries.
  */
 
+import type { AdjacencyView, U32 } from "@graphty/graph-format";
+
+import { GraphtyError } from "../../errors";
+
 /**
- * The key an `@graphty/algorithms` result is matched back onto the element's edges by: the two
- * endpoint ids, in the orientation the record declared.
+ * The order a walk tries each node's neighbours in: the order their edges were declared.
  *
- * THIS IS A LOOKUP KEY AND NOT AN IDENTITY, which is the whole reason it has a name of its own
- * and is not published from `./extend`. The algorithms package answers by endpoint pair, because
- * that is all it can represent; the element identifies an edge by its own counter. A key that
- * names a pair cannot name one of two parallel edges, so nothing may publish it as an edge id --
- * an algorithm looks a result up with this and then publishes `edge.id`.
- * @param source - the id of the node the edge leaves
- * @param target - the id of the node the edge enters
- * @returns the lookup key
+ * An index-based walk tries a node's arcs in row order, which is neighbour index order. The
+ * element's walks have always tried them in the order the edges were declared, and a depth-first
+ * order, a strongly connected component's number and the nodes a breadth-first walk expands
+ * before it reaches its target all depend on it. Passed to a port as `arcOrder`, this keeps them.
+ * @param snapshot - The adjacency the walk runs over.
+ * @returns A permutation of the arc indices, each row's slice sorted by the edge each arc is of.
  */
-export function edgePairKey(source: string | number, target: string | number): string {
-    return `${String(source)}:${String(target)}`;
+export function declarationArcOrder(snapshot: AdjacencyView): U32 {
+    const { rowPtr, arcToEdge } = snapshot;
+    const order = new Uint32Array(snapshot.arcCount);
+    for (let arc = 0; arc < order.length; arc++) {
+        order[arc] = arc;
+    }
+
+    for (let node = 0; node < snapshot.nodeCount; node++) {
+        order.subarray(rowPtr[node], rowPtr[node + 1]).sort((a, b) => arcToEdge[a] - arcToEdge[b]);
+    }
+
+    return order;
 }
 
 /**
- * Minimal edge data interface required by graph utilities
+ * The same adjacency with one node's own arcs taken out: a walk still reaches that node, but
+ * goes no further from it.
+ * @param g - The adjacency to cut.
+ * @param node - The node whose arcs go.
+ * @returns A new view; `g` is not changed.
  */
-export interface MinimalEdge {
-    srcId: string | number;
-    dstId: string | number;
-    data?: Record<string, unknown>;
-    [key: string]: unknown;
-}
+export function withoutArcsOf(g: AdjacencyView, node: number): AdjacencyView {
+    const from = g.rowPtr[node];
+    const to = g.rowPtr[node + 1];
+    const cut = to - from;
+    const keep = (arcs: U32): U32 => {
+        const kept = new Uint32Array(arcs.length - cut);
+        kept.set(arcs.subarray(0, from));
+        kept.set(arcs.subarray(to), from);
+        return kept;
+    };
 
-/**
- * Minimal interface for graph-like objects
- * This allows the utilities to work with both real Graph instances and mock graphs in tests
- */
-export interface GraphLike {
-    getDataManager: () => {
-        nodes: Map<string | number, unknown>;
-        edges: Map<string | number, MinimalEdge>;
+    return {
+        directed: g.directed,
+        nodeCount: g.nodeCount,
+        arcCount: g.arcCount - cut,
+        rowPtr: g.rowPtr.map((offset, row) => (row > node ? offset - cut : offset)),
+        colIdx: keep(g.colIdx),
+        arcToEdge: keep(g.arcToEdge),
+        // A walk reads no weights.
+        weights: null,
     };
 }
 
 /**
- * Options for building adjacency lists
+ * Refuse a node id option that names no node in the graph.
+ *
+ * `@graphty/algorithms` answers a query about a missing node with an empty result rather than an
+ * error, so without this check an unknown id publishes zeros as if they were a measurement. The id
+ * is matched exactly first, then by its string form, so an option typed "3" names the node whose
+ * id is the number 3 unless the graph also holds a node whose id is the string "3".
+ * @param algorithm - The algorithm's key, for the message.
+ * @param option - The option name the id came in on.
+ * @param value - The id the caller passed.
+ * @param nodeIds - Every node id in the graph.
+ * @returns The id of the node it names, as the graph holds it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when no node has that id.
  */
-interface AdjacencyOptions {
-    /** Whether to treat the graph as directed (default: false for undirected) */
-    directed?: boolean;
-    /** Weight attribute name on edges (default: "value") */
-    weightAttribute?: string;
+export function requireNodeOption<T extends string | number>(
+    algorithm: string,
+    option: string,
+    value: string | number,
+    nodeIds: readonly T[],
+): T {
+    // A node whose id is exactly the value wins over one that only prints the same.
+    const id = String(value);
+    const found = nodeIds.find((nodeId) => nodeId === value) ?? nodeIds.find((nodeId) => String(nodeId) === id);
+    if (found === undefined) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "run",
+            message: `${algorithm}: the ${option} option names node "${id}", which is not in the graph.`,
+            details: { algorithm, option, value },
+        });
+    }
+    return found;
 }
 
 /**
- * Build an unweighted adjacency list from graph edges.
- *
- * Returns a Map where keys are node IDs (as strings) and values are Sets of neighbor node IDs.
- * For undirected graphs, both directions are added automatically.
- * @param graph - The graphty-element Graph instance
- * @param options - Configuration options
- * @returns Map of node ID to Set of neighbor IDs
- * @example
- * ```typescript
- * // Undirected graph
- * const adj = buildAdjacencyList(graph);
- * adj.get("A")?.has("B"); // true if A-B edge exists
- *
- * // Directed graph
- * const directedAdj = buildAdjacencyList(graph, { directed: true });
- * ```
+ * Refuse a flow or cut whose two ends are one node: there is nothing to separate.
+ * @param algorithm - The algorithm's key, for the message.
+ * @param source - The source node.
+ * @param sink - The sink node.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when they are the same node.
  */
-export function buildAdjacencyList(graph: GraphLike, options: AdjacencyOptions = {}): Map<string, Set<string>> {
-    const { directed = false } = options;
-    const adjacency = new Map<string, Set<string>>();
-    const { nodes, edges } = graph.getDataManager();
-
-    // Initialize all nodes with empty sets
-    for (const nodeId of nodes.keys()) {
-        adjacency.set(String(nodeId), new Set());
+export function requireDistinctEnds(algorithm: string, source: string | number, sink: string | number): void {
+    if (source === sink) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "run",
+            message: `${algorithm}: the source and the sink are both node "${String(source)}"; set them to two different nodes.`,
+            details: { algorithm, option: "sink", value: sink },
+        });
     }
-
-    // Add edges
-    for (const edge of edges.values()) {
-        const src = String(edge.srcId);
-        const dst = String(edge.dstId);
-
-        adjacency.get(src)?.add(dst);
-
-        if (!directed) {
-            adjacency.get(dst)?.add(src);
-        }
-    }
-
-    return adjacency;
 }
 
 /**
- * Build a weighted adjacency list from graph edges.
+ * Refuse `endpoints: true` for a method that walks no paths.
  *
- * Returns a Map where keys are node IDs (as strings) and values are Maps of neighbor ID to edge weight.
- * For undirected graphs, both directions are added automatically with the same weight.
- * @param graph - The graphty-element Graph instance
- * @param options - Configuration options
- * @returns Map of node ID to Map of neighbor ID to weight
- * @example
- * ```typescript
- * // Get weighted adjacency (weights from 'value' attribute)
- * const adj = buildWeightedAdjacencyList(graph);
- * const weight = adj.get("A")?.get("B"); // edge weight from A to B
- *
- * // Use custom weight attribute
- * const adj = buildWeightedAdjacencyList(graph, { weightAttribute: "weight" });
- * ```
+ * HITS, Katz and eigenvector centrality carry an `endpoints` option in their schemas, where it
+ * has always been accepted and read by nothing: whether a path's two ends count is a question for
+ * betweenness, and none of these methods has an answer to it. A reader who switched it on was told nothing, so the run now says so
+ * rather than publishing a result that looks as though the option was honoured. `false`, the
+ * default, is accepted, so a saved document that carries the default still loads and runs.
+ * @param algorithm - The method, for the message.
+ * @param endpoints - The option as the caller resolved it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when `endpoints` is true.
  */
-export function buildWeightedAdjacencyList(
-    graph: GraphLike,
-    options: AdjacencyOptions = {},
-): Map<string, Map<string, number>> {
-    const { directed = false, weightAttribute = "value" } = options;
-    const adjacency = new Map<string, Map<string, number>>();
-    const { nodes, edges } = graph.getDataManager();
-
-    // Initialize all nodes with empty maps
-    for (const nodeId of nodes.keys()) {
-        adjacency.set(String(nodeId), new Map());
+export function refuseEndpoints(algorithm: string, endpoints: boolean): void {
+    if (endpoints) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "run",
+            message: `${algorithm} walks no paths, so the endpoints option has nothing to include; leave it false.`,
+            details: { algorithm, option: "endpoints", value: true, permitted: [false] },
+        });
     }
-
-    // Add edges with weights
-    for (const edge of edges.values()) {
-        const src = String(edge.srcId);
-        const dst = String(edge.dstId);
-
-        // Get weight from edge data or edge object directly
-        const edgeData = edge.data;
-        let rawWeight = edgeData?.[weightAttribute];
-
-        if (rawWeight === undefined) {
-            rawWeight = edge[weightAttribute];
-        }
-
-        const weight: number = typeof rawWeight === "number" ? rawWeight : 1;
-
-        adjacency.get(src)?.set(dst, weight);
-
-        if (!directed) {
-            adjacency.get(dst)?.set(src, weight);
-        }
-    }
-
-    return adjacency;
 }

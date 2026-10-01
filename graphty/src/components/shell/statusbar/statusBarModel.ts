@@ -12,7 +12,7 @@
  * Type-only module: nothing here draws, measures or formats.
  */
 
-import type { StatusBarLayout, StatusBarProps, StatusBarRunning, StatusBarSlots } from "../types";
+import type { StatusBarIssues, StatusBarLayout, StatusBarProps, StatusBarRunning, StatusBarSlots } from "../types";
 
 /**
  * One of the four Style quick picks the layout chip's caret menu mirrors
@@ -79,13 +79,39 @@ export interface StatusBarRunningModel extends StatusBarRunning {
 }
 
 /**
- * The slot model, with the two widened slots substituted.
+ * Slot 7d: whether the element is using a GPU, and which one. The same members as
+ * `StatusBarPerformanceMode` plus `active` for the dot, because it is the same kind of
+ * fact -- a machine-level mode the reader changes in Settings > Performance.
+ */
+export interface StatusBarAccelerationMode {
+    /** e.g. "GPU acceleration: on (nvidia ampere)". */
+    readonly label: string;
+    /** The hardware and what it does, or why there is none. */
+    readonly title: string;
+    /** Whether an accelerator is attached, which decides the dot's ink. */
+    readonly active: boolean;
+    /** Opens Settings > Performance. */
+    readonly onClick: () => void;
+}
+
+/**
+ * The issues slot, widened with the acceleration chip.
+ */
+export interface StatusBarIssuesModel extends StatusBarIssues {
+    /** Drawn last, so the two chips a dataset produced come before the two a machine produced. */
+    readonly acceleration?: StatusBarAccelerationMode;
+}
+
+/**
+ * The slot model, with the three widened slots substituted.
  */
 export interface StatusBarSlotsModel extends StatusBarSlots {
     /** Slot 4. */
     readonly layout?: StatusBarLayoutModel;
     /** Slot 5. */
     readonly running?: StatusBarRunningModel;
+    /** Slot 7. */
+    readonly issues?: StatusBarIssuesModel;
 }
 
 /**

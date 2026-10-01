@@ -1,11 +1,11 @@
 /**
  * The grid pyramid (spec 6 row 12, 7.7 G4-G5; P4-T9): the planner that records, into the caller's pass, the finest
- * centroids (G4, `grid-centroid`: thread per cell over `cells + 1`, the pseudo-cell included), the hub-cell
+ * centroids (G4, `grid-centroid`: thread per cell over `cells + outsideCells`, the pseudo-cells included), the hub-cell
  * completion (G4a: the T1 `indirect-finalize` over `hubCounters[0]` into `hubArgs` with `wg = 1`, so the finalize's
  * `ceil(count / wg)` is ONE workgroup per hub cell; G4b: `grid-centroid-hub`, one workgroup per hub cell, dispatched
  * indirectly; PD-13, DEP-P4-I) and one `grid-downsample` dispatch per coarser
  * level (G5). Level 0 holds `[sum m x, sum m y, sum m z, sum m]` per cell; every parent is the sum of its 2^dim
- * children; the pseudo-cell (index `cells` of level 0) is never a child. No atomics touch the sums (design 6 row 12:
+ * children; the pseudo-cells (indices `cells ..` of level 0) are never children. No atomics touch the sums (design 6 row 12:
  * bitwise reproducible); the only atomics are the hub append and the occupancy max.
  *
  * The named grid buffers (`pyramid`, `hubList`, `hubCounters`, `hubArgs`) are the caller's (the model's
@@ -34,9 +34,9 @@ export interface GridPyramidBindings {
     readonly params: Binding;
     /** `n` words: the sorted node indices (the T8 build). */
     readonly sortedIdx: Binding;
-    /** `cells + 2` words: the exclusive scan of the cell histogram (the T8 build). */
+    /** `histWords` (`cells + 2^dim + 1`) words: the exclusive scan of the cell histogram (the T8 build). */
     readonly cellStart: Binding;
-    /** `pyramidCells` vec4f: every level, level 0 first with the pseudo-cell at index `cells`. */
+    /** `pyramidCells` vec4f: every level, level 0 first with the 2^dim orthant pseudo-cells from index `cells`. */
     readonly pyramid: Binding;
     /** The hub cells' indices, appended by G4 (at least one word; at most `floor(n / (GRID_HUB_CELL + 1))` are ever written, so `ceil(n / GRID_HUB_CELL)` words always suffice). */
     readonly hubList: Binding;
@@ -204,7 +204,8 @@ class GridPyramidPlannerImpl implements GridPyramidPlanner {
         }
         const { centroid, finalize, hub, downsample } = this.kernels;
         const one: DispatchPlan = { x: 1, y: 1, z: 1, items: 1, stride: null };
-        centroid.dispatch(pass, bound.centroid, plan1d(spec.cells + 1, scope.workgroupSize, scope.caps), [paramsOffset]);
+        const level0 = spec.cells + spec.outsideCells;
+        centroid.dispatch(pass, bound.centroid, plan1d(level0, scope.workgroupSize, scope.caps), [paramsOffset]);
         finalize.dispatch(pass, bound.finalize, one, [bound.finalizeOffset]);
         hub.dispatchIndirect(pass, bound.hub, bound.hubArgs, 0, [paramsOffset]);
         this.dispatches = 3;

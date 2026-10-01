@@ -1,0 +1,36 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "label": "Node 1",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": 2,
+      "label": "Node 2",
+      "x": 100,
+      "y": 50
+    },
+    {
+      "id": 3,
+      "label": "Node 3"
+    }
+  ],
+  "edges": [
+    {
+      "from": 1,
+      "to": 2,
+      "arrows": "to"
+    },
+    {
+      "from": 2,
+      "to": 3
+    },
+    {
+      "from": 3,
+      "to": 1,
+      "arrows": "to"
+    }
+  ]
+}

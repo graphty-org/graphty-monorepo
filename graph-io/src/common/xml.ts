@@ -226,6 +226,20 @@ function countIllegalRows(column: Column): number {
     return bad;
 }
 
+/** The encoding pseudo-attribute of an XML declaration at the very start of a document. */
+const XML_DECLARED_ENCODING = /^<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z][A-Za-z0-9._-]*)["']/;
+
+/**
+ * The encoding an XML document declares in its prolog (`<?xml version="1.0" encoding="..."?>`),
+ * for the shared byte decoder (common/input.ts).
+ * @param head - the start of the document, decoded as windows-1252
+ * @returns the declared label, or null when there is no declaration or it names no encoding
+ */
+export function xmlDeclaredEncoding(head: string): string | null {
+    const match = XML_DECLARED_ENCODING.exec(head);
+    return match === null ? null : match[1];
+}
+
 /**
  * Whether a text is an XML Name.
  * @param text - the text

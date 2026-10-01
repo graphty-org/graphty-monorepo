@@ -26,6 +26,7 @@ import {
     GRID_EXTENT_FLOOR,
     LAYOUT_TUNING_DEFAULTS,
     MAX_ITERATIONS_PER_STEP,
+    SETTLE_FLOOR_UNBOUNDED,
     TRACE_RECORD_BYTES,
     UNIFORM_SLOT_BYTES,
 } from "../constants.js";
@@ -590,6 +591,7 @@ export class ForceAtlas2Model implements ForceModel<ForceAtlas2Options, ForceAtl
             accumulate: 0,
             hiEnd,
             midEnd,
+            settleFloor: SETTLE_FLOOR_UNBOUNDED, // ForceAtlas2 does not drift after settling (issue #97)
         };
     }
 

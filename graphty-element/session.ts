@@ -59,13 +59,34 @@
 // The session itself
 // ---------------------------------------------------------------------------------------------
 
+import type { RuleTree, SelectionDirection } from "./src/catalog/types";
+import type { SelectionOp } from "./src/session/selection";
+
 export type {
+    CommandOutcome,
+    CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataSourceDescriptor,
+    DataSourceInput,
     EdgeRecord,
+    EdgeRecordInput,
     GraphSession,
     GraphStatistics,
+    HistoryCause,
+    HistoryOutcome,
+    HistoryStep,
+    HistoryStepId,
+    ImportOptions,
     NodeRecord,
+    NodeRecordInput,
+    PendingId,
+    PendingStep,
+    PositionEntry,
+    ProjectConfig,
+    ProjectConfigPatch,
+    ProjectSlice,
+    RowUpdate,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,
@@ -73,10 +94,15 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
-    SessionRecordSource,
+    SessionHistory,
+    SessionLayout,
+    SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionViews,
     StyleProblem,
+    TransactionOptions,
+    TransactionScope,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -97,12 +123,11 @@ export type { ImportReport, RepeatedEdgeCounts } from "./src/data/report";
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The type of `session.positions`, so that a consumer holding one can name it.
- *
- * The type only, not the constructor: the coordinates belong to the graph the element froze, and
- * a second array built beside it would be lent to nothing.
+ * The read half of `session.positions` and of `session.data.store.positions`, so that a consumer
+ * holding one can name it. Nodes are placed and pinned through `session.positions.set`, `pin` and
+ * `unpin`, which are undoable steps.
  */
-export type { ElementPositions } from "./src/data/positions";
+export type { ReadonlyElementPositions } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Which arrangement suits a graph
@@ -176,8 +201,15 @@ export type {
     RunResult,
     SummaryEntry,
     SummaryGroup,
+    TopRanking,
 } from "./src/session/results";
-export { defaultReading, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export {
+    defaultReading,
+    RESULT_FIELD_NAMES,
+    RESULT_ROOT,
+    RESULT_SHAPE_CONTRACTS,
+    resultPath,
+} from "./src/session/results";
 
 // ---------------------------------------------------------------------------------------------
 // Which elements a piece of work is allowed to look at
@@ -185,6 +217,21 @@ export { defaultReading, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS
 
 export type { SavedScope, ScopeApi, ScopeCount, ScopeCountOptions } from "./src/session/scope";
 export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
+
+// ---------------------------------------------------------------------------------------------
+// Kept sets: named groups, kept selections, communities and paths, as `session.sets`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    ElementSet,
+    Memberships,
+    SetChange,
+    SetOffer,
+    SetsApi,
+    SetStatus,
+    SetStatusReason,
+    SetUser,
+} from "./src/session/sets/types";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
@@ -196,10 +243,10 @@ export type {
     SelectionCause,
     SelectionDelta,
     SelectionDirection,
+    SelectionOp,
     SelectionStatistics,
     SelectionTarget,
     SelectionTextMode,
-    SetOp,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
@@ -208,9 +255,8 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // ---------------------------------------------------------------------------------------------
 
 export type {
-    Filter,
-    FilterDirection,
     FilterResult,
+    RuleTree,
     TimeStep,
     TimeWindow,
     VisibilityApi,
@@ -222,13 +268,7 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type {
-    AlgorithmRunCommand,
-    Plan,
-    PlanBlock,
-    PlanEffect,
-    SessionCommand,
-} from "./src/session";
+export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostConfidence,
@@ -244,26 +284,41 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // Identities, scopes and results
 // ---------------------------------------------------------------------------------------------
 
+export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
     Binding,
     BindingOverflow,
     Channel,
     EdgeId,
+    EdgeMember,
+    EdgeReading,
+    EdgeRef,
     Encoding,
     FieldDescriptor,
+    ItemKey,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
     NodeId,
     Path,
+    PathKind,
     Query,
     QueryValidation,
+    ResultId,
+    ResultItem,
     ResultShape,
     RunId,
     Scope,
     ScopeId,
+    ScopeInput,
     Selector,
+    SetCombine,
+    SetCreatedFrom,
+    SetDefinition,
+    SetDefinitionInput,
+    SetId,
+    SetOperand,
     StaticStyle,
     StyleDocument,
 } from "./src/catalog/types";
@@ -307,14 +362,18 @@ export { quotePath } from "./src/session/styles";
 export type {
     AccelerationCapabilities,
     AccelerationPolicy,
+    AccelerationPrecision,
     AccelerationState,
     AccelerationStatus,
+    AcceleratorDeviceInfo,
     Capabilities,
     CaptureCapability,
+    GraphAccelerator,
     Limits,
     WorkerCapability,
     XrCapability,
 } from "./src/acceleration";
+export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
@@ -330,4 +389,32 @@ export type {
     GraphtyErrorSource,
     GraphtyErrorTarget,
 } from "./src/errors";
-export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, GraphtyError, isGraphtyError, isGraphtyErrorCode } from "./src/errors";
+export {
+    ACCELERATION_ERROR_CODES,
+    GRAPHTY_ERROR_CODES,
+    GraphtyError,
+    isGraphtyError,
+    isGraphtyErrorCode,
+} from "./src/errors";
+
+/**
+ * A rule tree: what the visibility filter keeps.
+ * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule
+ * tree is also what a rule set holds, not only what the visibility filter keeps. Removed in the
+ * major version that ships the project file.
+ */
+export type Filter = RuleTree;
+
+/**
+ * Which arcs a degree filter counts.
+ * @deprecated Use {@link SelectionDirection}, the same type under the name the rule grammar uses.
+ * Removed in the major version that ships the project file.
+ */
+export type FilterDirection = SelectionDirection;
+
+/**
+ * What a mutation does with the elements a target named.
+ * @deprecated Use {@link SelectionOp}, the same type under a name that does not read as a set
+ * operation. Removed in the major version that ships the project file.
+ */
+export type SetOp = SelectionOp;

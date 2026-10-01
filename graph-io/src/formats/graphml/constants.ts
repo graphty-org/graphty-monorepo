@@ -13,9 +13,11 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_KEY_CODE,
     DUPLICATE_NODE_CODE,
+    ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
     ID_MERGED_CODE,
     ID_TEXT_TYPE_CODE,
+    INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
@@ -32,6 +34,7 @@ import {
     STRAY_TEXT_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
     UNKNOWN_ELEMENT_CODE,
+    UNKNOWN_ENCODING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
@@ -114,6 +117,12 @@ export const GRAPHML_ISSUE = Object.freeze({
     XML_SYNTAX: XML_SYNTAX_CODE,
     /** Fatal: the input holds invalid UTF-8. */
     INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
     /** Fatal: the root element is not `<graphml>`. */
     NOT_GRAPHML: "E_NOT_GRAPHML",
     /** Fatal: the document has no `<graph>`. */
@@ -164,6 +173,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_ENDPOINT: "E_GRAPHML_HYPEREDGE_ENDPOINT",
     /** `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. */
     PORT_DECLARATION: "W_GRAPHML_PORT_DECLARATION",
+    /** A GraphML `parse.*` hint on `<graph>`, `<node>` or `<edge>` the importer does not act on (parse.nodeids, parse.order, ...). */
+    PARSE_HINT_IGNORED: "W_GRAPHML_PARSE_HINT_IGNORED",
+    /** An XML attribute GraphML does not define on `<graph>`, `<node>` or `<edge>`; it is not kept. */
+    UNKNOWN_XML_ATTRIBUTE: "W_GRAPHML_UNKNOWN_XML_ATTRIBUTE",
     /** A `<locator>` element. */
     LOCATOR_DROPPED: "W_GRAPHML_LOCATOR_DROPPED",
     /** A `<desc>` of a node, an edge or a hyperedge. */
@@ -220,6 +233,8 @@ export const GRAPHML_LOSS = Object.freeze({
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
     /** A numeric edge id column reads back as string. */
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
+    /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
+    YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
     /** A yfiles json value that is not a serialisable tree: export() will throw E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

@@ -23,17 +23,24 @@
  */
 
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
+import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
+    ACCELERATION_MIN_NODES_BY_CAPABILITY,
     ACCELERATION_MIN_NODES_DEFAULT,
     ACCELERATION_MIN_NODES_KEY,
+    ACCELERATION_MIN_NODES_MEASUREMENT,
+    ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY,
+    ACCELERATION_POLICY_DEFAULT,
     type AccelerationCapabilities,
     type AccelerationPolicy,
     type AccelerationPrecision,
     type AccelerationState,
     type AccelerationStatus,
     type AcceleratorDeviceInfo,
+    type AcceleratorFactory,
     DEFAULT_ACCELERATOR_PRECISION,
+    type FlooredCapability,
     type GraphAccelerator,
 } from "./types";
 
@@ -48,6 +55,20 @@ export interface AcceleratedWork {
     readonly capability: string;
     /** How many nodes this work is over. Compared against `acceleration.minNodes`. */
     readonly nodeCount: number;
+    /**
+     * False when this piece of work never goes to an accelerator, whatever the accelerator
+     * implements: the run asks for something no accelerator does, such as a walk that stops at a
+     * target. The decision is then the one for
+     * an accelerator without the capability -- the CPU path, or `E_NO_ACCELERATOR` under
+     * `"required"`. Absent means true.
+     */
+    readonly forwarded?: boolean;
+    /**
+     * For a run that searches from a set of sources (betweenness, closeness): the sources times
+     * the edges, which is what its CPU cost follows. Compared against
+     * `ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY`. Absent means the capability has no such floor.
+     */
+    readonly sourceEdges?: number;
 }
 
 /**
@@ -102,7 +123,11 @@ type AccelerationOutcome<T> =
 interface AccelerationControllerOptions {
     /** What the consumer asked for. Defaults to `"auto"`. */
     readonly policy?: AccelerationPolicy;
-    /** The `acceleration.minNodes` threshold. Defaults to 0: accelerate whenever possible. */
+    /**
+     * The `acceleration.minNodes` threshold. Left out, the general threshold is 0 and the
+     * built-in per-capability floors of {@link ACCELERATION_MIN_NODES_BY_CAPABILITY} apply; any
+     * value, including 0, is the consumer's own number and switches those floors off.
+     */
     readonly minNodes?: number;
     /** The largest graph an accelerator will be asked to compute exactly, passed to the factory. */
     readonly exactMaxNodes?: number;
@@ -112,13 +137,42 @@ interface AccelerationControllerOptions {
     readonly recoverOnDeviceLoss?: boolean;
     /** How many consecutive recovery attempts to make before giving up. Defaults to 3. */
     readonly maxRecoveryAttempts?: number;
+    /**
+     * Opens a span around every call-shaped accelerated run, returning what closes it.
+     *
+     * The element hands in its render manager's `holdFrames`: a GPU readback is delivered as a
+     * task and waits behind whatever frame the host is drawing, so a run that is a few
+     * milliseconds on the device came back a frame or two later through the element (issue
+     * #390). The span covers exactly the accelerated call -- not the decision before it, and not
+     * the CPU path -- and is closed however the call ends. A simulation, which steps every frame
+     * through {@link AccelerationController.beginWork}, never opens one: it needs the frames.
+     */
+    readonly whileRunning?: () => () => void;
 }
 
-/** One attached accelerator and whether the controller has finished with it. */
+/** One attached accelerator, whether this controller built it, and whether it has finished with it. */
 interface Attachment {
     readonly accelerator: GraphAccelerator;
+    /**
+     * Whether this controller built the accelerator and therefore destroys it.
+     *
+     * False for one a caller injected: `setAccelerator` promises that whoever built it owns its
+     * lifetime, so detaching it -- on a policy change, a device loss, a replacement or the
+     * controller's own dispose -- hands it back rather than destroying its device.
+     */
+    readonly owned: boolean;
+    /**
+     * Whether the factory built it on a software adapter, which only `"required"` accepts.
+     *
+     * Known because the factory was first asked for hardware only and refused with
+     * `E_SOFTWARE_ONLY`. Leaving `"required"` releases a software attachment, because `"auto"`
+     * would never have attached it.
+     */
+    readonly software: boolean;
     released: boolean;
 }
+
+const logger = GraphtyLogger.getLogger(["graphty", "acceleration"]);
 
 /** The mutable form of the published status, used while assembling it. */
 type MutableStatus = {
@@ -151,6 +205,15 @@ function isCancellation(error: unknown): error is Error {
 }
 
 /**
+ * Whether a factory refused because the only adapter here is a software one.
+ * @param error - What the factory threw.
+ * @returns True for a `GraphtyError` carrying `E_SOFTWARE_ONLY`.
+ */
+function isSoftwareOnly(error: unknown): boolean {
+    return error instanceof GraphtyError && error.code === "E_SOFTWARE_ONLY";
+}
+
+/**
  * Whether two published statuses say the same thing.
  * @param a - The previous status.
  * @param b - The next status.
@@ -158,6 +221,7 @@ function isCancellation(error: unknown): error is Error {
  */
 function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
     return (
+        a.policy === b.policy &&
         a.state === b.state &&
         a.backend === b.backend &&
         a.vendor === b.vendor &&
@@ -197,9 +261,16 @@ export class AccelerationController {
     readonly #exactMaxNodes: number | undefined;
     readonly #recoverOnDeviceLoss: boolean;
     readonly #maxRecoveryAttempts: number;
+    readonly #whileRunning: (() => () => void) | undefined;
 
     #policy: AccelerationPolicy;
     #minNodes: number;
+    /**
+     * Whether `#minNodes` is the consumer's number rather than the default. The built-in
+     * per-capability floors apply only while it is the default: a consumer who set the threshold
+     * has said what they want, and the floors were measured on one card, not on their machine.
+     */
+    #explicitMinNodes: boolean;
     #state: AccelerationState;
     #reason: string | undefined;
     #code: AccelerationErrorCode | undefined;
@@ -213,6 +284,7 @@ export class AccelerationController {
     #recoveryAttempts = 0;
     #disposed = false;
     #status: AccelerationStatus;
+    #capabilities: AccelerationCapabilities;
 
     /**
      * Builds a controller. Nothing is probed until {@link start} is called.
@@ -223,10 +295,13 @@ export class AccelerationController {
         this.#exactMaxNodes = options.exactMaxNodes;
         this.#recoverOnDeviceLoss = options.recoverOnDeviceLoss ?? true;
         this.#maxRecoveryAttempts = options.maxRecoveryAttempts ?? 3;
-        this.#policy = options.policy ?? "auto";
+        this.#whileRunning = options.whileRunning;
+        this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
+        this.#explicitMinNodes = options.minNodes !== undefined;
         this.#state = this.#policy === "off" ? "off" : "probing";
         this.#status = this.#buildStatus();
+        this.#capabilities = Object.freeze({ acceleration: this.#status });
         this.#unsubscribeRegistry = this.#registry.onChange(() => {
             this.#onRegistryChanged();
         });
@@ -242,10 +317,22 @@ export class AccelerationController {
 
     /**
      * The published capabilities subset, which is the `graphty-capabilities-change` detail.
+     *
+     * The same object is returned until the next transition, so `prev === next` is a valid
+     * staleness test for a reader that caches it.
      * @returns The capabilities the acceleration subsystem publishes.
      */
     get capabilities(): AccelerationCapabilities {
-        return Object.freeze({ acceleration: this.#status });
+        return this.#capabilities;
+    }
+
+    /**
+     * Whether {@link dispose} has already run, so a caller can skip {@link start} on a
+     * controller whose graph has been shut down.
+     * @returns True once the controller has been disposed.
+     */
+    get disposed(): boolean {
+        return this.#disposed;
     }
 
     /**
@@ -300,10 +387,16 @@ export class AccelerationController {
      *
      * Switching to `"off"` releases the accelerator, because holding a device nobody is allowed
      * to use is a cost with no benefit. Switching back to `"auto"` or `"required"` probes again.
+     * Leaving `"required"` releases a software accelerator, which only `"required"` accepts, and
+     * probes again.
+     *
+     * A no-op on a disposed controller, rather than a throw: the element forwards its
+     * `acceleration` attribute here from `attributeChangedCallback`, where a throw would leave the
+     * element unrendered, and a probe nobody can hear would request a device for nothing.
      * @param policy - The new policy.
      */
     setPolicy(policy: AccelerationPolicy): void {
-        if (policy === this.#policy) {
+        if (this.#disposed || policy === this.#policy) {
             return;
         }
 
@@ -316,6 +409,10 @@ export class AccelerationController {
             this.#probeSettled = true;
             this.#transition("off", undefined, undefined);
             return;
+        }
+
+        if (policy !== "required" && this.#attachment?.software === true) {
+            this.#detach();
         }
 
         if (this.#attachment !== null) {
@@ -346,6 +443,7 @@ export class AccelerationController {
         }
 
         this.#minNodes = minNodes;
+        this.#explicitMinNodes = true;
     }
 
     /**
@@ -369,7 +467,7 @@ export class AccelerationController {
         this.#injected = true;
         this.#probeSettled = true;
         this.#recoveryAttempts = 0;
-        this.#attach(accelerator);
+        this.#attach(accelerator, false);
     }
 
     /**
@@ -409,9 +507,10 @@ export class AccelerationController {
     /**
      * Decides where one piece of work runs, before any of it starts.
      *
-     * The decision is the only place a CPU answer can come from, and there are four of them:
+     * The decision is the only place a CPU answer can come from, and there are five of them:
      * the policy is `"off"`, no accelerator is attached, the graph is below
-     * `acceleration.minNodes`, or the attached accelerator does not implement this capability.
+     * `acceleration.minNodes`, the graph is below the built-in floor measured for this
+     * capability, or the attached accelerator does not implement this capability.
      *
      * Under `"required"` two of them throw instead of answering quietly -- no accelerator, and
      * an accelerator without this capability -- because both are absence, and absence is what
@@ -419,6 +518,12 @@ export class AccelerationController {
      * runs on the CPU: an accelerator IS attached and healthy, and the threshold is a statement
      * about what pays, not about what is possible. `"off"` cannot arise under `"required"`,
      * because a policy is one of three.
+     *
+     * The built-in floor is different from the threshold in both directions. It applies only
+     * while the consumer has NOT set `acceleration.minNodes` -- a consumer's number, even 0,
+     * replaces it -- and it does NOT apply under `"required"`, because `"required"` is the
+     * policy a benchmark runs under and a benchmark of the small end of the curve must be able to
+     * reach the device.
      * @param work - The capability the work needs and the size of the graph it is over.
      * @returns Where the work runs.
      * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"` and the
@@ -456,14 +561,45 @@ export class AccelerationController {
             };
         }
 
-        if (typeof accelerator[work.capability] !== "function") {
+        if (work.forwarded === false || typeof accelerator[work.capability] !== "function") {
+            const reason =
+                work.forwarded === false
+                    ? `this "${work.capability}" run is not one an accelerator answers`
+                    : `the ${accelerator.name} accelerator does not implement "${work.capability}"`;
             if (required) {
-                throw this.#noAcceleratorError(work);
+                throw this.#noAcceleratorError(work, reason);
             }
 
+            return { accelerated: false, reason };
+        }
+
+        // Last, after the feature test: a floor is a statement about a capability the accelerator
+        // has, and an accelerator without the member is reported as that, not as "too small".
+        const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY[work.capability as FlooredCapability];
+        if (floor !== undefined && !this.#explicitMinNodes && !required && work.nodeCount < floor) {
             return {
                 accelerated: false,
-                reason: `the ${accelerator.name} accelerator does not implement "${work.capability}"`,
+                reason:
+                    `the graph has ${String(work.nodeCount)} nodes, below the ${String(floor)} at which ` +
+                    `an accelerated "${work.capability}" was measured to beat the CPU path ` +
+                    `(${ACCELERATION_MIN_NODES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
+            };
+        }
+
+        const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY[work.capability as FlooredCapability];
+        if (
+            sourceFloor !== undefined &&
+            work.sourceEdges !== undefined &&
+            !this.#explicitMinNodes &&
+            !required &&
+            work.sourceEdges < sourceFloor
+        ) {
+            return {
+                accelerated: false,
+                reason:
+                    `this run searches ${String(work.sourceEdges)} source-edges (sources times edges), below the ` +
+                    `${String(sourceFloor)} at which an accelerated "${work.capability}" was measured to beat the ` +
+                    `CPU path (${ACCELERATION_MIN_NODES_MEASUREMENT}); set ${ACCELERATION_MIN_NODES_KEY} to override`,
             };
         }
 
@@ -499,6 +635,9 @@ export class AccelerationController {
 
         const attachment = this.#attachment;
         this.#enterWork();
+        // Opened after the decision, so the CPU path above never holds the host's frames, and
+        // closed in the `finally` below, so a throw releases them too.
+        const endSpan = this.#whileRunning?.();
 
         try {
             const value = await fn(decision.accelerator);
@@ -509,8 +648,46 @@ export class AccelerationController {
             // hide that.
             throw this.#failedRun(error, work, decision.accelerator, attachment);
         } finally {
+            endSpan?.();
             this.#leaveWork();
         }
+    }
+
+    /**
+     * Marks the start of a span of accelerated work that this controller does not itself drive.
+     *
+     * {@link run} covers work shaped like a call: one function, one promise, `"active"` for as
+     * long as it takes. A simulation is not shaped like that -- the element hands the graph to
+     * the accelerator once and then steps it every frame until the arrangement settles -- so the
+     * layout bridge marks the span instead. Without it the state a consumer reads would say
+     * `"idle"`, which its own documentation defines as nothing using the accelerator, for the
+     * whole of a GPU layout.
+     *
+     * Counted the way `run()` is: spans overlap freely and the state falls back to `"idle"` when
+     * the last one ends. The returned function is idempotent, so a caller may end its span at a
+     * settle and again at a dispose without counting out twice. On a disposed controller the
+     * call is a no-op rather than a throw: there is no state left to publish, and a frame loop is
+     * the wrong place for a shutdown to surface.
+     * @returns Ends the span.
+     */
+    beginWork(): () => void {
+        if (this.#disposed) {
+            return (): void => {
+                // Nothing was counted in, so there is nothing to count out.
+            };
+        }
+
+        this.#enterWork();
+        let ended = false;
+
+        return (): void => {
+            if (ended) {
+                return;
+            }
+
+            ended = true;
+            this.#leaveWork();
+        };
     }
 
     /**
@@ -566,6 +743,10 @@ export class AccelerationController {
      * @returns True when an accelerator was attached.
      */
     async #tryFactories(): Promise<boolean> {
+        if (this.#disposed) {
+            return false;
+        }
+
         const registrations = this.#registry.list();
 
         if (registrations.length === 0) {
@@ -581,9 +762,11 @@ export class AccelerationController {
 
         for (const registration of registrations) {
             try {
-                const accelerator = await registration.factory(
-                    this.#exactMaxNodes === undefined ? undefined : { exactMaxNodes: this.#exactMaxNodes },
-                );
+                const { accelerator, software } = await this.#build(registration.factory);
+
+                if (accelerator !== null) {
+                    await this.#verify(accelerator);
+                }
 
                 if (this.#disposed) {
                     accelerator?.dispose?.();
@@ -591,7 +774,7 @@ export class AccelerationController {
                 }
 
                 if (accelerator !== null) {
-                    this.#attach(accelerator);
+                    this.#attach(accelerator, true, software);
                     return true;
                 }
 
@@ -613,13 +796,72 @@ export class AccelerationController {
     }
 
     /**
+     * Calls one factory, asking for hardware first.
+     *
+     * Under `"required"` a software adapter is acceptable, but the factory is still asked for
+     * hardware only first, and asked again accepting software only when it refused with
+     * `E_SOFTWARE_ONLY`. That is how the controller learns an attachment is software -- the
+     * factory contract has no other way to say so -- and it costs a hardware host nothing.
+     * @param factory - The registered factory.
+     * @returns What it built, and whether that is on a software adapter.
+     * @throws Whatever the factory threw.
+     */
+    async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
+        const exactMaxNodes = this.#exactMaxNodes;
+
+        try {
+            return { accelerator: await factory({ exactMaxNodes, acceptSoftware: false }), software: false };
+        } catch (error) {
+            if (this.#policy !== "required" || this.#disposed || !isSoftwareOnly(error)) {
+                throw error;
+            }
+        }
+
+        return { accelerator: await factory({ exactMaxNodes, acceptSoftware: true }), software: true };
+    }
+
+    /**
+     * Asks a freshly built accelerator to prove it computes correctly, before it is attached.
+     *
+     * This is capability detection and belongs here with the rest of it. Hardware that answers
+     * is not the same thing as hardware that answers correctly, and a backend that can tell the
+     * difference costs a few milliseconds once to say so. Finding out on the first layout frame
+     * instead would put the discovery in the middle of a repaint, where it reads as a rendering
+     * failure rather than as the machine's answer to "is there an accelerator here".
+     *
+     * A backend with no self-check omits {@link GraphAccelerator.verify} and nothing runs, so a
+     * host with no accelerator at all pays nothing: this is reached only after a factory has
+     * already built one.
+     *
+     * A rejection leaves by the same door a factory's does -- it is thrown to
+     * {@link AccelerationController.#tryFactories}, which records its code and its sentence and
+     * moves on to the next factory -- so a device that computes incorrectly ends where a missing
+     * adapter ends: `"unavailable"`, with the reason published, and the CPU path running.
+     * @param accelerator - The accelerator this controller has just built.
+     * @throws Whatever the accelerator's self-check rejected with.
+     */
+    async #verify(accelerator: GraphAccelerator): Promise<void> {
+        try {
+            await accelerator.verify?.();
+        } catch (error) {
+            // Built here and not usable: releasing it is this controller's job, and nothing has
+            // been attached, so there is no state to unwind.
+            this.#disposeAccelerator(accelerator);
+            throw error;
+        }
+    }
+
+    /**
      * Attaches an accelerator and starts watching it for device loss.
      * @param accelerator - The accelerator to attach.
+     * @param owned - True when this controller built it, so this controller disposes it. False for
+     * an injected one, whose lifetime belongs to whoever built it.
+     * @param software - True when it runs on a software adapter, which only `"required"` accepts.
      */
-    #attach(accelerator: GraphAccelerator): void {
+    #attach(accelerator: GraphAccelerator, owned: boolean, software = false): void {
         this.#detach();
 
-        const attachment: Attachment = { accelerator, released: false };
+        const attachment: Attachment = { accelerator, owned, software, released: false };
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
@@ -645,6 +887,10 @@ export class AccelerationController {
      *
      * The device facts go with it: `backend`, `vendor`, `architecture` and `device` describe the
      * accelerator that is attached right now, and there is no accelerator attached after this.
+     *
+     * An accelerator this controller BUILT is disposed here; an injected one is only let go of,
+     * because `setAccelerator` promises its lifetime to whoever built it -- a test that injects a
+     * fake, or a third party that hands the element a device it goes on using elsewhere.
      */
     #detach(): void {
         const attachment = this.#attachment;
@@ -656,7 +902,10 @@ export class AccelerationController {
         this.#attachment = null;
         this.#backend = undefined;
         this.#device = undefined;
-        this.#disposeAccelerator(attachment.accelerator);
+
+        if (attachment.owned) {
+            this.#disposeAccelerator(attachment.accelerator);
+        }
     }
 
     /**
@@ -797,7 +1046,39 @@ export class AccelerationController {
             this.#onDeviceLost(attachment, failure.message);
         }
 
+        if (failure.code === "E_DEVICE_INCORRECT" && attachment !== null) {
+            this.#refuseDevice(attachment, failure.message);
+        }
+
         return failure;
+    }
+
+    /**
+     * Stops using an accelerator caught computing incorrectly while work was already on it.
+     *
+     * A backend that checks itself is refused at attach and never gets here. One that does not
+     * -- or one whose own guard fires deeper than its self-check reaches -- says so the first
+     * time it is asked for numbers, and this is what the element does with that: it lets go of
+     * the accelerator and publishes the reason, so the state a consumer reads stops claiming a
+     * healthy device and the next piece of work is planned onto the CPU up front.
+     *
+     * The run that discovered it still throws. That is the whole distinction this file exists to
+     * keep: the failed work fails, and only work that has not started yet is planned elsewhere.
+     *
+     * `"unavailable"` rather than `"error"`, and no recovery attempt: an accelerator that was
+     * lost might come back, and reattaching is worth a try. One that computes wrong answers was
+     * never trustworthy, the same hardware is what a fresh probe would find, and it ends where a
+     * missing adapter ends.
+     * @param attachment - The attachment the failing work was running on.
+     * @param reason - What the accelerator said about the disagreement.
+     */
+    #refuseDevice(attachment: Attachment, reason: string): void {
+        if (this.#disposed || attachment.released || this.#attachment !== attachment) {
+            return;
+        }
+
+        this.#detach();
+        this.#transition("unavailable", reason, "E_DEVICE_INCORRECT");
     }
 
     /**
@@ -812,10 +1093,11 @@ export class AccelerationController {
     /**
      * The error a `"required"` policy produces when the work cannot be accelerated.
      * @param work - The work that could not be accelerated, when there was one.
+     * @param reason - Why, when an accelerator is attached but does not take this work.
      * @returns The error to throw.
      */
-    #noAcceleratorError(work?: AcceleratedWork): GraphtyError {
-        const detail = this.#reason ?? this.#missingAcceleratorReason();
+    #noAcceleratorError(work?: AcceleratedWork, reason?: string): GraphtyError {
+        const detail = reason ?? this.#reason ?? this.#missingAcceleratorReason();
         return new GraphtyError({
             code: "E_NO_ACCELERATOR",
             message: `acceleration is required and unavailable: ${detail}`,
@@ -861,16 +1143,22 @@ export class AccelerationController {
         }
 
         this.#status = next;
+        this.#capabilities = Object.freeze({ acceleration: next });
         for (const listener of [...this.#listeners]) {
             // A listener is consumer code, and one that throws must not stop the others from
             // hearing the change or reject the promise this transition runs inside. The element
             // starts probing from its constructor without awaiting it, so an escaping throw
             // here surfaces as an unhandled rejection at element construction -- far from the
-            // listener that caused it, and fatal-looking for something that is not.
+            // listener that caused it, and fatal-looking for something that is not. It goes to the
+            // element's logger at error level, so whatever destination the host attached hears it.
             try {
                 listener(next);
             } catch (error: unknown) {
-                console.error("<graphty-element>: an acceleration status listener threw.", error);
+                logger.error(
+                    "An acceleration status listener threw",
+                    error instanceof Error ? error : new Error(String(error)),
+                    { state: next.state },
+                );
             }
         }
     }
@@ -880,16 +1168,35 @@ export class AccelerationController {
      * @returns The status.
      */
     #buildStatus(): AccelerationStatus {
-        const status: MutableStatus = { state: this.#state };
+        const status: MutableStatus = { policy: this.#policy, state: this.#state };
 
         if (this.#backend !== undefined) {
             status.backend = this.#backend;
         }
 
         if (this.#device !== undefined) {
-            status.vendor = this.#device.vendor;
-            status.architecture = this.#device.architecture;
-            status.device = this.#device.description;
+            /* An accelerator hands over three strings that are always present, with `""` for
+               what its driver did not name; this status publishes each one only when the backend
+               named it. This is the one place that converts between the two shapes, so an empty
+               string is dropped here rather than published.
+
+               It used to be copied straight through, and every consumer that tested the field
+               the way {@link AccelerationStatus} promises -- `status.device ?? status.backend` -- got the
+               empty string instead of its fallback. The graphty app's chip tooltip read
+               ". Layouts and algorithms with a GPU path run on it." on every browser that masks
+               the device string, which is most of them, and its chip label would have read
+               "on (nvidia )" wherever the architecture was the masked one. */
+            if (this.#device.vendor !== "") {
+                status.vendor = this.#device.vendor;
+            }
+
+            if (this.#device.architecture !== "") {
+                status.architecture = this.#device.architecture;
+            }
+
+            if (this.#device.description !== "") {
+                status.device = this.#device.description;
+            }
         }
 
         if (this.#reason !== undefined) {

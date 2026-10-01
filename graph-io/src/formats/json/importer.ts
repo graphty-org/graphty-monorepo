@@ -5,7 +5,13 @@
  * index endpoints), JSON Graph Format v2 (nodes keyed by id, per-edge `directed`, hyperedges),
  * Cytoscape.js elements (`data.id` / `data.source` / `data.target`, `position`, `classes`,
  * `data.parent`), graphology serialisation (`key` / `attributes`, `undirected` edges, `options`)
- * and vis.js (`from` / `to`) -- and pushes it scalar by scalar into the sink.
+ * vis.js (`from` / `to`), and NetworkX adjacency_data (`nodes` + `adjacency`) and tree_data (nested
+ * `id` / `children`) -- and pushes it scalar by scalar into the sink.
+ *
+ * Python's json module writes the bare tokens NaN, Infinity and -Infinity, which strict JSON
+ * refuses; they are read as the JavaScript numbers with one warning. An integer literal beyond
+ * 2^53 is read as its exact digits (a string, the canonical id rule of the text formats) rather
+ * than a rounded float, again with one warning.
  *
  * JSON awaits the whole text (design section 8.4: `JSON.parse` on 100 MB is fine; a streaming
  * tokeniser is a later improvement). The parsed records are iterated in place; the importer never
@@ -40,12 +46,16 @@ import {
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
     EMPTY_INPUT_CODE,
+    ENCODING_FALLBACK_CODE,
     HYPEREDGE_CODE,
+    INVALID_ENCODING_CODE,
+    INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
     SYNTAX_CODE,
+    UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
@@ -68,10 +78,10 @@ import {
     CYTOSCAPE_STRUCTURAL_KEYS,
     DIALECT_DEFAULT_DIRECTED,
     hasKey,
-    isJsonDialect,
+    isJsonImportDialect,
     isJsonObject,
-    JSON_DIALECTS,
-    type JsonDialect,
+    JSON_IMPORT_DIALECTS,
+    type JsonImportDialect,
     type JsonShapeMeta,
     META_KEY,
     NODE_LINK_SOURCE_KEYS,
@@ -85,8 +95,11 @@ import {
 /** The format-specific options of the JSON importer. */
 export interface JsonImportOptions {
     /** The dialect to read; "auto" (default) sniffs the parsed document. */
-    dialect?: JsonDialect | "auto" | undefined;
-    /** node-link / d3 / vis: the node key holding the id; auto: "id" when any node has it, else "name". */
+    dialect?: JsonImportDialect | "auto" | undefined;
+    /**
+     * node-link / d3 / vis / adjacency / tree: the node key holding the id; auto: "id" (node-link /
+     * d3: "id" when any node has it, else "name").
+     */
     nodeIdKey?: string | undefined;
     /** node-link / d3: the top-level key holding the edges; auto: "edges" when present, else "links". */
     edgesKey?: string | undefined;
@@ -101,6 +114,20 @@ export interface JsonImportOptions {
     indexLinks?: boolean | "auto" | undefined;
     /** jgf: which graph of a `graphs` array to read; 0 by default. */
     graphIndex?: number | undefined;
+    /**
+     * node-link / d3 / vis / graphology: where the node array is, as a dotted path of object keys
+     * from the document root (`"data.nodes"`); the object holding it is read as the graph record
+     * (its `directed`, `multigraph`, `graph` and edge keys). "nodes" by default. A path that names
+     * nothing is an E_MISSING_SECTION issue and the graph has no node records.
+     */
+    nodesPath?: string | undefined;
+    /**
+     * node-link / d3 / vis / graphology: where the edge array is, as a dotted path of object keys
+     * from the document root (`"data.links"`); by default the edges or links key of the object
+     * holding the nodes. A path that names nothing is an E_MISSING_SECTION issue and the graph has
+     * no edge records.
+     */
+    edgesPath?: string | undefined;
 }
 
 /**
@@ -153,10 +180,24 @@ export const JSON_ISSUE = Object.freeze({
     HYPEREDGE_SHAPE: "E_HYPEREDGE_SHAPE",
     /** The nodes have no id key at all; array positions became the ids. */
     POSITIONAL_NODES: "W_POSITIONAL_NODES",
+    /** A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. */
+    UNREAD_KEY: "W_JSON_UNREAD_KEY",
     /** A builder-policy option (addMissingNodes, duplicateEdges, selfLoops, weightDtype) differs from the sink's (the shared W_SINK_OPTION). */
     SINK_OPTION: SINK_OPTION_CODE,
     /** A common option the dialect has no use for (nodeIdFrom outside node-link, long, restoreMangledIds). */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
+    /** The input holds invalid UTF-8 (fatal). */
+    INVALID_UTF8: INVALID_UTF8_CODE,
+    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    INVALID_ENCODING: INVALID_ENCODING_CODE,
+    /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
+    ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
+    /** The document uses the non-standard tokens NaN / Infinity / -Infinity (Python's json writes them); read as numbers. */
+    NONSTANDARD_NUMBER: "W_JSON_NONSTANDARD_NUMBER",
+    /** Integer literals beyond 2^53 were read as their exact digits (strings), not as rounded numbers. */
+    BIG_INTEGER: "W_JSON_BIG_INTEGER",
+    /** A declared encoding the platform cannot decode was ignored. */
+    UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
 });
 
 /** The common options the JSON importer reads (the rest is reported by reportUnusedOptions). */
@@ -227,15 +268,29 @@ interface EdgeIdColumn {
     readonly seen: Set<string> | null;
 }
 
+/** The dialects whose node and edge arrays nodesPath and edgesPath can point at. */
+const PATH_DIALECTS: ReadonlySet<JsonImportDialect> = new Set<JsonImportDialect>([
+    "node-link",
+    "d3",
+    "vis",
+    "graphology",
+]);
+
 /** The resolved format-specific options. */
 interface ResolvedJsonOptions {
-    readonly dialect: JsonDialect | "auto";
+    readonly dialect: JsonImportDialect | "auto";
     readonly nodeIdKey: string | null;
     readonly edgesKey: string | null;
     readonly sourceKey: string | null;
     readonly targetKey: string | null;
     readonly indexLinks: boolean | "auto";
     readonly graphIndex: number;
+    /** The dotted path segments of the node array, or null for the root's own nodes key. */
+    readonly nodesPath: readonly string[] | null;
+    /** The dotted path segments of the edge array, or null for the edges / links key beside the nodes. */
+    readonly edgesPath: readonly string[] | null;
+    /** Set by importAll(): every graph of a `graphs` array is read, so none is reported as skipped. */
+    readonly all?: boolean;
 }
 
 /**
@@ -246,8 +301,8 @@ interface ResolvedJsonOptions {
 function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) | undefined): ResolvedJsonOptions {
     const o = options ?? {};
     const dialect = o.dialect ?? "auto";
-    if (dialect !== "auto" && !isJsonDialect(dialect)) {
-        throw unsupportedOption("dialect", dialect, [...JSON_DIALECTS, "auto"]);
+    if (dialect !== "auto" && !isJsonImportDialect(dialect)) {
+        throw unsupportedOption("dialect", dialect, [...JSON_IMPORT_DIALECTS, "auto"]);
     }
     const indexLinks = o.indexLinks ?? "auto";
     if (indexLinks !== "auto" && typeof indexLinks !== "boolean") {
@@ -257,6 +312,11 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
     if (!Number.isInteger(graphIndex) || graphIndex < 0) {
         throw unsupportedOption("graphIndex", graphIndex, ["a non-negative integer"]);
     }
+    const nodesPath = pathOption("nodesPath", o.nodesPath);
+    const edgesPath = pathOption("edgesPath", o.edgesPath);
+    if ((nodesPath !== null || edgesPath !== null) && dialect !== "auto" && !PATH_DIALECTS.has(dialect)) {
+        throw unsupportedOption(nodesPath === null ? "edgesPath" : "nodesPath", dialect, [...PATH_DIALECTS]);
+    }
     return {
         dialect,
         nodeIdKey: keyOption("nodeIdKey", o.nodeIdKey),
@@ -265,7 +325,176 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
         targetKey: keyOption("targetKey", o.targetKey),
         indexLinks,
         graphIndex,
+        nodesPath,
+        edgesPath,
     };
+}
+
+/**
+ * Check a dotted path option: object keys joined by dots, none of them empty.
+ * @param name - the option name
+ * @param value - the caller's value
+ * @returns the segments, or null when absent
+ */
+function pathOption(name: string, value: unknown): readonly string[] | null {
+    if (value === undefined) {
+        return null;
+    }
+    const segments = typeof value === "string" ? value.split(".") : [];
+    if (segments.length === 0 || segments.some((segment) => segment.length === 0)) {
+        throw unsupportedOption(name, value, ["a dotted path of non-empty keys"]);
+    }
+    return segments;
+}
+
+/**
+ * The value at a path of object keys, or undefined when a step is missing or not an object.
+ * @param root - the document
+ * @param segments - the keys
+ * @returns the value
+ */
+function valueAt(root: unknown, segments: readonly string[]): unknown {
+    let value = root;
+    for (const segment of segments) {
+        if (!isJsonObject(value) || !hasKey(value, segment)) {
+            return undefined;
+        }
+        value = value[segment];
+    }
+    return value;
+}
+
+/**
+ * The graph record nodesPath and edgesPath describe: the object holding the node array (the
+ * document itself by default) with its nodes key and its edges / links key replaced by the arrays
+ * the paths name. A path that names nothing is recorded as E_MISSING_SECTION and stands for an
+ * empty array, so the import goes on.
+ * @param root - the parsed document
+ * @param json - the resolved options
+ * @param report - the report
+ * @returns the document unchanged when no path is given, else the graph record
+ */
+function applyPaths(root: unknown, json: ResolvedJsonOptions, report: ImportReportBuilder): unknown {
+    const { nodesPath, edgesPath } = json;
+    if (nodesPath === null && edgesPath === null) {
+        return root;
+    }
+    const lookup = (option: string, segments: readonly string[]): unknown => {
+        const value = valueAt(root, segments);
+        if (value === undefined) {
+            const path = segments.join(".");
+            report.error(
+                "missing-value",
+                JSON_ISSUE.MISSING_SECTION,
+                `${option} ${JSON.stringify(path)} names nothing in the document`,
+                { element: path },
+            );
+            return [];
+        }
+        return value;
+    };
+    const holderPath = nodesPath === null ? [] : nodesPath.slice(0, -1);
+    const holder = valueAt(root, holderPath);
+    // the keys the paths replace: the nodes key, and every edge key when edgesPath names the edges
+    const replaced = new Set<string>();
+    if (nodesPath !== null) {
+        replaced.add(nodesPath[nodesPath.length - 1]);
+    }
+    if (edgesPath !== null) {
+        replaced.add("edges");
+        replaced.add("links");
+    }
+    let record: JsonRecord = Object.fromEntries(
+        Object.entries(isJsonObject(holder) ? holder : {}).filter(([key]) => !replaced.has(key)),
+    );
+    // edges inside the holder (`data.graph.links` under `data`) leave the holder, and only they do:
+    // the rest of the key they sit in (the `graph` attributes) is still read
+    if (edgesPath !== null && edgesPath.length > holderPath.length && holderPath.every((k, i) => edgesPath[i] === k)) {
+        const rest = withoutPath(record, edgesPath.slice(holderPath.length));
+        record = isJsonObject(rest) ? rest : {};
+    }
+    if (nodesPath !== null) {
+        record.nodes = lookup("nodesPath", nodesPath);
+    }
+    if (edgesPath !== null) {
+        record[pathEdgesKey(json, edgesPath)] = lookup("edgesPath", edgesPath);
+    }
+    return record;
+}
+
+/**
+ * A value with the entry at a path of object keys removed; undefined when the path is empty (the
+ * value itself goes) or nothing but that entry is left.
+ * @param value - the value
+ * @param segments - the keys down to the entry
+ * @returns the value without the entry
+ */
+function withoutPath(value: unknown, segments: readonly string[]): unknown {
+    if (segments.length === 0) {
+        return undefined;
+    }
+    const [head, ...tail] = segments;
+    if (!isJsonObject(value) || !hasKey(value, head)) {
+        return value;
+    }
+    // a parsed JSON value is never undefined, so undefined marks the entries to drop
+    const entries = Object.entries(value)
+        .map(([key, v]) => [key, key === head ? withoutPath(v, tail) : v] as const)
+        .filter(([, v]) => v !== undefined);
+    return entries.length === 0 ? undefined : Object.fromEntries(entries);
+}
+
+/**
+ * The key applyPaths() stores the edge array under: the caller's edgesKey, else "links" when
+ * edgesPath ends in links (so the d3 sniff still sees it), else "edges".
+ * @param json - the resolved options
+ * @param edgesPath - the edgesPath segments
+ * @returns the key
+ */
+function pathEdgesKey(json: ResolvedJsonOptions, edgesPath: readonly string[]): string {
+    return json.edgesKey ?? (edgesPath[edgesPath.length - 1] === "links" ? "links" : "edges");
+}
+
+/**
+ * The dialect of a graph record built from nodesPath / edgesPath: the forced one, else the shape
+ * rule over the record, else node-link.
+ * @param record - the graph record
+ * @param forced - the caller's dialect option
+ * @returns the dialect
+ */
+function pathDialect(record: unknown, forced: JsonImportDialect | "auto"): JsonImportDialect {
+    if (forced !== "auto") {
+        return forced;
+    }
+    const sniffed = sniffJsonDialect(record);
+    return sniffed !== null && PATH_DIALECTS.has(sniffed) ? sniffed : "node-link";
+}
+
+/**
+ * The document to read and its dialect: the graph record of nodesPath / edgesPath when either is
+ * given, the document itself otherwise.
+ * @param parsed - the parsed document
+ * @param json - the resolved options
+ * @param report - the report
+ * @returns the root and its dialect
+ */
+function documentOf(
+    parsed: unknown,
+    json: ResolvedJsonOptions,
+    report: ImportReportBuilder,
+): { readonly root: unknown; readonly dialect: JsonImportDialect } {
+    if (json.nodesPath === null && json.edgesPath === null) {
+        return { root: parsed, dialect: detectDialect(parsed, json.dialect, report) };
+    }
+    const root = applyPaths(parsed, json, report);
+    const dialect = pathDialect(root, json.dialect);
+    // vis and graphology read their edges from the edges key only
+    if (json.edgesPath !== null && (dialect === "vis" || dialect === "graphology") && isJsonObject(root)) {
+        const key = pathEdgesKey(json, json.edgesPath);
+        const renamed = Object.fromEntries(Object.entries(root).map(([k, v]) => [k === key ? "edges" : k, v]));
+        return { root: renamed, dialect };
+    }
+    return { root, dialect };
 }
 
 /**
@@ -490,7 +719,7 @@ class ImportContext {
      * @param dialect - the dialect
      * @param idField - where the dialect's ids come from, for the message
      */
-    reportNodeIdFrom(dialect: JsonDialect, idField: string): void {
+    reportNodeIdFrom(dialect: JsonImportDialect, idField: string): void {
         if (this.options.nodeIdFrom !== "id") {
             this.report.warning(
                 "unsupported",
@@ -507,7 +736,7 @@ class ImportContext {
      * @param dialect - the dialect
      * @returns the direction
      */
-    defaultDirected(dialect: JsonDialect): boolean {
+    defaultDirected(dialect: JsonImportDialect): boolean {
         return this.explicitDefaultDirected ? this.options.defaultDirected : DIALECT_DEFAULT_DIRECTED[dialect];
     }
 
@@ -946,12 +1175,153 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     if (text.trim().length === 0) {
         report.fail(JSON_ISSUE.EMPTY_INPUT, "the input is empty");
     }
+    let root: unknown;
+    let syntaxError: string | null = null;
     try {
-        return JSON.parse(text) as unknown;
+        root = JSON.parse(text) as unknown;
     } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${message}`);
+        syntaxError = err instanceof Error ? err.message : String(err);
     }
+    // the fast path: strict JSON without a digit run long enough to be an unsafe integer
+    if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text)) {
+        return root;
+    }
+    const scan = rewriteNumbers(text);
+    if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
+        try {
+            root = JSON.parse(scan.text, scan.tokens.size > 0 ? reviveNonstandard : undefined) as unknown;
+            syntaxError = null;
+        } catch {
+            // the rewrite did not make it valid JSON: report the parser's message on the original text
+        }
+    }
+    if (syntaxError !== null) {
+        return report.fail(JSON_ISSUE.SYNTAX, `invalid JSON: ${syntaxError}`);
+    }
+    if (scan.tokens.size > 0) {
+        report.warning(
+            "coercion",
+            JSON_ISSUE.NONSTANDARD_NUMBER,
+            `the document uses the non-standard token(s) ${[...scan.tokens].join(", ")}, which strict JSON does not allow; read as numbers`,
+        );
+    }
+    if (scan.bigIntegers.length > 0) {
+        const shown = scan.bigIntegers.slice(0, BIG_INTEGERS_SHOWN).join(", ");
+        const more = scan.bigIntegers.length - BIG_INTEGERS_SHOWN;
+        report.warning(
+            "precision",
+            JSON_ISSUE.BIG_INTEGER,
+            `${scan.bigIntegers.length} integer(s) beyond 2^53 kept as text so no digit is lost: ${shown}${more > 0 ? ` and ${more} more` : ""}`,
+        );
+    }
+    return root;
+}
+
+/** A run of 16 digits not inside a fraction: the shortest integer literal that can exceed 2^53 (9007199254740992). */
+const MAYBE_UNSAFE_INTEGER = /(?<![0-9.])[0-9]{16}/;
+
+/** How many of the integers kept as text the warning lists. */
+const BIG_INTEGERS_SHOWN = 10;
+
+/**
+ * The prefix of the string a non-standard token is rewritten to (a NUL character first, which no
+ * sensible attribute value starts with); reviveNonstandard() turns it back into the number.
+ */
+const NONSTANDARD_SENTINEL = `${String.fromCharCode(0)}graph-io:`;
+
+/** The non-standard tokens Python's json module writes, longest first so -Infinity wins over a bare minus. */
+const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
+    ["-Infinity", -Infinity],
+    ["Infinity", Infinity],
+    ["NaN", NaN],
+];
+
+/** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */
+const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
+
+/**
+ * Rewrite the numbers JSON.parse cannot read exactly, outside strings and in value positions only:
+ * NaN / Infinity / -Infinity become sentinel strings, an integer literal that is not a safe
+ * integer becomes a string of its digits. A container stack tells a value position (after `:`,
+ * `[`, or `,` inside an array) from a key position, so `{NaN: 1}` stays invalid.
+ * @param text - the document text
+ * @returns the rewritten text, the non-standard tokens seen and the integer literals quoted
+ */
+function rewriteNumbers(text: string): { text: string; tokens: Set<string>; bigIntegers: string[] } {
+    const parts: string[] = [];
+    const tokens = new Set<string>();
+    const bigIntegers: string[] = [];
+    const arrays: boolean[] = [];
+    let expectValue = true;
+    let copied = 0;
+    let i = 0;
+    const n = text.length;
+    while (i < n) {
+        const ch = text[i];
+        if (ch === '"') {
+            i++;
+            while (i < n && text[i] !== '"') {
+                i += text[i] === "\\" ? 2 : 1;
+            }
+            i++;
+            expectValue = false;
+            continue;
+        }
+        if (ch === "{" || ch === "[") {
+            arrays.push(ch === "[");
+            expectValue = ch === "[";
+        } else if (ch === "}" || ch === "]") {
+            arrays.pop();
+            expectValue = false;
+        } else if (ch === ":") {
+            expectValue = true;
+        } else if (ch === ",") {
+            expectValue = arrays.length > 0 && arrays[arrays.length - 1];
+        } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
+            expectValue = false;
+            const token = NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i));
+            let end = i;
+            let replacement: string | null = null;
+            if (token !== undefined) {
+                end = i + token[0].length;
+                tokens.add(token[0]);
+                replacement = JSON.stringify(`${NONSTANDARD_SENTINEL}${token[0]}`);
+            } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
+                end = i + 1;
+                while (end < n && "0123456789+-.eE".includes(text[end])) {
+                    end++;
+                }
+                const literal = text.slice(i, end);
+                if (INTEGER_LITERAL.test(literal) && !Number.isSafeInteger(Number(literal))) {
+                    bigIntegers.push(literal);
+                    replacement = `"${literal}"`;
+                }
+            }
+            if (replacement !== null) {
+                parts.push(text.slice(copied, i), replacement);
+                copied = end;
+            }
+            i = Math.max(end, i + 1);
+            continue;
+        }
+        i++;
+    }
+    parts.push(text.slice(copied));
+    return { text: parts.join(""), tokens, bigIntegers };
+}
+
+/**
+ * The JSON.parse reviver that turns the sentinel strings of rewriteNumbers() back into numbers.
+ * @param _key - the member key (unused)
+ * @param value - the parsed value
+ * @returns the number for a sentinel string, the value otherwise
+ */
+function reviveNonstandard(_key: string, value: unknown): unknown {
+    if (typeof value === "string" && value.startsWith(NONSTANDARD_SENTINEL)) {
+        const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(NONSTANDARD_SENTINEL.length));
+        return found === undefined ? value : found[1];
+    }
+    return value;
 }
 
 /**
@@ -962,7 +1332,11 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
  * @param report - the report the failure is recorded in
  * @returns the dialect
  */
-function detectDialect(root: unknown, forced: JsonDialect | "auto", report: ImportReportBuilder): JsonDialect {
+function detectDialect(
+    root: unknown,
+    forced: JsonImportDialect | "auto",
+    report: ImportReportBuilder,
+): JsonImportDialect {
     if (forced !== "auto") {
         return forced;
     }
@@ -981,7 +1355,7 @@ function detectDialect(root: unknown, forced: JsonDialect | "auto", report: Impo
     }
     return report.fail(
         JSON_ISSUE.DIALECT,
-        "no known dialect: expected nodes / links / edges (node-link), elements (Cytoscape) or graph (JGF)",
+        "no known dialect: expected nodes / links / edges (node-link), nodes / adjacency (adjacency), children (tree), elements (Cytoscape) or graph (JGF)",
     );
 }
 
@@ -1078,7 +1452,7 @@ function isIndexBelow(value: unknown, bound: number): boolean {
  * @param root - the document
  * @param dialect - "node-link" or "d3"
  */
-function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: JsonDialect): void {
+function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-link" | "d3"): void {
     const { report, json } = ctx;
     let { edgesKey } = json;
     if (edgesKey === null) {
@@ -1106,6 +1480,22 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: JsonDiale
     const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
     ctx.setHeader(directed);
     ctx.writeGraphDict(root.graph, "graph");
+    for (const key of Object.keys(root)) {
+        if (key !== "nodes" && key !== edgesKey && key !== "directed" && key !== "multigraph" && key !== "graph") {
+            const value = root[key];
+            const what = Array.isArray(value)
+                ? `${String(value.length)} ${value.length === 1 ? "entry" : "entries"}`
+                : describe(value);
+            report.warning(
+                "unsupported",
+                JSON_ISSUE.UNREAD_KEY,
+                `top-level key ${key} (${what}) is not read; dropped`,
+                {
+                    element: key,
+                },
+            );
+        }
+    }
 
     const nodeList = nodes ?? [];
     const edgeList = edges ?? [];
@@ -1433,6 +1823,227 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
     );
 }
 
+// ============================================================ NetworkX adjacency_data / tree_data
+
+/**
+ * Read a NetworkX adjacency_data document: `nodes` as in node-link, and `adjacency[i]` the
+ * neighbour list of `nodes[i]`, one `{ id, key?, ...attributes }` entry per edge. An undirected
+ * file lists every edge from both ends, so an entry whose mirror (the same pair and `key`) was
+ * already read is that edge again and is not pushed twice; a self-loop is listed once.
+ * @param ctx - the context
+ * @param root - the document
+ */
+function importAdjacency(ctx: ImportContext, root: JsonRecord): void {
+    const { report } = ctx;
+    const nodes = arraySection(root.nodes, "nodes", report) ?? [];
+    const adjacency = arraySection(root.adjacency, "adjacency", report);
+    if (adjacency === null) {
+        report.error(
+            "missing-value",
+            JSON_ISSUE.MISSING_SECTION,
+            "the document has no adjacency array; the graph has no edges",
+            {
+                element: "adjacency",
+            },
+        );
+    }
+    const directed = flagOf(root.directed, "directed", ctx.defaultDirected("adjacency"), report);
+    const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
+    ctx.setHeader(directed);
+    // adjacency_data writes the graph dict as a list of [key, value] pairs
+    ctx.writeGraphDict(isPairList(root.graph) ? Object.fromEntries(root.graph) : root.graph, "graph");
+    for (const key of Object.keys(root)) {
+        if (key !== "nodes" && key !== "adjacency" && key !== "directed" && key !== "multigraph" && key !== "graph") {
+            report.warning(
+                "unsupported",
+                JSON_ISSUE.UNREAD_KEY,
+                `top-level key ${key} (${describe(root[key])}) is not read; dropped`,
+                {
+                    element: key,
+                },
+            );
+        }
+    }
+    const lists = adjacency ?? [];
+    ctx.sink.reserve(
+        nodes.length,
+        lists.reduce<number>((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
+    );
+    const idKey = ctx.json.nodeIdKey ?? "id";
+    ctx.reportNodeIdFrom("adjacency", `the ${JSON.stringify(idKey)} key`);
+    const owners: (NodeId | null)[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+        const element = `nodes[${i}]`;
+        const record = nodes[i];
+        let pushed: NodeId | null = null;
+        if (!isJsonObject(record)) {
+            ctx.badElement("node", element);
+        } else {
+            const id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+            if (id === null) {
+                ctx.countSkipped("node");
+            } else {
+                const index = ctx.pushNode(id, element);
+                if (index >= 0) {
+                    pushed = id;
+                    writeFlat(ctx, ctx.nodes, index, record, id, (key) => key !== idKey);
+                }
+            }
+        }
+        owners.push(pushed);
+    }
+    throwIfAborted(ctx.options.signal);
+    const kind = ctx.uniformKind();
+    const { weightFrom } = ctx.options;
+    // undirected: entries read once whose mirror is still to come, by pair and key
+    const pending = new Map<string, number>();
+    for (let i = 0; i < lists.length; i++) {
+        const element = `adjacency[${i}]`;
+        const list = lists[i];
+        if (!Array.isArray(list)) {
+            report.error("validation-error", JSON_ISSUE.BAD_ELEMENT, `${element} is not an array`, { element });
+            continue;
+        }
+        const source = i < owners.length ? owners[i] : null;
+        if (source === null) {
+            const why = i < nodes.length ? `nodes[${i}] was skipped` : `there is no nodes[${i}]`;
+            report.error(
+                "missing-value",
+                JSON_ISSUE.BAD_INDEX,
+                `${element}: ${why}; its ${list.length} edge(s) are skipped`,
+                {
+                    element,
+                },
+            );
+            report.counts.skippedEdges += list.length;
+            continue;
+        }
+        for (let j = 0; j < list.length; j++) {
+            const entry = `${element}[${j}]`;
+            const record = list[j];
+            if (!isJsonObject(record)) {
+                ctx.badElement("edge", entry);
+                continue;
+            }
+            if (!hasKey(record, idKey)) {
+                ctx.missingEndpoint(entry, idKey);
+                continue;
+            }
+            try {
+                const target = ctx.coerceId(record[idKey], `${entry}.${idKey}`);
+                if (target === null) {
+                    ctx.countSkipped("edge");
+                    continue;
+                }
+                if (!directed && isMirroredEntry(pending, source, target, record.key)) {
+                    continue;
+                }
+                const edge = ctx.pushEdge(source, target, kind, ctx.weightOf(record), entry);
+                for (const key of Object.keys(record)) {
+                    if (key !== idKey && key !== weightFrom) {
+                        ctx.edges.write(edge, key, record[key], SUFFIX.data);
+                    }
+                }
+            } catch (err) {
+                ctx.skip(err, "edge", entry);
+            }
+        }
+    }
+    ctx.setMeta({}, { declaredMultigraph: multigraph, ...ctx.weightOriginPatch() });
+}
+
+/**
+ * Whether an undirected adjacency entry is the mirror of one already read (the same unordered
+ * pair and key), consuming it; otherwise the entry is remembered as awaiting its mirror. A
+ * self-loop is listed once and never awaits one.
+ * @param pending - the entries awaiting their mirror, by owner, other end and key
+ * @param source - the owner of the list
+ * @param target - the entry's node
+ * @param key - the entry's multigraph key, or undefined
+ * @returns true when the entry is a mirror and must not be pushed
+ */
+function isMirroredEntry(pending: Map<string, number>, source: NodeId, target: NodeId, key: unknown): boolean {
+    const a = JSON.stringify(source);
+    const b = JSON.stringify(target);
+    if (a === b) {
+        return false;
+    }
+    const k = JSON.stringify(key ?? null);
+    // an entry is the mirror of one listed by the other end, never of a parallel entry of its own list
+    const mirror = `${b} ${a} ${k}`;
+    const waiting = pending.get(mirror) ?? 0;
+    if (waiting > 0) {
+        pending.set(mirror, waiting - 1);
+        return true;
+    }
+    const own = `${a} ${b} ${k}`;
+    pending.set(own, (pending.get(own) ?? 0) + 1);
+    return false;
+}
+
+/**
+ * Whether a value is a list of [string, value] pairs, the shape adjacency_data gives the graph dict.
+ * @param value - the value
+ * @returns true for an array whose items are all two-element arrays with a string first
+ */
+function isPairList(value: unknown): value is [string, unknown][] {
+    return Array.isArray(value) && value.every((p) => Array.isArray(p) && p.length === 2 && typeof p[0] === "string");
+}
+
+/**
+ * Read a NetworkX tree_data document: a nested record with the node id, its attributes and a
+ * `children` array of records of the same shape; every child gets a directed edge from its parent.
+ * Walked depth first in document order with an explicit stack. A record without a usable id is
+ * reported and skipped, and its children are still read (as roots, without an edge).
+ * @param ctx - the context
+ * @param root - the root record
+ */
+function importTree(ctx: ImportContext, root: JsonRecord): void {
+    const idKey = ctx.json.nodeIdKey ?? "id";
+    ctx.setHeader(ctx.defaultDirected("tree"));
+    ctx.reportNodeIdFrom("tree", `the ${JSON.stringify(idKey)} key`);
+    const kind = ctx.uniformKind();
+    const stack: { record: unknown; element: string; parent: NodeId | null }[] = [
+        { record: root, element: "root", parent: null },
+    ];
+    for (let item = stack.pop(); item !== undefined; item = stack.pop()) {
+        const { record, element, parent } = item;
+        if (!isJsonObject(record)) {
+            ctx.badElement("node", element);
+            continue;
+        }
+        let id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+        if (id === null) {
+            ctx.countSkipped("node");
+        } else if (ctx.pushNode(id, element) < 0) {
+            id = null;
+        } else {
+            writeFlat(ctx, ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
+            if (parent !== null) {
+                try {
+                    ctx.pushEdge(parent, id, kind, undefined, element);
+                } catch (err) {
+                    ctx.skip(err, "edge", element);
+                }
+            }
+        }
+        const { children } = record;
+        if (Array.isArray(children)) {
+            for (let k = children.length - 1; k >= 0; k--) {
+                stack.push({ record: children[k], element: `${element}.children[${k}]`, parent: id });
+            }
+        } else if (children !== undefined && children !== null) {
+            ctx.report.error(
+                "validation-error",
+                JSON_ISSUE.BAD_VALUE,
+                `${element}: children must be an array, found ${describe(children)}`,
+                { element },
+            );
+        }
+    }
+    ctx.setMeta({});
+}
+
 // ============================================================ graphology
 
 /**
@@ -1741,11 +2352,11 @@ function jgfGraphOf(ctx: ImportContext, root: JsonRecord): JsonRecord {
     if (graphs.length === 0) {
         report.fail(JSON_ISSUE.SHAPE, "a JGF document needs a graph object or a non-empty graphs array");
     }
-    if (graphs.length > 1) {
+    if (graphs.length > 1 && ctx.json.all !== true) {
         report.warning(
             "unsupported",
             JSON_ISSUE.MULTIPLE_GRAPHS,
-            `the document holds ${graphs.length} graphs; only graphs[${ctx.json.graphIndex}] is read`,
+            `the document holds ${graphs.length} graphs; only graphs[${ctx.json.graphIndex}] is read (${graphs.length - 1} skipped), importAll() reads every one`,
             { element: "graphs" },
         );
     }
@@ -2230,42 +2841,100 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         const json = resolveJsonOptions(options);
         const report = new ImportReportBuilder("json", resolved.errorLimit);
         const text = await readText(input, report, resolved);
-        const root = parseDocument(text, report);
-        const dialect = detectDialect(root, json.dialect, report);
-        const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
-        reportSinkOptions(sink, options, report);
-        reportUnusedOptions(options, report, USED_OPTIONS);
-        if (dialect === "cytoscape") {
-            importCytoscape(ctx, root);
-            throwIfAborted(resolved.signal);
-            return report.finish();
-        }
-        const doc = isJsonObject(root)
-            ? root
-            : report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
-        switch (dialect) {
-            case "node-link":
-            case "d3":
-                importNodeLink(ctx, doc, dialect);
-                break;
-            case "jgf":
-                importJgf(ctx, doc);
-                break;
-            case "graphology":
-                importGraphology(ctx, doc);
-                break;
-            case "vis":
-                importVis(ctx, doc);
-                break;
-            default: {
-                const name: string = dialect;
-                throw new GraphFormatError("E_UNSUPPORTED", `unknown dialect ${name}`, {
-                    option: "dialect",
-                    found: name,
-                });
-            }
-        }
-        throwIfAborted(resolved.signal);
+        const { root, dialect } = documentOf(parseDocument(text, report), json, report);
+        readGraph(root, dialect, sink, report, resolved, json, options);
         return report.finish();
     },
+
+    /**
+     * Read every graph of a JSON document: each entry of a JGF `graphs` array into its own sink;
+     * any other document holds one graph.
+     * @param input - the text, bytes or stream
+     * @param sinkFor - the sink of the graph with this index, called before its first push
+     * @param options - format-specific and common options
+     * @returns one report per graph
+     */
+    async importAll(
+        input: ImportInput,
+        sinkFor: (index: number) => GraphSink,
+        options?: JsonImportOptions & CommonImportOptions,
+    ): Promise<ImportReport[]> {
+        const resolved = resolveImportOptions(options, FORMAT_DEFAULTS);
+        const json = resolveJsonOptions(options);
+        const first = new ImportReportBuilder("json", resolved.errorLimit);
+        const text = await readText(input, first, resolved);
+        const { root, dialect } = documentOf(parseDocument(text, first), json, first);
+        const graphs =
+            dialect === "jgf" && isJsonObject(root) && !isJsonObject(root.graph) && Array.isArray(root.graphs)
+                ? root.graphs.length
+                : 1;
+        const reports: ImportReport[] = [];
+        for (let i = 0; i < Math.max(graphs, 1); i++) {
+            const report = i === 0 ? first : new ImportReportBuilder("json", resolved.errorLimit);
+            readGraph(root, dialect, sinkFor(i), report, resolved, { ...json, graphIndex: i, all: true }, options);
+            reports.push(report.finish());
+        }
+        return reports;
+    },
 });
+
+/**
+ * Read one graph of a parsed document into a sink.
+ * @param root - the parsed document
+ * @param dialect - its dialect
+ * @param sink - the sink
+ * @param report - the graph's report
+ * @param resolved - the resolved common options
+ * @param json - the resolved JSON options (graphIndex picks the JGF graph)
+ * @param options - the caller's options, for the sink and unused-option checks
+ */
+function readGraph(
+    root: unknown,
+    dialect: JsonImportDialect,
+    sink: GraphSink,
+    report: ImportReportBuilder,
+    resolved: ResolvedImportOptions,
+    json: ResolvedJsonOptions,
+    options: (JsonImportOptions & CommonImportOptions) | undefined,
+): void {
+    const ctx = new ImportContext(sink, report, resolved, json, options?.defaultDirected !== undefined);
+    reportSinkOptions(sink, options, report);
+    reportUnusedOptions(options, report, USED_OPTIONS);
+    if (dialect === "cytoscape") {
+        importCytoscape(ctx, root);
+        throwIfAborted(resolved.signal);
+        return;
+    }
+    const doc = isJsonObject(root)
+        ? root
+        : report.fail(JSON_ISSUE.SHAPE, `a ${dialect} document must be a JSON object, found ${describe(root)}`);
+    switch (dialect) {
+        case "node-link":
+        case "d3":
+            importNodeLink(ctx, doc, dialect);
+            break;
+        case "jgf":
+            importJgf(ctx, doc);
+            break;
+        case "graphology":
+            importGraphology(ctx, doc);
+            break;
+        case "vis":
+            importVis(ctx, doc);
+            break;
+        case "adjacency":
+            importAdjacency(ctx, doc);
+            break;
+        case "tree":
+            importTree(ctx, doc);
+            break;
+        default: {
+            const name: string = dialect;
+            throw new GraphFormatError("E_UNSUPPORTED", `unknown dialect ${name}`, {
+                option: "dialect",
+                found: name,
+            });
+        }
+    }
+    throwIfAborted(resolved.signal);
+}

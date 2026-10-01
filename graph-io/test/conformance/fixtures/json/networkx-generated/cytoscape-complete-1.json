@@ -1,0 +1,139 @@
+{
+ "data": [],
+ "directed": false,
+ "multigraph": false,
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "score": 1e-300,
+     "rank": 2147483647,
+     "id": "0",
+     "value": 0,
+     "name": "0"
+    }
+   },
+   {
+    "data": {
+     "score": 1e-300,
+     "rank": -7,
+     "tag": "line\nbreak",
+     "flag": false,
+     "id": "1",
+     "value": 1,
+     "name": "1"
+    }
+   },
+   {
+    "data": {
+     "score": 34.369081,
+     "rank": -7,
+     "tag": "say \"hi\"",
+     "id": "2",
+     "value": 2,
+     "name": "2"
+    }
+   },
+   {
+    "data": {
+     "rank": 42,
+     "tag": "it's",
+     "flag": true,
+     "id": "3",
+     "value": 3,
+     "name": "3"
+    }
+   },
+   {
+    "data": {
+     "score": 32.122411,
+     "tag": "it's",
+     "flag": true,
+     "id": "4",
+     "value": 4,
+     "name": "4"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "weight": 1e-300,
+     "rel": "plain",
+     "source": 0,
+     "target": 1
+    }
+   },
+   {
+    "data": {
+     "rel": "it's",
+     "cap": 704,
+     "source": 0,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "cap": 85,
+     "source": 0,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 8.2739,
+     "rel": "say \"hi\"",
+     "cap": 328,
+     "source": 0,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 1,
+     "rel": "it's",
+     "source": 1,
+     "target": 2
+    }
+   },
+   {
+    "data": {
+     "weight": 1e-300,
+     "rel": "say \"hi\"",
+     "cap": 63,
+     "source": 1,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "weight": 1,
+     "cap": 646,
+     "source": 1,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 0.6514,
+     "source": 2,
+     "target": 3
+    }
+   },
+   {
+    "data": {
+     "source": 2,
+     "target": 4
+    }
+   },
+   {
+    "data": {
+     "weight": 2.5535,
+     "rel": " nbsp",
+     "source": 3,
+     "target": 4
+    }
+   }
+  ]
+ }
+}

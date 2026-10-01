@@ -1,6 +1,7 @@
 import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, test } from "vitest";
 
+import { clearRegisteredCamerasForTesting, registerCameraView } from "../../../extend";
 import type { AdHocData } from "../../../src/config/index.js";
 import { Graph } from "../../../src/Graph.js";
 import { setBehavior } from "../../helpers/testSetup.js";
@@ -126,8 +127,97 @@ describe("Camera Presets - 3D", () => {
         assert.ok(presetState.alpha !== undefined);
         assert.ok(presetState.beta !== undefined);
 
-        // Classic isometric: alpha ~= 45 deg, beta ~= 35.264 deg
-        assert.approximately(presetState.alpha, Math.PI / 4, 0.1);
-        assert.approximately(presetState.beta, 0.615, 0.1); // ~= 35.264 deg in radians
+        // Classic isometric: alpha = 45 deg around, and beta measured down from +y (the
+        // ArcRotate convention) = acos(1/sqrt(3)) ~= 54.7 deg, which is 35.264 deg above the
+        // horizon.
+        assert.approximately(presetState.alpha, Math.PI / 4, 1e-9);
+        assert.approximately(presetState.beta, Math.acos(1 / Math.sqrt(3)), 1e-9);
+    });
+
+    describe("an orbit state given as alpha, beta and radius", () => {
+        afterAll(() => {
+            clearRegisteredCamerasForTesting();
+        });
+
+        /** Where the camera looks from, as a unit vector from the target, and how far away. */
+        function viewFromTarget(): { direction: [number, number, number]; distance: number } {
+            const state = graph.getCameraState();
+            assert.ok(state.position);
+            assert.ok(state.target);
+            const d: [number, number, number] = [
+                state.position.x - state.target.x,
+                state.position.y - state.target.y,
+                state.position.z - state.target.z,
+            ];
+            const distance = Math.hypot(...d);
+
+            return { direction: [d[0] / distance, d[1] / distance, d[2] / distance], distance };
+        }
+
+        /** Babylon's ArcRotate placement: alpha around +y from +x, beta down from +y. */
+        function arcRotateDirection(alpha: number, beta: number): [number, number, number] {
+            return [Math.cos(alpha) * Math.sin(beta), Math.cos(beta), Math.sin(alpha) * Math.sin(beta)];
+        }
+
+        async function addNodes(): Promise<void> {
+            await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
+            await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
+            await graph.waitForSettled();
+        }
+
+        /** Two starting orientations that share nothing, so a view that ignores the angles shows. */
+        const STARTS = [
+            { position: { x: 0, y: 0, z: -300 }, target: { x: 0, y: 0, z: 0 } },
+            { position: { x: 200, y: -150, z: 100 }, target: { x: 10, y: 20, z: 30 } },
+        ];
+
+        for (const animate of [false, true]) {
+            test(`isometric lands on the same direction and distance from any start (animate: ${animate})`, async () => {
+                await addNodes();
+                const expected = graph.resolveCameraPreset("isometric");
+                assert.ok(expected.alpha !== undefined && expected.beta !== undefined && expected.radius);
+                const want = arcRotateDirection(expected.alpha, expected.beta);
+
+                for (const start of STARTS) {
+                    await graph.setCameraState(start);
+                    await graph.applyCameraView("isometric", animate ? { animate: true, duration: 100 } : {});
+
+                    const { direction, distance } = viewFromTarget();
+                    assert.approximately(direction[0], want[0], 1e-3, "x of the view direction");
+                    assert.approximately(direction[1], want[1], 1e-3, "y of the view direction");
+                    assert.approximately(direction[2], want[2], 1e-3, "z of the view direction");
+                    assert.approximately(distance, expected.radius, 1e-3);
+                }
+            });
+        }
+
+        test("a registered view that answers with alpha, beta and radius is honoured", async () => {
+            registerCameraView({
+                descriptor: {
+                    id: "test-orbit-angles",
+                    plainName: "Orbit angles",
+                    description: "Answers with orbit angles rather than a position.",
+                    modes: ["3d"],
+                    options: [],
+                },
+                compute: (input) => ({
+                    type: "arcRotate",
+                    alpha: 1,
+                    beta: 0.5,
+                    radius: 400,
+                    target: input.bounds.center,
+                }),
+            });
+            await addNodes();
+
+            await graph.applyCameraView("test-orbit-angles");
+
+            const { direction, distance } = viewFromTarget();
+            const want = arcRotateDirection(1, 0.5);
+            assert.approximately(direction[0], want[0], 1e-3);
+            assert.approximately(direction[1], want[1], 1e-3);
+            assert.approximately(direction[2], want[2], 1e-3);
+            assert.approximately(distance, 400, 1e-3);
+        });
     });
 });

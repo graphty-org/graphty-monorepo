@@ -1,0 +1,450 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d8" for="edge" attr.name="rel" attr.type="string" />
+  <key id="d7" for="edge" attr.name="cap" attr.type="long" />
+  <key id="d6" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d5" for="edge" attr.name="weight" attr.type="long" />
+  <key id="d4" for="node" attr.name="flag" attr.type="boolean" />
+  <key id="d3" for="node" attr.name="score" attr.type="double" />
+  <key id="d2" for="node" attr.name="tag" attr.type="string" />
+  <key id="d1" for="node" attr.name="rank" attr.type="long" />
+  <key id="d0" for="graph" attr.name="name" attr.type="string" />
+  <graph edgedefault="undirected">
+    <node id="0">
+      <data key="d1">42</data>
+      <data key="d2">café</data>
+    </node>
+    <node id="1">
+      <data key="d3">0.5</data>
+      <data key="d1">0</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="2">
+      <data key="d3">-96.086308</data>
+      <data key="d1">0</data>
+      <data key="d2">plain</data>
+    </node>
+    <node id="3">
+      <data key="d3">2.0</data>
+      <data key="d1">1</data>
+      <data key="d2">tab	here</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="4">
+      <data key="d1">-7</data>
+      <data key="d2">&lt;tag&gt;</data>
+    </node>
+    <node id="5">
+      <data key="d3">123456789.125</data>
+      <data key="d1">2147483647</data>
+      <data key="d2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+    </node>
+    <node id="6" />
+    <node id="7">
+      <data key="d3">8.058056</data>
+      <data key="d1">42</data>
+      <data key="d2">two words</data>
+      <data key="d4">False</data>
+    </node>
+    <node id="8">
+      <data key="d1">-7</data>
+    </node>
+    <node id="9">
+      <data key="d3">1e-300</data>
+      <data key="d1">42</data>
+      <data key="d2">say "hi"</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="10">
+      <data key="d3">-2.25</data>
+      <data key="d2">tab	here</data>
+    </node>
+    <node id="11">
+      <data key="d1">-2147483648</data>
+      <data key="d2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+    </node>
+    <node id="12">
+      <data key="d2">plain</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="13">
+      <data key="d3">46.968708</data>
+      <data key="d1">2147483647</data>
+    </node>
+    <node id="14">
+      <data key="d3">13.949037</data>
+      <data key="d1">-7</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="15">
+      <data key="d1">42</data>
+    </node>
+    <node id="16">
+      <data key="d3">2.0</data>
+      <data key="d1">1</data>
+      <data key="d2">it's</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="17">
+      <data key="d3">86.426465</data>
+      <data key="d4">False</data>
+    </node>
+    <node id="18">
+      <data key="d3">-42.094804</data>
+      <data key="d1">-7</data>
+      <data key="d2">café</data>
+    </node>
+    <node id="19">
+      <data key="d3">-0.0</data>
+      <data key="d2">a&amp;b</data>
+    </node>
+    <node id="20">
+      <data key="d3">1e-300</data>
+      <data key="d1">0</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="21">
+      <data key="d3">2.0</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="22">
+      <data key="d3">0.5</data>
+      <data key="d1">1</data>
+      <data key="d2">café</data>
+    </node>
+    <node id="23">
+      <data key="d3">88.959372</data>
+      <data key="d1">-7</data>
+      <data key="d2">say "hi"</data>
+      <data key="d4">False</data>
+    </node>
+    <node id="24">
+      <data key="d3">0.5</data>
+      <data key="d1">-2147483648</data>
+      <data key="d2">&lt;tag&gt;</data>
+    </node>
+    <node id="25">
+      <data key="d3">3.141592653589793</data>
+      <data key="d1">-7</data>
+      <data key="d2">tab	here</data>
+      <data key="d4">False</data>
+    </node>
+    <node id="26">
+      <data key="d3">87.636471</data>
+      <data key="d1">0</data>
+      <data key="d2">café</data>
+      <data key="d4">False</data>
+    </node>
+    <node id="27">
+      <data key="d1">2147483647</data>
+      <data key="d2">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="28" />
+    <node id="29">
+      <data key="d3">-24.542412</data>
+      <data key="d4">True</data>
+    </node>
+    <node id="30">
+      <data key="d3">51.827298</data>
+      <data key="d2">say "hi"</data>
+    </node>
+    <node id="31">
+      <data key="d3">1e+300</data>
+      <data key="d4">False</data>
+    </node>
+    <node id="32">
+      <data key="d3">-50.550792</data>
+      <data key="d1">2147483647</data>
+      <data key="d2">tab	here</data>
+    </node>
+    <node id="33">
+      <data key="d3">1e+300</data>
+      <data key="d1">0</data>
+    </node>
+    <edge source="0" target="1">
+      <data key="d5">3</data>
+    </edge>
+    <edge source="0" target="2">
+      <data key="d6">1e-300</data>
+    </edge>
+    <edge source="0" target="3">
+      <data key="d6">0.5026</data>
+      <data key="d7">187</data>
+    </edge>
+    <edge source="0" target="4">
+      <data key="d6">0.5</data>
+      <data key="d8">it's</data>
+    </edge>
+    <edge source="0" target="5">
+      <data key="d6">1.4158</data>
+      <data key="d7">965</data>
+    </edge>
+    <edge source="0" target="6">
+      <data key="d5">10</data>
+    </edge>
+    <edge source="0" target="7">
+      <data key="d6">-2.25</data>
+    </edge>
+    <edge source="0" target="8">
+      <data key="d5">3</data>
+      <data key="d7">236</data>
+    </edge>
+    <edge source="0" target="10">
+      <data key="d6">7.9598</data>
+      <data key="d7">510</data>
+    </edge>
+    <edge source="0" target="11">
+      <data key="d6">6.0712</data>
+      <data key="d8">say "hi"</data>
+    </edge>
+    <edge source="0" target="12">
+      <data key="d8">two words</data>
+      <data key="d7">230</data>
+    </edge>
+    <edge source="0" target="13">
+      <data key="d6">9.9901</data>
+    </edge>
+    <edge source="0" target="17">
+      <data key="d6">7.6039</data>
+    </edge>
+    <edge source="0" target="19">
+      <data key="d5">1</data>
+      <data key="d8">it's</data>
+    </edge>
+    <edge source="0" target="21">
+      <data key="d5">1</data>
+    </edge>
+    <edge source="0" target="31">
+      <data key="d5">3</data>
+      <data key="d8">say "hi"</data>
+    </edge>
+    <edge source="1" target="2">
+      <data key="d6">1e-300</data>
+      <data key="d8">&lt;tag&gt;</data>
+    </edge>
+    <edge source="1" target="3">
+      <data key="d6">1e+300</data>
+      <data key="d8">say "hi"</data>
+    </edge>
+    <edge source="1" target="7">
+      <data key="d6">-2.25</data>
+      <data key="d8">café</data>
+    </edge>
+    <edge source="1" target="13">
+      <data key="d5">10</data>
+    </edge>
+    <edge source="1" target="17">
+      <data key="d6">-0.0</data>
+      <data key="d8">a&amp;b</data>
+      <data key="d7">731</data>
+    </edge>
+    <edge source="1" target="19">
+      <data key="d8">it's</data>
+      <data key="d7">949</data>
+    </edge>
+    <edge source="1" target="21">
+      <data key="d5">10</data>
+      <data key="d8">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+    </edge>
+    <edge source="1" target="30">
+      <data key="d6">2.5074</data>
+      <data key="d8">中文</data>
+    </edge>
+    <edge source="2" target="3">
+      <data key="d6">-2.25</data>
+      <data key="d8">&lt;tag&gt;</data>
+    </edge>
+    <edge source="2" target="7" />
+    <edge source="2" target="8">
+      <data key="d6">5.9523</data>
+      <data key="d8">tab	here</data>
+      <data key="d7">731</data>
+    </edge>
+    <edge source="2" target="9">
+      <data key="d6">8.039</data>
+      <data key="d7">949</data>
+    </edge>
+    <edge source="2" target="13">
+      <data key="d5">10</data>
+      <data key="d8">a&amp;b</data>
+      <data key="d7">851</data>
+    </edge>
+    <edge source="2" target="27">
+      <data key="d6">1e+300</data>
+      <data key="d8">say "hi"</data>
+    </edge>
+    <edge source="2" target="28">
+      <data key="d6">5.988</data>
+      <data key="d8">a&amp;b</data>
+    </edge>
+    <edge source="2" target="32">
+      <data key="d6">7.1639</data>
+    </edge>
+    <edge source="3" target="7">
+      <data key="d6">2.0743</data>
+    </edge>
+    <edge source="3" target="12">
+      <data key="d5">3</data>
+      <data key="d8">tab	here</data>
+    </edge>
+    <edge source="3" target="13">
+      <data key="d6">-0.0</data>
+    </edge>
+    <edge source="4" target="6">
+      <data key="d6">5.2085</data>
+      <data key="d8">中文</data>
+      <data key="d7">615</data>
+    </edge>
+    <edge source="4" target="10">
+      <data key="d6">1e+300</data>
+      <data key="d8">&lt;tag&gt;</data>
+      <data key="d7">569</data>
+    </edge>
+    <edge source="5" target="6">
+      <data key="d5">3</data>
+      <data key="d7">991</data>
+    </edge>
+    <edge source="5" target="10">
+      <data key="d6">1.7122</data>
+    </edge>
+    <edge source="5" target="16">
+      <data key="d5">3</data>
+    </edge>
+    <edge source="6" target="16">
+      <data key="d6">1e-300</data>
+      <data key="d8">plain</data>
+    </edge>
+    <edge source="8" target="30">
+      <data key="d6">-2.25</data>
+      <data key="d8">&lt;tag&gt;</data>
+    </edge>
+    <edge source="8" target="32">
+      <data key="d6">1e+300</data>
+    </edge>
+    <edge source="8" target="33">
+      <data key="d6">5.5181</data>
+    </edge>
+    <edge source="9" target="33">
+      <data key="d6">8.6418</data>
+      <data key="d8">two words</data>
+    </edge>
+    <edge source="13" target="33">
+      <data key="d8">tab	here</data>
+    </edge>
+    <edge source="14" target="32">
+      <data key="d6">4.9724</data>
+      <data key="d8">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d7">192</data>
+    </edge>
+    <edge source="14" target="33">
+      <data key="d6">2.7866</data>
+      <data key="d8">two words</data>
+    </edge>
+    <edge source="15" target="32">
+      <data key="d6">9.1435</data>
+      <data key="d8">a&amp;b</data>
+    </edge>
+    <edge source="15" target="33">
+      <data key="d6">5.2809</data>
+      <data key="d8">café</data>
+    </edge>
+    <edge source="18" target="32" />
+    <edge source="18" target="33">
+      <data key="d6">0.7193</data>
+      <data key="d8">a&amp;b</data>
+    </edge>
+    <edge source="19" target="33">
+      <data key="d5">3</data>
+    </edge>
+    <edge source="20" target="32">
+      <data key="d6">5.7719</data>
+      <data key="d8">&lt;tag&gt;</data>
+      <data key="d7">141</data>
+    </edge>
+    <edge source="20" target="33">
+      <data key="d6">4.9939</data>
+    </edge>
+    <edge source="22" target="32" />
+    <edge source="22" target="33">
+      <data key="d6">1.6055</data>
+    </edge>
+    <edge source="23" target="25">
+      <data key="d8">&lt;tag&gt;</data>
+      <data key="d7">51</data>
+    </edge>
+    <edge source="23" target="27">
+      <data key="d6">1e-300</data>
+      <data key="d7">3</data>
+    </edge>
+    <edge source="23" target="29">
+      <data key="d5">10</data>
+      <data key="d8">plain</data>
+    </edge>
+    <edge source="23" target="32">
+      <data key="d5">10</data>
+    </edge>
+    <edge source="23" target="33">
+      <data key="d6">9.3999</data>
+    </edge>
+    <edge source="24" target="25" />
+    <edge source="24" target="27">
+      <data key="d8">&lt;tag&gt;</data>
+      <data key="d7">351</data>
+    </edge>
+    <edge source="24" target="31">
+      <data key="d6">-2.25</data>
+    </edge>
+    <edge source="25" target="31">
+      <data key="d6">0.5</data>
+      <data key="d8">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</data>
+      <data key="d7">25</data>
+    </edge>
+    <edge source="26" target="29">
+      <data key="d6">1e-300</data>
+      <data key="d8">say "hi"</data>
+    </edge>
+    <edge source="26" target="33">
+      <data key="d6">1e-300</data>
+    </edge>
+    <edge source="27" target="33">
+      <data key="d6">9.0903</data>
+      <data key="d8">a&amp;b</data>
+      <data key="d7">934</data>
+    </edge>
+    <edge source="28" target="31">
+      <data key="d6">3.6099</data>
+      <data key="d7">113</data>
+    </edge>
+    <edge source="28" target="33">
+      <data key="d8">two words</data>
+      <data key="d7">643</data>
+    </edge>
+    <edge source="29" target="32">
+      <data key="d8">&lt;tag&gt;</data>
+    </edge>
+    <edge source="29" target="33">
+      <data key="d6">1e+300</data>
+      <data key="d8">plain</data>
+      <data key="d7">345</data>
+    </edge>
+    <edge source="30" target="32">
+      <data key="d8">tab	here</data>
+    </edge>
+    <edge source="30" target="33">
+      <data key="d8">plain</data>
+    </edge>
+    <edge source="31" target="32">
+      <data key="d8">say "hi"</data>
+      <data key="d7">843</data>
+    </edge>
+    <edge source="31" target="33">
+      <data key="d6">-0.0</data>
+      <data key="d8">café</data>
+    </edge>
+    <edge source="32" target="33">
+      <data key="d6">1e-300</data>
+    </edge>
+    <data key="d0">Zachary's Karate Club</data>
+  </graph>
+</graphml>

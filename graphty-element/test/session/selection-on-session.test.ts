@@ -48,7 +48,10 @@ describe("session.selection", () => {
         assert.deepStrictEqual([...harness.session.selection.edges], [edgeBetween(harness, "c", "d")]);
         assert.strictEqual(harness.session.selection.size, 3);
         assert.isTrue(harness.session.selection.has("b"));
-        assert.isTrue(harness.session.selection.has(edgeBetween(harness, "c", "d")), "an edge can be selected, which it never could before");
+        assert.isTrue(
+            harness.session.selection.has(edgeBetween(harness, "c", "d")),
+            "an edge can be selected, which it never could before",
+        );
         harness.session.dispose();
     });
 
@@ -131,7 +134,7 @@ describe("session.selection", () => {
 
     it("keeps a selection under a name, and the scope resolves to it afterwards", async () => {
         const harness = harnessOf();
-        await harness.session.selection.apply({ nodes: ["a", "b"] });
+        await harness.session.selection.apply({ nodes: ["a", "b"], edges: [edgeBetween(harness, "a", "b")] });
 
         const id = harness.session.selection.promote("my picks");
         harness.session.selection.clear();
@@ -140,6 +143,12 @@ describe("session.selection", () => {
 
         assert.deepStrictEqual([...scope.nodes].sort(), ["a", "b"], "the saved set outlives the selection");
         assert.strictEqual(harness.session.scope.list()[0]?.name, "my picks");
+        const definition = harness.session.sets.get(id)?.definition;
+        assert.deepStrictEqual(
+            definition?.kind === "fixed" ? [definition.reading, definition.edges?.length] : [],
+            ["induced", 1],
+            "the selected edge is kept beside the selected nodes",
+        );
         harness.session.dispose();
     });
 

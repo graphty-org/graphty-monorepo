@@ -1,7 +1,9 @@
 import { assert, describe, it } from "vitest";
 
+import { AccelerationController, type GraphAccelerator } from "../../src/acceleration";
 import { DataConfig } from "../../src/config/DataConfig";
 import { createGraphSession } from "../../src/session";
+import { createElementSession } from "../../src/session/GraphSession";
 import { makeSession } from "./helpers";
 
 describe("createGraphSession", () => {
@@ -31,7 +33,7 @@ describe("createGraphSession", () => {
         // a session that captured the old one would go on reporting a graph as undirected after it
         // had been told otherwise.
         let live = DataConfig.parse({ directed: false });
-        const session = createGraphSession({ config: { data: () => live } });
+        const session = createElementSession({ config: { data: () => live } });
 
         assert.strictEqual(session.config.data.directed, false);
 
@@ -48,20 +50,24 @@ describe("createGraphSession", () => {
 
         assert.strictEqual(harness.session.status.counts.nodes, 2);
         assert.strictEqual(harness.session.status.counts.edges, 1);
-        assert.strictEqual(harness.session.snapshot(), harness.store.getSnapshot(), "one store, one snapshot");
+        const resident = harness.store.getSnapshot();
+        const handed = harness.session.snapshot();
+        assert.strictEqual(handed.contentHash(), resident.contentHash(), "one store, one graph");
+        assert.notStrictEqual(handed.rowPtr, resident.rowPtr, "handed as a copy, so a write there changes nothing");
         harness.session.dispose();
     });
 
-    it("hands back the live position array, not a copy of one", () => {
+    it("reads the live position array through a surface that cannot write it", () => {
         const harness = makeSession();
         harness.add([{ id: "a" }]);
         harness.session.snapshot();
 
-        harness.session.positions.write(0, 1, 2, 3);
+        harness.store.positions.write(0, 1, 2, 3);
         const read = { x: 0, y: 0, z: 0 };
-        harness.store.positions.read(0, read);
+        harness.session.positions.read(0, read);
 
         assert.deepEqual(read, { x: 1, y: 2, z: 3 }, "the session and the store share one array");
+        assert.notProperty(harness.session.positions, "write", "and the session has no writer");
         harness.session.dispose();
     });
 
@@ -78,7 +84,7 @@ describe("createGraphSession", () => {
 describe("a session's ownership of what it holds", () => {
     it("disposes the store it built", () => {
         const session = createGraphSession();
-        const {store} = session.data;
+        const { store } = session.data;
 
         assert.doesNotThrow(() => store.getSnapshot());
         session.dispose();
@@ -194,10 +200,19 @@ describe("what a session publishes without being asked to compute", () => {
 
     it("lets a host that already owns a controller hand it in instead of ending up with two", () => {
         const injected = {
-            capabilities: { acceleration: { state: "idle", backend: "webgpu" } } as const,
+            capabilities: { acceleration: { policy: "required", state: "idle", backend: "webgpu" } } as const,
             policy: "required" as const,
             minNodes: 5_000,
             disposed: false,
+            setPolicy(): void {
+                // A fixed document: this double publishes one answer and never moves.
+            },
+            setAccelerator(): void {
+                // Likewise.
+            },
+            onChange(): () => void {
+                return (): void => undefined;
+            },
             dispose(): void {
                 this.disposed = true;
             },
@@ -211,4 +226,87 @@ describe("what a session publishes without being asked to compute", () => {
         session.dispose();
         assert.strictEqual(injected.disposed, false, "a controller it did not build is not its to release");
     });
+
+    it("injects a fake through setAccelerator and reports it as idle on capabilities:changed", () => {
+        const session = createGraphSession();
+        const seen: string[] = [];
+
+        session.on("capabilities:changed", (detail) => {
+            seen.push(detail.capabilities.acceleration.state);
+        });
+        session.setAccelerator(fakeAccelerator());
+
+        assert.strictEqual(session.capabilities.acceleration.state, "idle", "attached, with nothing running on it");
+        assert.strictEqual(session.capabilities.acceleration.backend, "webgpu");
+        assert.deepStrictEqual(seen, ["idle"], "one event, for the one transition");
+        session.dispose();
+    });
+
+    it("applies a policy written to session.acceleration at once, and publishes the transition", () => {
+        const session = createGraphSession();
+        let events = 0;
+
+        session.on("capabilities:changed", () => {
+            events += 1;
+        });
+        session.acceleration = "off";
+
+        assert.strictEqual(session.acceleration, "off");
+        assert.strictEqual(session.config.acceleration.policy, "off", "and the configuration says the same");
+        assert.strictEqual(session.capabilities.acceleration.state, "off");
+        assert.strictEqual(events, 1);
+        session.dispose();
+    });
+
+    it("publishes a policy change once even when the state does not move", () => {
+        const session = createGraphSession();
+        session.setAccelerator(fakeAccelerator());
+        const seen: string[] = [];
+
+        session.on("capabilities:changed", (detail) => {
+            seen.push(`${detail.capabilities.acceleration.policy}/${detail.capabilities.acceleration.state}`);
+        });
+        session.acceleration = "required";
+
+        assert.deepStrictEqual(seen, ["required/idle"], "one event, carrying the new policy");
+        assert.strictEqual(session.capabilities.acceleration.policy, "required");
+        session.dispose();
+    });
+
+    it("publishes from the controller it was handed, not from a second one it built", () => {
+        const controller = new AccelerationController({ policy: "off" });
+        const session = createGraphSession({ acceleration: controller });
+
+        assert.strictEqual(session.capabilities, controller.capabilities, "one document, not a copy of one");
+
+        session.dispose();
+        controller.dispose();
+    });
+
+    it("carries the document capabilities returns in the event payload", () => {
+        const controller = new AccelerationController({ policy: "off" });
+        const session = createGraphSession({ acceleration: controller });
+        let carried: unknown = null;
+
+        session.on("capabilities:changed", (detail) => {
+            carried = detail.capabilities;
+            assert.strictEqual(detail.capabilities, session.capabilities, "the same object the getter returns");
+        });
+        session.setAccelerator(fakeAccelerator());
+
+        assert.strictEqual(carried, session.capabilities);
+        session.dispose();
+        controller.dispose();
+    });
 });
+
+/** The accelerator these cases inject: a name, a backend and one member, which is all a third party owes. */
+function fakeAccelerator(): GraphAccelerator {
+    return {
+        name: "fake",
+        backend: "webgpu",
+        device: { vendor: "acme", architecture: "gen-1", description: "Acme Fake GPU" },
+        forceAtlas2: (): string => "gpu",
+        dispose: (): void => undefined,
+    };
+}

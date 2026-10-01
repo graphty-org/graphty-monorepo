@@ -66,6 +66,7 @@ export default defineConfig({
                         { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
                         { text: "Acceleration", link: "/guide/acceleration" },
+                        { text: "Renderer", link: "/guide/renderer" },
                         { text: "Algorithms", link: "/guide/algorithms" },
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Data Sources", link: "/guide/data-sources" },

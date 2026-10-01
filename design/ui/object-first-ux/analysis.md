@@ -772,7 +772,7 @@ screen specs), `decisions.md` (every choice with its reason and whether it is re
 one by one), `critique-novice.md`, `critique-maintainer.md`, `walkthroughs.md` and
 `consistency-audit.md` (the two critiques and the two audits that shaped it). The current
 mocks are `mocks/v2/screen-1.png` to `screen-15.png`, generated from one spec per screen by
-`tmp/object-first/gen/`; `mocks/screen-1.png` to `screen-8.png` are round 1, kept for history.
+`design/ui/object-first-ux/gen/`; `mocks/screen-1.png` to `screen-8.png` are round 1, kept for history.
 
 ### 8.1 What changed, and why
 

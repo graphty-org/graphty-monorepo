@@ -125,6 +125,7 @@ That is the label to show beside a value a reader might compare against a saved 
 
 | Work                                   | On an accelerator       | Without one                                      |
 | -------------------------------------- | ----------------------- | ------------------------------------------------ |
+| `ngraph` layout (the default)          | Yes, from 2,000 nodes   | ngraph itself, on the CPU                        |
 | `forceatlas2` layout                   | Yes                     | The CPU simulation                               |
 | `spring` layout (Fruchterman-Reingold) | Yes                     | The CPU simulation                               |
 | `spring-electrical` layout             | Yes                     | Nothing -- `setLayout` throws `E_NO_ACCELERATOR` |
@@ -138,6 +139,16 @@ That is the label to show beside a value a reader might compare against a saved 
 | `label-propagation`                    | Yes, with one exception | The CPU implementation                           |
 | `kruskal`                              | Not yet                 | The CPU implementation                           |
 | `dfs`, `bellman-ford`, `prim`, `scc`   | No                      | The CPU implementation                           |
+
+The first row is the default layout, and its accelerated half is the fourth: `ngraph` and
+`spring-electrical` are one force model with two implementations, so on a graph of two thousand
+nodes or more, with an accelerator attached that computes it, the element draws `ngraph`'s
+arrangement on the accelerator and draws it with ngraph otherwise. You choose nothing and call
+nothing, and `layoutType` answers `ngraph` either way. Two thousand nodes is where ngraph's own
+step stops fitting inside a frame, measured: 2.6 ms at a thousand nodes, 12 ms at two thousand and
+1.8 seconds at a hundred thousand, against 0.72 ms for an accelerated iteration at ten thousand.
+Asking for `spring-electrical` by name is the way to have the accelerated one at any size, and it
+is the one layout that fails rather than falling back.
 
 `kruskal` asks the accelerator for a member it does not implement yet, so it takes the CPU path
 with `caveats.precision` reading `"f64"`, and under `acceleration="required"` it throws
@@ -236,8 +247,9 @@ Three knobs, none of which you need to touch to get a working graph.
 **`acceleration-min-nodes`** -- the node count at or above which accelerated work actually uses
 the accelerator. Below it the element takes the CPU path even with hardware attached, and the
 state reads `idle`. Unset, the layouts use the hardware whenever there is any (a threshold of 0,
-measured for the accelerated layout, which was never slower than the CPU at any size) and each
-algorithm keeps the built-in floor listed above. Set to any number, including 0, it is
+measured for the accelerated layout, which was never slower than the CPU at any size) except the
+default layout, which has the floor of 2,000 nodes above; each algorithm keeps the built-in floor
+listed above. Set to any number, including 0, it is
 your number for every layout and every algorithm, and the built-in floors no longer apply. Set
 it when you have measured the machine your graphs are drawn on: the crossover is a property of
 that machine's CPU and device, and the built-in floors come from one card.

@@ -66,7 +66,7 @@ The provenance section says why the minimum is still not a floor on this box.
 | triangle count, clustering coefficient           | 3.0k (4.8k)                             | 6.6k (15k)                    | 7.2x / 12.7x / 26x [4.4x / 3.0x / 4.1x]                                                   | 1.6x / 9.7x / 23x [0.94x / 2.3x / 3.6x]                                                      | 3.2x / 5.4x / 9.9x                         | 0.69x / 4.1x / 8.8x           | earns at 100k on the assumed merge rate, unverified; the bracket earns at no browser size            |
 | k-truss, support recomputed per round            | 4.2k at 10 rounds                       | 13k at 10 rounds              | 10 rounds 4.0x / 4.8x / 7.8x; 30 rounds 1.5x / 1.8x / 2.9x; 50 rounds 0.91x / 1.1x / 1.8x | 10 rounds 0.85x / 3.7x / 6.9x; 30 rounds 0.32x / 1.4x / 2.5x; 50 rounds 0.20x / 0.83x / 1.6x | 10 rounds 2.1x / 2.0x / 2.8x               | 10 rounds 0.44x / 1.5x / 2.5x | marginal; the round count is unbounded                                                               |
 | label propagation (100 passes) vs a port         | 2.3k (4.0k)                             | 2.5k (4.2k)                   | 4.4x / 21x / 97x [3.0x / 6.8x / 24x]                                                      | 4.0x / 20x / 73x [2.7x / 6.5x / 18x]                                                         | 2.4x / 8.8x / 36x                          | 2.2x / 8.4x / 27x             | earns, if the changed-count readback is batched                                                      |
-| Louvain (Leiden and ECG inherit it) vs a port    | 33k (72k); never on the bound           | 38k (79k); never on the bound | 0.31x / 2.5x / 18x [0.29x / 1.8x / 10x; bound 0.09x / 0.16x / 0.62x]                      | 0.26x / 2.3x / 15x [0.25x / 1.7x / 8.4x; bound 0.08x / 0.15x / 0.51x]                        | 0.18x / 1.25x / 7.1x                       | 0.15x / 1.2x / 5.9x           | marginal (as decided on an estimated port; re-derived below)                                         |
+| Louvain (Leiden and ECG inherit it) vs a port    | 33k (72k); never on the bound           | 38k (79k); never on the bound | 0.31x / 2.5x / 18x [0.29x / 1.8x / 10x; bound 0.09x / 0.16x / 0.62x]                      | 0.26x / 2.3x / 15x [0.25x / 1.7x / 8.4x; bound 0.08x / 0.15x / 0.51x]                        | 0.18x / 1.25x / 7.1x                       | 0.15x / 1.2x / 5.9x           | loses inside the element's ceiling (measured 2026-09-30, below)                                      |
 | minimum spanning tree, Boruvka vs Kruskal        | 6.0k (11k)                              | 11k (21k)                     | 1.8x / 10.4x / 43x [1.7x / 8.0x / 18x]                                                    | 0.93x / 7.6x / 43x [0.91x / 5.8x / 18x]                                                      | 0.95x / 5.3x / 7.3x                        | 0.50x / 3.9x / 7.3x           | earns (3x from 38k); loses at 10k                                                                    |
 
 "vs a port" rows also have a "vs shipped" figure, which is much larger and is not the GPU's to
@@ -654,6 +654,100 @@ The full measurements:
 | closeness, 100 sources         | 20,000 / 100,000    |   69.7 |   13.8 |        14.1 | 4.81x / 4.09x / 5.05x                   |
 | closeness, 100 sources         | 50,000 / 100,000    |  178.4 |   14.8 |        15.1 | 8.50x / 6.83x / 12.05x                  |
 
+### Louvain measured: it loses inside the element's ceiling (2026-09-30)
+
+Issue #647 asked for one measurement before Louvain was built. The CPU port existed (issue #423), and
+so did both device building blocks: the per-row group-by-key and the device graph build (issue
+#422). The question was whether a device Louvain made of those two parts beats the CPU port on
+realistic graphs at any size graphty-element holds. It does not, so Louvain was not built.
+
+**What was timed.** Every part a device Louvain would pay was timed on the RTX 4070 SUPER. Headless
+Chromium ran through ANGLE's Vulkan backend with the extracted libEGL. Node ran on Dawn. Both
+required the NVIDIA adapter.
+
+- **The CPU port.** `louvain` from `@graphty/algorithms` at its defaults. In Node: median of 9 runs
+  (3 at 1M nodes). In Chromium: median of 9 runs in the same page as the device timings.
+- **The pass count.** The device algorithm was simulated in f64 on the CPU, to count the passes
+  and levels it needs. A pass is synchronous: every node picks its best community from the previous
+  pass's partition, ties go to the lowest id, and the down/up alternating direction rule applies.
+  The cluster weights are recomputed after every pass. A plain synchronous move pass never settled
+  (100 passes on every level) and merged everything into a few giant communities, with modularity
+  near 0. So the simulation uses cuGraph's stopping rule: keep a pass only while it raises
+  modularity, and end the level at the first pass that does not. That converges in 36 to 102
+  passes over 3 to 8 levels.
+- **One pass.** The group-by-key over the level's graph, plus one node-wide apply dispatch (the
+  label-propagation step). It was timed on every level's actual graph as the slope between a 1-pass
+  and a 33-pass submit, so no submit cost is in it.
+- **One contraction.** `buildSimpleSymmetric` on the level's graph, resident: the device graph
+  build that the plan reuses for the contraction. It includes its own readback of the distinct arc
+  count, and its final submit.
+- **One round trip.** An empty submit with a 4-byte readback.
+
+**The cost model.** A level costs one contraction, plus one round trip per 8 passes, plus 1.5 times
+its passes. The 0.5 covers the passes' cluster-weight and modularity dispatches. Graphs: G(n, m)
+with no community structure ("gnm"), and LFR benchmark graphs, which have power-law degrees and
+planted communities ("lfr": mixing 0.3, community sizes 20 to 1,000, degree exponent 2.5). Load
+averages: 5 to 11 for every row below. An earlier pass at load 20 to 113, while another session ran
+a 25-core CPU burn, was discarded.
+
+| graph, nodes / edges    | levels / passes | Q port / device | Node CPU ms | Node device est. ms | Node speedup | Chromium CPU ms | Chromium device est. ms | Chromium speedup |
+| ----------------------- | --------------: | --------------: | ----------: | ------------------: | -----------: | --------------: | ----------------------: | ---------------: |
+| lfr 10,000 / 101,905    |          4 / 36 |   0.646 / 0.646 |        10.8 |                 9.9 |        1.09x |            19.0 |                    42.8 |            0.44x |
+| lfr 50,000 / 91,496     |         6 / 101 |   0.719 / 0.716 |        27.9 |                22.3 |        1.25x |            31.3 |                    48.9 |            0.64x |
+| gnm 10,000 / 100,000    |          5 / 82 |   0.180 / 0.147 |        21.4 |                20.3 |        1.05x |            45.5 |                    37.4 |            1.22x |
+| gnm 20,000 / 100,000    |          5 / 61 |   0.261 / 0.243 |        32.1 |                17.3 |        1.86x |            36.5 |                    45.8 |            0.80x |
+| gnm 50,000 / 100,000    |          8 / 49 |   0.515 / 0.508 |        39.8 |                22.0 |        1.81x |            45.2 |                    68.8 |            0.66x |
+| lfr 100,000 / 1,012,754 |          6 / 42 |   0.668 / 0.668 |       154.8 |                90.9 |        1.70x |           149.2 |                    87.5 |            1.70x |
+| gnm 100,000 / 1,000,000 |         6 / 102 |   0.159 / 0.133 |       411.3 |               127.5 |        3.22x |           362.3 |                   116.7 |            3.11x |
+| lfr 1,000,000 / 10.1M   |          3 / 65 |   0.670 / 0.670 |       3,402 |                 995 |        3.42x |              -- |                      -- |               -- |
+| gnm 1,000,000 / 10M     |          6 / 77 |   0.141 / 0.119 |       7,985 |               1,943 |        4.11x |              -- |                      -- |               -- |
+
+The 1M rows are Node only, because the browser project's 600 s limit does not fit a 1M-node graph
+build plus its simulation.
+
+What the measurement says:
+
+- **The group-by-key is not the problem.** On the level-0 graphs, a pass runs at 0.13 to 0.75
+  ns/arc in Chromium and 0.23 to 0.50 ns/arc in Node (0.86 at 1M). That is the optimistic 0.30
+  ns/arc this record assumed, not the 1.3 ns/arc pessimistic bracket. Passes add up to 1.5 to 7 ms
+  per run inside the ceiling.
+- **The contraction is.** In Chromium a device graph build costs 5.6 ms even on a level of 272
+  arcs, because it holds two submit round trips. Levels at 100,000 to 200,000 arcs cost 7 to 9 ms.
+  Louvain contracts 4 to 8 times, so the builds alone are 27 to 57 ms against a CPU port that
+  finishes the whole run in 19 to 45 ms. In Node the same builds are 1.0 to 4.4 ms, and there the
+  device would win narrowly (1.05x to 1.86x).
+- **On realistic graphs it loses at every size the element holds.** The element refuses a graph of
+  more than 50,000 nodes or 100,000 edges (`DEFAULT_LIMITS`). In Chromium both LFR rows inside that
+  ceiling lose: 0.44x and 0.64x. Of the uniform graphs, two lose. The one win, 1.22x at 10,000
+  nodes, is on a graph with no community structure, where the synchronous partition is also
+  worse: Q 0.147 against the port's 0.180.
+- **Above the ceiling it earns, roughly as the old model said.** 1.7x on LFR and 3.1x on the
+  uniform graph at 100,000 nodes in Chromium; 3.4x to 4.1x at 1M in Node. That is the 2.3x at 100k
+  the model predicted, not the 14.6x of the primitive model's row against the measured port. The
+  port was faster than that row assumed, at 149 to 411 ms at 100k.
+- **A cheaper contraction would not change the verdict on realistic graphs by enough.** As a test,
+  give each level one 2.0 ms round trip and only the build's device time, taken as the Node build
+  minus its 1.0 ms per-build floor. That design does not exist: it would size every level's arrays
+  from the level before instead of reading the count back. Even then, the rows inside the ceiling
+  come to 1.18x (lfr 10k), 1.38x (lfr 50k), and 1.41x to 2.39x on the uniform graphs. That is a
+  win of 3 to 26 ms, short of the 3x line, and only for a new contraction primitive.
+- **Quality.** On LFR the synchronous partition's modularity is within 0.004 of the port's. On the
+  uniform graphs it is 0.007 to 0.033 lower, so the device would also return a worse answer where
+  it is closest to winning.
+
+**Decision.** Louvain is not built. It stays demoted, now on measurement rather than on the
+model. Leiden and ECG inherit the decision. Three things would reopen it:
+
+- graphty-element holding graphs above 100,000 nodes (issue #419), where it earns 1.7x to 3x, or
+- a Chromium submit round trip well under 2 ms, or
+- a contraction that needs no readback of its own, which would bring the rows inside the ceiling
+  to the 1.2x to 2.4x above.
+
+None of these is a reason to build the algorithm before it happens. The measurement scripts are in
+`tmp/louvain/` of the `feat-webgpu-louvain` worktree: `cpu-sim.ts` (the graphs, the port timing and
+the synchronous simulation), `gpu-measure.ts` (the device parts), `node-step1.ts`, `model.py` and
+`optimistic.py`. Their logs are beside them.
+
 ### How the table was computed
 
 Every GPU figure is a sum of five terms, each measured on this repository's own benchmarks or
@@ -821,7 +915,7 @@ the table above, each figure is given from the loaded medians of the first CPU r
 | BFS, single source                        | 151k (316k against the low-load CPU row), and only when levels <= arcs / 14,000 (0.2 ms per level against 14 ns per CPU arc: 1,430 levels at 20M arcs, 140 at 2M) | 191k (316k against the low-load CPU row, which is unchanged), same levels rule | 400k                | 501k               | ~900k                                    | ~955k                  | on the frontier branch                                                                                                                   |
 | SSSP, near-far                            | 69k (182k low-load)                                                                                                                                               | 79k (182k low-load, unchanged)                                                 | 190k                | 229k               | 275k                                     | 347k                   | on the frontier branch                                                                                                                   |
 | k-core                                    | 132k against a port (8k against the shipped code)                                                                                                                 | 209k against a port (9.1k against the shipped code)                            | 380k                | 501k               | 575k                                     | 724k                   | unbuilt; port first                                                                                                                      |
-| Louvain                                   | 33k against a port on the optimistic model; no floor exists on the bound                                                                                          | 38k against a port on the optimistic model; no floor exists on the bound       | 72k                 | 79k                | 120k                                     | 132k                   | unbuilt; not a threshold to ship on                                                                                                      |
+| Louvain                                   | 33k against a port on the optimistic model; no floor exists on the bound                                                                                          | 38k against a port on the optimistic model; no floor exists on the bound       | 72k                 | 79k                | 120k                                     | 132k                   | not built: loses inside the ceiling (2026-09-30)                                                                                         |
 
 The BFS floor has two parts because the per-level cost is what kills it: a level costs 0.2 ms on
 the device however small the frontier is, and a road network or a grid has thousands of levels.

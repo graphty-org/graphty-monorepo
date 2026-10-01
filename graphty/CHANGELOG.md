@@ -1,3 +1,18 @@
+## 0.8.22 (2026-10-01)
+
+### 🩹 Fixes
+
+- **graphty-element:** floor sampled searches on sources times edges, and katz above the ceiling ([fd9efc40](https://github.com/graphty-org/graphty-monorepo/commit/fd9efc40))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.1.1
+- Updated webgpu-graph-algorithms to 0.6.16
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.21 (2026-09-30)
 
 ### 🚀 Features

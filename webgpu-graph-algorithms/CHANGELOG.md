@@ -1,3 +1,30 @@
+## 0.6.16 (2026-10-01)
+
+### 🚀 Features
+
+- **webgpu-graph-algorithms:** device graph build, triangle counting and label propagation ([#422](https://github.com/graphty-org/graphty-monorepo/issues/422))
+- **webgpu-graph-algorithms:** expose allPairsShortestPath on the accelerator ([4467a9b2](https://github.com/graphty-org/graphty-monorepo/commit/4467a9b2))
+- **webgpu-graph-algorithms:** blocked Floyd-Warshall all-pairs shortest paths ([2d4ee686](https://github.com/graphty-org/graphty-monorepo/commit/2d4ee686))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** refuse oversized structure builds and make LPA rounding exact ([8dce68d9](https://github.com/graphty-org/graphty-monorepo/commit/8dce68d9))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** measure the triangle and label propagation crossover ([6b03cd65](https://github.com/graphty-org/graphty-monorepo/commit/6b03cd65))
+- **webgpu-graph-algorithms:** measure the all-pairs CPU/GPU crossover ([a3099aad](https://github.com/graphty-org/graphty-monorepo/commit/a3099aad))
+- **webgpu-graph-algorithms:** benchmark groups for triangles and label propagation ([#422](https://github.com/graphty-org/graphty-monorepo/issues/422))
+- **webgpu-graph-algorithms:** the apsp benchmark group and the real-ceiling test ([246e1c14](https://github.com/graphty-org/graphty-monorepo/commit/246e1c14))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.1.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.15 (2026-09-30)
 
 ### 🚀 Features

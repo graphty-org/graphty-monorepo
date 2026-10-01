@@ -319,7 +319,7 @@ describe("what a style editor needs to draw a row", () => {
             assert.strictEqual(typeof descriptor.default, DEFAULT_TYPE[descriptor.accepts], channel);
 
             if (descriptor.accepts === "enum") {
-                assert.include(descriptor.values, descriptor.default, channel);
+                assert.include(descriptor.values ?? [], String(descriptor.default), channel);
             }
 
             if (descriptor.accepts === "color") {
@@ -331,8 +331,11 @@ describe("what a style editor needs to draw a row", () => {
     it("reads the defaults out of the element's default styles rather than restating them", () => {
         const nodeColor = defaultNodeStyle.texture?.color;
 
-        assert.isString(nodeColor, "the element's default node colour is one solid colour");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.color"].default, nodeColor.toUpperCase());
+        assert.strictEqual(
+            CHANNEL_DESCRIPTORS["node.color"].default,
+            typeof nodeColor === "string" ? nodeColor.toUpperCase() : null,
+            "the element's default node colour is one solid colour, written as uppercase hex",
+        );
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.size"].default, defaultNodeStyle.shape?.size);
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.shape"].default, defaultNodeStyle.shape?.type);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.width"].default, defaultEdgeStyle.line?.width);

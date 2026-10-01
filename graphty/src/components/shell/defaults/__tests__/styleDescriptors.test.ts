@@ -1,11 +1,7 @@
 import { resultPath } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
-import {
-    METRIC_VALUE_FIELD,
-    SHELL_DEFAULTS_TEMPLATE_ID,
-    topDegreeLabelLayer,
-} from "../styleDescriptors";
+import { METRIC_VALUE_FIELD, SHELL_DEFAULTS_TEMPLATE_ID, topDegreeLabelLayer } from "../styleDescriptors";
 
 /** A run id shaped as the session mints one, hyphen and all, so the paths below read as the real thing. */
 const RUN = "degree-1";

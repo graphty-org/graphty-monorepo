@@ -11,7 +11,7 @@
  * million keeps the temperature positive through every generated step count (dt is 1e-7 per iteration). No derived
  * tolerance is used anywhere in this file: every assertion is bitwise, an exact count, or an inequality with a
  * stated f32 margin. Sizing (spec 11.3): karate cannot shrink, so on a software adapter the per-run step counts
- * shrink instead (STEPS); numRuns stays at 200 on every adapter.
+ * shrink instead (stepBound()); numRuns stays at 200 on every adapter.
  */
 
 import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
@@ -30,7 +30,7 @@ import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 const NUM_RUNS = 200;
 const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
-const STEPS = gpuScale() < 1 ? 2 : 4;
+const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
 /** The budget every case runs under: the temperature stays positive through every generated step count. */
 const BUDGET = 1_000_000;
 /** dt of that budget (PD-5). */
@@ -142,8 +142,8 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
             await fc.assert(
                 fc.asyncProperty(
                     fc.array(fc.boolean(), { minLength: n, maxLength: n }),
-                    fc.integer({ min: 1, max: STEPS }),
-                    fc.integer({ min: 1, max: STEPS }),
+                    fc.integer({ min: 1, max: stepBound() }),
+                    fc.integer({ min: 1, max: stepBound() }),
                     async (bits, before, after) => {
                         const mask = makeMask(n);
                         bits.forEach((b, i) => {

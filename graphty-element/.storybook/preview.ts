@@ -107,7 +107,8 @@ const preview: Preview = {
         controls: {
             expanded: true,
             matchers: {
-                color: /(background|color)$/i,
+                // `background` alone is the element's background object, not a colour string.
+                color: /color$/i,
                 date: /Date$/i,
             },
         },

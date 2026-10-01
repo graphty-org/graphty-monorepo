@@ -2490,7 +2490,9 @@ describe("AppShell", () => {
                itself and hand over a `value >= cut` expression. */
             expect(added[0].selector).toMatchObject({ match: "top", n: 5 });
             expect((added[0].selector as { path: string }).path).toMatch(new RegExp(`\\.${METRIC_VALUE_FIELD}$`));
-            expect(added[0].encode).toHaveProperty("node.label");
+            /* It switches labels on and leaves the words to graphty-element, which draws each
+               node's id. */
+            expect(added[0].set).toEqual({ "node.labelStyle": { enabled: true } });
             /* Nothing the shell adds may set a node colour or a node size any more, by either
                a literal or a rule. */
             for (const layer of added) {

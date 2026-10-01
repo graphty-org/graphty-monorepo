@@ -490,7 +490,7 @@ interface StubNode {
     data: Record<string, unknown>;
 }
 
-/** One edge as the stand-in holds it, which is how `GraphtyHandle.getData` reads it too. */
+/** One edge as the stand-in holds it, which is how `session.data.edgePage` reads it too. */
 interface StubEdge {
     /** The element-assigned edge id. */
     id: string;
@@ -998,7 +998,7 @@ function withNumericIds(fixture: StringFixtureRecords): FixtureRecords {
  * Stands a graph on the mounted host that answers the whole novice path.
  *
  * It is a stand-in for graphty-element, not for the shell: it holds the cat fixture in the
- * two Maps `GraphtyHandle.getData` reads, and it PUBLISHES A RESULT per run -- a ranking, a
+ * two Maps `session.data` pages read, and it PUBLISHES A RESULT per run -- a ranking, a
  * summary and a distribution for each of the three node metrics, and a group per node with a
  * modularity beside it for the grouping run. What these boards test is that the shell starts
  * the right passes, in the right order, and turns what comes back into the right sentence.
@@ -1763,6 +1763,34 @@ describe("AppShell", () => {
                one-button model; 5.2 line 448's promise that the drawer never covers either
                sidebar is kept by INSETTING the drawer instead. */
             expect(screen.getByTestId("activity-panel")).toBeInTheDocument();
+        });
+    });
+
+    describe("the data table drawer", () => {
+        it("reads a page of records around the rows on screen, never the whole graph", async () => {
+            const nodeCount = 20_000;
+            const { container } = await renderMeasuredShell();
+
+            captureLoads(container);
+            const graph = installNovicePathGraph(container, { synthetic: { nodeCount, edgeCount: 100 } });
+            const { data } = graph.styles.session;
+            const pages = vi.spyOn(data, "nodePage");
+            const everyNode = vi.spyOn(data, "nodes");
+
+            await loadCatSample(container);
+            fireEvent.keyDown(window, { key: "T", shiftKey: true });
+
+            const grid = await screen.findByRole("grid", { name: "Data table" });
+
+            await waitFor(() => {
+                expect(grid).toHaveAttribute("aria-rowcount", String(nodeCount + 1));
+            });
+            expect(within(grid).getAllByTestId("data-table-row").length).toBeLessThan(100);
+            expect(everyNode).not.toHaveBeenCalled();
+            expect(pages).toHaveBeenCalled();
+            for (const [options] of pages.mock.calls) {
+                expect(options?.limit ?? 100).toBeLessThanOrEqual(200);
+            }
         });
     });
 
@@ -4672,12 +4700,14 @@ describe("AppShell", () => {
 
             const [busiest] = [...counts.entries()].sort((one, two) => two[1].size - one[1].size);
 
-            reportSelection(container, busiest[0]);
+            /* The element reports a selected node by the id it holds, so a numeric-id graph
+               reports a number, and the node's edges are looked up by exactly that id. */
+            reportSelection(container, numericIds ? Number(busiest[0]) : busiest[0]);
 
             return { neighborCount: busiest[1].size };
         }
 
-        it("reads the node's REAL link count from the source/target spelling getData writes", async () => {
+        it("reads the node's REAL link count from the source/target spelling the element writes", async () => {
             const { neighborCount } = await selectBusiestNode(false);
 
             expect(neighborCount).toBeGreaterThan(0);

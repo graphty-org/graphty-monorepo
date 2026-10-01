@@ -42,7 +42,7 @@
  * a muted tag rather than a control that silently does nothing.
  */
 
-import { DataTable, type DataTableColumn, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
+import { DataTable, type DataTableColumn, type DataTableSort, PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import React, { useCallback, useRef } from "react";
 
 import { keyChipFor } from "../bindings";
@@ -162,8 +162,18 @@ export interface DataTableDrawerProps<TRow extends object> {
     readonly tab: DataDrawerTab;
     /** Tab change. */
     readonly onTabChange: (tab: DataDrawerTab) => void;
-    /** The rows to draw. */
+    /** The rows to draw: every row, or with `rowCount` a window of them. */
     readonly rows: readonly TRow[];
+    /** How many rows there are in all, when `rows` is a window from `rowOffset`. */
+    readonly rowCount?: number;
+    /** Where `rows[0]` sits among all of them. */
+    readonly rowOffset?: number;
+    /** The rows the table is drawing, as positions: hand over a window that covers them. */
+    readonly onRangeChange?: (start: number, end: number) => void;
+    /** The sort, held by the caller. */
+    readonly sorting?: readonly DataTableSort[];
+    /** A header asked for a new sort. */
+    readonly onSortingChange?: (sorting: DataTableSort[]) => void;
     /** The columns to draw. */
     readonly columns: readonly DataTableColumn<TRow>[];
     /** A stable id per row. The row selection IS the canvas selection. */
@@ -214,6 +224,11 @@ export function DataTableDrawer<TRow extends object>(
         onTabChange,
         open,
         rows,
+        rowCount,
+        rowOffset,
+        onRangeChange,
+        sorting,
+        onSortingChange,
         selectedIds,
         showCount,
         showLabel,
@@ -483,6 +498,11 @@ export function DataTableDrawer<TRow extends object>(
 
             <DataTable<TRow>
                 data={rows}
+                rowCount={rowCount}
+                rowOffset={rowOffset}
+                onRangeChange={onRangeChange}
+                sorting={sorting}
+                onSortingChange={onSortingChange}
                 columns={columns}
                 getRowId={getRowId}
                 label="Data table"

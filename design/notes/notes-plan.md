@@ -38,7 +38,7 @@ There are two pull requests:
 | 1, 2 | Built (2026-10-01), with the changes listed under "As built" in each. |
 | 3 | Built: `status`, `counts` and the `missing` filter with step 2; the `unsupported` rows with step 4. |
 | 4 | Built (2026-10-01), with the changes listed under "As built". |
-| 5 | Not started. |
+| 5 | Built (2026-10-01), with the changes listed under "As built". |
 | 6 | Built (2026-10-01), with the changes listed under "As built". |
 | 7 to 9 | Not started. |
 
@@ -349,6 +349,45 @@ change data labels.
 
 **Done when:** the quick start's layer (section 2) labels exactly the noted nodes on a standalone
 session and in the browser, and no existing style, label or filter test changes.
+
+**As built:**
+
+- The count index (`src/session/notes/countIndex.ts`) is keyed by snapshot row, not by the text of
+  node ids: node targets bind through `nodeRowOf` and edge targets through `edgeRowsOf`, exactly as
+  `status` and `counts()` bind them (`rowsOf` and `newestFirst` moved there from `NotesApi.ts`). It
+  is rebuilt whole when the notes or the snapshot change, not updated per note. Its cache key is
+  the notes slice's write count (`dispatcher.lane.writes("notes")`), because the slice's map is
+  written in place and its identity never changes.
+- The repaint hook repaints the layers that read a note path over what they matched before and
+  match now, from the lowest of them up, and does no second pass over the changed rows: that
+  already covers the elements that gained or lost a note, and repainting a reader whole keeps a
+  scale domain over the count correct when its extent moves. A stack reading no note path paints
+  nothing on a note write.
+- The three note paths are always answered by the session's path directory, so a layer reading
+  one is never reported unbound or disabled by `applyTemplate` before the notes are merged (the
+  quick start applies the layer first). `graphty.unknownThing` is unresolved (note-23b).
+- `styles.validate` reports a shadowed column in a new field, `ValidationResult.shadowedPaths`:
+  the bare `graphty.` paths a layer reads where `data.<path>` names a column. It is not an error.
+- The refusal is one function, `refuseNotePaths` in `src/session/sets/dependencies.ts`, run by
+  the two write doors every rule passes through: `scope.admit` (the visibility filter, run scopes,
+  recipe steps, `{ match: "member" }` style selectors, selection scopes) and the set door. It reads
+  expression paths and the paths of `range`, `categories` and `threshold` leaves. A set rule's
+  `expression` leaf was not covered by `reserved-root`, so it now refuses with `notes-path` too
+  (notes-design.md section 6.2 says so). The query engine itself does not refuse, so
+  `select({ where })` reads note paths.
+- The flag is called `plainText`, not `literal`: in the style code "literal" already means a fixed
+  value written in a layer. A text channel's column carries a per-element `plainText` byte, set
+  when the value came from a `graphty.notes.*` binding; it is read through a new published read,
+  `ElementPaint.plainText(target, index, channel)`, which `StylePainter` writes into the label or
+  tooltip block (`label.plainText`), which `RichTextLabel` passes to `RichTextParser.parse`. A
+  `labelStyle` layer above keeps the flag; a text layer above sets it for its own words.
+- `RichTextLabel.textRuns` (read-only) exposes the drawn runs for the browser test.
+- The note-7 sample `<color='red'>x</color>` is 22 characters, not 20.
+- Tests: `test/session/notes/styles.test.ts` (Node: `has` and expression selectors, the three
+  bindings, edge and set targets, repaint only with a reader, note-7's flag through the painter,
+  note-23, note-23b, select({ where }), note-24 for the filter's expression and range leaves, a
+  run scope and a set rule) and `test/browser/note-label-plain-text.test.ts` (one plain run in the
+  label's own color for the note; a data column holding `<bold>y</bold>` still draws bold).
 
 ---
 

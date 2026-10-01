@@ -555,8 +555,9 @@ or a set is computed over, and a note must not change a result:
 
 - the visibility filter, run scopes and recipes refuse them with `E_BAD_SELECTOR`,
   `details.reason: "notes-path"`;
-- set rules already refuse every path root but `data.` and `results.` (`E_BAD_COMMAND`,
-  `details.reason: "reserved-root"`), and keep doing so.
+- set rules already refuse every path root but `data.` and `results.` in a `range`, `categories`
+  or `threshold` leaf (`E_BAD_COMMAND`, `details.reason: "reserved-root"`), and keep doing so; an
+  `expression` leaf reading a note path is refused with `notes-path`, as the filter refuses it.
 
 Allowing them in more places later is an addition.
 
@@ -1025,7 +1026,9 @@ Made as the first step of [notes-plan.md](notes-plan.md).
 - Conflict policies: `keep-both`, `replace`, `keep-mine`. Report fields: `added`, `unchanged`,
   `renamed`, `older`, `replaced`, `kept`, `missing`, `skipped`, `notices`.
 - Style paths: the `graphty.` root, reserved for every value graphty-element provides;
-  `graphty.notes.count`, `graphty.notes.latest`, `graphty.notes.latestTime`.
+  `graphty.notes.count`, `graphty.notes.latest`, `graphty.notes.latestTime`;
+  `ValidationResult.shadowedPaths` (what `styles.validate` reports for section 6.4);
+  `ElementPaint.plainText` (whether a painted label's words are drawn as plain text).
 - Documents: member kind `graphty-notes`, version 1; schema
   `https://graphty.app/schema/documents/graphty-notes/v1.json`; `MemberReport.notes`;
   `onRepeat.notes`; `saveDocument` member `"graphty-notes"`.

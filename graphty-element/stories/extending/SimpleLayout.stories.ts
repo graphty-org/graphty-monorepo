@@ -36,17 +36,23 @@ const EDGES = [
     { src: "d", dst: "i" },
 ];
 
-/** Where the guide's layout puts each node at spacing 3: one row per tier, columns in id order. */
+/**
+ * The gap between rows and columns. At the guide's 3, unit-sized nodes fill a third of each gap
+ * and the framed graph is mostly node; at 8 it reads as rows of nodes like every other story.
+ */
+const SPACING = 8;
+
+/** Where the guide's layout puts each node, in gaps: one row per tier, columns in id order. */
 const EXPECTED: Readonly<Record<string, readonly [number, number]>> = {
     a: [0, 0],
-    b: [0, 3],
-    c: [3, 3],
-    d: [6, 3],
-    e: [0, 6],
-    f: [3, 6],
-    g: [6, 6],
-    h: [9, 6],
-    i: [12, 6],
+    b: [0, SPACING],
+    c: [SPACING, SPACING],
+    d: [2 * SPACING, SPACING],
+    e: [0, 2 * SPACING],
+    f: [SPACING, 2 * SPACING],
+    g: [2 * SPACING, 2 * SPACING],
+    h: [3 * SPACING, 2 * SPACING],
+    i: [4 * SPACING, 2 * SPACING],
 };
 
 const meta: Meta<StoryArgs> = {
@@ -72,7 +78,7 @@ export const RowsByTier: Story = {
         nodeData: NODES,
         edgeData: EDGES,
         layout: "acme-tiers",
-        layoutConfig: { spacing: 3 },
+        layoutConfig: { spacing: SPACING },
     },
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);

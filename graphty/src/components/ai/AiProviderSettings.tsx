@@ -313,7 +313,8 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
 
             try {
                 const createProvider = await getCreateProvider();
-                const instance = createProvider({ provider, apiKey: key });
+                const instance = createProvider(provider);
+                instance.configure({ apiKey: key });
                 const valid = await instance.validateApiKey();
 
                 finish(valid ? "success" : "error", valid ? "" : "The provider rejected that key");
@@ -342,29 +343,16 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
     );
 
     /**
-     * Turns remembering on or off.
-     *
-     * Enabling it re-writes every key the store is already holding, because the
-     * store's `enablePersistence` LOADS what is on disk and does not save what is in
-     * memory -- so a key typed before the box was ticked would be forgotten on
-     * reload, which is the opposite of what ticking the box asked for.
+     * Turns remembering on or off. The key store saves the keys it already holds when
+     * remembering starts, and unticking takes them out of storage (they stay usable
+     * until the page closes), so the choice survives a reload either way.
      * @param next - whether keys should be remembered.
      */
     const handleRememberChange = (next: boolean): void => {
-        if (!next) {
-            onDisablePersistence(false);
-
-            return;
-        }
-
-        onEnablePersistence();
-
-        for (const entry of AI_PROVIDERS) {
-            const key = keyFor(entry.type).trim();
-
-            if (entry.requiresKey && key !== "") {
-                setKey(entry.type, key);
-            }
+        if (next) {
+            onEnablePersistence();
+        } else {
+            onDisablePersistence();
         }
     };
 

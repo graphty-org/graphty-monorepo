@@ -6,9 +6,12 @@
  * LLM SDKs and an encrypted key store. That entry point needs a DOM, which is why it is still
  * reached through a dynamic import rather than a top-level one.
  *
- * The class shapes declared below are the app's own duck types, kept for now; the real ones
- * are exported by that entry point.
+ * The class and provider types are the element's own, imported type-only so nothing loads.
  */
+
+import type { ApiKeyManager, createProvider, ProviderType } from "@graphty/graphty-element/ai";
+
+export type { ProviderType };
 
 // Lazy-load the AI layer to avoid module loading issues in Safari
 // The actual classes are loaded on first access
@@ -47,20 +50,6 @@ async function getGraphtyElement(): Promise<typeof import("@graphty/graphty-elem
         });
 
     return loadPromise;
-}
-
-/** Supported AI provider types */
-type VercelProviderType = "openai" | "anthropic" | "google";
-export type ProviderType = VercelProviderType | "mock" | "webllm";
-
-/** Configuration for key persistence */
-interface PersistenceConfig {
-    /** Encryption key for secure storage */
-    encryptionKey: string;
-    /** Storage backend */
-    storage?: "localStorage" | "sessionStorage";
-    /** Prefix for storage keys */
-    prefix?: string;
 }
 
 /** AI status stages */
@@ -105,51 +94,6 @@ export interface ExecutionResult {
 }
 
 /**
- * ApiKeyManager class interface - matches graphty-element's ApiKeyManager
- */
-declare class ApiKeyManagerClass {
-    /**
-     *
-     */
-    enablePersistence(config: PersistenceConfig): void;
-    /**
-     *
-     */
-    disablePersistence(clearStorage?: boolean): void;
-    /**
-     *
-     */
-    isPersistenceEnabled(): boolean;
-    /**
-     *
-     */
-    setKey(provider: ProviderType, key: string): void;
-    /**
-     *
-     */
-    getKey(provider: ProviderType): string | undefined;
-    /**
-     *
-     */
-    hasKey(provider: ProviderType): boolean;
-    /**
-     *
-     */
-    removeKey(provider: ProviderType): void;
-    /**
-     *
-     */
-    getConfiguredProviders(): ProviderType[];
-    /**
-     *
-     */
-    clear(): void;
-}
-
-// Export types for the classes
-export type { ApiKeyManagerClass as ApiKeyManagerType };
-
-/**
  * Get the graphty-element AI module lazily.
  * This delays loading until first access, avoiding module import issues on Safari.
  */
@@ -159,38 +103,14 @@ export { getGraphtyElement };
  * Get the ApiKeyManager class lazily.
  * @returns The ApiKeyManager class
  */
-export async function getApiKeyManager(): Promise<typeof ApiKeyManagerClass> {
-    const mod = await getGraphtyElement();
-
-    // The declaration above is the app's own, not the element's, so the shapes are asserted
-    return (mod as unknown as { ApiKeyManager: typeof ApiKeyManagerClass }).ApiKeyManager;
+export async function getApiKeyManager(): Promise<typeof ApiKeyManager> {
+    return (await getGraphtyElement()).ApiKeyManager;
 }
-
-/**
- * Provider interface for validation.
- */
-interface AiProvider {
-    validateApiKey(): Promise<boolean>;
-}
-
-/**
- * Provider configuration for createProvider.
- */
-interface ProviderConfig {
-    provider: ProviderType;
-    apiKey?: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used in typeof expression below
-declare function createProviderFn(config: ProviderConfig): AiProvider;
 
 /**
  * Get the createProvider function lazily.
  * @returns The createProvider function
  */
-export async function getCreateProvider(): Promise<typeof createProviderFn> {
-    const mod = await getGraphtyElement();
-
-    // The declaration above is the app's own, not the element's, so the shapes are asserted
-    return (mod as unknown as { createProvider: typeof createProviderFn }).createProvider;
+export async function getCreateProvider(): Promise<typeof createProvider> {
+    return (await getGraphtyElement()).createProvider;
 }

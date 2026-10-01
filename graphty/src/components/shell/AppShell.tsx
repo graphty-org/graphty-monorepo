@@ -108,7 +108,6 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
-import type { ProviderType } from "../../types/ai";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
@@ -1407,11 +1406,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const aiKeyStorage = useAiKeyStorage();
 
     /* The provider the assistant opens with, chosen on the Settings > AI providers
-       pane ("Default provider", Settings.dc.html:767). Until one is chosen the first
-       provider that has a key is the one used, which is what this shell did before the
-       pane existed and is still the right answer for a user with exactly one key. */
-    const [aiDefaultProvider, setAiDefaultProvider] = useState<ProviderType | null>(null);
-    const aiProvider = aiDefaultProvider ?? aiKeyStorage.configuredProviders[0];
+       pane ("Default provider", Settings.dc.html:767) and kept by the element's key
+       store. Until one is chosen the first provider that has a key is the one used,
+       which is still the right answer for a user with exactly one key. */
+    const aiProvider = aiKeyStorage.defaultProvider ?? aiKeyStorage.configuredProviders[0];
 
     const aiManager = useAiManager({
         // Read once the session exists, which re-renders the shell after the element mounted.
@@ -1434,7 +1432,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             hasKey: aiKeyStorage.hasKey,
             configuredProviders: aiKeyStorage.configuredProviders,
             defaultProvider: aiProvider ?? null,
-            onDefaultProviderChange: setAiDefaultProvider,
+            onDefaultProviderChange: aiKeyStorage.setDefaultProvider,
             isPersistenceEnabled: aiKeyStorage.isPersistenceEnabled,
             onEnablePersistence: aiKeyStorage.enablePersistence,
             onDisablePersistence: aiKeyStorage.disablePersistence,
@@ -1449,6 +1447,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             aiKeyStorage.isReady,
             aiKeyStorage.removeKey,
             aiKeyStorage.setKey,
+            aiKeyStorage.setDefaultProvider,
             aiProvider,
         ],
     );

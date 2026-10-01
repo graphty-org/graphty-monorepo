@@ -1,3 +1,30 @@
+## 0.1.3 (2026-10-01)
+
+### 🩹 Fixes
+
+- **workspace:** build algorithms and layout before their Storybooks ([8b1d284d](https://github.com/graphty-org/graphty-monorepo/commit/8b1d284d))
+- **visual-review:** seed each project on its own, and only those asked for ([26e1767c](https://github.com/graphty-org/graphty-monorepo/commit/26e1767c))
+- **visual-review:** keep keyboard focus on the review page so shortcuts work on an iPad ([392b9c63](https://github.com/graphty-org/graphty-monorepo/commit/392b9c63))
+- **visual-review:** rasterize captures on the CPU so text renders the same each time ([64a2e89b](https://github.com/graphty-org/graphty-monorepo/commit/64a2e89b))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.2 (2026-10-01)
+
+### 🚀 Features
+
+- **workspace:** lay the changed pixels over the images, blink them, make the box optional ([1b12ba88](https://github.com/graphty-org/graphty-monorepo/commit/1b12ba88))
+
+### 🩹 Fixes
+
+- **visual-review:** download each capture once and atomically ([d86b594e](https://github.com/graphty-org/graphty-monorepo/commit/d86b594e))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.1 (2026-09-30)
 
 ### 🚀 Features

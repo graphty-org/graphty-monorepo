@@ -47,9 +47,7 @@ describe("Button Components Integration", () => {
         it("renders with default size (sm)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <ActionIcon aria-label="action">
-                        X
-                    </ActionIcon>
+                    <ActionIcon aria-label="action">X</ActionIcon>
                 </MantineProvider>,
             );
             expect(screen.getByRole("button", { name: "action" })).toBeInTheDocument();

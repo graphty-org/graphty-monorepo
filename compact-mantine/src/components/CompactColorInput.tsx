@@ -228,11 +228,7 @@ export interface CompactColorInputProps {
      * />
      * ```
      */
-    onChange?: (
-        color: string | undefined,
-        opacity: number | undefined,
-        event?: React.SyntheticEvent,
-    ) => void;
+    onChange?: (color: string | undefined, opacity: number | undefined, event?: React.SyntheticEvent) => void;
     /**
      * The field's name, drawn above the control and used to name the group the
      * three controls sit in.
@@ -357,7 +353,7 @@ export function CompactColorInput({
     // passed in (measured against @mantine/core 8.3.10), so those two take the
     // sentence through `description` with the description element styled out of
     // sight -- the route PanelField already uses.
-    const annotation = useControlAnnotation({name: label, disabled, disabledReason});
+    const annotation = useControlAnnotation({ name: label, disabled, disabledReason });
 
     // onChange, when given, is the only route out. The older pair would be a
     // second write for the same gesture, built from the same pre-gesture
@@ -634,12 +630,7 @@ export function CompactColorInput({
 
                 {showOpacity && (
                     <>
-                        <Divider
-                            orientation="vertical"
-                            color={PANEL_INK.BORDER}
-                            h={PANEL_GRID.CONTROL_HEIGHT}
-                            my={0}
-                        />
+                        <Divider orientation="vertical" color={PANEL_INK.BORDER} h={PANEL_GRID.CONTROL_HEIGHT} my={0} />
 
                         <NumberInput
                             data-testid="compact-color-input-opacity"

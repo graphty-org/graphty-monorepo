@@ -66,11 +66,7 @@ function resolveInk(expression: string, scheme: Scheme, seen = 0): string {
 function toRgb(color: string): [number, number, number] {
     const hex = color.slice(1);
     const full = hex.length === 3 ? [...hex].map((character) => character + character).join("") : hex;
-    return [
-        parseInt(full.slice(0, 2), 16),
-        parseInt(full.slice(2, 4), 16),
-        parseInt(full.slice(4, 6), 16),
-    ];
+    return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)];
 }
 
 function luminance(color: string): number {

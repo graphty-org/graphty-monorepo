@@ -53,9 +53,7 @@ export const displayComponentExtensions = {
                 // With neither color nor variant, Mantine leaves the text to its
                 // stylesheet, which hard-codes white; see ../contrast.ts.
                 "--badge-color":
-                    props?.color === undefined && props?.variant === undefined
-                        ? contrastVar(theme, props)
-                        : undefined,
+                    props?.color === undefined && props?.variant === undefined ? contrastVar(theme, props) : undefined,
             },
         }),
     }),
@@ -88,9 +86,7 @@ export const displayComponentExtensions = {
                 // With neither color nor variant, Mantine leaves the text to its
                 // stylesheet, which hard-codes white; see ../contrast.ts.
                 "--ti-color":
-                    props?.color === undefined && props?.variant === undefined
-                        ? contrastVar(theme, props)
-                        : undefined,
+                    props?.color === undefined && props?.variant === undefined ? contrastVar(theme, props) : undefined,
             },
         }),
     }),

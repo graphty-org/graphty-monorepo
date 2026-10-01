@@ -4,7 +4,7 @@ import React, { useId } from "react";
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels, useNumberFormatter, useOrdinalFormatter } from "../../i18n";
 import { type ActivationHandlerWithMeta, getActivationMeta } from "../../types/events";
-import { liveRegionProps,type LiveSetting } from "../../utils/live-region";
+import { liveRegionProps, type LiveSetting } from "../../utils/live-region";
 import { type Direction, inlineX, useDirection } from "../../utils/rtl";
 import { RankChip } from "./DataRow";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";

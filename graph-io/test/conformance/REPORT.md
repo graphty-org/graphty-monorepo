@@ -14,10 +14,10 @@ the expectation today; the reference points into
 | csv | 83 | 69 | 14 | 67 | 1 |
 | dot | 196 | 189 | 7 | 171 | 2 |
 | gexf | 110 | 104 | 6 | 101 | 1 |
-| gml | 109 | 97 | 12 | 87 | 3 |
+| gml | 109 | 98 | 11 | 88 | 4 |
 | graphml | 148 | 143 | 5 | 129 | 5 |
-| json | 410 | 378 | 32 | 60 | 0 |
-| neo4j | 45 | 23 | 22 | 22 | 0 |
+| json | 411 | 381 | 30 | 63 | 0 |
+| neo4j | 45 | 25 | 20 | 24 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 
 ## networkx differential
@@ -152,20 +152,19 @@ Where networkx is overruled:
 
 ## gml
 
-### string and bare-word node ids are rejected (sources.md 4.4) (5)
-
-- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: expected a value for key "source" at line 12, found "fooBar"
-- `gephi/label.gml`: failed: E_SYNTAX: expected a value for key "id" at line 5, found "A"
-- `gephi/emojis.gml`: failed: E_SYNTAX: expected a value for key "id" at line 5, found "A"
-- `authored/string-ids.gml`: nodes: expected 2, got 0; edges: expected 1, got 0
-- `authored/bareword-ids.gml`: failed: E_SYNTAX: expected a value for key "id" at line 2, found "a"
-
 ### a node without id is skipped instead of given a generated id (sources.md 4.4) (4)
 
 - `igraph/tests_unit_graph2.gml`: nodes: expected 3, got 0
 - `igraph/tests_regression_bug_2497.gml`: nodes: expected 2, got 1
 - `ogdf/invalid_missing-id.gml`: nodes: expected 3, got 2
 - `authored/node-without-id.gml`: nodes: expected 3, got 2; label "no id" missing (no label column)
+
+### string and bare-word node ids are rejected (sources.md 4.4) (4)
+
+- `ogdf/invalid_invalid-integer.gml`: failed: E_SYNTAX: expected a value for key "source" at line 12, found "fooBar"
+- `gephi/label.gml`: failed: E_SYNTAX: expected a value for key "id" at line 5, found "A"
+- `gephi/emojis.gml`: failed: E_SYNTAX: expected a value for key "id" at line 5, found "A"
+- `authored/bareword-ids.gml`: failed: E_SYNTAX: expected a value for key "id" at line 2, found "a"
 
 ### round trip: exporter refuses keys beginning with _ that the importer accepts (graph-tool _pos, sources.md 4.4) (3)
 
@@ -184,6 +183,10 @@ Where networkx is overruled:
 ### no nesting depth guard (sources.md 4.4) (1)
 
 - `authored/deep-nesting-5000.gml`: imported (1 nodes) where a failure was expected
+
+### round trip: the GML exporter writes the spec's integer ids, so it refuses string ids without sanitizeIds "mangle" (sources.md 4.4) (1)
+
+- `authored/string-ids.gml`: threw: GraphFormatError: 2 node id(s) cannot be written as integer (first: "a" at index 0); pass sanitizeIds: "mangle" to rewrite them
 
 
 ## graphml
@@ -241,15 +244,14 @@ Where networkx is overruled:
 - `networkx-generated/cytoscape-multidigraph-0.json`: nodes: expected 6, got 12; edge "0"->"5" missing
 - `networkx-generated/cytoscape-multidigraph-1.json`: nodes: expected 6, got 12; edge "0"->"5" missing
 
-### networkx adjacency_data / tree_data not supported (sources.md 8.4 other dialects) (2)
-
-- `networkx/karate.adjacency.json`: edges: expected 78, got 0; edge 0->1 missing
-- `networkx/tree.tree_data.json`: failed: E_JSON_DIALECT: no known dialect: expected nodes / links / edges (node-link), elements (Cytoscape) or graph (JGF)
-
 ### top-level {nodes, edges} of Cytoscape data elements not detected as Cytoscape (sources.md 8.4 Cytoscape) (2)
 
 - `cytoscape/abcde.json`: edges: expected 7, got 0; node "a" missing
 - `cytoscape/gal.json`: failed: E_MISSING_ENDPOINT: error limit of 100 exceeded: edges[100] has no source
+
+### a NaN weight is E_INVALID_WEIGHT under the shared weight rule and its edge is skipped; a tuple node id (a JSON array) is not a node id (sources.md 8.4 JSON layer) (1)
+
+- `networkx/nan-inf-bigint-tuple.node_link.json`: nodes: expected 5, got 4; edges: expected 3, got 1
 
 ### Cytoscape position.z ignored (sources.md 8.4 Cytoscape) (1)
 
@@ -262,10 +264,6 @@ Where networkx is overruled:
 ### links is not read when edges is also present; it is reported (W_JSON_UNREAD_KEY), not imported (sources.md 8.4 node-link) (1)
 
 - `authored/links-and-edges.json`: edges: expected 2, got 1; edge "a"->"b" missing
-
-### NaN / Infinity literals written by networkx are rejected (sources.md 8.4 JSON layer) (1)
-
-- `networkx/nan-inf-bigint-tuple.node_link.json`: failed: E_SYNTAX: invalid JSON: Unexpected token 'N', ...""weight": NaN, "sour"... is not valid JSON
 
 ### networkx cytoscape_data misread: numeric endpoints do not match string data.id, directed flag ignored (sources.md 0.2, 8.4 Cytoscape) (1)
 
@@ -298,11 +296,6 @@ Where networkx is overruled:
 - `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
 - `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
 - `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships)
-
-### the same id in two ID spaces collides: the core has one id space (sources.md 9.4) (2)
-
-- `admin/manual-id-spaces.csv`: nodes: expected 6, got 3; edges: expected 9, got 0
-- `northwind/products-categories-suppliers.csv`: failed: E_NEO4J_ID_SPACE_COLLISION, E_NEO4J_ENDPOINT_SPACE: error limit of 100 exceeded: endpoint 10 is not a node of its declared id space (a node of another id space has that id); the row is skipped; issue E_NEO4J_ID_SPACE_COLLISION present
 
 ### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (1)
 

@@ -59,7 +59,7 @@ export type SampleSource =
           readonly kind: "inline";
           /** The graphty-element DataSource type, e.g. "json". */
           readonly format: string;
-          /** The object the caller JSON.stringifies into `handle.loadData(format, {data})`. */
+          /** The object the caller JSON.stringifies into the inline `data` of the source the shell imports. */
           readonly payload: unknown;
       }
     | {
@@ -187,10 +187,7 @@ const BYTES_PER_MEGABYTE = 1_000_000;
  * @returns the one size string both surfaces draw.
  */
 export function sampleSizeString(size: SampleSizeFacts): string {
-    const parts = [
-        `${size.nodes.toLocaleString("en-US")} nodes`,
-        `${size.edges.toLocaleString("en-US")} edges`,
-    ];
+    const parts = [`${size.nodes.toLocaleString("en-US")} nodes`, `${size.edges.toLocaleString("en-US")} edges`];
 
     if (size.bytes !== undefined) {
         const megabytes = Math.round(size.bytes / BYTES_PER_MEGABYTE);

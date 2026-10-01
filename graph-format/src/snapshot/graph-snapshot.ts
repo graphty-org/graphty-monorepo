@@ -21,7 +21,7 @@
  */
 
 import { dropGpuViewCache, isColumnDetached } from "../columns/column.js";
-import { columnSetVersion } from "../columns/table.js";
+import { columnSetVersion, sealTable } from "../columns/table.js";
 import { FORMAT_VERSION, INVALID_INDEX, SNAPSHOT_BRAND } from "../constants.js";
 import { GraphFormatError } from "../errors.js";
 import { EdgeIdIndex } from "../ids/edge-id-index.js";
@@ -917,6 +917,23 @@ export class GraphSnapshot implements GraphSnapshotContract {
     relabel(perm: U32): DerivedGraph {
         this.assertAttached();
         return this.wrapDerived(deriveRelabel(this, this.edgeEndpoints(), perm));
+    }
+
+    /**
+     * Make the column SET of every attribute table (nodes, edges, graph and each extension table)
+     * read-only: from then on set(), remove() and rename() on those tables throw E_FROZEN. Reads are
+     * unchanged, and so is the CONTENT of columns declared mutable. A table object shared with
+     * another snapshot (a derived graph shares tables; withColumns() shares the extension tables) is
+     * sealed for that snapshot too; withColumns() on a sealed snapshot returns writable node, edge
+     * and graph tables. Idempotent; there is no unseal.
+     */
+    seal(): void {
+        sealTable(this.nodes);
+        sealTable(this.edges);
+        sealTable(this.graph);
+        for (const table of this.extensions.values()) {
+            sealTable(table);
+        }
     }
 
     /**

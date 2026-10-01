@@ -4,6 +4,7 @@ import {
     Engine,
     HemisphericLight,
     Logger,
+    PhotoDome,
     Quaternion,
     Scene,
     TransformNode,
@@ -16,6 +17,8 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
+import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
 
@@ -33,6 +36,9 @@ interface RenderManagerConfig {
  */
 const GRAPH_ROOT_NAME = "graph-root";
 
+/** What the scene is cleared to when nothing names a colour. Whitesmoke. */
+const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+
 /**
  * Manages Babylon.js scene, engine, and render loop
  */
@@ -43,10 +49,12 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
 
     private renderLoopActive = false;
-    private updateCallback?: () => void;
+    private updateCallback?: (frameMs: number) => void;
     /** How many callers currently hold the frames back; see {@link holdFrames}. */
     private frameHolds = 0;
     private resizeHandler: () => void;
+    /** The one skybox dome, and the image it shows; null while the background is a colour. */
+    private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
 
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
@@ -117,7 +125,7 @@ export class RenderManager implements Manager {
         light.groundColor = new Color3(0.35, 0.35, 0.35);
 
         // Set background color
-        const backgroundColor = this.config.backgroundColor ?? "#F5F5F5"; // whitesmoke
+        const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
         this.scene.clearColor = Color4.FromHexString(backgroundColor);
     }
 
@@ -171,9 +179,10 @@ export class RenderManager implements Manager {
 
     /**
      * Start the render loop with the provided update callback
-     * @param updateCallback - Function to call before each render frame
+     * @param updateCallback - Function to call before each render frame, given how long the frame
+     *     before it took in milliseconds (0 on the first)
      */
-    startRenderLoop(updateCallback: () => void): void {
+    startRenderLoop(updateCallback: (frameMs: number) => void): void {
         if (this.renderLoopActive) {
             return;
         }
@@ -191,7 +200,7 @@ export class RenderManager implements Manager {
             try {
                 // Call update callback
                 if (this.updateCallback) {
-                    this.updateCallback();
+                    this.updateCallback(this.engine.getDeltaTime());
                 }
 
                 // Update camera - NOTE: This might be redundant with UpdateManager.update()
@@ -210,6 +219,7 @@ export class RenderManager implements Manager {
 
                 // Don't stop render loop on error, but log it
                 console.error("Error in render loop:", error);
+                reportCaught(error);
             }
         });
     }
@@ -260,10 +270,40 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Draw the graph against a background: a clear colour, or a photo-dome skybox.
+     *
+     * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
+     * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
+     * builds nothing.
+     * @param background - The background, parsed.
+     * @param onSkyboxLoaded - Called with the image once a new skybox's texture has arrived.
+     */
+    applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void {
+        if (background.backgroundType === "skybox") {
+            const url = background.data;
+            if (this.dome?.url === url) {
+                return;
+            }
+
+            this.dome?.dome.dispose();
+            const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
+            dome.texture.onLoadObservable.addOnce(() => {
+                onSkyboxLoaded(url);
+            });
+            this.dome = { url, dome };
+            return;
+        }
+
+        this.dome?.dome.dispose();
+        this.dome = null;
+        this.setBackgroundColor(background.color ?? DEFAULT_BACKGROUND_COLOR);
+    }
+
+    /**
      * Update the background color
      * @param color - Hex color string (e.g., "#FFFFFF")
      */
-    setBackgroundColor(color: string): void {
+    private setBackgroundColor(color: string): void {
         try {
             this.scene.clearColor = Color4.FromHexString(color);
         } catch (error) {

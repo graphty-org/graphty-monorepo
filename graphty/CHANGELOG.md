@@ -1,3 +1,137 @@
+## 0.8.21 (2026-09-30)
+
+### 🚀 Features
+
+- **algorithms:** make the snapshot algorithms the only api and drop the legacy graph ([8962e042](https://github.com/graphty-org/graphty-monorepo/commit/8962e042))
+- **graphty-element:** export the graph to any format and register file writers ([99ebad97](https://github.com/graphty-org/graphty-monorepo/commit/99ebad97))
+- **graphty-element:** add the snapshot layout contract and run the built-in layouts on it ([bc6a7d0f](https://github.com/graphty-org/graphty-monorepo/commit/bc6a7d0f))
+- **graphty-element:** read csv and neo4j files through graph-io ([f11356ca](https://github.com/graphty-org/graphty-monorepo/commit/f11356ca))
+- **graphty-element:** run flow, cut, matching and link prediction on the indexed ports ([b4453fc8](https://github.com/graphty-org/graphty-monorepo/commit/b4453fc8))
+
+### 🩹 Fixes
+
+- **graphty-element:** restore the deprecated pairWeights helper for layout subclasses ([cdc42aaa](https://github.com/graphty-org/graphty-monorepo/commit/cdc42aaa))
+- **graphty-element:** let max flow run over its own network without deriving a snapshot ([881f43ed](https://github.com/graphty-org/graphty-monorepo/commit/881f43ed))
+- **graphty-element:** make a wrapped importer match a built-in reader ([76bfc5f2](https://github.com/graphty-org/graphty-monorepo/commit/76bfc5f2))
+- **graphty-element:** export stored weights, file-unit positions, shape and safe csv cells ([16f1e90d](https://github.com/graphty-org/graphty-monorepo/commit/16f1e90d))
+- **graphty-element:** publish maskTest from ./extend for plugins ([#85](https://github.com/graphty-org/graphty-monorepo/issues/85))
+- **graphty-element:** declare graph-format only as a regular dependency ([#85](https://github.com/graphty-org/graphty-monorepo/issues/85))
+- **graphty-element:** keep drawn nodes through adds made while a layout answer is out ([077a7457](https://github.com/graphty-org/graphty-monorepo/commit/077a7457))
+- **graphty-element:** record how dot, gml and pajek loads differ from 2.x ([b1891017](https://github.com/graphty-org/graphty-monorepo/commit/b1891017))
+- **graphty-element:** fit mirrored re-runs and sum unit reciprocal weights ([2b460363](https://github.com/graphty-org/graphty-monorepo/commit/2b460363))
+- **graphty-element:** name the exact node for a flow end and record the port differences ([73b2b150](https://github.com/graphty-org/graphty-monorepo/commit/73b2b150))
+- **graphty-element:** sum reciprocal weights and keep added nodes clear of held ones ([fc482460](https://github.com/graphty-org/graphty-monorepo/commit/fc482460))
+- **graphty-element:** refuse endpoints on eigenvector and record every port difference ([08608117](https://github.com/graphty-org/graphty-monorepo/commit/08608117))
+- **graphty-element:** place fixed-layout nodes at their data positions every run ([5130940a](https://github.com/graphty-org/graphty-monorepo/commit/5130940a))
+- **graphty-element:** count undirected degree once and tighten the katz convergence check ([a3047c17](https://github.com/graphty-org/graphty-monorepo/commit/a3047c17))
+- **graphty-element:** read gml, dot and pajek files through graph-io ([#503](https://github.com/graphty-org/graphty-monorepo/issues/503))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.1.0
+- Updated webgpu-graph-algorithms to 0.6.15
+- Updated compact-mantine to 0.8.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.20 (2026-09-30)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.14
+- Updated compact-mantine to 0.8.13
+- Updated graphty-element to 3.0.1
+
+## 0.8.19 (2026-09-29)
+
+### 🚀 Features
+
+- **graphty-element:** read csv and neo4j files through graph-io ([00745eec](https://github.com/graphty-org/graphty-monorepo/commit/00745eec))
+- **graphty-element:** read gexf and graphml through graph-io ([97629983](https://github.com/graphty-org/graphty-monorepo/commit/97629983))
+- **graphty:** follow undo in the shell's copies of element state ([e8fe1fef](https://github.com/graphty-org/graphty-monorepo/commit/e8fe1fef))
+- **graphty:** reach the element only through its session and public doors ([0372cc3a](https://github.com/graphty-org/graphty-monorepo/commit/0372cc3a))
+- **graphty:** make loading and closing a dataset one undoable step each ([13592231](https://github.com/graphty-org/graphty-monorepo/commit/13592231))
+- **graphty:** warn wherever the app changes the element outside session commands ([3b896764](https://github.com/graphty-org/graphty-monorepo/commit/3b896764))
+- **graphty:** read undo, redo and history from the element's session ([d88fc008](https://github.com/graphty-org/graphty-monorepo/commit/d88fc008))
+- **graphty-element:** make every style edit one undoable step ([025a1e24](https://github.com/graphty-org/graphty-monorepo/commit/025a1e24))
+
+### 🩹 Fixes
+
+- **graphty-element:** make simple-tier run records, warnings and guides tell the truth ([2933486f](https://github.com/graphty-org/graphty-monorepo/commit/2933486f))
+- **graphty-element:** keep a coalescing edit out of a step older than pending work ([ad855e4e](https://github.com/graphty-org/graphty-monorepo/commit/ad855e4e))
+- **algorithms:** give accelerated hits and katz the cpu port's scale and weighting ([062aafb2](https://github.com/graphty-org/graphty-monorepo/commit/062aafb2))
+- **graphty-element:** rename the undo timing project to browser-bench ([e1484a38](https://github.com/graphty-org/graphty-monorepo/commit/e1484a38))
+- **graphty-element:** keep strict state's per-dispatch check off the history ([8921b612](https://github.com/graphty-org/graphty-monorepo/commit/8921b612))
+- **graphty-element:** carry load ids and supersede loads in the undo model, keep master's app fixes ([64401478](https://github.com/graphty-org/graphty-monorepo/commit/64401478))
+- **graphty:** bring a run's result card back when redo restores the run ([#542](https://github.com/graphty-org/graphty-monorepo/issues/542))
+- **graphty-element:** close the layout engine's writable lane, name algo.remove's run by runid ([#543](https://github.com/graphty-org/graphty-monorepo/issues/543))
+- **graphty:** drive the assistant through the element and let the element name loads ([7b68a746](https://github.com/graphty-org/graphty-monorepo/commit/7b68a746))
+- **graphty:** let the element detect formats and name the loaded dataset ([#539](https://github.com/graphty-org/graphty-monorepo/issues/539))
+- **graphty-element:** close the remaining ways to change project state without a step ([#539](https://github.com/graphty-org/graphty-monorepo/issues/539))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.13
+- Updated compact-mantine to 0.8.12
+- Updated graphty-element to 3.0.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.18 (2026-09-28)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.12
+- Updated compact-mantine to 0.8.11
+- Updated graphty-element to 2.6.2
+
+## 0.8.17 (2026-09-28)
+
+### 🩹 Fixes
+
+- **tools:** run knip per package and build only projects with a build target ([1292b67a](https://github.com/graphty-org/graphty-monorepo/commit/1292b67a))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.11
+- Updated compact-mantine to 0.8.10
+- Updated graphty-element to 2.6.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.16 (2026-09-28)
+
+### 🚀 Features
+
+- **graphty-element:** apply the decided sets names, result ids and kept records ([91e0043d](https://github.com/graphty-org/graphty-monorepo/commit/91e0043d))
+- **graphty-element:** member hashes, the r1 revision and a benchmark runner ([694dc3bb](https://github.com/graphty-org/graphty-monorepo/commit/694dc3bb))
+
+### 🩹 Fixes
+
+- **graphty:** restore the "Filter to a part" advice the type rename rewrote ([f6f4acaa](https://github.com/graphty-org/graphty-monorepo/commit/f6f4acaa))
+- **graphty-element:** close the sets review's door gaps and repaint only moved rows ([8a2010f9](https://github.com/graphty-org/graphty-monorepo/commit/8a2010f9))
+- **graphty-element:** canonical undirected edges at every door, status matching resolution ([1e56b36d](https://github.com/graphty-org/graphty-monorepo/commit/1e56b36d))
+- **graphty-element:** cheaper load completion, and every scope door admits the same way ([70463668](https://github.com/graphty-org/graphty-monorepo/commit/70463668))
+- **graphty:** describe a style layer that paints a set ([9519abb0](https://github.com/graphty-org/graphty-monorepo/commit/9519abb0))
+- **graphty-element:** set the acceleration routing floors from a measurement taken through the element ([#424](https://github.com/graphty-org/graphty-monorepo/issues/424))
+- **graphty:** keep tsc -b output out of the package and test the element source ([#262](https://github.com/graphty-org/graphty-monorepo/issues/262), [#263](https://github.com/graphty-org/graphty-monorepo/issues/263))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.10
+- Updated compact-mantine to 0.8.9
+- Updated graphty-element to 2.6.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.15 (2026-09-27)
 
 ### 🧱 Updated Dependencies
@@ -214,8 +348,8 @@
 - **graphty-element:** an eigenvector run that does not converge fails with E_NOT_CONVERGED ([47b116ac](https://github.com/graphty-org/graphty-monorepo/commit/47b116ac))
 - **graphty-element:** overflow policy for groups, and size by a run's metric ([#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050))
 - **graphty-element:** publish CHANNEL_DESCRIPTORS so the app stops copying it ([1ee1170d](https://github.com/graphty-org/graphty-monorepo/commit/1ee1170d))
-- ⚠️  **graphty:** drive the app through the v2 channel api ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
-- ⚠️  **graphty:** consume the element's API instead of working around it ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
+- ⚠️ **graphty:** drive the app through the v2 channel api ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
+- ⚠️ **graphty:** consume the element's API instead of working around it ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
 
 ### 🩹 Fixes
 
@@ -224,12 +358,12 @@
 - **graphty:** the app story defines graphty-element, so its canvas draws ([24986d67](https://github.com/graphty-org/graphty-monorepo/commit/24986d67))
 - **graphty-element:** colour the nodes of flow and matching runs, and size encodings ([0d21967b](https://github.com/graphty-org/graphty-monorepo/commit/0d21967b))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **graphty:** drive the app through the v2 channel api  ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
+- **graphty:** drive the app through the v2 channel api ([8b872f9c](https://github.com/graphty-org/graphty-monorepo/commit/8b872f9c))
   the app now requires a graphty-element that publishes the v2
   style-channel API.
-- **graphty:** consume the element's API instead of working around it  ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
+- **graphty:** consume the element's API instead of working around it ([d91d0247](https://github.com/graphty-org/graphty-monorepo/commit/d91d0247))
   an unmeasured node is drawn in the element's missing-data colour rather than the
   first anchor of the ramp, which is the same colour a genuine low score would have had.
 

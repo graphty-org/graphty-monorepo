@@ -48,6 +48,7 @@ export function createMockContext(graph: Graph): CommandContext {
 
     const context: CommandContext = {
         graph,
+        tx: graph.getSession(),
         abortSignal: new AbortController().signal,
         emitEvent: (type: string, data: unknown) => {
             events.push({ type, data });

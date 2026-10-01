@@ -1,14 +1,6 @@
 {
     "$schema": "https://typedoc.org/schema.json",
-    "entryPoints": [
-        "./src/index.ts",
-        "./src/core/graph.ts",
-        "./src/types/index.ts",
-        "./src/algorithms/index.ts",
-        "./src/data-structures/index.ts",
-        "./src/optimized/index.ts",
-        "./src/research/index.ts"
-    ],
+    "entryPoints": ["./src/index.ts", "./src/data-structures/index.ts"],
     "entryPointStrategy": "expand",
     "out": "./docs/api/generated",
     "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],

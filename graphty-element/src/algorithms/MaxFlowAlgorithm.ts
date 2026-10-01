@@ -5,13 +5,15 @@
  * in a flow network using the Ford-Fulkerson method.
  */
 
-import { fordFulkerson, Graph as AlgorithmGraph } from "@graphty/algorithms";
+import { expandEdges, fromEdgeArrays } from "@graphty/graph-format";
 import { z } from "zod/v4";
 
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import { CAPACITY_COLUMN } from "../data/GraphStore";
 import type { ResultElementValues } from "../session/results";
 import { Algorithm } from "./Algorithm";
+import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -21,7 +23,7 @@ import {
     metricFieldSpecs,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
-import { edgePairKey, requireNodeOption } from "./utils/graphUtils";
+import { requireDistinctEnds, requireNodeOption } from "./utils/graphUtils";
 
 /**
  * Zod-based options schema for Max Flow algorithm
@@ -61,6 +63,8 @@ interface MaxFlowOptions extends Record<string, unknown> {
 export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
     static namespace = "graphty";
     static type = "max-flow";
+    /** Flows within the run's scope: the node and edge lists come from the input. */
+    static scopeInput: ScopeInputDeclaration = "subgraph";
 
     static zodOptionsSchema: ZodOptionsSchema = maxFlowOptionsSchema;
 
@@ -113,73 +117,92 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
      * @returns The flow per edge, or null when there is no network to measure.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        const dataManager = this.graph.getDataManager();
-        const graphEdges = Array.from(dataManager.edges.values());
-        const nodeIds = Array.from(dataManager.nodes.keys());
+        // The nodes and declared edges of the run's input: its scope's, or the whole graph's.
+        const input = this.input("declared");
+        const graphEdges = scopeEdges(input);
+        const nodeIds = scopeNodeIds(input);
 
-        if (graphEdges.length === 0 || nodeIds.length === 0) {
+        // A flow needs two different nodes; a lone node has no source and sink to choose.
+        if (graphEdges.length === 0 || nodeIds.length < 2) {
             return null;
         }
 
         // Get source and sink from legacy options, schema options, or use defaults
         // Legacy configure() takes precedence for backward compatibility
-        // An id the caller named must be a node: the algorithms package answers an unknown id
-        // with a flow of 0, which would publish zeros as if they were a measurement.
+        // An id the caller named must be a node, and the two ends must differ: the flow is
+        // undefined otherwise, so the run says which option is wrong instead of measuring nothing.
         const sourceOption = this.legacyOptions?.source ?? this._schemaOptions.source;
         const sinkOption = this.legacyOptions?.sink ?? this._schemaOptions.sink;
         const source =
-            sourceOption === null ? String(nodeIds[0]) : requireNodeOption("max-flow", "source", sourceOption, nodeIds);
+            sourceOption === null ? nodeIds[0] : requireNodeOption("max-flow", "source", sourceOption, nodeIds);
         const sink =
             sinkOption === null
-                ? String(nodeIds[nodeIds.length - 1])
+                ? nodeIds[nodeIds.length - 1]
                 : requireNodeOption("max-flow", "sink", sinkOption, nodeIds);
+        requireDistinctEnds("max-flow", source, sink);
 
-        // Directed: a capacity runs the way the edge was declared.
-        const capacityGraph = new AlgorithmGraph({ directed: true });
-        for (const nodeId of nodeIds) {
-            capacityGraph.addNode(String(nodeId));
+        // The network is the input's declared edges, directed whatever the graph is -- a capacity
+        // runs the way the edge was declared -- over the declared graph's node rows. Edge k of the
+        // network is graphEdges[k], so the answer needs no map back.
+        const { graph } = input;
+        const { src, dst } = graph.edgeList();
+        const capacityColumn = graph.edges.typed(CAPACITY_COLUMN, "f64");
+        const networkSrc = new Uint32Array(graphEdges.length);
+        const networkDst = new Uint32Array(graphEdges.length);
+        const n = graph.nodeCount;
+        // Parallel edges are one pipe: their capacities add up, a negative one included, and a pipe
+        // whose total is negative carries nothing. The pipe's capacity rides on its first edge.
+        const pairCapacity = new Map<number, number>();
+        const firstOfPair = new Map<number, number>();
+        graphEdges.forEach(({ row }, k) => {
+            networkSrc[k] = src[row];
+            networkDst[k] = dst[row];
+            const pair = networkSrc[k] * n + networkDst[k];
+            const capacity = capacityColumn === null ? 1 : capacityColumn.data[row];
+            pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + capacity);
+            if (!firstOfPair.has(pair)) {
+                firstOfPair.set(pair, k);
+            }
+        });
+        const capacities = new Float64Array(graphEdges.length);
+        for (const [pair, k] of firstOfPair) {
+            const capacity = Math.max(pairCapacity.get(pair) ?? 0, 0);
+            pairCapacity.set(pair, capacity);
+            capacities[k] = capacity;
         }
-
-        const capacityOf = new Map<string, number>();
-        for (const edge of graphEdges) {
-            const srcId = String(edge.srcId);
-            const dstId = String(edge.dstId);
-
-            // Get capacity from edge data
-            const edgeData = edge.data as Record<string, unknown> | undefined;
-            const edgeObject = edge as unknown as Record<string, unknown>;
-            const rawCapacity = edgeData?.capacity ?? edgeData?.value ?? edgeObject.value ?? 1;
-            const capacity: number = typeof rawCapacity === "number" ? rawCapacity : 1;
-
-            capacityGraph.addEdge(srcId, dstId, capacity);
-            capacityOf.set(edgePairKey(srcId, dstId), capacity);
-        }
+        const network = fromEdgeArrays({
+            directed: true,
+            nodeCount: n,
+            src: networkSrc,
+            dst: networkDst,
+        });
 
         context.report({ phase: "Pushing flow", total: null });
-        const result = fordFulkerson(capacityGraph, source, sink);
+        // The dispatcher runs over the network built above, so no snapshot of the input is derived.
+        const { run } = this.accelerated("maxFlow", "directed", { over: network });
+        const { value: result, precision } = await run((dispatch, s) =>
+            dispatch.maxFlow(s, graph.ids.indexOf(source), graph.ids.indexOf(sink), {
+                algorithm: "ford-fulkerson",
+                weights: expandEdges(network, capacities),
+            }),
+        );
 
-        // One pass over the flow graph, rather than one pass per node: the net flow through a
-        // node is what arrives minus what leaves, and both sums are read off the same walk.
-        const arriving = new Map<string, number>();
-        const leaving = new Map<string, number>();
-        let busiest = 0;
-        for (const [from, targets] of result.flowGraph) {
-            for (const [to, flow] of targets) {
-                leaving.set(from, (leaving.get(from) ?? 0) + flow);
-                arriving.set(to, (arriving.get(to) ?? 0) + flow);
-                busiest = Math.max(busiest, Math.abs(flow));
-            }
+        // Each parallel edge reports its pipe's flow against its pipe's capacity. The net flow
+        // through a node is what arrives minus what leaves.
+        const pairFlow = new Map<number, number>();
+        const net = new Float64Array(n);
+        for (let k = 0; k < graphEdges.length; k++) {
+            const pair = networkSrc[k] * n + networkDst[k];
+            pairFlow.set(pair, (pairFlow.get(pair) ?? 0) + result.flow[k]);
+            net[networkSrc[k]] -= result.flow[k];
+            net[networkDst[k]] += result.flow[k];
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Measuring edges", graphEdges, (edge) => {
-            const srcId = String(edge.srcId);
-            const dstId = String(edge.dstId);
-
-            // The pair key reads the flow back out of the algorithm's answer; the element's own
-            // id is what is published.
-            const flow = result.flowGraph.get(srcId)?.get(dstId) ?? 0;
-            const capacity = capacityOf.get(edgePairKey(srcId, dstId)) ?? 1;
+        await forEachChunked(context, "Measuring edges", graphEdges, (edge, k) => {
+            const pair = networkSrc[k] * n + networkDst[k];
+            const flow = pairFlow.get(pair) ?? 0;
+            const capacity = pairCapacity.get(pair) ?? 1;
             const utilization = capacity > 0 ? Math.abs(flow) / capacity : 0;
 
             edges.push({ id: edge.id, values: { value: flow, capacity, utilization } });
@@ -187,16 +210,12 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "Measuring nodes", nodeIds, (nodeId) => {
-            const key = String(nodeId);
-            const inFlow = arriving.get(key) ?? 0;
-            const outFlow = leaving.get(key) ?? 0;
-
-            const values: Record<string, number | string> = { netFlow: inFlow - outFlow };
+            const values: Record<string, number | string> = { netFlow: net[graph.ids.indexOf(nodeId)] };
 
             // Only the two ends carry a role, so a picture drawn from it paints those two alone.
-            if (key === source) {
+            if (nodeId === source) {
                 values.role = "source";
-            } else if (key === sink) {
+            } else if (nodeId === sink) {
                 values.role = "sink";
             }
 
@@ -220,8 +239,9 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
                 method: "ford-fulkerson",
                 direction: "directed",
                 weight: { attribute: "capacity", meaning: "strength" },
+                precision,
                 notes: [
-                    `Flow from ${source} to ${sink}.`,
+                    `Flow from ${String(source)} to ${String(sink)}.`,
                     ...(sourceOption === null || sinkOption === null
                         ? [
                               "The source or sink was chosen automatically (the first and last node); " +
@@ -229,7 +249,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
                           ]
                         : []),
                     ...(result.maxFlow === 0
-                        ? [`There is no directed path from ${source} to ${sink}, so no flow can run.`]
+                        ? [`There is no directed path from ${String(source)} to ${String(sink)}, so no flow can run.`]
                         : []),
                 ],
             }),

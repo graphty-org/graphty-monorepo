@@ -49,7 +49,7 @@ TypeScript library for positioning nodes in graphs. A port of layout algorithms 
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
 [![Storybook](https://img.shields.io/badge/storybook-demos-ff4785)](https://graphty.app/storybook/algorithms/)
 
-Comprehensive TypeScript graph algorithms library with 98 algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
+Comprehensive TypeScript graph algorithms library with 60+ algorithms optimized for browser environments. Includes traversal, shortest paths, centrality measures, community detection, clustering, network flow, matching, and link prediction algorithms.
 
 [View package](./algorithms)
 
@@ -102,6 +102,16 @@ Graphs to try things on, as typed arrays the graph-format snapshot loads in one 
 Remote logging client and server for browser debugging. Provides a lightweight browser client for sending logs to a terminal-based server, with batching, retry logic, and session tracking. Includes a floating UI widget for capturing and exporting console output.
 
 [View package](./remote-logger)
+
+---
+
+### @graphty/visual-review
+
+[![npm version](https://img.shields.io/npm/v/@graphty/visual-review.svg)](https://www.npmjs.com/package/@graphty/visual-review)
+
+Visual regression review for any Storybook, with nothing hosted: GitHub Actions screenshots every story, baselines live in git (Git LFS), and you accept or reject each change in a page served from your own machine, while a required check keeps unreviewed changes from merging. `npx visual-review init` sets a repository up. [Documentation](https://graphty.app/docs/visual-review/).
+
+[View package](./visual-review)
 
 ---
 

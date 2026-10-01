@@ -1,0 +1,115 @@
+# Round 2: the decisions
+
+The choices the round-2 design (`revision.md` and `screens.md` beside this file) rests on,
+each with its reason and whether it can be undone cheaply. "Reversible" means undoing it is an
+edit to these documents or, once built, a change inside the app that no consumer of
+graphty-element would notice. "One-way once built" means it becomes part of graphty-element's
+published session API or its saved project file, which third parties will depend on; those are
+the ones the owner should confirm before the element work starts. Nothing here changes code.
+
+Terms are defined in `revision.md` section 0; the ones used most here: an **object** is a row
+of the left panel's tree (a Set, Measure, Grouping, Group or the Dataset); the **inspector** is
+the right panel; a **tool** is a toolbar verb that creates an object; the **secondary bar** is
+the one-line prompt above the toolbar while a tool is armed; a **layer** is one styling rule in
+graphty-element's style stack; a **scope** is which elements a piece of work may look at; a
+**mask** is what is showing (Focus and the time window are masks).
+
+## The three settled decisions (the owner's, taken as given)
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| S1 | **graphty-element owns the tree.** The objects API lives on the session; its saved shape is the project file (#301). The app draws the tree and nothing more. **Undo goes with it**: the objects API keeps the history (the #145 journal) and exposes `undo()` and `redo()`; the app's Ctrl+Z calls them; the History dock draws the journal | the root `CLAUDE.md` principle that every graph capability lives in the element. Undo is added here because the state an undo restores (a replaced run's result, a removed row's layers) is held only by the element; an inverse handed to the app would have to carry a whole run result, and the alternative (the app keeps a stack) makes the app hold graph state | the ownership is settled. The undo placement is one-way once built (an API surface); until then an edit |
+| S2 | **One set vocabulary in the session contract.** The scope type gains filters, top-N, above-threshold, a group, an **edge list** and a **run-result set** (a path as a scope), and the combinators; filters gain a scope and are evaluated within it; a layer selector accepts a scope; an edge target resolves to induced edges | filter sets, scoped runs, Combine, Focus and a Set's Style become one mechanism. The edge list and run-result set are added here because today `Scope` has only `{nodes}`, so an edge Set (a Path, a network, a cut) could not be saved, scoped to or combined even after the decision as first written | settled; the two additions are one-way once built (a type in the published API) |
+| S3 | **Highlights are not exclusive.** A Path or any edge Set is an edge style layer that stacks like node layers; several show at once, told apart by colour, width, pattern, arrows, animation. Two invariants: one tree row is one or two layers (the element splits node and edge channels), and a run-backed Set's selector is the value test `results.<run>.onPath == true`, never a presence test | the owner's point that paths are just edge styles; the presence-test rule because the membership column carries `false` for every element a run looked at and did not choose, so a presence test paints the route's whole neighbourhood (`StylesApi.ts:1596-1600`) | settled; the invariants are facts about the element, not choices |
+
+## The frame
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| F1 | **No rail.** One left panel (Views above the tree), one bottom dock (Table, Assistant, History), the dataset name with a chevron as the file menu; the hamburger glyph is gone | of eleven rail candidates one is a panel that replaces nothing; three are docks that need the tree beside them; the rest are rows of the Dataset's inspector. A rail would have one permanently pressed button and cost 56 px at 1280 (`revision.md` 1.2, 1.5) | reversible: a rail can be added later without moving any home, because every candidate already has one |
+| F2 | **The closed dock keeps a 24 px handle** (its tab strip) above the status bar | the closed dock had no visible opener, and History, the design's one visible undo, was three steps away for a persona whose fear is breaking things | reversible (a strip) |
+| F3 | **A "?" ghost button at the right end of the status bar** opens Help, Keyboard shortcuts and the samples; the file menu keeps its rows | Help behind a chevron beside a dataset name reads as "switch dataset"; a stuck novice hunts for "?"; Figma draws a floating help button for the same reason | reversible |
+| F4 | **The status bar has a priority order** and an item that does not fit collapses to its glyph with a tooltip, lowest priority first (counts and the "?" never collapse) | up to nine mirrored items can be true at once in 24 px of 11 px text | reversible |
+| F5 | **The legend card docks above the toolbar's right end**, not beside it | the 725 px toolbar and a 160 px card at the bottom right collided at 1280 | reversible |
+
+## The inspector
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| I1 | **Three or four tabs per kind, never five, four names totalling at most 27 characters** (at 4 px of tab padding; Figma's 8 px fits only 21). Names: Dataset Overview, Layout, Canvas, Data; Set and Group Define, Members, Style, Record; Measure Values, Define, Style, Record; Grouping Groups, Define, Style, Record; Node About, Attributes, Links | at Figma's measured 6.3 px per character the first draft's strips needed 239 to 272 px in 216 px of room; the mocks would have squeezed them silently. Widening the panel to 280 px was the alternative; it still did not fit the five-tab Dataset and cost 40 px of canvas | reversible (names and a constraint); the 280 px alternative stays open |
+| I2 | **The Dataset's Time tab is gone**; its rows are the transport bar's gear popover, and the Data tab has one "Time [sent v]" row | the fifth tab fit at no padding; the transport bar is already the timeline's surface and every other surface with settings (labels, the layout engine) keeps them in a gear | reversible |
+| I3 | **The row budget is 14 rows, not 24**, and the header block is 144 px (its own four rows), not 112 | 24 rows fit a 1080p monitor only; the persona's 1366 x 768 laptop fits 14 under a 144 px header. Six of eighteen tabs exceeded 14 and were trimmed: member rows cap at 5, Export leaves the Data tab, notes and findings show 2 to 3 rows then "and N more", a Measure's encoding blocks are an accordion, a Grouping's swatch list shows 5 then expands | reversible |
+| I4 | **A node's first tab (About) leads with the node**: three attributes, "All N attributes >", "Connected to N nodes >", then the object sections (VALUES, MEMBER OF, LOOK as a collapsed disclosure) | on a fresh load the first draft opened a node on a report about objects that did not exist; the novice's two questions are "what is it" and "who does it connect to" | reversible (rows moved) |
+| I5 | **Per-object exports are one Export row in Record**; whole-graph exports live only under the Export button | Record's three export rows plus a header broke the 14-row budget; the Data tab's export copy was a second home for the Export button | reversible |
+| I6 | **The remembered tab per kind applies only after the reader has changed tab twice in a session**; the four event overrides stay | one wander into Record made the next Group open on Record | reversible |
+| I7 | **"Define" replaces "Definition"; "Values from / to" and "Sizes from / to" replace "Domain" and "Range"**; the reading row's "?" defines Density, Parts, Settled and modularity | a stranger's words on the surface; "Definition" also failed the width constraint | reversible |
+| I8 | **The Dataset's reading comes from a new `statistics().reading()`; a Group's reading is written from the run's group fields** ("Group 2 of 4 in Communities") | `reading()` exists only on a run result today; formatting a run's fields is allowed, computing prose from a graph walk is not | the Dataset one is one-way once built (an API member); the Group one is reversible |
+| I9 | **A Set's Members rows read a new `scope.statistics(spec)`**, not the selection statistics | reading inside and cut edges through the selection would clobber the reader's selection | one-way once built (an API member) |
+
+## The toolbar and running an algorithm
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| T1 | **Every creation tool arms and shows a secondary bar** ("Rank by [Bridges v] on what is showing, 115 nodes, about 2 s [Options] [Run] Cancel"); Enter runs; a flyout row click still runs at once; Alt+click is dropped | the first draft had Groups, Rank and Structure run on the first click while Path and Neighbours waited, and section 4's step 1 contradicted section 3. One rule (arm, read, act, snap back) shows scope and cost before anything runs and removes a gesture no novice finds | reversible |
+| T2 | **Initial faces**: Select, By values, Shortest route, Communities, Connections, Separate pieces | "last used" has no first value; the round-1 face for Rank was Bridges, the heavy one | reversible |
+| T3 | **40 px tool buttons with 8 px labels; Select and Hand 32 px with no label**; a long label may spill 4 px into each gap; the bar is 725 px and overlaps the panels below 1280 rather than shrinking | 9 px labels do not fit 32 px buttons; at 48 px the bar was wider than the 800 px canvas at 1280 that the rail argument relies on | reversible |
+| T4 | **Every flyout row's left icon is the kind icon of the row it will make** | Structure hands back four kinds of object; the reader could not predict the tree from the button | reversible |
+| T5 | **Structure loses "Over time" (to the transport gear) and "What breaks if removed" (to the node's overflow)**; flow rows land in Path and prediction rows in Structure | neither is about a skeleton; the catalogue's six categories had two unassigned | reversible |
+| T6 | **Double-click on a node expands it from the server when a fetcher exists, else selects its neighbours** | double-click already means server expansion in the element (`NodeBehavior.ts:555-565`); two meanings on one gesture | reversible (a rule); the element behaviour it defers to is shipped |
+| T7 | **The suggested first paint takes the first free channel in a per-kind order** (Measure: Colour, Size, Opacity; Grouping: Colour, Shape, Outline; Set: Outline, Colour, Glow) and **never drops itself**; this is a precondition of the objects API | one order for all kinds painted four communities as four sizes; and the element's auto-apply drops a suggestion when an authored layer holds the channel, so once the objects API creates every layer as authored the second algorithm would never paint | the order is reversible; the "never drops" change is a behaviour change in the element that consumers relying on auto-apply rule 2 would notice |
+| T8 | **Batch members after the first are created with the eye off**, replacing the element's rule of coalescing a batch to one layer per channel | the two rules give different pictures (five objects with no layers versus five with disabled layers); eye-off keeps every object editable in the tree | a behaviour change in the element (consumers of `runs.batch` auto-apply would notice) |
+| T9 | **A `backend` field on `RunRecord` and `CostEstimate`, and a per-start backend override**; until the field lands, "on the GPU" is not drawn anywhere | the words had no source (the element records precision, not backend); [Retry on the CPU] needs a per-run choice because the acceleration policy is session-wide | one-way once built (API fields) |
+| T10 | **A waiting object is "defined, not started"; a parameter edit starts a new run that replaces the old under the same object id and keeps the replaced result in the journal** | the run model has no waiting state and a changed parameter is a new run today, so undo after a re-run had nothing to restore | one-way once built (objects-API semantics) |
+
+## Styling
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| Y1 | **One grammar on every Style tab**: NODES and EDGES headers with a "+" each, every paint row and encoding block led by its channel name; "Edge colour" is not a channel name | the first draft had three grammars for "which element kind and channel this row paints" | reversible |
+| Y2 | **A Path's default node paint is an Outline in the path colour, not a fill** | a filled path node hid the community colour under it; an outline keeps both | reversible |
+| Y3 | **The highlight palette is disjoint from every categorical palette the element ships**, replacing "blue, green, orange, then the categorical palette" | the first cycle collided with Okabe-Ito, so a green path through green community nodes vanished | reversible in the design; the palette itself is an element asset a consumer might see change |
+| Y4 | **The legend's highlight block carries width and pattern** | the legend listed a Path by swatch only; two paths of one colour were indistinguishable in it | one-way once built (a field on `LegendBlock`) |
+| Y5 | **The label budget is a hidden layer whose selector is a top-N scope**; the top-N scope kind is listed as decision S2 work | selectors are everything, expression, has and ids today; a top-N selector does not exist | part of S2 |
+| Y6 | **Themes ("Look") are restricted to match-everything layers as a precondition of the Look row**; the Default look rows write an unlocked dataset-default layer above the element's locked base | `applyTemplate` replaces the whole stack today, which would overwrite object rows | a behaviour change in the element |
+
+## The timeline
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| L1 | **A time window never marks an object stale.** "Computed on 2019-01 to 2019-12" is a caveat in the legend and summary row; "Re-run objects while playing" is the explicit opt-in; the window leaves the staleness digest and its bounds are recorded in `Caveats` and `StaleNote` | the first draft said "time is a mask exactly as Focus" and then turned the whole tree amber the moment the slider moved; Focus never marks stale | the rule is reversible; the digest change is a behaviour change in the element (runs over "visible" go stale on a window move today) |
+| L2 | **Two doors to the timeline**: a Findings row "Time column: sent, 2019-01 to 2019-12 [Show over time]" while a time-typed column has no role, and the Data tab's "Time [sent v]" row | the Time tab appeared only after Data > column "..." > Set as time, which nothing suggested, although the catalogue already types the column | reversible |
+| L3 | **Nodes follow their edges**: a node with no time value of its own is inside the window when at least one of its edges is; a node with its own time value follows it; when nothing carries a time value everything is inside. Element work, and a change to the element's "no value means inside" doctrine | with an edge-only time column the element hides no node today, so screen 10's "412 of 1,204" was impossible. Requiring a node time column instead would exclude the commonest temporal data (an edge list with dates) | a doctrine change in the element that a consumer windowing an edge-only column would notice (fewer nodes drawn) |
+| L4 | **The window gains an interval form** (`{start, end}` paths or a spells column, overlap test) and the time role can name a pair or a spells column; the gear shows "From / To" when `timeAttributes()` reports intervals | graph-io already stores GEXF dynamics as start, end and spells; a one-instant window is wrong for any interval straddling it | one-way once built (API shape) |
+| L5 | **A rule over connections is a whole-graph rule and says so**; screen 10's ticking Set is a cut ("Above 20") of a Measure "Connections" scoped to what is showing, which re-runs per step only when the opt-in switch is on | the degree filter reads whole-graph degree, and filters are not evaluated within a scope until S2 lands | reversible (S2's "filters within a scope" makes a rule Set tick too) |
+| L6 | **The band's handles snap to whole steps and consecutive windows never overlap** | the element's window is half-open and per-step change counts are only honest for non-overlapping steps | reversible |
+
+## Views, nodes and the rest
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| R1 | **A node's Links tab reads a new `session.data.neighbours(id, {direction})`** returning node ids and edge ids | nothing on the session answers "who is this connected to"; the app must not walk the snapshot, and a selection round-trip clobbers the selection | one-way once built (an API member; small) |
+| R2 | **A `{between: {run, field, min, max}}` selection target** for the histogram band drag | selection targets have `top` and `above` only | one-way once built; #192 is the alternative route |
+| R3 | **Saved View names are namespaced by the objects API; "Overview" is written by the element as a default preset** | `saveCameraPreset` refuses a name that shadows a built-in framing, so a View called "Fit" was refused; if the app wrote "Overview" it would be deciding a camera state | reversible until built |
+| R4 | **Compare takes two objects, not two Views** (carried from round 1's recommendation) | nothing toggles eyes behind the reader's back | reversible |
+| R5 | **A thirteenth screen, Settings**, with eight sections, holds the eleven inventory capabilities that are preferences; the other eighteen unplaced capabilities are placed in `revision.md` 6.12 | the file menu named "Settings..." and nothing laid it out; twenty-nine capabilities had no home | reversible |
+| R6 | **Progressive loading is out of scope; node merging is placed but proposed** | neither has element work planned; saying so is better than an unplaced row | reversible |
+
+## Pass 3 (after the walkthroughs and the measured audit)
+
+The choices `revision.md` section 9 records. As above, "reversible" means an edit to these
+documents or a change inside the app; "one-way once built" means part of graphty-element's
+published API or saved file.
+
+| # | Decision | Reason | Reversible? |
+|---|---|---|---|
+| P1 | **Categorical wins Colour**: a Grouping created while a Measure holds Colour takes Colour and moves the Measure to Size (undoable); a Grouping's order is Colour, Outline, Shape | the picture must not depend on which of two buttons was pressed first; shapes do not read as groups | a behaviour of the element's first-paint rule, alongside T7 |
+| P2 | **A Group opens on Members** (Members, Style, Define, Record) | the most frequent tree click landed on read-only rows | reversible |
+| P3 | **The Path bar takes a typed name and the selection**, and states its scope under Focus | a start node cannot be found by eye on a real graph | reversible; the name lookup is the query engine's text search (#149) |
+| P4 | **Compare's second canvas can take a View as its mask** | March beside September was undrawable under one mask | reversible; the per-canvas mask is part of #186 |
+| P5 | **The Import dialog is a screen** (14) with a preview and selects fed by `session.data.peek` | the first minute was undrawn and typed column names | `peek` is one-way once built (an API member; small) |
+| P6 | **A reload from a role change keeps the objects by default** (screen 15), replaying them under the stale rule | a one-word mistake cost the whole tree | reversible in the app; the replay is objects-API behaviour |
+| P7 | **A suggestion row runs at once**; the bar's Run dims under the popover; a flyout row while the bar is open only chooses | first-click mismatches the novice met | reversible |
+| P8 | **The eye's tooltip says it stops painting**, Set and Group rows carry a Focus glyph, the find field says "Find an object or a node", a time glyph in the status counts opens the timeline, the Export menu has two groups, an encoding block's channel is a visible select | each a door the walkthroughs found hidden | reversible |
+| P9 | **The count grammar is one rule** (`screens.md` conventions): "N nodes  M edges", one count per tree row, none on the root, the technical name as a tooltip | five spellings on twelve screens | reversible |
+| P10 | **One 68 px label grid, one pill tab, one framing readout, a 32 px dock handle, a 1440 x 900 frame** | the audit's majors | reversible |
+| P11 | **Tool labels stay 8 px at 40 px buttons** (the 0 ms tooltip is the readable label); the 9 px / 44 px / 750 px bar is the alternative | 9 px labels widen the bar and touch the 1280 fit argument | reversible; **open for the owner** |

@@ -38,7 +38,10 @@ describe("Styles", () => {
 
         // The layer half is gone rather than hidden: an instance carries the parsed document and
         // no second stack beside it, which is what makes `session.styles` the only stack there is.
-        assert.deepStrictEqual(Object.keys(s), ["config"]);
+        // The document is read through the one accessor, `config`; nothing else is public.
+        assert.deepStrictEqual(Object.keys(s), []);
+        assert.deepStrictEqual(Object.getOwnPropertyNames(Styles.prototype).sort(), ["config", "constructor"]);
+        assert.isObject(s.config);
     });
 
     describe("fromJson", () => {

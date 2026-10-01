@@ -53,6 +53,7 @@ import {
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { narrowLayout } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
+import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
@@ -235,11 +236,7 @@ function resolveCentre(centre: ArrayLike<number> | null | undefined): [number, n
         return [0, 0, 0];
     }
 
-    return [
-        centre.length > 0 ? centre[0] : 0,
-        centre.length > 1 ? centre[1] : 0,
-        centre.length > 2 ? centre[2] : 0,
-    ];
+    return [centre.length > 0 ? centre[0] : 0, centre.length > 1 ? centre[1] : 0, centre.length > 2 ? centre[2] : 0];
 }
 
 /**
@@ -330,6 +327,12 @@ function missingController(): GraphtyError {
  * class could not be handed.
  */
 export class SimulationLayoutEngine extends LayoutEngine {
+    /**
+     * Every simulation accepts a scope: a held row is OR-ed into the fixed-node mask, so the
+     * simulation stops integrating it as well as publishing it. See `LayoutEngineStatics.scoped`.
+     */
+    static override scoped = true;
+
     /** Which simulation this bridge drives. */
     readonly simulationType: SimulationType;
 
@@ -430,6 +433,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
+
+    /**
+     * Moves at every {@link SimulationLayoutEngine.loadArrangement}. A batch submitted before the
+     * last one computed from coordinates that were since restored over, so what it reads back is
+     * dropped.
+     */
+    #arrangement = 0;
 
     /**
      * Builds a bridge. Nothing is planned and no simulation exists until {@link init} loads one.
@@ -571,7 +581,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     init(): Promise<void> {
         const snapshot = this.#dataManager.getSnapshot();
-        this.load(snapshot, this.#dataManager.positions.view(snapshot.nodeCount));
+        this.load(snapshot, this.#dataManager[WRITABLE_LANE].view(snapshot.nodeCount));
         return Promise.resolve();
     }
 
@@ -709,6 +719,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         this.#iterationsDone += this.#iterations;
+        const arrangement = this.#arrangement;
         const batch = simulation.step(this.#iterations);
         this.#syncWork();
         if (batch !== undefined && !this.#caught.has(batch)) {
@@ -719,6 +730,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
                     // The batch has landed, so the simulation knows by now whether it settled.
                     this.#inFlight -= 1;
                     this.#syncWork();
+                    // Submitted before a restore, it read back coordinates the restore replaced:
+                    // take the element's array again, which still holds the restored ones.
+                    if (arrangement !== this.#arrangement && this.#snapshot !== null && this.#positions !== null) {
+                        this.#adoptPositions(this.#snapshot.nodeCount, this.#positions);
+                    }
                 },
                 (error: unknown) => {
                     this.#inFlight -= 1;
@@ -786,6 +802,20 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * Takes the element's array as the simulation's coordinates, through a reload of the graph it
+     * holds, and drops what batches already in flight read back.
+     */
+    override loadArrangement(): void {
+        this.#arrangement++;
+        if (this.#snapshot === null) {
+            return;
+        }
+
+        const snapshot = this.#dataManager.getSnapshot();
+        this.reload(snapshot, this.#dataManager[WRITABLE_LANE].view(snapshot.nodeCount));
+    }
+
+    /**
      * Holds a node still for the duration of a drag, without pinning it.
      *
      * The fixed bit is the same one a pin uses, because it is the only thing that stops a
@@ -810,14 +840,14 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     endDrag(n: Node, pin: boolean): void {
         this.#dragging.delete(n);
-        this.#setFixed(n.index, pin || n.isPinned());
+        this.#setFixed(n.index, pin || n.isPinned() || this.isHeld(n.index));
     }
 
     /**
      * Fixes a pinned node in the simulation. The store already holds the pin.
      * @param n - The node that was pinned.
      */
-    pin(n: Node): void {
+    protected pin(n: Node): void {
         this.#setFixed(n.index, true);
     }
 
@@ -825,8 +855,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * Releases a node the simulation was holding fixed.
      * @param n - The node that was unpinned.
      */
-    unpin(n: Node): void {
-        this.#setFixed(n.index, false);
+    protected unpin(n: Node): void {
+        // A node a scoped layout is holding stays fixed: the hold is not the reader's pin to lift.
+        this.#setFixed(n.index, this.isHeld(n.index));
+    }
+
+    /**
+     * Holds the rows a scoped layout may not move, in the simulation's own fixed-node mask too.
+     * @param mask - One bit per row to hold, or null to hold nothing.
+     * @param rows - How many rows the mask covers.
+     */
+    override setHoldMask(mask: NodeMask | null, rows: number): void {
+        super.setHoldMask(mask, rows);
+        this.#applyPins();
     }
 
     /**
@@ -834,7 +875,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param n - The node that moved.
      * @param p - Where it moved to.
      */
-    setNodePosition(n: Node, p: Position): void {
+    protected setNodePosition(n: Node, p: Position): void {
         const z = p.z ?? 0;
 
         // The simulations THROW for a row outside [0, nodeCount) or a coordinate that is not
@@ -994,7 +1035,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        const store = this.#dataManager.positions;
+        const store = this.#dataManager[WRITABLE_LANE];
 
         // MEASURED OVER THE ROWS THIS PUBLISH WILL WRITE, and over no others. A held row's
         // simulation coordinate is wherever the pointer last put it, divided back out, so a node
@@ -1096,7 +1137,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Packs the store's pin lane into the simulation's mask.
+     * Packs the store's pin lane, the dragged nodes and the scope hold into the simulation's mask.
      *
      * A PACK, not a copy: the lane is one byte per node and the mask is one bit. It runs after
      * every load, because a freeze renumbers the rows and the lane is remapped with them. The
@@ -1111,7 +1152,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const { nodeCount } = snapshot;
-        const pins = this.#dataManager.positions.pinnedView(nodeCount);
+        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(nodeCount);
         const mask = makeMask(nodeCount);
         const rows = new Set<number>();
         for (let i = 0; i < nodeCount; i += 1) {
@@ -1125,6 +1166,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             if (this.#hasRow(held.index)) {
                 maskSet(mask, held.index, true);
                 rows.add(held.index);
+            }
+        }
+
+        // The rows a scoped layout holds, which the lane never carries: a hold is not a pin.
+        if (this.holdMask !== null) {
+            for (let i = 0; i < nodeCount; i += 1) {
+                if (this.isHeld(i)) {
+                    maskSet(mask, i, true);
+                    rows.add(i);
+                }
             }
         }
 

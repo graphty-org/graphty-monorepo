@@ -2,7 +2,8 @@
 node_modules/
 
 # Nx cache
-.nx/
+.nx/*
+!.nx/version-plans/
 
 # Build outputs
 dist/
@@ -19,9 +20,15 @@ storybook-static/
 *storybook.log
 build-storybook.log
 
-# Temporary files
-tmp/
-.tmp/
+# Temporary files: the root's and each package's. Anchored, because knip matches these
+# patterns against absolute paths too, and an unanchored tmp/ hides every source file of a
+# checkout that sits under a directory named tmp (/tmp/clone, say). `?*` rather than `*`
+# for the same reason: knip turns `/*/tmp/` into `*/tmp/**`, whose `*` also matches the
+# empty name before an absolute path's leading slash, so /tmp/clone/... would still match.
+/tmp/
+/.tmp/
+/?*/tmp/
+/?*/.tmp/
 .playwright-mcp/
 
 # IDE/Editor files
@@ -120,6 +127,7 @@ gh-pages/
 docs/graphty-element/
 docs/algorithms/
 docs/layout/
+docs/visual-review/
 
 # Layout package specific
 layout/examples/layout.js
@@ -140,8 +148,9 @@ layout/log/*
 .pthistory
 .git-prompts
 
-# wtt worktrees
-.worktrees/
+# wtt worktrees. Anchored: a worktree under .worktrees/ must not inherit it (knip reads
+# ancestor .gitignore files, see tools/run-knip.sh).
+/.worktrees/
 
 # Husky (managed by monorepo root)
 */.husky/
@@ -154,6 +163,9 @@ __pycache__/
 
 # webgpu-graph-algorithms run output (contract 2.8): benchmark sessions, the browser smoke's JSON report, the adapter report
 **/benchmarks/out/
+# graphty-element's bench-browser rows, appended on every run by vitest.config.ts: a log of one
+# machine's runs, not a result. The design records the numbers it cites.
+graphty-element/benchmarks/results/browser-*.jsonl
 browser-results.json
 gpu-report.json
 

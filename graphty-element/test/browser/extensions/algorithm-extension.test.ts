@@ -68,11 +68,11 @@ import {
     acceleratorRegistry,
     Algorithm,
     type AlgorithmDescriptor,
-    type AlgorithmGraphMode,
     type AlgorithmOutput,
     type AlgorithmRunContext,
     type Caveats,
     checkShapeContract,
+    type Column,
     DeclaredAlgorithm,
     declaredCaveats,
     type FieldDescriptor,
@@ -92,9 +92,11 @@ import {
 } from "../../../extend";
 import { Graph } from "../../../index";
 import type { EdgeId, GraphSession, NodeId } from "../../../session";
+import { operationQueueOf } from "../../../src/Graph";
 // The one deep path in this file, and it is not plugin code: the element's own deterministic
 // stand-in for a device, which the tests and the stories share instead of each writing one.
 import { createFakeAccelerator, type FakeAccelerator } from "../../../src/testing/fakeAccelerator";
+import { TieStrength } from "./guide-example/tie-strength";
 
 // ---------------------------------------------------------------------------------------------
 // The graph every test below runs on
@@ -301,19 +303,24 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
      */
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         const { hops } = this.schemaOptions;
-        // The documented way for an algorithm to read its input. It is built from the graph the
-        // reader loaded rather than from the render objects, so an edge whose endpoints have no
-        // mesh yet is already in it.
-        const graph = this.algorithmGraph("undirected");
-        const ids = [...graph.nodes()].map((node) => node.id);
+        // The documented way for an algorithm to read its input: a graph-format snapshot of the
+        // graph the reader loaded rather than the render objects, so an edge whose endpoints have
+        // no mesh yet is already in it.
+        const graph = context.input("undirected").subgraph();
+        const ids = Array.from({ length: graph.nodeCount }, (_, row) => graph.ids.idOf(row));
 
         if (ids.length === 0) {
             return null;
         }
 
-        // Gathered once, so the walk below is over the extension's own data structure and the
-        // extension never has to name the type of the element's input graph.
-        const neighbours = new Map<NodeId, readonly NodeId[]>(ids.map((id) => [id, [...graph.neighbors(id)]]));
+        // Gathered once, so the walk below is over the extension's own data structure. The
+        // neighbours of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
+        const neighbours = new Map<NodeId, readonly NodeId[]>(
+            ids.map((id, row) => [
+                id,
+                Array.from(graph.colIdx.subarray(graph.rowPtr[row], graph.rowPtr[row + 1]), (to) => graph.ids.idOf(to)),
+            ]),
+        );
         const measured: ResultElementValues[] = [];
 
         context.report({ phase: PROGRESS_PHASE, completed: 0, total: ids.length });
@@ -433,9 +440,21 @@ const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
     // `metricField` is the element's own path builder: it fills in the published
     // `results.$.<name>` address so no extension author retypes one.
     fields: [
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "node", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "node",
+            type: "boolean",
+        }),
         metricField({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-        metricField({ name: "onPath", plainName: "On the walk", technicalName: "onPath", kind: "edge", type: "boolean" }),
+        metricField({
+            name: "onPath",
+            plainName: "On the walk",
+            technicalName: "onPath",
+            kind: "edge",
+            type: "boolean",
+        }),
         metricField({
             name: "length",
             plainName: "Nodes on the walk",
@@ -453,14 +472,6 @@ const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
 
 /** What the walk calls its one pass, which is what a progress line shows a reader. */
 const WALK_PHASE = "Walking the graph";
-
-/**
- * The orientation the walk reads its input in.
- *
- * Declared as the element's own type rather than as a bare string, so a mode that stops being
- * supported is a compile error in the extension rather than a run-time surprise.
- */
-const WALK_MODE: AlgorithmGraphMode = "directed";
 
 /** What a caller may configure about a walk. */
 interface AlphabetWalkOptions extends Record<string, unknown> {
@@ -489,11 +500,17 @@ class AlphabetWalk extends DeclaredAlgorithm<AlphabetWalkOptions> {
      */
     override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         const { steps } = this.schemaOptions;
-        // Read in the declared orientation, because an edge's published id is its endpoints in
-        // the order the record stated them -- not in the order the walk happened to cross it.
-        const graph = this.algorithmGraph(WALK_MODE);
-        const links = [...graph.edges()].map((edge) => ({ source: edge.source, target: edge.target }));
-        const ids = [...graph.nodes()].map((node) => node.id);
+        // Read in the declared orientation: `graph` is the whole graph as loaded, one row per edge,
+        // and `input.edgeId(row)` is the id the element minted for that row.
+        const input = context.input("declared");
+        const { graph } = input;
+        const { src, dst } = graph.edgeList();
+        const links = Array.from({ length: graph.edgeCount }, (_, row) => ({
+            source: graph.ids.idOf(src[row]),
+            target: graph.ids.idOf(dst[row]),
+            id: input.edgeId(row),
+        }));
+        const ids = Array.from({ length: graph.nodeCount }, (_, row) => graph.ids.idOf(row));
 
         if (ids.length === 0) {
             return null;
@@ -501,21 +518,19 @@ class AlphabetWalk extends DeclaredAlgorithm<AlphabetWalkOptions> {
 
         const route = walkAlphabetically(ids, links, steps);
 
-        /* THE ID PUBLISHED IS THE ELEMENT'S OWN, NOT A KEY BUILT FROM TWO ENDPOINTS. The element
-           mints an id per edge, because a pair of endpoints cannot name one of two parallel
-           edges and a style layer has to be able to. The map from a pair to that id is built
-           here from the session -- `scope.resolve` for the ids and `data.edge` for each one's
-           endpoints -- which is the only route a third party has to it. */
-        const idOfPair = await elementEdgeIds(this.graph.getSession());
+        /* THE ID PUBLISHED IS THE ELEMENT'S OWN, NOT A KEY BUILT FROM TWO ENDPOINTS: a pair of
+           endpoints cannot name one of two parallel edges, and a style layer has to be able to.
+           Every edge between two consecutive stops is on the walk. */
         const routeEdges = new Set<EdgeId>();
 
         for (let index = 0; index + 1 < route.length; index++) {
             const from = route[index];
             const to = route[index + 1];
-            const found = idOfPair.get(pairKey(from, to)) ?? idOfPair.get(pairKey(to, from));
 
-            if (found !== undefined) {
-                routeEdges.add(found);
+            for (const link of links) {
+                if ((link.source === from && link.target === to) || (link.source === to && link.target === from)) {
+                    routeEdges.add(link.id);
+                }
             }
         }
 
@@ -561,11 +576,9 @@ function pairKey(source: NodeId, target: NodeId): string {
 /**
  * Every edge in the graph, by the ordered pair of endpoints it joins.
  *
- * THIS IS THE ROUTE A THIRD PARTY HAS TO THE ELEMENT'S EDGE IDS, and it is built from published
- * API only: `scope.resolve` answers with the ids, and `data.edge` answers what each one joins.
- * An algorithm that computes over endpoint pairs -- which is all `@graphty/algorithms` can speak
- * in -- needs this to publish a per-edge result, because the id a result row carries has to be
- * the id the element minted.
+ * What a READER of results uses to name an edge in an assertion, built from published API only:
+ * `scope.resolve` answers with the ids, and `data.edge` answers what each one joins. An
+ * algorithm never needs it; it reads edge ids from its input.
  * @param session - The session the algorithm is running against.
  * @returns The ids, by ordered pair.
  */
@@ -690,6 +703,70 @@ class FaultyCount extends DeclaredAlgorithm {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// The fourth extension: one that computes over its run's scope
+// ---------------------------------------------------------------------------------------------
+
+/** What `ScopedLinks` saw of its input on its last run, for the tests to read back. */
+const scopedProbe: { nodeCount: number; subgraphNodes: number; whole: boolean | null } = {
+    nodeCount: 0,
+    subgraphNodes: 0,
+    whole: null,
+};
+
+/**
+ * A third party's node metric that declares `scopeInput: "subgraph"`: each node's links WITHIN the
+ * run's scope. On the line a - b - c - d, a run over a, b and c gives c one link, where the whole
+ * graph gives it two -- which is what tells a scoped computation from a masked whole-graph one.
+ */
+class ScopedLinks extends DeclaredAlgorithm {
+    static override namespace = "acme";
+
+    static override type = "scoped-links";
+
+    static override scopeInput = "subgraph" as const;
+
+    static override descriptor: AlgorithmDescriptor = {
+        key: "scoped-links",
+        plainName: "Links in scope",
+        technicalName: "scoped degree",
+        description: "Counts each node's links to the other nodes of the run's scope.",
+        category: "centrality",
+        shape: "node-metric",
+        fields: HOP_REACH_FIELDS,
+        options: [],
+        costClass: "instant",
+        complexity: "O(n + m)",
+    };
+
+    /**
+     * Count each node's links inside the scope, reading only what the context hands it.
+     * @param context - The run's controls and its input.
+     * @returns One value per node in scope.
+     */
+    override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const input = context.input("undirected", { simplify: "min" });
+        const subgraph = input.subgraph();
+        scopedProbe.nodeCount = input.nodeCount;
+        scopedProbe.subgraphNodes = subgraph.nodeCount;
+        scopedProbe.whole = input.whole;
+
+        const nodes: ResultElementValues[] = [];
+        for (let row = 0; row < subgraph.nodeCount; row++) {
+            // Published by element id: a subgraph's rows are not the graph's.
+            nodes.push({ id: subgraph.ids.idOf(row) as NodeId, values: { value: subgraph.outDegreeOf(row) } });
+        }
+
+        return Promise.resolve({
+            shape: "node-metric",
+            fields: HOP_REACH_FILLED,
+            nodes,
+            graph: { normalization: "none" },
+            caveats: declaredCaveats({ direction: "undirected", weight: null, method: "links within the scope" }),
+        });
+    }
+}
+
 /**
  * A third party's metric that asks the element for an accelerator.
  *
@@ -747,6 +824,7 @@ class SharedRank extends DeclaredAlgorithm {
 DeclaredAlgorithm.register(HopReach);
 DeclaredAlgorithm.register(AlphabetWalk);
 DeclaredAlgorithm.register(FaultyCount);
+DeclaredAlgorithm.register(ScopedLinks);
 DeclaredAlgorithm.register(SharedRank);
 
 // ---------------------------------------------------------------------------------------------
@@ -803,7 +881,7 @@ describe("an algorithm written outside this package", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
@@ -861,7 +939,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("hop-reach", params);
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
         graph.getUpdateManager().stepFrames(2);
 
         return run.id;
@@ -1030,7 +1108,7 @@ describe("an algorithm written outside this package", () => {
         // And so does a value a reader chose, through the older address, which resolves its
         // parameters through the constructor rather than through the run's own check.
         await graph.runAlgorithm("acme", "hop-reach", { algorithmOptions: { hops: 2 } });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const viaOldAddress = graph
             .getSession()
@@ -1118,7 +1196,11 @@ describe("an algorithm written outside this package", () => {
             isGraphtyError(rejection),
             "a bug in a plugin surfaces as the element's own error type rather than escaping raw",
         );
-        assert.strictEqual(codeOf(rejection), "E_INTERNAL", "under the code the element reserves for an unowned failure");
+        assert.strictEqual(
+            codeOf(rejection),
+            "E_INTERNAL",
+            "under the code the element reserves for an unowned failure",
+        );
         assert.instanceOf(
             isGraphtyError(rejection) ? rejection.cause : undefined,
             Error,
@@ -1160,7 +1242,7 @@ describe("an algorithm written outside this package", () => {
     it("names nodes by the label attribute the reader configured, not by their ids", async () => {
         // What a reader's data configuration says the display name is. Without it the element has
         // not been told where the names are, which is a different answer from there being none.
-        graph.styles.config.data.knownFields.nodeLabelPath = LABEL_ATTRIBUTE;
+        await graph.getSession().config.set({ data: { knownFields: { nodeLabelPath: LABEL_ATTRIBUTE } } });
 
         const result = await graph.run("hop-reach");
         const { top } = result.summary();
@@ -1210,6 +1292,10 @@ describe("an algorithm written outside this package", () => {
             () => session.styles.list().some((layer) => layer.source.by === "run" && layer.source.runId === runId),
             "the element to derive a layer from the extension's result",
         );
+        // The legend reads what the repaint prepared, which follows the layer on the session's lane,
+        // and the renderer draws what the repaint resolved on the frame after it.
+        await session.styles.settled();
+        graph.getUpdateManager().stepFrames(2);
 
         const legend = session.styles.legend().find((block) => block.runId === runId);
 
@@ -1266,7 +1352,7 @@ describe("an algorithm written outside this package", () => {
             set: { "node.opacity": 0.5 },
         });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const measuredChannels = session.styles
             .explain({ node: "d" })
@@ -1283,7 +1369,7 @@ describe("an algorithm written outside this package", () => {
 
     it("runs through the element's older namespace and type address as well", async () => {
         await graph.runAlgorithm("acme", "hop-reach", { applySuggestedStyles: true });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const suggestions = graph.getSuggestedStyles("acme:hop-reach");
 
@@ -1386,6 +1472,88 @@ describe("an algorithm written outside this package", () => {
             listed.find((entry) => entry.key === "hop-reach"),
             "and the extension's entry arrives on the other side unchanged",
         );
+    });
+
+    it("computes over its run's scope when it declares scopeInput, reading it from the context", async () => {
+        const run = graph.run("scoped-links", {}, { scope: { nodes: ["a", "b", "c"] } });
+        const result = await run;
+
+        assert.deepStrictEqual(
+            { nodeCount: scopedProbe.nodeCount, subgraphNodes: scopedProbe.subgraphNodes, whole: scopedProbe.whole },
+            { nodeCount: 3, subgraphNodes: 3, whole: false },
+            "the input it read was the scope, not the graph",
+        );
+        const values = ["a", "b", "c", "d"].map((id) => result.node(id)?.value);
+        assert.deepStrictEqual(
+            values,
+            [1, 2, 1, undefined],
+            "c has one link inside the scope, not two, and d is not measured",
+        );
+        assert.notInclude(
+            run.caveats.notes.join(" "),
+            "Computed on the whole graph",
+            "and its run does not say it computed on the whole graph",
+        );
+        assert.strictEqual(
+            graph
+                .getSession()
+                .catalog.algorithms()
+                .find((entry) => entry.key === "scoped-links")?.scopeInput,
+            "subgraph",
+            "the catalogue publishes what the class declares, so the planner prices the scope",
+        );
+    });
+
+    it("computes on the whole graph when it declares no scopeInput, keeping only the scope's values and saying so", async () => {
+        const run = graph.run("hop-reach", { hops: 1 }, { scope: { nodes: ["a", "b", "c"] } });
+        const result = await run;
+
+        const values = ["a", "b", "c", "d"].map((id) => result.node(id)?.value);
+        assert.deepStrictEqual(
+            values,
+            [1, 2, 2, undefined],
+            "c reaches d, outside the scope: computed on the whole graph, kept for the scope",
+        );
+        assert.include(run.caveats.notes, "Computed on the whole graph; values kept for the scope only.");
+        assert.strictEqual(
+            graph
+                .getSession()
+                .catalog.algorithms()
+                .find((entry) => entry.key === "hop-reach")?.scopeInput,
+            "none",
+        );
+    });
+
+    it("is refused when its descriptor states a scopeInput its class does not declare", () => {
+        class Overclaiming extends DeclaredAlgorithm {
+            static override namespace = "acme-refused";
+
+            static override type = "overclaiming";
+
+            static override descriptor: AlgorithmDescriptor = {
+                ...HOP_REACH_DESCRIPTOR,
+                key: "overclaiming",
+                scopeInput: "subgraph",
+            };
+
+            /**
+             * Never runs: registration is refused first.
+             * @returns Nothing to compute.
+             */
+            override compute(): Promise<AlgorithmOutput | null> {
+                return Promise.resolve(null);
+            }
+        }
+
+        let refusal: unknown;
+        try {
+            DeclaredAlgorithm.register(Overclaiming);
+        } catch (error) {
+            refusal = error;
+        }
+
+        assert.strictEqual(codeOf(refusal), "E_BAD_COMMAND", "one declaration: the class's");
+        assert.isNull(Algorithm.getClass("acme-refused", "overclaiming"));
     });
 
     it("is refused when its catalogue key disagrees with the name its class registers under", () => {
@@ -1498,11 +1666,7 @@ describe("an algorithm written outside this package", () => {
             true,
             "the first edge it crossed carries a value",
         );
-        assert.strictEqual(
-            result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath,
-            true,
-            "and so does the last",
-        );
+        assert.strictEqual(result.edge(byPair.get(pairKey("c", "d")) ?? "")?.onPath, true, "and so does the last");
         assert.isUndefined(
             result.edge(byPair.get(pairKey("d", "e")) ?? ""),
             "an edge the walk never crossed carries nothing at all",
@@ -1519,7 +1683,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const suggestions = graph.getSuggestedStyles("alphabet-walk");
 
@@ -1536,7 +1700,7 @@ describe("an algorithm written outside this package", () => {
         const run = graph.run("alphabet-walk");
 
         await run;
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         const session = graph.getSession();
         const layer = await session.styles.add({
@@ -1546,7 +1710,7 @@ describe("an algorithm written outside this package", () => {
             set: { "edge.opacity": 0.5 },
         });
 
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Asked of the element rather than spelled out: an edge is addressed by the id the
         // element minted for it, and a literal written here would be a guess at that id.
@@ -1562,7 +1726,9 @@ describe("an algorithm written outside this package", () => {
             "the reader's layer reached an edge the walk crossed",
         );
         assert.isEmpty(
-            session.styles.explain({ edge: untouched ?? "" }).contributions.filter((entry) => entry.layerId === layer.id),
+            session.styles
+                .explain({ edge: untouched ?? "" })
+                .contributions.filter((entry) => entry.layerId === layer.id),
             "and did not reach one it never did",
         );
     });
@@ -1629,7 +1795,7 @@ describe("an algorithm written outside this package, on an accelerator", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Nine nodes is far below the size at which a real device beats the CPU, and the
         // consumer's own threshold is what says "use it anyway".
@@ -1689,5 +1855,288 @@ describe("an algorithm written outside this package, on an accelerator", () => {
 
         assert.strictEqual(codeOf(rejection), "E_NO_ACCELERATOR");
         assert.strictEqual(run.status, "failed");
+    });
+});
+
+// ---------------------------------------------------------------------------------------------
+// The snapshot accessor: per-edge results on a multigraph, attribute and result columns, weights
+// ---------------------------------------------------------------------------------------------
+
+/*
+ * WHAT A PLUGIN READS ITS GRAPH THROUGH. A plugin written only against `/extend` -- no
+ * `@graphty/algorithms`, no render objects, no session -- must be able to do what a built-in
+ * algorithm does: publish a value per EDGE on a graph with parallel edges, read the attribute a
+ * declared option names, read the weights with a stated meaning, and read what an earlier run
+ * published. The first plugin below is the custom-algorithms guide's example, imported from the
+ * file the guide's code block is checked against (`test/documentation/custom-algorithms-example.test.ts`).
+ */
+
+/** Five nodes; `team` is a node attribute a partition option can name. */
+const MULTI_NODES = [
+    { id: "a", team: "red" },
+    { id: "b", team: "red" },
+    { id: "c", team: "blue" },
+    { id: "d", team: "blue" },
+    { id: "e", team: "green" },
+];
+
+/**
+ * A multigraph: three recorded interactions between a and b (one of them b -> a), and one edge
+ * (c -> d) with no strength, which weighs 1.
+ */
+const MULTI_EDGES = [
+    { src: "a", dst: "b", strength: 2 },
+    { src: "a", dst: "b", strength: 3 },
+    { src: "b", dst: "a", strength: 1 },
+    { src: "b", dst: "c", strength: 4 },
+    { src: "c", dst: "d" },
+    { src: "a", dst: "e", strength: 2 },
+];
+
+/**
+ * The tie shares by endpoint pair. The undirected view collapses the reciprocal b -> a into an
+ * a -> b edge keeping that edge's weight, and the two a -> b edges then sum: ties ab 5, bc 4, cd 1,
+ * ae 2; node strengths a 7, b 9, c 5, d 1, e 2; a tie's share is its weight over the weaker end's
+ * strength.
+ */
+const EXPECTED_SHARE: Readonly<Record<string, number>> = {
+    "a-b": 5 / 7,
+    "b-c": 4 / 5,
+    "c-d": 1,
+    "a-e": 1,
+};
+
+/** What the column probe saw, for the assertions. */
+const seen: {
+    tie?: Column;
+    team?: Column;
+    mergedTie?: (number | undefined)[];
+    mergedRaw?: Record<string, number | undefined>;
+    subgraphIds?: string[][];
+    edgeIds?: string[];
+    nodeIds?: unknown[];
+    errors?: (string | null)[];
+} = {};
+
+/** Reads two columns -- an earlier run's per-edge result and a node attribute -- and reports what it saw. */
+class ColumnProbe extends DeclaredAlgorithm {
+    static override namespace = "acme";
+    static override type = "column-probe";
+    static override descriptor: AlgorithmDescriptor = {
+        key: "column-probe",
+        plainName: "Column probe",
+        technicalName: "column probe",
+        description: "Reads the columns its options name.",
+        category: "structure",
+        shape: "node-metric",
+        fields: nodeMetricFields({ plainName: "Team size", technicalName: "team size" }),
+        options: [
+            { name: "tie", plainName: "Tie", type: "attribute", default: "results.ties.value" },
+            { name: "team", plainName: "Team", type: "partition", default: "team" },
+            { name: "raw", plainName: "Raw strength", type: "attribute", default: "data.strength" },
+            { name: "missing", plainName: "Missing", type: "attribute", default: "no-such-attribute" },
+            { name: "count", plainName: "Count", type: "integer", default: 1 },
+        ],
+        costClass: "instant",
+        complexity: "O(n + m)",
+    };
+
+    override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const input = context.input("undirected", { simplify: "max" });
+        const tie = input.column("tie");
+        const team = input.column("team");
+        const rawColumn = input.column("raw");
+        // Asked after the columns, so it carries them.
+        const sub = input.subgraph();
+        const merged = sub.edges.require(tie.meta.name);
+
+        seen.tie = tie;
+        seen.team = team;
+        seen.mergedTie = Array.from({ length: sub.edgeCount }, (_, row) => merged.value(row) as number | undefined);
+        const raw = sub.edges.require(rawColumn.meta.name);
+        const { src, dst } = sub.edgeList();
+        seen.mergedRaw = Object.fromEntries(
+            Array.from({ length: sub.edgeCount }, (_, row) => [
+                [String(sub.ids.idOf(src[row])), String(sub.ids.idOf(dst[row]))].sort().join("-"),
+                raw.value(row) as number | undefined,
+            ]),
+        );
+        seen.subgraphIds = Array.from({ length: sub.edgeCount }, (_, row) => [...input.subgraphEdgeIds(row)]);
+        seen.edgeIds = Array.from({ length: input.graph.edgeCount }, (_, row) => input.edgeId(row));
+        seen.nodeIds = Array.from({ length: input.graph.nodeCount }, (_, row) => input.graph.ids.idOf(row));
+        seen.errors = ["missing", "count", "undeclared"].map((name) => {
+            try {
+                input.column(name);
+                return null;
+            } catch (error) {
+                return isGraphtyError(error) ? error.code : "uncoded";
+            }
+        });
+
+        // Team size per node, from the partition column.
+        const sizes = new Map<unknown, number>();
+        for (let row = 0; row < input.graph.nodeCount; row++) {
+            sizes.set(team.value(row), (sizes.get(team.value(row)) ?? 0) + 1);
+        }
+
+        return Promise.resolve({
+            shape: "node-metric",
+            fields: metricFieldSpecs("node", "integer"),
+            nodes: Array.from({ length: input.graph.nodeCount }, (_, row) => ({
+                id: input.graph.ids.idOf(row),
+                values: { value: sizes.get(team.value(row)) ?? 0 },
+            })),
+            graph: { normalization: "none" },
+            caveats: declaredCaveats({ direction: "undirected", method: "team size" }),
+        });
+    }
+}
+
+DeclaredAlgorithm.register(ColumnProbe);
+
+/** Asks for an unweighted input and reports the weights it got. */
+class UnweightedProbe extends DeclaredAlgorithm {
+    static override namespace = "acme";
+    static override type = "unweighted-probe";
+    static override descriptor: AlgorithmDescriptor = {
+        key: "unweighted-probe",
+        plainName: "Unweighted probe",
+        technicalName: "unweighted probe",
+        description: "Reads the graph with no weights.",
+        category: "structure",
+        shape: "node-metric",
+        fields: nodeMetricFields({ plainName: "Degree", technicalName: "degree" }),
+        options: [],
+        costClass: "instant",
+        complexity: "O(n + m)",
+    };
+
+    static weights: unknown = "unread";
+
+    override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
+        const input = context.input("declared", { weight: null });
+        UnweightedProbe.weights = input.graph.weights;
+
+        return Promise.resolve({
+            shape: "node-metric",
+            fields: metricFieldSpecs("node", "integer"),
+            nodes: [],
+            graph: { normalization: "none" },
+            caveats: declaredCaveats({ direction: "directed", method: "nothing" }),
+        });
+    }
+}
+
+DeclaredAlgorithm.register(UnweightedProbe);
+
+describe("the snapshot accessor a plugin algorithm reads through", () => {
+    let container: HTMLDivElement;
+    let graph: Graph;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "400px";
+        container.style.height = "300px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        await graph.addNodes(MULTI_NODES);
+        await graph.addEdges(MULTI_EDGES);
+        await operationQueueOf(graph).waitForCompletion();
+    });
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    /**
+     * Every edge's id, keyed by its unordered endpoint pair.
+     * @returns The ids of each pair.
+     */
+    function edgesByPair(): Map<string, string[]> {
+        const byPair = new Map<string, string[]>();
+        for (const edge of graph.getSession().data.edges()) {
+            const key = [String(edge.source), String(edge.target)].sort().join("-");
+            byPair.set(key, [...(byPair.get(key) ?? []), edge.id]);
+        }
+
+        return byPair;
+    }
+
+    it("publishes one value per edge on a multigraph, copied to every edge of a merged tie", async () => {
+        assert.strictEqual(TieStrength.type, "tie-strength");
+        await graph.getSession().runs.start("tie-strength", {}, { as: "ties" });
+
+        const result = graph.getSession().results.get("ties");
+        assert.isDefined(result);
+        const byPair = edgesByPair();
+        assert.strictEqual(byPair.get("a-b")?.length, 3, "three edges join a and b");
+
+        let published = 0;
+        for (const [pair, ids] of byPair) {
+            for (const id of ids) {
+                const value = result?.edge(id)?.value;
+                assert.isNumber(value, `edge ${id} (${pair}) carries a value`);
+                assert.closeTo(value as number, EXPECTED_SHARE[pair], 1e-9, `edge ${id} (${pair})`);
+                published++;
+            }
+        }
+        assert.strictEqual(published, MULTI_EDGES.length, "every edge, parallel ones included, carries the value");
+        assert.deepStrictEqual(result?.summary().caveats.weight, { attribute: "strength", meaning: "strength" });
+    });
+
+    it("reads a partition option and an earlier run's per-edge result as columns", async () => {
+        const session = graph.getSession();
+        await session.runs.start("tie-strength", {}, { as: "ties" });
+        const probe = session.runs.start("column-probe", {});
+        await probe;
+
+        const ties = session.results.get("ties");
+        const ids = seen.edgeIds ?? [];
+        assert.deepStrictEqual(
+            [...ids].sort(),
+            session.data
+                .edges()
+                .map((edge) => edge.id)
+                .sort(),
+            "edgeId names every edge of the graph by the element's id",
+        );
+
+        // The result column is over the graph's edge rows, one value per edge.
+        assert.strictEqual(seen.tie?.meta.name, "results.ties.value");
+        ids.forEach((id, row) => {
+            assert.closeTo(seen.tie?.value(row) as number, ties?.edge(id)?.value as number, 1e-9, `row ${String(row)}`);
+        });
+
+        // The partition column is over the graph's node rows.
+        assert.strictEqual(seen.team?.length, MULTI_NODES.length);
+        (seen.nodeIds ?? []).forEach((id, row) => {
+            assert.strictEqual(seen.team?.value(row), MULTI_NODES.find((node) => node.id === id)?.team);
+        });
+
+        // The subgraph merges a tie's edges into one row: its column value is the group's "max",
+        // and subgraphEdgeIds names every edge behind the row.
+        const groups = seen.subgraphIds ?? [];
+        assert.strictEqual(groups.length, 4, "four ties");
+        assert.deepStrictEqual(groups.map((group) => group.length).sort(), [1, 1, 1, 3]);
+        groups.forEach((group, row) => {
+            const values = group.map((id) => ties?.edge(id)?.value as number);
+            assert.closeTo(seen.mergedTie?.[row] as number, Math.max(...values), 1e-9);
+        });
+
+        // An attribute column merges like the weights: the reciprocal b -> a (1) folds into an
+        // a -> b edge, then "max" over the two a -> b edges (2, 3). An edge with no strength
+        // leaves its row unset.
+        assert.deepStrictEqual(seen.mergedRaw, { "a-b": 3, "b-c": 4, "c-d": undefined, "a-e": 2 });
+
+        assert.deepStrictEqual(seen.errors, ["E_OPTION_RANGE", "E_UNKNOWN_OPTION", "E_UNKNOWN_OPTION"]);
+        assert.strictEqual(session.results.get(probe.id)?.node("a")?.value, 2, "a is on a team of two");
+    });
+
+    it("reads the graph unweighted when asked for no weight", async () => {
+        await graph.getSession().runs.start("unweighted-probe", {});
+
+        assert.isNull(UnweightedProbe.weights);
     });
 });

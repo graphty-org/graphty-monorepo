@@ -42,4 +42,6 @@ export interface KeyboardInfo {
     shiftKey: boolean;
     altKey: boolean;
     metaKey: boolean;
+    /** Cancels the DOM event's default action, so a host listening further out can skip it. */
+    preventDefault?: () => void;
 }

@@ -17,7 +17,7 @@
 import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { asData, edgeBetween, styleEveryEdge, type TestGraph } from "../helpers/testSetup";
 
 // Constants matching mesh calculations
@@ -51,7 +51,7 @@ function calculateExpectedArrowPosition(srcPos: Vector3, dstPos: Vector3): Vecto
  * We need to manually update node positions from the layout engine and then update edges.
  */
 async function waitForRender(graph: Graph): Promise<void> {
-    await graph.operationQueue.waitForCompletion();
+    await operationQueueOf(graph).waitForCompletion();
 
     // Access private members via TestGraph type for testing
     const testGraph = graph as unknown as TestGraph;
@@ -108,11 +108,11 @@ describe("Arrowhead Position Tests - 2D Mode", () => {
 
         await graph.setViewMode("2d");
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Set up fixed layout so nodes register with LayoutManager
         await graph.setLayout("fixed", { dim: 2 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes with position object for FixedLayout to read
         // FixedLayout reads from node.data.position.{x,y,z}
@@ -381,11 +381,11 @@ describe("Arrowhead Position Tests - 3D Mode", () => {
 
         await graph.setViewMode("3d");
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Set up fixed layout so nodes register with LayoutManager
         await graph.setLayout("fixed", { dim: 3 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes with position object for FixedLayout to read
         for (const node of nodes) {
@@ -694,11 +694,11 @@ describe("Arrow Position Edge Cases", () => {
 
         await graph.setViewMode(twoD ? "2d" : "3d");
         await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Set up fixed layout so nodes register with LayoutManager
         await graph.setLayout("fixed", { dim: twoD ? 2 : 3 });
-        await graph.operationQueue.waitForCompletion();
+        await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes with position object for FixedLayout to read
         for (const node of nodes) {

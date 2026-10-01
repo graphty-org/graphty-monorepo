@@ -1,11 +1,19 @@
 /**
  * @file Run identity: what makes two calls the same run, and what makes them different ones.
  *
- * A run id is not a slot number. It is either author-assigned through `as:` or derived from what
- * the run IS -- the algorithm key, the parameters once canonicalised, and the scope that was
- * asked for. An id minted from an execution counter would mean a saved style layer, recipe or
- * template resolves to a different run depending on the order things happened to execute, and
- * changing that afterwards is a behavioural break in everything already persisted.
+ * A run id is not a slot number. It is either author-assigned through `as:` or derived from the
+ * RESULT the run answers -- the algorithm key, whether it is exact or sampled, and the scope it
+ * reads with the live keywords frozen. An id minted from an execution counter would mean a saved
+ * style layer, recipe or template resolves to a different run depending on the order things
+ * happened to execute, and changing that afterwards is a behavioural break in everything already
+ * persisted.
+ *
+ * The derived id is the RESULT's id ({@link ResultId}): parameters and the seed are not part of
+ * it, so tuning a resolution or a damping factor re-runs the same result and every layer bound to
+ * it repaints, instead of growing a second result and a second layer. The keywords `"visible"` and
+ * `"selection"` are replaced by the definition in force before hashing -- the visibility filter
+ * and time window, the selected nodes -- so the same unscoped call under a different filter is a
+ * different result, never a re-execution of the first one over a different graph.
  *
  * Two rules do the work here:
  *
@@ -20,7 +28,18 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: it is string arithmetic over plain data.
  */
 
-import type { AlgorithmKey, EdgeId, NodeId, OptionDescriptor, RunId, Scope } from "../../catalog/types";
+import { compareIds } from "../../catalog/sets/canonical";
+import { parseScope } from "../../catalog/sets/parse";
+import type {
+    AlgorithmKey,
+    EdgeId,
+    NodeId,
+    OptionDescriptor,
+    ResultId,
+    RunId,
+    Scope,
+    SetDefinition,
+} from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { RUN_ID_PATTERN } from "./types";
 
@@ -273,9 +292,42 @@ export function canonicalIdentity(identity: RunIdentity): string {
         exact: identity.exact,
         params: identity.params,
         sample: identity.sample,
-        scope: identity.scope,
+        scope: legacyScope(identity.scope),
         seed: identity.seed,
     });
+}
+
+/**
+ * One spelling per scope, so one scope has one run id: an inline definition is canonicalised, and
+ * one that equals a form older than `{ define }` becomes that form -- a fixed node list read
+ * `induced` with no listed edges is `{ nodes }`, a rule over one query read `induced` is
+ * `{ where }` -- so every id derived before `{ define }` existed is unchanged.
+ * @param scope - The scope a run was asked for.
+ * @returns The scope its id is derived from.
+ */
+function legacyScope(scope: Scope): Scope {
+    if (typeof scope !== "object" || !("define" in scope)) {
+        return scope;
+    }
+
+    let canonical: Scope;
+    try {
+        canonical = parseScope(scope);
+    } catch {
+        // A malformed scope is refused where it is resolved; its id is never used.
+        return scope;
+    }
+
+    const definition = (canonical as { define: SetDefinition }).define;
+    if (definition.kind === "fixed" && definition.reading === "induced" && definition.edges === undefined) {
+        return { nodes: definition.nodes };
+    }
+
+    if (definition.kind === "rule" && definition.reading === "induced" && typeof definition.where === "string") {
+        return { where: definition.where };
+    }
+
+    return canonical;
 }
 
 /**
@@ -288,6 +340,86 @@ export function canonicalIdentity(identity: RunIdentity): string {
  */
 export function deriveRunId(identity: RunIdentity): RunId {
     return `${algorithmSlug(identity.algorithm)}_${stableDigest(canonicalIdentity(identity))}`;
+}
+
+/** The live scope keywords, whose members change without the scope's spelling changing. */
+export type LiveKeyword = "visible" | "selection";
+
+/**
+ * A scope with every live keyword replaced by the definition in force, for hashing only: the
+ * scope itself, and the `of` of every `member` leaf inside an inline definition.
+ * @param scope - The scope a run was asked for.
+ * @param live - The definition each live keyword stands for now.
+ * @returns The frozen scope, plain data.
+ */
+export function freezeScope(scope: Scope, live: (keyword: LiveKeyword) => unknown): unknown {
+    const walk = (node: unknown, position: boolean): unknown => {
+        if (position && (node === "visible" || node === "selection")) {
+            return { [node]: live(node) };
+        }
+
+        if (Array.isArray(node)) {
+            return node.map((entry: unknown) => walk(entry, false));
+        }
+
+        if (typeof node !== "object" || node === null) {
+            return node;
+        }
+
+        const member = (node as { kind?: unknown }).kind === "member";
+
+        return Object.fromEntries(
+            Object.entries(node).map(([key, value]) => [key, walk(value, member && key === "of")]),
+        );
+    };
+
+    return walk(legacyScope(scope), true);
+}
+
+/**
+ * The selected nodes as a frozen scope names them: sorted, so the same selection made in another
+ * order is the same result.
+ * @param nodes - The selected node ids.
+ * @returns The ids, sorted.
+ */
+export function frozenSelection(nodes: Iterable<NodeId>): NodeId[] {
+    return [...nodes].sort(compareIds);
+}
+
+/** What names a result: everything that makes two calls one result, and nothing a re-run may tune. */
+export interface ResultIdentity {
+    /** Which algorithm ran. */
+    readonly algorithm: AlgorithmKey;
+    /** The scope, frozen by {@link freezeScope}. */
+    readonly scope: unknown;
+    /** The sample size that was asked for, or null: a sampled result is never an exact one. */
+    readonly sample: number | null;
+    /** Whether approximation was refused, or null when the caller did not say. */
+    readonly exact: boolean | null;
+}
+
+/**
+ * The id a result gets when its author did not name it: derived from what the result IS, never
+ * from its parameters, its seed or when it ran.
+ * @param identity - What the result is.
+ * @returns The id, which always matches the run-id pattern.
+ */
+export function deriveResultId(identity: ResultIdentity): ResultId {
+    return `${algorithmSlug(identity.algorithm)}_${stableDigest(canonicalResultIdentity(identity))}`;
+}
+
+/**
+ * The canonical text of a result identity, which is what two runs under one id are compared by.
+ * @param identity - The identity.
+ * @returns Its canonical text.
+ */
+export function canonicalResultIdentity(identity: ResultIdentity): string {
+    return canonicalize({
+        algorithm: identity.algorithm,
+        exact: identity.exact,
+        sample: identity.sample,
+        scope: identity.scope,
+    });
 }
 
 /**

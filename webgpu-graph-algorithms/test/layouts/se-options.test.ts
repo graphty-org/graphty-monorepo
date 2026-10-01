@@ -7,6 +7,9 @@
  * `1 + degree / 3` on karate (PD-11), and the stats decoder.
  *
  * Every GPU test acquires a FRESH context (spec 11.2) and releases its snapshots; a wrong result is never a skip.
+ *
+ * run-twice exempt: it asserts option resolution, reheat counters, the pipeline cache and the stats decoder, not a
+ * kernel's numbers.
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";

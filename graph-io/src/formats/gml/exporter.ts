@@ -136,6 +136,7 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
     "timestamps",
     "spells",
     "open",
+    "spellsOpen",
 ]);
 
 const NODE_RESERVED: ReadonlySet<string> = new Set(["id"]);

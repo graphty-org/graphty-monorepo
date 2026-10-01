@@ -156,12 +156,21 @@ expectTypeOf(acc.bellmanFord).toMatchTypeOf<NonNullable<AlgorithmAccelerator["be
 expectTypeOf(acc.closenessCentrality).toMatchTypeOf<NonNullable<AlgorithmAccelerator["closenessCentrality"]>>();
 expectTypeOf(acc.breadthFirstSearch).not.toEqualTypeOf<undefined>();
 expectTypeOf(acc.sssp).not.toEqualTypeOf<undefined>();
-// members no phase implements yet keep the mirror's optional type -- the dispatchers read them as `undefined`
-expectTypeOf(acc.betweennessCentrality).toEqualTypeOf<AlgorithmAccelerator["betweennessCentrality"]>();
+// the two betweenness members are non-optional and narrow the mirror's optional type
+expectTypeOf(acc.betweennessCentrality).toMatchTypeOf<NonNullable<AlgorithmAccelerator["betweennessCentrality"]>>();
+expectTypeOf(acc.edgeBetweennessCentrality).toMatchTypeOf<
+    NonNullable<AlgorithmAccelerator["edgeBetweennessCentrality"]>
+>();
+expectTypeOf(acc.betweennessCentrality).not.toEqualTypeOf<undefined>();
+// the all-pairs member is non-optional and narrows the mirror's optional type
+expectTypeOf(acc.allPairsShortestPath).toMatchTypeOf<NonNullable<AlgorithmAccelerator["allPairsShortestPath"]>>();
+expectTypeOf(acc.allPairsShortestPath).not.toEqualTypeOf<undefined>();
 // the two P5 layout members (spec 3.3 lines 892-893; PD-19): functions, non-optional, the @graphty/layout option
 // type `| undefined` in and a LayoutSimulation (the GPU simulation) out; `createSimulation` routes on `!== undefined`
 expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().toBeFunction();
-expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().parameter(0).toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
+expectTypeOf<GpuAccelerator["fruchtermanReingold"]>()
+    .parameter(0)
+    .toEqualTypeOf<FruchtermanReingoldOptions | undefined>();
 expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toMatchTypeOf<LayoutSimulation>();
 expectTypeOf<GpuAccelerator["fruchtermanReingold"]>().returns.toEqualTypeOf<FrSim>();
 expectTypeOf(acc.fruchtermanReingold).not.toEqualTypeOf<undefined>();

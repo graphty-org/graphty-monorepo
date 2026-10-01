@@ -4,20 +4,15 @@
  * Demonstrates ForceAtlas2 layout in 3D using the force-directed algorithm.
  * Shows animation from random initial positions to final optimized 3D positions.
  *
- * IMPORTANT: This story uses the actual forceatlas2Layout implementation
+ * IMPORTANT: This story uses the actual forceAtlas2 implementation
  * from @graphty/layout with dim=3 to demonstrate real package behavior.
  */
 
-import { forceatlas2Layout } from "@graphty/layout";
+import { forceAtlas2, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import {
-    generateGraph,
-    generateRandom3DPositions,
-    type GraphType,
-    toLayoutGraph,
-} from "../utils/graph-generators.js";
+import { generateGraph, generateRandom3DPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
 import {
     cleanup3DScene,
     create3DControls,
@@ -52,28 +47,15 @@ function createForceAtlas23DStory(args: ForceAtlas23DArgs): HTMLElement {
 
     // Generate graph
     const generatedGraph = generateGraph(graphType, nodeCount, seed);
-    const layoutGraph = toLayoutGraph(generatedGraph);
+    const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random 3D positions
     const randomPositions = generateRandom3DPositions(generatedGraph, 200, seed);
 
     // Compute final ForceAtlas2 3D layout using actual algorithm with dim=3
-    const finalPositions = forceatlas2Layout(
-        layoutGraph,
-        null, // pos - initial positions
-        iterations, // maxIter
-        1.0, // jitterTolerance
-        scalingRatio, // scalingRatio
-        gravity, // gravity
-        false, // distributedAction
-        false, // strongGravity
-        null, // nodeMass
-        null, // nodeSize
-        null, // weight
-        false, // dissuadeHubs
-        false, // linlog
-        seed, // seed
-        3, // dim = 3 for 3D layout
+    const finalPositions = toPositionMap(
+        forceAtlas2(snapshot, { maxIter: iterations, scalingRatio, gravity, seed, dim: 3 }),
+        snapshot.ids,
     );
 
     // Create main container
@@ -115,7 +97,10 @@ function createForceAtlas23DStory(args: ForceAtlas23DArgs): HTMLElement {
 
         // Animate to final positions
         update3DPositions(scene3D, generatedGraph, finalPositions, 200, 1000, () => {
-            update3DStatus(statusPanel, "ForceAtlas2 3D layout applied! Nodes positioned using force-directed algorithm in 3D space.");
+            update3DStatus(
+                statusPanel,
+                "ForceAtlas2 3D layout applied! Nodes positioned using force-directed algorithm in 3D space.",
+            );
         });
     }
 
@@ -167,15 +152,7 @@ const meta: Meta<ForceAtlas23DArgs> = {
         },
         graphType: {
             control: { type: "select" },
-            options: [
-                "tree",
-                "random",
-                "grid",
-                "cycle",
-                "complete",
-                "star",
-                "path",
-            ] as GraphType[],
+            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
             description: "Type of graph to generate",
         },
         iterations: {
@@ -212,7 +189,7 @@ type Story = StoryObj<ForceAtlas23DArgs>;
 /**
  * ForceAtlas2 3D layout story - force-directed algorithm in 3D.
  *
- * This story uses the actual `forceatlas2Layout()` function from @graphty/layout with dim=3.
+ * This story uses the actual `forceAtlas2()` function from @graphty/layout with dim=3.
  * The play function animates from random 3D positions to the optimized arrangement.
  */
 export const ForceAtlas2_3D: Story = {

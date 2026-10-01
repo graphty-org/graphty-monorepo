@@ -65,6 +65,7 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
     MODE: [0, 1],
     PHASE: [0, 1, 2],
     SEARCH: [0, 1, 2],
+    PASS: [0, 1],
 });
 
 /**
@@ -89,7 +90,8 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * rowPtr / colIdx are group-1 state, not the graph group) + bc-gather 1 + bc-forward-edge 3 (the defaults plus the
  * UNDIRECTED axis) + apsp-init 5 (the graph pair, no declared override) + apsp-fw 4 (1 + 3 PHASE);
  * P11 = coo-emit 5 (1 + 2 INDEXED x 2 WEIGHTED) + run-flags 1 + coo-scatter 5 (1 + 2 SORTED_INPUT x 2 WEIGHTED) +
- * orient-flags 1 + tri-intersect 4 (1 + 3 SEARCH) + group-by-key-row 7 (1 + 3 TIER x 2 WEIGHTED) + lpa-step 1. The
+ * orient-flags 1 + tri-intersect 4 (1 + 3 SEARCH) + group-by-key-row 7 (1 + 3 TIER x 2 WEIGHTED) + lpa-step 1 +
+ * mst-best 5 (1 + 2 PASS x 2 WEIGHTED) + mst-link 1. The
  * LAW != 0 x LINLOG / DISTRIBUTED combinations compile
  * and no factory emits them: the matrix is a superset by design.
  */
@@ -102,7 +104,7 @@ export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" 
         P7: 69,
         P8: 46,
         P9: 17,
-        P11: 24,
+        P11: 30,
     });
 
 /** The standard overrides the composer fills from the device; never part of a variant's identity. */

@@ -755,6 +755,7 @@ describe("scripts/bench-append-session.js (P8-T14 Step 3; contract 6.4)", () => 
         "apsp",
         "triangles",
         "label-propagation",
+        "mst",
     ] as const;
     /** A hardware session of the dev-box class with one row per group: the one the script accepts. */
     const complete = (): BenchSession[] =>

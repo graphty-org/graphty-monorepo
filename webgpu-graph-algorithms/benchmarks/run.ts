@@ -14,6 +14,7 @@
  *   pnpm exec tsx benchmarks/run.ts bfs                   # T-10: BFS auto / top-down and SSSP on the RMAT tiers, BFS on the 1000 x 1000 grid (P8)
  *   pnpm exec tsx benchmarks/run.ts apsp                  # all-pairs shortest paths, 512 .. 5,760 nodes, and the matrix readback alone
  *   pnpm exec tsx benchmarks/run.ts triangles label-propagation   # the structure groups (issue #422), no target
+ *   pnpm exec tsx benchmarks/run.ts mst                   # Boruvka's minimum spanning tree (issue #646), no target
  *   pnpm exec tsx benchmarks/run.ts --no-save             # print only
  *   pnpm exec tsx benchmarks/run.ts --runs 3              # 3 timed runs per benchmark
  *   pnpm exec tsx benchmarks/run.ts --samples-out s.json  # also write every timed sample per row (scripts/bench-ab.js)
@@ -49,7 +50,9 @@ import { runPagerankBenchmarks } from "./pagerank.bench.js";
 import { runRoundtripBenchmarks } from "./roundtrip.bench.js";
 import {
     LABEL_PROPAGATION_GROUP,
+    MST_GROUP,
     runLabelPropagationBenchmarks,
+    runMstBenchmarks,
     runTriangleBenchmarks,
     TRIANGLES_GROUP,
 } from "./structure.bench.js";
@@ -61,7 +64,7 @@ import { runWccBenchmarks } from "./wcc.bench.js";
  * of T-5, `pagerank` T-8, `wcc` T-9, `layout-fr` T-14, `layout-grid` T-6 / T-7 and the grid rows of the 7.8
  * re-check, `bfs` T-10 (P8), `betweenness` T-11. `apsp` (all-pairs shortest paths, design 8.7) has no T-target: its
  * rows arm the regression check. `attraction-scale` records no target: it is the G4-F16 diagnostic, a ratio curve rather than
- * a gate row; nor do `triangles` and `label-propagation` (issue #422), whose CPU crossover is in
+ * a gate row; nor do `triangles` and `label-propagation` (issue #422) and `mst` (issue #646), whose CPU crossover is in
  * design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md. Every group is REQUIRED by
  * scripts/bench-append-session.js: a session appended to a baseline must carry all of them, so a new group is added
  * there and to test/benchmarks.test.ts in the same change.
@@ -80,6 +83,7 @@ const GROUPS: Readonly<Record<string, (ctx: GpuContext) => Promise<BenchResult[]
     [APSP_GROUP]: runApspBenchmarks,
     [TRIANGLES_GROUP]: runTriangleBenchmarks,
     [LABEL_PROPAGATION_GROUP]: runLabelPropagationBenchmarks,
+    [MST_GROUP]: runMstBenchmarks,
 };
 
 /** The parsed command line. */

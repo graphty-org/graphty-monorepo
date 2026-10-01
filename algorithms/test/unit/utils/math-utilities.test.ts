@@ -1,62 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { SeededRandom } from "../../../src/utils/math-utilities.js";
+import { mulberry32 } from "../../../src/utils/math-utilities.js";
 
-describe("SeededRandom", () => {
-    it("should produce deterministic values", () => {
-        const rng1 = new SeededRandom(42);
-        const rng2 = new SeededRandom(42);
+describe("mulberry32", () => {
+    it("matches the reference mulberry32 sequence", () => {
+        // Reference values from a BigInt implementation of mulberry32 (exact 32-bit arithmetic).
+        const zero = mulberry32(0);
+        expect([zero(), zero(), zero()]).toEqual([0.26642920868471265, 0.0003297457005828619, 0.2232720274478197]);
+        const fortyTwo = mulberry32(42);
+        expect([fortyTwo(), fortyTwo(), fortyTwo()]).toEqual([
+            0.6011037519201636, 0.44829055899754167, 0.8524657934904099,
+        ]);
+    });
 
-        for (let i = 0; i < 100; i++) {
-            expect(rng1.next()).toBe(rng2.next());
+    it("never returns 1 and stays in [0, 1) over a long run", () => {
+        for (const seed of [0, 1, -1, 42, 2147483647, -2147483648, Number.MAX_SAFE_INTEGER]) {
+            const rand = mulberry32(seed);
+            for (let i = 0; i < 200_000; i++) {
+                const x = rand();
+                expect(x >= 0 && x < 1).toBe(true);
+            }
         }
     });
 
-    it("should produce values between 0 and 1", () => {
-        const rng = new SeededRandom(12345);
-        for (let i = 0; i < 1000; i++) {
-            const value = rng.next();
-            expect(value).toBeGreaterThanOrEqual(0);
-            expect(value).toBeLessThanOrEqual(1);
-        }
-    });
-
-    it("should match legacy implementation", () => {
-        // Test against known values from existing implementation
-        const generator = SeededRandom.createGenerator(42);
-        expect(generator()).toBeCloseTo(0.5823075899771916, 8);
-        expect(generator()).toBeCloseTo(0.5198186638391664, 8);
-    });
-
-    it("should produce different sequences with different seeds", () => {
-        const rng1 = new SeededRandom(42);
-        const rng2 = new SeededRandom(43);
-
-        const values1 = Array.from({ length: 10 }, () => rng1.next());
-        const values2 = Array.from({ length: 10 }, () => rng2.next());
-
-        // At least some values should be different
-        const differentCount = values1.filter((v, i) => v !== values2[i]).length;
-        expect(differentCount).toBeGreaterThan(0);
-    });
-
-    it("should handle edge case seeds", () => {
-        const seeds = [0, 1, -1, 2147483647, -2147483648, Number.MAX_SAFE_INTEGER];
-
-        for (const seed of seeds) {
-            const rng = new SeededRandom(seed);
-            const value = rng.next();
-            expect(value).toBeGreaterThanOrEqual(0);
-            expect(value).toBeLessThanOrEqual(1);
-        }
-    });
-
-    it("should maintain compatibility through createGenerator", () => {
-        const generator1 = SeededRandom.createGenerator(42);
-        const generator2 = SeededRandom.createGenerator(42);
-
-        for (let i = 0; i < 10; i++) {
-            expect(generator1()).toBe(generator2());
-        }
+    it("is deterministic per seed and differs across seeds", () => {
+        const a = mulberry32(42);
+        const b = mulberry32(42);
+        const c = mulberry32(43);
+        const xs = Array.from({ length: 10 }, () => a());
+        expect(Array.from({ length: 10 }, () => b())).toEqual(xs);
+        expect(Array.from({ length: 10 }, () => c())).not.toEqual(xs);
     });
 });

@@ -218,6 +218,9 @@ graphs named:
 - **Self-loops in community detection.** On an undirected graph with a self-loop, `girvanNewman` counts the loop twice
   in its node's degree where 2.x counted it once, so each level's modularity differs and the best level can be another
   one; `grsbm` gives another root modularity (on one small graph with a loop, 0 where 2.x gave 0.0586).
+- **Seeded `grsbm` and `syncClustering`.** Both draw from mulberry32 in every release after 3.1.2. 2.x and 3.0.0
+  through 3.1.2 drew from a linear congruential generator whose float64 product lost its low bits above 2^53 and which could return exactly 1, so
+  the same `seed` now gives other bisections, clusters and embeddings.
 - **Flow and cuts.** `maxFlow` reports the net flow of two opposite edges on the edge it runs along, each within its
   capacity; `minSTCut` reports cut edges on graphs with numeric ids (2.x reported none); `stoerWagner` adds the weights
   of two opposite directed edges; `kargerMinCut` is seeded, so one graph gives one result, and on a graph of three or

@@ -1,0 +1,69 @@
+id: plugin-author-frontend-developer
+name: Front-End Developer Integrating the Element
+role: Front-End Web Developer Adding a Palette, Camera or Logger for a Product Team
+quote: I don't need to know what betweenness is. I need our brand colours on it and our logs in Datadog by Thursday.
+bio: >-
+    Sofia Marquez is a senior front-end developer at a SaaS company that is embedding graphty-element in its product. She
+    writes TypeScript every day, knows React, Vite, npm workspaces and the browser DevTools well, and has shipped design
+    systems and analytics integrations before. She knows nothing about graph theory and does not want to: to her the
+    element is a component with props, events and slots. Her tickets are integration work: make the graph use the
+    company's colour tokens, give product a "fit to selection" camera button, and send the element's warnings and
+    errors to the company's telemetry service with the user's session id attached. She judges a library by how quickly
+    its types and docs let her do that, and she reads the `.d.ts` before she reads the guide.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: basic
+motivations:
+    - Make the element look and behave like the rest of the product with the least code
+    - Ship integration tickets inside a sprint without a spike to learn the library
+    - Keep the integration type-safe so an upgrade breaks at compile time, not in production
+    - Avoid owning code that would break when graphty-element releases a new major version
+behaviors:
+    - Installs the package, opens its type declarations in the editor and follows autocomplete
+    - Looks for an exported interface to implement and a single registration call
+    - Expects extension points to follow web platform and ecosystem conventions (plain objects, events, async functions)
+    - Writes a unit test for her plugin in Vitest before wiring it into the app
+    - Checks bundle size impact and tree-shaking of anything she imports
+    - Files an issue or reads the source when the types and the docs disagree
+goals:
+    - Register a brand palette from design tokens with one call
+    - Add a named camera view and trigger it from a product button
+    - Forward the element's log records to an existing telemetry client with context attached
+    - Know exactly which types are public and stable across versions
+frustrations:
+    - Graph jargon (layout engine, centrality, snapshot, CSR) in docs for a task that has nothing to do with graphs
+    - Having to import from a deep path or an entry point that drags in Babylon.js just to get a type
+    - Registration APIs that need a namespace, a type and a version for something as small as a list of colours
+    - Global registries with no way to scope a plugin to one element instance on a page
+    - Options schemas duplicated in three places (types, JSON schema, runtime validation)
+    - Errors thrown at render time instead of at registration time
+knows:
+    - TypeScript, npm packaging, ESM, Vite, Vitest and browser APIs in depth
+    - Web components, custom events and design tokens
+    - Telemetry and logging integrations (Datadog, Sentry, OpenTelemetry)
+refuses_to_learn:
+    - Graph theory, algorithm names or layout mathematics
+    - Babylon.js, scene graphs or 3D camera maths beyond a bounding box and a direction
+    - Anything the element's docs describe only in its own design documents
+first_plugin: >-
+    A palette built from the company's design-token colours, then a telemetry logger that forwards warnings and errors
+    with the session id, then a "fit to selection" camera view.
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows: []
+sources:
+    - title: State of JavaScript 2024 - Usage
+      url: https://2024.stateofjs.com/en-US/usage/
+      summary: TypeScript is the default for professional front-end developers, who navigate libraries through their types
+    - title: Custom Elements Everywhere
+      url: https://custom-elements-everywhere.com/
+      summary: How front-end frameworks consume web components through properties and events, the mental model this persona brings
+    - title: OpenTelemetry JavaScript - Logs
+      url: https://opentelemetry.io/docs/languages/js/
+      summary: The telemetry integration shape a front-end developer expects a log destination to plug into

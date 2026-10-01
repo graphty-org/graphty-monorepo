@@ -17,7 +17,7 @@ import { type EdgeSpec, KARATE_EDGES, randomEdgesLoose, snapshotOf, xorshift } f
 import type { CheckReport } from "./sabotage.js";
 
 /** The relative tolerance of `totalWeight`: both sides sum the same f32 weights in f64, in different orders. */
-export const MST_TOTAL_TOLERANCE = 1e-9;
+const MST_TOTAL_TOLERANCE = 1e-9;
 
 /**
  * A path of `2^levels` nodes whose edge `(i, i + 1)` weighs the trailing zeros of `i + 1`: every Boruvka round merges

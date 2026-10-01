@@ -1,8 +1,8 @@
 /**
- * @file A label bound to a note is drawn as plain text (design/notes/notes-design.md section 6.3,
- * conformance note-7): every character of `<color='red'>x</color>` in the label's own color. In
- * the same scene a data column holding `<bold>y</bold>` bound to a label is still drawn bold,
- * which pins that notes change nothing about data labels.
+ * @file A label bound to a path is drawn as plain text (design/notes/notes-design.md section 6.3,
+ * conformance note-7): every character of `<color='red'>x</color>` from a note in the label's own
+ * color, and every character of a data column holding `<bold>y</bold>`. In the same scene a
+ * literal label the layer writes, `<bold>z</bold>`, is still drawn bold: markup is read only there.
  */
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
@@ -23,7 +23,7 @@ describe("a label bound to a note", () => {
         document.body.appendChild(container);
         graph = new Graph(container);
         await graph.init();
-        await graph.addNodes([{ id: "a" }, { id: "b", name: "<bold>y</bold>" }]);
+        await graph.addNodes([{ id: "a" }, { id: "b", name: "<bold>y</bold>" }, { id: "c" }]);
         await graph.setLayout("fixed", { dim: 3 });
         await operationQueueOf(graph).waitForCompletion();
     });
@@ -54,7 +54,7 @@ describe("a label bound to a note", () => {
         throw new Error(`node ${id} drew no label`);
     }
 
-    it("draws every character of the note in the label's color; a data label keeps its markup", async () => {
+    it("draws a note or data label as written; a literal label in a layer reads markup", async () => {
         const session = graph.getSession();
         session.notes.add({ text: NOTE, targets: [{ node: "a" }] });
         await session.styles.add({
@@ -70,6 +70,12 @@ describe("a label bound to a note", () => {
             selector: { match: "has", path: "data.name" },
             encode: { "node.label": { by: "data.name" } },
         });
+        await session.styles.add({
+            name: "literal",
+            target: "node",
+            selector: { match: "ids", nodes: ["c"] },
+            set: { "node.label": "<bold>z</bold>" },
+        });
         await session.styles.settled();
 
         const note = (await labelOf("a")).textRuns;
@@ -81,9 +87,16 @@ describe("a label bound to a note", () => {
 
         const data = (await labelOf("b")).textRuns;
         assert.deepEqual(
-            data[0].map((run) => [run.text, run.style.weight]),
-            [["y", "bold"]],
-            "a data label still reads markup",
+            data[0].map((run) => run.text),
+            ["<bold>y</bold>"],
+            "a data label is drawn as written",
+        );
+
+        const literal = (await labelOf("c")).textRuns;
+        assert.deepEqual(
+            literal[0].map((run) => [run.text, run.style.weight]),
+            [["z", "bold"]],
+            "a literal label in a layer still reads markup",
         );
     });
 });

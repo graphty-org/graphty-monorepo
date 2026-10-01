@@ -102,7 +102,7 @@ interface RuntimeProperties {
     onTop?: boolean;
     /**
      * Draw the text as its characters, every one of them, never as label markup (`<bold>`,
-     * `<color='...'>`). Set for words a note supplied (design/notes 6.3).
+     * `<color='...'>`). Set for words a style binding read from data, a result or a note.
      */
     plainText?: boolean;
 }

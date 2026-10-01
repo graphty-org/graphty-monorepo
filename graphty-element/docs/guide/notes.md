@@ -300,7 +300,7 @@ visibility filter, run scopes and recipes refuse them (`E_BAD_SELECTOR`, reason 
 because a note must not change what a result is computed over.
 
 A label or tooltip bound to a `graphty.notes.*` path is drawn as literal text, never as label
-markup. The `graphty.` root is reserved for values the element provides; see
+markup, as is every label or tooltip bound to a path. The `graphty.` root is reserved for values the element provides; see
 [Styling](./styling#values-the-element-provides).
 
 ## Saving and opening

@@ -57,7 +57,6 @@
 
 import type { Binding, Channel, GraphtyErrorCode, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
-import { isNotePath } from "../notes/paths";
 import { asColorValue, channelDescriptor, type ChannelValues } from "./channels";
 import { prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
@@ -178,8 +177,8 @@ export interface ElementPaint {
     styleOf(target: SelectorTarget, index: number): ResolvedStyle;
     /**
      * Whether one element's words in a text channel are drawn as plain text, every character as
-     * written, never as label markup: true where they came from a `graphty.notes.*` binding
-     * (design/notes 6.3).
+     * written, never as label markup: true where they came from a binding that reads a path (data,
+     * a result or a note), false for a literal the layer writes.
      * @param target - Whether it is a node or an edge.
      * @param index - Its dense index.
      * @param channel - A text channel, such as `node.label`.
@@ -403,9 +402,8 @@ type ChannelColumn =
           readonly kind: "ref";
           values: unknown[];
           /**
-           * For a text channel, 1 where the words came from a `graphty.notes.*` binding and are
-           * drawn as plain text, never as label markup (design/notes 6.3); null for any other
-           * channel.
+           * For a text channel, 1 where the words came from a binding that reads a path and are
+           * drawn as plain text, never as label markup; null for any other channel.
            */
           plainText: Uint8Array | null;
       }
@@ -714,7 +712,7 @@ interface PreparedChannel {
     readonly path: Path | null;
     /** The binding, prepared against the whole column exactly once. */
     readonly binding: PreparedBinding;
-    /** Whether it reads a note, whose text is drawn as plain text. */
+    /** Whether it reads a path, whose values are drawn as plain text, never as markup. */
     readonly plainText: boolean;
 }
 
@@ -1116,7 +1114,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             channels.push({
                 column: columnFor(store, channel),
                 path,
-                plainText: path !== null && isNotePath(path),
+                // A value read from data, a result or a note is drawn as written; only a literal the
+                // layer itself writes is read as label markup.
+                plainText: path !== null,
                 binding: prepareBinding({
                     channel,
                     binding,

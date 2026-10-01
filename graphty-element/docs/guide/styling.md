@@ -150,9 +150,26 @@ data. Today those are the three note values:
 | `graphty.notes.latest`     | The text of the newest of those notes         |
 | `graphty.notes.latestTime` | The `time` of the newest of those notes       |
 
-They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
-as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
-[Notes](./notes#notes-in-styles).
+They work in a layer's `selector` and in a binding's `by`. See [Notes](./notes#notes-in-styles).
+
+### Label text is drawn as written
+
+A label or tooltip whose words come from a binding -- a data column, a result or a note -- is
+drawn as literal text: a value reading `<bold>x</bold>` shows the tags, never bold text, so data
+can never restyle its own label. Label markup (`<bold>`, `<italic>`, `<color='...'>` and the rest)
+is read only in a literal label the layer itself writes:
+
+```typescript
+await session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "ids", nodes: ["hub"] },
+    set: { "node.label": "<bold>Hub</bold>" }, // drawn bold
+});
+```
+
+A binding's `map`, `missing` and `other` values are part of the binding, so they are drawn as
+written too.
 
 The whole `graphty.` root is reserved for the element, now and in later releases. A data column
 whose name starts `graphty.` is still reachable, as `data.graphty.<name>`, and

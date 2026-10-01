@@ -57,6 +57,11 @@ function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
 
 const preview: Preview = {
     globalTypes: {
+        // Set by the light and dark capture modes (parameters.chromatic.modes). Storybook ignores a
+        // global from the story URL that is not declared here, so it needs a declaration of its own.
+        colorScheme: {
+            description: "Color scheme a visual capture mode forces",
+        },
         theme: {
             description: "Color scheme for Mantine components",
             toolbar: {

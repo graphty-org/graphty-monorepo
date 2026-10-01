@@ -409,6 +409,6 @@ the session.
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `tmp/object-first/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
 Screen 43 draws the History dock with the current step's brand bar and the undone steps faded; 44 the dark row menu beside its row and the 320 px confirmation with a red button; rename in place and the drag insertion line are screen 102; 45 and 48 put their second example in an inset; 47 draws the fatal case and, in an inset, the non-fatal error chip and its Details; 46 draws the six new nodes in grey.

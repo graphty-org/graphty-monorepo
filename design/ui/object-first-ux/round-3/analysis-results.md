@@ -7,7 +7,7 @@ gave the analysis a door at all. Each gap is listed in
 entry point, the states, the rows, the keys and the errors), the graphty-element work it needs,
 and the mock that draws it. The mocks are
 `design/ui/object-first-ux/mocks/v2/screen-69.png` to `screen-82.png`, generated from
-`tmp/object-first/gen/screens/screen-69.mjs` to `screen-82.mjs`.
+`design/ui/object-first-ux/gen/screens/screen-69.mjs` to `screen-82.mjs`.
 
 The design it extends is `design/ui/object-first-ux/round-2/revision.md`; section numbers below
 ("revision 2.4") refer to it. Nothing here changes code.
@@ -484,7 +484,7 @@ session call or a catalogue.
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `tmp/object-first/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
 Screen 69 draws the dragged band and the TOP "+" menu; 70 the scatter plot in its 480 px panel; 72 the summary graph at the groups' centres; 73 and 76 dark menus with an inset each; 75 the scope select in the bar; 78 two panes with one camera; 79 and 80 the line and alluvial charts in the dock's Findings tab; 81 note markers, a callout and the note field; 82 the Assistant transcript and composer.
 

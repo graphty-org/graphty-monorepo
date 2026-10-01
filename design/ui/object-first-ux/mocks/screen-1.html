@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Screen 1: first run, nothing loaded</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  /* Page chrome around the 1440 x 900 frame. Nothing here is kit. */
+  html, body { margin: 0; background: #d9d9d9; }
+  .frame { width: 1440px; height: 900px; position: relative; overflow: hidden; }
+  .caption {
+    width: 1440px; height: 60px; box-sizing: border-box; padding: 12px 16px;
+    background: #1e1e1e; color: #fff; font: 450 11px/16px var(--k-font); letter-spacing: 0.055px;
+  }
+  .caption b { font-weight: 550; }
+  .caption span { color: #ffffffb2; }
+
+  /* Additions the kit does not have yet (see the summary):
+     1. an app frame without the activity rail;
+     2. a 48px panel header for the left panel (dataset name + file menu);
+     3. a disabled tool and a text mode switch on the toolbar;
+     4. the Welcome sheet, its drop zone and its sample rows. */
+  .k-app.no-rail { grid-template-columns: var(--k-panel-w) minmax(0, 1fr) calc(var(--k-panel-w) + 1px); }
+  .k-panel-file { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 16px; flex: none; border-bottom: 1px solid var(--k-border); }
+  .k-panel-file .k-heading { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .k-tool.is-disabled, .k-tool-chevron.is-disabled { color: var(--k-text-disabled); background: transparent; }
+  .k-mode-opt.has-text { width: auto; padding: 0 8px; font: var(--k-text-body); letter-spacing: var(--k-ls-body); }
+  .k-welcome {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 432px; padding: 16px 16px 8px; box-sizing: border-box;
+    background: var(--k-bg); border-radius: var(--k-radius-lg); box-shadow: var(--k-shadow-400);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .k-welcome .k-heading-md { margin: 0 0 4px; }
+  .k-dropzone {
+    width: 400px; height: 120px; box-sizing: border-box;
+    border: 1px dashed var(--k-border); border-radius: var(--k-radius-md);
+    display: grid; place-items: center; color: var(--k-text-secondary);
+  }
+  .k-sample-list { margin: 4px -8px 0; display: flex; flex-direction: column; }
+  .k-sample-list .k-list-pill { position: relative; }
+  .k-sample-list .k-sample-size { margin-left: auto; color: var(--k-text-secondary); }
+  .k-scrim { position: absolute; inset: 0; background: #f5f5f5; opacity: .6; }
+</style>
+</head>
+<body class="k-ui">
+
+<!-- Icon sprite copied from kit.html, plus two glyphs the kit has not got: i-menu and i-neighbours. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M9.5 10.5l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="4.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M14.5 14.5L18 18" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M7 6l11 5.5-4.6 1.3L11 18z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 12V7.5a1 1 0 012 0V11m0-4.5a1 1 0 012 0V11m0-3a1 1 0 012 0v6.5c0 2.5-2 4-4.5 4S8 16.8 7 14.5L6 12a1 1 0 011.8-.8L9 12.5" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M6 7h12l-4.5 5.5V17l-3 1v-5.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="9.5" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="15.5" cy="9.5" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="15" r="3" fill="none" stroke="currentColor" stroke-width="1.25"/></symbol>
+  <symbol id="i-path" viewBox="0 0 24 24"><circle cx="7" cy="16" r="1.75" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17" cy="8" r="1.75" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M8.3 14.8L11 12l2-1 2.5-2" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-rank" viewBox="0 0 24 24"><path d="M7 17V11M12 17V7M17 17v-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-comment" viewBox="0 0 24 24"><path d="M6.5 8.5A1.5 1.5 0 018 7h8a1.5 1.5 0 011.5 1.5v5A1.5 1.5 0 0116 15h-4.5L9 17.5V15H8a1.5 1.5 0 01-1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h10" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+  <symbol id="i-neighbours" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="6.5" cy="8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="17.5" cy="8" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><circle cx="12" cy="18.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M8 8.8l2.2 1.6M16 8.8l-2.2 1.6M12 14.5V17" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="frame">
+  <div class="k-app no-rail has-statusbar">
+
+    <!-- Left panel: file menu, VIEWS, OBJECTS. Nothing is loaded, so the tree holds three verbs. -->
+    <aside class="k-panel k-panel-left">
+      <div class="k-panel-file">
+        <svg class="k-icon-16"><use href="#i-menu"/></svg>
+        <span class="k-heading k-secondary">graphty</span>
+        <svg class="k-icon" style="color:var(--k-text-tertiary)"><use href="#i-chevron-down"/></svg>
+      </div>
+      <div class="k-panel-header"><span class="k-panel-title">Views</span><button class="k-icon-btn is-disabled"><svg class="k-icon"><use href="#i-plus"/></svg></button></div>
+      <div class="k-divider"></div>
+      <div class="k-panel-header"><span class="k-panel-title">Objects</span><button class="k-icon-btn is-disabled"><svg class="k-icon"><use href="#i-search"/></svg></button></div>
+      <div class="k-list-row"><div class="k-list-pill k-secondary">Open a file...</div></div>
+      <div class="k-list-row"><div class="k-list-pill k-secondary">Paste data...</div></div>
+      <div class="k-list-row"><div class="k-list-pill k-secondary">From a URL...</div></div>
+    </aside>
+
+    <!-- Canvas: empty, with the Welcome sheet centred over a light scrim. -->
+    <main class="k-canvas">
+      <div class="k-scrim"></div>
+
+      <div class="k-welcome">
+        <h2 class="k-heading-md">Open a graph</h2>
+        <div class="k-dropzone">Drop a file here</div>
+        <div><button class="k-btn">Choose a file</button></div>
+        <div class="k-sample-list">
+          <div class="k-list-row is-hover"><div class="k-list-pill"><span>Karate Club</span><span class="k-sample-size">34 nodes, 78 edges</span>
+            <span class="k-tooltip k-tip-right is-wrap" style="position:absolute;left:calc(100% + 24px);top:-8px;width:180px;z-index:1">A club that split in two. The classic test for finding groups.</span>
+          </div></div>
+          <div class="k-list-row"><div class="k-list-pill"><span>Cat social network</span><span class="k-sample-size">20 nodes, 29 edges</span></div></div>
+          <div class="k-list-row"><div class="k-list-pill"><span>College football</span><span class="k-sample-size">115 nodes, 613 edges</span></div></div>
+        </div>
+      </div>
+
+      <!-- Toolbar: nothing pressed; every tool but Select and Hand is disabled. -->
+      <div class="k-toolbar k-toolbar-float" style="bottom:16px">
+        <button class="k-tool" title="Select (V)"><svg class="k-icon"><use href="#i-cursor"/></svg></button>
+        <button class="k-tool" title="Hand (H)"><svg class="k-icon"><use href="#i-hand"/></svg></button>
+        <div class="k-toolbar-divider"></div>
+        <div class="k-tool-group"><button class="k-tool is-disabled" title="Filter (F)"><svg class="k-icon"><use href="#i-filter"/></svg></button><button class="k-tool-chevron is-disabled"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <button class="k-tool is-disabled" title="Neighbours (E)"><svg class="k-icon"><use href="#i-neighbours"/></svg></button>
+        <div class="k-tool-group"><button class="k-tool is-disabled" title="Path (P)"><svg class="k-icon"><use href="#i-path"/></svg></button><button class="k-tool-chevron is-disabled"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-tool-group"><button class="k-tool is-disabled" title="Groups (G)"><svg class="k-icon"><use href="#i-group"/></svg></button><button class="k-tool-chevron is-disabled"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-tool-group"><button class="k-tool is-disabled" title="Rank (R)"><svg class="k-icon"><use href="#i-rank"/></svg></button><button class="k-tool-chevron is-disabled"><svg class="k-icon"><use href="#i-chevron-down"/></svg></button></div>
+        <div class="k-toolbar-divider"></div>
+        <button class="k-tool is-disabled" title="Note (N)"><svg class="k-icon"><use href="#i-comment"/></svg></button>
+        <div class="k-toolbar-divider"></div>
+        <div class="k-mode">
+          <button class="k-mode-opt has-text is-selected">2D</button>
+          <button class="k-mode-opt has-text">3D</button>
+          <button class="k-mode-opt has-text">VR</button>
+          <button class="k-mode-opt has-text">AR</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right panel: zoom menu and Share, both disabled; one row. -->
+    <aside class="k-panel k-panel-right">
+      <div class="k-panel-file" style="padding-left:8px;justify-content:flex-end">
+        <button class="k-select is-disabled" style="width:auto;padding-right:0"><span>100%</span><svg class="k-icon"><use href="#i-chevron-down"/></svg></button>
+        <button class="k-btn is-disabled">Share</button>
+      </div>
+      <div class="k-row-flex k-secondary">Nothing loaded</div>
+    </aside>
+
+    <footer class="k-statusbar"><span class="k-statusbar-spacer"></span><span>100%</span></footer>
+  </div>
+</div>
+
+<div class="caption">
+  <b>Screen 1 of 8: first run, nothing loaded.</b>
+  <span>Look at: the one filled button (Choose a file) while Share and the zoom menu are disabled; two panels that hold nothing but a Views header, an Objects header and three verbs; a toolbar where only Select and Hand are live and nothing is pressed; a hovered sample row showing its blurb as a tooltip; the status bar carrying only the zoom readout.</span>
+</div>
+
+</body>
+</html>

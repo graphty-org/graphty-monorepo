@@ -1376,7 +1376,7 @@ numbers.
 This is every place a screen in `mocks/v2/` breaks a check of Part 4, with the fix. It is the work
 list for making the mocks consistent. The mocks are generated (`README.md` in this folder says
 how), so each fix is a change to that screen's spec in
-`/home/apowers/Projects/graphty-monorepo/tmp/object-first/gen/screens/screen-<n>.mjs`, or, where
+`design/ui/object-first-ux/gen/screens/screen-<n>.mjs`, or, where
 the same break is on many screens, to the shared renderer.
 
 Not listed: the frame changes round 4 already schedules for every screen (the rail, the icon-only

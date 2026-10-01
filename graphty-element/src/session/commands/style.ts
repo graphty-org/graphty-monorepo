@@ -68,6 +68,8 @@ export type StylePatchCommand =
           readonly op: "style.patch";
           readonly action: "highlight";
           readonly spec: Omit<HighlightSpec, "run"> & { readonly run: RunId };
+          /** Placed beneath the authored layers driving the same colour, as auto-apply places it. */
+          readonly beneathAuthored?: boolean;
       }
     | {
           readonly op: "style.patch";
@@ -81,6 +83,8 @@ export type StylePatchCommand =
 export interface StyleEncodeCommand {
     readonly op: "style.encode";
     readonly spec: Omit<EncodingSpec, "run"> & { readonly run: RunId };
+    /** Placed beneath the authored layers driving the same channel, as auto-apply places it. */
+    readonly beneathAuthored?: boolean;
 }
 
 /** `style.template`: add the layers of a style document. */

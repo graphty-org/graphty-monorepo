@@ -41,11 +41,11 @@ with its caption and a link to the full-size HTML and PNG. Stop the server with
 1440 x 900 plus a 60 px caption strip.)
 
 The round-2 mocks are generated: one spec per screen in
-`/home/apowers/Projects/graphty-monorepo/tmp/object-first/gen/screens/`, one renderer, one
-kit (`mocks/kit.css`). Rebuild everything with `node tmp/object-first/gen/build.mjs`, or one
-screen with `node tmp/object-first/gen/build.mjs 8`; the generator's README explains the
+`design/ui/object-first-ux/gen/screens/`, one renderer, one
+kit (`mocks/kit.css`). Rebuild everything with `node design/ui/object-first-ux/gen/build.mjs`, or one
+screen with `node design/ui/object-first-ux/gen/build.mjs 8`; the generator's README explains the
 spec. Never edit a `mocks/v2/*.html` by hand. The round-1 screens were built by hand and
-re-shot with `node tmp/object-first/shoot-screen.mjs <n>`.
+re-shot with `node design/ui/object-first-ux/gen/shoot-screen.mjs <n>`.
 
 ## Index of documents
 
@@ -103,6 +103,7 @@ Every document defines its terms at the top and stands alone.
 | `inventory/app-today-and-personas.md` | What the current app draws, which of it works, and what the personas and workflows in `design/designloom/` ask for. |
 | `models/tree-first.md`, `models/task-walkthrough-first.md`, `models/element-api-first.md` | The three candidate models the final object model was merged from: one derived from the tree, one from walking the 25 workflows, one from the element's session API. Kept for the reasoning; superseded by `object-model.md`. |
 
-Scratch scripts (the screen generator in `gen/`, whose README lists every spec key, the DOM audit in `audit/`, the round-1
-screenshot tooling, the graph layouts the canvases were drawn from) are in
-`/home/apowers/Projects/graphty-monorepo/tmp/object-first/`.
+The screen generator is committed in `gen/` (its README lists every spec key), with the round-1
+screenshot script `gen/shoot-screen.mjs`. The one-off audit and layout scripts the older rounds
+cite under `tmp/object-first/` were scratch work and are not kept; the tables they produced are
+in the documents.

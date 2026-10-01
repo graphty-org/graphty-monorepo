@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import React, { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { compactTheme, StyleSelect } from "../../src";
@@ -33,14 +33,26 @@ beforeAll(() => {
 describe("StyleSelect", () => {
     it("renders label", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         expect(screen.getByText("Select")).toBeInTheDocument();
     });
 
     it("shows default value when value is undefined", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         const select = screen.getByRole("textbox", { name: "Select" });
         expect(select).toHaveAttribute("value", "Option 1");
@@ -56,7 +68,13 @@ describe("StyleSelect", () => {
 
     it("shows italic styling for default value", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         const select = screen.getByRole("textbox", { name: "Select" });
         expect(getComputedStyle(select).fontStyle).toBe("italic");
@@ -64,7 +82,13 @@ describe("StyleSelect", () => {
 
     it("hides reset button when using default", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
@@ -78,7 +102,13 @@ describe("StyleSelect", () => {
 
     it("has data-is-default attribute when using default", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         const select = screen.getByRole("textbox", { name: "Select" });
         expect(select).toHaveAttribute("data-is-default", "true");
@@ -112,7 +142,13 @@ describe("StyleSelect", () => {
 
         it("names the reset button from the labels", () => {
             renderSelect(
-                <StyleSelect label="Shape" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Shape"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
             );
             expect(screen.getByRole("button", { name: "Reset Shape to default" })).toBeInTheDocument();
         });
@@ -138,7 +174,13 @@ describe("StyleSelect", () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={onChange} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={onChange}
+                />,
             );
 
             await user.click(screen.getByRole("button", { name: /reset/i }));
@@ -153,7 +195,13 @@ describe("StyleSelect", () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={onChange} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={onChange}
+                />,
             );
 
             const reset = screen.getByRole("button", { name: /reset/i });
@@ -212,7 +260,13 @@ describe("StyleSelect", () => {
         // 18px "xs" ActionIcon.
         it("draws the reset button at the 24px target size", () => {
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
             );
             const reset = screen.getByRole("button", { name: /reset/i });
             expect(reset.style.getPropertyValue("--ai-size")).toContain("24");
@@ -220,7 +274,13 @@ describe("StyleSelect", () => {
 
         it("offsets the reset button along the block axis, not a physical one", () => {
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
             );
             const reset = screen.getByRole("button", { name: /reset/i });
             expect(reset.style.getPropertyValue("margin-block-end")).toBe("2px");
@@ -229,7 +289,13 @@ describe("StyleSelect", () => {
 
         it("renders under a right-to-left direction provider", () => {
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
                 "rtl",
             );
             expect(screen.getByRole("textbox", { name: "Select" })).toBeInTheDocument();

@@ -3891,7 +3891,7 @@ drives the loss.
 Sources: `algorithms/src/algorithms/community/louvain.ts`, `leiden.ts`,
 `algorithms/src/types/index.ts`; `graphty-element/src/algorithms/LouvainAlgorithm.ts`,
 `LeidenAlgorithm.ts`; karate edge list in `tmp/fix-nts/karate.mjs`; football in
-`tmp/object-first/football.json`; Greene, D., Doyle, D., Cunningham, P., "Tracking the Evolution
+`design/ui/object-first-ux/gen/football.json`; Greene, D., Doyle, D., Cunningham, P., "Tracking the Evolution
 of Communities in Dynamic Social Networks", ASONAM 2010, doi:10.1109/asonam.2010.17 (abstract via
 https://api.semanticscholar.org/graph/v1/paper/DOI:10.1109/ASONAM.2010.17; full text at
 http://hdl.handle.net/10197/12399 was unreachable).

@@ -952,7 +952,7 @@ built app. The existing mock audit scripts, `tmp/object-first/audit/measure.mjs`
 
 These are the known differences between this document and the v2 mocks, the mock kit
 (`mocks/kit.css`) or the earlier UX documents. In each case this document follows compact-mantine,
-and the mock generator (`/home/apowers/Projects/graphty-monorepo/tmp/object-first/gen/`) or the
+and the mock generator (`design/ui/object-first-ux/gen/`) or the
 older document should change.
 
 | # | The mocks or documents say | This document says | Why |

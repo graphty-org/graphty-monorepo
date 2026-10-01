@@ -117,6 +117,7 @@ import {
 } from "../runs";
 import { sealedSet } from "../sealed";
 import type { HistoryCause } from "../types";
+import { beneathAuthored } from "./autoApply";
 import { channelDescriptor, isChannel } from "./channels";
 import type { PreparedBinding } from "./encoding";
 import { type EncodingRun, type EncodingSource, type EncodingSpec, planEncoding } from "./EncodingSpec";
@@ -1629,9 +1630,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /**
      * The plan for an encoding, which replaces this run's derived layer for the channel in place.
      * @param spec - The encoding, naming its run by id.
+     * @param beneath - Place a new layer beneath the authored layers driving its channel.
      * @returns The plan.
      */
-    const planEncode = (spec: StyleEncodeCommand["spec"]): EditPlan<Layer> => {
+    const planEncode = (spec: StyleEncodeCommand["spec"], beneath = false): EditPlan<Layer> => {
         const planned = planEncoding(spec, requireRuns("encode"));
         const source = sourceOf(planned);
         const stack = current();
@@ -1641,7 +1643,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 : undefined;
 
         if (previous === undefined) {
-            return planInsert(planned, stack.length, mint(planned.name));
+            const at = beneath
+                ? beneathAuthored(
+                      stack.map((entry) => entry.layer),
+                      [spec.channel],
+                  )
+                : stack.length;
+
+            return planInsert(planned, at, mint(planned.name));
         }
 
         // The one place a locked layer is written rather than refused, and it is what the
@@ -1671,10 +1680,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /**
      * The plan for a highlight, which takes every other highlight out first.
      * @param spec - The highlight, naming its run by id.
+     * @param beneath - Place it beneath the authored layers driving a colour it paints.
      * @returns The plan.
      */
     const planHighlight = (
         spec: Extract<StylePatchCommand, { action: "highlight" }>["spec"],
+        beneath = false,
     ): EditPlan<readonly Layer[]> => {
         const run = requireRun(spec.run, requireRuns("highlight"));
 
@@ -1765,8 +1776,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 .map((entry) => entry.layer.id),
         );
 
+        const kept = stack.filter((entry) => !removing.has(entry.layer.id));
+        const at = beneath
+            ? beneathAuthored(
+                  kept.map((entry) => entry.layer),
+                  added.flatMap((entry) => Object.keys(entry.layer.set ?? {}) as Channel[]),
+              )
+            : kept.length;
+
         return {
-            stack: [...stack.filter((entry) => !removing.has(entry.layer.id)), ...added],
+            stack: [...kept.slice(0, at), ...added, ...kept.slice(at)],
             result: Object.freeze(added.map((entry) => entry.layer)),
             layers: [...removing, ...added.map((entry) => entry.layer.id)],
             unresolvedPaths: Object.freeze([...unresolved]),
@@ -1856,7 +1875,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const planOf = (command: StyleCommand): EditPlan<unknown> => {
         if (command.op === "style.encode") {
-            return planEncode(command.spec);
+            return planEncode(command.spec, command.beneathAuthored);
         }
 
         if (command.op === "style.template") {
@@ -1886,7 +1905,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             case "removeBySource":
                 return planSweep(command.ids);
             case "highlight":
-                return planHighlight(command.spec);
+                return planHighlight(command.spec, command.beneathAuthored);
             case "resolveToStatic":
                 // The value and the patch are worked out by the same reading that reported the
                 // channel uneditable, and applied by the same update any other patch goes through.

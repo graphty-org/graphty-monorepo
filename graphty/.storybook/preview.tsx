@@ -6,23 +6,33 @@ import type { Preview, StoryContext } from "@storybook/react";
 import eruda from "eruda";
 import React from "react";
 
+import { pinErudaTopRight } from "../src/lib/eruda";
 import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
-// Initialize Sentry for error tracking in Storybook
-initSentry();
+// Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
+// and the Sentry stories say on the page that it is not configured.
+if (import.meta.env.VITE_SENTRY_DSN) {
+    initSentry();
+}
 
 // Initialize eruda for mobile debugging
 eruda.init();
 eruda.show("console");
-eruda.position({ x: window.innerWidth - 60, y: 20 });
+pinErudaTopRight(eruda);
 
 /**
  * Determines the Mantine color scheme based on Storybook globals.
  * Supports both Storybook's built-in backgrounds addon and custom theme global.
  */
 function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
+    // The light and dark modes the visual capture renders (parameters.chromatic.modes below) set
+    // this global. Without reading it every story fell through to the default, dark, in both modes.
+    if (globals.colorScheme === "light" || globals.colorScheme === "dark") {
+        return globals.colorScheme;
+    }
+
     // Check Storybook's built-in backgrounds addon
     const backgroundValue = globals.backgrounds as { value?: string } | undefined;
     if (
@@ -51,6 +61,11 @@ function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
 
 const preview: Preview = {
     globalTypes: {
+        // Set by the light and dark capture modes (parameters.chromatic.modes). Storybook ignores a
+        // global from the story URL that is not declared here, so it needs a declaration of its own.
+        colorScheme: {
+            description: "Color scheme a visual capture mode forces",
+        },
         theme: {
             description: "Color scheme for Mantine components",
             toolbar: {

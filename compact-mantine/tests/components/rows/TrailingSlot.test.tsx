@@ -4,12 +4,8 @@ import userEvent from "@testing-library/user-event";
 import React, { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme } from "../../../src";
-import {
-    AdvancedButton,
-    holdsSomething,
-    TrailingSlot,
-} from "../../../src/components/rows/TrailingSlot";
+import { type ActivationEvent, compactTheme } from "../../../src";
+import { AdvancedButton, holdsSomething, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 import { UI_GLYPH_NAMES, UiGlyph } from "../../../src/icons";
@@ -182,7 +178,7 @@ describe("AdvancedButton", () => {
             // event has finished propagating, which is exactly where a
             // consumer reads it from too.
             let seen: { canPreventDefault: boolean; currentTarget: EventTarget | null } | undefined;
-            const onClick = vi.fn((event: React.MouseEvent) => {
+            const onClick = vi.fn((event: ActivationEvent) => {
                 seen = {
                     canPreventDefault: typeof event.preventDefault === "function",
                     currentTarget: event.currentTarget,

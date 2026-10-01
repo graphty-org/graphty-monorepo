@@ -7,16 +7,15 @@
  * published once per touched note after each change of it, as `set:changed` is for the sets.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
-
 import type { EdgeId, EdgeMember, ResultId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { NoteCommand } from "../commands/notes";
 import type { Dispatcher } from "../project/Dispatcher";
 import type { NoteEntry } from "../project/state";
 import { canonicalize } from "../runs/runId";
+import { newestFirst, noteRowsOf } from "./countIndex";
 import { supportedTarget, writeMember } from "./document";
-import { bindable, edgeRowsOf, nodeRowOf, statusOf, type StatusSources } from "./status";
+import { statusOf, type StatusSources } from "./status";
 import type { Note, NoteChange, NoteId, NoteInput, NotePatch, NotesApi, NotesReport, NoteTarget } from "./types";
 import { refuseNote, targetKey } from "./validate";
 
@@ -84,21 +83,6 @@ function runlessKey(target: NoteTarget): string {
 }
 
 /**
- * Newest first: by time, compared as instants, then by id.
- * @param left - One note.
- * @param right - The other.
- * @returns The order.
- */
-function newestFirst(left: Note, right: Note): number {
-    const by = Date.parse(right.time) - Date.parse(left.time);
-    if (by !== 0 || left.id === right.id) {
-        return by;
-    }
-
-    return left.id < right.id ? 1 : -1;
-}
-
-/**
  * What happened to a note between two reads of the slice.
  * @param before - The record before, if any.
  * @param after - The record after, if any.
@@ -110,31 +94,6 @@ function changeOf(before: Note | undefined, after: Note | undefined): NoteChange
     }
 
     return after === undefined ? "removed" : "updated";
-}
-
-/**
- * The rows each note's node and edge targets bind in a snapshot, with one edge binding pass for
- * all of them.
- * @param notes - The notes.
- * @param snapshot - The snapshot.
- * @returns Per note, per target: the row, negative when unbound, undefined for other kinds.
- */
-function rowsOf(notes: readonly Note[], snapshot: GraphSnapshot): (number | undefined)[][] {
-    const binds = notes.map(bindable);
-    const edges = notes.flatMap((note, at) =>
-        note.targets.flatMap((target, index) => (binds[at][index] && "edge" in target ? [target.edge] : [])),
-    );
-    const edgeRows = edgeRowsOf(snapshot, edges);
-    let next = 0;
-    return notes.map((note, at) =>
-        note.targets.map((target, index) => {
-            if (!binds[at][index]) {
-                return undefined;
-            }
-
-            return "node" in target ? nodeRowOf(snapshot, target.node) : edgeRows[next++];
-        }),
-    );
 }
 
 /**
@@ -285,18 +244,8 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
 
         counts() {
             const all = notes();
-            const snapshot = dependencies.status.snapshot();
-            const nodes = new Set<number>();
-            const edges = new Set<number>();
-            rowsOf(all, snapshot).forEach((rows, at) => {
-                rows.forEach((row, index) => {
-                    if (row !== undefined && row >= 0) {
-                        ("node" in all[at].targets[index] ? nodes : edges).add(row);
-                    }
-                });
-            });
-
-            return Object.freeze({ notes: all.length, nodes: nodes.size, edges: edges.size });
+            const rows = noteRowsOf(all, dependencies.status.snapshot());
+            return Object.freeze({ notes: all.length, nodes: rows.node.length, edges: rows.edge.length });
         },
 
         add(input: NoteInput): NoteId {

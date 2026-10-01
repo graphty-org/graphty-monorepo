@@ -55,6 +55,7 @@ import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { recommendLayout } from "./layout";
+import { createNoteFacts, isNotePath, noteFieldOf } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { noteMembers } from "./notes/select";
 import { boundTargets } from "./notes/status";
@@ -1506,7 +1507,9 @@ function answerablePaths(data: SessionDataApi, runs: RunsApi, target: "node" | "
  */
 function pathDirectoryOf(data: SessionDataApi, runs: RunsApi): PathDirectory {
     return {
-        answers: (path: Path, target: "node" | "edge"): boolean => answerablePaths(data, runs, target).includes(path),
+        // A note value is always answerable: it reads nothing until a note names the element.
+        answers: (path: Path, target: "node" | "edge"): boolean =>
+            noteFieldOf(path) !== undefined || answerablePaths(data, runs, target).includes(path),
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
 }
@@ -2246,6 +2249,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         results: (runId) => runs.get(runId)?.result,
         records,
+        notes: createNoteFacts(
+            () => dispatcher.state.notes,
+            () => dispatcher.lane.writes("notes"),
+            snapshot,
+        ),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
@@ -2380,6 +2388,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (edits.length > 0) {
             await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex: 0 }, RUNS_PASS);
         }
+    });
+
+    // The `notes` hook: a note written, edited, removed, merged, undone or redone moves the
+    // `graphty.notes.*` values of the nodes and edges it names (design/notes 8.3), so the layers
+    // reading one are repainted over what they matched before and match now, from the lowest of
+    // them up. A stack reading no note path paints nothing.
+    // ponytail: a reader repaints all it matches, not only the elements whose notes changed, so a
+    // domain over the count stays whole; paint the changed rows alone if a big noted graph shows it.
+    dispatcher.lane.register("notes", async (rendered, target, dirty) => {
+        const readers = target.styles.filter((entry) => entry.reads.some(isNotePath));
+        if (readers.length === 0 || ![...dirty].some((id) => rendered.notes.get(id) !== target.notes.get(id))) {
+            return;
+        }
+
+        painter.invalidate();
+        const edits = readers.map((entry) => ({ previous: entry, next: entry }));
+        const fromIndex = target.styles.indexOf(readers[0]);
+        await painter.repaint({ reason: "update", edits, stack: target.styles, fromIndex }, RUNS_PASS);
     });
 
     // The `graph` hook of a session with no renderer: a layer may select on any value a data

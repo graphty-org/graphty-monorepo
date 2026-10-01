@@ -50,7 +50,7 @@ import type { ResolvedScope } from "../runs/types";
 import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
-import { assertIssued, referentReading } from "../sets/dependencies";
+import { assertIssued, referentReading, refuseNotePaths } from "../sets/dependencies";
 import {
     type ComponentLabels,
     deriveEdges,
@@ -811,6 +811,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         admit<T>(value: T): T {
             const admitted = stabiliseEdgeRefs(value, stable);
             assertIssued(admitted as Scope, kept);
+            refuseNotePaths(admitted as Scope, sources.pathsOf);
 
             return admitted;
         },

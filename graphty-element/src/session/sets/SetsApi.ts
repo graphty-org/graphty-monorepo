@@ -53,6 +53,7 @@ import {
     followedGroup,
     followsGroup,
     referentReading,
+    refuseNotePaths,
     selectionChain,
     setCycle,
 } from "./dependencies";
@@ -372,6 +373,7 @@ export function createSetsApi(
     const checkReferences = (record: ElementSet): void => {
         const { definition, id } = record;
         assertIssued(definition, store, id);
+        refuseNotePaths(definition, references.pathsOf);
         if (definition.kind !== "rule") {
             return;
         }

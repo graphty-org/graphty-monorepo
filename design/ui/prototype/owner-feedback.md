@@ -156,3 +156,16 @@ Owner decisions stated here:
 - A label is a variable picked in styling, not a predefined field; several labels per node (for example one above, one below) are wanted.
 - Live data sources versus snapshots is a future enhancement (issue #643), not in the current design.
 - "+ next to label should start empty" (owner decision: adding a Label line binds nothing until the user picks a field; it is not pre-filled with Name)
+
+## 2026-10-01 -- the owner's decisions after reviewing refined B version 3 (verbatim)
+
+- "yes, make notes part of graphty-element's API"
+- "we have no way to get name unless someone enters it in settings and we store it; that's fine if they enter it, but it will most likely be empty. we should specify the metadata that can be added for notes, but it will mostly be options (time and node / edge / group / path would likely be required)"
+- "address the three issues above" -- the three places version 3 did not yet follow the owner's later decisions: the "+" next to Label must start empty (not pre-filled with Name); loading several data sources and joining them on any key column is a primary task (worked example: a door-entries table with person_id, building_id and time, joined to a people table and a buildings table); weight (node and edge) is a field defined when the data source is loaded.
+- "provide me a skeleton mock when it's ready, and move on to the user studies / focus groups without waiting for me to review the skeleton."
+
+Owner decisions stated here:
+- Notes are part of graphty-element's public API.
+- A note's author name comes only from Settings, is optional, and will usually be empty; the design must work well without it.
+- Note metadata is specified: time and the note's target (node, edge, group, path, ...) are required; everything else is optional.
+- The next user study round runs on this skeleton without waiting for the owner's review.

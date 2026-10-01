@@ -11,8 +11,11 @@ import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
 
-// Initialize Sentry for error tracking in Storybook
-initSentry();
+// Initialize Sentry for error tracking in Storybook, when a DSN is set. Without one Sentry stays
+// off either way, and asking it to start only printed a "DSN not configured" warning on every story.
+if (import.meta.env.VITE_SENTRY_DSN) {
+    initSentry();
+}
 
 // Initialize eruda for mobile debugging
 eruda.init();

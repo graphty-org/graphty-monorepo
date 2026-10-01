@@ -14,9 +14,12 @@
  *   a run has had that moment is kept on its entry in the `runs` slice (`RunEntry.painted`), so an
  *   undo that takes the run away takes the moment with it, and a redo brings both back.
  * - **A layer somebody wrote by hand wins.** If an authored layer already drives the channel a
- *   suggestion would paint, the suggestion is dropped rather than painted over the decision. The
- *   element's own base layers are not authored and do not suppress anything, or nothing would ever
- *   paint.
+ *   suggestion would paint on EVERY element, the suggestion is dropped rather than painted over
+ *   the decision. One that names only some elements -- a node coloured by hand -- is a decision
+ *   about those elements alone: the suggestion still paints, placed beneath the lowest authored
+ *   layer driving its channel, so last-writer-wins keeps the reader's choice where they made it
+ *   and the run paints the rest. The element's own base layers are not authored and do not
+ *   suppress anything, or nothing would ever paint.
  * - **A batch paints once, not once per member.** A sweep of six node metrics would otherwise add
  *   six colour layers, five of them invisible under the sixth and every one of them in the legend.
  *   Suggestions are held while a batch is in flight and coalesced per channel on release, keeping
@@ -168,29 +171,47 @@ function coalesceKey(suggestion: StyleSuggestion): string {
 }
 
 /**
- * Whether a layer somebody wrote is already painting one of these channels.
+ * Whether a layer somebody wrote is painting one of these channels.
  *
  * The element's own layers are excluded and so are the layers a run produced: the base layer
  * paints a colour on every node, so counting it would suppress every suggestion there will ever
  * be, and a layer derived from an earlier run is this policy's own work rather than a decision to
  * be protected. A disabled layer paints nothing and therefore drives nothing.
+ * @param layer - The layer.
+ * @param channels - The channels a suggestion would paint.
+ * @returns True when it is authored, enabled and drives one of them.
+ */
+function authoredDriving(layer: Layer, channels: readonly Channel[]): boolean {
+    if (!layer.enabled || !AUTHORED.includes(layer.source.by)) {
+        return false;
+    }
+
+    return channels.some((channel) => layer.encode?.[channel] !== undefined || layer.set?.[channel] !== undefined);
+}
+
+/**
+ * Whether an authored layer already drives one of these channels on every element, so a
+ * suggestion beneath it could never show.
  * @param layers - The stack.
  * @param channels - The channels the suggestion would paint.
- * @returns True when an authored layer already drives one of them.
+ * @returns True when the suggestion should be dropped.
  */
-function authoredDrives(layers: readonly Layer[], channels: readonly Channel[]): boolean {
-    return layers.some((layer) => {
-        if (!layer.enabled || !AUTHORED.includes(layer.source.by)) {
-            return false;
-        }
+function authoredCovers(layers: readonly Layer[], channels: readonly Channel[]): boolean {
+    return layers.some((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
+}
 
-        return channels.some((channel) => {
-            const encoded = layer.encode?.[channel];
-            const literal = layer.set?.[channel];
+/**
+ * Where an auto-applied layer goes: immediately beneath the lowest authored layer that drives
+ * one of its channels, so a decision somebody made about some elements stays on top of the run's
+ * picture of all of them. The top of the stack when no authored layer drives them.
+ * @param layers - The stack, bottom first.
+ * @param channels - The channels the new layer paints.
+ * @returns The index to insert at, bottom first.
+ */
+export function beneathAuthored(layers: readonly Layer[], channels: readonly Channel[]): number {
+    const at = layers.findIndex((layer) => authoredDriving(layer, channels));
 
-            return encoded !== undefined || literal !== undefined;
-        });
-    });
+    return at === -1 ? layers.length : at;
 }
 
 /**
@@ -211,12 +232,21 @@ function idOf(ref: RunRef): RunId {
  * dispatches for the same specification, so the replacement and exclusivity rules of those verbs
  * hold for it too.
  * @param suggestion - The suggestion.
+ * @param auto - True when this policy decided it, which places it beneath authored layers (see
+ *     {@link beneathAuthored}); false when a caller asked for it outright, which puts it on top.
  * @returns The style command.
  */
-export function suggestionCommand(suggestion: StyleSuggestion): StyleCommand {
+export function suggestionCommand(suggestion: StyleSuggestion, auto = false): StyleCommand {
+    const placement = auto ? { beneathAuthored: true } : {};
+
     return suggestion.as === "highlight"
-        ? { op: "style.patch", action: "highlight", spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) } }
-        : { op: "style.encode", spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) } };
+        ? {
+              op: "style.patch",
+              action: "highlight",
+              spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) },
+              ...placement,
+          }
+        : { op: "style.encode", spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) }, ...placement };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -233,9 +263,9 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
     const held = new WeakMap<PaintHold, Map<string, StyleSuggestion>>();
 
     /**
-     * Drop what an authored layer already drives, reading the stack once: a suggestion is
-     * suppressed by a decision somebody had already made, never by a layer the suggestion beside
-     * it is about to add.
+     * Drop what an authored layer already drives on every element, reading the stack once: a
+     * suggestion is suppressed by a decision somebody had already made, never by a layer the
+     * suggestion beside it is about to add.
      * @param suggestions - The candidates.
      * @returns What to paint.
      */
@@ -248,7 +278,7 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
 
         const stack = styles.list();
 
-        return Object.freeze(suggestions.filter((suggestion) => !authoredDrives(stack, suggestion.channels)));
+        return Object.freeze(suggestions.filter((suggestion) => !authoredCovers(stack, suggestion.channels)));
     };
 
     return {

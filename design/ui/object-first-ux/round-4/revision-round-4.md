@@ -7,7 +7,7 @@ round-4 feedback. The design it changes is:
 - `../round-3/revision-round-3.md` (every key function drawn),
 - `../round-2/decisions.md` (the choices those rest on),
 - the 102 mocks in `../mocks/v2/`, drawn by the generator in
-  `/home/apowers/Projects/graphty-monorepo/tmp/object-first/gen/`.
+  `design/ui/object-first-ux/gen/`.
 
 Where this file disagrees with those, this file wins. Nothing here changes code. Paths are under
 `/home/apowers/Projects/graphty-monorepo/` unless they start with `../`, which means this
@@ -589,7 +589,7 @@ No new app-side computation: every row above reads something graphty-element rep
 
 ## 9. The screens
 
-The generator (`tmp/object-first/gen/`) draws the rail, the new toolbar, the dock's two tabs and
+The generator (`design/ui/object-first-ux/gen/`) draws the rail, the new toolbar, the dock's two tabs and
 the status bar without "?" in its shared frame code (`render.mjs` and `toolbar.mjs`). **Every
 one of the 102 existing screens gets them automatically** on the next build, with Objects as
 the active rail item unless a screen says otherwise.

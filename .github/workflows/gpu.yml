@@ -57,7 +57,7 @@ jobs:
              (github.event.pull_request.head.repo.full_name == github.repository &&
               contains(github.event.pull_request.labels.*.name, 'gpu')))
         runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); every other event: machine.dev on-demand
-        timeout-minutes: 75 # the lane measured about 45 minutes of work on 2026-09-21 (node and node-limits 18 together, now two steps, the twins 11.5, the browser smoke 1, the benchmarks and the setup the rest); this leaves room for a slower machine without waiting on a hung one
+        timeout-minutes: 100 # the steps before the paired benchmark measured about 47 minutes on 2026-10-01 (run 36823257324, PR #663), and the paired benchmark may take its own 40; 75 could not hold both, so that run was cancelled after every test had passed. Each step that can hang keeps its own, tighter limit
         env:
             GRAPHTY_GPU_REQUIRE: nvidia # a software adapter fails the job
             GRAPHTY_BROWSER_GPU: nvidia # --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface

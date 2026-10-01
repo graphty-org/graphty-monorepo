@@ -671,6 +671,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isVoiceActive: READ,
             acceleration: MACHINE,
             accelerationMinNodes: MACHINE,
+            renderer: MACHINE,
+            rendererStatus: READ,
         },
     },
     {
@@ -694,6 +696,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
             enableDetailedProfiling: PROFILING,
             acceleration: READ,
+            setRenderer: MACHINE,
+            rendererRequest: READ,
+            rendererStatus: READ,
             eventManager: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {

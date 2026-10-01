@@ -523,6 +523,18 @@ describe("indexed.allPairsShortestPath -- paths", () => {
         s.validate({ checksum: true });
     });
 
+    it("takes the cheapest parallel edge when it comes first, on every strategy (issue #567)", () => {
+        // 2.x floydWarshall kept the LAST parallel edge, so A->B 1 then A->B 5 gave 5.
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b", 1);
+        b.addEdge("a", "b", 5);
+        const s = b.freeze({ checksum: true });
+        for (const method of ["auto", "floyd-warshall", "per-source"] as const) {
+            expect([...allPairsShortestPath(s, { method }).dist], method).toEqual([0, 1, Infinity, 0]);
+        }
+        s.validate({ checksum: true });
+    });
+
     it("has no predArc and throwing accessors without paths: true", () => {
         const s = square(1);
         const r = allPairsShortestPath(s);

@@ -30,6 +30,15 @@ There are two pull requests:
 - **Commits:** one or more conventional commits per step, scope `graphty-element` (or `docs` for
   `design/`), GPG-signed as configured, no attribution trailers.
 
+## Progress
+
+| Step | State |
+|---|---|
+| 0 | Not started. |
+| 1, 2 | Built (2026-10-01), with the changes listed under "As built" in each. |
+| 3 | `status`, `counts` and the `missing` filter built with step 2; the `unsupported` rows wait for step 4 (see step 3). |
+| 4 to 9 | Not started. |
+
 ---
 
 ## Step 0. The specifications in `design/documents/`
@@ -89,6 +98,20 @@ The skeleton everything else hangs on; no behavior a reader can see yet except `
 **Done when:** a standalone session reports `config.author` and undoes it; the note types compile
 from both entry points; lint, build and the `default` project pass.
 
+**As built:**
+
+- `NotesDocument`, `NotesReport` and `NoteMergeOptions`, and `toDocument` / `mergeDocument` on
+  `NotesApi`, are left for step 4: the element's rule is that a missing member is absent, not
+  stubbed. `NoteListOptions` is published as a named type for `list`'s options.
+- The types are exported from `session.ts` and `index.ts` only. `src/session/index.ts` is not the
+  published entry, and re-exporting them there is dead code to knip.
+- `strict.ts` holds no per-slice invariants, so nothing changed there; the note records' freezing
+  and copying is tested in `test/session/notes/write.test.ts` instead of `strict-state.test.ts`.
+- `config.author` counts its 256 characters as code points. Like every other setting, sets of the
+  author recorded close together merge into one step (typing a name is one undo).
+- The `config.set` op gained the `author` variant, so it has a round-trip fixture, and
+  `SessionConfig.author` is a read-only row in `src/session/commands/doors.ts`.
+
 ---
 
 ## Step 2. Writing notes: the commands, the reads and the events
@@ -137,6 +160,28 @@ from both entry points; lint, build and the `default` project pass.
 **Done when:** a standalone session writes, reads, refuses, undoes and redoes notes as section 5
 says; every reason in section 5.4 except the merge-only ones has a test.
 
+**As built:**
+
+- `note.add` carries the input only (`{ op, note }`). Its body mints the id and stamps the time
+  and the author, and the patch records the whole note, so redo puts back the same id, time and
+  author without minting. `session.notes.add` learns the id from the body through the note
+  service (`NoteService.added`), so the command a door dispatches is plain data the doors test and
+  a recipe can compare, and a consumer's `session.execute({ op: "note.add", note })` returns the
+  id the same way. Nothing minted rides on the command, so there is nothing there to refuse.
+- Two refusals beyond section 5.4's table, both `E_BAD_COMMAND`: `"unknown-field"` for an input
+  or patch field that `add` and `update` do not take (a typo such as `mediatype` would otherwise
+  be lost silently), and a cite that is not `{ result: <string> }` is `"unknown-cite"`.
+- A target of a kind this release does not know is refused by `add` and `update` (`bad-target`);
+  only `mergeDocument` keeps one, as `unsupported` (step 4).
+- `11` and `"11"` in one note's targets are one target (duplicates collapse by text). Two notes,
+  one on each, bind to their own type's node when the graph holds both.
+- A session edge id from an edge added in the session without a file id is saved as its minted
+  id (`graphty:e<n>`), which reads `missing` in another session (section 7.5).
+- `note:changed` is published from the slice's change (as `set:changed` is), so a transaction's
+  notes are told once each when it commits, and a refused write tells nothing.
+- The browser test is in `test/browser/element-mirror-events.test.ts`, beside the other element
+  mirrors.
+
 ---
 
 ## Step 3. Status, counts and labels
@@ -158,6 +203,19 @@ an unknown target kind; cites `current` and `earlier-run`; node `11` against CSV
 
 **Done when:** every state and label in section 4 is produced by a Node test, and `status` never
 awaits.
+
+**As built (with step 2):** `src/session/notes/status.ts` and the reads in `NotesApi.ts`, tested
+in `test/session/notes/status.test.ts`: node present, filtered, missing and found again; an edge by
+session id and by position, `missing` once a load gives its pair three edges; `->` and `--`
+labels; a set removed (`missing`, labeled with its name) and its removal undone; a result and an
+item across a re-run and a removal; cites `current`, `earlier-run` and `missing`; `11` against
+`"11"`; `counts()` with multi-target notes; every `list` filter and `authors()`. Still to do here:
+
+- The `unsupported` target and cite states, once step 4 can open a note holding one.
+- `sets.restore` of a set that only a note names fails today ("nothing named it any more, so its
+  record was not kept"), because the set's tombstone keeps its record only while a layer, a
+  filter or another set names it. Step 6, which makes notes users of the sets they name, must also
+  count them there, so a set a note names can be restored.
 
 ---
 

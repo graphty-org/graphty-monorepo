@@ -1,7 +1,8 @@
 import { GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { grsbm, type GrsbmOptions, type GrsbmResult } from "../../../src/indexed/grsbm.js";
+import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
@@ -9,6 +10,13 @@ import type { GRSBMCluster, GRSBMResult, NodeId } from "../../helpers/legacy-typ
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
+
+// The golden records were taken with 2.x's generator, so this suite replays it in place of
+// mulberry32 to check the arithmetic and the order of the draws against them.
+vi.mock("../../../src/utils/math-utilities.js", async () => {
+    const { legacySeededRandom } = await import("../../helpers/legacy-random.js");
+    return { mulberry32: vi.fn(legacySeededRandom) };
+});
 
 const fixtures: FacadeFixture[] = [...undirectedFixtures(), ...directedFixtures()];
 
@@ -103,6 +111,12 @@ describe("indexed.grsbm", () => {
         expect(r.count).toBe(1);
         expect([...r.labels]).toEqual([0, 0, 0]);
         expect(Array.from(r.modularityScores)).toEqual([0]);
+    });
+
+    it("draws from the package generator, seeded with the seed option", () => {
+        vi.mocked(mulberry32).mockClear();
+        grsbm(toSnapshot(undirectedFixtures()[2].graph), { seed: 7 });
+        expect(vi.mocked(mulberry32)).toHaveBeenCalledWith(7);
     });
 
     it("leaves Math.random alone", () => {

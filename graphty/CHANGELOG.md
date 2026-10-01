@@ -1,3 +1,39 @@
+## 0.8.25 (2026-10-01)
+
+### 🚀 Features
+
+- **graphty-element:** draw the default force layout on an accelerator ([#439](https://github.com/graphty-org/graphty-monorepo/issues/439))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.24 (2026-10-01)
+
+### 🩹 Fixes
+
+- **graphty:** initialize Sentry in Storybook only when a DSN is built in ([db61153d](https://github.com/graphty-org/graphty-monorepo/commit/db61153d))
+- **graphty:** fit the Graphty stories to the viewport and skip Sentry without a DSN ([f902075c](https://github.com/graphty-org/graphty-monorepo/commit/f902075c))
+- **graphty:** draw a small graph in the Graphty component stories ([849dd5a3](https://github.com/graphty-org/graphty-monorepo/commit/849dd5a3))
+- **graphty:** let the CopyButton and DataAccordion stories follow light mode ([29e81db9](https://github.com/graphty-org/graphty-monorepo/commit/29e81db9))
+- **graphty:** keep the Storybook eruda button top-right after a resize ([a35f8eac](https://github.com/graphty-org/graphty-monorepo/commit/a35f8eac))
+- **graphty:** declare the colorScheme global the capture modes set ([72ae6970](https://github.com/graphty-org/graphty-monorepo/commit/72ae6970))
+- **graphty:** render the light visual mode in light ([05d31bff](https://github.com/graphty-org/graphty-monorepo/commit/05d31bff))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.18
+- Updated compact-mantine to 0.8.16
+- Updated graphty-element to 3.1.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.23 (2026-10-01)
 
 ### 🧱 Updated Dependencies

@@ -1,3 +1,4 @@
+import type { MantineThemeComponents } from "@mantine/core";
 import { describe, expect, it } from "vitest";
 
 import { compactColors, compactTheme } from "../../src";
@@ -46,7 +47,7 @@ describe("Public API", () => {
     });
 
     it("component extensions are mergeable", () => {
-        const customComponents = {
+        const customComponents: MantineThemeComponents = {
             ...compactTheme.components,
             CustomWidget: {
                 defaultProps: { size: "sm" },

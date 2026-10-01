@@ -752,7 +752,8 @@ object, breaks the limits below, or would take the session past 10,000 notes is 
    3). Until that run finishes, a `{ result }` target reads `missing`.
 9. **Order in a file:** data, recipes, styles, then notes, so that every target can bind.
 10. A `time` or `edited` more than a day after the moment of opening is kept, and reported as a
-    notice: a note dated 2099 would otherwise sit at the top of every list unexplained.
+    notice (`W_FUTURE_TIME`): a note dated 2099 would otherwise sit at the top of every list
+    unexplained.
 
 ```ts
 interface NotesReport {
@@ -764,7 +765,7 @@ interface NotesReport {
     readonly kept: readonly NoteId[]; // "keep-mine": held notes the file disagreed with
     readonly missing: number; // added or replaced notes with at least one target reading `missing`
     readonly skipped: readonly Problem[]; // rule 5
-    readonly notices: readonly Problem[]; // W_UNKNOWN_MEMBER, future times
+    readonly notices: readonly Problem[]; // W_UNKNOWN_MEMBER, W_FUTURE_TIME
 }
 ```
 

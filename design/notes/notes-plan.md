@@ -34,10 +34,11 @@ There are two pull requests:
 
 | Step | State |
 |---|---|
-| 0 | Not started. |
+| 0 | Done (2026-10-01), with the additions listed under "As built". |
 | 1, 2 | Built (2026-10-01), with the changes listed under "As built" in each. |
-| 3 | `status`, `counts` and the `missing` filter built with step 2; the `unsupported` rows wait for step 4 (see step 3). |
-| 4, 5 | Not started. |
+| 3 | Built: `status`, `counts` and the `missing` filter with step 2; the `unsupported` rows with step 4. |
+| 4 | Built (2026-10-01), with the changes listed under "As built". |
+| 5 | Not started. |
 | 6 | Built (2026-10-01), with the changes listed under "As built". |
 | 7 to 9 | Not started. |
 
@@ -63,6 +64,16 @@ Made first, because the code and its conformance tests are written against them 
 
 **Done when:** every edit above is made, the offline link check passes, and notes-design.md links
 to `design/documents/notes.schema.json`.
+
+**As built:**
+
+- notes.md is organized as Purpose, Text, Data model, Targets, Status, Writing, Later versions,
+  Binding, Opening, Saving and Limits; the conformance table's rule column names those sections.
+- The far-future-time notice of notes-design.md section 7.6 rule 10 needed a code: `W_FUTURE_TIME`,
+  added to README's warning table beside `W_GRAPHTY_NOTES` and `W_GRAPHTY_TRUNCATED`.
+- Two conformance rows beyond section 8.7: note-28 (a time in 2099 is kept, with `W_FUTURE_TIME`)
+  and note-29 (an unknown note field survives an edit), because both rules had no row.
+- The README's introduction and "Conventions" rule 3 (the published schema list) name notes too.
 
 ---
 
@@ -214,6 +225,8 @@ item across a re-run and a removal; cites `current`, `earlier-run` and `missing`
 `"11"`; `counts()` with multi-target notes; every `list` filter and `authors()`. Still to do here:
 
 - The `unsupported` target and cite states, once step 4 can open a note holding one.
+- Built with step 4: the `unsupported` target and cite states, tested in
+  `test/session/notes/document.test.ts` (conformance note-5 and note-6).
 - Done in step 6: a set a note names is restorable, because notes are now among the set's users
   and a removed set keeps its record while anything uses it. Conformance note-18 (an edge saved
   by position binds whichever edge of the pair now holds that position) is tested here too.
@@ -249,6 +262,47 @@ recipes, which is not built; they are written when `openDocument` is).
 
 **Done when:** every merge rule that applies to a bare member has a passing test, and
 `toDocument` output always validates.
+
+**As built:**
+
+- `src/session/notes/document.ts` holds the reader (`readMember`), the merge plan (`planMerge`) and
+  the writer (`writeMember`); `note.merge` carries `{ op, document, options }` only, and its body
+  reads, plans and mints the ids of kept copies, so redo replays the recorded notes without
+  minting. `mergeDocument` learns what the body did through the note service
+  (`NoteService.merged`), as `add` learns its id, and works out `missing` after the write.
+- Content comparison uses `canonicalize` from `src/session/runs/runId.ts` (what
+  `src/session/sets/signature.ts` builds on); signature.ts has no canonical form of its own.
+- Binding by identity only (notes.md, "Binding" rule 3): each merged note's entry carries a
+  session-only `unbound` flag for its targets and its cites. Its set, result and item targets and
+  its cites read `missing`, `sets.usedBy` does not list it, and a re-run does not capture its items.
+  An `update` that rewrites the targets (or the cites) checks them against this session and clears
+  that half of the flag.
+- `unsupported` is decided by shape: a target or cite that is not exactly one of the schema's named
+  forms (`supportedTarget`, `supportedCite`). `status`, `counts`, the `list` target filter,
+  `select({ note })` and `sets.usedBy` never bind one, even in part.
+- A note's unknown fields are kept in the record after its known fields, written back by
+  `toDocument`, and kept by `update` (notes.md, "Later versions" rule 3). The member's own unknown
+  fields and `extensions` are reported or checked and not kept: only a whole-file round trip could
+  write them back, and it is not built.
+- New published names: the codes `E_BAD_DOCUMENT` and `E_UNSUPPORTED_VERSION`, the open union
+  `GraphtyWarningCode` (`W_UNKNOWN_MEMBER`, `W_FUTURE_TIME`), and the types `NotesDocument`,
+  `NotesReport`, `NoteMergeOptions` and `Problem`, from `@graphty/graphty-element` and `/session`.
+- An `onConflict` other than the three, or a `name` that is not text, is `E_OPTION_RANGE`
+  (section 7.6 did not say).
+- A version other than 1 is `E_UNSUPPORTED_VERSION` with `{ kind, found, reads: [1] }`, as
+  container.md "Reading a file" rule 11 says for a member.
+- Fixed on the way: `add` wrote `author` before `targets`, against the saved key order; the round-
+  trip test caught it.
+- The `.graphty.json` container's reader and writer (`openDocument`, `saveDocument`) do not exist in
+  graphty-element yet, so the notes member is in their specification (container.md) and not in
+  code. When they are built they call `readMember`/`mergeDocument` for each notes member and
+  `toDocument` when `members` includes `graphty-notes`; conformance note-1, note-14 and note-25 are
+  written then.
+- Tested in `test/session/notes/document.test.ts`: note-2 to note-13 (note-7's storage half),
+  note-15, note-20, note-21, note-28 and note-29, the schema check of every `toDocument` output and
+  of the section 7.2 example, a byte-identical round trip into a fresh session, the source name,
+  undo and redo of a merge, a merge inside a transaction, and a standalone session. note-22 is in
+  `write.test.ts`; note-16 to note-19 in `status.test.ts`.
 
 ---
 

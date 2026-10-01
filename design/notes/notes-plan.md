@@ -40,7 +40,8 @@ There are two pull requests:
 | 4 | Built (2026-10-01), with the changes listed under "As built". |
 | 5 | Built (2026-10-01), with the changes listed under "As built". |
 | 6 | Built (2026-10-01), with the changes listed under "As built". |
-| 7 to 9 | Not started. |
+| 7 | Built (2026-10-01), with the changes listed under "As built". |
+| 8, 9 | Not started. |
 
 ---
 
@@ -456,6 +457,36 @@ without notes reports nothing new; GEXF, GraphML and CSV each round-trip the two
 ordinary data columns (`data.graphty.notes.count`), never as notes.
 
 **Done when:** a default export never carries note text and always says notes were left out.
+
+**As built:**
+
+- `notes` is the third entry of `COMMON_WRITER_OPTIONS` (a boolean, default `false`), so every
+  built-in writer, the Neo4j variant and every registered writer lists and accepts it. `writerFor`
+  takes it out of the resolved options for every format, so no exporter ever receives it.
+- `W_GRAPHTY_NOTES` is reported whether or not `notes` is on, with `count` the number of notes
+  held (none is carried as a note); the message says how to keep them (`{ notes: true }`,
+  `notes.toDocument()`). A session with no notes reports nothing new.
+- The columns are written by `writeNotes` in `src/data/export.ts` from `notes.list()` (already
+  newest first) bound through `rowsOf` from `countIndex.ts`, so they count exactly what
+  `graphty.notes.count` counts: a note naming one row twice counts once. `graphty.notes.count`
+  is an `i32` column, unset (not zero) on an element no note names.
+- The 64 KB cap is 65,536 UTF-8 bytes, cut back to a code point boundary.
+- `W_GRAPHTY_CSV_NEUTRALIZED` was not reported by the CSV writer before this step, though
+  export-mapping.md requires it. It is now reported for every neutralised cell (data, results,
+  ids, headers and note text), with `count` the number of cells; a header is counted once per
+  record that carries the key.
+- Not changed, and recorded here: GML refuses the two column names unless the caller passes
+  `sanitizeKeys: "mangle"`, as it already does for result columns (`results.<run>.<field>`); Pajek
+  refuses a `graphty.notes.text` value holding a line break or a double quote, as it does for any
+  text column, so a node with two notes (joined by a blank line) cannot be written to Pajek with
+  `notes: true`. Both are graph-io's rules for those formats, and the design promises the columns
+  for GEXF, GraphML and CSV only.
+- `Graph.exportGraph` and `Graphty.exportGraph` document the option.
+- Tests: `test/data/export-notes.test.ts` (note-26 over GEXF, GraphML, CSV and JSON; note-26b;
+  note-27; the 64 KB cut; a session with no notes; JSON, DOT, GML and Neo4j accept the option;
+  the option in every built-in format's `writerOptions`; and GEXF, GraphML and CSV read back
+  through the element's own readers into a fresh session, where the columns are ordinary
+  attributes, no note appears, and a second export drops them as `graphty.` columns).
 
 ---
 

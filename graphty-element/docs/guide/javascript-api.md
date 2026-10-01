@@ -349,6 +349,34 @@ One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
 
+### Remembering API Keys
+
+`ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It
+restores itself after a reload: a new manager finds the keys an earlier page saved and turns
+remembering back on, so the host only enables, disables and sets keys.
+
+```typescript
+import { ApiKeyManager } from "@graphty/graphty-element/ai";
+
+const keys = new ApiKeyManager(); // restores keys saved by an earlier page
+
+keys.enablePersistence(); // save keys in localStorage, encrypted, from now on
+keys.setKey("anthropic", apiKey);
+keys.setDefaultProvider("anthropic"); // saved with the keys
+
+const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
+
+keys.disablePersistence(); // forget them on the next load (they stay in memory)
+```
+
+With no argument, `enablePersistence()` encrypts with a built-in key: the keys are not stored
+in plain text, but anyone who can run script on the page can read them. Pass
+`{ encryptionKey }` (at least 10 characters) to use the reader's own password instead. The
+manager remembers that password in `sessionStorage`, so a reload in the same tab restores the
+keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })` again
+to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
+(default `localStorage` and `"@graphty-ai-keys"`).
+
 ### Voice Input
 
 Enable voice commands:

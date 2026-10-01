@@ -1,7 +1,6 @@
 import { expandEdges, GraphBuilder, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { PathWalkError } from "../../../src/errors.js";
 import { allPairsShortestPath, type ApspResult } from "../../../src/indexed/all-pairs.js";
 import {
@@ -10,6 +9,7 @@ import {
     expectSymmetric,
     floydWarshallOracle,
 } from "../../helpers/all-pairs-oracle.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

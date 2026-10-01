@@ -1,3 +1,25 @@
+## 0.8.15 (2026-10-01)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.8.14 (2026-09-30)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.8.13 (2026-09-30)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
+## 0.8.12 (2026-09-29)
+
+### 🩹 Fixes
+
+- **compact-mantine:** draw the attribute glyph's dot as a filled disc ([c617d5e4](https://github.com/graphty-org/graphty-monorepo/commit/c617d5e4))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.11 (2026-09-28)
 
 ### 🚀 Features

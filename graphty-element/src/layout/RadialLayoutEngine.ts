@@ -1,8 +1,10 @@
+import type { F32 } from "@graphty/graph-format";
 import { radial } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { SimpleLayoutConfig, SimpleLayoutEngine } from "./LayoutEngine";
+import { SimpleLayoutConfig } from "./LayoutEngine";
+import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
  * Zod-based options schema for Radial Layout
@@ -44,11 +46,13 @@ type RadialLayoutOpts = Partial<RadialLayoutConfigType>;
 /**
  * Radial layout engine that places nodes on rings by hop distance from a root node
  */
-export class RadialLayout extends SimpleLayoutEngine {
+export class RadialLayout extends SnapshotLayoutEngine {
     static type = "radial";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
-    scalingFactor = 100;
+    /** Layout units to scene units. */
+    private static readonly scale = 100;
+    protected readonly dimensions: 2 | 3;
     config: RadialLayoutConfigType;
 
     /**
@@ -58,6 +62,7 @@ export class RadialLayout extends SimpleLayoutEngine {
     constructor(opts: RadialLayoutOpts) {
         super(opts);
         this.config = RadialLayoutConfig.parse(opts);
+        this.dimensions = 2;
     }
 
     /**
@@ -74,15 +79,27 @@ export class RadialLayout extends SimpleLayoutEngine {
     }
 
     /**
-     * Compute node positions on rings around the root
+     * The options the layout reads: the parsed configuration.
+     * @returns the configuration
      */
-    doLayout(): void {
-        this.stale = false;
+    protected get options(): Readonly<Record<string, unknown>> {
+        return this.config;
+    }
+
+    /**
+     * Compute node positions on rings around the root
+     * @param input - the graph to arrange
+     * @returns the coordinates, in scene units
+     */
+    protected compute(input: SnapshotLayoutInput): F32 {
         const { root } = this.config;
-        this.result = radial(this.graph, {
-            root: root === null ? null : this.requireRow(root, "root"),
-            scale: this.config.scale,
-            center: this.config.center ?? undefined,
-        });
+        return sceneUnits(
+            radial(input.graph, {
+                root: root === null ? null : this.requireRow(root, "root"),
+                scale: this.config.scale,
+                center: this.config.center ?? undefined,
+            }),
+            RadialLayout.scale,
+        );
     }
 }

@@ -79,8 +79,10 @@ function captionLine(status: AccelerationStatus): string {
  * @returns The container to hand back to Storybook.
  */
 function withCaption(element: Graphty): HTMLElement {
+    // The element keeps its own full-width 2:1 frame under the caption, the frame every other
+    // story draws in. A container of 100vh made the canvas taller than the others and pushed the
+    // page past the viewport by the caption's height.
     const container = document.createElement("div");
-    container.style.cssText = "display: flex; flex-direction: column; height: 100vh;";
 
     const caption = document.createElement("div");
     caption.id = "acceleration-caption";
@@ -99,7 +101,6 @@ function withCaption(element: Graphty): HTMLElement {
         refresh(element.session.capabilities.acceleration);
     });
 
-    element.style.cssText = "flex: 1; display: block; min-height: 0;";
     container.append(caption, element);
 
     return container;
@@ -234,10 +235,17 @@ function publishedCaption(canvasElement: HTMLElement): string {
  * settle beside it are written out in every story, so a reader who opens one story to ask whether
  * its picture is reproducible finds the answer there. (`test/browser/story-determinism.test.ts`
  * reads each story's composed args, so it would see meta-level defaults too.)
+ *
+ * THE NODES ARE THE DEFAULT SHAPE, NOT `sphere`. The element draws every frame whether or not
+ * anything moved, and a `sphere` is Babylon's 32-segment UV sphere: with 150 of them the scene
+ * draws 2.08 million indices a frame, against about 146 thousand with the default shape. In the
+ * capture browser's software renderer that kept the GPU process drawing about six frames a second,
+ * so the page never had a frame free for a screenshot, and `page.screenshot` timed out after 30
+ * seconds on CI.
  */
 const STORY_STYLES: Parameters<typeof storySetup>[0] = {
     edge: { "edge.color": "#666666" },
-    node: { "node.color": "#5A67D8", "node.shape": "sphere", "node.size": 0.5 },
+    node: { "node.color": "#5A67D8", "node.size": 0.5 },
 };
 
 const meta: Meta = {
@@ -269,9 +277,8 @@ export const ForceAtlas2Fake: Story = {
      * `preSteps` IS FORCEATLAS2'S OWN `maxIter`, which this story leaves at its default of 100, so
      * under Chromatic the iterations run before the first frame. Everywhere else the layout
      * animates at `stepMultiplier` iterations per RENDERED frame, and this scene renders slowly in
-     * the Storybook test browser's software renderer: a frame of 150 spheres takes about 200 ms
-     * to draw on a fast desktop, plus 45 to 65 ms while the layout moves, most of it the 250
-     * edges intersecting their rays with the sphere meshes. The CI runner is slower still: at four
+     * the Storybook test browser's software renderer, most of it the 250 edges intersecting
+     * their rays with the node meshes while the layout moves. The CI runner is slower still: at four
      * iterations a frame, 25 frames, both ForceAtlas2 stories were still moving when the 15 second
      * wait for a final frame gave up. Twenty a frame is 5 frames. The arrangement is the same one:
      * the simulation stops at `maxIter` whichever clock ran it.

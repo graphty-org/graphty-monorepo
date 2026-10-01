@@ -2,8 +2,8 @@ import { GraphBuilder, type GraphSnapshot, renumberPartition } from "@graphty/gr
 import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
-import { Graph } from "../../../src/core/graph.js";
 import { labelPropagation } from "../../../src/indexed/label-propagation.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, gnm, undirectedFixtures } from "./port-fixtures.js";
 

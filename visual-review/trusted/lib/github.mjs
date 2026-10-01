@@ -1,5 +1,5 @@
 /**
- * Everything the review page needs from GitHub, through the `gh` CLI with the owner's login:
+ * Everything the review page needs from GitHub, through the `gh` CLI with the reviewer's login:
  * open pull requests, the CI run for a head, the `visual` job's outcome, the capture artifacts,
  * and the comment, issue and pull request that a Finish writes. CI uses one of these too: a pull
  * request's capture downloads master's newest capture with `newestMasterCapture`.
@@ -10,8 +10,8 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { validateResults } from "./results.mjs";
 
@@ -73,15 +73,16 @@ const toRun = (r) => ({
 });
 
 /**
- * The newest ci.yml run for a head commit.
+ * The newest run of the capturing workflow for a head commit.
  * @param {Function} gh the gh runner
  * @param {string} sha the pull request's head
+ * @param {{ workflow: string }} config the workflow file that captures (the config's `workflow`)
  * @returns {Promise<object | null>} the run, or null when CI never ran on it
  */
-export async function newestCiRun(gh, sha) {
+export async function newestCiRun(gh, sha, { workflow }) {
     const { workflow_runs: runs } = await api(
         gh,
-        `repos/{owner}/{repo}/actions/workflows/ci.yml/runs?head_sha=${sha}&per_page=1`,
+        `repos/{owner}/{repo}/actions/workflows/${encodeURIComponent(workflow)}/runs?head_sha=${sha}&per_page=1`,
     );
     return runs.length > 0 ? toRun(runs[0]) : null;
 }
@@ -113,9 +114,48 @@ export async function visualJobs(gh, run, attempt, projects) {
     );
 }
 
+// Downloads in flight, by target directory: concurrent refreshes of one run await the same one.
+const downloading = new Map();
+
+/**
+ * Downloads one artifact into `dir`, unless it is already there. It is extracted into a sibling
+ * temporary directory and renamed into place only once its results.json is there, so `dir` either
+ * does not exist or holds a whole artifact; a failed or interrupted download leaves nothing behind.
+ * An artifact without results.json is discarded, and its readers report the capture as failed.
+ * @param {Function} gh the gh runner
+ * @param {number} runId the run
+ * @param {string} name the artifact
+ * @param {string} dir where it goes
+ * @returns {Promise<void>} settles when `dir` is complete, or the artifact had no results.json
+ */
+function download(gh, runId, name, dir) {
+    if (existsSync(join(dir, "results.json"))) {
+        return Promise.resolve();
+    }
+    if (!downloading.has(dir)) {
+        const done = (async () => {
+            // A directory without results.json is left over from before downloads were atomic.
+            rmSync(dir, { recursive: true, force: true });
+            mkdirSync(dirname(dir), { recursive: true });
+            const part = mkdtempSync(`${dir}.part-`);
+            try {
+                await gh(["run", "download", String(runId), "-n", name, "-D", part]);
+                if (existsSync(join(part, "results.json"))) {
+                    renameSync(part, dir);
+                }
+            } finally {
+                rmSync(part, { recursive: true, force: true });
+            }
+        })().finally(() => downloading.delete(dir));
+        downloading.set(dir, done);
+    }
+    return downloading.get(dir);
+}
+
 /**
  * Downloads each project's capture artifact from the highest attempt that uploaded one, into
- * `<tmp>/<run>-<attempt>/<project>/`. An artifact already downloaded is not fetched again.
+ * `<tmp>/<run>-<attempt>/<project>/`. An artifact already downloaded is not fetched again, and
+ * concurrent calls for the same one share a single download.
  * @param {Function} gh the gh runner
  * @param {{ id: number }} run the run
  * @param {string[]} projects project ids
@@ -138,30 +178,33 @@ export async function downloadCaptures(gh, run, projects, tmp) {
             continue;
         }
         const dir = join(tmp, `${run.id}-${newest.attempt}`, project);
-        if (!existsSync(join(dir, "results.json"))) {
-            await gh(["run", "download", String(run.id), "-n", newest.name, "-D", dir]);
-        }
+        await download(gh, run.id, newest.name, dir);
         out[project] = { dir, attempt: newest.attempt };
     }
     return out;
 }
 
 /**
- * Downloads master's newest complete capture of one project: the reference a pull request's
- * capture compares stories without a baseline against.
- * ponytail: the newest master run with a complete capture, not the run of the pull request's
- * exact base; a story changed on master since then shows as `new` (it blocks, never passes).
+ * Downloads the default branch's newest complete capture of one project: the reference a pull
+ * request's capture compares stories without a baseline against.
+ * ponytail: the newest default-branch run with a complete capture, not the run of the pull
+ * request's exact base; a story changed there since then shows as `new` (it blocks, never passes).
  * @param {Function} gh the gh runner
  * @param {string} project the project id
  * @param {string} tmp the download root
- * @returns {Promise<string | null>} the capture's directory, or null when no master run has one
+ * @param {{ workflow: string, defaultBranch: string }} config the capturing workflow and the branch
+ * @returns {Promise<string | null>} the capture's directory, or null when no run has one
  */
-export async function newestMasterCapture(gh, project, tmp) {
-    const { workflow_runs: runs } = await api(
-        gh,
-        "repos/{owner}/{repo}/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=10",
-    );
-    for (const run of runs.map(toRun)) {
+export async function newestMasterCapture(gh, project, tmp, { workflow, defaultBranch }) {
+    // The branch's newest commits, then each one's run: GitHub's list of a workflow's runs filtered
+    // by branch now and then answers with a stale page (runs from weeks ago), which made a pull
+    // request compare with an old capture or none. Commits and a run by head sha answer consistently.
+    const commits = await api(gh, `repos/{owner}/{repo}/commits?sha=${encodeURIComponent(defaultBranch)}&per_page=10`);
+    for (const { sha } of commits) {
+        const run = await newestCiRun(gh, sha, { workflow });
+        if (!run) {
+            continue;
+        }
         const dir = (await downloadCaptures(gh, run, [project], tmp))[project]?.dir;
         let results = null;
         try {
@@ -213,12 +256,13 @@ export async function postStatus(gh, sha, { state, description }) {
 }
 
 /**
- * Opens a pull request against master.
+ * Opens a pull request.
  * @param {Function} gh the gh runner
- * @param {{ title: string, head: string, body: string }} pr what to open
+ * @param {{ title: string, head: string, base: string, body: string }} pr what to open, and the
+ *     branch it merges into
  * @returns {Promise<string>} its URL
  */
-export async function createPullRequest(gh, { title, head, body }) {
-    const input = JSON.stringify({ title, head, base: "master", body });
+export async function createPullRequest(gh, { title, head, base, body }) {
+    const input = JSON.stringify({ title, head, base, body });
     return JSON.parse(await gh(["api", "repos/{owner}/{repo}/pulls", "--input", "-"], input)).html_url;
 }

@@ -1,19 +1,35 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskTest } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    greedyBipartiteMatching as legacyGreedy,
-    maximumBipartiteMatching as legacyMaximum,
-} from "../../../src/algorithms/matching/bipartite.js";
-import { Graph } from "../../../src/core/graph.js";
 import { isBipartite } from "../../../src/indexed/bipartite.js";
 import {
     type BipartiteMatchingResult,
     greedyBipartiteMatching,
     maximumBipartiteMatching,
 } from "../../../src/indexed/matching.js";
-import type { NodeId } from "../../../src/types/index.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
+
+/**
+ * The order edges were added in, for the graphs whose `edges()` walk (grouped by source node) is
+ * not that order. The snapshot's edge order is what the matching breaks ties by.
+ */
+const addedEdges = new WeakMap<Graph, [NodeId, NodeId][]>();
+
+/** The graph frozen with its edges in the order they were added, as 2.x's neighbour lists held them. */
+function inAddedOrder(graph: Graph): GraphSnapshot {
+    const b = new GraphBuilder({ directed: graph.isDirected });
+    for (const node of graph.nodes()) {
+        b.addNode(node.id);
+    }
+    const edges = addedEdges.get(graph) ?? Array.from(graph.edges(), (e): [NodeId, NodeId] => [e.source, e.target]);
+    for (const [u, v] of edges) {
+        b.addEdge(u, v);
+    }
+    return b.freeze();
+}
 
 /** A seeded bipartite graph: `left` nodes l0.., `right` nodes r0.., `edges` random cross edges. */
 function randomBipartite(left: number, right: number, edges: number, seed: number, directed = false): Graph {
@@ -37,15 +53,16 @@ function randomBipartite(left: number, right: number, edges: number, seed: numbe
     for (let i = 0; directed && i < right; i++) {
         g.addNode(`r${i}`);
     }
-    let added = 0;
-    for (let guard = 0; added < edges && guard < edges * 100; guard++) {
+    const order: [NodeId, NodeId][] = [];
+    for (let guard = 0; order.length < edges && guard < edges * 100; guard++) {
         const u = `l${Math.floor(random() * left)}`;
         const v = `r${Math.floor(random() * right)}`;
         if (!g.hasEdge(u, v)) {
             g.addEdge(u, v);
-            added++;
+            order.push([u, v]);
         }
     }
+    addedEdges.set(g, order);
     return g;
 }
 
@@ -108,6 +125,25 @@ function assertValidMatching(s: GraphSnapshot, result: BipartiteMatchingResult, 
     expect(pairs).toBe(result.size);
 }
 
+/** The recorded 2.x result: partners by node id. */
+interface LegacyMatching {
+    readonly matching: Map<NodeId, NodeId>;
+    readonly size: number;
+}
+
+const byKey = (a: [NodeId, NodeId], b: [NodeId, NodeId]): number => String(a[0]).localeCompare(String(b[0]));
+
+/** The matched pairs by node id, left node first, sorted by the left node's id. */
+function pairsOf(s: GraphSnapshot, result: BipartiteMatchingResult): Map<NodeId, NodeId> {
+    const pairs: [NodeId, NodeId][] = [];
+    for (let u = 0; u < s.nodeCount; u++) {
+        if (result.matching[u] !== INVALID_INDEX) {
+            pairs.push([s.ids.idOf(u), s.ids.idOf(result.matching[u])]);
+        }
+    }
+    return new Map(pairs.sort(byKey));
+}
+
 function leftMaskOf(s: GraphSnapshot): Uint32Array {
     const { sides } = isBipartite(s);
     if (sides === null) {
@@ -118,30 +154,6 @@ function leftMaskOf(s: GraphSnapshot): Uint32Array {
         maskSet(left, i, !maskTest(sides, i));
     }
     return left;
-}
-
-/**
- * The same graph as a legacy `Graph` whose node order is the snapshot's index order and whose
- * every adjacency list is in ascending index order -- the orders the greedy port visits in.
- */
-function legacyInIndexOrder(s: GraphSnapshot): Graph {
-    const g = new Graph({ directed: s.directed });
-    for (let i = 0; i < s.nodeCount; i++) {
-        g.addNode(i);
-    }
-    const el = s.edgeList();
-    const pairs: [number, number][] = [];
-    for (let e = 0; e < s.edgeCount; e++) {
-        const [a, b] = s.directed
-            ? [el.src[e], el.dst[e]]
-            : [Math.min(el.src[e], el.dst[e]), Math.max(el.src[e], el.dst[e])];
-        pairs.push([a, b]);
-    }
-    pairs.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
-    for (const [a, b] of pairs) {
-        g.addEdge(a, b);
-    }
-    return g;
 }
 
 function pathXYZ(): GraphSnapshot {
@@ -173,18 +185,62 @@ describe("indexed.maximumBipartiteMatching", () => {
             const graph = fixture.graph();
             const s = checksummedSnapshot(graph);
             const options = { arcs: "out" as const };
-            const legacy = legacyMaximum(graph);
+            const legacy = legacyResult() as LegacyMatching;
             const result = maximumBipartiteMatching(s, graph.isDirected ? options : {});
             expect(result.size).toBe(legacy.size);
             assertValidMatching(s, result, leftMaskOf(s));
+            // The tie rule: with the edges in the order 2.x saw them, the very pairs 2.x chose.
+            const ordered = inAddedOrder(graph);
+            const tied = maximumBipartiteMatching(ordered, graph.isDirected ? options : {});
+            expect(pairsOf(ordered, tied)).toEqual(new Map([...legacy.matching].sort(byKey)));
             s.validate({ checksum: true });
         });
     }
 
+    it("pairs the job-matching story's graph exactly as 2.x did", () => {
+        // graphty-element's Algorithms/Flow BipartiteMatching story. Both carol and alice could
+        // take senior_dev or backend; 2.x gave alice senior_dev, and the story's approved picture
+        // shows that pairing. Its edges are listed here in the story's order.
+        const b = new GraphBuilder({ directed: false });
+        for (const id of ["alice", "bob", "carol", "dave", "eve", "frank", "grace"]) {
+            b.addNode(id);
+        }
+        for (const id of ["senior_dev", "ux_designer", "backend", "data_sci", "tech_lead", "frontend", "security"]) {
+            b.addNode(id);
+        }
+        for (const [u, v] of [
+            ["alice", "senior_dev"],
+            ["alice", "backend"],
+            ["alice", "frontend"],
+            ["bob", "ux_designer"],
+            ["carol", "backend"],
+            ["carol", "senior_dev"],
+            ["dave", "data_sci"],
+            ["eve", "tech_lead"],
+            ["frank", "frontend"],
+            ["grace", "backend"],
+            ["grace", "security"],
+            ["grace", "senior_dev"],
+        ]) {
+            b.addEdge(u, v);
+        }
+        const s = b.freeze();
+        // What 2.x maximumBipartiteMatching returned at f606a837.
+        const expected = new Map<NodeId, NodeId>([
+            ["alice", "senior_dev"],
+            ["bob", "ux_designer"],
+            ["carol", "backend"],
+            ["dave", "data_sci"],
+            ["eve", "tech_lead"],
+            ["frank", "frontend"],
+            ["grace", "security"],
+        ]);
+        expect(pairsOf(s, maximumBipartiteMatching(s))).toEqual(expected);
+    });
+
     it("ignores arc direction by default, as the legacy function does on the undirected graph", () => {
         // Every arc points right to left, so following out-arcs of the left side finds nothing.
         const directed = new Graph({ directed: true });
-        const undirected = new Graph({ directed: false });
         for (const [u, v] of [
             ["r0", "l0"],
             ["r1", "l0"],
@@ -192,10 +248,10 @@ describe("indexed.maximumBipartiteMatching", () => {
             ["r2", "l2"],
         ]) {
             directed.addEdge(u, v);
-            undirected.addEdge(u, v);
         }
         const s = checksummedSnapshot(directed);
-        expect(maximumBipartiteMatching(s).size).toBe(legacyMaximum(undirected).size);
+        // legacy: maximumBipartiteMatching on an undirected graph with the same edges
+        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as BipartiteMatchingResult).size);
         expect(maximumBipartiteMatching(s).size).toBe(3);
     });
 
@@ -250,7 +306,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         }
         const s = b.freeze();
         expect(s.flags.multigraph).toBe(true);
-        expect(maximumBipartiteMatching(s).size).toBe(legacyMaximum(graph).size);
+        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as BipartiteMatchingResult).size);
     });
 
     it("uses explicit sides as given and never matches a node on neither side", () => {
@@ -267,7 +323,7 @@ describe("indexed.maximumBipartiteMatching", () => {
             maskSet(right, s.ids.indexOf(id), true);
         }
         const result = maximumBipartiteMatching(s, { left, right });
-        const legacy = legacyMaximum(graph, { leftNodes: new Set(leftIds), rightNodes: new Set(rightIds) });
+        const legacy = legacyResult() as BipartiteMatchingResult;
         expect(result.size).toBe(legacy.size);
         expect(result.size).toBe(2);
         expect(result.matching[s.ids.indexOf("a2")]).toBe(INVALID_INDEX);
@@ -289,7 +345,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         g.addEdge("a", "b");
         g.addEdge("b", "c");
         g.addEdge("c", "a");
-        expect(() => legacyMaximum(g)).toThrow("Graph is not bipartite");
+        expect(() => legacyResult() as BipartiteMatchingResult).toThrow("Graph is not bipartite");
         expect(() => maximumBipartiteMatching(checksummedSnapshot(g))).toThrow("Graph is not bipartite");
     });
 
@@ -331,13 +387,12 @@ describe("indexed.greedyBipartiteMatching", () => {
 
             // Legacy visits left nodes in set order and neighbours in insertion order; given the
             // index orders it must choose exactly the same pairs.
-            const ordered = legacyInIndexOrder(s);
             const leftNodes = new Set<NodeId>();
             const rightNodes = new Set<NodeId>();
             for (let i = 0; i < s.nodeCount; i++) {
                 (maskTest(left, i) ? leftNodes : rightNodes).add(i);
             }
-            const legacy = legacyGreedy(ordered, { leftNodes, rightNodes });
+            const legacy = legacyResult() as BipartiteMatchingResult;
             expect(result.size).toBe(legacy.size);
             for (let u = 0; u < s.nodeCount; u++) {
                 expect(result.matching[u]).toBe(legacy.matching.get(u) ?? INVALID_INDEX);

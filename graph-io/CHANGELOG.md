@@ -1,3 +1,65 @@
+## 0.3.13 (2026-10-01)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.3
+
+## 0.3.12 (2026-09-30)
+
+### 🚀 Features
+
+- **graph-io:** read quoted gml flags and keep dot pos as text on request ([743aa6aa](https://github.com/graphty-org/graphty-monorepo/commit/743aa6aa))
+- **graph-io:** record a gml file's directed key as written ([dc1ad686](https://github.com/graphty-org/graphty-monorepo/commit/dc1ad686))
+
+### 🩹 Fixes
+
+- **graphty-element:** record how dot, gml and pajek loads differ from 2.x ([b1891017](https://github.com/graphty-org/graphty-monorepo/commit/b1891017))
+- **graph-io:** recognise gexf and graphml only in a document that starts as markup ([6e01ce08](https://github.com/graphty-org/graphty-monorepo/commit/6e01ce08))
+- **graph-io:** recognise a dot header followed by a quoted id or a comment ([8d1d04ce](https://github.com/graphty-org/graphty-monorepo/commit/8d1d04ce))
+- **graphty-element:** detect any delimited table as csv and never space-split text ([044281fd](https://github.com/graphty-org/graphty-monorepo/commit/044281fd))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.2
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.11 (2026-09-30)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.1
+
+## 0.3.10 (2026-09-29)
+
+### 🚀 Features
+
+- **graph-io:** keep open GEXF spell bounds and the defaultedgetype the file wrote ([8a4a34d8](https://github.com/graphty-org/graphty-monorepo/commit/8a4a34d8))
+- **graph-io:** read json node and edge arrays through dotted paths ([d9870e67](https://github.com/graphty-org/graphty-monorepo/commit/d9870e67))
+- **graph-io:** read and write csv adjacency tables and number node rows without ids ([9ac6f760](https://github.com/graphty-org/graphty-monorepo/commit/9ac6f760))
+- **graph-io:** read yfiles graphics into columns and key name and type ([1ad6ecb5](https://github.com/graphty-org/graphty-monorepo/commit/1ad6ecb5))
+- **graph-io:** keep string gml node ids with one warning ([21cf0082](https://github.com/graphty-org/graphty-monorepo/commit/21cf0082))
+
+### 🩹 Fixes
+
+- **graph-io:** read gexf edge type keywords in any case ([0c7be1e1](https://github.com/graphty-org/graphty-monorepo/commit/0c7be1e1))
+- **graph-io:** read a graphml key id declared once for each kind of element ([7c7307cd](https://github.com/graphty-org/graphty-monorepo/commit/7c7307cd))
+- **graph-io:** keep csv quote errors fatal and scope rowNumberIds to the node table ([d9a6b1dc](https://github.com/graphty-org/graphty-monorepo/commit/d9a6b1dc))
+- **graph-io:** check yfiles graphics against every tree and document gaps ([77534e52](https://github.com/graphty-org/graphty-monorepo/commit/77534e52))
+- **graph-io:** make csv adjacency exports re-import and json edge paths read every dialect ([7bb78f9b](https://github.com/graphty-org/graphty-monorepo/commit/7bb78f9b))
+- **graph-io:** report edited yfiles graphics columns as an export loss ([89c9cc5d](https://github.com/graphty-org/graphty-monorepo/commit/89c9cc5d))
+- **graph-io:** resolve gml endpoints by the id rule under every nodeIdFrom ([5c2b1d39](https://github.com/graphty-org/graphty-monorepo/commit/5c2b1d39))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.9 (2026-09-28)
 
 ### 🧱 Updated Dependencies
@@ -66,15 +128,15 @@
 
 ### 🚀 Features
 
-- ⚠️  **graph-io:** decode any encoding once, and read every graph in a file ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
+- ⚠️ **graph-io:** decode any encoding once, and read every graph in a file ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
 
 ### 🩹 Fixes
 
 - **graph-io:** exporters round-trip -0, DOT line continuations and GEXF 1.2 timestamps ([72292b6c](https://github.com/graphty-org/graphty-monorepo/commit/72292b6c))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **graph-io:** decode any encoding once, and read every graph in a file  ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
+- **graph-io:** decode any encoding once, and read every graph in a file ([1bb45aac](https://github.com/graphty-org/graphty-monorepo/commit/1bb45aac))
   GML_ISSUE.SECOND_GRAPH is now MULTIPLE_GRAPHS and
   PAJEK_ISSUE.MULTIPLE_NETWORKS is now MULTIPLE_GRAPHS; both carry the new
   W_MULTIPLE_GRAPHS warning code, since a second graph is no longer an error.

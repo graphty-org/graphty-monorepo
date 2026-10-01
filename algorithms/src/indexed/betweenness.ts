@@ -82,6 +82,7 @@ function drawSources(n: number, k: number): number[] {
  * @param n - The node count
  * @param sources - The caller's list
  * @param k - The caller's count
+ * @param label - The algorithm named in an error
  * @returns The sources
  * @throws RangeError for a source outside `[0, n)`, a `k` outside `[0, n]`, or a `k` that disagrees with the list
  */
@@ -89,18 +90,19 @@ export function resolveSources(
     n: number,
     sources: readonly number[] | undefined,
     k: number | undefined,
+    label = "betweenness",
 ): readonly number[] {
     if (k !== undefined && (!Number.isInteger(k) || k < 0 || k > n)) {
-        throw new RangeError(`betweenness: k must be an integer in [0, ${n}], got ${k}`);
+        throw new RangeError(`${label}: k must be an integer in [0, ${n}], got ${k}`);
     }
     if (sources !== undefined) {
         for (const v of sources) {
             if (!Number.isInteger(v) || v < 0 || v >= n) {
-                throw new RangeError(`betweenness: sources must be node indices in [0, ${n}), got ${v}`);
+                throw new RangeError(`${label}: sources must be node indices in [0, ${n}), got ${v}`);
             }
         }
         if (k !== undefined && k !== sources.length) {
-            throw new RangeError(`betweenness: k (${k}) must be absent or equal sources.length (${sources.length})`);
+            throw new RangeError(`${label}: k (${k}) must be absent or equal sources.length (${sources.length})`);
         }
         return sources;
     }

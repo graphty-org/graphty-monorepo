@@ -413,17 +413,6 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Whether a load from a data source is still streaming records in.
-     *
-     * A static layout reads it to tell a chunk of a load, after which the whole graph is arranged
-     * again, from a reader's add to a finished graph, after which existing nodes stay put.
-     * @returns true between a load's first chunk and its end
-     */
-    get isLoading(): boolean {
-        return this.ingest.loading;
-    }
-
-    /**
      * How many nodes the DATA arrived carrying a coordinate for.
      *
      * Distinct from `positions.placedCount`, which counts what anything has placed -- including
@@ -908,8 +897,11 @@ export class DataManager implements Manager {
             loadFailed: (format, error, progress) => {
                 if (this.graphContext) {
                     const { loadId } = this;
+                    // With the line a reader blamed, when it named one.
+                    const line: unknown = error instanceof GraphtyError ? error.details.line : undefined;
                     this.eventManager.emitDataLoadingError(error, "parsing", format, {
                         canContinue: false,
+                        ...(typeof line === "number" ? { line } : {}),
                         ...(loadId === undefined ? {} : { loadId }),
                     });
                     // Keep existing error event for backward compatibility
@@ -1327,7 +1319,7 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Record a freshly built render edge in both of the places that index it.
+     * Record a freshly built render edge in all three of the places that index it.
      * @param edge - the new render object
      * @param edgeIndex - the index the builder gave this edge. Never INVALID_INDEX: an edge whose
      *     endpoint ids graph-format will not store is rejected before it reaches here
@@ -1608,6 +1600,27 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Whether a load from a data source is still streaming records in.
+     *
+     * A static layout reads it to tell a chunk of a load, after which the whole graph is arranged
+     * again, from a reader's add to a finished graph, after which existing nodes stay put.
+     * @returns true between a load's first chunk and its end
+     */
+    get isLoading(): boolean {
+        return this.ingest.isLoading;
+    }
+
+    /**
+     * What the graph HOLDS right now: the node and edge counts of the store, the same numbers
+     * `statistics()` and the import report give. An edge endpoint no record declared as a node is
+     * counted, and so is an edge still waiting for an endpoint.
+     * @returns the node and edge counts the graph holds
+     */
+    heldCounts(): { nodes: number; edges: number } {
+        return this.ingest.heldCounts();
+    }
+
+    /**
      * Replace every built edge with a new set, or leave the graph exactly as it was.
      *
      * The ceiling is decided BEFORE anything is removed. Removing first and letting `addEdges`
@@ -1788,15 +1801,6 @@ export class DataManager implements Manager {
         for (const node of this.nodes.values()) {
             node.label?.startAnimation();
         }
-    }
-
-    /**
-     * The node and edge counts the graph store holds: what `statistics()` and the stats panel
-     * report, including a pending edge and an endpoint no record declared as a node.
-     * @returns the node and edge counts
-     */
-    heldCounts(): { nodes: number; edges: number } {
-        return { nodes: this.store.builder.nodeCount, edges: this.store.builder.edgeCount };
     }
 
     /**

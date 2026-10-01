@@ -2096,9 +2096,14 @@ function resolveYfiles(options: GraphmlImportOptions | undefined): "json" | "ski
  * Confidence that a head of bytes is GraphML.
  * @param head - the first bytes
  * @returns 1 for a `<graphml` root in the GraphML namespace, 0.9 for a `<graphml` root, 0.05 for other XML, 0 otherwise
+ *     or when the head does not start with markup
  */
 function sniffGraphml(head: Uint8Array): number {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(head.subarray(0, SNIFF_BYTES));
+    // Only a document that starts as markup: a JSON or CSV value may mention a `<graphml>` tag.
+    if (!/^\uFEFF?\s*</.test(text)) {
+        return 0;
+    }
     const root = text.indexOf("<graphml");
     if (root >= 0) {
         return text.includes(GRAPHML_NAMESPACE, root) ? 1 : 0.9;

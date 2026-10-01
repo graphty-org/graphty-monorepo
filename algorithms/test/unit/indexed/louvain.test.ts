@@ -1,11 +1,9 @@
 import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { louvain as legacyLouvain } from "../../../src/algorithms/community/louvain.js";
-import { calculateModularity } from "../../../src/algorithms/community/modularity-utils.js";
-import { Graph } from "../../../src/core/graph.js";
 import { louvain } from "../../../src/indexed/louvain.js";
-import type { NodeId } from "../../../src/types/index.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 
@@ -104,17 +102,13 @@ describe("indexed.louvain", () => {
 
     for (const { name, graph } of undirectedFixtures()) {
         it(`reports the modularity the package's own formula gives, on ${name}`, () => {
-            // The port computes Q per arc over typed arrays; `calculateModularity` computes it per
-            // edge over a Graph. Running the port's OWN partition through the legacy formula is what
-            // proves the two agree -- a partition comparison could not, because Louvain is a greedy
-            // heuristic and two implementations may legitimately stop at different partitions.
+            // The port computes Q per arc over typed arrays; the legacy `calculateModularity`
+            // computed it per edge over a Graph. The record is what the legacy formula gave for the
+            // partition the port found when it was recorded, so this fails when either the port's
+            // modularity or its partition changes.
             const s = checksummedSnapshot(graph);
             const r = louvain(s);
-            const asMap = new Map<NodeId, number>();
-            for (let u = 0; u < s.nodeCount; u++) {
-                asMap.set(s.ids.idOf(u), r.labels[u]);
-            }
-            expect(r.modularity).toBeCloseTo(calculateModularity(graph, asMap), 12);
+            expect(r.modularity).toBeCloseTo(legacyResult() as number, 12);
             s.validate({ checksum: true });
         });
 
@@ -126,8 +120,8 @@ describe("indexed.louvain", () => {
                     .groups()
                     .map((group) => key([...group].map((u) => String(s.ids.idOf(u)))))
                     .sort();
-                const legacy = legacyLouvain(graph)
-                    .communities.map((community) => key(community.map((id) => String(id))))
+                const legacy = (legacyResult() as CommunityResult).communities
+                    .map((community) => key(community.map((id) => String(id))))
                     .sort();
                 expect(ported).toEqual(legacy);
                 s.validate({ checksum: true });
@@ -145,7 +139,7 @@ describe("indexed.louvain", () => {
         const r = louvain(s);
         expect(r.count).toBe(4);
         expect(r.modularity).toBeCloseTo(0.4188034188034188, 12);
-        expect(legacyLouvain(graph as Graph).modularity).toBeLessThan(r.modularity);
+        expect((legacyResult() as CommunityResult).modularity).toBeLessThan(r.modularity);
         s.validate({ checksum: true });
     });
 });

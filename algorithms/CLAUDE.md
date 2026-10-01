@@ -4,101 +4,59 @@ This file provides guidance to Claude Code when working with the @graphty/algori
 
 ## Project Overview
 
-@graphty/algorithms is a comprehensive TypeScript graph algorithms library optimized for browser environments. It provides 98+ algorithms covering traversal, pathfinding, centrality, clustering, community detection, flow, and link prediction.
+@graphty/algorithms is a TypeScript graph algorithms library for browser environments: 60+ algorithms covering
+traversal, paths, centrality, clustering, community detection, flow, matching and link prediction, every one over a
+frozen `@graphty/graph-format` snapshot.
 
 ## Package Structure
 
 ```
 algorithms/
-├── src/
-│   ├── core/              # Graph data structure
-│   ├── algorithms/        # Main algorithm implementations
-│   │   ├── centrality/    # PageRank, betweenness, closeness, degree, eigenvector, HITS
-│   │   ├── community/     # Louvain, Girvan-Newman, label propagation
-│   │   ├── components/    # Connected components, strongly connected
-│   │   ├── matching/      # Maximum matching algorithms
-│   │   ├── mst/           # Kruskal, Prim minimum spanning tree
-│   │   ├── shortest-path/ # Dijkstra, Bellman-Ford, Floyd-Warshall, A*
-│   │   └── traversal/     # BFS, DFS with variants
-│   ├── clustering/        # K-core, MCL, spectral, hierarchical
-│   ├── data-structures/   # Priority queue, union-find
-│   ├── optimized/         # CSR graph, bit-packed, direction-optimized BFS
-│   ├── research/          # Experimental: GRSBM, SynC, TeraHAC
-│   ├── flow/              # Max flow algorithms
-│   ├── link-prediction/   # Link prediction algorithms
-│   ├── pathfinding/       # A*, path utilities
-│   ├── types/             # TypeScript interfaces
-│   └── utils/             # Math utilities, normalization
-├── test/
-│   ├── unit/              # Unit tests (happy-dom environment)
-│   ├── browser/           # Browser tests (Playwright)
-│   └── helpers/           # Test utilities, performance regression
-├── examples/              # Usage examples
-└── docs/                  # VitePress documentation
+|-- src/
+|   |-- index.ts           # The barrel: every algorithm at the top level, `indexed` (deprecated alias), the seam
+|   |-- indexed/           # The algorithms, one file per family, and the accelerator seam (accelerator.ts)
+|   |   `-- structures/    # Index-based heap and union-find the algorithms share
+|   |-- data-structures/   # PriorityQueue, UnionFind (general purpose, exported)
+|   |-- utils/             # SeededRandom
+|   `-- errors.ts          # ConvergenceError, PathWalkError
+|-- test/
+|   |-- unit/indexed/      # One suite per algorithm family
+|   |-- unit/docs/         # The guide samples and the migration table, run as checks
+|   |-- types/             # Compile-only tests of the public surface (exports.test-d.ts, accelerator.test-d.ts)
+|   |-- golden/            # What the removed 2.x functions returned, recorded
+|   |-- browser/           # Browser tests (Playwright)
+|   `-- helpers/           # Test-only: the 2.x Graph class as a fixture builder, its freezer, golden lookups
+|-- benchmarks/            # node/algorithms-benchmark.ts times every algorithm over generated graphs
+|-- stories/               # Storybook stories, one per algorithm
+`-- docs/                  # VitePress documentation (docs/guide/migrating-to-3.md maps every 2.x function)
 ```
 
-`src/indexed/` holds index-based ports over `@graphty/graph-format` snapshots, exported as the
-`indexed` namespace. Ported so far: BFS, direction-optimized BFS, DFS, cycle detection, topological
-sort, bipartite check, strongly connected components, condensation, Dijkstra, Bellman-Ford,
-bidirectional Dijkstra, A\*, connected components, Kruskal MST, Prim MST, PageRank, personalized
-PageRank, the delta PageRank engines (`DeltaPageRank`, `PriorityDeltaPageRank`),
-HITS, Katz, eigenvector centrality, degree centrality, closeness centrality, betweenness centrality,
-edge betweenness centrality, common neighbours, k-core, Louvain, Leiden, Girvan-Newman, label
-propagation, all-pairs shortest paths, maximum flow, minimum s-t cut, Stoer-Wagner and Karger minimum
-cuts, the bipartite flow network, bipartite matching, graph isomorphism, Adamic-Adar link
-prediction, hierarchical, Markov and spectral clustering, modularity, and the research clusterings
-teraHAC, SynC and GRSBM. Each lands beside its legacy function; tests live in `test/unit/indexed/`. `benchmarks/port-bench.ts` times some of them (k-core, Katz, HITS,
-Louvain, label propagation) against their legacy functions.
+Every algorithm is a top-level export: `pageRank`, `dijkstra`, `louvain` and the rest. 2.x offered the same functions
+as the `indexed` namespace, which stays in 3.x as a deprecated alias (`indexed.pageRank === pageRank`) and goes in 4.0.
+`test/types/exports.test-d.ts` pins every exported function's signature, asserts that `indexed` holds exactly the same
+functions, and asserts that none of the 2.x id-keyed names (the `Graph` class, the Map-of-Maps functions, `CSRGraph`
+and its helpers, `toSnapshot`) is exported.
 
-Of the 90 legacy functions the barrel exports (the data structures and the CSR helpers not counted),
-56 delegate to their port and keep only their signature and result shape: `floydWarshall`,
-`floydWarshallPath`, `transitiveClosure`, `labelPropagation`, the BFS functions, `depthFirstSearch`,
-`hasCycleDFS`, `topologicalSort`, the connected, weakly and strongly connected component functions
-(and `condensationGraph` through them), `singleSourceShortestPath` (and `allPairsShortestPath`
-through it), `hasNegativeCycle`, `kruskalMST` and `minimumSpanningTree`, the 18 centrality functions
-(every one but `nodeDegreeCentrality`), the five common-neighbour link prediction functions,
-`hierarchicalClustering`, `markovClustering`, `syncClustering`, `grsbm`, `kCoreDecomposition` (and
-`getKCore` through it) and `girvanNewman`. Traversal facades pass `legacyArcOrder` so neighbours are
-tried in the graph's insertion order. A graph with a NaN weight has no weighted snapshot:
-`toTopologySnapshot` freezes it without weights for the ports that read none, and the weighted
-facades keep their legacy code for it (and `singleSourceShortestPath` for negative weights).
+The id-keyed API of 2.x was removed in 3.0.0. What its functions returned is recorded in `test/golden/` (one gzipped
+JSON file per suite, one record per line, `zcat` to read), and `legacyResult()` in `test/helpers/golden.ts` hands a
+record back in its original shape: Map and Set order, number or string keys, `-0`, `NaN` and the infinities, and exact
+f64 values. A recorded throw is thrown again with its message; it is an instance of its class for `ConvergenceError`,
+`PathWalkError`, `RangeError` and `TypeError`, and a plain `Error` carrying the recorded name otherwise. The suites of
+`test/unit/indexed/` check the algorithms against those records.
 
-24 stay on legacy code, each for a recorded reason. Their port breaks ties differently (`dijkstra`,
-`dijkstraPath`, `bellmanFord`, `bellmanFordPath`, `astar`, `astarWithDetails`, `primMST`), returns
-less order (`bipartitePartition`, `findStronglyConnectedComponents`, `connectedComponentsDFS`) or
-gives different answers (the six Adamic-Adar functions, `calculateMCLModularity`,
-`spectralClustering`, `teraHAC`); `nodeDegreeCentrality` answers for one node in constant time; and
-the randomised or differently ruled community functions -- `louvain` and `leiden` (the ports visit
-nodes in another seeded order, so they stop at other partitions), `labelPropagationAsync` (the
-synchronous port adds a swap guard the old loop lacks) and `labelPropagationSemiSupervised` (another
-random stream, and the port renumbers the seed labels).
+The records are frozen: nothing re-records them. Each is keyed by the test's full name and the call's position within
+that test, and `expectFacadeMatchesLegacy` makes one call per fixture, so renaming a test, reordering its
+`legacyResult()` calls, or adding, removing or reordering a fixture in `port-fixtures.ts` or another shared fixture list
+breaks the lookup. Two tests of one file with the same name, and a record that a full passing run of its file never
+reads, fail that file. A comment beside a `legacyResult()` call says which 2.x call and inputs a record came from when
+the test itself no longer shows them.
 
-9 are not converted yet, although each has a port: `fordFulkerson`, `edmondsKarp`, `minSTCut`,
-`stoerWagner`, `kargerMinCut` (ports `indexed.maxFlow`, `indexed.minSTCut`, `indexed.stoerWagner`,
-`indexed.kargerMinCut`), `maximumBipartiteMatching`, `greedyBipartiteMatching`
-(`indexed.maximumBipartiteMatching`, `indexed.greedyBipartiteMatching`), `isGraphIsomorphic` and
-`findAllIsomorphisms` (`indexed.isGraphIsomorphic`, `indexed.findAllIsomorphisms`). Each port
-differs from its legacy function on purpose for some inputs, so whether they delegate waits on the
-owner's decisions listed in section 6 of `design/graph-format/migration-plan.md`. The last barrel
-function, `createBipartiteFlowNetwork`, computes nothing over a graph -- it builds a Map-based flow
-network -- and needs no delegation; `indexed.bipartiteFlowNetwork` is its snapshot replacement.
+The fixtures are built with a test-only copy of the 2.x `Graph` class (`test/helpers/legacy-graph.ts`) and frozen by
+`test/helpers/to-snapshot.ts`, so each snapshot has exactly the node and edge order the 2.x functions saw when their
+results were recorded. Neither is part of the package.
 
-None of the 3 legacy classes delegates, each for a recorded reason: `DeltaPageRank` and
-`PriorityDeltaPageRank` (their `update()` reads the live graph, and a snapshot is frozen) and
-`DirectionOptimizedBFS` (it runs on a `CSRGraph`, which `toSnapshot` cannot convert; `searchMultiple`
-starts from several sources where `indexed.directionOptimizedBfs` takes one; and a second `search()`
-without `reset()` keeps the previous search's nodes).
-
-The conversions the facades use live in `src/indexed/facade.ts`; each has a facade test in
-`test/unit/indexed/*-facade*.test.ts`. The code the traversal, path, component and tree facades
-replaced is kept verbatim in `test/helpers/legacy-traversal-paths-trees.ts`as their test oracle.
-Elsewhere, where a delegating function's old code is still needed -- as the oracle of its facade
-test, or for inputs the port refuses -- it sits beside it in a`*-legacy.ts`file, unchanged, until
-the removal release deletes it. A`\*-legacy.ts`file can also be the only implementation of
-published functions that do not delegate:`hierarchical-legacy.ts`holds`cutDendrogram`,
-`cutDendrogramKClusters`and`modularityHierarchicalClustering`(and the`hierarchicalClustering`facade calls`cutDendrogram`), and `mcl-legacy.ts`holds`calculateMCLModularity`. Those functions
-are re-exported from the public file and are not dead code; the removal release must move them, not
-delete them.
+Where an algorithm's results differ from the 2.x function of the same name (tie-breaks, orders, seeded partitions,
+the flow and matching rules the owner accepted on 2026-09-28), `docs/guide/migrating-to-3.md` says how.
 
 ## Essential Commands
 
@@ -120,14 +78,13 @@ npm run coverage:fast    # Quick coverage (default project only)
 npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Performance
-npm run benchmark        # Run full benchmarks
-npm run benchmark:quick  # Quick benchmark run
-npm run test:performance # Run performance regression tests
+npm run benchmark        # Time every algorithm over generated graphs
+npm run benchmark:quick  # The same, at smaller sizes
 
 # Linting
 npm run lint             # ESLint + TypeScript check
 npm run lint:fix         # Auto-fix lint issues
-npm run lint:pkg         # Check for unused deps (knip)
+npm run lint:knip        # Check for unused files, exports and dependencies (knip)
 
 # Documentation
 npm run docs:dev         # Start docs dev server
@@ -158,19 +115,9 @@ Key principles:
 ## Testing Guidelines
 
 - **Test projects**: `default` (happy-dom) and `browser` (Playwright)
-- Performance regression tests track algorithm speed over time
-- Use `npm run test:performance:update` to update baselines after intentional changes
-
-## Optimized Implementations
-
-The `src/optimized/` directory contains high-performance implementations:
-
-- **CSRGraph**: Compressed Sparse Row format for memory efficiency
-- **Bit-packed structures**: TypedFastBitSet for large graphs
-- **Direction-optimized BFS**: switches between top-down and bottom-up steps
-
-No legacy function switches to these by graph size: the BFS family runs the indexed BFS on every
-graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, called explicitly.
+- `test/types/*.test-d.ts` are compile-only; `npm run lint` checks them (`tsc -p tsconfig.typecheck.json`)
+- A new algorithm's suite checks its results against an independent oracle or hand-computed answers, and calls
+  `snapshot.validate({ checksum: true })` after the run so a write into a shared view fails the test
 
 ## Design Philosophy
 
@@ -185,21 +132,14 @@ graph, and `indexed.directionOptimizedBfs` is the direction-optimised search, ca
 
 1. Create the implementation in `src/indexed/`, following the pattern above
 2. Export it from `src/indexed/index.ts`
-3. Write tests in `test/unit/indexed/`; when a legacy function computes the same thing, add a differential test
-   against it
-4. Add examples in `examples/`
-5. Update documentation; code samples in `docs/guide/getting-started.md` and the README's marked blocks are
-   type-checked and run by `test/unit/docs/guide-samples.test.ts` (see below)
+3. Write tests in `test/unit/indexed/`
+4. Add it to `test/types/exports.test-d.ts` (its signature) and to `benchmarks/node/algorithms-benchmark.ts`
+5. Update documentation; code samples in `docs/guide/*.md` and the README's marked blocks are type-checked and run by
+   `test/unit/docs/guide-samples.test.ts` (see below)
 
 ### Documentation Samples
 
-`test/unit/docs/guide-samples.test.ts` type-checks and runs every ```typescript block of
-`docs/guide/getting-started.md`, which must all be marked `<!-- doc-check -->`just before them, and every
-block of`README.md` so marked. Keep each marked block self-contained, with its own imports.
-
-### Running Examples
-
-```bash
-npm run examples         # Run all Node.js examples
-npm run examples:html    # Start Vite server for HTML examples
-```
+`test/unit/docs/guide-samples.test.ts` type-checks and runs every ```typescript block of the `docs/guide/`pages,
+which must all be marked`<!-- doc-check -->`just before them, and every block of`README.md`so marked. Keep each
+marked block self-contained, with its own imports.`test/unit/docs/migration-table.test.ts`checks that the table of`docs/guide/migrating-to-3.md` has a row for every function and class 2.x exported, and names only functions 3.0
+exports.

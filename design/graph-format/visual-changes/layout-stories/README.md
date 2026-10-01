@@ -11,6 +11,13 @@ Layout's Storybook stories changed in two steps of the graph-format migration
 This page records every story whose picture differs from master, why, and what the owner is asked
 to accept. The owner has not reviewed any of it yet.
 
+**Update (owner review of pull request 641): rejected, and restored.** The owner rejected the new
+ARF and Kamada-Kawai 3D pictures. `arf` and the 3D `kamadaKawai` now draw their seeded start in
+float64, as layout 1.x did, and Kamada-Kawai rescales in float64 before its one float32 rounding.
+They reproduce layout 1.x's positions to the float32 rounding of the result (3e-8), and
+`layout/test/layouts/legacy-start.test.ts` pins them. The analysis below records the change as it
+was found.
+
 | Story                                                     | Changed by | What you see                          | Recommended verdict |
 | --------------------------------------------------------- | ---------- | ------------------------------------- | ------------------- |
 | Layout2D / ARF (`layout2d--arf`)                          | layout 2.0 | a different drawing of the same graph | accept              |
@@ -21,7 +28,7 @@ to accept. The owner has not reviewed any of it yet.
 The other 13 stories are unchanged at their default arguments. BFS changes under some
 non-default arguments (see "Stories that did not change" in part 1).
 
-layout is a visual-review project on the integration branch (`visual-review/projects.json`, and
+layout is a visual-review project on the integration branch (`visual-review.config.json`, and
 the `layout` entry of the visual-review job in `.github/workflows/ci.yml`), but master has no
 layout baselines and no layout capture, so visual-review can never show these four changes as
 differences. The pull request that first captures layout shows every layout story as `new`, with
@@ -176,4 +183,4 @@ node visual-review/trusted/cli.mjs capture --project layout \
     --storybook <branch>/layout/storybook-static --baselines <m> --out <b>
 ```
 
-This uses the `layout` entry in `visual-review/projects.json`. `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` give the same verdict at 1000x800.
+This uses the `layout` entry in `visual-review.config.json`. `tools/diff-stories.mjs` and `tools/pixel-diff.mjs` give the same verdict at 1000x800.

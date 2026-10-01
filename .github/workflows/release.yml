@@ -364,7 +364,14 @@ jobs:
                   #
                   # --nxBail=false is nx's default already (it reads NX_BAIL when the flag is absent); it is
                   # spelled out so one package's failed publish never stops the packages behind it.
-                  pnpm exec nx release publish --nxBail=false
+                  #
+                  # A failed publish does not fail this step: the next step, which polls the registry, decides.
+                  # npm answers a retry inside its propagation window (up to about 7.5 minutes after it accepted
+                  # an upload) with E409 "Cannot publish over previously staged version" (npm/cli#9889), which
+                  # failed the 3.1.0 release although every version it refused was already published. Any other
+                  # failure leaves a version missing, and the next step fails on it.
+                  pnpm exec nx release publish --nxBail=false ||
+                      echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   # OIDC trusted publishing - npm will use the GitHub Actions OIDC token
@@ -378,8 +385,9 @@ jobs:
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
             # dependency failed. So the last word is the registry: every non-private package's version at the
-            # version commit must be installable. npm takes a little while to serve a fresh version, hence the
-            # bounded poll (10 tries, 30 s apart) against the registry before calling a package missing.
+            # version commit must be installable. npm takes a while to serve a fresh version (up to about 7.5
+            # minutes), hence the bounded poll (20 tries, 30 s apart) against the registry before calling a
+            # package missing.
             - name: Check every version is on npm
               run: |
                   missing() {
@@ -388,7 +396,7 @@ jobs:
                               [ "$(npm view "$spec" version 2>/dev/null)" = "${spec##*@}" ] || echo "$spec"
                           done
                   }
-                  for try in 1 2 3 4 5 6 7 8 9 10; do
+                  for try in $(seq 1 20); do
                       absent=$(missing)
                       [ -n "$absent" ] || { echo "every package version is on npm"; exit 0; }
                       echo "try ${try}: not on npm yet: ${absent//$'\n'/ }"

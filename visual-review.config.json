@@ -1,0 +1,55 @@
+{
+    "defaultBranch": "master",
+    "workflow": "ci.yml",
+    "baselines": "visual-baselines",
+    "workDir": "tmp/visual-review",
+    "commitPrefix": "test(workspace)",
+    "issueLabels": ["bug", "priority:medium", "effort:low"],
+    "projects": {
+        "compact-mantine": {
+            "storybook": "compact-mantine/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run compact-mantine:build-storybook",
+            "workers": 8,
+            "seedFromDefaultBranch": true
+        },
+        "graphty-element": {
+            "storybook": "graphty-element/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run graphty-element:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true,
+            "waitFor": {
+                "selector": "graphty-element",
+                "method": "waitForStableFrame",
+                "failOnConsole": "Graph settled timeout"
+            }
+        },
+        "layout": {
+            "storybook": "layout/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run layout:build && NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run layout:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true
+        },
+        "algorithms": {
+            "storybook": "algorithms/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run algorithms:build && NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run algorithms:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true,
+            "waitFor": {
+                "selector": "graphty-element",
+                "method": "waitForStableFrame",
+                "failOnConsole": "Graph settled timeout"
+            }
+        },
+        "graphty": {
+            "storybook": "graphty/storybook-static",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run graphty:build-storybook",
+            "workers": 4,
+            "seedFromDefaultBranch": true,
+            "waitFor": {
+                "selector": "graphty-element",
+                "method": "waitForStableFrame",
+                "failOnConsole": "Graph settled timeout"
+            }
+        }
+    }
+}

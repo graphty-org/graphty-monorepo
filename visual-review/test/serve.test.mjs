@@ -1,18 +1,26 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, request } from "node:http";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { newestMasterCapture } from "../trusted/lib/github.mjs";
+import { downloadCaptures, newestMasterCapture } from "../trusted/lib/github.mjs";
 import { createApp } from "../trusted/lib/serve.mjs";
-import { copyFixture, FIXTURE, fakeGh, git, isolateGit, job, makeRepo, onePr, pushCommit } from "./helpers.mjs";
+import {
+    copyFixture,
+    FIXTURE,
+    FIXTURE_CONFIG,
+    fakeGh,
+    git,
+    isolateGit,
+    job,
+    makeRepo,
+    onePr,
+    pushCommit,
+    withMoved,
+} from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
-// The live registry's entries for the two projects the fixtures hold, so adding a project to
-// projects.json does not change what these tests expect, while its seedFromMaster values are still tested.
-const REGISTRY = JSON.parse(readFileSync(new URL("../projects.json", import.meta.url), "utf8"));
-const PROJECTS = { "compact-mantine": REGISTRY["compact-mantine"], "graphty-element": REGISTRY["graphty-element"] };
 const TOKEN = "t".repeat(43);
 
 let server;
@@ -31,7 +39,7 @@ async function start(options = {}) {
     server = createServer((req, res) => box.app(req, res));
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
-    box.app = createApp({ repo, tmp, projects: PROJECTS, token: TOKEN, origin, ...options, gh: options.gh(r) });
+    box.app = createApp({ repo, tmp, config: FIXTURE_CONFIG, token: TOKEN, origin, ...options, gh: options.gh(r) });
     const api = async (method, path, body, headers = {}) => {
         const res = await fetch(`${origin}${path}`, {
             method,
@@ -201,8 +209,12 @@ describe("serve: master", () => {
     });
 
     it("refuses Accept for a project that is not seeded from master", async () => {
-        const projects = { ...PROJECTS, "graphty-element": { ...PROJECTS["graphty-element"], seedFromMaster: false } };
-        const s = await start({ gh: master, masterRun: 2000, projects });
+        const p = FIXTURE_CONFIG.projects;
+        const config = {
+            ...FIXTURE_CONFIG,
+            projects: { ...p, "graphty-element": { ...p["graphty-element"], seedFromDefaultBranch: false } },
+        };
+        const s = await start({ gh: master, masterRun: 2000, config });
         await s.api("GET", "/api/prs");
         const decide = (project, file) =>
             s.api("POST", "/api/decide", { id: "master", project, file, decision: "accept" });
@@ -292,6 +304,26 @@ describe("serve: access", () => {
         const s = await start({ gh: onePr() });
         expect((await s.api("GET", "/api/finish")).status).toBe(405);
         expect((await s.api("PUT", "/api/finish", { id: "123" })).status).toBe(405);
+    });
+});
+
+describe("serve: renamed stories", () => {
+    it("counts a moved item as needing a decision, serves its capture as its baseline, and accepts it", async () => {
+        const s = await start({ gh: withMoved });
+        const prs = await s.api("GET", "/api/prs");
+        const cm = prs.body.targets[0].projects.find((p) => p.project === "compact-mantine");
+        expect(cm.counts.moved).toBe(1);
+        expect(cm.reviewable).toBe(6);
+        const capture = readFileSync(join(FIXTURE, "compact-mantine/slider--sizes.png"));
+        const base = await s.api("GET", "/api/img/123/compact-mantine/baseline/slider--sizes.png");
+        expect(base.status).toBe(200);
+        expect(base.body.equals(capture)).toBe(true);
+        const decide = { id: "123", project: "compact-mantine", file: "slider--sizes.png", decision: "accept" };
+        expect((await s.api("POST", "/api/decide", decide)).status).toBe(200);
+        const item = (await s.api("GET", "/api/pr/123/compact-mantine")).body.items.find(
+            (i) => i.file === "slider--sizes.png",
+        );
+        expect(item).toMatchObject({ status: "moved", from: "old-slider--sizes" });
     });
 });
 
@@ -571,7 +603,7 @@ describe("serve: review extras", () => {
         ]);
     });
 
-    it("shows a story with no baseline yet but never accepts it, one by one or all at once", async () => {
+    it("accepts a story with no baseline yet, one by one or all at once", async () => {
         const fixture = JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8"));
         const items = fixture.items.map((i) =>
             i.file === "badge--default.light.png" ? { ...i, status: "unseeded" } : i,
@@ -587,14 +619,13 @@ describe("serve: review extras", () => {
             file: "badge--default.light.png",
             decision: "accept",
         });
-        expect(one.status).toBe(409);
+        expect(one.status).toBe(200);
         const all = await s.api("POST", "/api/accept-all", { id: "123", project: "compact-mantine" });
         expect(all.body).toEqual({ accepted: 3 });
         const { body } = await s.api("GET", "/api/pr/123/compact-mantine");
-        expect(body.decisions["badge--default.light.png"]).toBeUndefined();
-        expect(body.items.find((i) => i.file === "badge--default.light.png").status).toBe("unseeded");
+        expect(body.decisions["badge--default.light.png"]).toMatchObject({ decision: "accept" });
         const target = (await s.api("GET", "/api/target/123")).body.projects[0];
-        expect(target).toMatchObject({ counts: { unseeded: 1 }, reviewable: 5, undecided: 2 });
+        expect(target).toMatchObject({ counts: { unseeded: 1 }, reviewable: 6, undecided: 2 });
     });
 
     it("flags an item whose earlier accept on this branch was replaced by master's baseline", async () => {
@@ -635,17 +666,33 @@ describe("newestMasterCapture", () => {
         const r = makeRepo();
         const gh = fakeGh({
             masterRuns: [
-                { id: 3000, head: r.master },
-                { id: 2000, head: r.master },
+                { id: 3000, head: "3".repeat(40) },
+                { id: 2000, head: "2".repeat(40) },
                 { id: 1000, head: r.master },
             ],
             artifacts: { 3000: [], 2000: ["visual-compact-mantine-1"], 1000: ["visual-compact-mantine-1"] },
             results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, runId: 2000 } },
         });
         const tmp = join(r.dir, "reference");
-        const dir = await newestMasterCapture(gh, "compact-mantine", tmp);
+        const dir = await newestMasterCapture(gh, "compact-mantine", tmp, FIXTURE_CONFIG);
         expect(dir).toBe(join(tmp, "2000-1", "compact-mantine"));
         expect(JSON.parse(readFileSync(join(dir, "results.json"), "utf8")).runId).toBe(2000);
+    });
+
+    it("skips a master commit with no run", async () => {
+        const r = makeRepo();
+        const gh = fakeGh({
+            masterRuns: [
+                { id: null, head: "4".repeat(40) },
+                { id: 2000, head: r.master },
+            ],
+            artifacts: { 2000: ["visual-compact-mantine-1"] },
+            results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, runId: 2000 } },
+        });
+        const tmp = join(r.dir, "reference");
+        expect(await newestMasterCapture(gh, "compact-mantine", tmp, FIXTURE_CONFIG)).toBe(
+            join(tmp, "2000-1", "compact-mantine"),
+        );
     });
 
     it("finds nothing when no master run has a complete capture", async () => {
@@ -655,6 +702,61 @@ describe("newestMasterCapture", () => {
             artifacts: { 2000: ["visual-compact-mantine-1"] },
             results: { "visual-compact-mantine-1": { commit: r.master, pr: null, headSha: null, complete: false } },
         });
-        expect(await newestMasterCapture(gh, "compact-mantine", join(r.dir, "reference"))).toBeNull();
+        expect(await newestMasterCapture(gh, "compact-mantine", join(r.dir, "reference"), FIXTURE_CONFIG)).toBeNull();
+    });
+});
+
+describe("downloadCaptures", () => {
+    const setup = () => {
+        const r = makeRepo();
+        const inner = fakeGh({ artifacts: { 1000: ["visual-compact-mantine-1"] } });
+        const calls = [];
+        return { r, inner, calls, tmp: join(r.dir, "downloads"), run: { id: 1000 } };
+    };
+
+    it("downloads a run once when two refreshes ask for it at the same time", async () => {
+        const { inner, calls, tmp, run } = setup();
+        const gh = async (args, input) => {
+            if (args[0] === "run") {
+                calls.push(args);
+                // Extraction takes a while: the second caller arrives while the first is mid-way.
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+            return inner(args, input);
+        };
+        const [a, b] = await Promise.all([
+            downloadCaptures(gh, run, ["compact-mantine"], tmp),
+            downloadCaptures(gh, run, ["compact-mantine"], tmp),
+        ]);
+        expect(calls).toHaveLength(1);
+        expect(a).toEqual(b);
+        expect(existsSync(join(a["compact-mantine"].dir, "results.json"))).toBe(true);
+        expect(readdirSync(join(tmp, "1000-1"))).toEqual(["compact-mantine"]);
+    });
+
+    it("leaves no directory behind when a download is interrupted, and retries next time", async () => {
+        const { inner, tmp, run } = setup();
+        const failing = async (args, input) => {
+            if (args[0] === "run") {
+                // Half-extracted, then gh dies: results.json (written last) never arrives.
+                writeFileSync(join(args[6], "button--primary.png"), "partial");
+                throw new Error("error extracting zip archive");
+            }
+            return inner(args, input);
+        };
+        await expect(downloadCaptures(failing, run, ["compact-mantine"], tmp)).rejects.toThrow("zip");
+        expect(readdirSync(join(tmp, "1000-1"))).toEqual([]);
+
+        const out = await downloadCaptures(inner, run, ["compact-mantine"], tmp);
+        expect(existsSync(join(out["compact-mantine"].dir, "results.json"))).toBe(true);
+    });
+
+    it("replaces a leftover directory that has no results.json", async () => {
+        const { inner, tmp, run } = setup();
+        const dir = join(tmp, "1000-1", "compact-mantine");
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "button--primary.png"), "partial");
+        await downloadCaptures(inner, run, ["compact-mantine"], tmp);
+        expect(existsSync(join(dir, "results.json"))).toBe(true);
     });
 });

@@ -1,31 +1,34 @@
 #!/usr/bin/env node
 /**
- * The pull request gate: fails while a project that has baselines on the base branch holds visual
- * changes the owner has not reviewed.
+ * The pull request gate: fails while a project holds visual changes the owner has not reviewed.
  *
- * Seeding is per story, so a seeded project can hold stories with no baseline yet. Those that the
- * pull request did not change are `unseeded` (capture compared them with master's newest capture)
- * and pass; a story the pull request adds or changes is `new` and blocks until the owner accepts
- * it there, which creates its first baseline.
+ * It fails closed: nothing merges with an image nobody approved. Every project with baselines on the
+ * base branch, and every project in the base branch's config or the pull request's, is gated, seeded
+ * or not. Every story needs an approved baseline. A story with none blocks: `new` when the pull
+ * request adds or changes it, `unseeded` when it looks as in master's newest capture. Either way
+ * the owner accepts it (on the pull request, or by seeding it from the default branch), which
+ * creates its first baseline.
  *
  * <dir> holds the downloaded `visual-<project>-<attempt>` artifacts of this CI run, every attempt
  * of it. For each project only the highest attempt counts, so re-running failed jobs (which
  * leaves the visual jobs' old attempt as the newest) can neither hide nor resurrect a capture.
  * Which projects exist and are seeded is read from <ref> (the base branch tip, fetched by the
- * caller), not from the pull request, so deleting a project's baselines in the pull request does not turn the
- * gate off. A seeded project with no results.json, or an incomplete one, fails: a capture that
+ * caller), and so is visual-review.config.json (the projects and where the baselines live), so
+ * neither deleting a project's baselines, nor removing it from the config, nor moving the baselines
+ * directory in the pull request turns the gate off. The pull request's config can only add projects. A gated project with no results.json, or an incomplete one, fails: a capture that
  * crashed has shown the owner nothing. An invalid results.json counts as missing.
  *
  * It also fails when a baseline PNG, or a settings file that excludes a story, differs from the
- * base without a review record added in the pull request (visual-baselines/reviews/*.json) naming
+ * base without a review record added in the pull request (<baselines>/reviews/*.json) naming
  * that path and its new hash. Without that, committing the captured PNGs straight into
- * visual-baselines/ would turn the capture check green with no review at all. Only a record's
- * items[].path and items[].to are read, so this proves a record names the change, not that Finish
- * wrote it or the owner pressed it (visual-review/README.md, "What this does and does not
+ * the baselines directory would turn the capture check green with no review at all. Only a
+ * record's items[].path and items[].to are read, so this proves a record names the change, not
+ * that Finish wrote it or the owner pressed it (the README, "What the gate does and does not
  * guarantee").
  *
- * Usage: node visual-review/trusted/gate.mjs --captures <dir> --base <ref> [--head <ref>]
- * Standard library only (results.mjs has no dependencies), so it runs without an install.
+ * Usage: visual-review gate --captures <dir> --base <ref> [--head <ref>], or node gate.mjs with
+ * the same options. Standard library only (results.mjs and config.mjs have no dependencies), so
+ * it runs from a checkout of this package without an install.
  */
 
 import { execFileSync } from "node:child_process";
@@ -35,9 +38,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { loadConfigAt, repoRoot } from "./lib/config.mjs";
 import { validateResults } from "./lib/results.mjs";
 
-const PASSING = new Set(["unchanged", "excluded", "unseeded"]);
+const PASSING = new Set(["unchanged", "excluded"]);
 
 /**
  * The newest attempt's results.json of every project in a directory of downloaded artifacts.
@@ -65,18 +69,29 @@ export function newestResults(dir) {
 }
 
 /**
+ * The projects the gate checks: every project with baselines at the base, and every project of the
+ * base's config and of the pull request's.
+ * @param {{ projects: Record<string, object> }} config the base branch's config
+ * @param {Set<string>} seeded the projects with baselines at the base
+ * @param {{ projects: Record<string, object> }} [headConfig] the pull request's config
+ * @returns {string[]} the gated project ids
+ */
+export function gatedProjects(config, seeded, headConfig) {
+    return [...new Set([...seeded, ...Object.keys(config.projects), ...Object.keys(headConfig?.projects ?? {})])];
+}
+
+/**
  * What blocks the pull request.
- * @param {{ projects: string[], seeded: Set<string>, captures: Record<string, { attempt: number,
- *     results: object | null }> }} input every captured project, those with baselines on the base
- *     branch, and the newest capture of each
+ * @param {{ config: { defaultBranch: string, projects: Record<string, { seedFromDefaultBranch: boolean }> },
+ *     headConfig: { projects: Record<string, object> } | undefined, seeded: Set<string>,
+ *     captures: Record<string, { attempt: number, results: object | null }> }} input the base
+ *     branch's config, the pull request's config (if any), the projects with baselines on the base
+ *     branch, and the newest capture of each project
  * @returns {string[]} one line per blocked project; empty when the gate passes
  */
-export function gateProblems({ projects, seeded, captures }) {
+export function gateProblems({ config, headConfig, seeded, captures }) {
     const problems = [];
-    for (const p of projects) {
-        if (!seeded.has(p)) {
-            continue;
-        }
+    for (const p of gatedProjects(config, seeded, headConfig)) {
         const r = captures[p]?.results;
         if (!r) {
             problems.push(`${p}: no capture results (the visual job failed or uploaded nothing); re-run it`);
@@ -98,13 +113,34 @@ export function gateProblems({ projects, seeded, captures }) {
             for (const s of open) {
                 counts.set(s, (counts.get(s) ?? 0) + 1);
             }
-            problems.push(
-                `${p}: ${[...counts].map(([s, n]) => `${n} ${s}`).join(", ")} ` +
-                    "(not accepted; a rejected item needs a code change, not another review)",
-            );
+            const what = [...counts].map(([s, n]) => `${n} ${s}`).join(", ");
+            problems.push(`${p}: ${what} ${seeded.has(p) ? NOT_ACCEPTED : notSeeded(config, p)}`);
         }
     }
     return problems;
+}
+
+const NOT_ACCEPTED = "(not accepted; a rejected item needs a code change, not another review)";
+
+/**
+ * Why an unseeded project blocks, and how to seed it.
+ * @param {{ defaultBranch: string, projects: Record<string, { seedFromDefaultBranch: boolean }> }} config the
+ *     base branch's config
+ * @param {string} p the project
+ * @returns {string} the rest of the gate's line
+ */
+function notSeeded(config, p) {
+    const branch = config.defaultBranch;
+    const here = "accept them on this pull request with `visual-review serve`";
+    if (config.projects[p]?.seedFromDefaultBranch === false) {
+        return `(not accepted; ${p} has no baselines on ${branch} yet, so ${here} to create its first ones)`;
+    }
+    return (
+        `(not accepted; ${p} has no baselines on ${branch} yet. Seed it: capture a known-good commit with ` +
+        `\`gh workflow run visual-seed.yml --ref ${branch} -f ref=<sha>\` (or take ${branch}'s newest run), ` +
+        `review that run with \`visual-review serve --master-run <run id>\` and merge the seed pull ` +
+        `request, then merge ${branch} into this branch; or ${here})`
+    );
 }
 
 const gitOut = (cwd, args) => execFileSync("git", args, { cwd, maxBuffer: 1 << 28 });
@@ -114,10 +150,11 @@ const gitOut = (cwd, args) => execFileSync("git", args, { cwd, maxBuffer: 1 << 2
  * @param {string} base the base branch tip
  * @param {string} head the pull request's checkout
  * @param {string} [cwd] the repository
+ * @param {string} [baselines] the baselines directory
  * @returns {string[]} one line per unaccounted change; empty when every change has a record
  */
-export function unrecordedChanges(base, head, cwd = process.cwd()) {
-    const fields = gitOut(cwd, ["diff", "-z", "--no-renames", "--name-status", base, head, "--", "visual-baselines/"])
+export function unrecordedChanges(base, head, cwd = process.cwd(), baselines = "visual-baselines") {
+    const fields = gitOut(cwd, ["diff", "-z", "--no-renames", "--name-status", base, head, "--", `${baselines}/`])
         .toString("utf8")
         .split("\0");
     const show = (path) => gitOut(cwd, ["show", `${head}:${path}`]);
@@ -126,7 +163,7 @@ export function unrecordedChanges(base, head, cwd = process.cwd()) {
     const changed = [];
     for (let i = 0; i + 1 < fields.length; i += 2) {
         const [status, path] = [fields[i], fields[i + 1]];
-        if (path.startsWith("visual-baselines/reviews/")) {
+        if (path.startsWith(`${baselines}/reviews/`)) {
             if (status === "A") {
                 records.push(path);
             } else {
@@ -184,46 +221,81 @@ function parseOr(bytes) {
 }
 
 /**
- * The projects with at least one baseline PNG at a git ref: the directories under
- * visual-baselines/ at the base tip, so a pull request cannot drop a project from the gate by
- * editing visual-review/projects.json.
+ * The projects with at least one baseline PNG at a git ref: the directories under the baselines
+ * directory at the base tip. They are gated whatever the config says.
  * @param {string} ref the base branch tip
  * @param {string} [cwd] the repository
+ * @param {string} [baselines] the baselines directory
  * @returns {Set<string>} the seeded ones
  */
-export function seededAt(ref, cwd = process.cwd()) {
-    const files = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", "visual-baselines/"], {
+export function seededAt(ref, cwd = process.cwd(), baselines = "visual-baselines") {
+    const files = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", `${baselines}/`], {
         cwd,
         encoding: "utf8",
         maxBuffer: 1 << 28,
     }).split("\n");
-    return new Set(files.map((f) => /^visual-baselines\/([^/]+)\/.+\.png$/.exec(f)?.[1]).filter(Boolean));
+    const prefix = `${baselines}/`;
+    return new Set(
+        files
+            .filter((f) => f.startsWith(prefix) && f.endsWith(".png"))
+            .map((f) => f.slice(prefix.length).split("/"))
+            .filter((parts) => parts.length > 1)
+            .map((parts) => parts[0]),
+    );
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+export const GATE_USAGE = `usage: visual-review gate --captures <dir> --base <ref> [--head <ref>]
+
+Fails (exit 1) while a pull request holds visual changes nobody accepted, or a baseline change
+with no review record. Run it in CI after the capture jobs, on the pull request's merge commit.
+
+  --captures <dir>  the downloaded visual-<project>-<attempt> artifacts of this run
+  --base <ref>      the base branch tip (HEAD^1 on a pull request's merge commit)
+  --head <ref>      the pull request's checkout (default HEAD)`;
+
+/**
+ * The gate as a command.
+ * @param {string[]} args the command line after "gate"
+ * @returns {number} the exit code
+ */
+export function runGate(args) {
     const { values } = parseArgs({
-        options: { captures: { type: "string" }, base: { type: "string" }, head: { type: "string", default: "HEAD" } },
+        args,
+        options: {
+            captures: { type: "string" },
+            base: { type: "string" },
+            head: { type: "string", default: "HEAD" },
+            help: { type: "boolean", default: false },
+        },
     });
-    if (!values.captures || !values.base) {
-        console.error("usage: gate.mjs --captures <dir> --base <ref> [--head <ref>]");
-        process.exit(2);
+    if (values.help) {
+        console.log(GATE_USAGE);
+        return 0;
     }
-    const seeded = seededAt(values.base);
-    const problems = gateProblems({
-        projects: [...seeded],
-        seeded,
-        captures: newestResults(values.captures),
-    });
+    if (!values.captures || !values.base) {
+        console.error(GATE_USAGE);
+        return 2;
+    }
+    const root = repoRoot();
+    const config = loadConfigAt(values.base, root);
+    const seeded = seededAt(values.base, root, config.baselines);
+    const headConfig = loadConfigAt(values.head, root);
+    const problems = gateProblems({ config, headConfig, seeded, captures: newestResults(values.captures) });
     for (const line of problems) {
         console.log(`::error::visual changes not accepted -- ${line}`);
     }
-    const unrecorded = unrecordedChanges(values.base, values.head);
+    const unrecorded = unrecordedChanges(values.base, values.head, root, config.baselines);
     for (const line of unrecorded) {
         console.log(`::error::baseline without a review -- ${line}`);
     }
     if (problems.length + unrecorded.length > 0) {
-        console.log("Review them with visual-review serve (visual-review/README.md).");
-        process.exit(1);
+        console.log("Review them with `visual-review serve` (the @graphty/visual-review README).");
+        return 1;
     }
     console.log("No unaccepted visual changes, and every baseline change has a review record.");
+    return 0;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    process.exitCode = runGate(process.argv.slice(2));
 }

@@ -56,6 +56,9 @@ const meta: Meta<StoryArgs> = {
         nodeData: NODES,
         edgeData: EDGES,
         layout: "circular",
+        // The circle's default radius is 80 scene units, which shrinks seven unit-sized nodes and
+        // their labels to specks once the camera frames it. A radius of 6.4 keeps them readable.
+        layoutConfig: { scale: 0.08 },
         setup: storySetup({
             viewMode: "2d",
             nodeEncode: { "node.label": { by: "data.label", scale: "passthrough" } },

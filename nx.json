@@ -2,7 +2,7 @@
     "$schema": "./node_modules/nx/schemas/nx-schema.json",
     "defaultBase": "master",
     "release": {
-        "projects": ["*", "!visual-review"],
+        "projects": ["*"],
         "projectsRelationship": "independent",
         "releaseTagPattern": "{projectName}@{version}",
         "version": {
@@ -21,7 +21,8 @@
                     "authors": true,
                     "commitReferences": true,
                     "versionTitleDate": true
-                }
+                },
+                "renderer": "{workspaceRoot}/tools/changelog-renderer.cjs"
             }
         },
         "git": {

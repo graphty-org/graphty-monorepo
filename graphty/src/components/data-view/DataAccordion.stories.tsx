@@ -10,7 +10,7 @@ const meta: Meta<typeof DataAccordion> = {
     },
     decorators: [
         (Story) => (
-            <div style={{ width: "300px", backgroundColor: "var(--mantine-color-dark-7)" }}>
+            <div style={{ width: "300px", backgroundColor: "var(--mantine-color-body)" }}>
                 <Story />
             </div>
         ),
@@ -38,7 +38,7 @@ export const NoSelection: Story = {
 export const NarrowWidth: Story = {
     decorators: [
         (Story) => (
-            <div style={{ width: "300px", backgroundColor: "var(--mantine-color-dark-7)" }}>
+            <div style={{ width: "300px", backgroundColor: "var(--mantine-color-body)" }}>
                 <Story />
             </div>
         ),

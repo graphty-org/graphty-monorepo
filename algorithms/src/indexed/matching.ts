@@ -68,9 +68,64 @@ function resolveSides(s: GraphSnapshot, options: BipartiteMatchingOptions): Side
 }
 
 /**
- * Maximum matching of a bipartite graph by augmenting paths (Kuhn's algorithm, O(V E)): every left
- * node in index order searches depth-first, iteratively, for an augmenting path. Parallel arcs and
- * arc direction (by default) make no difference to the matching size.
+ * Every node's neighbours over `views`, each row in ascending order of the edge that joins them (a
+ * counting sort of the arcs by edge, O(n + m)): the order in which the 2.x Graph listed a node's
+ * neighbours, its edges' insertion order. Parallel arcs leave repeats, which the searches skip.
+ * @param views - The adjacencies to merge
+ * @param nodeCount - The number of nodes
+ * @param edgeCount - The number of logical edges
+ * @returns Row offsets and the neighbours of every row
+ */
+function edgeOrderedRows(
+    views: readonly AdjacencyView[],
+    nodeCount: number,
+    edgeCount: number,
+): { start: U32; nbr: U32 } {
+    const start = new Uint32Array(nodeCount + 1);
+    const byEdge = new Uint32Array(edgeCount + 1);
+    for (const { rowPtr, arcToEdge } of views) {
+        for (let u = 0; u < nodeCount; u++) {
+            start[u + 1] += rowPtr[u + 1] - rowPtr[u];
+        }
+        for (const e of arcToEdge) {
+            byEdge[e + 1]++;
+        }
+    }
+    for (let u = 0; u < nodeCount; u++) {
+        start[u + 1] += start[u];
+    }
+    for (let e = 0; e < edgeCount; e++) {
+        byEdge[e + 1] += byEdge[e];
+    }
+    // The arcs as (row, target) pairs in edge order, then dealt into their rows in that order.
+    const total = start[nodeCount];
+    const arcRow = new Uint32Array(total);
+    const arcCol = new Uint32Array(total);
+    for (const { rowPtr, colIdx, arcToEdge } of views) {
+        for (let u = 0; u < nodeCount; u++) {
+            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+                const k = byEdge[arcToEdge[a]]++;
+                arcRow[k] = u;
+                arcCol[k] = colIdx[a];
+            }
+        }
+    }
+    const fill = start.slice(0, nodeCount);
+    const nbr = new Uint32Array(total);
+    for (let k = 0; k < total; k++) {
+        nbr[fill[arcRow[k]]++] = arcCol[k];
+    }
+    return { start, nbr };
+}
+
+/**
+ * Maximum matching of a bipartite graph by augmenting paths (Kuhn's algorithm, O(V E)).
+ *
+ * Tie rule: among the equally large matchings it returns the one 2.x returned. Left nodes search
+ * in the order a breadth-first walk first reaches them (roots in node order, as `isBipartite`
+ * colours), and every node tries its neighbours in the order of the edge that joins them, the
+ * earliest added first. The search is depth-first and iterative. Parallel arcs and arc direction
+ * (by default) make no difference to the matching size.
  * @param s - The snapshot
  * @param options - The two sides, and which arcs to follow on a directed snapshot
  * @returns The partner of every matched left node and the number of pairs
@@ -82,56 +137,67 @@ export function maximumBipartiteMatching(
     options: BipartiteMatchingOptions = {},
 ): BipartiteMatchingResult {
     // ponytail: Kuhn is O(V E) like the legacy function; Hopcroft-Karp (O(sqrt(V) E)) if a caller
-    // needs large graphs with long augmenting paths.
+    // needs large graphs with long augmenting paths -- it would break the 2.x tie rule.
     const { left, right, views } = resolveSides(s, options);
     const { nodeCount } = s;
+    const { start, nbr } = edgeOrderedRows(views, nodeCount, s.edgeCount);
+    // The breadth-first order the left nodes search in.
+    const order = new Uint32Array(nodeCount);
+    const reached = new Uint8Array(nodeCount);
+    let tail = 0;
+    for (let r = 0; r < nodeCount; r++) {
+        if (reached[r] === 1) {
+            continue;
+        }
+        reached[r] = 1;
+        let head = tail;
+        order[tail++] = r;
+        while (head < tail) {
+            const u = order[head++];
+            for (let k = start[u]; k < start[u + 1]; k++) {
+                if (reached[nbr[k]] === 0) {
+                    reached[nbr[k]] = 1;
+                    order[tail++] = nbr[k];
+                }
+            }
+        }
+    }
     const matching = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const mateOfRight = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const seen = new Uint32Array(nodeCount);
-    // The DFS stack of left nodes; view and arc cursors per stacked node; the right node taken to
+    // The DFS stack of left nodes; the neighbour cursor per stacked node; the right node taken to
     // descend from each stacked node.
     const stack = new Uint32Array(nodeCount);
-    const viewAt = new Uint8Array(nodeCount);
-    const arcAt = new Uint32Array(nodeCount);
+    const cursor = new Uint32Array(nodeCount);
     const via = new Uint32Array(nodeCount);
     let size = 0;
-    for (let root = 0; root < nodeCount; root++) {
+    for (let i = 0; i < nodeCount; i++) {
+        const root = order[i];
         if (!maskTest(left, root)) {
             continue;
         }
-        const stamp = root + 1;
+        const stamp = i + 1;
         let top = 0;
         stack[top++] = root;
-        viewAt[root] = 0;
-        arcAt[root] = 0;
+        cursor[root] = start[root];
         let free = INVALID_INDEX;
         search: while (top > 0) {
             const x = stack[top - 1];
-            for (; viewAt[x] < views.length; viewAt[x]++) {
-                const { rowPtr, colIdx } = views[viewAt[x]];
-                const end = rowPtr[x + 1];
-                // A cursor of 0 means "not started in this view".
-                if (arcAt[x] < rowPtr[x]) {
-                    arcAt[x] = rowPtr[x];
+            while (cursor[x] < start[x + 1]) {
+                const v = nbr[cursor[x]++];
+                if (seen[v] === stamp || !maskTest(right, v)) {
+                    continue;
                 }
-                while (arcAt[x] < end) {
-                    const v = colIdx[arcAt[x]++];
-                    if (seen[v] === stamp || !maskTest(right, v)) {
-                        continue;
-                    }
-                    seen[v] = stamp;
-                    const next = mateOfRight[v];
-                    if (next === INVALID_INDEX) {
-                        free = v;
-                        break search;
-                    }
-                    via[x] = v;
-                    stack[top++] = next;
-                    viewAt[next] = 0;
-                    arcAt[next] = 0;
-                    continue search;
+                seen[v] = stamp;
+                const next = mateOfRight[v];
+                if (next === INVALID_INDEX) {
+                    free = v;
+                    break search;
                 }
-                arcAt[x] = 0;
+                via[x] = v;
+                stack[top++] = next;
+                cursor[next] = start[next];
+                continue search;
             }
             top--;
         }

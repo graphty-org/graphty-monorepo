@@ -17,12 +17,13 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import {
     type SimulationEngineInit,
     type SimulationEngineOptions,
     SimulationLayoutEngine,
 } from "../layout/SimulationLayoutEngine";
+import { SnapshotLayoutEngine, snapshotLayoutInternals } from "../layout/SnapshotLayoutEngine";
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
@@ -468,6 +469,16 @@ export class LayoutManager implements Manager {
      */
     restoring: () => boolean = () => false;
 
+    /**
+     * Whether a new layout has been asked for and is waiting its turn. While one is, the frame
+     * loop does not step the engine it will replace: the new engine starts from the arrangement
+     * it finds, so a frame that stepped the old one in between -- or paid the old one's owed
+     * pre-steps -- would make where the new layout starts, and so where it ends, depend on
+     * whether a frame happened to fall between a load landing and the layout being built.
+     * @returns True while one is.
+     */
+    replacing: () => boolean = () => false;
+
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
 
@@ -529,6 +540,16 @@ export class LayoutManager implements Manager {
      * ignored, so the element's own restarts cannot undo the pause.
      */
     set running(value: boolean) {
+        this.setRunning(value, true);
+    }
+
+    /**
+     * Start or stop stepping the layout; see {@link LayoutManager.running}.
+     * @param value - True to step it.
+     * @param reheatSettled - Whether starting a settled simulation reheats it, which a resume
+     *     wants and a layout that has just been built does not.
+     */
+    private setRunning(value: boolean, reheatSettled: boolean): void {
         const next = value && !this._paused;
         const resuming = next && !this._running;
         const resting = !next && this._running;
@@ -546,7 +567,12 @@ export class LayoutManager implements Manager {
         // ONLY THE BRIDGE HAS A SETTLE COUNT TO RESTART. The one-shot engines are finished when
         // they are finished, and `ngraph` never reports settled, so neither has anything a
         // reheat could mean.
-        if (resuming && this.layoutEngine instanceof SimulationLayoutEngine && this.layoutEngine.isSettled) {
+        if (
+            reheatSettled &&
+            resuming &&
+            this.layoutEngine instanceof SimulationLayoutEngine &&
+            this.layoutEngine.isSettled
+        ) {
             this.layoutEngine.reheat();
         }
     }
@@ -666,7 +692,7 @@ export class LayoutManager implements Manager {
             engine.setHoldMask(...this.holdMaskOf(this.members));
         }
 
-        if (engine instanceof SimpleLayoutEngine) {
+        if (engine instanceof StaticLayoutEngine) {
             engine.reload(event, this.dataManager.isLoading);
             return;
         }
@@ -837,6 +863,29 @@ export class LayoutManager implements Manager {
             throw this.reportLayoutFailure(type, error, "built");
         }
 
+        if (engine instanceof SnapshotLayoutEngine) {
+            const built = engine;
+            snapshotLayoutInternals.connect(built, {
+                progress: (progress) => {
+                    this.eventManager.emitGraphEvent("layout-progress", { layoutType: type, ...progress });
+                },
+                fail: (error) => {
+                    if (this.layoutEngine === built) {
+                        this.running = false;
+                    }
+
+                    this.reportLayoutFailure(type, error, "stepped");
+                },
+                arrived: () => {
+                    // The answer is published by the next frame's step, which runs only while the
+                    // layout does.
+                    if (this.layoutEngine === built && !this.restoring()) {
+                        this.running = true;
+                    }
+                },
+            });
+        }
+
         if (!engine) {
             // The class was in the registry a moment ago and building it produced nothing, which
             // only a host that has replaced `LayoutEngine.get` can arrange. Treated as the name
@@ -911,7 +960,13 @@ export class LayoutManager implements Manager {
                 // rendered perfectly while leaving every node unplaced.
                 engine.publishPositions();
 
-                this.running = true;
+                // STARTED, NOT RESUMED, so a simulation its pre-steps settled is not reheated. The
+                // frame loop stops a settled layout, and when one of its frames landed while the
+                // pre-steps were awaited -- and a graph loaded before any layout was built reads
+                // as settled -- this was a false-to-true that `running` takes for a reader
+                // pressing play. The reheat sent Fruchterman-Reingold back to 70% of its budget
+                // and ran fifteen more iterations, so the same seed drew two different graphs.
+                this.setRunning(true, false);
 
                 this.logger.debug("Layout initialized", {
                     type,
@@ -1535,7 +1590,9 @@ export class LayoutManager implements Manager {
         // Nothing steps while undo, redo, a restore or a rollback is on its way to the position
         // array either: the `arrangement` hook places the restored coordinates, and a step before
         // it has run would move the arrangement being restored. The frames after it step again.
-        if (this.#building > 0 || this.restoring()) {
+        //
+        // Nor while a new layout waits its turn: see `replacing`.
+        if (this.#building > 0 || this.restoring() || this.replacing()) {
             return;
         }
 
@@ -1699,8 +1756,16 @@ export class LayoutManager implements Manager {
         // would abort the rest of that pass -- its repaint -- over a layout that cannot place the
         // graph as it stands: bfs over nodes whose edges have not arrived yet is disconnected
         // until they do. A frame that cannot step is reported the same way.
+        // A layout built over an empty graph still owes its pre-steps, and the first frame spends
+        // them over every node and edge there is by then. Blind steps here would run first, over
+        // whatever part of the graph has arrived -- the nodes without their edges, when the edges
+        // come in a later pass -- and start the pre-steps from a different arrangement: the same
+        // data and seed then settled somewhere else than when the layout was built over it.
         try {
-            this.layoutEngine.updatePositions(nodes);
+            if (!this.preStepsOwed) {
+                this.layoutEngine.updatePositions(nodes);
+            }
+
             this.layoutEngine.publishPositions();
         } catch (error) {
             this.reportLayoutFailure(this.layoutEngine.type, error, "stepped");

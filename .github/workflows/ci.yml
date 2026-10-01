@@ -173,10 +173,9 @@ jobs:
             - name: Migration count script
               run: pnpm run check:migration-counts
 
-            # Reads source only. A new use of the legacy graph API (a legacy algorithms or layout
-            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails;
-            # the uses the graph-format migration has not removed yet are in
-            # tools/legacy-use-baseline.json. The same check runs in tools/prepush.sh.
+            # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
+            # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
+            # The same check runs in tools/prepush.sh.
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
@@ -803,9 +802,9 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Performance regression tests (algorithms only, master branch)
+    # The algorithms benchmark table (master branch only): a measurement, with no baseline to compare
     performance:
-        name: Performance Tests
+        name: Performance Benchmarks
         needs: test
         if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         runs-on: ubuntu-latest
@@ -833,26 +832,11 @@ jobs:
                   name: build-packages
                   path: .
 
-            - name: Download performance baseline
-              uses: actions/download-artifact@v4
-              with:
-                  name: performance-baseline
-                  path: algorithms/test/
-              continue-on-error: true
-
-            - name: Run performance regression tests
+            - name: Run the algorithms benchmarks
               run: pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
-
-            - name: Upload performance baseline
-              uses: actions/upload-artifact@v4
-              with:
-                  name: performance-baseline
-                  path: algorithms/test/performance-baseline.json
-                  retention-days: 90
-                  if-no-files-found: ignore
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
@@ -904,7 +888,12 @@ jobs:
                   } >> "$GITHUB_STEP_SUMMARY"
 
     # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
-    # in visual-baselines/ (visual-review/, design in design/visual-testing/design.md). The owner reviews
+    # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
+    # visual-review.config.json, design in design/visual-testing/design.md). This job is the "visual"
+    # job of the package's workflow template (visual-review/templates/visual-review.yml) with two
+    # differences: the matrix is written out here, and the Storybook is downloaded from this run's
+    # build job instead of built again. A test (visual-review/test/workflows.test.mjs) keeps the
+    # commands the same as the template's. The owner reviews
     # the uploaded captures in the page `visual-review serve` runs on their machine; that page finds this
     # job by its name ("visual (<project>)") and the artifact by "visual-<project>-<attempt>" (the attempt
     # avoids upload-artifact v4's same-name conflict on a re-run; readers take the highest attempt). Changes are never a failure here:
@@ -933,6 +922,10 @@ jobs:
                       artifact: build-storybook-element
                     - project: layout
                       artifact: build-storybook-layout
+                    - project: algorithms
+                      artifact: build-storybook-algorithms
+                    - project: graphty
+                      artifact: build-storybook-app
         steps:
             # Baseline PNGs are Git LFS objects. The checkout leaves them as pointer files (no job fetches
             # LFS objects by default); this job alone fetches them, and only its own project's. The objects
@@ -968,7 +961,7 @@ jobs:
             # Keyed by the Playwright version capture imports, so a bump downloads the matching Chromium.
             - name: Read the Playwright version
               id: playwright
-              run: echo "version=$(node -p 'require("./visual-review/package.json").dependencies.playwright')" >> "$GITHUB_OUTPUT"
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
               uses: actions/cache@v4
@@ -978,7 +971,7 @@ jobs:
 
             # With the browser cached this installs only the system libraries Chromium needs.
             - name: Install Chromium
-              run: pnpm --filter @graphty/visual-review exec playwright install --with-deps chromium
+              run: pnpm exec visual-review install-browser
 
             - name: Download Storybook build
               uses: actions/download-artifact@v4
@@ -986,19 +979,19 @@ jobs:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.project }}/storybook-static/
 
-            # Seeding is per story: a story with no baseline that looks as it does in master's newest capture is
-            # "unseeded" and does not block this pull request; one that differs, or is new, blocks until the
-            # owner accepts it. Without a reference (none downloaded) every story with no baseline is "new".
+            # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
+            # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.
+            # Without a reference (none downloaded) every story with no baseline is "new".
             - name: Download master's newest capture
               id: reference
               if: github.event_name == 'pull_request'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
-              run: echo "dir=$(node visual-review/trusted/cli.mjs reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
 
             - name: Capture
-              run: node visual-review/trusted/cli.mjs capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
+              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}"
 
             # Kept even when capture crashed, so the owner sees the partial results.json.
             - name: Upload captures
@@ -1070,17 +1063,20 @@ jobs:
                   echo "All checks passed!"
 
             # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
-            # with baselines on the base branch fails here when its newest capture (the highest attempt
-            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged,
-            # excluded or unseeded items (unseeded: no baseline yet, and this pull request does not
-            # change it), or when that capture is missing, unfinished or invalid. It also fails when
+            # of the base branch's or this pull request's visual-review.config.json, or with baselines on the
+            # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
+            # excluded items (so every story without an approved baseline blocks, unseeded included),
+            # or when that capture is missing, unfinished or invalid. It also fails when
             # a baseline PNG or an excluding settings file differs from the base without a review record
             # added in the pull request that names its new hash. So it shows the captures match the pull
             # request's baselines and that each baseline change is named (path and new hash) in a record;
             # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
-            # (visual-review/README.md, "What this does and does not guarantee"). Pull requests only, so
+            # (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
-            # (standard library only). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
+            # (standard library only), run from this checkout rather than with npx as the package's
+            # template does, so a change to the gate is tested by its own pull request; it reads
+            # visual-review.config.json from the base tip (sparse checkout keeps the root's files). Depth 2 so HEAD^1, the merge ref's first parent, is the base tip
             # the pull request was merged onto; blobs are fetched only for the changed baselines, which are
             # Git LFS pointer files naming the image's SHA-256, so no LFS object is downloaded here.
             - name: Check out the gate
@@ -1101,4 +1097,4 @@ jobs:
 
             - name: Check visual changes were accepted
               if: github.event_name == 'pull_request'
-              run: node visual-review/trusted/gate.mjs --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD
+              run: node visual-review/trusted/cli.mjs gate --captures "$RUNNER_TEMP/visual" --base HEAD^1 --head HEAD

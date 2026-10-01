@@ -8,7 +8,7 @@ import type { AdHocData } from "../config/common";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
 import { resolveEndpoints } from "./endpoints";
 import type { DataLoadingError } from "./ErrorAggregator";
-import { importRecords, recordIssues } from "./graph-io-records";
+import { aggregateErrors, importRecords } from "./graph-io-import";
 
 const JsonNodeConfig = z
     .strictObject({
@@ -218,7 +218,7 @@ export class JsonDataSource extends DataSource {
                 errorLimit: this.opts.errorLimit,
             },
         );
-        recordIssues(imported.report, this.errorAggregator);
+        aggregateErrors(imported.report, this.errorAggregator, true);
 
         // An edge naming a node the file never declared adds that node to the import, with no
         // position; the element materialises such an endpoint itself, and has never been handed a

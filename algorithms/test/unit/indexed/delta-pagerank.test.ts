@@ -1,17 +1,13 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    DeltaPageRank as LegacyDeltaPageRank,
-    PriorityDeltaPageRank as LegacyPriorityDeltaPageRank,
-} from "../../../src/algorithms/centrality/delta-pagerank.js";
-import { pageRank as legacyPageRank } from "../../../src/algorithms/centrality/pagerank.js";
-import { Graph } from "../../../src/core/graph.js";
 import { DeltaPageRank, deltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
-import { exactArcWeights } from "../../../src/indexed/facade.js";
-import { toSnapshot } from "../../../src/indexed/to-snapshot.js";
-import type { NodeId } from "../../../src/types/index.js";
+import { exactArcWeights } from "../../helpers/facade.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
+import type { NodeId } from "../../helpers/legacy-types.js";
+import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, gnm } from "./port-fixtures.js";
 
 /** Legacy pageRank switches to its delta engine when `useDelta !== false && n > 100`. */
@@ -149,21 +145,7 @@ describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
     for (const { name, options } of cases) {
         for (const useDelta of [undefined, true, false]) {
             it(`${name}: scores, iterations and converged equal legacy pageRank (useDelta ${String(useDelta)})`, () => {
-                expectFacadeMatchesLegacy(
-                    fixtures(),
-                    (g) =>
-                        legacyPageRank(g, {
-                            useDelta,
-                            dampingFactor: "dampingFactor" in options ? options.dampingFactor : undefined,
-                            tolerance: "tolerance" in options ? options.tolerance : undefined,
-                            maxIterations: "maxIterations" in options ? options.maxIterations : undefined,
-                            weight: "weighted" in options ? "weight" : undefined,
-                            personalization: "personalize" in options ? firstThree(g) : undefined,
-                            initialRanks: "initial" in options ? firstThree(g) : undefined,
-                        }),
-                    (g) => portedPageRank(g, options),
-                    { tolerance: 1e-9 },
-                );
+                expectFacadeMatchesLegacy(fixtures(), (g) => portedPageRank(g, options), { tolerance: 1e-9 });
             });
         }
     }
@@ -224,7 +206,7 @@ describe("deltaPageRank, the legacy pageRank facade's power iteration", () => {
         twin.addEdge("a", "c", 1);
         twin.addEdge("b", "c", 1);
         twin.addEdge("c", "a", 1);
-        const legacy = legacyPageRank(twin, { weight: "weight" });
+        const legacy = legacyResult() as PageRankResult;
         const r = deltaPageRank(s);
         for (let i = 0; i < 3; i++) {
             expect(r.scores[i]).toBeCloseTo(legacy.ranks[String(s.ids.idOf(i))], 12);
@@ -243,20 +225,6 @@ describe("indexed.DeltaPageRank", () => {
         { name: "damping 0.7", options: { dampingFactor: 0.7 } },
         { name: "tolerance 0.05, above the teleport share", options: { tolerance: 0.05 } },
     ] as const;
-
-    function legacyOptions(
-        g: Graph,
-        options: (typeof cases)[number]["options"],
-    ): Parameters<LegacyDeltaPageRank["compute"]>[0] {
-        return {
-            dampingFactor: "dampingFactor" in options ? options.dampingFactor : undefined,
-            maxIterations: "maxIterations" in options ? options.maxIterations : undefined,
-            tolerance: "tolerance" in options ? options.tolerance : undefined,
-            deltaThreshold: "deltaThreshold" in options ? options.deltaThreshold : undefined,
-            weight: "weight" in options ? options.weight : undefined,
-            personalization: "personalize" in options ? firstThree(g) : undefined,
-        };
-    }
 
     function portOptions(
         s: GraphSnapshot,
@@ -280,17 +248,6 @@ describe("indexed.DeltaPageRank", () => {
             expectFacadeMatchesLegacy(
                 fixtures(),
                 (g) => {
-                    const engine = new LegacyDeltaPageRank(g);
-                    const first = engine.compute(legacyOptions(g, options));
-                    const second = engine.compute(legacyOptions(g, options));
-                    const ids = [...g.nodes()].map((node) => node.id);
-                    const third = engine.update(
-                        new Set([ids[0], ids[Math.floor(ids.length / 2)]]),
-                        legacyOptions(g, options),
-                    );
-                    return [first, second, third];
-                },
-                (g) => {
                     const s = snapshotOf(g);
                     const engine = new DeltaPageRank(s, { weights: exactArcWeights(s) });
                     const first = toMap(s, engine.compute(portOptions(s, g, options)));
@@ -306,16 +263,11 @@ describe("indexed.DeltaPageRank", () => {
     it("update() skips an index outside the graph but still runs, as legacy does for an unknown id", () => {
         for (const { graph: g } of fixtures()) {
             const s = snapshotOf(g);
-            const legacy = new LegacyDeltaPageRank(g);
+            const [legacyUnknown, legacyMixed] = legacyResult() as [Map<NodeId, number>, Map<NodeId, number>];
             const port = new DeltaPageRank(s, { weights: exactArcWeights(s) });
-            legacy.compute();
             port.compute();
-            const ids = [...g.nodes()].map((node) => node.id);
-            const onlyUnknown = [legacy.update(new Set(["no such node"])), toMap(s, port.update([s.nodeCount, -1]))];
-            const mixed = [
-                legacy.update(new Set([ids[0], "no such node"])),
-                toMap(s, port.update([0, Number.NaN, s.nodeCount + 5])),
-            ];
+            const onlyUnknown = [legacyUnknown, toMap(s, port.update([s.nodeCount, -1]))];
+            const mixed = [legacyMixed, toMap(s, port.update([0, Number.NaN, s.nodeCount + 5]))];
             for (const [l, p] of [onlyUnknown, mixed]) {
                 expect(p.size).toBe(l.size);
                 for (const [id, score] of l) {
@@ -372,10 +324,6 @@ describe("indexed.PriorityDeltaPageRank", () => {
             };
             expectFacadeMatchesLegacy(
                 fixtures(),
-                (g) => {
-                    const engine = new LegacyPriorityDeltaPageRank(g);
-                    return [engine.computeWithPriority(legacyOptions), engine.computeWithPriority(legacyOptions)];
-                },
                 (g) => {
                     const s = snapshotOf(g);
                     const engine = new PriorityDeltaPageRank(s, { weights: exactArcWeights(s) });

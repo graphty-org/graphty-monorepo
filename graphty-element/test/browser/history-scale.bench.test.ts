@@ -16,6 +16,17 @@
  * against loading the same graph, measured in this page at this moment, so a busy runner slows
  * both sides alike.
  *
+ * That includes the garbage the work before it left: the page runs with `--expose-gc` (the
+ * "browser-bench" project in vitest.config.ts) and each step is timed from a fully collected heap.
+ * Without it, the loaded graph holds about 1.1 GB of heap, and whether V8's next major collection
+ * starts, or finishes, inside a timed step depends on how full the heap happened to be, not on
+ * the step. On CI (4-vCPU runners, 44 runs from 2026-09-28 to 2026-09-29) that made undoing the
+ * removal trimodal -- about 250, 540 or 800 ms against a load of about 3,450 ms -- and put a drag
+ * at 65 or 640 ms and restoreTo(null) at 300 or 900 ms, whichever branch ran. The 800 ms mode is a
+ * ratio of 0.21 to 0.24 against the load, and on the runners that load in about 2,100 ms it
+ * reached 0.26 and failed. On four cores of the development machine the same thing gave 121 to
+ * 709 ms (3 failures in 29 runs); from a collected heap, 169 to 215 ms in 10 runs.
+ *
  * Measured on the development machine (i9-14900, headless Chromium without WebGPU), 50,000 nodes
  * and 25,000 edges, printed by each test as `[undo-scale-browser]`, which a CI log carries too:
  *
@@ -41,6 +52,19 @@ import { DEFAULT_LIMITS } from "../../src/session/limits";
 const NODES = DEFAULT_LIMITS.renderCeiling;
 const EDGES = NODES / 2;
 const TIMEOUT_MS = 300_000;
+
+/**
+ * Run a full garbage collection, so the next timed step does not pay for one the steps before it
+ * made due. Needs the page started with `--js-flags=--expose-gc`.
+ */
+function collectGarbage(): void {
+    const { gc } = globalThis as { gc?: () => void };
+    if (gc === undefined) {
+        throw new Error("gc() is missing: the browser-bench project must launch Chromium with --js-flags=--expose-gc");
+    }
+
+    gc();
+}
 
 /**
  * Report a timing.
@@ -72,6 +96,7 @@ describe("undo on a real graph at the largest graph it draws", () => {
     const idle = async (): Promise<void> => {
         await operationQueueOf(graph).waitForCompletion();
         await new Promise((resolve) => setTimeout(resolve, 0));
+        collectGarbage();
     };
 
     beforeAll(async () => {
@@ -120,9 +145,11 @@ describe("undo on a real graph at the largest graph it draws", () => {
             const ms = await time(() => session.undo());
             report("undoing the removal of 1,000 nodes", ms);
             assert.strictEqual(session.snapshot().nodeCount, NODES);
-            assert.isBelow(ms, loadMs / 4);
+            // Redone before the budget is checked, so a missed budget fails this test alone: the
+            // tests below start from the removal done.
             await session.redo();
             await idle();
+            assert.isBelow(ms, loadMs / 4);
         },
         TIMEOUT_MS,
     );
@@ -150,9 +177,9 @@ describe("undo on a real graph at the largest graph it draws", () => {
             await idle();
             const ms = await time(() => session.undo());
             report("undoing a drag, at rest", ms);
-            assert.isBelow(ms, loadMs / 4);
             await session.redo();
             await idle();
+            assert.isBelow(ms, loadMs / 4);
         },
         TIMEOUT_MS,
     );

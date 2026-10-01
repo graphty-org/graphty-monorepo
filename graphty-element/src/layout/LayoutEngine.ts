@@ -20,7 +20,7 @@ import { readonlyPositions, writableLane } from "../data/lane";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
-import type { Node } from "../Node";
+import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 
 export interface Position {
@@ -46,6 +46,17 @@ interface Coords {
 export interface EdgePosition {
     src: Position;
     dst: Position;
+}
+
+/**
+ * The key of an ordered endpoint pair in a `pairWeights` map. JSON, so no node id -- a string or a
+ * number with any characters -- can collide with another.
+ * @param source - the source node id
+ * @param target - the target node id
+ * @returns a key unique to that ordered pair
+ */
+function orderedPairKey(source: NodeIdType, target: NodeIdType): string {
+    return JSON.stringify([source, target]);
 }
 
 type LayoutEngineClass = new (opts: object) => LayoutEngine;
@@ -479,6 +490,47 @@ export abstract class LayoutEngine {
      */
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
         return heldEdgeProblems(this.edges, drawn);
+    }
+
+    /**
+     * The summed weight of every ordered endpoint pair these edges cover, read from the element's
+     * graph store, or null when every weight is 1 or the edges reach no store.
+     *
+     * Parallel edges between the same two nodes are SUMMED into one number, keyed by
+     * {@link LayoutEngine.pairWeightKey}. None of the element's own engines call this.
+     * @param edges - the edges to read, usually `this._edges`
+     * @returns pair key to summed weight, or null
+     * @deprecated Register the layout with `registerSnapshotLayout` from
+     * `@graphty/graphty-element/extend` and read the weights of the snapshot input's `stored` graph.
+     */
+    protected pairWeights(edges: readonly Edge[]): Map<string, number> | null {
+        // An engine driven without an element has edges whose parent answers none of this.
+        const weights = edges[0]?.parentGraph?.getDataManager?.()?.getSnapshot?.()?.edgeList().weights ?? null;
+        if (weights === null) {
+            return null;
+        }
+
+        const summed = new Map<string, number>();
+        let informative = false;
+        for (const e of edges) {
+            const stored = e.index >= 0 && e.index < weights.length ? weights[e.index] : 1;
+            informative ||= stored !== 1;
+            const key = orderedPairKey(e.srcId, e.dstId);
+            summed.set(key, (summed.get(key) ?? 0) + stored);
+        }
+
+        return informative ? summed : null;
+    }
+
+    /**
+     * The key an ordered endpoint pair is filed under in a {@link LayoutEngine.pairWeights} map.
+     * @param source - the edge's source node id
+     * @param target - the edge's target node id
+     * @returns a key unique to that ordered pair
+     * @deprecated See {@link LayoutEngine.pairWeights}.
+     */
+    protected pairWeightKey(source: NodeIdType, target: NodeIdType): string {
+        return orderedPairKey(source, target);
     }
 
     /**
@@ -934,8 +986,39 @@ interface SnapshotReplacement {
 }
 
 /**
+ * Whether two lists hold the same items in the same order.
+ * @param a - one list
+ * @param b - the other
+ * @returns true when they match item for item
+ */
+function sameItems<T>(a: readonly T[], b: readonly T[]): boolean {
+    return a.length === b.length && a.every((item, i) => item === b[i]);
+}
+
+/**
+ * Rows of a previous snapshot, carried into the next one's row order.
+ * @param rows - the rows, in `change.previous`
+ * @param change - the freeze
+ * @returns the same nodes' rows in `change.next`
+ */
+function carryRows(rows: NodeMask, change: SnapshotReplacement): NodeMask {
+    const { previous, next, report } = change;
+    const out = makeMask(next.nodeCount);
+    const remap = report.nodeRemap;
+    for (let i = 0; i < (previous?.nodeCount ?? 0); i++) {
+        const row = remap === null ? i : remap[i];
+        if (maskTest(rows, i) && row !== INVALID_INDEX) {
+            maskSet(out, row, true);
+        }
+    }
+
+    return out;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
- * no node left, and no edge appeared or disappeared between two nodes that were already there.
+ * no node left, and the edges between two nodes that were already there are exactly the ones that
+ * were there before.
  *
  * That is what an interactive add looks like -- a new node, perhaps with edges to existing ones --
  * and it is the one change after which a static layout keeps every existing node where it was
@@ -962,16 +1045,152 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
         maskSet(old, row, true);
     }
 
+    // The edges between existing nodes must be the SAME edges, not merely as many: a freeze that
+    // swaps one for another rewires the picture as surely as one that adds an edge. Compared as
+    // unordered pairs with their multiplicity, because a static layout reads neither direction nor
+    // edge identity.
+    const n = next.nodeCount;
+    const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
+    const before = new Map<number, number>();
+    const had = previous.edgeList();
+    for (let e = 0; e < previous.edgeCount; e++) {
+        const a = remap === null ? had.src[e] : remap[had.src[e]];
+        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
+        const key = pair(a, b);
+        before.set(key, (before.get(key) ?? 0) + 1);
+    }
+
     const { src, dst } = next.edgeList();
     let between = 0;
     for (let e = 0; e < next.edgeCount; e++) {
-        if (maskTest(old, src[e]) && maskTest(old, dst[e])) {
-            between++;
+        if (!maskTest(old, src[e]) || !maskTest(old, dst[e])) {
+            continue;
         }
+
+        const key = pair(src[e], dst[e]);
+        const left = before.get(key) ?? 0;
+        if (left === 0) {
+            return null;
+        }
+
+        before.set(key, left - 1);
+        between++;
     }
 
     return between === previous.edgeCount ? old : null;
 }
+
+/**
+ * Move the new rows of a re-run into the frame the held rows are drawn in.
+ *
+ * A re-run after an add arranges the whole enlarged graph, and its existing rows land somewhere
+ * other than where they are held: a circle of ten is rotated against the circle of nine it
+ * replaces, and Kamada-Kawai re-centres and rescales its answer. Taking a newcomer's coordinate
+ * from that other frame as it stands can put it on top of a held node. So the re-run is moved onto
+ * the held picture -- shifted centroid onto centroid, turned about z (mirrored first when that
+ * fits better) by the least-squares rotation, and scaled by the ratio of the two spreads -- and
+ * that move is applied to every row that is not held. With a single existing row it is a shift.
+ *
+ * ponytail: the rotation is fitted in the xy plane only, so a 3D arrangement that turned about
+ * another axis keeps that turn; a full 3D fit (Kabsch) is the upgrade if a 3D picture shows it.
+ * @param column - the re-run, scene units, stride 3; the rows not in `keep` are rewritten
+ * @param positions - the element's array, holding the drawn coordinates of the rows in `keep`
+ * @param keep - the held rows
+ */
+function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): void {
+    const rows = column.length / 3;
+    const held: Coords[] = [];
+    const drawn = { x: 0, y: 0, z: 0 };
+    const pairs: number[] = [];
+    for (let row = 0; row < rows; row++) {
+        if (maskTest(keep, row) && positions.isPlaced(row) && Number.isFinite(column[3 * row])) {
+            positions.read(row, drawn);
+            held.push({ ...drawn });
+            pairs.push(row);
+        }
+    }
+
+    if (pairs.length === 0) {
+        return;
+    }
+
+    const from = { x: 0, y: 0, z: 0 };
+    const to = { x: 0, y: 0, z: 0 };
+    pairs.forEach((row, i) => {
+        from.x += column[3 * row] / pairs.length;
+        from.y += column[3 * row + 1] / pairs.length;
+        from.z += column[3 * row + 2] / pairs.length;
+        to.x += held[i].x / pairs.length;
+        to.y += held[i].y / pairs.length;
+        to.z += held[i].z / pairs.length;
+    });
+
+    // The turn is the least-squares rotation in the plane, the angle of sum(conj(r) h), tried also
+    // on the mirrored re-run, sum(r h), because a re-run can come back mirrored (a spectral
+    // eigenvector's sign is arbitrary) and a mirror is no rotation at all: fitted without it, the
+    // factor sums to about zero. The scale is the ratio of the two spreads, never the fitted
+    // factor's length, which shrinks toward zero whenever the re-run matches the held picture
+    // poorly and would pile every newcomer onto the held nodes' centroid.
+    let re = 0;
+    let im = 0;
+    let mirrorRe = 0;
+    let mirrorIm = 0;
+    let spreadFrom = 0;
+    let spreadTo = 0;
+    pairs.forEach((row, i) => {
+        const rx = column[3 * row] - from.x;
+        const ry = column[3 * row + 1] - from.y;
+        const rz = column[3 * row + 2] - from.z;
+        const hx = held[i].x - to.x;
+        const hy = held[i].y - to.y;
+        const hz = held[i].z - to.z;
+        re += rx * hx + ry * hy;
+        im += rx * hy - ry * hx;
+        mirrorRe += rx * hx - ry * hy;
+        mirrorIm += rx * hy + ry * hx;
+        spreadFrom += rx * rx + ry * ry + rz * rz;
+        spreadTo += hx * hx + hy * hy + hz * hz;
+    });
+
+    // Held rows on one line fit a turn and its mirror across that line equally well, and rounding
+    // alone would pick either; the mirror has to win by more than rounding, or the newcomers of a
+    // re-run that already matches (the fixed layout's) would be reflected across the line.
+    const tie = 1e-6 * Math.sqrt(spreadFrom * spreadTo);
+    const mirror = Math.hypot(mirrorRe, mirrorIm) > Math.hypot(re, im) + tie;
+    const turnRe = mirror ? mirrorRe : re;
+    const turnIm = mirror ? mirrorIm : im;
+    const length = Math.hypot(turnRe, turnIm);
+    const cos = length === 0 ? 1 : turnRe / length;
+    const sin = length === 0 ? 0 : turnIm / length;
+    const scale = spreadFrom === 0 || spreadTo === 0 ? 1 : Math.sqrt(spreadTo / spreadFrom);
+    for (let row = 0; row < rows; row++) {
+        if (maskTest(keep, row) || !Number.isFinite(column[3 * row])) {
+            continue;
+        }
+
+        const dx = column[3 * row] - from.x;
+        const dy = (mirror ? -1 : 1) * (column[3 * row + 1] - from.y);
+        column[3 * row] = to.x + scale * (cos * dx - sin * dy);
+        column[3 * row + 1] = to.y + scale * (sin * dx + cos * dy);
+        column[3 * row + 2] = to.z + scale * (column[3 * row + 2] - from.z);
+    }
+}
+
+/**
+ * The element's own reach into a static engine's run: what the snapshot layout adapter
+ * (`SnapshotLayoutEngine`) needs to hand a layout its fixed rows and to hold a run open while an
+ * asynchronous arrangement is still being computed. No entry point exports it.
+ */
+export const simpleLayoutInternals = {
+    /** Engines whose run is waiting for an asynchronous answer; see `StaticLayoutEngine.refresh`. */
+    waiting: new WeakSet<StaticLayoutEngine>(),
+} as {
+    readonly waiting: WeakSet<StaticLayoutEngine>;
+    /** The rows the run in progress keeps where they are (an add), or null. */
+    kept(engine: StaticLayoutEngine): NodeMask | null;
+    /** The element's array for the run in progress, or null for an engine driven without one. */
+    positions(engine: StaticLayoutEngine): ElementPositions | null;
+};
 
 /**
  * Base class for static layout engines: an arrangement computed in one pass whenever the graph
@@ -980,7 +1199,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * TWO WAYS TO WRITE ONE. The element's own engines read the protected `graph` -- the
  * element's undirected graph snapshot, whose row `i` is the node whose `index` is `i` -- and assign
  * an index-based `@graphty/layout` result to the protected `result` in `doLayout`. An
- * engine written before that existed fills the id-keyed {@link SimpleLayoutEngine.positions} record
+ * engine written before that existed fills the id-keyed {@link StaticLayoutEngine.positions} record
  * instead, and still works. Either way the base class scales the answer into the element's shared
  * position array, never over a pinned row.
  *
@@ -989,8 +1208,16 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  * reads `graph` places only the new nodes and leaves every existing one where it was. The
  * existing coordinates are also offered to the layout as its start (`startPositions`), which is
  * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
+ * The new nodes' coordinates are then carried into the frame the existing nodes are drawn in, by
+ * the turn (or mirror), scale and shift that best map the re-run's existing nodes onto their held
+ * places.
  */
-export abstract class SimpleLayoutEngine extends LayoutEngine {
+export abstract class StaticLayoutEngine extends LayoutEngine {
+    static {
+        simpleLayoutInternals.kept = (engine) => engine.#keep;
+        simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
+    }
+
     static type: string;
     protected _nodes: Node[] = [];
     protected _edges: Edge[] = [];
@@ -1009,6 +1236,10 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     #laidOut: GraphSnapshot | null = null;
     /** The rows the next run leaves where they are, set by an add. */
     #keep: NodeMask | null = null;
+    /** The element snapshot a run still waiting for its answer arranges; `#keep` is in its rows. */
+    #waitingFor: GraphSnapshot | null = null;
+    /** For an engine driven without an element: the graph last built, and from what. */
+    #built: { readonly nodes: Node[]; readonly edges: Edge[]; readonly loaded: LoadedGraph } | null = null;
 
     /**
      * Create a simple layout engine
@@ -1078,6 +1309,20 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * The graph {@link StaticLayoutEngine.graph} was derived from, as the element stores it: directed
+     * or not, with every edge it holds and the same node rows. For an undirected graph, or an engine
+     * driven without an element, it is `graph` itself.
+     *
+     * Read it for what making a graph undirected loses: a reciprocal pair (a->b and b->a) is one
+     * edge of `graph`, carrying only one of the two weights.
+     * @returns the stored graph
+     */
+    protected get sourceGraph(): GraphSnapshot {
+        this.#loaded ??= this.#load();
+        return this.#loaded.source ?? this.#loaded.snapshot;
+    }
+
+    /**
      * The coordinates to start this run from, in layout units, `dim` values per row of
      * the protected `graph`: the element's current coordinates when the run follows an
      * add, otherwise null. An unplaced row is NaN.
@@ -1108,7 +1353,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * {@link SimpleLayoutEngine.rowOfId} for an option that must name a node.
+     * {@link StaticLayoutEngine.rowOfId} for an option that must name a node.
      * @param id - the node id
      * @param what - what the option names, for the message
      * @returns the row
@@ -1156,13 +1401,23 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
      * it is (see the class comment). A load is excluded because its chunks are one graph arriving,
      * not a reader adding to a finished one: a circle whose first chunk was held would be drawn as
      * two overlapping circles.
+     *
+     * Called by the element's layout manager on every freeze; an engine never calls it itself.
      * @param change - the freeze
      * @param loading - whether a load is still streaming records in
      */
     reload(change: SnapshotReplacement, loading: boolean): void {
         this.stale = true;
-        this.#keep =
-            !loading && this.#laidOut !== null && this.#laidOut === change.previous ? existingRows(change) : null;
+        const grown = loading ? null : existingRows(change);
+        if (grown !== null && this.#laidOut !== null && this.#laidOut === change.previous) {
+            this.#keep = grown;
+        } else if (grown !== null && this.#keep !== null && this.#waitingFor === change.previous) {
+            // Another add while the answer for the last one is still being computed: the rows that
+            // run keeps are kept still, and the nodes it would have placed are placed with this one's.
+            this.#keep = carryRows(this.#keep, change);
+        } else {
+            this.#keep = null;
+        }
     }
 
     /**
@@ -1262,7 +1517,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * The edge half of {@link SimpleLayoutEngine.removeNode}, with the same reason.
+     * The edge half of {@link StaticLayoutEngine.removeNode}, with the same reason.
      * @param e - the edge leaving the graph
      */
     override removeEdge(e: Edge): void {
@@ -1288,7 +1543,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     /**
      * Unpin a node
      *
-     * The element's position array holds the pin; see {@link SimpleLayoutEngine.pin}.
+     * The element's position array holds the pin; see {@link StaticLayoutEngine.pin}.
      */
     protected unpin(): void {
         // See the doc comment: the element's position array holds the pin, not this engine.
@@ -1321,7 +1576,14 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         return this._edges;
     }
 
-    readonly isSettled = true;
+    /**
+     * A static layout is finished the moment it exists, so this is true -- except for an arrangement
+     * that is computed asynchronously, which is unsettled until its answer has been published.
+     * @returns whether the arrangement is final
+     */
+    get isSettled(): boolean {
+        return true;
+    }
 
     /** Compute the layout: assign the protected `result` from `graph`, or fill `positions`. */
     abstract doLayout(): void;
@@ -1340,18 +1602,26 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
 
         this.#loaded = null;
         this.result = null;
-        if (this._nodes.length === 0) {
-            // Nothing to arrange, and nothing an option such as bfs's `start` names can be in yet:
-            // a layout chosen before the data arrives waits for it instead of failing.
-            this.stale = false;
-            this.#column = new Float32Array(0);
-            return;
+        // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
+        // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
+        if (this._nodes.length > 0) {
+            this.doLayout();
         }
 
-        this.doLayout();
         // doLayout() clears this itself in every engine that ships here, but an engine written
         // elsewhere may not, and leaving it set would recompute the whole layout on every read.
         this.stale = false;
+
+        // An arrangement still being computed has nothing to publish yet. The rows an add keeps and
+        // the graph it was laid out for are left for the run that publishes the answer, so that a
+        // node added meanwhile is laid out with the rest instead of being held unplaced.
+        if (this.result === null && simpleLayoutInternals.waiting.has(this)) {
+            this.#column = new Float32Array(0);
+            this.#waitingFor = (this.#loaded as LoadedGraph | null)?.source ?? null;
+            return;
+        }
+
+        this.#waitingFor = null;
 
         const loaded = this.#loaded as LoadedGraph | null;
         this.#column =
@@ -1364,6 +1634,10 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         // later publish of the same answer cannot move it either: NaN is never written.
         const keep = this.#keep;
         this.#keep = null;
+        if (keep !== null && loaded?.positions) {
+            alignToHeld(this.#column, loaded.positions, keep);
+        }
+
         if (keep !== null) {
             for (let row = 0; row < this.#column.length / 3; row++) {
                 if (maskTest(keep, row)) {
@@ -1382,7 +1656,7 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
     #load(): LoadedGraph {
         // Reached the way `positionsFor` reaches the coordinate array: an engine driven directly,
         // by a test or by a host that keeps no graph, has nodes whose parent answers none of this.
-        const manager: object | undefined = this._nodes[0]?.parentGraph?.getDataManager?.();
+        const manager = this._nodes[0]?.parentGraph?.getDataManager?.();
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
@@ -1395,6 +1669,13 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
             };
         }
 
+        // The same nodes and edges give back the same snapshot, so that an asynchronous answer can
+        // tell it is still for the graph being arranged.
+        const built = this.#built;
+        if (built !== null && sameItems(built.nodes, this._nodes) && sameItems(built.edges, this._edges)) {
+            return built.loaded;
+        }
+
         const builder = new GraphBuilder({ directed: false, addMissingNodes: true });
         for (const n of this._nodes) {
             builder.addNode(n.id);
@@ -1405,7 +1686,14 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         }
 
         const snapshot = builder.freeze({ label: "static-layout" });
-        return { snapshot, source: null, positions: null, rowOf: (n) => snapshot.ids.indexOf(n.id) };
+        const loaded: LoadedGraph = {
+            snapshot,
+            source: null,
+            positions: null,
+            rowOf: (n) => snapshot.ids.indexOf(n.id),
+        };
+        this.#built = { nodes: this._nodes.slice(), edges: this._edges.slice(), loaded };
+        return loaded;
     }
 
     /**
@@ -1475,6 +1763,17 @@ export abstract class SimpleLayoutEngine extends LayoutEngine {
         };
     }
 }
+
+/**
+ * The base class a third party extended to write a layout computed in one pass.
+ *
+ * It keeps working through graphty-element 3.x, with everything a subclass reads: `_nodes`,
+ * `_edges`, `positions`, `result`, `graph`, `sourceGraph`, `scalingFactor` and `doLayout`.
+ * @deprecated Register the layout with `registerSnapshotLayout` from
+ * `@graphty/graphty-element/extend` instead: a function from the graph snapshot to coordinates,
+ * which the element's own one-pass layouts are built on, with pins, cancellation and progress.
+ */
+export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
 
 /**
  * A dimension option as the index-based layouts take it.

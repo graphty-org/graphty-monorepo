@@ -13,22 +13,23 @@
  * PageRank, a walk that stops at a target, Bellman-Ford, a depth-first walk, Prim, strongly
  * connected components -- runs on the CPU port and says so in its precision.
  *
- * The last block holds each of those runs to the reference implementation in
- * `@graphty/algorithms`, over the same graph, including the neighbour order a walk tries.
+ * The last block holds each of those runs to the algorithm of `@graphty/algorithms` run directly
+ * over the snapshot the adapter reads. Where the answer depends on the order neighbours are tried
+ * in -- the element tries them in the order their edges were declared -- the expected answer is
+ * written out: it is what algorithms 2.x, which walked the same declaration order, answered.
  */
 
 import {
     bellmanFord,
     breadthFirstSearch,
     connectedComponents,
-    depthFirstSearch,
     dijkstra,
-    Graph as ReferenceGraph,
     kruskalMST,
     pageRank,
+    personalizedPageRank,
     primMST,
-    stronglyConnectedComponents,
 } from "@graphty/algorithms";
+import { type F64, GraphBuilder } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { BellmanFordAlgorithm } from "../../src/algorithms/BellmanFordAlgorithm";
@@ -41,12 +42,12 @@ import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../src/algorithms/PrimAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
 import { StronglyConnectedComponentsAlgorithm } from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
-import { toAlgorithmGraph } from "../../src/algorithms/utils/snapshotGraph";
 import type { NodeId } from "../../src/catalog/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
 import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
+import { byId, edgeEnds, idsOf, referenceSnapshot } from "../helpers/reference-snapshot";
 
 /**
  * A directed, weighted graph in which every node has an out-edge.
@@ -178,11 +179,12 @@ describe("the adapters that run through accelerated()", () => {
             /* Both implementations iterate until the L1 change falls below the same tolerance, and
                they sum in a different order, so they agree to that tolerance and not past it.
                Asking for more would be asking two correct answers to be the same answer. */
-            const reference = pageRank(toAlgorithmGraph(graph.getDataManager(), "directed"), { useDelta: false });
+            const s = referenceSnapshot(graph.getDataManager(), "directed");
+            const reference = byId(s, pageRank(s).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 assert.approximately(
                     result.node(id)?.value as number,
-                    reference.ranks[String(id)],
+                    reference.get(id) as number,
                     1e-6,
                     `rank of ${String(id)}`,
                 );
@@ -193,10 +195,11 @@ describe("the adapters that run through accelerated()", () => {
             const graph = await graphWith(FIXTURE);
             const output = await computed(new DijkstraAlgorithm(graph, { source: "A", target: "E" }));
 
-            const reference = dijkstra(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A");
+            const s = referenceSnapshot(graph.getDataManager(), "undirected");
+            const reference = byId(s, dijkstra(s, s.ids.requireIndex("A")).dist);
             const values = valuesOf(output.nodes);
             for (const id of graph.getDataManager().nodes.keys()) {
-                assert.strictEqual(values.get(id)?.distance, reference.get(id)?.distance, `distance to ${String(id)}`);
+                assert.strictEqual(values.get(id)?.distance, reference.get(id), `distance to ${String(id)}`);
             }
 
             // The route itself: A and E are joined directly, which is cheaper than going round.
@@ -211,10 +214,11 @@ describe("the adapters that run through accelerated()", () => {
             const graph = await graphWith(FIXTURE);
             const output = await computed(new BFSAlgorithm(graph, { source: "A" }));
 
-            const levels = new Map<NodeId, number>();
-            breadthFirstSearch(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A", {
-                visitCallback: (node, level) => levels.set(node, level),
-            });
+            const s = referenceSnapshot(graph.getDataManager(), "undirected");
+            const walk = breadthFirstSearch(s, s.ids.requireIndex("A"));
+            const levels = new Map<NodeId, number>(
+                Array.from(walk.order.subarray(0, walk.visitedCount), (i) => [s.ids.idOf(i), walk.depth[i]]),
+            );
 
             const values = valuesOf(output.nodes);
             assert.strictEqual(values.size, levels.size);
@@ -227,7 +231,10 @@ describe("the adapters that run through accelerated()", () => {
             const graph = await graphWith(TWO_PIECES);
             const output = await computed(new ConnectedComponentsAlgorithm(graph));
 
-            const reference = connectedComponents(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+            const s = referenceSnapshot(graph.getDataManager(), "undirected");
+            const reference = connectedComponents(s)
+                .groups()
+                .map((members) => idsOf(s, members));
             const values = valuesOf(output.nodes);
 
             // The partition, not the numbering: two nodes are in the same piece here exactly when
@@ -244,8 +251,9 @@ describe("the adapters that run through accelerated()", () => {
             const graph = await graphWith(FIXTURE);
             const output = await computed(new KruskalAlgorithm(graph));
 
-            const reference = kruskalMST(toAlgorithmGraph(graph.getDataManager(), "undirected"));
-            const chosen = new Set(reference.edges.map((edge) => pairKey(edge.source, edge.target)));
+            const s = referenceSnapshot(graph.getDataManager(), "undirected");
+            const reference = kruskalMST(s);
+            const chosen = new Set(edgeEnds(s, reference.edges).map((edge) => pairKey(edge.source, edge.target)));
 
             assert.strictEqual(output.graph?.totalWeight, reference.totalWeight);
             for (const edge of graph.getDataManager().edges.values()) {
@@ -505,7 +513,7 @@ describe("the adapters that run through accelerated()", () => {
             const graph = await graphWith(PARALLEL);
             const output = await computed(new KruskalAlgorithm(graph));
 
-            const reference = kruskalMST(toAlgorithmGraph(graph.getDataManager(), "undirected"));
+            const reference = kruskalMST(referenceSnapshot(graph.getDataManager(), "undirected"));
             assert.strictEqual(output.graph?.totalWeight, reference.totalWeight);
             assert.strictEqual(output.graph?.totalWeight, 3);
 
@@ -571,6 +579,27 @@ const STRONG: MockGraphOpts = {
     ],
 };
 
+/**
+ * What a depth-first walk of `DECLARED_ORDER` from A visits, trying neighbours in declaration
+ * order: the visit order, and every node it reached. Keyed by order ("pre" or "post") and target.
+ */
+const DFS_EXPECTED: Record<string, { order: NodeId[]; visited: Set<NodeId> }> = {
+    "pre -": { order: ["A", "D", "E", "F", "C", "B"], visited: new Set(["A", "D", "E", "F", "C", "B"]) },
+    "post -": { order: ["B", "C", "F", "E", "D", "A"], visited: new Set(["A", "D", "E", "F", "C", "B"]) },
+    "pre F": { order: ["A", "D", "E", "F"], visited: new Set(["A", "D", "E", "F"]) },
+    "post F": { order: ["B", "C", "F", "E", "D", "A"], visited: new Set(["A", "D", "E", "F", "C", "B"]) },
+    // recursive, pre-order, target E: the walk skips only E's subtree and goes on
+    "recursive E": { order: ["A", "D", "E", "B", "C", "F"], visited: new Set(["A", "D", "E", "B", "C", "F"]) },
+};
+
+/** The strongly connected pieces, in the order Tarjan's search closes them. */
+const SCC_EXPECTED = {
+    /** `STRONG` */
+    strong: [["E", "D"], ["C", "B", "A"], ["F"]] as NodeId[][],
+    /** A with an edge to C declared before its edge to B */
+    declared: [["C"], ["B"], ["A"]] as NodeId[][],
+};
+
 /** A reciprocal pair the undirected view merges into one edge, and one more edge. */
 const RECIPROCAL: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
@@ -632,11 +661,14 @@ describe("the traversal, path and tree adapters answer what the reference implem
         const graph = await graphWith(DECLARED_ORDER);
         const output = await computed(new BFSAlgorithm(graph, { source: "A", targetNode: "E" }));
 
-        const expected: [NodeId, number][] = [];
-        breadthFirstSearch(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A", {
-            targetNode: "E",
-            visitCallback: (node, level) => expected.push([node, level]),
-        });
+        // Each node the walk expanded, with its level, in the order it expanded them.
+        const expected: [NodeId, number][] = [
+            ["A", 0],
+            ["D", 1],
+            ["B", 1],
+            ["C", 1],
+            ["E", 2],
+        ];
 
         // D is declared before B and C, so the walk reaches E before F; in node order it would not.
         assert.deepStrictEqual(
@@ -671,10 +703,7 @@ describe("the traversal, path and tree adapters answer what the reference implem
             const graph = await graphWith(DECLARED_ORDER);
             const output = await computed(new DFSAlgorithm(graph, { source: "A", ...options }));
 
-            const reference = depthFirstSearch(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A", {
-                preOrder: options.preOrder,
-                targetNode: options.targetNode ?? undefined,
-            });
+            const reference = DFS_EXPECTED[`${options.preOrder ? "pre" : "post"} ${options.targetNode ?? "-"}`];
 
             const values = valuesOf(output.nodes);
             for (const id of graph.getDataManager().nodes.keys()) {
@@ -688,16 +717,23 @@ describe("the traversal, path and tree adapters answer what the reference implem
         });
     }
 
-    it("depth-first search with recursive set stops at the target as the iterative walk does", async () => {
+    it("depth-first search with recursive set skips only the target's subtree, as the reference does", async () => {
         const graph = await graphWith(DECLARED_ORDER);
-        const iterative = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E" }));
-        const recursive = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E", recursive: true }));
+        const output = await computed(new DFSAlgorithm(graph, { source: "A", targetNode: "E", recursive: true }));
 
-        assert.deepStrictEqual(recursive.nodes, iterative.nodes);
-        assert.deepStrictEqual(
-            [...valuesOf(recursive.nodes)].filter(([, value]) => value.visited === true).map(([id]) => id),
-            ["A", "D", "E"],
-        );
+        const reference = DFS_EXPECTED["recursive E"];
+
+        const values = valuesOf(output.nodes);
+        for (const id of graph.getDataManager().nodes.keys()) {
+            const position = reference.order.indexOf(id);
+            assert.deepStrictEqual(
+                values.get(id),
+                { value: position === -1 ? undefined : position, visited: reference.visited.has(id) },
+                `node ${String(id)}`,
+            );
+        }
+        // The iterative walk stops everything at E; the recursive one goes on past it.
+        assert.isAbove(reference.order.length, reference.order.indexOf("E") + 1);
     });
 
     it("a post-order depth-first walk never reads its target, so one the graph lacks is no error", async () => {
@@ -727,7 +763,8 @@ describe("the traversal, path and tree adapters answer what the reference implem
         const graph = await graphWith(STRONG);
         const output = await computed(new StronglyConnectedComponentsAlgorithm(graph));
 
-        const reference = stronglyConnectedComponents(toAlgorithmGraph(graph.getDataManager(), "directed"));
+        // The pieces in the order Tarjan's search closes them, trying out-edges in declaration order.
+        const reference = SCC_EXPECTED.strong;
         const values = valuesOf(output.nodes);
         reference.forEach((piece, group) => {
             for (const id of piece) {
@@ -749,7 +786,7 @@ describe("the traversal, path and tree adapters answer what the reference implem
         });
         const output = await computed(new StronglyConnectedComponentsAlgorithm(graph));
 
-        const reference = stronglyConnectedComponents(toAlgorithmGraph(graph.getDataManager(), "directed"));
+        const reference = SCC_EXPECTED.declared;
         const values = valuesOf(output.nodes);
         assert.deepStrictEqual(
             reference.map((piece) => piece.map((id) => values.get(id)?.group)),
@@ -780,10 +817,11 @@ describe("the traversal, path and tree adapters answer what the reference implem
         const graph = await graphWith(FIXTURE);
         const output = await computed(new BellmanFordAlgorithm(graph, { source: "A", target: "C" }));
 
-        const reference = bellmanFord(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A");
+        const s = referenceSnapshot(graph.getDataManager(), "undirected");
+        const reference = byId(s, bellmanFord(s, s.ids.requireIndex("A")).dist);
         const values = valuesOf(output.nodes);
         for (const id of graph.getDataManager().nodes.keys()) {
-            assert.strictEqual(values.get(id)?.distance, reference.distances.get(id), `distance to ${String(id)}`);
+            assert.strictEqual(values.get(id)?.distance, reference.get(id), `distance to ${String(id)}`);
         }
 
         // A-B-C costs 3, against 7 for the direct C-A edge.
@@ -809,8 +847,8 @@ describe("the traversal, path and tree adapters answer what the reference implem
         });
         const output = await computed(new BellmanFordAlgorithm(graph, { source: "A", target: "B" }));
 
-        const reference = bellmanFord(toAlgorithmGraph(graph.getDataManager(), "undirected"), "A");
-        assert.isTrue(reference.hasNegativeCycle);
+        const s = referenceSnapshot(graph.getDataManager(), "undirected");
+        assert.isTrue(bellmanFord(s, s.ids.requireIndex("A")).hasNegativeCycle);
         assert.strictEqual(output.graph?.hasNegativeCycle, true);
         // Past such a loop no distance is meaningful, so no route is marked on any node or edge.
         assert.deepStrictEqual(edgeFlags(graph, output, "onPath"), [false, false]);
@@ -830,8 +868,9 @@ describe("the traversal, path and tree adapters answer what the reference implem
         const graph = await graphWith(DECLARED_ORDER);
         const output = await computed(new PrimAlgorithm(graph, { startNode: "C" }));
 
-        const reference = primMST(toAlgorithmGraph(graph.getDataManager(), "undirected"), "C");
-        const chosen = new Set(reference.edges.map((edge) => pairKey(edge.source, edge.target)));
+        const s = referenceSnapshot(graph.getDataManager(), "undirected");
+        const reference = primMST(s, { start: s.ids.requireIndex("C") });
+        const chosen = new Set(edgeEnds(s, reference.edges).map((edge) => pairKey(edge.source, edge.target)));
 
         assert.strictEqual(output.graph?.totalWeight, reference.totalWeight);
         for (const edge of graph.getDataManager().edges.values()) {
@@ -844,19 +883,19 @@ describe("the traversal, path and tree adapters answer what the reference implem
         const graph = await graphWith(TWO_PIECES);
         const output = await computed(new PrimAlgorithm(graph, { startNode: "X" }));
 
-        // The reference refuses a graph in two pieces, so each piece's tree is its own reference.
+        // Each piece's tree is its own reference.
         let totalWeight = 0;
         for (const piece of [
             ["A", "B", "C"],
             ["X", "Y"],
         ]) {
-            const part = new ReferenceGraph({ directed: false });
+            const part = new GraphBuilder({ directed: false });
             for (const edge of TWO_PIECES.edges ?? []) {
                 if (piece.includes(String(edge.srcId))) {
                     part.addEdge(edge.srcId, edge.dstId, edge.weight as number);
                 }
             }
-            totalWeight += primMST(part).totalWeight;
+            totalWeight += primMST(part.freeze()).totalWeight;
         }
 
         assert.strictEqual(output.graph?.totalWeight, totalWeight);
@@ -895,11 +934,24 @@ describe("the traversal, path and tree adapters answer what the reference implem
                 const { result } = algorithm;
                 assert.isDefined(result);
 
-                const reference = pageRank(toAlgorithmGraph(graph.getDataManager(), "directed"), options);
+                const s = referenceSnapshot(graph.getDataManager(), "directed");
+                const perNode = (values: ReadonlyMap<NodeId, number> | undefined, fill: number): F64 =>
+                    Float64Array.from({ length: s.nodeCount }, (_, i) => values?.get(s.ids.idOf(i)) ?? fill);
+                const portOptions = {
+                    convergenceNorm: "max" as const,
+                    weighted: "weight" in options,
+                    initialRanks:
+                        "initialRanks" in options ? perNode(options.initialRanks, 1 / s.nodeCount) : undefined,
+                };
+                const run =
+                    "personalization" in options
+                        ? personalizedPageRank(s, perNode(options.personalization, 0), portOptions)
+                        : pageRank(s, portOptions);
+                const reference = { ranks: byId(s, run.scores), iterations: run.iterations };
                 for (const id of graph.getDataManager().nodes.keys()) {
                     assert.approximately(
                         result.node(id)?.value as number,
-                        reference.ranks[String(id)],
+                        reference.ranks.get(id) as number,
                         1e-12,
                         `rank of ${String(id)}`,
                     );
@@ -981,17 +1033,19 @@ describe("the traversal, path and tree adapters answer what the reference implem
             const { result } = algorithm;
             assert.isDefined(result);
 
-            const both = new ReferenceGraph({ directed: true });
+            const both = new GraphBuilder({ directed: true });
             for (const edge of DANGLING.edges ?? []) {
                 both.addEdge(edge.srcId, edge.dstId);
                 both.addEdge(edge.dstId, edge.srcId);
             }
 
-            const reference = pageRank(both);
+            // The element's run over an undirected graph stops on the largest change, not the summed one.
+            const s = both.freeze();
+            const reference = byId(s, pageRank(s, { convergenceNorm: "max" }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
                 assert.approximately(
                     result.node(id)?.value as number,
-                    reference.ranks[String(id)],
+                    reference.get(id) as number,
                     1e-12,
                     `rank of ${String(id)}`,
                 );

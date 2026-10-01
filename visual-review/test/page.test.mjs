@@ -4,7 +4,6 @@
  * commits, and a Finish followed while it runs. A last block serves the fixture as a local preview.
  */
 
-import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 
@@ -12,14 +11,14 @@ import { chromium } from "playwright";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createApp } from "../trusted/lib/serve.mjs";
-import { FIXTURE, isolateGit, makeRepo, onePr } from "./helpers.mjs";
+import { CONFIG, FIXTURE, isolateGit, makeRepo, onePr, withMoved } from "./helpers.mjs";
 
-const PROJECTS = JSON.parse(readFileSync(new URL("../projects.json", import.meta.url), "utf8"));
 const TOKEN = "p".repeat(43);
 const START = "cd /repo && PORT=9 node visual-review/trusted/cli.mjs serve";
 
 let browser;
 let server;
+let origin;
 let page;
 let dialogs;
 let confirmFinish = false;
@@ -36,11 +35,11 @@ async function open(options) {
     const r = makeRepo();
     server = createServer();
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const origin = `http://127.0.0.1:${server.address().port}`;
+    origin = `http://127.0.0.1:${server.address().port}`;
     const app = createApp({
         repo: r.repo,
         tmp: join(r.repo, "tmp/visual-review"),
-        projects: PROJECTS,
+        config: CONFIG,
         token: TOKEN,
         origin,
         startCommand: START,
@@ -284,6 +283,119 @@ describe("review page: a pull request", () => {
         expect(await stageClass()).toContain("spotlight");
     });
 
+    it("lays the changed pixels over both images in red with H, and blinks them with L", async () => {
+        await openStory(2);
+        await page.keyboard.press("h");
+        await expect.poll(stageClass).toContain("highlight");
+        const marks = page.locator("#stage .diffmark");
+        await expect.poll(() => marks.count()).toBe(2);
+        // Each pane still shows its real image, with the overlay exactly on top of it.
+        expect(await page.locator("#stage img").count()).toBe(2);
+        for (const i of [0, 1]) {
+            const [img, mark] = await page
+                .locator("#stage figure")
+                .nth(i)
+                .evaluate((f) =>
+                    [f.querySelector("img"), f.querySelector(".diffmark")].map((e) =>
+                        e.getBoundingClientRect().toJSON(),
+                    ),
+                );
+            expect([mark.left, mark.top, mark.width, mark.height]).toEqual([img.left, img.top, img.width, img.height]);
+        }
+        // Solid red on the changed pixels, which all lie in the changed box; clear everywhere else.
+        const red = await marks.nth(1).evaluate((c) => {
+            const { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+            let [count, other, x0, y0, x1, y1] = [0, 0, Infinity, Infinity, -1, -1];
+            for (let i = 0; i < c.width * c.height; i++) {
+                const [r, g, b, a] = data.slice(i * 4, i * 4 + 4);
+                if (a === 0) {
+                    continue;
+                }
+                if (r !== 255 || g !== 0 || b !== 0 || a !== 255) {
+                    other++;
+                    continue;
+                }
+                const [x, y] = [i % c.width, Math.floor(i / c.width)];
+                count++;
+                [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+            }
+            return { count, other, box: [x0, y0, x1, y1] };
+        });
+        expect(red.count).toBeGreaterThan(0);
+        expect(red.other).toBe(0);
+        expect(red.box[0]).toBeGreaterThanOrEqual(160);
+        expect(red.box[1]).toBeGreaterThanOrEqual(80);
+        expect(red.box[2]).toBeLessThan(200);
+        expect(red.box[3]).toBeLessThan(120);
+        // L blinks both overlays together; L again holds them on.
+        const blink = page.getByRole("button", { name: "Blink", exact: true });
+        expect(await blink.isDisabled()).toBe(false);
+        await page.keyboard.press("l");
+        await expect.poll(() => blink.getAttribute("aria-pressed")).toBe("true");
+        const seen = new Set();
+        await expect
+            .poll(async () => {
+                const shown = await page
+                    .locator("#stage .diffmark")
+                    .evaluateAll((ms) => ms.map((m) => m.style.visibility || "visible"));
+                // L re-renders the stage, which holds no overlay for a moment: count only the
+                // samples taken with both overlays drawn.
+                if (shown.length === 2) {
+                    seen.add(shown.join());
+                }
+                return [...seen].sort().join("|");
+            })
+            .toBe("hidden,hidden|visible,visible");
+        await page.keyboard.press("l");
+        await expect.poll(() => blink.getAttribute("aria-pressed")).toBe("false");
+        // Blink only means something in Highlight.
+        await page.keyboard.press("h");
+        await expect.poll(stageClass).toContain("side");
+        expect(await page.locator("#stage .diffmark").count()).toBe(0);
+        expect(await blink.isDisabled()).toBe(true);
+    });
+
+    it("hides the changed box with B, and remembers it in this browser", async () => {
+        await openStory(2);
+        await expect.poll(() => page.locator("#box-count").textContent()).toBe("box 1 of 1");
+        await expect.poll(() => page.locator("#stage .boxmark").count()).toBe(2);
+        const box = page.getByRole("button", { name: "Box", exact: true });
+        expect(await box.getAttribute("aria-pressed")).toBe("true");
+        await page.keyboard.press("b");
+        // B re-renders the story; the count is written once the diff is ready, so wait for it
+        // before judging the outline, which an unfinished render would also lack.
+        await expect.poll(() => box.getAttribute("aria-pressed")).toBe("false");
+        await expect.poll(() => page.locator("#box-count").textContent()).toBe("box 1 of 1");
+        expect(await page.locator("#stage .boxmark").count()).toBe(0);
+        // A fresh page on a link that does not say (an older one): this browser's choice holds.
+        const link = new URL(page.url());
+        const p = new URLSearchParams(link.hash.slice(1));
+        expect(p.get("box")).toBe("off");
+        p.delete("box");
+        p.delete("blink");
+        link.hash = String(p);
+        await page.goto("about:blank");
+        await page.goto(link.href);
+        await expect.poll(() => page.locator("#position").textContent()).toMatch(/^2 of /);
+        await expect.poll(() => page.locator("#box-count").textContent()).toBe("box 1 of 1");
+        expect(await page.locator("#stage .boxmark").count()).toBe(0);
+        await page.keyboard.press("b");
+        await expect.poll(() => page.locator("#stage .boxmark").count()).toBe(2);
+    });
+
+    it("keeps focus on the page, so an iPad's keyboard reaches the shortcuts", async () => {
+        // Safari on an iPad delivers keys only to a focused element; tapping an image focuses none.
+        const focused = async () => ((await page.locator("#app:focus").count()) === 1 ? "app" : "");
+        await openStory(2);
+        await expect.poll(focused).toBe("app");
+        await page.locator("#stage").click();
+        await expect.poll(focused).toBe("app");
+        // Leaving a text box hands focus back to the page.
+        await page.locator("#reason").focus();
+        await page.keyboard.press("Escape");
+        await expect.poll(focused).toBe("app");
+    });
+
     it("says why Flash and Highlight are off when there is one image", async () => {
         await openStory(4);
         await expect
@@ -506,6 +618,125 @@ describe("review page: a pull request", () => {
     });
 });
 
+describe("review page: links and the frozen pass", () => {
+    beforeEach(async () => {
+        await open((r) => ({ gh: onePr()(r) }));
+        await page.locator(".component").first().waitFor();
+    });
+
+    const hash = () => new URLSearchParams(new URL(page.url()).hash.slice(1));
+    const position = () => page.locator("#position").textContent();
+    // A link opened afresh, as when pasted into another tab or device.
+    async function visit(url) {
+        await page.goto("about:blank");
+        await page.goto(url);
+    }
+
+    it("puts every screen in the address and opens it again from a copied link", async () => {
+        expect(Object.fromEntries(hash())).toMatchObject({ token: TOKEN, target: "123", filter: "undecided" });
+        // The grid, with its filters.
+        await page.getByRole("button", { name: /^All/ }).click();
+        await page.locator("#filter").fill("slider");
+        await expect.poll(() => hash().get("q")).toBe("slider");
+        const grid = page.url();
+        await visit(grid);
+        await expect.poll(() => page.locator(".tile").count()).toBe(1);
+        expect(await page.getByRole("button", { name: /^All/ }).getAttribute("aria-pressed")).toBe("true");
+        expect(await page.locator("#filter").inputValue()).toBe("slider");
+        // A story, with its view and zoom.
+        await page.locator("#filter").fill("");
+        await openStory(2);
+        await page.keyboard.press("s");
+        await page.getByRole("button", { name: "2x", exact: true }).click();
+        await expect.poll(() => hash().get("zoom")).toBe("2");
+        expect(Object.fromEntries(hash())).toMatchObject({ item: "button--primary.dark.png", view: "spotlight" });
+        const story = page.url();
+        await visit(story);
+        await expect.poll(position).toBe("2 of 6");
+        expect(await page.locator("h2").textContent()).toContain("button--primary (dark)");
+        await expect.poll(stageClass).toBe("stage spotlight zoom-2");
+        // The box and blink choices ride along, and a link's choice wins over this browser's.
+        expect(Object.fromEntries(hash())).toMatchObject({ box: "on", blink: "off" });
+        const boxed = new URL(page.url());
+        const p = new URLSearchParams(boxed.hash.slice(1));
+        p.set("box", "off");
+        p.set("blink", "on");
+        boxed.hash = String(p);
+        await visit(boxed.href);
+        await expect.poll(position).toBe("2 of 6");
+        const box = page.getByRole("button", { name: "Box", exact: true });
+        await expect.poll(() => box.getAttribute("aria-pressed")).toBe("false");
+        expect(await page.getByRole("button", { name: "Blink", exact: true }).getAttribute("aria-pressed")).toBe(
+            "true",
+        );
+        // The targets screen.
+        await page.locator("#home").click();
+        await expect.poll(() => [...hash().keys()]).toEqual(["token"]);
+        await visit(page.url());
+        await expect.poll(() => page.getByRole("button", { name: "Review", exact: true }).count()).toBeGreaterThan(0);
+    });
+
+    it("goes Back and Forward between the screens", async () => {
+        await openStory(3);
+        await page.goBack();
+        await page.locator(".component").first().waitFor();
+        await expect.poll(() => page.locator(".tile.current").getAttribute("data-file")).toBe("slider--sizes.png");
+        await page.goForward();
+        await expect.poll(position).toBe("3 of 6");
+        await page.locator("#home").click();
+        await page.locator(".card").first().waitFor();
+        await page.goBack();
+        await expect.poll(position).toBe("3 of 6");
+    });
+
+    it("lands on the nearest screen, saying why, when a link names what is gone", async () => {
+        const link = new URL(page.url());
+        link.hash = `token=${TOKEN}&target=123&project=${hash().get("project")}&filter=all&item=gone--story.png`;
+        await visit(link.href);
+        await expect.poll(status).toBe("gone--story.png is not in this CI run any more: showing the grid.");
+        expect(hash().has("item")).toBe(false);
+        expect(await page.locator(".component").count()).toBeGreaterThan(0);
+        link.hash = `token=${TOKEN}&target=999&project=x`;
+        await visit(link.href);
+        await expect.poll(status).toBe("999 is no longer listed: showing every target.");
+        expect([...hash().keys()]).toEqual(["token"]);
+    });
+
+    it("copies the link to the screen", async () => {
+        await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+        await openStory(2);
+        await page.locator("#copy-link").click();
+        await expect.poll(status).toContain("Link copied");
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(page.url());
+    });
+
+    it("keeps decided items in the pass: Previous goes back to one, and U undoes it", async () => {
+        await openStory(2);
+        await page.keyboard.press("a");
+        await expect.poll(position).toBe("3 of 6");
+        await page.getByRole("button", { name: "Accept", exact: true }).click();
+        await expect.poll(position).toBe("4 of 6");
+        await page.getByRole("button", { name: "Previous" }).click();
+        await expect.poll(position).toBe("3 of 6");
+        expect(await page.locator(".actions").textContent()).toContain("Decided: accept");
+        await page.keyboard.press("u");
+        await expect.poll(status).toBe("slider--sizes: undone, undecided again");
+        expect(await position()).toBe("3 of 6");
+        await page.keyboard.press("k");
+        await expect.poll(position).toBe("2 of 6");
+        await page.getByRole("button", { name: "Undo" }).click();
+        await expect.poll(status).toContain("undone");
+        await page.keyboard.press("a");
+        await expect.poll(position).toBe("3 of 6");
+        // The grid drops what was decided once the owner goes back to it.
+        await page.keyboard.press("Escape");
+        await expect
+            .poll(() => page.getByRole("button", { name: /^Needs a decision/ }).textContent())
+            .toBe("Needs a decision (5)");
+        expect(await page.locator('.tile[data-file="button--primary.dark.png"]').count()).toBe(0);
+    });
+});
+
 describe("review page: a running Finish", () => {
     it("shows each step, survives a reload without offering a second Finish, then shows the result", async () => {
         let release;
@@ -532,11 +763,16 @@ describe("review page: a running Finish", () => {
         await expect.poll(status, slow).toBe("Finishing #123: posting the status...");
 
         await page.reload();
+        // The reload reopens the grid it was on, which follows the Finish too.
+        await expect.poll(status).toBe("Finishing #123: posting the status...");
+        await page.locator("#home").click();
         await expect
             .poll(() => page.locator(".finish-running").textContent())
             .toBe("Finish is running: posting the status...");
         expect(await page.getByRole("button", { name: /^Finish #123/ }).count()).toBe(0);
-        await expect.poll(status).toBe("Finishing #123: posting the status...");
+        // Read at once, not polled: opening a screen must not blank the Finish's step until the
+        // next once-a-second check writes it again (on a slow runner that took over a second).
+        expect(await status()).toBe("Finishing #123: posting the status...");
 
         release();
         await expect
@@ -544,6 +780,55 @@ describe("review page: a running Finish", () => {
             .toMatch(/^Finish of #123 done\. Committed \w{10} to feature\. Status: Reviewed: 4 accepted/);
         expect(await page.locator(".finish-running").count()).toBe(0);
         expect(await page.getByRole("button", { name: /^Finish #123/ }).isDisabled()).toBe(true);
+    });
+});
+
+describe("review page: renamed stories", () => {
+    const REASON =
+        "renames.json renames old-menu--gone to menu--gone, but the Storybook has no story menu--gone: fix renames.json";
+    beforeEach(async () => {
+        const broken = {
+            id: "menu--gone",
+            mode: null,
+            file: "menu--gone.png",
+            from: "old-menu--gone",
+            status: "failed",
+            flaky: false,
+            baseline: null,
+            capture: null,
+            size: null,
+            baselineSize: null,
+            changedPixels: null,
+            bbox: null,
+            threshold: 0.063,
+            includeAA: false,
+            reason: REASON,
+            console: [],
+        };
+        await open((r) => ({ gh: withMoved(r, [broken]) }));
+        await page.locator(".component").first().waitFor();
+    });
+
+    it("shows a moved story as a pair labeled with its old id, and a broken rename as an error", async () => {
+        expect(await page.getByRole("button", { name: /^moved \(/ }).textContent()).toBe("moved (1)");
+        const tile = page.locator('.tile[data-file="slider--sizes.png"]');
+        expect(await tile.locator(".badge.moved").textContent()).toBe("moved");
+        expect(await tile.locator(".moved-from").textContent()).toBe("moved from old-slider--sizes");
+        expect(await page.locator(".errors").textContent()).toContain(REASON);
+
+        await tile.click();
+        expect(await page.locator("h2").first().textContent()).toContain("moved from old-slider--sizes");
+        await expect
+            .poll(() => page.locator("#stage .label").allTextContents())
+            .toEqual(["Baseline of old-slider--sizes", "New"]);
+        await page.keyboard.press("a");
+        await expect.poll(() => page.locator("h2").first().textContent()).not.toContain("slider--sizes");
+        const { decisions } = await page.evaluate(
+            async (token) =>
+                (await fetch("/api/pr/123/compact-mantine", { headers: { "x-review-token": token } })).json(),
+            TOKEN,
+        );
+        expect(decisions["slider--sizes.png"]).toMatchObject({ decision: "accept" });
     });
 });
 

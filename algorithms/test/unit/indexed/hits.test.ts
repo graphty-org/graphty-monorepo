@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { hits as legacyHits } from "../../../src/algorithms/centrality/hits.js";
-import { Graph } from "../../../src/core/graph.js";
 import { hits } from "../../../src/indexed/hits.js";
+import { legacyResult } from "../../helpers/golden.js";
+import { Graph } from "../../helpers/legacy-graph.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
@@ -91,7 +91,7 @@ describe("indexed.hits", () => {
             // largest single-node change; the only difference is the order the sums are accumulated in.
             for (const options of [{}, { maxIterations: 4 }, { normalized: false }]) {
                 const ported = hits(s, options);
-                const legacy = legacyHits(graph, options);
+                const legacy = legacyResult() as HITSResult;
                 for (let u = 0; u < s.nodeCount; u++) {
                     const id = String(s.ids.idOf(u));
                     expect(ported.hubs[u]).toBeCloseTo(legacy.hubs[id], 9);

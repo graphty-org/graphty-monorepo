@@ -99,7 +99,7 @@ shortcut to make a check pass.
 - **Milestone 3:** Finish asks for the owner's passkey and Face ID on the review page and stores
   the WebAuthn assertion, over a hash of the decision record, in the record. The CI gate counts an
   accept only when the assertion verifies against the passkey registered in
-  `visual-review/passkeys.json`: signature, rpId, the user-verified flag and the recomputed hash.
+  `visual-review.passkeys.json`: signature, rpId, the user-verified flag and the recomputed hash.
   The git signature on Finish's commit is not the proof, since agents hold that key. Existing
   baselines are grandfathered; their unproven records stay as history.
 - **Limits.** This proves the owner's device approved the record. It does not defend against a
@@ -190,7 +190,7 @@ accept's assertion against the registered passkey, and an accept without a valid
 count.
 
 **Owner actions.** Register the passkey on the review page, and merge the pull request that adds
-it to `visual-review/passkeys.json`.
+it to `visual-review.passkeys.json`.
 
 **Exit criteria.** A pull request that changes a baseline without a valid approval cannot merge;
 tests prove that an edited record, a wrong rpId, an approval without user verification and an

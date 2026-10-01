@@ -1070,9 +1070,10 @@ jobs:
             # or when that capture is missing, unfinished or invalid. It also fails when
             # a baseline PNG or an excluding settings file differs from the base without a review record
             # added in the pull request that names its new hash. So it shows the captures match the pull
-            # request's baselines and that each baseline change is named (path and new hash) in a record;
-            # it does NOT prove the owner pressed Finish, since anyone who can push can write a record
-            # (visual-review/README.md, "What the gate does and does not guarantee"). Pull requests only, so
+            # request's baselines and that each baseline change is named (path and new hash) in a record.
+            # Once the base branch lists passkeys in visual-review.passkeys.json, a record counts only
+            # when the owner's passkey approval in it verifies, so an agent cannot accept on the owner's
+            # behalf (visual-review/README.md, "The passkey: owner-only approval"). Pull requests only, so
             # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
             # (standard library only), run from this checkout rather than with npx as the package's
             # template does, so a change to the gate is tested by its own pull request; it reads

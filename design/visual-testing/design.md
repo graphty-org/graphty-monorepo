@@ -356,7 +356,7 @@ the changes from the owner's tiers explained.
  audit of the pushed range, and a drift capture of the projects the range can affect
 ```
 
-Approval rests on one thing: the passkey registered in `visual-review/passkeys.json`, checked by
+Approval rests on one thing: the passkey registered in `visual-review.passkeys.json`, checked by
 the gate (section 8). The workflow split drawn here is a later hardening step; until it lands,
 capture and the gate run in `ci.yml` (section 1a).
 
@@ -669,7 +669,7 @@ shows the entry to add:
 ```
 
 `publicKey` is the key `getPublicKey()` returns, which `node:crypto` reads directly. The entry
-goes into `visual-review/passkeys.json` through a pull request the owner merges. The passkey is in
+goes into `visual-review.passkeys.json` through a pull request the owner merges. The passkey is in
 iCloud Keychain, so it is on the owner's iPhone, iPad and Mac, and a lost device loses nothing. To
 replace or add a key, the owner registers again and merges the change.
 
@@ -726,7 +726,7 @@ The CI gate (`visual-review/trusted/gate.mjs`) already requires every changed ba
 excluding settings file to be named, with its new hash, by a record the pull request adds. It also
 requires, for each such record, with `node:crypto` alone:
 
-1. `approval.credentialId` names a key in `passkeys.json` as it is on the base branch;
+1. `approval.credentialId` names a key in `visual-review.passkeys.json` as it is on the base branch;
 2. clientDataJSON's `type` is `webauthn.get`, its `challenge` is the hash recomputed from the
    record as committed, and its `origin` is an https origin on the key's `rpId`;
 3. authenticatorData begins with the SHA-256 of the key's `rpId`, and its user-verified flag (UV,
@@ -748,7 +748,7 @@ every image. It does not defend against a tampered review page: the page is serv
 machine agents run on, so a page an agent altered could show one set of images and ask Face ID to
 approve another. That is out of scope; moving the approval step to a separate signing origin that
 agents cannot change is a possible later step. The gate also runs from `ci.yml`, which a pull
-request can edit; `CLAUDE.md` forbids agents to edit it, `gate.mjs` or `passkeys.json`, and code
+request can edit; `CLAUDE.md` forbids agents to edit it, `gate.mjs` or `visual-review.passkeys.json`, and code
 review is the backstop. Separately, the owner should consider giving agents a fine-grained token
 without administrator rights, since today's token lets an agent merge around any check.
 
@@ -1095,7 +1095,7 @@ contention measurement passes, the same day if possible (about 10 to 20 minutes 
 2. The review page: Register passkey, and Face ID at Finish; the server verifies the assertion
    before it commits.
 3. The owner registers the passkey on the review page and merges the pull request that adds it
-   to `visual-review/passkeys.json`. From then on every new accept needs an approval; existing
+   to `visual-review.passkeys.json`. From then on every new accept needs an approval; existing
    baselines are grandfathered.
 
 Later hardening, none of it a prerequisite: capture and verification moved into

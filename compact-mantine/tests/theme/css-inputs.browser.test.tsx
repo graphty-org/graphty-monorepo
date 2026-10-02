@@ -519,18 +519,18 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
             expect(style?.alignItems).toBe("center");
         });
 
-        it("paddingTop is 4px", () => {
+        it("paddingTop is 1px", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
             const input = container.querySelector(".mantine-MultiSelect-input");
             const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingTop).toBe("4px");
+            expect(style?.paddingTop).toBe("1px");
         });
 
-        it("paddingBottom is 4px", () => {
+        it("paddingBottom is 1px", () => {
             const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} />);
             const input = container.querySelector(".mantine-MultiSelect-input");
             const style = input ? getComputedStyle(input) : null;
-            expect(style?.paddingBottom).toBe("4px");
+            expect(style?.paddingBottom).toBe("1px");
         });
     });
 
@@ -552,18 +552,14 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
 
     describe("pillsList element computed styles", () => {
         it("columnGap is 4px", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pillsList = container.querySelector(".mantine-MultiSelect-pillsList");
             const style = pillsList ? getComputedStyle(pillsList) : null;
             expect(style?.columnGap).toBe("4px");
         });
 
         it("rowGap is 2px", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pillsList = container.querySelector(".mantine-MultiSelect-pillsList");
             const style = pillsList ? getComputedStyle(pillsList) : null;
             expect(style?.rowGap).toBe("2px");
@@ -584,18 +580,14 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
      */
     describe("pill element - text centering regression test", () => {
         it("pill has margin 0 (no extra margins)", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pill = container.querySelector(".mantine-Pill-root");
             const style = pill ? getComputedStyle(pill) : null;
             expect(style?.margin).toBe("0px");
         });
 
         it("pill does NOT have extra paddingTop (would break text centering)", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pill = container.querySelector(".mantine-Pill-root");
             const style = pill ? getComputedStyle(pill) : null;
             // Pill component sets its own padding via CSS vars; MultiSelect should not add more
@@ -603,9 +595,7 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
         });
 
         it("pill does NOT have extra paddingBottom (would break text centering)", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pill = container.querySelector(".mantine-Pill-root");
             const style = pill ? getComputedStyle(pill) : null;
             // Pill component sets its own padding via CSS vars; MultiSelect should not add more
@@ -613,18 +603,14 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
         });
 
         it("pill height equals --pill-height (16px) with no reduction from padding", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pill = container.querySelector(".mantine-Pill-root");
             const style = pill ? getComputedStyle(pill) : null;
             expect(style?.height).toBe("16px");
         });
 
         it("pill label has full height available for text centering", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pillLabel = container.querySelector(".mantine-Pill-label");
             const style = pillLabel ? getComputedStyle(pillLabel) : null;
             // Label height should match pill height for proper centering
@@ -632,9 +618,7 @@ describe("MultiSelect - All CSS Values (Browser)", () => {
         });
 
         it("pill label lineHeight matches height for vertical centering", () => {
-            const { container } = renderWithTheme(
-                <MultiSelect label="Test" data={["A", "B"]} value={["A"]} />
-            );
+            const { container } = renderWithTheme(<MultiSelect label="Test" data={["A", "B"]} value={["A"]} />);
             const pillLabel = container.querySelector(".mantine-Pill-label");
             const style = pillLabel ? getComputedStyle(pillLabel) : null;
             // lineHeight should match height for single-line text centering
@@ -663,11 +647,12 @@ describe("TagsInput - All CSS Values (Browser)", () => {
             expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is 24px (a min-height; --input-size stays unset so pills can wrap)", () => {
             const { container } = renderWithTheme(<TagsInput label="Test" />);
             const wrapper = container.querySelector(".mantine-TagsInput-wrapper");
             const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(heightVar).toBe("24px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("24px");
         });
     });
 
@@ -706,21 +691,22 @@ describe("PillsInput - All CSS Values (Browser)", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
-                </PillsInput>
+                </PillsInput>,
             );
             const wrapper = container.querySelector(".mantine-PillsInput-wrapper");
             expect(getCssVar(wrapper, "--input-fz")).toBe("11px");
         });
 
-        it("does NOT have fixed --input-height (variable height)", () => {
+        it("--input-height is 24px (a min-height; --input-size stays unset so pills can wrap)", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
-                </PillsInput>
+                </PillsInput>,
             );
             const wrapper = container.querySelector(".mantine-PillsInput-wrapper");
             const heightVar = getCssVar(wrapper, "--input-height");
-            expect(heightVar).not.toBe("24px");
+            expect(heightVar).toBe("24px");
+            expect(getCssVar(wrapper, "--input-size")).not.toBe("24px");
         });
     });
 
@@ -729,7 +715,7 @@ describe("PillsInput - All CSS Values (Browser)", () => {
             const { container } = renderWithTheme(
                 <PillsInput label="Test">
                     <PillsInput.Field />
-                </PillsInput>
+                </PillsInput>,
             );
             const label = container.querySelector(".mantine-PillsInput-label");
             const style = label ? getComputedStyle(label) : null;

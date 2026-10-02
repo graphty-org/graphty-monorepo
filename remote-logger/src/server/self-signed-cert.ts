@@ -23,19 +23,19 @@ export interface GeneratedCert {
  *
  * For browser use, provide valid certificates via --cert and --key flags.
  * @param hostname - Optional hostname to include in the certificate (default: localhost)
- * @returns Object containing PEM-encoded certificate and private key
+ * @returns Promise of an object containing the PEM-encoded certificate and PKCS#8 private key
  */
-export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
+export async function generateSelfSignedCert(hostname = "localhost"): Promise<GeneratedCert> {
     const attrs = [
         { name: "commonName", value: hostname },
         { name: "organizationName", value: "Remote Log Server" },
         { name: "countryName", value: "US" },
     ];
 
-    const options = {
+    const options: Parameters<typeof selfsigned.generate>[1] = {
         keySize: 2048,
-        days: 365,
-        algorithm: "sha256" as const,
+        // Valid for 365 days from now (the selfsigned default)
+        algorithm: "sha256",
         extensions: [
             {
                 name: "basicConstraints",
@@ -63,7 +63,7 @@ export function generateSelfSignedCert(hostname = "localhost"): GeneratedCert {
         ],
     };
 
-    const pems = selfsigned.generate(attrs, options);
+    const pems = await selfsigned.generate(attrs, options);
 
     return {
         cert: pems.cert,

@@ -10,7 +10,7 @@
  * the velocity buffer, and the stored |dp| the same plus the two f32 position roundings.
  *
  * No derived tolerance anywhere: every assertion is bitwise, an exact count, or an inequality with a stated f32
- * margin. Sizing: karate cannot shrink, so on a software adapter the per-run step counts shrink (STEPS 4 -> 2).
+ * margin. Sizing: karate cannot shrink, so on a software adapter the per-run step counts shrink (stepBound() 4 -> 2).
  */
 
 import { type F32, type GraphSnapshot, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
@@ -30,7 +30,7 @@ import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 const NUM_RUNS = 200;
 const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators (gpuScale() sizing, file header). */
-const STEPS = gpuScale() < 1 ? 2 : 4;
+const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
 
 /** The smallest normal f32 (2^-126): WGSL permits flushing subnormals to zero. */
 const MIN_NORMAL_F32 = 2 ** -126;
@@ -138,8 +138,8 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
             await fc.assert(
                 fc.asyncProperty(
                     fc.array(fc.boolean(), { minLength: n, maxLength: n }),
-                    fc.integer({ min: 1, max: STEPS }),
-                    fc.integer({ min: 1, max: STEPS }),
+                    fc.integer({ min: 1, max: stepBound() }),
+                    fc.integer({ min: 1, max: stepBound() }),
                     async (bits, before, after) => {
                         const mask = makeMask(n);
                         bits.forEach((b, i) => {
@@ -287,7 +287,7 @@ describe("spring-electrical properties (spec 11.3; fast-check numRuns 200)", () 
             await fc.assert(
                 fc.asyncProperty(
                     fc.integer({ min: 0, max: n - 1 }),
-                    fc.integer({ min: 1, max: STEPS + 1 }),
+                    fc.integer({ min: 1, max: stepBound() + 1 }),
                     async (row, steps) => {
                         await withSe(ctx, BASE, async (sim) => {
                             const read = inspector(sim);

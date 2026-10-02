@@ -252,6 +252,16 @@ export interface CompactMantineLabels {
     /** Accessible name of a tabbed pop-out panel when its first tab has no label. */
     settings: string;
 
+    // PasswordInput (the theme's extension of Mantine's)
+
+    /**
+     * Accessible name of the eye button inside a password field that shows or
+     * hides what was typed. One name in both states: the button reports whether
+     * the text is showing through its pressed state, not by renaming itself.
+     * Never drawn; the button shows only the eye glyph.
+     */
+    passwordReveal: string;
+
     // Ordinals
 
     /**
@@ -329,6 +339,8 @@ export const defaultLabels: CompactMantineLabels = {
 
     closePanel: "Close panel",
     settings: "Settings",
+
+    passwordReveal: "Show the password",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

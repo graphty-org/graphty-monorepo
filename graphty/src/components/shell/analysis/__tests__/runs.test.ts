@@ -9,6 +9,7 @@
  */
 
 import type {
+    FieldBand,
     GraphSession,
     Histogram,
     HistogramOptions,
@@ -31,6 +32,8 @@ interface Published {
     readonly measured?: number;
     /** The graph-level fields, e.g. louvain's modularity. */
     readonly graph?: Readonly<Record<string, unknown>>;
+    /** The band each graph-level field is in, as the element would report it. */
+    readonly bands?: Readonly<Record<string, FieldBand>>;
     /** What `histogram()` answers; no bins when absent. */
     readonly histogram?: Histogram;
 }
@@ -88,6 +91,7 @@ function fakeResult(published: Published): RunResult {
             return published.histogram ?? { bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" };
         },
         graph: published.graph ?? {},
+        band: (field: string) => published.bands?.[field],
     } as unknown as RunResult;
 }
 
@@ -280,6 +284,9 @@ describe("readDegreeResults", () => {
 });
 
 describe("runCommunityDetection", () => {
+    /** The band graphty-element puts a modularity above 0.3 in. */
+    const CLEAR: FieldBand = { id: "clear", plainName: "Clearly separated", description: "", above: 0.3 };
+
     it("runs louvain and reads the groups back, largest first", async () => {
         const stub = makeStub({
             louvain: {
@@ -290,6 +297,7 @@ describe("runCommunityDetection", () => {
                     { group: 3, name: "Group 4", size: 1 },
                 ],
                 graph: { modularity: 0.4471 },
+                bands: { modularity: CLEAR },
             },
         });
 
@@ -300,6 +308,7 @@ describe("runCommunityDetection", () => {
         expect(result.largestGroupSize).toBe(4);
         expect(result.nodeCount).toBe(10);
         expect(result.modularity).toBe(0.4471);
+        expect(result.modularityBand).toBe(CLEAR);
         expect(result.groups).toEqual([
             { communityId: 0, name: "Group 1", size: 4 },
             { communityId: 1, name: "Group 2", size: 3 },
@@ -346,6 +355,7 @@ describe("runCommunityDetection", () => {
 
         expect(result.modularity).toBeUndefined();
         expect("modularity" in result).toBe(false);
+        expect("modularityBand" in result).toBe(false);
         expect(result.groupCount).toBe(2);
     });
 

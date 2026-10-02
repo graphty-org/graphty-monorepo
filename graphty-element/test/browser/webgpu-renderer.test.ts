@@ -279,6 +279,50 @@ describe("the renderer a graph is drawn with", () => {
         }
     });
 
+    it("builds no node while WebGPU is opening, so nothing is built on a scene about to be thrown away", async () => {
+        // An adapter that answers only when told to, so the window in which WebGPU is opening --
+        // the adapter, the device and the compiler fetch, hundreds of milliseconds in a browser --
+        // is as long as the test needs it to be, on every lane. It answers "no adapter" at the
+        // end, so WebGL draws; what is being tested is what happens before that answer.
+        let answer: () => void = () => undefined;
+        const answered = new Promise<void>((resolve) => {
+            answer = resolve;
+        });
+        Object.defineProperty(navigator, "gpu", {
+            configurable: true,
+            value: {
+                requestAdapter: async (): Promise<null> => {
+                    await answered;
+                    return null;
+                },
+            },
+        });
+
+        try {
+            const container = document.createElement("div");
+            document.body.appendChild(container);
+            const graph = new Graph(container);
+            mounted.push({ graph, container });
+            graph.setRenderer("webgpu");
+
+            // Data assigned before the graph is drawn, the way an element's `nodeData` set before
+            // it is attached arrives.
+            const added = graph.addNodes(NODES);
+            const init = graph.init();
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            const builtWhileOpening = graph.getDataManager().nodes.size;
+
+            answer();
+            await init;
+            await added;
+
+            assert.equal(builtWhileOpening, 0, "nodes were built before the renderer was chosen");
+            assert.equal(graph.getDataManager().nodes.size, NODES.length);
+        } finally {
+            Reflect.deleteProperty(navigator, "gpu");
+        }
+    });
+
     it.skipIf(GPU_LANE)("draws with WebGL and says why when WebGPU is asked for and absent", async () => {
         const graph = await open("webgpu");
         const status = graph.rendererStatus;

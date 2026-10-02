@@ -37,6 +37,7 @@ import type {
     LayoutId,
     RunId,
     Scope,
+    ScopeInput,
     SetId,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
@@ -95,6 +96,57 @@ export interface EdgeRecord {
 
 /** The attribute bag one record arrived with, as the session reads it. */
 export type SessionAttributes = Readonly<Record<string, unknown>>;
+
+/** What a page of records is sorted by. */
+export interface RecordSort {
+    /**
+     * The record key to sort by: a top-level attribute, or `id` (and `source` or `target` for an
+     * edge). Numbers (bigints among them) come before text, text sorts in natural order ("2" before "10"), and a record
+     * without the key comes last in either direction.
+     */
+    readonly key: string;
+    /** Largest first. Default false. */
+    readonly descending?: boolean;
+}
+
+/** Which records a page holds, and from where in their order. */
+export interface RecordPageOptions {
+    /** The position of the page's first record in the ordered list. Default 0. */
+    readonly offset?: number;
+    /** The most records the page holds; `Infinity` reads to the end. Default 100. */
+    readonly limit?: number;
+    /** Which records: any scope, such as `"selection"` or `{ set: id }`. Default `"graph"`. */
+    readonly scope?: ScopeInput;
+    /**
+     * The order. Absent, records come in the graph's own order: the order they were added, which
+     * an edit never changes -- a removed record leaves a gap that closes, an added one goes last.
+     * Records that sort equal keep that order too.
+     */
+    readonly sort?: RecordSort;
+}
+
+/** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
+export interface EdgePageOptions extends RecordPageOptions {
+    /** Only the edges with this node at one end or both. */
+    readonly touching?: NodeId;
+}
+
+/** One window onto an ordered list of records. */
+export interface RecordPage<TRecord> {
+    /** The records, deep-frozen; at most `limit` of them, fewer at the end of the list. */
+    readonly records: readonly TRecord[];
+    /** The position of `records[0]` in the ordered list: the offset asked for. */
+    readonly offset: number;
+    /** How many records the whole ordered list holds. */
+    readonly total: number;
+    /**
+     * Changes whenever anything a page could show may have changed: a record added, removed or
+     * edited, an undo, a load, the selection or a set's members. A page held under one revision
+     * is stale once {@link SessionDataApi.nodePage} answers another. Opaque: compare it, do not
+     * parse it.
+     */
+    readonly revision: string;
+}
 
 /**
  * The connected-component shape of the graph.
@@ -365,6 +417,25 @@ export interface SessionDataApi {
      * @returns the records, deep-frozen
      */
     edges(): readonly EdgeRecord[];
+    /**
+     * One page of node records, without reading the rest: what a table showing a few rows of a
+     * large graph reads. The order is computed once per revision, scope and sort and then reused,
+     * so scrolling through the pages of one order costs only the records on each page.
+     * @param options - the window, the scope and the order; every field optional
+     * @returns the page, with the total and the revision it was read at
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
+     *     number of zero or more.
+     */
+    nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
+    /**
+     * One page of edge records, without reading the rest: {@link nodePage}, for edges, and
+     * optionally only the edges at one node.
+     * @param options - the window, the scope, the order and the node; every field optional
+     * @returns the page, with the total and the revision it was read at
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when `offset` or `limit` is not a whole
+     *     number of zero or more.
+     */
+    edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
      * What the last load did: which endpoint spelling the element resolved, how many repeated
      * edges it saw and what the policy did with them, and how many edges the graph actually holds.

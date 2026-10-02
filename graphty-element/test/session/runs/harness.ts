@@ -250,12 +250,20 @@ export function stubResult(runId: RunId): RunResult {
         graph: {},
         node: () => undefined,
         edge: () => undefined,
-        column: () => ({ length: 0, get: () => Number.NaN, min: Number.NaN, max: Number.NaN, mean: Number.NaN, median: Number.NaN }),
+        column: () => ({
+            length: 0,
+            get: () => Number.NaN,
+            min: Number.NaN,
+            max: Number.NaN,
+            mean: Number.NaN,
+            median: Number.NaN,
+        }),
         ranking: () => [],
         top: () => ({ entries: [], leftOut: null, reason: null }),
         histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
+        band: () => undefined,
     };
 }
 
@@ -271,9 +279,7 @@ export interface ExecutorSpy {
 }
 
 /** An executor that finishes straight away and records what it was asked. */
-export function spyExecutor(
-    body?: (context: RunExecutionContext) => Promise<void> | void,
-): ExecutorSpy {
+export function spyExecutor(body?: (context: RunExecutionContext) => Promise<void> | void): ExecutorSpy {
     const calls: RunExecutionContext[] = [];
 
     return {

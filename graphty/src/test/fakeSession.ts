@@ -62,6 +62,10 @@ import type {
     LegendBlock,
     NodeId,
     NodeRecord,
+    Note,
+    NoteInput,
+    NoteListOptions,
+    NoteTargetInput,
     ProjectSlice,
     RecordPage,
     RecordPageOptions,
@@ -565,6 +569,74 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         });
     };
 
+    /* The notes, newest first, as `session.notes` lists them. Every write is one step that undo
+       and redo take back and put back, and every change is published as `note:changed`. */
+    const notes: Note[] = [];
+    let noteSeq = 0;
+    const targetKey = (target: NoteTargetInput): string =>
+        JSON.stringify(Object.entries(target).map(([kind, value]) => [kind, typeof value === "number" ? String(value) : value]));
+    const noteChanged = (note: Note, change: "created" | "removed", cause: string): void => {
+        publish("note:changed", { id: note.id, change, fields: [], note: change === "removed" ? null : note, cause });
+    };
+    const putNote = (note: Note, cause: string): void => {
+        notes.unshift(note);
+        noteChanged(note, "created", cause);
+    };
+    const takeNote = (note: Note, cause: string): void => {
+        notes.splice(notes.indexOf(note), 1);
+        noteChanged(note, "removed", cause);
+    };
+    const notesApi = {
+        list: (options: NoteListOptions = {}): readonly Note[] => {
+            if (options.target === undefined) {
+                return [...notes];
+            }
+
+            const wanted = (Array.isArray(options.target) ? options.target : [options.target]).map(targetKey);
+
+            return notes.filter((note) => note.targets.some((target) => wanted.includes(targetKey(target))));
+        },
+        get: (id: string): Note | undefined => notes.find((note) => note.id === id),
+        add: (input: NoteInput): string => {
+            noteSeq += 1;
+            const note = Object.freeze({
+                id: `note_${String(noteSeq)}`,
+                time: new Date().toISOString(),
+                targets: input.targets,
+                text: input.text,
+            }) as Note;
+
+            putNote(note, "command");
+            record("Added note", "note.add", ["notes"], {
+                undo: () => {
+                    takeNote(note, "undo");
+                },
+                redo: () => {
+                    putNote(note, "redo");
+                },
+            });
+
+            return note.id;
+        },
+        remove: (id: string): void => {
+            const note = notes.find((held) => held.id === id);
+
+            if (note === undefined) {
+                return;
+            }
+
+            takeNote(note, "command");
+            record("Removed note", "note.remove", ["notes"], {
+                undo: () => {
+                    putNote(note, "undo");
+                },
+                redo: () => {
+                    takeNote(note, "redo");
+                },
+            });
+        },
+    };
+
     const history = {
         get version() {
             return historyVersion;
@@ -865,6 +937,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         /* Nothing this fake holds ever places a node: there is no loader, no layout and no
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
+        notes: notesApi,
         positions: {
             placedCount: 0,
             pinned,

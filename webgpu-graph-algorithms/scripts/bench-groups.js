@@ -74,6 +74,7 @@ export const AFFECTS_EVERY_GROUP = Object.freeze([
     "src/layouts/calibrate.ts",
     "src/wgsl/bf-relax.wgsl.ts",
     "src/wgsl/closeness-reduce.wgsl.ts",
+    "src/wgsl/indirect-finalize.wgsl.ts",
 ]);
 
 /**

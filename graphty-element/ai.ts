@@ -87,7 +87,7 @@ export {
 } from "./src/ai/index";
 
 // AI Key Management
-export type { PersistenceConfig } from "./src/ai/index";
+export type { ApiKeyManagerOptions, PersistenceConfig } from "./src/ai/index";
 export { ApiKeyManager } from "./src/ai/index";
 
 // AI Prompt Builder

@@ -32,7 +32,7 @@ test("a 2D pattern element is a slot drawn with a StandardMaterial, lying in the
             undefined,
             true,
         );
-        element.placeFlat(new Vector3(1, 2, 0));
+        element.place(new Vector3(1, 2, 0), Vector3.Right());
 
         assert(element.batchMesh?.material instanceof StandardMaterial, "Expected StandardMaterial for 2D mode");
         assert.strictEqual(element.batchMesh.metadata?.is2D, true, "Expected is2D metadata to be true");

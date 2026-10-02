@@ -187,7 +187,7 @@ export class PatternedLineRenderer {
      * tens of scene objects. It is now a slot in an `ArrowCapBatch`, the batch arrow caps are
      * drawn from, because an element is drawn exactly the way a cap is: in 3D by the same
      * billboard shader, with its direction, size and colour per instance; in 2D by a
-     * StandardMaterial that holds the colour, turned into the XY plane by its slot.
+     * StandardMaterial that holds the colour, turned into the XY plane and along its line by its slot.
      *
      * WHAT A BATCH IS KEYED BY is whatever the batch's mesh or material holds rather than a slot:
      * the shape, the opacity, in 2D the colour, and for a connected pattern the width, because
@@ -199,7 +199,7 @@ export class PatternedLineRenderer {
      * @param scene - Babylon.js scene
      * @param shapeType - Optional specific shape type for alternating patterns
      * @param is2DMode - Draw flat in the XY plane with a StandardMaterial rather than billboarded
-     * @returns The element; place it with `ArrowCap.place` in 3D or `ArrowCap.placeFlat` in 2D
+     * @returns The element; place it with `ArrowCap.place`
      */
     static createPatternElement(
         pattern: PatternType,
@@ -256,12 +256,9 @@ export class PatternedLineRenderer {
             () => {
                 const mesh = new Mesh(meshName, scene);
                 geometry().applyToMesh(mesh);
-                FilledArrowRenderer.applyInstancedShader(mesh, opacity, scene);
-                // Drawn in the opaque queue, as each element's own mesh was: the opacity reaches
-                // the fragment's alpha and nothing else. Putting the batch in the alpha queue here
-                // would change how every translucent patterned line looks.
-                mesh.visibility = 1;
-                return mesh;
+                // The shader sets the batch's visibility to the opacity, which is what puts a
+                // translucent line in the alpha-blended queue, as it does an arrow cap (issue #619).
+                return FilledArrowRenderer.applyInstancedShader(mesh, opacity, scene);
             },
             { scale, billboard: true },
         );

@@ -113,7 +113,7 @@ describe("Build Output Tests", () => {
     });
 
     it("exports one subpath per format directory, types first, consistent with the bundle entries", () => {
-        expect(FORMAT_DIRS).toEqual(["csv", "dot", "gexf", "gml", "graphml", "json", "neo4j", "pajek"]);
+        expect(FORMAT_DIRS).toEqual(["csv", "dot", "gexf", "gml", "graphml", "json", "neo4j", "obo", "pajek"]);
         const subpaths = Object.keys(packageJson.exports).filter((key) => key !== ".");
         expect(subpaths.sort()).toEqual(FORMAT_DIRS.map((dir) => `./${dir}`));
         for (const dir of FORMAT_DIRS) {

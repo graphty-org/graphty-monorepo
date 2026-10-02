@@ -35,6 +35,7 @@ import * as gml from "../../src/formats/gml/index.js";
 import * as graphml from "../../src/formats/graphml/index.js";
 import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
+import * as obo from "../../src/formats/obo/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
 import * as root from "../../src/index.js";
 import {
@@ -232,6 +233,9 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     json,
     neo4j,
 };
+/** The formats graph-io reads but does not write: one importer, no exporter. */
+const READ_ONLY = ["obo"] as const;
+const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { obo };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
     it("exports the registry with importGraph / exportGraph / sniff and the children CSR helper", () => {
@@ -242,7 +246,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         expect(typeof root.createRegistry).toBe("function");
         expect(typeof root.childrenCsr).toBe("function");
         expect(root.registry.formats()).toEqual([...root.GRAPH_FORMATS]);
-        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set(FORMATS));
+        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set([...FORMATS, ...READ_ONLY]));
     });
 
     it("registers one importer and one exporter per format, each typed by the 12.4 contract", () => {
@@ -269,7 +273,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports)).toEqual([".", ...FORMATS.map((f) => `./${f}`)]);
+        expect(Object.keys(pkg.exports)).toEqual([".", ...[...FORMATS, ...READ_ONLY].map((f) => `./${f}`)]);
         for (const [key, entry] of Object.entries(pkg.exports)) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");
@@ -287,6 +291,14 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
             }
             expect(sub[`${format}Importer`]).toBe(root.registry.importer(format));
             expect(sub[`${format}Exporter`]).toBe(root.registry.exporter(format));
+        }
+        for (const format of READ_ONLY) {
+            const sub = READ_ONLY_SUBPATHS[format];
+            for (const [name, value] of Object.entries(sub)) {
+                expect((root as Record<string, unknown>)[name], `${format}: ${name}`).toBe(value);
+            }
+            expect(sub[`${format}Importer`]).toBe(root.registry.importer(format));
+            expect(root.registry.hasExporter(format)).toBe(false);
         }
     });
 });

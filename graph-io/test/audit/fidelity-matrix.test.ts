@@ -41,6 +41,7 @@ import { jsonExporter } from "../../src/formats/json/exporter.js";
 import { jsonImporter } from "../../src/formats/json/importer.js";
 import { neo4jExporter } from "../../src/formats/neo4j/exporter.js";
 import { neo4jImporter } from "../../src/formats/neo4j/importer.js";
+import { oboImporter } from "../../src/formats/obo/importer.js";
 import { pajekExporter } from "../../src/formats/pajek/exporter.js";
 import { pajekImporter } from "../../src/formats/pajek/importer.js";
 import {
@@ -61,7 +62,8 @@ type AnyExportOptions = Record<string, unknown> & CommonExportOptions;
 type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
 interface Pair {
-    readonly exporter: GraphExporter<AnyExportOptions>;
+    /** Null for a format graph-io only reads. */
+    readonly exporter: GraphExporter<AnyExportOptions> | null;
     readonly importer: GraphImporter<AnyImportOptions>;
 }
 
@@ -98,7 +100,24 @@ const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
         exporter: pajekExporter as GraphExporter<AnyExportOptions>,
         importer: pajekImporter as GraphImporter<AnyImportOptions>,
     },
+    obo: { exporter: null, importer: oboImporter as GraphImporter<AnyImportOptions> },
 };
+
+/** The formats graph-io writes: the targets of the matrix. */
+const TARGETS: readonly CorpusFormat[] = CORPUS_FORMATS.filter((format) => PAIRS[format].exporter !== null);
+
+/**
+ * The exporter of a format graph-io writes.
+ * @param format - a member of TARGETS
+ * @returns the exporter
+ */
+function exporterOf(format: CorpusFormat): GraphExporter<AnyExportOptions> {
+    const { exporter } = PAIRS[format];
+    if (exporter === null) {
+        throw new Error(`${format} has no exporter`);
+    }
+    return exporter;
+}
 
 /** Formats without mixed direction: the export of an expanded snapshot needs a policy. */
 const NO_MIXED_DIRECTION: ReadonlySet<CorpusFormat> = new Set(["dot", "gml", "json", "neo4j"]);
@@ -611,7 +630,7 @@ async function trip(
     exportOptions: AnyExportOptions,
     importOptions: AnyImportOptions,
 ): Promise<Trip> {
-    const { exporter } = PAIRS[target];
+    const exporter = exporterOf(target);
     const notes = exporter.check(snapshot, exportOptions);
     let text: string;
     try {
@@ -754,12 +773,13 @@ function sameFormatExportOptions(input: Input, snapshot: GraphSnapshot): AnyExpo
 }
 
 describe("fidelity matrix: same-format round trips over every corpus file", () => {
-    for (const input of INPUTS) {
+    for (const input of INPUTS.filter((i) => TARGETS.includes(i.format))) {
         const { format } = input;
         it(`${input.label} -> ${format} -> ${format}: equal snapshot, meta and extension tables`, async () => {
             const { snapshot, report } = await original(input);
             expect(report.errorCount, `import of ${input.label} has errors`).toBe(0);
-            const { exporter, importer } = PAIRS[format];
+            const { importer } = PAIRS[format];
+            const exporter = exporterOf(format);
 
             const exportOptions = sameFormatExportOptions(input, snapshot);
             const notes = exporter.check(snapshot, exportOptions);
@@ -815,7 +835,8 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
 
         it(`${input.label} -> ${format} -> ${format}: graph meta survives`, async () => {
             const { snapshot } = await original(input);
-            const { exporter, importer } = PAIRS[format];
+            const { importer } = PAIRS[format];
+            const exporter = exporterOf(format);
             const exportOptions = sameFormatExportOptions(input, snapshot);
             const text = await exporter.exportToString(snapshot, exportOptions);
             const builder = new GraphBuilder({ directed: snapshot.directed, weightDtype: "f64" });
@@ -835,7 +856,7 @@ describe("fidelity matrix: same-format round trips over every corpus file", () =
 
 describe("fidelity matrix: every ordered pair of formats", () => {
     for (const input of INPUTS) {
-        for (const target of CORPUS_FORMATS) {
+        for (const target of TARGETS) {
             if (target === input.format) {
                 continue;
             }

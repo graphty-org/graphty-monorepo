@@ -137,6 +137,7 @@ export {
     ORIGINAL_ID_COLUMN,
     TYPE_COLUMN,
 } from "./formats/neo4j/index.js";
+export { OBO_ISSUE, oboImporter, type OboImportOptions } from "./formats/obo/index.js";
 export {
     PAJEK_ISSUE,
     PAJEK_LOSS,

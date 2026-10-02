@@ -32,6 +32,7 @@ const FILES: Readonly<Record<CorpusFormat, string>> = {
     graphml: "got-network.graphml",
     json: "miserables.json",
     neo4j: "karate-neo4j.csv",
+    obo: "taxrank.obo",
     pajek: "football.net",
 };
 

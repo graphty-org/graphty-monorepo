@@ -51,6 +51,11 @@
             "types": "./dist/neo4j.d.ts",
             "import": "./dist/neo4j.js",
             "default": "./dist/neo4j.js"
+        },
+        "./obo": {
+            "types": "./dist/obo.d.ts",
+            "import": "./dist/obo.js",
+            "default": "./dist/obo.js"
         }
     },
     "sideEffects": false,

@@ -82,6 +82,24 @@ async function classify(
 // ============================================================ part 1: fast-check mutations
 
 const TOKENS: Readonly<Record<CorpusFormat, readonly string[]>> = {
+    obo: [
+        "[Term]",
+        "[Typedef]",
+        "\n",
+        "id: ",
+        "is_a: ",
+        "relationship: ",
+        ":",
+        "!",
+        "\\",
+        '"',
+        "[",
+        "]",
+        "{",
+        "}",
+        "=",
+        "true",
+    ],
     csv: [
         ",",
         ";",
@@ -641,6 +659,7 @@ describe("fuzz audit: structural attacks", () => {
             csv: `source,target,label\na,b,"${big}"\n`,
             neo4j: `:ID,name,:LABEL\n1,"${big}",P\n`,
             pajek: `*Vertices 1\n1 "${big}"\n*Edges\n1 1\n`,
+            obo: `format-version: 1.4\n\n[Term]\nid: X:1\nname: ${big}\n`,
         };
         for (const format of CORPUS_FORMATS) {
             it(`${format}: completes with a snapshot or an ImportError`, async () => {

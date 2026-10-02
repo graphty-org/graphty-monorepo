@@ -367,7 +367,11 @@ describe("a suggested name", () => {
         await three;
         assert.strictEqual(three.id, "acme_reach_3");
         assert.strictEqual(three.label, "Reach in 3 hops");
-        assert.strictEqual(element.run("acme-reach", { hops: 3 }).id, "acme_reach_3", "the same run again is the same result");
+        assert.strictEqual(
+            element.run("acme-reach", { hops: 3 }).id,
+            "acme_reach_3",
+            "the same run again is the same result",
+        );
     });
 });
 

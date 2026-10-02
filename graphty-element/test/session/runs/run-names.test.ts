@@ -64,7 +64,9 @@ function harness(algorithms: readonly AlgorithmDescriptor[] = [DEGREE, LOUVAIN, 
     return { runs, queue };
 }
 
-function registerPlugin(suggestedName: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined): void {
+function registerPlugin(
+    suggestedName: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined,
+): void {
     publishAlgorithmDescriptor({ descriptor: PLUGIN, namespace: "acme", type: PLUGIN.key, suggestedName });
 }
 
@@ -104,7 +106,10 @@ describe("the id of an unnamed run", () => {
     });
 
     it("takes the id and label a registered algorithm suggests", () => {
-        registerPlugin((options) => ({ id: `acme_reach_${String(options.hops)}`, label: `Reach in ${String(options.hops)} hops` }));
+        registerPlugin((options) => ({
+            id: `acme_reach_${String(options.hops)}`,
+            label: `Reach in ${String(options.hops)} hops`,
+        }));
         const { runs } = harness([PLUGIN]);
         const run = runs.start("acme-reach", { hops: 3 });
 
@@ -148,7 +153,11 @@ describe("two runs that would take the same id", () => {
         const sampled = runs.start("degree", {}, { scope: "graph", sample: 2 });
 
         assert.deepStrictEqual([whole.id, largest.id, sampled.id], ["degree", "degree_2", "degree_3"]);
-        assert.strictEqual(runs.start("degree", {}, { scope: "largest-component" }), largest, "found again by what it is");
+        assert.strictEqual(
+            runs.start("degree", {}, { scope: "largest-component" }),
+            largest,
+            "found again by what it is",
+        );
         for (const run of runs.list()) {
             assert.match(run.id, RUN_ID_PATTERN);
         }

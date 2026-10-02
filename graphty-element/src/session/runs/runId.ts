@@ -31,15 +31,7 @@
 
 import { compareIds } from "../../catalog/sets/canonical";
 import { parseScope } from "../../catalog/sets/parse";
-import type {
-    AlgorithmKey,
-    EdgeId,
-    NodeId,
-    OptionDescriptor,
-    RunId,
-    Scope,
-    SetDefinition,
-} from "../../catalog/types";
+import type { AlgorithmKey, EdgeId, NodeId, OptionDescriptor, RunId, Scope, SetDefinition } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { RUN_ID_PATTERN } from "./types";
 

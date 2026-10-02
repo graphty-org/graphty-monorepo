@@ -236,7 +236,7 @@ algorithm -- `results.degree.value`, `results.pagerank.value`, `results.shortest
 and an algorithm whose settings change what its result means adds the setting once it leaves its
 default: `results.louvain_resolution_1_5.group`, labelled "Communities (resolution 1.5)", or
 `results.pagerank_damping_0_9.value`. The built-ins name PageRank's damping, Katz's alpha, the
-direction of eigenvector centrality, Katz and HITS, the resolution of Louvain and Leiden, the
+direction of eigenvector centrality and HITS, the resolution of Louvain and Leiden, the
 strength of components, and the method of shortest path and link prediction.
 
 Starting the same run again finds the same result: same algorithm, same name, and the same scope

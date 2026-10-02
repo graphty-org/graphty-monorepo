@@ -957,7 +957,7 @@ describe("cytoscape", () => {
         pan: { x: 1, y: 2 },
     };
 
-    it("reads elements.nodes / elements.edges with positions, classes, parents and element keys", async () => {
+    it("reads elements.nodes / elements.edges with y-up positions, classes, parents and element keys", async () => {
         const { s, report } = await load(json(doc));
         expect(s.ids.toArray()).toEqual(["p", "n1", "n2"]);
         expect(s.directed).toBe(true);
@@ -971,7 +971,8 @@ describe("cytoscape", () => {
         expect(position?.meta.mutable).toBe(true);
         expect(position?.meta.extra).toEqual({ sourceDims: 2, units: "file" });
         expect(position?.meta.origin?.namespace).toBe("cytoscape");
-        expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([Math.fround(0.1), 2, 0]);
+        // Cytoscape draws y down; graph-io positions are y-up, so y is negated
+        expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([Math.fround(0.1), -2, 0]);
         expect(position?.isSet(0)).toBe(false);
         expect(s.nodes.byRole("classes")?.value(1)).toEqual(["a", "b"]);
         expect(s.nodes.byRole("classes")?.value(2)).toEqual(["c"]);

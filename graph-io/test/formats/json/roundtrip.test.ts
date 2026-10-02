@@ -238,6 +238,17 @@ describe("synthetic round trips", () => {
         const s = await imported(text);
         await exact(s);
         await exact(s, { indent: 2 });
+        // y is flipped to y-up at import and back at export, so the file's values return unchanged
+        expect(Array.from(s.nodes.byRole("position")?.value(1) as ArrayLike<number>)).toEqual([
+            Math.fround(0.1),
+            2.5,
+            0,
+        ]);
+        const written = JSON.parse(await jsonExporter.exportToString(s, { dialect: "cytoscape" })) as {
+            elements: { nodes: { position?: unknown }[] };
+        };
+        expect(written.elements.nodes[1]?.position).toEqual({ x: 0.1, y: -2.5 });
+        expect(written.elements.nodes[0]?.position).toBeUndefined();
     });
 
     it("graphology and JGF keep suffixed collisions and element-level keys", async () => {

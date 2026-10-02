@@ -255,7 +255,7 @@ Where networkx is overruled:
 
 ### Cytoscape position.z ignored (sources.md 8.4 Cytoscape) (1)
 
-- `cytoscape/desktop-export.cyjs`: node "108" role:position: expected [5,90,7.5], got [5,90,0]
+- `cytoscape/desktop-export.cyjs`: node "108" role:position: expected [5,-90,7.5], got [5,-90,0]
 
 ### Gephi / sigma JSON misread as graphology, x / y not mapped to position (sources.md 8.4 other dialects) (1)
 

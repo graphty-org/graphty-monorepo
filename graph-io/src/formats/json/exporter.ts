@@ -1520,7 +1520,8 @@ function* writeCytoscape(snapshot: GraphSnapshot, p: Plan): Generator<string, vo
                 w.key("position");
                 w.open("{");
                 w.member("x", numberText(value[0], f32, c.nonfinite));
-                w.member("y", numberText(value[1], f32, c.nonfinite));
+                // graph-io positions are y-up; Cytoscape draws y down
+                w.member("y", numberText(0 - value[1], f32, c.nonfinite));
                 w.close("}");
             }
         }

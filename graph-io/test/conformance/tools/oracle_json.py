@@ -136,7 +136,8 @@ def cytoscape(doc):
     if positioned:
         out["nodeAttrs"] = [
             {"id": n["data"]["id"], "role": "position",
-             "value": [n["position"].get(k, 0) for k in ("x", "y", "z")]}
+             # Cytoscape draws y down; graph-io reads its positions y-up, so y is negated
+             "value": [n["position"].get("x", 0), -n["position"].get("y", 0), n["position"].get("z", 0)]}
             for n in positioned
         ]
     if isinstance(doc, dict) and isinstance(doc.get("directed"), bool):

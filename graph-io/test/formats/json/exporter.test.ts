@@ -467,7 +467,7 @@ describe("check() notes", () => {
         });
     });
 
-    it("writes positions as a Cytoscape position object, as an array elsewhere, and reports z", async () => {
+    it("writes positions as a y-down Cytoscape position object, as an array elsewhere, and reports z", async () => {
         const b = new GraphBuilder({ directed: true });
         b.declareNodeColumn({
             name: "position",
@@ -486,8 +486,8 @@ describe("check() notes", () => {
         expect(note(cyto, JSON_LOSS.POSITION_Z_DROPPED)?.count).toBe(1);
         const doc = (await exported(s, { dialect: "cytoscape" })).elements as { nodes: Record<string, unknown>[] };
         expect(doc.nodes).toEqual([
-            { data: { id: "a" }, position: { x: 0.1, y: 2 } },
-            { data: { id: "c" }, position: { x: 1, y: 1 } },
+            { data: { id: "a" }, position: { x: 0.1, y: -2 } },
+            { data: { id: "c" }, position: { x: 1, y: -1 } },
         ]);
         const plain = jsonExporter.check(s);
         expect(codes(plain)).toEqual([JSON_LOSS.POSITIONS_DROPPED]);

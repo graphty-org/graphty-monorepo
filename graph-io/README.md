@@ -249,9 +249,11 @@ losses and format rules, in addition to the table:
   lists the inferred dtypes only, and `check()` names every f32 / u32 / u8 / dict / list / vector
   column (they come back f64 / i32 / string / json), integral f64 columns (i32) and every role the
   dialect has no slot for. Edge ids exist in JGF, Cytoscape, graphology and vis only; positions in
-  Cytoscape only. A repeated node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped
-  with `E_DUPLICATE_EDGE_ID`; an out-of-range d3 index link is `E_BAD_INDEX`. Non-finite numbers
-  are written as `null` and reported. NetworkX `adjacency_data` (`nodes` plus an `adjacency` list
+  Cytoscape only. Cytoscape draws y down and graph-io positions are y-up, so the importer negates
+  `position.y` and the exporter negates it back (a round trip writes the file's values). A repeated
+  node id is merged with `W_DUPLICATE_NODE`, a repeated edge id skipped with `E_DUPLICATE_EDGE_ID`;
+  an out-of-range d3 index link is `E_BAD_INDEX`. Non-finite numbers are written as `null` and
+  reported. NetworkX `adjacency_data` (`nodes` plus an `adjacency` list
   per node; an undirected file lists each edge from both ends and it is read once) and `tree_data`
   (nested `id` / `children`, read as a directed tree) are read but not written: a re-export writes
   node-link. The bare `NaN`, `Infinity` and `-Infinity` that Python's json module writes are read as

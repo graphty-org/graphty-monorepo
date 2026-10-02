@@ -2614,8 +2614,9 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
             const { position } = record;
             if (position !== undefined && position !== null) {
                 if (isJsonObject(position) && typeof position.x === "number" && typeof position.y === "number") {
+                    // Cytoscape draws y down; graph-io positions are y-up (0 - y keeps 0 positive)
                     point[0] = position.x;
-                    point[1] = position.y;
+                    point[1] = 0 - position.y;
                     ctx.nodes.set(positionColumn, index, point);
                 } else {
                     report.error(

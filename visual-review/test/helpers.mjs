@@ -209,7 +209,9 @@ export function fakeGh({
             return JSON.stringify({ jobs: jobs[m[1]] ?? [] });
         }
         if ((m = /actions\/runs\/(\d+)\/artifacts/.exec(path))) {
-            return JSON.stringify({ artifacts: (artifacts[m[1]] ?? []).map((name) => ({ name, expired: false })) });
+            return JSON.stringify({
+                artifacts: (artifacts[m[1]] ?? []).map((name) => ({ name, expired: false, size_in_bytes: 1000000 })),
+            });
         }
         if ((m = /actions\/runs\/(\d+)$/.exec(path))) {
             return JSON.stringify(run(runsById[m[1]]));
@@ -217,6 +219,10 @@ export function fakeGh({
         if (/issues\/\d+\/comments$/.test(path ?? "") || /\/statuses\/\w+$/.test(path ?? "")) {
             posted.push({ path, body: JSON.parse(args.length > 2 ? (input ?? "{}") : "{}") });
             return "{}";
+        }
+        if (path === "repos/{owner}/{repo}/pulls") {
+            posted.push({ path, body: JSON.parse(input ?? "{}") });
+            return JSON.stringify({ html_url: "https://gh/pull/650", number: 650 });
         }
         if (args[0] === "run" && args[1] === "download") {
             const name = args[4];

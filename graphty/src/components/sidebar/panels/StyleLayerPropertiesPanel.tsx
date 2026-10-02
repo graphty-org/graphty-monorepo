@@ -52,6 +52,7 @@ import {
     type ChannelGroup,
     channelsIn,
     EDGE_GROUPS,
+    groupHeading,
     NODE_GROUPS,
 } from "../../../utils/channelControls";
 import type { LayerItem } from "../../layout/LeftSidebar";
@@ -347,7 +348,7 @@ export function StyleLayerPropertiesPanel(props: StyleLayerPropertiesPanelProps)
         }
 
         return (
-            <ControlGroup key={group} label={group}>
+            <ControlGroup key={group} label={groupHeading(group)}>
                 {channels.map((channel) => renderChannel(channel))}
             </ControlGroup>
         );

@@ -1,3 +1,46 @@
+## 3.1.6 (2026-10-02)
+
+### 🩹 Fixes
+
+- **algorithms:** make the prim story show the tree, its start node and build order ([0ab92cb8](https://github.com/graphty-org/graphty-monorepo/commit/0ab92cb8))
+- **algorithms:** run a minimum spanning tree with a weights override on the CPU ([4ca72b6a](https://github.com/graphty-org/graphty-monorepo/commit/4ca72b6a))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.1.5 (2026-10-02)
+
+### 🩹 Fixes
+
+- **algorithms:** settle synchronous label propagation on paths and cycles ([#652](https://github.com/graphty-org/graphty-monorepo/issues/652))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.1.4 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.14
+- Updated graph-format to 1.2.6
+
+## 3.1.3 (2026-10-02)
+
+### 🩹 Fixes
+
+- **algorithms:** draw grsbm and sync from mulberry32 instead of a lossy lcg ([#566](https://github.com/graphty-org/graphty-monorepo/issues/566))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.13
+- Updated graph-format to 1.2.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.2 (2026-10-01)
 
 ### 🩹 Fixes

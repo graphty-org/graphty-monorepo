@@ -23,6 +23,7 @@ import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand } from "./commands/layout";
+import type { NoteCommand } from "./commands/notes";
 import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
 import type { StyleCommand } from "./commands/style";
@@ -90,6 +91,7 @@ export type SessionCommand =
     | StyleCommand
     | VisibilityCommand
     | SetCommand
+    | NoteCommand
     | ViewCommand
     | ConfigSetCommand
     | PositionsCommand

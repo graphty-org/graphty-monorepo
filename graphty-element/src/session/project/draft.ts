@@ -27,14 +27,14 @@ import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
-import type { LayoutChoice, ProjectState, RunEntry, VisibilityState } from "./state";
+import type { LayoutChoice, NoteEntry, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
 /** Stands for "the key had no value": a map key that was not there. */
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views";
+type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -224,6 +224,18 @@ export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>):
             continue;
         }
 
+        if (entry.slice === "notes") {
+            // A note's record, held by reference and shared by every step that has it.
+            for (const value of [entry.prior, entry.next]) {
+                if (value !== ABSENT && value !== undefined && !seen.has(value as object)) {
+                    seen.add(value as object);
+                    bytes += noteBytes((value as NoteEntry).note);
+                }
+            }
+
+            continue;
+        }
+
         if (entry.slice !== "runs") {
             continue;
         }
@@ -249,6 +261,24 @@ export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>):
     return bytes;
 }
 
+/** What each note record retains, measured once: its JSON in UTF-16, about what a string costs. */
+const NOTE_BYTES = new WeakMap<object, number>();
+
+/**
+ * What a note record retains, approximately.
+ * @param note - The record.
+ * @returns Bytes.
+ */
+function noteBytes(note: object): number {
+    let bytes = NOTE_BYTES.get(note);
+    if (bytes === undefined) {
+        bytes = 2 * JSON.stringify(note).length;
+        NOTE_BYTES.set(note, bytes);
+    }
+
+    return bytes;
+}
+
 /** Writes one key of a keyed slice. */
 interface KeyedWriter<K extends string, V> {
     set(key: K, value: V): void;
@@ -263,6 +293,7 @@ export interface Draft {
     readonly runs: KeyedWriter<RunId, RunEntry>;
     readonly sets: KeyedWriter<SetId, ElementSet>;
     readonly views: KeyedWriter<string, CameraState>;
+    readonly notes: KeyedWriter<string, NoteEntry>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -336,6 +367,7 @@ export function createProjectStore(
         runs: state.runs as Map<string, unknown>,
         sets: state.sets as Map<string, unknown>,
         views: state.views as Map<string, unknown>,
+        notes: state.notes as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -462,6 +494,7 @@ export function createProjectStore(
                 runs: keyed(draft, "runs"),
                 sets: keyed(draft, "sets"),
                 views: keyed(draft, "views"),
+                notes: keyed(draft, "notes"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);

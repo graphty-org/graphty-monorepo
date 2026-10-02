@@ -78,6 +78,8 @@ const STORAGE_COUNTS: Readonly<Record<string, number | undefined>> = {
     "tri-intersect": 4,
     "group-by-key-row": 8,
     "lpa-step": 4,
+    "mst-best": 6,
+    "mst-link": 6,
 };
 
 /** A spec of an entry with its defaults; an entry with snippet slots gets a trivial VALUE (the layout ignores it). */

@@ -305,13 +305,20 @@ export interface ClosenessResultLike extends ScoresResultLike {
  *
  * `labelPropagationSynchronous` is the deterministic label propagation on both paths: the accelerator's
  * `labelPropagation` member (webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule) or
- * the synchronous port. The two share the rule family -- synchronous passes, the lowest of the best-voted
- * labels, an alternating direction guard -- but not every detail (which direction the first pass moves,
+ * the synchronous port. The two share the rule family -- synchronous passes, one best-voted label chosen
+ * by a fixed order, an alternating direction guard -- but not every detail (the order: the lowest label
+ * on the device, a scramble of the label in the port, which on a path numbered in order makes the device
+ * creep one node per two passes where the port settles in a few; which direction the first pass moves,
  * whether a label that ties for the lead is kept, and how a cycling run ends: the port stops when a pass
  * repeats the labels of two passes before and reports `converged: false`, the accelerator runs to
  * `maxIterations` and reports no `converged`), so on a tie the partitions can differ; they agree on
  * planted structure. Use it where a result should not depend on whether a device answered; use
  * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
+ *
+ * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override, which the
+ * accelerator does not take: it spans the snapshot's own edge weights. Both paths return the forest of the total edge
+ * order (weight, then edge index), so the edge SET is the same; the order of `edges` and the summation order of
+ * `totalWeight` may differ (webgpu-graph-algorithms' Boruvka lists the edges round by round).
  *
  * `triangleCount` goes to the accelerator whenever it has the member, and the result always carries the
  * clustering coefficient and the transitivity: an accelerator that returns only the seam's
@@ -766,8 +773,8 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.weaklyConnectedComponents(s)
                 : Promise.resolve(indexed.weaklyConnectedComponents(s)),
         minimumSpanningTree: (s, options) =>
-            acc?.minimumSpanningTree !== undefined
-                ? acc.minimumSpanningTree(s, options)
+            acc?.minimumSpanningTree !== undefined && options?.weights === undefined
+                ? acc.minimumSpanningTree(s)
                 : Promise.resolve(indexed.kruskalMST(s, options)),
         kCoreDecomposition: (s) =>
             acc?.kCoreDecomposition !== undefined

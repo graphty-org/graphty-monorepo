@@ -225,6 +225,20 @@ changed it, and `style:changed`, `visibility:changed` and `run:changed` carry a 
 `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. See
 [Undo and History](./undo#following-changes).
 
+### graphty-note-change
+
+A note was written, edited or removed, by a call, an undo or a redo. One event per note:
+
+```javascript
+element.addEventListener("graphty-note-change", (e) => {
+    const { id, change, fields, cause } = e.detail; // change: "created" | "updated" | "removed"
+    const note = element.session.notes.get(id); // undefined once removed
+});
+```
+
+On the session the same change is `note:changed`, whose payload also carries the frozen record as
+`note`. See [Notes](./notes#hearing-about-changes).
+
 ### style-changed
 
 A layer was added, changed, removed or moved. One event per EDIT rather than one per layer,

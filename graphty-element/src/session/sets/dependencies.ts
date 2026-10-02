@@ -30,6 +30,7 @@ import { runIdOfRef } from "../../catalog/sets/canonical";
 import { readingOfScope } from "../../catalog/sets/parse";
 import type { Path, Query, ResultItem, RuleTree, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { isNotePath } from "../notes/paths";
 
 /** One thing a definition reads. */
 type Dependency =
@@ -111,6 +112,8 @@ export function dependencyOf(path: Path): { run: RunId } | { field: string } {
 /** Collects dependencies, one of each. */
 class Collector {
     readonly found: Dependency[] = [];
+    /** Every path read, as written. */
+    readonly paths: string[] = [];
     private readonly keys = new Set<string>();
 
     constructor(private readonly pathsOf: DependencySources["pathsOf"]) {}
@@ -125,6 +128,7 @@ class Collector {
 
     path(path: unknown): void {
         if (typeof path === "string") {
+            this.paths.push(path);
             const read = dependencyOf(path);
             this.add("run" in read ? { kind: "run", run: read.run } : { kind: "attribute", field: read.field });
         }
@@ -236,6 +240,16 @@ export function dependenciesOf(
     value: SetDefinition | Scope | RuleTree,
     pathsOf?: (where: Query) => readonly Path[],
 ): readonly Dependency[] {
+    return walk(value, pathsOf).found;
+}
+
+/**
+ * Walk a definition, a scope or a rule tree.
+ * @param value - What to walk.
+ * @param pathsOf - The paths a query reads; absent, queries list nothing.
+ * @returns The collector, holding what was read.
+ */
+function walk(value: SetDefinition | Scope | RuleTree, pathsOf?: (where: Query) => readonly Path[]): Collector {
     const collector = new Collector(pathsOf);
     const loose: unknown = value;
     if (isObject(loose) && (loose.kind === "rule" || loose.kind === "fixed" || loose.kind === "path")) {
@@ -246,7 +260,32 @@ export function dependenciesOf(
         collector.scope(value);
     }
 
-    return collector.found;
+    return collector;
+}
+
+/**
+ * Refuse a value that reads a `graphty.notes.*` path at a write door: a note must not change what
+ * a result, a set or the visibility filter is computed over (design/notes 6.2). Only style layers
+ * and `select({ where })` read them.
+ * @param value - A set definition, a scope or a rule tree.
+ * @param pathsOf - The paths a query reads.
+ * @throws `E_BAD_SELECTOR` with `details.reason` `"notes-path"`.
+ */
+export function refuseNotePaths(
+    value: SetDefinition | Scope | RuleTree,
+    pathsOf: ((where: Query) => readonly Path[]) | undefined,
+): void {
+    const path = walk(value, pathsOf).paths.find(isNotePath);
+    if (path !== undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_SELECTOR",
+            message:
+                `"${path}" reads a note, and notes cannot decide what a filter, a scope or a set holds. ` +
+                "Use it in a style layer or in select({ where }).",
+            source: "data",
+            details: { reason: "notes-path", path },
+        });
+    }
 }
 
 /**

@@ -17,7 +17,8 @@
  * (design 8.7) adds apsp-init and apsp-fw with the ApspParams block. P11 (the structure and community phase, plan
  * design/webgpu/plans/2026-09-23-webgpu-p11-structure-and-community.md) adds the graph build on the device (coo-emit,
  * run-flags, coo-scatter), the per-row group-by-key (group-by-key-row), label propagation's step (lpa-step) and
- * triangle counting (orient-flags, tri-intersect). This file is the only importer of src/wgsl/** (spec 3.2;
+ * triangle counting (orient-flags, tri-intersect), and Boruvka's minimum spanning tree adds mst-best and mst-link
+ * with the MstParams block. This file is the only importer of src/wgsl/** (spec 3.2;
  * test/layers.test.ts).
  */
 
@@ -70,6 +71,8 @@ import { groupByKeyRowWgsl } from "./wgsl/group-by-key-row.wgsl.js";
 import { histogramWgsl } from "./wgsl/histogram.wgsl.js";
 import { indirectFinalizeWgsl } from "./wgsl/indirect-finalize.wgsl.js";
 import { lpaStepWgsl } from "./wgsl/lpa-step.wgsl.js";
+import { mstBestWgsl } from "./wgsl/mst-best.wgsl.js";
+import { mstLinkWgsl } from "./wgsl/mst-link.wgsl.js";
 import { orientFlagsWgsl } from "./wgsl/orient-flags.wgsl.js";
 import { prFinalizeWgsl } from "./wgsl/pr-finalize.wgsl.js";
 import { prScaleWgsl } from "./wgsl/pr-scale.wgsl.js";
@@ -151,7 +154,9 @@ export type KernelId =
     | "orient-flags"
     | "tri-intersect"
     | "group-by-key-row"
-    | "lpa-step";
+    | "lpa-step"
+    | "mst-best"
+    | "mst-link";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -564,6 +569,14 @@ export const LPA_PARAMS: UniformBlock = UniformBlock.define("LpaParams", [
     ["direction", "u32"],
     ["counterIndex", "u32"],
     ["pad0", "u32"],
+]);
+
+/** `MstParams` (uniform, 16 B; P11): `count` @0 (the edges of `mst-best`, the vertices of `mst-link`), `counterIndex` @4 (the word of `counters` that receives the round's recorded edges), `pad0` @8, `pad1` @12. */
+export const MST_PARAMS: UniformBlock = UniformBlock.define("MstParams", [
+    ["count", "u32"],
+    ["counterIndex", "u32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
 ]);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
@@ -1747,6 +1760,51 @@ const LPA_STEP: KernelEntry = {
     phase: "P11",
 };
 
+/** `mst-best` (design 8.5; P11-T4, PD-7): one edge per invocation offers itself to both endpoint components; PASS 0 takes the minimum `order_key` of the weight, PASS 1 the minimum edge index among that key's edges; 6 storage bindings. */
+const MST_BEST: KernelEntry = {
+    id: "mst-best",
+    body: mstBestWgsl,
+    entryPoint: "mst_best",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "edgeWeight", "storage-ro", "array<f32>"),
+        decl(1, 3, "comp", "storage-ro", "array<u32>"),
+        decl(1, 4, "bestKey", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "bestEdge", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "MstParams"),
+    ],
+    overrideDecls: [
+        { name: "PASS", type: "u32", default: 0 },
+        { name: "WEIGHTED", type: "bool", default: false },
+    ],
+    uniforms: [MST_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `mst-link` (design 8.5; P11-T4): a component root hooks onto the component its best edge reaches and records the edge, the lower root of a two-cycle staying; one atomic per workgroup counts the recorded edges; 6 storage bindings. */
+const MST_LINK: KernelEntry = {
+    id: "mst-link",
+    body: mstLinkWgsl,
+    entryPoint: "mst_link",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "bestEdge", "storage-ro", "array<u32>"),
+        decl(1, 3, "comp", "storage", "array<atomic<u32>>"),
+        decl(1, 4, "treeEdge", "storage", "array<u32>"),
+        decl(1, 5, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "MstParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [MST_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1758,7 +1816,8 @@ const LPA_STEP: KernelEntry = {
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
  * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, betweenness the
  * six `"bc-*"` entries, all-pairs shortest paths `"apsp-init"` and `"apsp-fw"`, and P11 its seven (the graph
- * build, the group-by-key, label propagation's step and triangle counting), so every member of `KernelId`
+ * build, the group-by-key, label propagation's step and triangle counting) plus Boruvka's `"mst-best"` and
+ * `"mst-link"`, so every member of `KernelId`
  * is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
@@ -1823,6 +1882,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "tri-intersect": TRI_INTERSECT,
     "group-by-key-row": GROUP_BY_KEY_ROW,
     "lpa-step": LPA_STEP,
+    "mst-best": MST_BEST,
+    "mst-link": MST_LINK,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

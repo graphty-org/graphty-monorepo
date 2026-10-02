@@ -123,7 +123,7 @@ import {
     type PathDirectory,
     type SessionStylesApi,
 } from "./styles";
-import { channelsFor } from "./styles/channels";
+import { atStylePath, channelsFor } from "./styles/channels";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
@@ -1346,26 +1346,6 @@ function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
 // ---------------------------------------------------------------------------------------------
 // The style stack
 // ---------------------------------------------------------------------------------------------
-
-/**
- * Read one dotted path out of a parsed style object.
- * @param style - The style to read.
- * @param path - The dotted path a channel declares, such as `texture.color`.
- * @returns What sits there, or undefined when any step of the path is missing.
- */
-function atStylePath(style: unknown, path: string): unknown {
-    let held = style;
-
-    for (const segment of path.split(".")) {
-        if (typeof held !== "object" || held === null) {
-            return undefined;
-        }
-
-        held = (held as Record<string, unknown>)[segment];
-    }
-
-    return held;
-}
 
 /**
  * Turn one of the element's default styles into the channels a layer writes.

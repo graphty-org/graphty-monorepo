@@ -37,18 +37,6 @@ import { type LayerSpec, resultPath, type RunId } from "@graphty/graphty-element
 export const SHELL_DEFAULTS_TEMPLATE_ID = "shell:load-defaults";
 
 /**
- * The attribute the label layer draws when the caller names none.
- *
- * `data.id` is the key every importer leaves on the record it built a node from -- the id is
- * EXTRACTED from it by `nodeIdPath`, and extracting a value does not remove it -- so this is the
- * same string the element's own label prefault used to draw. It is named here rather than left
- * implicit because the channel vocabulary has no way to say "switch the label on and let the
- * element choose the words": `node.label` IS the words, and a layer that supplies none draws
- * nothing at all.
- */
-export const DEFAULT_LABEL_ATTRIBUTE_PATH = "data.id";
-
-/**
  * The field a node-metric run publishes its per-node measurement under.
  *
  * Every node-metric result shape publishes `value`, `rank` and `percentile` per node, so the
@@ -68,10 +56,10 @@ export const METRIC_VALUE_FIELD = "value";
  * once the data changed under it. This layer asks each node's own degree whether to draw its
  * label, so the same layer keeps its meaning across a reload, a re-run and a different file.
  *
- * THE DEFAULT TEXT STYLE, and nothing else. The layer decides WHICH nodes are labelled and with
- * WHAT WORDS; how the words look is the element's own label style. It must not name a colour:
- * the canvas ground is the element's clear colour #F5F5F5, so the #000000 default reads at
- * 19.26:1, and the dark-panel ink this once set read at about 1.1:1 -- the glyph fill vanished
+ * THE ELEMENT'S OWN WORDS AND TEXT STYLE. The layer decides WHICH nodes are labelled and only
+ * switches their labels on; graphty-element draws each node's id in its own label style. It
+ * must not name a colour: the canvas ground is the element's clear colour #F5F5F5, so the
+ * #000000 default reads at 19.26:1, and the dark-panel ink this once set read at about 1.1:1 -- the glyph fill vanished
  * and what stayed legible was the alpha fringing round it (2026-09-13).
  *
  * WHICH NODES is graphty-element's decision, through a `{ match: "top" }` selector over the
@@ -84,10 +72,9 @@ export const METRIC_VALUE_FIELD = "value";
  *
  * The selector names the degree run, so a node the run never reached carries no value and is
  * never in the top.
- * @param input - the run that measured the degrees, the label budget, and the attribute to draw.
+ * @param input - the run that measured the degrees, and the label budget.
  * @param input.degreeRunId - the run whose per-node value the top is taken over.
  * @param input.labelCount - the label budget: the most nodes the layer labels.
- * @param input.labelAttribute - the attribute path to draw as the label. Omitted draws the id.
  * @returns the top-degree label layer.
  */
 export function topDegreeLabelLayer(input: {
@@ -95,8 +82,6 @@ export function topDegreeLabelLayer(input: {
     readonly degreeRunId: RunId;
     /** The label budget: the most nodes the layer labels. */
     readonly labelCount: number;
-    /** The attribute path to draw as the label. Omitted draws `data.id`. */
-    readonly labelAttribute?: string;
 }): LayerSpec {
     return {
         name: "Top degree labels",
@@ -104,11 +89,6 @@ export function topDegreeLabelLayer(input: {
         kind: "custom",
         source: { by: "template", templateId: SHELL_DEFAULTS_TEMPLATE_ID },
         selector: { match: "top", path: resultPath(input.degreeRunId, METRIC_VALUE_FIELD), n: input.labelCount },
-        encode: {
-            "node.label": {
-                by: input.labelAttribute ?? DEFAULT_LABEL_ATTRIBUTE_PATH,
-                scale: "passthrough",
-            },
-        },
+        set: { "node.labelStyle": { enabled: true } },
     };
 }

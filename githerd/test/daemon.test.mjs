@@ -484,7 +484,10 @@ describe("the poll loop", () => {
     });
 
     it("records a GitHub failure without throwing, and escalates an outage after 30 minutes", async () => {
-        gh = createFakeGh(() => ({ code: 1, stdout: "", stderr: "dial tcp: connection refused" }));
+        let offline = true;
+        gh = createFakeGh((call) =>
+            offline ? { code: 1, stdout: "", stderr: "dial tcp: connection refused" } : respond(call),
+        );
         const daemon = await start();
         expect(await daemon.poll()).toEqual({ ok: false });
         expect(daemon.state.github.downSince).toBe(clock.toISOString());
@@ -492,9 +495,25 @@ describe("the poll loop", () => {
         expect(health.lastPollError).toContain("connection refused");
         expect(health.githubDownSince).toBe(clock.toISOString());
 
-        clock = new Date("2026-10-02T12:31:00Z");
+        clock = new Date("2026-10-02T12:29:00Z");
         await daemon.poll();
         expect(daemon.state.escalations?.["github-down"]).toBeUndefined();
+
+        clock = new Date("2026-10-02T12:31:00Z");
+        await daemon.poll();
+        expect(daemon.state.escalations["github-down"]).toMatchObject({ kind: "blocked", resolvedAt: null });
+        expect(daemon.state.escalations["github-down"].summary).toContain("2026-10-02T12:00");
+
+        // another failing poll keeps it open
+        clock = new Date("2026-10-02T12:34:00Z");
+        await daemon.poll();
+        expect(daemon.state.escalations["github-down"].resolvedAt).toBeNull();
+
+        // GitHub answers again: resolved
+        offline = false;
+        clock = new Date("2026-10-02T12:37:00Z");
+        expect(await daemon.poll()).toEqual({ ok: true });
+        expect(daemon.state.escalations["github-down"].resolvedAt).toBe(clock.toISOString());
     });
 
     it("gives each open PR its why-stuck reasons from a new head's commits and files", async () => {

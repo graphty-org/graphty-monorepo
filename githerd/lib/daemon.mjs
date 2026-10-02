@@ -712,14 +712,6 @@ export async function startDaemon({
             state.issues = { since: issues.since, byNumber: issues.byNumber };
         }
 
-        if (state.rate.downSince && ms - Date.parse(state.rate.downSince) >= GITHUB_DOWN_MS) {
-            derived({
-                key: "github-down",
-                kind: "blocked",
-                summary: `GitHub unreachable since ${state.rate.downSince.slice(0, 16)} UTC`,
-                clearWhen: "github-up",
-            });
-        }
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
@@ -759,6 +751,16 @@ export async function startDaemon({
                 void ledger({ kind: "error", where: "poll", error: lastPollError });
             }
             state.github.downSince = state.rate.downSince ?? null;
+            // Checked after the poll, which throws while GitHub is down; a poll that completes has
+            // cleared downSince, and its resolveDerived clears this escalation.
+            if (state.rate.downSince && t.getTime() - Date.parse(state.rate.downSince) >= GITHUB_DOWN_MS) {
+                raise({
+                    key: "github-down",
+                    kind: "blocked",
+                    summary: `GitHub unreachable since ${state.rate.downSince.slice(0, 16)} UTC`,
+                    clearWhen: "github-up",
+                });
+            }
             if (raised.length) page({ type: "escalations-raised", keys: [...raised] });
             const today = loopTickAt.slice(0, 10);
             if (String(state.schedule.lastAliveAt ?? "").slice(0, 10) !== today) {

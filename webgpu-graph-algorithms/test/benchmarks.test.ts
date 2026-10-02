@@ -52,6 +52,7 @@ import {
     RECHECK_RUNGS,
 } from "../benchmarks/layout-grid.bench.js";
 import { checkLayoutResult, metricsText, parseLayoutRunArgs } from "../benchmarks/layout-run.js";
+import { parseBenchLog, parseClockLog, summarizeClocks } from "../scripts/gpu-report.js";
 
 /** A device whose queue settles immediately: bench() only awaits onSubmittedWorkDone on it. */
 const FAKE_DEVICE = {
@@ -676,6 +677,34 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect([...new Set(known)]).toEqual(["T-1", "T-2", "T-3", "T-7", "T-9"]);
     });
 
+    it("a regression names the SM clock gpu.yml recorded for its group, so a clock drop is told from slower code (issue #703)", () => {
+        const files = {
+            "gpu-report.json": quiet,
+            [`benchmarks/results/${CLASS}.json`]: out([result("a", 10, "layout-fr")]),
+            [`benchmarks/out/${CLASS}.json`]: out([result("a", 30, "layout-fr")]),
+        };
+        const clocks = JSON.stringify({
+            groups: [
+                {
+                    group: "layout-fr",
+                    samples: 3,
+                    smMinMHz: 300,
+                    smMedianMHz: 585,
+                    maxSmMHz: 1590,
+                    pstates: { P0: 2, P8: 1 },
+                    powerMinW: 20,
+                    powerMedianW: 25,
+                },
+            ],
+        });
+        const cited = run({ ...files, "gpu-clocks.json": clocks });
+        expect(cited.status).toBe(1);
+        expect(cited.out).toMatch(/layout-fr: SM clock min 300 MHz, median 585 MHz of 1590 MHz max .*P0 x2, P8 x1/);
+        const absent = run(files);
+        expect(absent.status).toBe(1);
+        expect(absent.out).toContain("no SM clock record (gpu-clocks.json)");
+    });
+
     it("--class overrides the report's runner class", () => {
         const r = run(
             {
@@ -1238,5 +1267,83 @@ describe("benchmarks/attraction-scale.bench.ts (the G4-F16 diagnostic)", () => {
         );
         // the 1M rungs differ too: layout-grid's is 1,000,000 nodes, this ladder's is 2^20
         expect(rung.nodes).not.toBe(GRID_LADDER[4].nodes);
+    });
+});
+
+describe("scripts/gpu-report.js --clocks: the SM clock of every benchmark group (issue #703)", () => {
+    // What gpu.yml records around `pnpm run bench`: nvidia-smi's 200 ms clock log, and the bench output with the
+    // local time in front of every line. The 10k Fruchterman-Reingold rows of the GPU lane swung x1.0 to x3.6 between
+    // T4 runs on unchanged code, and in the profiler's GPU time too, so the card ran the kernels slower; this record
+    // says whether its SM clock was down while a group ran.
+    const CLOCK_LOG = [
+        "timestamp, clocks.current.sm [MHz], clocks.max.sm [MHz], pstate, power.draw [W]",
+        "2026/10/02 06:41:00.000, 1590 MHz, 1590 MHz, P0, 40.10 W",
+        "2026/10/02 06:41:00.200, 1590 MHz, 1590 MHz, P0, 41.00 W",
+        "2026/10/02 06:41:00.400, 585 MHz, 1590 MHz, P0, 30.00 W",
+        "2026/10/02 06:41:00.600, 300 MHz, 1590 MHz, P8, 20.00 W",
+        "2026/10/02 06:41:00.800, 585 MHz, 1590 MHz, P0, 25.00 W",
+        "2026/10/02 06:41:01.000, 1590 MHz, 1590 MHz, P0, 60.00 W",
+        "not a sample",
+    ].join("\n");
+    const BENCH_LOG = [
+        "2026/10/02 06:40:59.900 adapter: nvidia / turing / Tesla T4",
+        "2026/10/02 06:40:59.950 == wcc (v22.22.1, median of 5 runs)",
+        "2026/10/02 06:41:00.300 == layout-fr (v22.22.1, median of 5 runs)",
+        "2026/10/02 06:41:00.900 == layout-grid (v22.22.1, median of 5 runs)",
+        "2026/10/02 06:41:01.100 results appended to benchmarks/out/gpu-linux-t4.json",
+    ].join("\n");
+
+    it("parseClockLog reads the samples and skips the header and any other line", () => {
+        const samples = parseClockLog(CLOCK_LOG);
+        expect(samples).toHaveLength(6);
+        expect(samples[3]).toMatchObject({ smMHz: 300, maxSmMHz: 1590, pstate: "P8", powerW: 20 });
+        expect(samples[1].t - samples[0].t).toBe(200);
+    });
+
+    it("parseBenchLog turns the `== group` lines into intervals that end where the next group, or the log, ends", () => {
+        const groups = parseBenchLog(BENCH_LOG);
+        expect(groups.map((g) => g.group)).toEqual(["wcc", "layout-fr", "layout-grid"]);
+        expect(groups[1].end - groups[1].start).toBe(600);
+        expect(groups[2].end - groups[2].start).toBe(200);
+    });
+
+    it("summarizeClocks gives each group the min and median SM clock, its P-states and power draw", () => {
+        const summary = summarizeClocks(parseClockLog(CLOCK_LOG), parseBenchLog(BENCH_LOG));
+        const fr = summary.find((s) => s.group === "layout-fr");
+        expect(fr).toEqual({
+            group: "layout-fr",
+            samples: 3,
+            smMinMHz: 300,
+            smMedianMHz: 585,
+            maxSmMHz: 1590,
+            pstates: { P0: 2, P8: 1 },
+            powerMinW: 20,
+            powerMedianW: 25,
+        });
+        expect(summary.find((s) => s.group === "wcc")).toMatchObject({ samples: 2, smMinMHz: 1590 });
+        // a group the logger never sampled is reported with no clock rather than left out
+        expect(summarizeClocks([], parseBenchLog(BENCH_LOG))[0]).toMatchObject({ samples: 0, smMinMHz: null });
+    });
+
+    it("the --clocks command prints the summary as JSON", () => {
+        const dir = mkdtempSync(join(tmpdir(), "wgpu-clocks-"));
+        try {
+            writeFileSync(join(dir, "gpu-clocks.csv"), CLOCK_LOG);
+            writeFileSync(join(dir, "bench.log"), BENCH_LOG);
+            const proc = spawnSync(
+                process.execPath,
+                [resolve("scripts/gpu-report.js"), "--clocks", "gpu-clocks.csv", "bench.log"],
+                { cwd: dir, encoding: "utf8" },
+            );
+            expect(proc.status).toBe(0);
+            const doc = JSON.parse(proc.stdout) as { groups: { group: string; smMinMHz: number }[] };
+            expect(doc.groups.map((g) => [g.group, g.smMinMHz])).toEqual([
+                ["wcc", 1590],
+                ["layout-fr", 300],
+                ["layout-grid", 1590],
+            ]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

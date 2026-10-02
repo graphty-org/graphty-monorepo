@@ -11,9 +11,23 @@
  * an ExactInteger (its digits) so an id never loses a digit.
  */
 
-import { type ColumnDecl, GraphFormatError, type NodeId } from "@graphty/graph-format";
+import {
+    type ColumnDecl,
+    type ColumnHandle,
+    GraphFormatError,
+    type GraphSink,
+    INVALID_INDEX,
+    type NodeId,
+} from "@graphty/graph-format";
 
-import { ASPECT_ORDER_CODE, COUNT_MISMATCH_CODE, STATUS_FAILED_CODE, STATUS_WARNING_CODE } from "./codes.js";
+import { declareResolved, uniqueColumnName } from "./attributes.js";
+import {
+    ASPECT_ORDER_CODE,
+    COLUMN_RENAMED_CODE,
+    COUNT_MISMATCH_CODE,
+    STATUS_FAILED_CODE,
+    STATUS_WARNING_CODE,
+} from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
 // ============================================================ exact integers
@@ -1014,4 +1028,35 @@ export class CxStructure {
  */
 export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof ExactInteger);
+}
+
+/**
+ * Declare a column under a name no column of the table holds yet: a per-element visual property
+ * whose name an attribute already has gets `<name>#2` (W_COLUMN_RENAMED), even when the two share a
+ * shape, so the visual value never overwrites the attribute.
+ * @param sink - the sink
+ * @param domain - node or edge
+ * @param decl - the declaration
+ * @param report - the report the rename is recorded in
+ * @returns the handle
+ */
+export function declareFresh(
+    sink: GraphSink,
+    domain: "node" | "edge",
+    decl: ColumnDecl,
+    report: ImportReportBuilder,
+): ColumnHandle {
+    const taken = (name: string): boolean =>
+        (domain === "node" ? sink.nodeColumn(name) : sink.edgeColumn(name)) !== INVALID_INDEX;
+    let fresh = decl;
+    if (taken(decl.name)) {
+        fresh = { ...decl, name: uniqueColumnName(decl.name, null, taken) };
+        report.warning(
+            "coercion",
+            COLUMN_RENAMED_CODE,
+            `${domain} column "${decl.name}" renamed to "${fresh.name}": an attribute holds that name`,
+            { element: decl.name },
+        );
+    }
+    return declareResolved(sink, domain, fresh, report).handle;
 }

@@ -659,6 +659,19 @@ describe("cx2Importer: attributes and declarations (research-cx2.md 4.3)", () =>
         expect(report.issues.filter((i) => i.code === CX2_ISSUE.DANGLING_REFERENCE)).toHaveLength(2);
     });
 
+    it("never lets a bypass overwrite an attribute of its name, even of the same type", async () => {
+        const { snapshot, report } = await load(
+            cx2([
+                { attributeDeclarations: [{ nodes: { NODE_LABEL: { d: "string" } } }] },
+                { nodes: [{ id: 1, v: { NODE_LABEL: "attribute" } }] },
+                { nodeBypasses: [{ id: 1, v: { NODE_LABEL: "bypass" } }] },
+            ]),
+        );
+        expect(value(snapshot, "NODE_LABEL", 1)).toBe("attribute");
+        expect(value(snapshot, "NODE_LABEL#2", 1)).toBe("bypass");
+        expect(codes(report)).toEqual([CX2_ISSUE.COLUMN_RENAMED]);
+    });
+
     it("reads the first networkAttributes element and reports the others", async () => {
         const { snapshot, report } = await load(cx2([{ networkAttributes: [{ name: "first" }, { name: "second" }] }]));
         expect(snapshot.meta.name).toBe("first");

@@ -72,6 +72,7 @@ import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
     cxId,
     CxStructure,
+    declareFresh,
     ExactInteger,
     flipY,
     inexactLiteral,
@@ -1928,7 +1929,7 @@ class Cx2Reader {
                 nullable: true,
                 origin: { format: CX2_FORMAT, id: null, namespace: BYPASS_NAMESPACE },
             };
-            const { handle } = declareResolved(this.sink, domain, decl, this.report);
+            const handle = declareFresh(this.sink, domain, decl, this.report);
             for (let i = 0; i < targets.length; i++) {
                 if (domain === "node") {
                     this.sink.setNodeValue(handle, targets[i], values[i]);

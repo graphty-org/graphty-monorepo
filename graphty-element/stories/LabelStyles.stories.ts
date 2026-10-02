@@ -824,6 +824,28 @@ export const LineHeight: Story = {
                 `the default 1.2, and they are ${(spaced * 100).toFixed(0)}% and ${(plain * 100).toFixed(0)}% blank`,
         );
 
+        // THE SAME WORDS AT THE SAME SIZE. Both labels say the same three lines, so their words
+        // are equally wide in the world; a label squeezed into one line's height draws them
+        // narrower the taller its canvas is, which is the spacing shrinking the letters.
+        const wordsWide = new Map(
+            labelGeometry(scene).map((label) => {
+                const plane = scene.graph.getNode(label.id)?.label?.labelMesh;
+                const box = plane?.getBoundingInfo().boundingBox;
+                const planeWidth = box ? box.maximum.x - box.minimum.x : 0;
+
+                return [label.id, (planeWidth * label.ink.width) / Math.max(label.texture.width, 1)];
+            }),
+        );
+        const leftWide = wordsWide.get("default") ?? 0;
+        const rightWide = wordsWide.get("spaced") ?? 0;
+
+        await holds(
+            leftWide > 0 && Math.abs(rightWide / leftWide - 1) <= 0.1,
+            `Styles/Label LineHeight: both labels say the same words in the same font, so the words should be ` +
+                `as wide on the right as on the left, and they are ${rightWide.toFixed(2)} and ` +
+                `${leftWide.toFixed(2)} world units wide`,
+        );
+
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
     },
 };

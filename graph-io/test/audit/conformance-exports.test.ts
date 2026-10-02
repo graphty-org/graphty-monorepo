@@ -39,6 +39,7 @@ import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
 import * as obo from "../../src/formats/obo/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
+import * as xgmml from "../../src/formats/xgmml/index.js";
 import * as root from "../../src/index.js";
 import {
     type CommonExportOptions,
@@ -224,7 +225,7 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "cx2"] as const;
+const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "xgmml", "cx2"] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,
@@ -234,6 +235,7 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     csv,
     json,
     neo4j,
+    xgmml,
     cx2,
 };
 /** The formats graph-io reads but does not write: one importer, no exporter. */

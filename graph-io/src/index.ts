@@ -156,6 +156,14 @@ export {
     pajekImporter,
     type PajekImportOptions,
 } from "./formats/pajek/index.js";
+export {
+    XGMML_ISSUE,
+    XGMML_LOSS,
+    xgmmlExporter,
+    type XgmmlExportOptions,
+    xgmmlImporter,
+    type XgmmlImportOptions,
+} from "./formats/xgmml/index.js";
 
 // ============================================================ shared helpers for plugin authors (8.4, 8.5, 8.6)
 export {

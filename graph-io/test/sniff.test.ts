@@ -77,6 +77,7 @@ describe("rankFormats / sniffFormat (design 8.2)", () => {
             "dot",
             "pajek",
             "neo4j",
+            "xgmml",
             "cx2",
             "cx",
             "obo",

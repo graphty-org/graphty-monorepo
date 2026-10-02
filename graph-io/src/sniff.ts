@@ -34,6 +34,7 @@ export type GraphFormatName =
     | "csv"
     | "json"
     | "neo4j"
+    | "xgmml"
     | "cx2"
     | "cx"
     | "obo";
@@ -52,6 +53,7 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "dot",
     "pajek",
     "neo4j",
+    "xgmml",
     "cx2",
     "cx",
     "obo",

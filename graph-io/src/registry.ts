@@ -29,6 +29,7 @@ import { jsonExporter, jsonImporter } from "./formats/json/index.js";
 import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
 import { oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
+import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import {
     type CommonExportOptions,
@@ -376,6 +377,8 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(pajekExporter)
         .registerImporter(neo4jImporter)
         .registerExporter(neo4jExporter)
+        .registerImporter(xgmmlImporter)
+        .registerExporter(xgmmlExporter)
         .registerImporter(cx2Importer)
         .registerExporter(cx2Exporter)
         .registerImporter(cxImporter)

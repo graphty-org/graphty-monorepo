@@ -40,6 +40,7 @@ import * as graphml from "../../src/formats/graphml/index.js";
 import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
+import * as xgmml from "../../src/formats/xgmml/index.js";
 import { type GraphImporter, ImportError, type ImportReport } from "../../src/types.js";
 
 type CodeTable = Readonly<Record<string, string>>;
@@ -86,6 +87,7 @@ const SUBPATHS: Readonly<Record<string, Record<string, unknown>>> = {
     NEO4J: neo4j,
     CX2: cx2,
     CX: cx,
+    XGMML: xgmml,
 };
 
 /** The subpaths of formats graph-io reads but does not write: no <FMT>_LOSS table. */
